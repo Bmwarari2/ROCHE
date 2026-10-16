@@ -152,31 +152,36 @@ export const SyncRefusedEntry = z
   .discriminatedUnion("table", [
     z
       .object({ ...refusedCopy, table: z.literal("care_note"), payload: CreateCareNote.strict() })
-      .strict(),
+      .strict()
+      .meta({ id: "SyncRefusedCareNote" }),
     z
       .object({
         ...refusedCopy,
         table: z.literal("observation"),
         payload: CreateObservation.strict(),
       })
-      .strict(),
+      .strict()
+      .meta({ id: "SyncRefusedObservation" }),
     z
       .object({
         ...refusedCopy,
         table: z.literal("body_map_mark"),
         payload: CreateBodyMapMark.strict(),
       })
-      .strict(),
+      .strict()
+      .meta({ id: "SyncRefusedBodyMapMark" }),
     z
       .object({
         ...refusedCopy,
         table: z.literal("activity_record"),
         payload: CreateActivityRecord.strict(),
       })
-      .strict(),
+      .strict()
+      .meta({ id: "SyncRefusedActivityRecord" }),
     z
       .object({ ...refusedCopy, table: z.literal("visit_log"), payload: CreateVisit.strict() })
-      .strict(),
+      .strict()
+      .meta({ id: "SyncRefusedVisit" }),
   ])
   .meta({ id: "SyncRefusedEntry" });
 export type SyncRefusedEntry = z.infer<typeof SyncRefusedEntry>;

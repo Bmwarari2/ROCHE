@@ -230,6 +230,22 @@ only when they link spec, code, tests and user documentation; no user guides exi
      which belongs to the care correction routes. Follow-ups: the late flag still reads the
      rate in the database without saying when `care_note.late_entry_hours` is missing (#32
      round 2); the back-entry task's title is English only.
+   - Slice 11 part 3d, back-entry through the care routes (`feat/operations-back-entry-api`;
+     operations.md section 14): built, PR open. Back-entry and rule 13 on the five care write
+     routes, the refusal after reconciliation (H-204), one correction per paper record with a
+     device's second going to the refused-entry review (HZ-006), and the outside-the-outage
+     reason on a correction after the true end (H-208). The sync upload writes no care tables,
+     so needs no change. Also a test that a closed outage's end cannot be corrected past its
+     closure plus `sync.clock_drift_flag_minutes` (#51 round 2). Follow-ups:
+     - back-entry fields in the sync streams and on the phone (mobile step, Lane C), and the web
+       forms (rule 12 label on the record);
+     - paper found after reconciliation, and an entry not from paper inside a reconciled outage,
+       are refused and kept for the refused-entry review (#54 round 1); the final path waits for
+       the CSO (H-216), as does whether old readings from paper should alert at all;
+     - the paper time must equal `occurredAt`: a client sending a different instant is refused,
+       never moved;
+     - a correction of a back-entry about someone who has since moved is refused by the database
+       (the outage is at the old location; existing #38 follow-up).
    - Follow-ups from #51 review round 1:
      - a declared outage left open has no SLA or reminder (CSO to decide, H-215);
      - prove by a test that the reconciliation's output about people outside the reconciler's
@@ -566,6 +582,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
     sending), with a test; and the routes pass the token to the definer functions only as a bound
     parameter, never interpolated into SQL or logged. Existing clusters run `pnpm db:bootstrap`
     before migration 0054 (it creates `harbour_invitation_owner`).
+    - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
+      members `platform.user.manage` reaches, with tests), lookup and accept with no session
+      (token only as a bound parameter, throttled per address and per token), the operator's
+      first-owner invitation (`app.operator_id`), the email through the organisation's
+      `comms.email` adapter, and the nightly `invitation-sweep` job (lapsed invitations, then
+      unlinked sign-ins deleted through the auth role). Next: the web accept page with the
+      password rules and the redirect to enrolment, Playwright and axe (H-355, H-357).
+      Follow-ups: count the link throttle across API instances (a Postgres table keyed by
+      address or token hash, not by member: a Lane A migration); re-check each sign-in just before
+      the sweep deletes it (a sign-in linked between the listing and the deletion would go); give
+      the email port a body so the email can carry the organisation's name and the expiry
+      (H-357).
+    - Follow-ups from #53 security review: (L1) the sweep deletes an auth user without
+      re-checking, in the same transaction, that it is still unlinked; fix with one definer
+      function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
+      (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
+      with the client address and a prefix of the token's hash only.
 
 ## Human actions outstanding
 

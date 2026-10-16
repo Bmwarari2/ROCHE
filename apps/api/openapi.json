@@ -6869,6 +6869,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6909,6 +6915,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "category",
           "body",
           "tags",
@@ -6924,6 +6932,78 @@
           "uploaded_after_deletion",
           "deleted_after_upload",
           null
+        ]
+      },
+      "EntryBackEntry": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string"
+          },
+          "paperTime": {
+            "type": "string"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "only",
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paperReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime",
+          "occurrence",
+          "outsideOutageReason",
+          "paperReference",
+          "label"
+        ]
+      },
+      "EntryNotFromPaper": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "outageId",
+          "reason"
         ]
       },
       "CareNoteCategory": {
@@ -6967,6 +7047,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6999,6 +7087,46 @@
           "category",
           "body"
         ]
+      },
+      "BackEntryInput": {
+        "type": "object",
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "paperTime": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "paperReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime"
+        ],
+        "additionalProperties": false
       },
       "CareNoteList": {
         "type": "object",
@@ -7113,6 +7241,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "chart": {
             "type": "string"
           },
@@ -7148,6 +7282,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "chart",
           "values",
           "flags",
@@ -7291,6 +7427,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "values": {
             "$ref": "#/components/schemas/ObservationValues"
@@ -7756,6 +7900,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "view": {
             "type": "string",
             "enum": [
@@ -7861,6 +8011,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "view",
           "region",
           "side",
@@ -7933,6 +8085,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "view": {
             "type": "string",
@@ -10608,6 +10768,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "activity": {
             "type": "string"
           },
@@ -10664,6 +10830,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "activity",
           "format",
           "groupSessionId",
@@ -10722,6 +10890,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "activity": {
             "type": "string",
@@ -10875,6 +11051,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
           },
@@ -10940,6 +11122,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "kind",
           "contactId",
           "visitorName",
@@ -10986,6 +11170,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
@@ -17677,638 +17869,703 @@
       "SyncRefusedEntry": {
         "oneOf": [
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "care_note"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "category": {
-                    "$ref": "#/components/schemas/CareNoteCategory"
-                  },
-                  "body": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 4000
-                  },
-                  "tags": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[a-z_]{2,40}$"
-                    },
-                    "maxItems": 10,
-                    "default": []
-                  },
-                  "attachmentDocumentIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "maxItems": 10,
-                    "default": []
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "category",
-                  "body"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedCareNote"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "observation"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "values": {
-                    "$ref": "#/components/schemas/ObservationValues"
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "values"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedObservation"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "body_map_mark"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "view": {
-                    "type": "string",
-                    "enum": [
-                      "front",
-                      "back"
-                    ]
-                  },
-                  "region": {
-                    "type": "string",
-                    "pattern": "^[a-z_]{2,40}$"
-                  },
-                  "drawnAt": {
-                    "$ref": "#/components/schemas/BodyMapPoint"
-                  },
-                  "drawnZone": {
-                    "$ref": "#/components/schemas/BodyMapViewerZone"
-                  },
-                  "drawnSide": {
-                    "type": "string",
-                    "enum": [
-                      "left",
-                      "right",
-                      "midline"
-                    ]
-                  },
-                  "side": {
-                    "type": "string",
-                    "enum": [
-                      "left",
-                      "right",
-                      "midline"
-                    ]
-                  },
-                  "markType": {
-                    "$ref": "#/components/schemas/BodyMarkType"
-                  },
-                  "pressureCategory": {
-                    "$ref": "#/components/schemas/PressureUlcerCategory"
-                  },
-                  "deviceRelated": {
-                    "type": "boolean"
-                  },
-                  "bruiseExplained": {
-                    "type": "boolean"
-                  },
-                  "lengthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1000
-                  },
-                  "widthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1000
-                  },
-                  "depthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 300
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                  },
-                  "photoDocumentId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "present",
-                      "healed"
-                    ],
-                    "default": "present"
-                  },
-                  "incidentId": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "view",
-                  "region",
-                  "side",
-                  "markType"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedBodyMapMark"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "activity_record"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "activity": {
-                    "type": "string",
-                    "minLength": 2,
-                    "maxLength": 120
-                  },
-                  "format": {
-                    "type": "string",
-                    "enum": [
-                      "group",
-                      "one_to_one"
-                    ]
-                  },
-                  "groupSessionId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "attendance": {
-                    "$ref": "#/components/schemas/ActivityAttendance"
-                  },
-                  "engagement": {
-                    "$ref": "#/components/schemas/ActivityEngagement"
-                  },
-                  "durationMinutes": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 720
-                  },
-                  "notes": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "activity",
-                  "format",
-                  "attendance"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedActivityRecord"
           },
           {
+            "$ref": "#/components/schemas/SyncRefusedVisit"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "table",
+          "mapping": {
+            "care_note": "#/components/schemas/SyncRefusedCareNote",
+            "observation": "#/components/schemas/SyncRefusedObservation",
+            "body_map_mark": "#/components/schemas/SyncRefusedBodyMapMark",
+            "activity_record": "#/components/schemas/SyncRefusedActivityRecord",
+            "visit_log": "#/components/schemas/SyncRefusedVisit"
+          }
+        }
+      },
+      "SyncRefusedCareNote": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "care_note"
+            ]
+          },
+          "payload": {
             "type": "object",
             "properties": {
-              "entryId": {
+              "id": {
                 "type": "string",
                 "format": "uuid"
               },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
+              "occurredAt": {
                 "type": "string",
                 "format": "date-time"
               },
-              "table": {
+              "deviceTime": {
                 "type": "string",
-                "enum": [
-                  "visit_log"
-                ]
+                "format": "date-time"
               },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "kind": {
-                    "$ref": "#/components/schemas/VisitKind"
-                  },
-                  "contactId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "visitorName": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "visitorRelationship": {
-                    "type": "string",
-                    "maxLength": 120
-                  },
-                  "endedAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "restrictionsApplied": {
-                    "type": "boolean",
-                    "default": false
-                  },
-                  "restrictionReason": {
-                    "type": "string",
-                    "maxLength": 1000
-                  },
-                  "notes": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "category": {
+                "$ref": "#/components/schemas/CareNoteCategory"
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_]{2,40}$"
                 },
-                "required": [
-                  "occurredAt",
-                  "kind"
-                ],
-                "additionalProperties": false
+                "maxItems": 10,
+                "default": []
+              },
+              "attachmentDocumentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "maxItems": 10,
+                "default": []
               }
             },
             "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
+              "occurredAt",
+              "category",
+              "body"
             ],
             "additionalProperties": false
           }
-        ]
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedObservation": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "observation"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "values": {
+                "$ref": "#/components/schemas/ObservationValues"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "values"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedBodyMapMark": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "body_map_mark"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "view": {
+                "type": "string",
+                "enum": [
+                  "front",
+                  "back"
+                ]
+              },
+              "region": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,40}$"
+              },
+              "drawnAt": {
+                "$ref": "#/components/schemas/BodyMapPoint"
+              },
+              "drawnZone": {
+                "$ref": "#/components/schemas/BodyMapViewerZone"
+              },
+              "drawnSide": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right",
+                  "midline"
+                ]
+              },
+              "side": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right",
+                  "midline"
+                ]
+              },
+              "markType": {
+                "$ref": "#/components/schemas/BodyMarkType"
+              },
+              "pressureCategory": {
+                "$ref": "#/components/schemas/PressureUlcerCategory"
+              },
+              "deviceRelated": {
+                "type": "boolean"
+              },
+              "bruiseExplained": {
+                "type": "boolean"
+              },
+              "lengthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "widthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "depthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "photoDocumentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "present",
+                  "healed"
+                ],
+                "default": "present"
+              },
+              "incidentId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "view",
+              "region",
+              "side",
+              "markType"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedActivityRecord": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activity_record"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "activity": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "group",
+                  "one_to_one"
+                ]
+              },
+              "groupSessionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attendance": {
+                "$ref": "#/components/schemas/ActivityAttendance"
+              },
+              "engagement": {
+                "$ref": "#/components/schemas/ActivityEngagement"
+              },
+              "durationMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "occurredAt",
+              "activity",
+              "format",
+              "attendance"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedVisit": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "visit_log"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "$ref": "#/components/schemas/VisitKind"
+              },
+              "contactId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "visitorName": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "visitorRelationship": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "endedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "restrictionsApplied": {
+                "type": "boolean",
+                "default": false
+              },
+              "restrictionReason": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "occurredAt",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
       },
       "RefusedEntryList": {
         "type": "object",
@@ -18684,6 +18941,233 @@
           "legalName",
           "legalForm",
           "owner"
+        ]
+      },
+      "InvitationSent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "emailSent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt",
+          "emailSent"
+        ]
+      },
+      "SendInvitation": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "tenantUserId"
+        ],
+        "description": "Invite a member of staff who is still invited"
+      },
+      "InvitationList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvitationSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "InvitationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/InvitationState"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revocationReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "superseded",
+              "revoked",
+              "member_removed",
+              "member_changed",
+              "expired",
+              null
+            ]
+          },
+          "sentByOperator": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "createdAt",
+          "expiresAt",
+          "acceptedAt",
+          "revokedAt",
+          "revocationReason",
+          "sentByOperator"
+        ]
+      },
+      "InvitationState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "revoked",
+          "expired"
+        ]
+      },
+      "InvitationLookup": {
+        "type": "object",
+        "properties": {
+          "organisationName": {
+            "type": "string"
+          },
+          "emailMasked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refusal": {
+            "$ref": "#/components/schemas/InvitationRefusal"
+          },
+          "path": {
+            "type": "string",
+            "enum": [
+              "create_sign_in",
+              "sign_in_first",
+              "link_signed_in"
+            ]
+          }
+        },
+        "required": [
+          "organisationName",
+          "emailMasked",
+          "expiresAt",
+          "refusal",
+          "path"
+        ]
+      },
+      "InvitationRefusal": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "invitation_expired",
+          "invitation_used",
+          "invitation_revoked",
+          "organisation_not_active",
+          "member_not_invited",
+          "email_mismatch",
+          "already_member",
+          null
+        ]
+      },
+      "InvitationTokenRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/InvitationToken"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "InvitationToken": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{43}$",
+        "description": "The token from the link's fragment"
+      },
+      "InvitationAccepted": {
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "next": {
+            "type": "string",
+            "enum": [
+              "sign_in",
+              "enrol"
+            ]
+          }
+        },
+        "required": [
+          "tenantId",
+          "next"
+        ]
+      },
+      "AcceptInvitation": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/InvitationToken"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "token"
         ]
       }
     },
@@ -36559,6 +37043,484 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Invite a member of staff",
+        "description": "Sends a single-use link to a member who is still invited, has no sign-in and must use a second factor (platform.user.manage, step-up), only within the member's reach and where the sender holds every permission of the member's roles (app.may_invite). Revokes the member's open invitation (superseded). The address is the member's own; the link is emailed and never returned. Audited, refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A member's invitations: states and times",
+        "description": "platform.user.manage, for a member within its reach only (anyone else reads as not found). Never a token, a hash or an address.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantUserId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitations, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/{id}/revoke": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Withdraw an open invitation",
+        "description": "platform.user.manage, for a member within its reach only (anyone else reads as not found). The link stops working at once. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/lookup": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "What an invitation link is for (no sign-in needed)",
+        "description": "The token from the link's fragment, in the body. The organisation's name, the address masked, the expiry, why it cannot be accepted, and whether to create a sign-in or sign in first. Changes nothing. Throttled per client address and per token; an unknown token is 404 and audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationLookup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invitations/accept": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Accept an invitation (no sign-in needed to create one)",
+        "description": "Signed in: links that sign-in, if its address is the invitation's. Not signed in: creates a sign-in for the invited address with a password meeting the NCSC rules, only when none exists (otherwise 409 sign_in_first, so a link never sets an existing account's password); the new sign-in is recorded on the invitation before the acceptance, and deleted if the acceptance fails. Then sign in (next: sign_in) and enrol a passkey or an authenticator app. Throttled like the lookup; refusals are audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/tenants/{tenantId}/owner-invitation": {
+      "post": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "Invite an organisation's first owner (admins, fresh sign-in)",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
             "content": {
               "application/problem+json": {
                 "schema": {

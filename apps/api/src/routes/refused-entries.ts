@@ -11,13 +11,13 @@ import { eq } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import { requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
-import { PerUserQuota } from "../http/quota";
 import { personContext } from "../services/care";
 import { refuseRevokedDevice } from "../services/devices";
 import { heldHandoverOf, planHandedOverEntry } from "../services/held-handover";
 import {
   copyRefusedEntry,
   REFUSED_READ_ACTION,
+  refusedCopyQuota,
   refusedEntriesFor,
   refusedEntryOut,
 } from "../services/refused-entries";
@@ -31,12 +31,8 @@ import { createRouter, errorResponses, jsonBody, notFoundResponse, security } fr
  * the nurse in charge, and readers see it like the care record it would have been.
  */
 
-/** Copies each person may send in a rolling day: far above real refusals, a bound on a script. */
-const COPIES_PER_DAY = 200;
-const DAY_MS = 86_400_000;
-
 export function createRefusedEntriesRouter() {
-  const copyQuota = new PerUserQuota("sync.refused_copies", COPIES_PER_DAY, DAY_MS);
+  const copyQuota = refusedCopyQuota();
   return createRouter()
     .openapi(
       createRoute({

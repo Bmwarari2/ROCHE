@@ -14938,6 +14938,480 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/invitations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's invitations: states and times
+     * @description platform.user.manage, for a member within its reach only (anyone else reads as not found). Never a token, a hash or an address.
+     */
+    get: {
+      parameters: {
+        query: {
+          tenantUserId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Invitations, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Invite a member of staff
+     * @description Sends a single-use link to a member who is still invited, has no sign-in and must use a second factor (platform.user.manage, step-up), only within the member's reach and where the sender holds every permission of the member's roles (app.may_invite). Revokes the member's open invitation (superseded). The address is the member's own; the link is emailed and never returned. Audited, refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SendInvitation"];
+        };
+      };
+      responses: {
+        /** @description Sent */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationSent"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw an open invitation
+     * @description platform.user.manage, for a member within its reach only (anyone else reads as not found). The link stops working at once. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Withdrawn */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/lookup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * What an invitation link is for (no sign-in needed)
+     * @description The token from the link's fragment, in the body. The organisation's name, the address masked, the expiry, why it cannot be accepted, and whether to create a sign-in or sign in first. Changes nothing. Throttled per client address and per token; an unknown token is 404 and audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["InvitationTokenRequest"];
+        };
+      };
+      responses: {
+        /** @description The invitation */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationLookup"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invitations/accept": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Accept an invitation (no sign-in needed to create one)
+     * @description Signed in: links that sign-in, if its address is the invitation's. Not signed in: creates a sign-in for the invited address with a password meeting the NCSC rules, only when none exists (otherwise 409 sign_in_first, so a link never sets an existing account's password); the new sign-in is recorded on the invitation before the acceptance, and deleted if the acceptance fails. Then sign in (next: sign_in) and enrol a passkey or an authenticator app. Throttled like the lookup; refusals are audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcceptInvitation"];
+        };
+      };
+      responses: {
+        /** @description Accepted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationAccepted"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many requests; wait as Retry-After says and try again */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operator/tenants/{tenantId}/owner-invitation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Invite an organisation's first owner (admins, fresh sign-in) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Sent */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationSent"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not available just now; the problem says what to use instead */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -16843,6 +17317,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       tags: string[];
@@ -16850,6 +17326,22 @@ export interface components {
     };
     /** @enum {string|null} */
     DeviceDeletionFlag: "uploaded_after_deletion" | "deleted_after_upload" | null;
+    EntryBackEntry: {
+      /** Format: uuid */
+      outageId: string;
+      paperDate: string;
+      paperTime: string;
+      /** @enum {string} */
+      occurrence: "only" | "earlier" | "later";
+      outsideOutageReason: string | null;
+      paperReference: string | null;
+      label: string | null;
+    } | null;
+    EntryNotFromPaper: {
+      /** Format: uuid */
+      outageId: string;
+      reason: string;
+    } | null;
     /** @enum {string} */
     CareNoteCategory:
       | "personal_care"
@@ -16872,12 +17364,25 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       category: components["schemas"]["CareNoteCategory"];
       body: string;
       /** @default [] */
       tags: string[];
       /** @default [] */
       attachmentDocumentIds: string[];
+    };
+    BackEntryInput: {
+      /** Format: uuid */
+      outageId: string;
+      /** Format: date */
+      paperDate: string;
+      paperTime: string;
+      /** @enum {string} */
+      occurrence?: "earlier" | "later";
+      outsideOutageReason?: string;
+      paperReference?: string;
     };
     CareNoteList: {
       items: components["schemas"]["CareNoteItem"][];
@@ -16919,6 +17424,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       chart: string;
       values: {
         [key: string]: unknown;
@@ -16967,6 +17474,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       values: components["schemas"]["ObservationValues"];
     };
     ObservationValues:
@@ -17094,6 +17603,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -17147,6 +17658,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       /** @enum {string} */
       view: "front" | "back";
       region: string;
@@ -17891,6 +18404,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -17922,6 +18437,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       activity: string;
       /** @enum {string} */
       format: "group" | "one_to_one";
@@ -17972,6 +18489,8 @@ export interface components {
       handedOverBy: string | null;
       handedOverByStaff: components["schemas"]["StaffName"];
       deviceDeletion: components["schemas"]["DeviceDeletionFlag"];
+      backEntry: components["schemas"]["EntryBackEntry"];
+      notFromPaper: components["schemas"]["EntryNotFromPaper"];
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId: string | null;
@@ -18000,6 +18519,8 @@ export interface components {
       correctionReason?: string;
       /** Format: uuid */
       taskId?: string;
+      backEntry?: components["schemas"]["BackEntryInput"];
+      notFromPaperReason?: string;
       kind: components["schemas"]["VisitKind"];
       /** Format: uuid */
       contactId?: string;
@@ -19847,189 +20368,219 @@ export interface components {
       replay: boolean;
     };
     SyncRefusedEntry:
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "care_note";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            category: components["schemas"]["CareNoteCategory"];
-            body: string;
-            /** @default [] */
-            tags: string[];
-            /** @default [] */
-            attachmentDocumentIds: string[];
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "observation";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            values: components["schemas"]["ObservationValues"];
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "body_map_mark";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            /** @enum {string} */
-            view: "front" | "back";
-            region: string;
-            drawnAt?: components["schemas"]["BodyMapPoint"];
-            drawnZone?: components["schemas"]["BodyMapViewerZone"];
-            /** @enum {string} */
-            drawnSide?: "left" | "right" | "midline";
-            /** @enum {string} */
-            side: "left" | "right" | "midline";
-            markType: components["schemas"]["BodyMarkType"];
-            pressureCategory?: components["schemas"]["PressureUlcerCategory"];
-            deviceRelated?: boolean;
-            bruiseExplained?: boolean;
-            lengthMm?: number;
-            widthMm?: number;
-            depthMm?: number;
-            description?: string;
-            /** Format: uuid */
-            photoDocumentId?: string;
-            /**
-             * @default present
-             * @enum {string}
-             */
-            status: "present" | "healed";
-            /** Format: uuid */
-            incidentId?: string;
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "activity_record";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            activity: string;
-            /** @enum {string} */
-            format: "group" | "one_to_one";
-            /** Format: uuid */
-            groupSessionId?: string;
-            attendance: components["schemas"]["ActivityAttendance"];
-            engagement?: components["schemas"]["ActivityEngagement"];
-            durationMinutes?: number;
-            notes?: string;
-          };
-        }
-      | {
-          /** Format: uuid */
-          entryId: string;
-          /** Format: uuid */
-          personId: string | null;
-          httpStatus: number | null;
-          code: string;
-          message: string | null;
-          /** Format: date-time */
-          refusedAt: string;
-          /** @enum {string} */
-          table: "visit_log";
-          payload: {
-            /** Format: uuid */
-            id?: string;
-            /** Format: date-time */
-            occurredAt: string;
-            /** Format: date-time */
-            deviceTime?: string;
-            /** Format: uuid */
-            supersedesId?: string;
-            correctionReason?: string;
-            /** Format: uuid */
-            taskId?: string;
-            kind: components["schemas"]["VisitKind"];
-            /** Format: uuid */
-            contactId?: string;
-            visitorName?: string;
-            visitorRelationship?: string;
-            /** Format: date-time */
-            endedAt?: string;
-            /** @default false */
-            restrictionsApplied: boolean;
-            restrictionReason?: string;
-            notes?: string;
-          };
-        };
+      | components["schemas"]["SyncRefusedCareNote"]
+      | components["schemas"]["SyncRefusedObservation"]
+      | components["schemas"]["SyncRefusedBodyMapMark"]
+      | components["schemas"]["SyncRefusedActivityRecord"]
+      | components["schemas"]["SyncRefusedVisit"];
+    SyncRefusedCareNote: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "care_note";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        category: components["schemas"]["CareNoteCategory"];
+        body: string;
+        /** @default [] */
+        tags: string[];
+        /** @default [] */
+        attachmentDocumentIds: string[];
+      };
+    };
+    SyncRefusedObservation: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "observation";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        values: components["schemas"]["ObservationValues"];
+      };
+    };
+    SyncRefusedBodyMapMark: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "body_map_mark";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        /** @enum {string} */
+        view: "front" | "back";
+        region: string;
+        drawnAt?: components["schemas"]["BodyMapPoint"];
+        drawnZone?: components["schemas"]["BodyMapViewerZone"];
+        /** @enum {string} */
+        drawnSide?: "left" | "right" | "midline";
+        /** @enum {string} */
+        side: "left" | "right" | "midline";
+        markType: components["schemas"]["BodyMarkType"];
+        pressureCategory?: components["schemas"]["PressureUlcerCategory"];
+        deviceRelated?: boolean;
+        bruiseExplained?: boolean;
+        lengthMm?: number;
+        widthMm?: number;
+        depthMm?: number;
+        description?: string;
+        /** Format: uuid */
+        photoDocumentId?: string;
+        /**
+         * @default present
+         * @enum {string}
+         */
+        status: "present" | "healed";
+        /** Format: uuid */
+        incidentId?: string;
+      };
+    };
+    SyncRefusedActivityRecord: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "activity_record";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        activity: string;
+        /** @enum {string} */
+        format: "group" | "one_to_one";
+        /** Format: uuid */
+        groupSessionId?: string;
+        attendance: components["schemas"]["ActivityAttendance"];
+        engagement?: components["schemas"]["ActivityEngagement"];
+        durationMinutes?: number;
+        notes?: string;
+      };
+    };
+    SyncRefusedVisit: {
+      /** Format: uuid */
+      entryId: string;
+      /** Format: uuid */
+      personId: string | null;
+      httpStatus: number | null;
+      code: string;
+      message: string | null;
+      /** Format: date-time */
+      refusedAt: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      table: "visit_log";
+      payload: {
+        /** Format: uuid */
+        id?: string;
+        /** Format: date-time */
+        occurredAt: string;
+        /** Format: date-time */
+        deviceTime?: string;
+        /** Format: uuid */
+        supersedesId?: string;
+        correctionReason?: string;
+        /** Format: uuid */
+        taskId?: string;
+        backEntry?: components["schemas"]["BackEntryInput"];
+        notFromPaperReason?: string;
+        kind: components["schemas"]["VisitKind"];
+        /** Format: uuid */
+        contactId?: string;
+        visitorName?: string;
+        visitorRelationship?: string;
+        /** Format: date-time */
+        endedAt?: string;
+        /** @default false */
+        restrictionsApplied: boolean;
+        restrictionReason?: string;
+        notes?: string;
+      };
+    };
     RefusedEntryList: {
       items: components["schemas"]["RefusedEntryItem"][];
       /** Format: uuid */
@@ -20134,6 +20685,80 @@ export interface components {
         /** Format: email */
         email: string;
       };
+    };
+    InvitationSent: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      expiresAt: string;
+      emailSent: boolean;
+    };
+    /** @description Invite a member of staff who is still invited */
+    SendInvitation: {
+      /** Format: uuid */
+      tenantUserId: string;
+    };
+    InvitationList: {
+      items: components["schemas"]["InvitationSummary"][];
+    };
+    InvitationSummary: {
+      /** Format: uuid */
+      id: string;
+      state: components["schemas"]["InvitationState"];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: date-time */
+      acceptedAt: string | null;
+      /** Format: date-time */
+      revokedAt: string | null;
+      /** @enum {string|null} */
+      revocationReason:
+        | "superseded"
+        | "revoked"
+        | "member_removed"
+        | "member_changed"
+        | "expired"
+        | null;
+      sentByOperator: boolean;
+    };
+    /** @enum {string} */
+    InvitationState: "pending" | "accepted" | "revoked" | "expired";
+    InvitationLookup: {
+      organisationName: string;
+      emailMasked: string | null;
+      /** Format: date-time */
+      expiresAt: string;
+      refusal: components["schemas"]["InvitationRefusal"];
+      /** @enum {string} */
+      path: "create_sign_in" | "sign_in_first" | "link_signed_in";
+    };
+    /** @enum {string|null} */
+    InvitationRefusal:
+      | "invitation_expired"
+      | "invitation_used"
+      | "invitation_revoked"
+      | "organisation_not_active"
+      | "member_not_invited"
+      | "email_mismatch"
+      | "already_member"
+      | null;
+    InvitationTokenRequest: {
+      token: components["schemas"]["InvitationToken"];
+    };
+    /** @description The token from the link's fragment */
+    InvitationToken: string;
+    InvitationAccepted: {
+      /** Format: uuid */
+      tenantId: string;
+      /** @enum {string} */
+      next: "sign_in" | "enrol";
+    };
+    AcceptInvitation: {
+      token: components["schemas"]["InvitationToken"];
+      password?: string;
+      name?: string;
     };
   };
   responses: never;

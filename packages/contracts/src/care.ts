@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { entryInput, entryOutput } from "./entries";
+import { entryDowntimeInput, entryDowntimeOutput, entryInput, entryOutput } from "./entries";
 import { EscalationPolicyRef } from "./escalation-policy";
 
 /**
@@ -19,6 +19,7 @@ export const CareNoteCategory = z
 export const CreateCareNote = z
   .object({
     ...entryInput,
+    ...entryDowntimeInput,
     category: CareNoteCategory,
     body: z.string().trim().min(1).max(4000),
     tags: z
@@ -33,6 +34,7 @@ export type CreateCareNote = z.infer<typeof CreateCareNote>;
 export const CareNoteItem = z
   .object({
     ...entryOutput,
+    ...entryDowntimeOutput,
     category: CareNoteCategory,
     body: z.string(),
     tags: z.array(z.string()),
@@ -109,13 +111,14 @@ export const ObservationValues = z
 export type ObservationValues = z.infer<typeof ObservationValues>;
 
 export const CreateObservation = z
-  .object({ ...entryInput, values: ObservationValues })
+  .object({ ...entryInput, ...entryDowntimeInput, values: ObservationValues })
   .meta({ id: "CreateObservation" });
 export type CreateObservation = z.infer<typeof CreateObservation>;
 
 export const ObservationItem = z
   .object({
     ...entryOutput,
+    ...entryDowntimeOutput,
     chart: z.string(),
     values: z.record(z.string(), z.unknown()),
     /**
@@ -211,6 +214,7 @@ export type BodyMapPoint = z.infer<typeof BodyMapPoint>;
 export const CreateBodyMapMark = z
   .object({
     ...entryInput,
+    ...entryDowntimeInput,
     view: z.enum(["front", "back"]),
     region: z.string().regex(/^[a-z_]{2,40}$/),
     /**
@@ -252,6 +256,7 @@ export type CreateBodyMapMark = z.infer<typeof CreateBodyMapMark>;
 export const BodyMapMarkItem = z
   .object({
     ...entryOutput,
+    ...entryDowntimeOutput,
     view: z.enum(["front", "back"]),
     region: z.string(),
     side: z.enum(["left", "right", "midline"]),

@@ -81,7 +81,8 @@ test("hazard HZ-027 the carer records a fall from a resident's record, never ass
     .fill(`Found on the floor beside their bed (${RUN}).`);
   // Nothing about who was called, nor the falls questions: the form asks rather than assume no.
   await page.getByRole("button", { name: "Record the incident" }).click();
-  const summary = page.getByRole("alert");
+  // In main: Next.js's route announcer is an empty alert outside it.
+  const summary = page.getByRole("main").getByRole("alert");
   await expect(summary).toBeFocused();
   for (const words of [
     "Say when it happened: just now, or earlier with the date and time",
@@ -191,7 +192,7 @@ test("hazard HZ-013 answering on an incident closed meanwhile is refused in word
 
   await form.getByLabel("Not sure yet").first().check();
   await form.getByRole("button", { name: "Save answers" }).click();
-  const alert = page.getByRole("alert");
+  const alert = page.getByRole("main").getByRole("alert");
   await expect(alert).toBeFocused();
   await expect(alert).toContainText("This incident is closed, so it cannot be changed.");
   await expectAccessible(page, "the questions, refused on a closed incident");

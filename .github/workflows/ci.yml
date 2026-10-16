@@ -137,8 +137,12 @@ jobs:
         run: |
           if git cat-file -e "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" 2>/dev/null; then
             git show "${{ github.event.pull_request.base.sha }}:apps/api/openapi.json" > /tmp/base-openapi.json
+            # openapi-breaking-ignore.txt lists reviewed false positives only, one exact oasdiff
+            # message per line: an optional field added inside an unnamed oneOf variant reads as
+            # the variant removed (#54; the variants are named now, so new entries should be rare).
             docker run --rm -v /tmp:/base -v "$PWD/apps/api:/head" tufin/oasdiff:v1.11.7 \
-              breaking /base/base-openapi.json /head/openapi.json --fail-on ERR
+              breaking /base/base-openapi.json /head/openapi.json --fail-on ERR \
+              --err-ignore /head/openapi-breaking-ignore.txt
           else
             echo "No OpenAPI document on the base branch yet."
           fi
