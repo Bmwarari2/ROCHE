@@ -393,3 +393,97 @@ describe("hazard HZ-061 publishing waits while the family must hear from a perso
     expect(await held()).toBe(false);
   });
 });
+
+describe("hazard HZ-022 previewing an update stores nothing", () => {
+  const preview = (who: string, source: unknown, person = ADA) =>
+    as(who, `/v1/people/${person}/feed/preview`, { id: randomUUID(), source });
+  const items = async () => (await sql("SELECT id FROM feed_item")).length;
+  const locationOf = async (personId: string) =>
+    (await sql<{ id: string }>("SELECT location_id AS id FROM person WHERE id = $1", [personId]))[0]
+      ?.id;
+
+  it("shows the family's words, or each problem with its code, and writes no update", async () => {
+    const before = await items();
+    const ok = await preview("manager", { kind: "activity", activityId });
+    expect(ok.status).toBe(200);
+    const shown = (await ok.json()) as { ok: boolean; kind: string; text: string };
+    expect(shown.ok).toBe(true);
+    expect(shown.kind).toBe("activity");
+    expect(shown.text).toContain("Garden club");
+
+    // The note was corrected earlier: a problem at the source field, not a refusal.
+    const corrected = await preview("manager", {
+      kind: "shared_note",
+      noteId,
+      text: "Addie enjoyed the music.",
+    });
+    expect(corrected.status).toBe(200);
+    const problem = (await corrected.json()) as { ok: boolean; problems: { problem: string }[] };
+    expect(problem.ok).toBe(false);
+    expect(problem.problems.map((p) => p.problem)).toEqual(["source_corrected"]);
+
+    const notForFeed = await preview("manager", {
+      kind: "photo",
+      documentId: await insertDocument("care_attachment", "Not for the feed"),
+      caption: null,
+      onlyThisPerson: true,
+    });
+    expect(
+      ((await notForFeed.json()) as { problems: { problem: string }[] }).problems[0]?.problem,
+    ).toBe("photo_not_for_feed");
+
+    expect(await items()).toBe(before);
+    const [event] = await sql<{ scope: { problems: string[] } }>(
+      "SELECT scope FROM audit_event WHERE action = 'comms.feed.previewed' ORDER BY occurred_at DESC LIMIT 1",
+    );
+    expect(event?.scope.problems).toEqual(["photo_not_for_feed"]);
+  });
+
+  it("hazard HZ-061 refuses a record corrected between the preview and publishing", async () => {
+    const fresh = await insertActivity(ADA, (await locationOf(ADA)) as string);
+    const ok = await preview("manager", { kind: "activity", activityId: fresh });
+    expect(((await ok.json()) as { ok: boolean }).ok).toBe(true);
+    await sql(
+      `INSERT INTO activity_record (person_id, location_id, occurred_at, activity, format, attendance,
+         engagement, supersedes_id, correction_reason)
+       SELECT person_id, location_id, occurred_at, 'Gardening club', format, attendance, engagement,
+         id, 'Wrong activity' FROM activity_record WHERE id = $1`,
+      [fresh],
+    );
+    const published = await publishFor("manager", { kind: "activity", activityId: fresh });
+    expect(published.status).toBe(422);
+    expect(((await published.json()) as { detail: string }).detail).toContain("corrected");
+  });
+
+  it("hazard HZ-061 refuses a note or activity older than the feed's two weeks, audited", async () => {
+    const [old] = await sql<{ id: string }>(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+       VALUES ($1, $2, now() - interval '20 days', 'activity', 'Old news') RETURNING id`,
+      [ADA, await locationOf(ADA)],
+    );
+    const source = { kind: "shared_note", noteId: old?.id, text: "Addie enjoyed the garden." };
+    const refused = await publishFor("manager", source);
+    expect(refused.status).toBe(422);
+    expect(((await refused.json()) as { detail: string }).detail).toContain("last 14 days");
+    const [event] = await sql<{ reason: string }>(
+      "SELECT reason FROM audit_event WHERE action = 'comms.feed.publish_refused' ORDER BY occurred_at DESC LIMIT 1",
+    );
+    expect(event?.reason).toBe("source_too_old");
+    const shown = (await (await preview("manager", source)).json()) as {
+      problems: { problem: string }[];
+    };
+    expect(shown.problems.map((p) => p.problem)).toEqual(["source_too_old"]);
+  });
+
+  it("denies those without the permission, out of scope and another person's record", async () => {
+    // Out of scope: the person is not found, whatever the record.
+    expect(
+      (await preview("manager", { kind: "activity", activityId: lodgeActivityId }, LODGE.personId))
+        .status,
+    ).toBe(404);
+    expect((await preview("carer", { kind: "activity", activityId })).status).toBe(403);
+    expect((await preview("manager", { kind: "activity", activityId: benActivityId })).status).toBe(
+      404,
+    );
+  });
+});
