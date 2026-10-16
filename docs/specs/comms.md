@@ -47,7 +47,7 @@ allows (ADR-0002, ADR-0061).
 | --- | --- | --- | --- |
 | `feed_item` | append-only | person, kind (`FEED_ITEM_KINDS`), section, care plan domain, source kind and id, occurred at, composed at, text, photo document, phrase key, composed by, confirmed by and reason (rule 12), `supersedes_item_id`, other-people-identifiable attestation (photos) | `care_record` |
 | `feed_item_withdrawal` | append-only | item, reason (`FEED_WITHDRAWAL_REASONS`), by, at | `care_record` |
-| `care_note_share` | append-only | care note, the words written for the family, marked by, marked at (rule 8; the clinical note is never copied) | `care_record` |
+| (no `care_note_share`) | - | Not built: publishing a note's update is the marking (rule 8). The update holds the words written for the family (`feed_item.text`), the note (`source_id`), who marked and published it (`composed_by`) and when (`composed_at`); the clinical note is never copied (CSO to confirm, H-370) | - |
 | `feed_view` | append-only | item, person, contact, decision, section, care plan domain, person status, capacity for sharing, viewed at (the exposure history, rule 4) | `audit_event.care_record` |
 | `family_portal_user` | mutable | tenant user, contact (the link a family session is resolved from; ADR-0061) | `care_record` (with the contact) |
 | `family_channel` | mutable, versioned | contact, kind (`email`, `sms`, `push`), address (email, E.164 number or push token), verified at, updates on, opted out at and how, suspended at and why | `care_record` (with the contact); push tokens deleted at sign-out |
@@ -242,7 +242,8 @@ by the caller.
    whoever a decision allows. Observations, charts, assessments, validated tool results, body
    maps, medicines and incidents have no feed kind at all.
 8. **Shared notes** only when a member of staff has marked the note as shareable and written the
-   words for the family (`care_note_share`); the clinical note itself never passes through.
+   words for the family, which publishing records on the update (who and when; H-370); the
+   clinical note itself never passes through.
 9. **Third parties are stripped.** Staff-written words (shared notes, photo captions, activity
    names) are normalised first (`normaliseFeedText`: Unicode NFKC, invisible format characters
    such as zero-width spaces, joiners, soft hyphens and direction controls removed) and lookalike
@@ -572,7 +573,7 @@ Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-
   `packages/domain/src/shared/email.test.ts`.
 - Database (schema step): section 2.1 (family scope, `app.family_can_see`, the isolation tests and
   CHECK constraints); RLS coverage and HZ-011 isolation for every new table; append-only grants for
-  `feed_item`, `feed_item_withdrawal`, `care_note_share` and `feed_view`.
+  `feed_item`, `feed_item_withdrawal` and `feed_view`.
 - Database (templates): RLS for the new tables; fixed approved versions; append-only `letter`.
 - API: `hazard HZ-022 the family feed returns nothing without a sharing decision in force`;
   withdrawal and suspension close the feed on the next request; every view writes `feed_view`;
@@ -700,7 +701,7 @@ Slice 12 (the family feed, part 1b, publishing; `feat/comms-feed-publish`):
 
 | Route | Built as |
 | --- | --- |
-| `POST /v1/people/{id}/feed` | `comms.feed.publish` where the person lives (the database checks it again). One update from one of the person's own records: a care note shared in words written for the family (publishing them is the marking of rule 8, by the publisher, now; the note's own words never pass through, so `care_note_share` is not needed), an activity in approved phrasing, or a photo document of the person (an image, available) chosen by the publisher, who says nobody else can be recognised. `composeFeedItem` with the residents at the location, the staff (first names only until the tenant setting, H-107), the publishing holds (an open incident whose family is not recorded as told holds publishing until safety exposes the next-of-kin step; open candour steps) and the photo basis, all read in the system's view and never returned. A photo needs the person's consent to photos (rule 6; master prompt 5.1); a best-interests basis waits for its schema (H-106). Event and wellbeing words need `confirmationReason`. The id is the form's UUID: a retry returns the update (200). Audited `comms.feed.item_published` and `comms.feed.publish_refused` with ids and problem codes only; outbox `comms.feed.item_published` |
+| `POST /v1/people/{id}/feed` | `comms.feed.publish` where the person lives (the database checks it again). One update from one of the person's own records: a care note shared in words written for the family (publishing them is the marking of rule 8, by the publisher, now; the note's own words never pass through, so `care_note_share` is not needed), an activity in approved phrasing, or a photo the publisher chose, only from the person's `feed_photo` documents (a document category added here: identification photos, wound photos and other care attachments, letters and other documents are refused, audited `photo_not_for_feed`; HZ-022, HZ-060), with the publisher's check that nobody else can be recognised (`composed_by` records who checked). No time taken is recorded, so a photo update is dated when it was added. A note or activity since corrected is refused (`source_corrected`). A reused id for another record is refused (409). `composeFeedItem` with the residents at the location, the staff (first names only until the tenant setting, H-107), the publishing holds (an open incident whose family is not recorded as told holds publishing until safety exposes the next-of-kin step; open candour steps) and the photo basis, all read in the system's view and never returned. A photo needs the person's consent to photos (rule 6; master prompt 5.1); a best-interests basis waits for its schema (H-106). Event and wellbeing words need `confirmationReason`. The id is the form's UUID: a retry with the same record returns the update (200). Audited `comms.feed.item_published` and `comms.feed.publish_refused` with ids and problem codes only; outbox `comms.feed.item_published` |
 | `GET /v1/family/feed` | Now reads the photo basis, so photo updates show only while the consent holds |
 
 Who sees an update is still decided by the sharing decisions (`app.family_can_see`, then

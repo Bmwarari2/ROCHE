@@ -6000,6 +6000,7 @@ export interface paths {
           subjectId?: string;
           category?:
             | "person_photo"
+            | "feed_photo"
             | "care_attachment"
             | "person_document"
             | "organisation_document";
@@ -20693,6 +20694,7 @@ export interface components {
     /** @enum {string} */
     DocumentCategoryKey:
       | "person_photo"
+      | "feed_photo"
       | "care_attachment"
       | "person_document"
       | "organisation_document";

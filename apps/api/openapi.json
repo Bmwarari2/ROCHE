@@ -6477,6 +6477,7 @@
         "type": "string",
         "enum": [
           "person_photo",
+          "feed_photo",
           "care_attachment",
           "person_document",
           "organisation_document"
@@ -29006,6 +29007,7 @@
               "type": "string",
               "enum": [
                 "person_photo",
+                "feed_photo",
                 "care_attachment",
                 "person_document",
                 "organisation_document"

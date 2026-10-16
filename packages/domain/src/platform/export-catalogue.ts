@@ -1559,7 +1559,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       category: {
-        description: "person_photo, care_attachment, person_document or organisation_document.",
+        description:
+          "person_photo, feed_photo, care_attachment, person_document or organisation_document.",
       },
       title: "exported",
       retention_class: { description: "Retention class from the category (retention.md)." },

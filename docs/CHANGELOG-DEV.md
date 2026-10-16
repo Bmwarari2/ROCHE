@@ -2354,3 +2354,11 @@ state).
 
 **Tests**: `apps/api/test/feed-publish.test.ts` (6).
 
+Review round 1 of #83: a photo is published only from a `feed_photo` document (a new document
+category; identification, wound and care photos and other documents refused, audited); the holds
+are tested through the API against the real query (open incident with the family not told, candour
+step, hospital; closed incident and family told not held); a reused id for another record is 409; a
+corrected note or activity is refused; a photo leaves the family feed when consent is withdrawn;
+`care_note_share` removed from the spec (publishing is the marking, H-370); H-370 and H-371 for the
+CSO. Tests: `feed-publish.test.ts` 14.
+
