@@ -1120,6 +1120,9 @@
     "safety.record.notForPerson",
     "care.refusal.incidentClosed",
     "care.refusal.incidentLocation",
-    "care.refusal.classifierAnswer"
+    "care.refusal.classifierAnswer",
+    "safety.record.whenHint",
+    "safety.record.when",
+    "safety.record.whenDescription"
   ]
 }

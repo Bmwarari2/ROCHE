@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
+import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { IncidentForm } from "@/components/safety/IncidentForm";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext } from "@/lib/api";
 import { can, writeAccess } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
-import { personNames } from "@/lib/people";
+import { type CommunicationSummary, communicationSummary, personNames } from "@/lib/people";
 import { getPerson } from "@/lib/person-record";
 
 /** The page title says what the page is for, never who the incident is about. */
@@ -36,12 +37,14 @@ export default async function NewIncidentPage({
   let about: { readonly id: string; readonly name: string; readonly locationId: string } | null =
     null;
   let readOnly = false;
+  let needs: CommunicationSummary | null = null;
   if (param !== undefined) {
     if (typeof param !== "string" || !isUuid(param)) notFound();
     const { person } = await getPerson(param);
     if (!person) notFound();
     about = { id: person.id, name: personNames(person).preferred, locationId: person.locationId };
     readOnly = !writeAccess(person, me.permissions, "safety.incident.report").canWrite;
+    needs = communicationSummary(person, t);
   }
   const locations = about
     ? [
@@ -69,7 +72,7 @@ export default async function NewIncidentPage({
           <span aria-hidden="true" className="px-2 text-text-secondary">
             ›
           </span>
-          <span>{title}</span>
+          <span aria-current="page">{title}</span>
         </nav>
       ) : null}
       <PageHeader eyebrow={eyebrow} title={title} description={t("safety.record.description")} />
@@ -83,6 +86,23 @@ export default async function NewIncidentPage({
             locations={locations}
             defaultLocationId={locationId ?? null}
             person={about ? { id: about.id, name: about.name } : null}
+            personNeeds={
+              needs ? (
+                // Labelled in every state, so "Not recorded" says what is missing (AIS).
+                <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
+                  <dt className="text-body-dense font-semibold">
+                    {t("people.header.communicationNeeds")}
+                  </dt>
+                  <dd className="m-0">
+                    <CommunicationStatus
+                      summary={needs}
+                      flagLabel={t("people.header.communicationNeeds")}
+                      compact
+                    />
+                  </dd>
+                </dl>
+              ) : null
+            }
           />
         )}
       </Card>

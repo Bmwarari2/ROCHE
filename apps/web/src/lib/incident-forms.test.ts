@@ -203,6 +203,32 @@ describe("hazard HZ-090 reading an answer: not sure is an answer, blank is not",
 describe("reading the record an incident form (#42 review; HZ-027)", () => {
   const context = { personId: null, locationIds: [HOME, MEWS], fallQuestions: FALLS, now: NOW };
 
+  it("hazard HZ-090 never assumes the time: just now or earlier is chosen every time", () => {
+    const { "occurredAt-mode": _, ...noTime } = filled;
+    expect(readIncidentForm(form({ ...noTime, location: HOME }), context, t)).toEqual({
+      ok: false,
+      errors: {
+        occurredAt: "Say when it happened: just now, or earlier with the date and time",
+      },
+    });
+    const earlier = readIncidentForm(
+      form({
+        ...filled,
+        location: HOME,
+        "occurredAt-mode": "earlier",
+        "occurredAt-day": "16",
+        "occurredAt-month": "10",
+        "occurredAt-year": "2026",
+        "occurredAt-hour": "08",
+        "occurredAt-minute": "15",
+      }),
+      context,
+      t,
+    );
+    // 08:15 British Summer Time is 07:15 UTC.
+    expect(earlier.ok && earlier.draft.occurredAt).toBe("2026-10-16T07:15:00.000Z");
+  });
+
   it("hazard HZ-090 never assumes no: emergency services and the GP are asked every time", () => {
     const read = readIncidentForm(
       form({ ...filled, location: HOME, emergencyServicesCalled: "", gpContacted: "" }),
@@ -234,7 +260,8 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
       draft: {
         locationId: HOME,
         type: "near_miss",
-        occurredAt: NOW.toISOString(),
+        // "Just now": the server action takes the time on the server.
+        occurredAt: null,
         description: "A hoist sling nearly gave way.",
         emergencyServicesCalled: false,
         gpContacted: true,

@@ -27,6 +27,7 @@ export function QuestionField({
 }) {
   const words = questionWords(question, t);
   const name = questionField(question.key);
+  const hintId = `${id}-hint`;
   const legend = words.text.text;
   const hint = words.help?.text;
   const errorProps = error ? { error } : {};
@@ -64,9 +65,16 @@ export function QuestionField({
     case "days":
     case "hours":
       field = (
-        <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+        <fieldset
+          className="m-0 flex flex-col gap-2 border-0 p-0"
+          aria-describedby={hint ? hintId : undefined}
+        >
           <legend className="mb-1 p-0 font-semibold">{legend}</legend>
-          {hint ? <p className="hb-field__hint m-0">{hint}</p> : null}
+          {hint ? (
+            <p id={hintId} className="hb-field__hint m-0">
+              {hint}
+            </p>
+          ) : null}
           <TextField
             id={id}
             name={name}
@@ -77,7 +85,13 @@ export function QuestionField({
             className="max-w-xs"
             {...errorProps}
           />
-          <Checkbox name={`${name}-unsure`} value="unsure" label={t("safety.questions.notSure")} />
+          {/* Marked with the number when the error is about both (a number and not sure). */}
+          <Checkbox
+            name={`${name}-unsure`}
+            value="unsure"
+            label={t("safety.questions.notSure")}
+            aria-invalid={error ? true : undefined}
+          />
         </fieldset>
       );
       break;
@@ -86,10 +100,16 @@ export function QuestionField({
       field = (
         <fieldset
           className="m-0 flex flex-col gap-1 border-0 p-0"
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={
+            [hint ? hintId : "", error ? errorId : ""].join(" ").trim() || undefined
+          }
         >
           <legend className="mb-1 p-0 font-semibold">{legend}</legend>
-          {hint ? <p className="hb-field__hint m-0">{hint}</p> : null}
+          {hint ? (
+            <p id={hintId} className="hb-field__hint m-0">
+              {hint}
+            </p>
+          ) : null}
           {error ? (
             <p id={errorId} className="hb-field__error m-0">
               {error}
@@ -104,6 +124,7 @@ export function QuestionField({
                 value={option.value}
                 label={option.label}
                 aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
               />
             ),
           )}

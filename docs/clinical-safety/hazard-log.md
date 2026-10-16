@@ -2513,6 +2513,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Type | Control | When |
 | --- | --- | --- |
 | Design | The emergency services, GP and (for an incident about a person) death questions are yes or no with nothing chosen; the form refuses until each is answered, tied to the field, and its hint says Harbour never assumes no | Phase 1 (slice 9) |
+| Design | When it happened is chosen every time, with nothing chosen at first: "just now" (taken on the server when the form arrives, never from the browser's clock) or "earlier" with the date and time, so post-fall observations and statutory clocks start at the time someone gave (#55 review round 1) | Phase 1 (slice 9) |
 | Design | The falls questions on a fall need an answer each, "not sure yet" included; the incident page's questions are sent only when answered (a blank one stays open, never sent as no) | Phase 1 (slice 9) |
 | Design | The catalogue's words for every question, its guidance and every option repeat the domain's question set word for word (a unit test compares them); a question or option the catalogue does not know is shown in the API's English, marked as English, never left out | Phase 1 (slice 9) |
 | Test | See Verification | Phase 1 |
@@ -2524,7 +2525,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 
 | Test | Status |
 | --- | --- |
-| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-090 has catalogue words for every question, its guidance and every option`, `hazard HZ-090 shows a question or option the catalogue does not know in the API's English, marked`, `hazard HZ-090 never assumes no: emergency services and the GP are asked every time`, `hazard HZ-090 asks whether the person died when it is about someone`, `hazard HZ-090 reading an answer: not sure is an answer, blank is not` | Passing |
+| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-090 has catalogue words for every question, its guidance and every option`, `hazard HZ-090 shows a question or option the catalogue does not know in the API's English, marked`, `hazard HZ-090 never assumes the time: just now or earlier is chosen every time`, `hazard HZ-090 never assumes no: emergency services and the GP are asked every time`, `hazard HZ-090 asks whether the person died when it is about someone`, `hazard HZ-090 reading an answer: not sure is an answer, blank is not` | Passing |
 | `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (the refusal summary names each unanswered question) | Hosted CI |
 
 ---

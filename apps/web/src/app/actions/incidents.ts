@@ -35,7 +35,10 @@ export async function recordIncident(input: IncidentInput): Promise<ActionResult
   if (!isUuid(input.id) || !isUuid(input.draft.locationId)) {
     return refused(t("care.errors.invalid"));
   }
-  if (!isIsoInstant(input.draft.occurredAt)) {
+  // "Just now" is when the server receives the form, never the browser's clock (HZ-090). A retry
+  // keeps the incident's id, so the API returns the copy already recorded with its first time.
+  const occurredAt = input.draft.occurredAt ?? new Date().toISOString();
+  if (!isIsoInstant(occurredAt)) {
     return refused(t("care.errors.whenRequired"), "invalid", ["occurredAt"]);
   }
   const personPaths = (input.draft.people ?? []).flatMap((p) =>
@@ -45,7 +48,7 @@ export async function recordIncident(input: IncidentInput): Promise<ActionResult
     api.POST("/v1/incidents", {
       headers: isIsoInstant(input.sentAt) ? { "x-harbour-sent-at": input.sentAt } : {},
       // For a web entry "made" is when the server receives it (care.md rule 3): no device time.
-      body: { ...input.draft, id: input.id },
+      body: { ...input.draft, occurredAt, id: input.id },
     }),
   );
 }

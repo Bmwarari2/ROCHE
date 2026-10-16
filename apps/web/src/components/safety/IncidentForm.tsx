@@ -3,7 +3,7 @@
 import { CLASSIFIER_QUESTIONS } from "@harbour/domain";
 import { Button, RadioGroup, SelectField, TextArea } from "@harbour/ui";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, type ReactNode, useState, useTransition } from "react";
 import { recordIncident } from "@/app/actions/incidents";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useEntryId, useFieldIds } from "@/components/care/form-state";
@@ -60,11 +60,14 @@ export function IncidentForm({
   locations,
   defaultLocationId,
   person,
+  personNeeds,
 }: {
   readonly locations: readonly { readonly id: string; readonly name: string }[];
   readonly defaultLocationId: string | null;
   /** The person it is about, from their record; their home is the location. */
   readonly person: { readonly id: string; readonly name: string } | null;
+  /** Their communication needs, labelled, shown beside their name (Accessible Information Standard). */
+  readonly personNeeds?: ReactNode;
 }) {
   const router = useRouter();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
@@ -105,7 +108,8 @@ export function IncidentForm({
       setResult(outcome);
       // After an unknown outcome the id stays, so trying again returns the incident already
       // recorded instead of a second one.
-      if (outcome.ok) router.push(`/incidents/${outcome.data.id}`);
+      // The incident's page says it was recorded and moves focus to its heading.
+      if (outcome.ok) router.push(`/incidents/${outcome.data.id}?recorded=1`);
     });
   };
 
@@ -141,6 +145,17 @@ export function IncidentForm({
         <WhenField
           id={ids.occurredAt}
           legend={label("occurredAt")}
+          explicit={{
+            hint: t("safety.record.whenHint"),
+            now: {
+              label: t("safety.record.when", { when: "now" }),
+              description: t("safety.record.whenDescription", { when: "now" }),
+            },
+            earlier: {
+              label: t("safety.record.when", { when: "earlier" }),
+              description: t("safety.record.whenDescription", { when: "earlier" }),
+            },
+          }}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
         />
@@ -188,6 +203,7 @@ export function IncidentForm({
             <legend className="px-1 font-semibold">
               {t("safety.record.about", { name: person.name })}
             </legend>
+            {personNeeds}
             <RadioGroup
               id={ids.died}
               name="died"
@@ -195,6 +211,7 @@ export function IncidentForm({
               hint={t("safety.record.hint", { field: "yesNo" })}
               layout="inline"
               options={yesNo}
+              required
               error={errorFor(result, "died")}
             />
             <TextArea
@@ -213,18 +230,20 @@ export function IncidentForm({
           id={ids.emergencyServicesCalled}
           name="emergencyServicesCalled"
           legend={label("emergencyServicesCalled")}
-          hint={t("safety.record.hint", { field: "yesNo" })}
+          hint={t("safety.record.hint", { field: "askFirst" })}
           layout="inline"
           options={yesNo}
+          required
           error={errorFor(result, "emergencyServicesCalled")}
         />
         <RadioGroup
           id={ids.gpContacted}
           name="gpContacted"
           legend={label("gpContacted")}
-          hint={t("safety.record.hint", { field: "yesNo" })}
+          hint={t("safety.record.hint", { field: "askFirst" })}
           layout="inline"
           options={yesNo}
+          required
           error={errorFor(result, "gpContacted")}
         />
         <TextArea
@@ -243,6 +262,7 @@ export function IncidentForm({
             label={label("severity")}
             hint={t("safety.record.hint", { field: "severity" })}
             emptyOption={t("safety.record.notJudged")}
+            error={errorFor(result, "severity")}
             options={INCIDENT_SEVERITIES.map((value) => ({
               value,
               label: t("safety.incident.severity", { severity: value }),
@@ -254,6 +274,7 @@ export function IncidentForm({
             label={label("harmGrade")}
             hint={t("safety.record.hint", { field: "harmGrade" })}
             emptyOption={t("safety.record.notJudged")}
+            error={errorFor(result, "harmGrade")}
             options={HARM_GRADES.map((value) => ({
               value,
               label: t("safety.incident.harm", { harm: value }),

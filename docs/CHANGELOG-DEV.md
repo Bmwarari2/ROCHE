@@ -1767,3 +1767,16 @@ the needs of demo person 3 (hosted CI).
 **Next**: part 4b on a stacked branch: review and close, prepare a notification, submit it or mark
 it not required with step-up.
 
+
+## 2026-10-16: Slice 9 part 4a, review round 1 of #55 (SAFE-001, SAFE-002)
+
+- When it happened is chosen every time (nothing chosen at first); "just now" is taken on the
+  server, never the browser's clock (HZ-090, HZ-027). The person's communication needs are shown
+  beside their name on the form (AIS). Yes or no questions are required, emergency services and
+  GP say to ask the person in charge first; a refused location says to tell the person in charge.
+- The incident page says "Incident recorded" and focuses its heading after saving; breadcrumbs mark
+  the current page; question hints and errors are tied to their fieldsets and boxes.
+- Docs: HZ-090 time control; H-263 and H-264; STATUS item 19 follow-ups.
+
+**Tests**: `incident-forms.test.ts` (36); the e2e adds axe on the empty form and questions, and a
+refusal on an incident closed meanwhile (hosted CI).

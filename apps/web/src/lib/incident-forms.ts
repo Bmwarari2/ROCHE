@@ -243,8 +243,14 @@ export function readAnswers(
   return { ok: true, answers };
 }
 
-/** The new incident to send, without its client id and the device's clock (the action adds them). */
-export type IncidentDraft = Omit<CreateIncident, "id" | "deviceTime">;
+/**
+ * The new incident to send, without its client id and the device's clock (the action adds them).
+ * `occurredAt` is null for "just now": the server action takes the time on the server, so a wrong
+ * browser clock never times the incident (HZ-090).
+ */
+export type IncidentDraft = Omit<CreateIncident, "id" | "deviceTime" | "occurredAt"> & {
+  readonly occurredAt: string | null;
+};
 
 export type IncidentRead =
   | { readonly ok: true; readonly draft: IncidentDraft }
@@ -287,10 +293,19 @@ export function readIncidentForm(
   if (!context.locationIds.includes(locationId)) error("location");
   const type = text(form, "type") as IncidentType;
   if (!INCIDENT_TYPES.includes(type)) error("type");
-  const when = readWhen(form, "occurredAt", t, { now: context.now });
+  // When it happened is chosen every time, never assumed "now" (HZ-090): every clock starts there.
+  const mode = text(form, "occurredAt-mode");
+  const when =
+    mode === "earlier"
+      ? readWhen(form, "occurredAt", t, { now: context.now })
+      : ({ ok: mode === "now", instant: null } as const);
   if (!when.ok) {
-    errors.occurredAt = when.message;
-    parts.occurredAt = when.parts;
+    if ("message" in when) {
+      errors.occurredAt = when.message;
+      parts.occurredAt = when.parts;
+    } else {
+      error("occurredAt");
+    }
   }
   const description = text(form, "description");
   if (description.length < 3 || description.length > DESCRIPTION_MAX) error("description");

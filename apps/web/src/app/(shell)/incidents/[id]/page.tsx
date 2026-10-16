@@ -9,6 +9,7 @@ import { Notice } from "@/components/care/Notice";
 import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
@@ -76,8 +77,15 @@ const when = (iso: string | null) => formatDateTime(iso) ?? null;
  * manager, or the falls questions by whoever raised it; preparing the notifications follows
  * (docs/plans/STATUS.md).
  */
-export default async function IncidentPage({ params }: { readonly params: Params }) {
+export default async function IncidentPage({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: Promise<{ recorded?: string | string[] }>;
+}) {
   const { id } = await params;
+  const { recorded } = await searchParams;
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const listTitle = t("safety.incidents.title");
@@ -138,9 +146,10 @@ export default async function IncidentPage({ params }: { readonly params: Params
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
         </span>
-        <span>{title}</span>
+        <span aria-current="page">{title}</span>
       </nav>
       <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
+      {recorded === "1" ? <RecordedArrival /> : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />
         {incident.restricted ? (

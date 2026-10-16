@@ -524,6 +524,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
       carry no client id (a retry stores the same answer again, harmlessly); the form does not
       yet ask when the person was found (H-262), nor add other people, staff or visitors,
       body-map marks, infection details, the family told or LeDeR facts.
+    - Follow-ups from #55 review round 1 (H-263, H-264): per-permission locations on `/v1/me`
+      (so the location choice lists only where `safety.incident.report` reaches); with no person
+      on the incident `died` is sent as false and the form cannot add a person; incident-specific
+      tests for a future time and the hour the clocks change; the Welsh wording of the questions
+      is not checked against the domain (only English is); "not sure" for emergency services
+      and GP needs a contract change (API follow-up).
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the
