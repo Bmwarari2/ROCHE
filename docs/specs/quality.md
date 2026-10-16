@@ -96,7 +96,7 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    | Record type | Organisational | Care content | Staff name | Third party | Free text |
    | --- | --- | --- | --- | --- | --- |
    | `incident` | `type`, `occurred_at`, `location`, `severity`, `emergency_services` | `harm_grade`, `injury` | `raised_by`, `closed_by`, `staff_involved`, `witness_staff` | `witness_other`, `family_informed` | `description`, `immediate_actions` |
-   | `care_note` | `category`, `tags`, `occurred_at`, `late_entry` | none | `author` | none | `text` |
+   | `care_note` | `category`, `occurred_at`, `late_entry` | none | `author` | none | `text`, `tags` (any word a person chose) |
    | `observation` | `chart`, `occurred_at` | `values`, `news2` | `recorded_by` | none | `comment` |
    | `body_map_mark` | none | `region`, `side`, `mark_type`, `category`, `size` | `recorded_by` | none | `note` |
    | `assessment` | `tool`, `tool_version`, `next_due_on` | `score`, `band`, `workings` | `assessor` | none | none |
@@ -106,6 +106,9 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    | `visit_log` | `kind`, `starts_at`, `ends_at` | `restrictions_applied` | `recorded_by` | `visitor_name` | `visitor_relationship`, `restriction_reason`, `notes` |
    | `advance_care_record` | `kind`, `completed_on`, `review_due_on`, `status` | `cpr_decision` | none | `clinician_name` | `details`, `withdrawn_reason` |
 
+   Care notes and observations also have `recorded_at`, `late_entry`, `clock_drift`,
+   `correction_of` and `back_entry` (organisational, Harbour's own words) and `correction_reason`
+   and `paper_reference` (free text); incidents have `recorded_at`, `late_entry` and `clock_drift`.
    Every type also has `person_name` and `room` (care content, so kept only for a person in scope)
    and `nhs_number`, `date_of_birth`, `address` and `phone` (direct identifiers, always withheld).
    `visitor_relationship` is typed by a person ("my son's partner, Jo"), so it is free text. A new
@@ -313,3 +316,37 @@ Tests: `packages/db/test/evidence-pack.test.ts`; the RLS coverage test lists `ev
 as append-only; the export catalogue classifies every new column (token and code hashes secret).
 Opening a released pack with a Harbour inspector account (`quality.evidence.read`) needs a policy
 of its own in the API step.
+
+## 13. As built (slice 11, API part 2a: evidence pack routes and the bundle sweep)
+
+`apps/api/src/routes/evidence-packs.ts`, `apps/api/src/services/evidence-pack.ts`, contracts in
+`packages/contracts/src/quality.ts` (`feat/quality-evidence-pack-api`).
+
+| Route | Built as |
+| --- | --- |
+| `GET /v1/evidence-packs`, `GET .../{id}` | `quality.evidence_pack.compose` or `.release` (scope of whichever the session may use); the manifest has every current item, each field's outcome, reason in words and the value the pack shows while the bundle exists (never a withheld one), the contributors and the links (never a token or code). Opening the manifest is audited (`quality.evidence_pack.viewed`) |
+| `POST /v1/evidence-packs` | Compose: the domain's request check, every person and location visible to the composer, the watermark worked out with the pack id and the database's time; `.composed` |
+| `POST .../{id}/items` | Records named by type, id and statements (tagging until QUAL-002), read in the composer's scope (anything else is 404), a corrected entry refused (add the correction), a record already in the pack refused; `composeEvidencePack` keeps or excludes each and minimises every field; only shown values go to the bundle; `.items_added` with counts and record ids. Record types so far: `care_note`, `observation` (numbers, yes or no and codes are the reading; any other text in the values, such as a drink or an override reason, is free text), `incident` (care content withheld as not clearly about one person when it has several) |
+| `PUT .../items/{itemId}/fields/{key}/redaction` | Free text only, on a draft, while the record is unchanged; earlier hand redactions stand in their redactors' names; a copy that leaks (rule 4) is refused with 422 and nothing stored; otherwise a superseding item row and the bundle updated; `.redacted` |
+| `POST .../release` | Release permission with step-up (`requirePermission`), then `checkEvidencePackRelease` with the database's contributors and the rate-table policy, then the database's own checks; the link is issued in the same transaction; the 256-bit token is returned once and only its SHA-256 stored; `.released` and the outbox `quality.evidence_pack.released` (pack, link, expiry) |
+| `POST .../links/{linkId}/reissue` | The pack's latest link only, while it has not ended and the bundle exists (an ended link means a new pack); `checkEvidencePackLinkReissue`; the old link revoked as `reissued` and the new one issued in one transaction; `.link_reissued` |
+| `POST .../revoke`, `POST .../discard` | Compose permission with a reason; revoking also revokes the live link (`pack_revoked`); both delete the bundle at once (`.bundle_deleted`); revoke publishes `quality.evidence_pack.revoked` |
+
+After #60 review round 1: release re-reads every included record in the releaser's scope and is
+refused (409 `record_changed`, naming each) when one was corrected or changed since it was added or
+the releaser cannot open it. Each entry says how it came to be: "Correction of an earlier entry
+recorded [time]" (reason free text), "Written on paper at [paper time] during a [kind] outage from
+[time], and entered in Harbour later" (paper reference free text), "Recorded in Harbour [time]" and
+a wrong device clock. Readings use a label and unit per chart field (`observationReading`), and
+only the chart schema's own enum values count as codes. Every time is UK time with GMT or BST
+(`formatUkDateTimeWithZone`). The token responses say `no-store`; the API logs no request bodies.
+Human actions H-221 to H-223.
+
+Refusals decided in the API and those the database raises (separation of duties 403, workflow
+409) are audited as denied. The worker's `evidence-bundle-sweep` queue (every 5 minutes, per
+organisation as the system) deletes every bundle whose pack is revoked or discarded or whose links
+have all ended (revoked or expired), audited `quality.evidence_pack.bundle_deleted` with the reason.
+Tests: `apps/api/test/evidence-packs.test.ts`.
+
+Still to come: the statement of purpose routes and its overdue job (part 2b), the public link
+routes with codes, the session cookie and the PDF (part 2c), and the remaining record types.

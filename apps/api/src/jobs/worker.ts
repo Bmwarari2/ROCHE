@@ -24,6 +24,7 @@ import {
   reportUnroutedDaily,
   retryUnroutedTasks,
   runEscalations,
+  sweepEvidenceBundlesJob,
 } from "./tasks";
 
 /**
@@ -68,6 +69,7 @@ const QUEUES = {
   unroutedReport: "unrouted-daily-report",
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
+  evidenceBundles: "evidence-bundle-sweep",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -135,6 +137,10 @@ await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
 });
 
+await work(QUEUES.evidenceBundles, async () => {
+  await sweepEvidenceBundlesJob(deps);
+});
+
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
 await boss.schedule(QUEUES.escalations, "* * * * *");
@@ -170,6 +176,9 @@ await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
 // Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
 await boss.schedule(QUEUES.invitations, "17 3 * * *");
+
+// Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).
+await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");
 
 logger.info("Harbour worker started");
 
