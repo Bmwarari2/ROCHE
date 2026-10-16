@@ -23,7 +23,7 @@ without the owner's approval.
 | PR | Branch | State | Next step |
 | --- | --- | --- | --- |
 | #58 incident review, close, submit | feat/web-incident-review-submit | Two review rounds passed; coordinator fix 2c4e412 | Merge main in (conflicts in apps/web/src/lib/outcome.ts and cy.status.json; keep both behaviours), retarget base to main, CI, merge |
-| #59 invitation accept page | feat/web-invitation-accept-page | Two rounds plus final coordinator check passed; CI was green at f58fedb | Merge main in (conflicts in CHANGELOG, en-GB.json, cy.json), CI, merge |
+| #59 invitation accept page | feat/web-invitation-accept-page | Two rounds plus final coordinator check passed; main merged in at 21323f3 | Check hosted CI on 21323f3, then merge |
 | #60 evidence pack internal routes and bundle sweep | feat/quality-evidence-pack-api (base main) | Clinical round 1 done (below); security round 1 was stopped by the pause, re-run it | Security review; fix round 1 |
 | #61 statement of purpose routes and overdue job | feat/quality-statement-of-purpose-api (base #60) | Clinical round 1 done (below) | With #60 |
 | #50 mobile round gate data | feat/mobile-round-gate-data | Draft, mobile paused by the owner | Leave |
