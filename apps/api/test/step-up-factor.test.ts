@@ -415,6 +415,71 @@ describe("hazard HZ-112 a task link counts a step-up permission only with a fres
   });
 });
 
+describe("hazard HZ-112 a first enrolment records no factor, whatever is sent alongside it", () => {
+  /** A new sign-in with no factor, signed in as the mobile app (which gets a bearer token). */
+  async function newMember(n: number): Promise<{ token: string; userId: string; uri: string }> {
+    const email = `ada.parallel${n}@example.invalid`;
+    const up = await h.request("/api/auth/sign-up/email", {
+      method: "POST",
+      body: { email, password: PASSWORD, name: "Ada Example" },
+    });
+    expect(up.status).toBe(200);
+    const userId = ((await up.json()) as { user: { id: string } }).user.id;
+    const signIn = await h.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: { email, password: PASSWORD },
+      origin: MOBILE_APP_ORIGIN,
+    });
+    const token = signIn.headers.get("set-auth-token") ?? "";
+    expect(token).not.toBe("");
+    const enable = await h.request("/api/auth/two-factor/enable", {
+      method: "POST",
+      token,
+      origin: MOBILE_APP_ORIGIN,
+      body: { password: PASSWORD },
+    });
+    expect(enable.status).toBe(200);
+    return { token, userId, uri: ((await enable.json()) as { totpURI: string }).totpURI };
+  }
+  const factorRows = async (userId: string) => {
+    const { rows } = await auth().query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM auth.verification v
+         JOIN auth.session s ON v.identifier = 'session-factor:' || s.id
+        WHERE s.user_id = $1`,
+      [userId],
+    );
+    return rows[0]?.n;
+  };
+  const verify = (token: string, code: string) =>
+    h.request("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      token,
+      origin: MOBILE_APP_ORIGIN,
+      body: { code },
+    });
+
+  it("a right and a wrong code sent together", async () => {
+    const m = await newMember(1);
+    const right = totp(m.uri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    const statuses = await Promise.all([
+      verify(m.token, right),
+      verify(m.token, wrong),
+      verify(m.token, wrong),
+    ]);
+    expect(statuses.map((r) => r.status)).toContain(200);
+    expect(await factorRows(m.userId)).toBe(0);
+  });
+
+  it("two right codes sent together", async () => {
+    const m = await newMember(2);
+    const right = totp(m.uri);
+    const statuses = await Promise.all([verify(m.token, right), verify(m.token, right)]);
+    expect(statuses.map((r) => r.status)).toContain(200);
+    expect(await factorRows(m.userId)).toBe(0);
+  });
+});
+
 describe("hazard HZ-112 confirming a code on the session refreshes the step-up", () => {
   const route = () => {
     const found = ROUTES.find((r) => r.name === "member session revoke");

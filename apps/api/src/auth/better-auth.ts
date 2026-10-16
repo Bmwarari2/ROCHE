@@ -40,10 +40,12 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       user: { id: string; twoFactorEnabled?: boolean | null };
     } | null>;
   } = {};
-  // Sessions confirming a code while no factor was enrolled: the code completes a first enrolment,
-  // which proves only the password, so it records no factor (#63 security review, M1). The person
-  // signs in again with the new factor before step-up or care records count it.
-  const firstEnrolments = new Set<string>();
+  // Requests confirming a code while no factor was enrolled: the code completes a first enrolment,
+  // which proves only the password, so it records no factor (#63 security review, M1). Keyed by the
+  // request, so each request decides for itself: a parallel code on the same session cannot clear
+  // or reuse another's verdict (#63 round 2). The person then confirms a code on the session, or
+  // signs in with the new factor, before step-up or care records count it.
+  const firstEnrolments = new WeakSet<Request>();
 
   const auth = betterAuth({
     appName: "Harbour",
@@ -136,7 +138,7 @@ export function createAuth(config: Config, authPool: pg.Pool) {
             sessionId: found.session.id,
             twoFactorEnabled: found.user.twoFactorEnabled === true,
           });
-          if (enrolled === "enrol") firstEnrolments.add(found.session.id);
+          if (enrolled === "enrol" && ctx.request) firstEnrolments.add(ctx.request);
         }
       }),
       // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
@@ -145,7 +147,12 @@ export function createAuth(config: Config, authPool: pg.Pool) {
         const factor = FACTOR_ROUTES.get(ctx.path);
         if (!factor) return;
         const existing = ctx.context.session?.session;
-        const firstEnrolment = existing ? firstEnrolments.delete(existing.id) : false;
+        // A code on an existing session counts only when this request saw a factor enrolled; with
+        // no request to tell by, it fails closed.
+        const firstEnrolment =
+          existing !== undefined &&
+          IN_SESSION_CODE_ROUTES.has(ctx.path) &&
+          (!ctx.request || firstEnrolments.has(ctx.request));
         if (isAPIError(ctx.context.returned)) return;
         if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
           await clearCodeAttempts(authPool, existing.id);

@@ -107,8 +107,10 @@ authenticator code or a backup code), never from the sign-in time:
 - Confirming a code on an existing session (`/two-factor/verify-totp`, `/verify-backup-code`, under
   the five-attempt limit) or signing in again with a passkey adds a row and so refreshes the time.
 - The code that completes a first enrolment (no factor before the request) records no factor: it
-  proves only the password. The person signs in again with the new factor before step-up or care
-  records count it (#63 security review, M1).
+  proves only the password. Each request decides this for itself, so codes sent in parallel on
+  the enrolling session record nothing either. The person then confirms a code on the session, or
+  signs in with the new factor, before step-up or care records count it (#63 security review, M1
+  and round 2).
 - The web flows (break-glass, statutory notification submit and "not required", the downtime pack)
   keep sending the person to `/sign-in?reason=step-up` and back; the words now say "confirm with
   your passkey or authenticator code".

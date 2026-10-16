@@ -1986,3 +1986,8 @@ own authenticator and step up at once (they sign in again with it). Step-up fres
 SQL (`now() - max(created_at) <= window`, inclusive). The domain's `lastMfaSignInAt` inputs are now
 `stepUpAt`. New tests: no factor enrolled, About me links, residents' money at exit, task links,
 exact statuses, an in-session code and a backup code refreshing step-up, and the five-code limit.
+
+After #63 review round 2: the first-enrolment verdict is kept per request, not per session, so a
+right code sent alongside a wrong one, or two right codes in parallel, on the enrolling session
+record no factor (tests with parallel requests). The person confirms a code on the session or signs
+in with the new factor before it counts.
