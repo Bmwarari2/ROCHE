@@ -29,7 +29,13 @@ without the owner's approval.
 | #50 mobile round gate data | feat/mobile-round-gate-data | Draft, mobile paused by the owner | Leave |
 
 Work in progress, no PR yet (check the branches for the latest pushed work):
-- `feat/web-downtime` (Lane B): downtime pack, outages and back-entry web screens, PR A.
+- `feat/web-downtime` (Lane B), pushed at 79d7263, no PR yet: PR A is built (location downtime
+  page, pack page and PDF print route, outage page with declare, close, correct, cancel and
+  reconcile, back-entry labels on entry badges, Downtime in the navigation, journey with axe written
+  but not run, HZ-017 and HZ-021 rows, new HZ-092). Left: H-267, STATUS, changelog, feature
+  register, operations.md, open the PR; then PR B (back-entry on the care record forms). API gaps
+  to log: no GET for places (so no places form yet), no per-location `reaching`, reconciliation
+  returns entry ids only.
 - `fix/platform-step-up-factor` (Lane D): step-up needs a second factor used within the window.
   No code yet (branch equals main). Plan: step-up time today comes from the session's sign-in
   time in `refusalOf` (`apps/api/src/http/context.ts`), `workflow-shared.stepUpFresh`,
