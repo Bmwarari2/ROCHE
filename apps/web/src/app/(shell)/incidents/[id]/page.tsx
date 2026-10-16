@@ -1,5 +1,5 @@
 import { Card, PageHeader, StatusChip } from "@harbour/ui";
-import { CircleAlert, Lock, TriangleAlert } from "lucide-react";
+import { CircleAlert, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,6 +7,7 @@ import { cache } from "react";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { Notice } from "@/components/care/Notice";
 import { CommunicationStatus } from "@/components/people/CommunicationStatus";
+import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
@@ -14,14 +15,15 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
-  incidentNotices,
   incidentPersonFacts,
   incidentPersonLine,
   incidentStatusChip,
   incidentTitle,
+  overdueCount,
 } from "@/lib/incidents";
 import { communicationSummary, personNames } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
+import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type Row = readonly [field: string, value: string | null, dateTime?: string | null];
@@ -66,9 +68,10 @@ const when = (iso: string | null) => formatDateTime(iso) ?? null;
 /**
  * One incident (register row SAFE-001; hazard HZ-013): what happened, who was told and the
  * people on it, as the API returns them, with the questions about statutory notifications still
- * to answer and a notice that the questions and notifications are not on this page yet (#42
- * review). A reader who cannot see everyone on it sees the header and their own people only.
- * The statutory notifications with their clocks, and the forms, follow (docs/plans/STATUS.md).
+ * to answer and the statutory notifications with their clocks and warnings (#42 review); an
+ * overdue notification is named at the top, linked to them (#49 review). A reader who cannot see
+ * everyone on it sees the header and their own people only. Answering the questions and preparing
+ * the notifications follow (docs/plans/STATUS.md).
  */
 export default async function IncidentPage({ params }: { readonly params: Params }) {
   const { id } = await params;
@@ -93,6 +96,21 @@ export default async function IncidentPage({ params }: { readonly params: Params
   const section = (name: string) => t("safety.incident.section", { section: name });
   const notRecorded = t("common.notRecorded");
   const questions = incident.restricted ? 0 : incident.openQuestionCount;
+  const overdue = overdueCount(incident.classifier);
+  // RIDDOR's over-seven-day threshold for its label, from the rate table on the incident's date.
+  const riddor = [
+    ...(incident.classifier?.notifications ?? []),
+    ...(incident.classifier?.outputs ?? []),
+    ...(incident.classifier?.pending ?? []),
+  ].some((n) => n.kind === "riddor_over_7_day");
+  const threshold = riddor
+    ? await api.GET("/v1/rates/{key}", {
+        params: {
+          path: { key: "riddor.over_7_day.threshold_days" },
+          query: { on: ukToday(new Date(incident.occurredAt)) },
+        },
+      })
+    : null;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -118,6 +136,21 @@ export default async function IncidentPage({ params }: { readonly params: Params
             icon={CircleAlert}
           />
         ) : null}
+        {overdue > 0 ? (
+          // A native link, so the browser moves focus to the section's heading (WCAG 2.4.3); named
+          // with the chip's words first, so what is seen is what is said (WCAG 2.5.3).
+          <a
+            href="#notifications"
+            aria-label={t("safety.incident.overdueLink", { count: overdue })}
+            className="inline-flex min-h-target items-center"
+          >
+            <StatusChip
+              status="overdue"
+              label={t("safety.incident.overdueChip", { count: overdue })}
+              icon={CircleAlert}
+            />
+          </a>
+        ) : null}
         <EntryBadges entry={incident} />
       </p>
       {incident.restricted ? (
@@ -125,18 +158,6 @@ export default async function IncidentPage({ params }: { readonly params: Params
           {t("safety.incident.restrictedHint")}
         </Notice>
       ) : null}
-      {incidentNotices(incident, can(me.permissions, "safety.notification.submit"), t).map(
-        (notice) => (
-          <Notice
-            key={notice.title}
-            tone="warning"
-            icon={<TriangleAlert {...iconProps} />}
-            title={notice.title}
-          >
-            {notice.body}
-          </Notice>
-        ),
-      )}
       <Card
         as="section"
         title={section(incident.restricted ? "about" : "details")}
@@ -190,6 +211,27 @@ export default async function IncidentPage({ params }: { readonly params: Params
               ["contactNotes", incident.contactNotes],
             ]}
           />
+        </Card>
+      )}
+      {incident.restricted ? null : (
+        <Card as="section" aria-labelledby="notifications">
+          <div className="flex flex-col gap-4">
+            {/* Focusable, so the overdue link at the top brings focus here. */}
+            <h2 id="notifications" tabIndex={-1} className="hb-card__title scroll-mt-nav">
+              {section("notifications")}
+            </h2>
+            <IncidentNotifications
+              classifier={incident.classifier}
+              access={{
+                canSubmit: can(me.permissions, "safety.notification.submit"),
+                canManage: can(me.permissions, "safety.incident.manage"),
+              }}
+              names={names}
+              {...(threshold?.data ? { riddorDays: threshold.data.value } : {})}
+              closed={incident.status === "closed"}
+              now={new Date()}
+            />
+          </div>
         </Card>
       )}
       <Card as="section" title={section("people")} headingLevel={2} className="break-words">

@@ -17,7 +17,13 @@ export const LOGIN_ROLES = [
 
 export type LoginRole = (typeof LOGIN_ROLES)[number];
 
-export const NOLOGIN_ROLES = ["harbour_membership_reader"] as const;
+/**
+ * Owners of security-definer functions, each with only the privileges its functions need:
+ * `harbour_membership_reader` (the membership lookup), `harbour_invitation_owner` (invitation
+ * lookup, acceptance, the first owner's invitation and the lapsed-invitation sweep; migration
+ * 0054).
+ */
+export const NOLOGIN_ROLES = ["harbour_membership_reader", "harbour_invitation_owner"] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
 
@@ -51,8 +57,13 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
       await client.query(`CREATE ROLE ${role} NOLOGIN NOBYPASSRLS`);
     }
   }
-  // The owner must be able to hand ownership of the membership lookup function to its NOLOGIN role.
+  // The owner must be able to hand ownership of the definer functions to their NOLOGIN roles.
+  // The membership reader's grant predates this; the invitation owner's is SET only, never
+  // INHERIT, so its USING (true) policies never apply to harbour_owner's own queries.
   await client.query("GRANT harbour_membership_reader TO harbour_owner");
+  await client.query(
+    "GRANT harbour_invitation_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE",
+  );
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {
