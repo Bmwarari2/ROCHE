@@ -111,13 +111,15 @@ export async function previewFeedItem(
 export async function publishFeedItem(
   personId: string,
   input: FeedRequest,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; text: string }>> {
   const bad = badRequest(personId, input);
   if (bad) return bad;
   const result = await send(personId, (api) =>
     api.POST("/v1/people/{id}/feed", { params: { path: { id: personId } }, body: body(input) }),
   );
-  return result.ok ? { ok: true, data: { id: result.data.item.id } } : result;
+  return result.ok
+    ? { ok: true, data: { id: result.data.item.id, text: result.data.item.text } }
+    : result;
 }
 
 /** Take an update down with a reason (`comms.feed.withdraw`); once only. */

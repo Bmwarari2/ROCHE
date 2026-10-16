@@ -11,6 +11,7 @@ import {
   type ActivityAttendance,
   type ActivityEngagement,
   composeFeedItem,
+  FEED_SOURCE_MAX_AGE_DAYS,
   type FeedItemKind,
   type FeedSource,
   type PersonStatus,
@@ -72,12 +73,17 @@ type SourceRead =
   | { readonly ok: true; readonly source: FeedSource }
   | {
       readonly ok: false;
-      readonly reason: "source_not_found" | "source_corrected" | "photo_not_for_feed";
+      readonly reason:
+        | "source_not_found"
+        | "source_corrected"
+        | "source_too_old"
+        | "photo_not_for_feed";
     };
 
 const SOURCE_REFUSALS = {
   source_corrected:
     "This record has been corrected. Publish from the corrected record, if it is still right to share.",
+  source_too_old: `Only notes and activities from the last ${FEED_SOURCE_MAX_AGE_DAYS} days can be shared. An older record published now would read as news.`,
   photo_not_for_feed:
     "Only a photo added for the family feed can be published. Identification photos, wound photos, care attachments and other documents never go to the family.",
 } as const;
@@ -92,8 +98,9 @@ const sourceIdOf = (body: z.infer<typeof PublishFeedItem>) =>
 
 /**
  * The record the update is made from, as the compose rule reads it: one of this person's own,
- * not since corrected (a correction is a new row that supersedes it), and for a photo only one in
- * the `feed_photo` category (HZ-022, HZ-060).
+ * not since corrected (a correction is a new row that supersedes it), a note or activity from the
+ * last `FEED_SOURCE_MAX_AGE_DAYS` days (HZ-061), and for a photo only one in the `feed_photo`
+ * category (HZ-022, HZ-060).
  */
 async function sourceOf(
   tx: Transaction,
@@ -105,6 +112,8 @@ async function sourceOf(
   const source = body.source;
   const missing = { ok: false, reason: "source_not_found" } as const;
   const corrected = { ok: false, reason: "source_corrected" } as const;
+  const tooOld = { ok: false, reason: "source_too_old" } as const;
+  const oldest = now.getTime() - FEED_SOURCE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
   if (source.kind === "shared_note") {
     const [note] = await tx
       .select({ id: careNote.id, occurredAt: careNote.occurredAt })
@@ -117,6 +126,7 @@ async function sourceOf(
       .where(eq(careNote.supersedesId, note.id))
       .limit(1);
     if (later) return corrected;
+    if (note.occurredAt.getTime() < oldest) return tooOld;
     // Publishing with words for the family is the marking (rule 8): by this member of staff, now.
     return {
       ok: true,
@@ -143,6 +153,7 @@ async function sourceOf(
       .where(eq(activityRecord.supersedesId, row.id))
       .limit(1);
     if (later) return corrected;
+    if (row.occurredAt.getTime() < oldest) return tooOld;
     return {
       ok: true,
       source: {

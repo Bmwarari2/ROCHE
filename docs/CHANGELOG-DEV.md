@@ -2381,6 +2381,20 @@ draft"; every counted problem is listed with a link to its field (a channel prob
 channel) and shown read-only too; `done` and `at` come off the address once said; axe after both
 refusals and a new draft. Tests: the journey's third test (stale form, stale save, stale approval).
 
+## 2026-10-17: Slice 13, the onboarding checklist part 1, decision records (PLAT-018)
+
+- Migration 0064 (after #81's 0063): append-only `tenant_setting_decision`, `retention_decision`
+  and `dcb0160_record` (forced RLS; written only by a holder of `platform.onboarding.manage` in
+  their own name), and `tenant.staff_file_option`, guarded at the database; export catalogue
+  entries.
+- Domain: `checkSettingDecision`, `checkRetentionDecision` and `checkDcb0160Recording`,
+  table-driven, so a decision is never a tick with nothing behind it.
+- Docs: platform-completions.md section 10e, records of processing, data standards, feature
+  register, STATUS.
+
+**Tests**: `packages/db/test/onboarding-decisions.test.ts` (10); decision tables in
+`onboarding.test.ts` (19).
+
 ## 2026-10-17: Slice 11 web part 2, the letters tab (COMMS-007)
 
 - `/people/{id}/letters`: choose an approved template, type only the admission or fee details it
@@ -2424,6 +2438,13 @@ CSO. Tests: `feed-publish.test.ts` 14.
 **Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
 `apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
 
+Review round 1 of #87: publishing sends exactly the request previewed, with a new id for each
+preview, and an update already published with other words is a problem, never "published"; the API
+refuses notes and activities older than 14 days (`source_too_old`, audited); records that could not
+be read are said so; tests for a record corrected between preview and publishing, an out-of-scope
+preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
+a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
+
 ## 2026-10-17: Slice 12 part 2b, the family's updates page (COMMS-001)
 
 - Web: `/updates` for a family member's portal session (their home, and "Updates" in the side bar):
@@ -2436,4 +2457,3 @@ CSO. Tests: `feed-publish.test.ts` 14.
 
 **Tests**: `apps/web/e2e/family-feed.spec.ts` (2, axe on every state); `apps/web/src/lib/family-feed.test.ts`
 (the portal-only home).
-

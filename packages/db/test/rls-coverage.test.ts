@@ -41,6 +41,9 @@ const APPEND_ONLY_TABLES = [
   "feed_item",
   "feed_item_withdrawal",
   "feed_view",
+  "tenant_setting_decision",
+  "retention_decision",
+  "dcb0160_record",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

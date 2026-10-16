@@ -1637,6 +1637,8 @@
     "comms.feed.withdraw.reasonError",
     "comms.feed.withdraw.submit",
     "comms.feed.withdraw.already",
+    "comms.feed.publish.textDiffers",
+    "comms.feed.publish.sourcesUnavailable",
     "shell.nav.updates",
     "comms.feed.family.title",
     "comms.feed.family.feedTitle",
