@@ -349,6 +349,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      which closes the item 5 note on the evidence pack code email (generic subject, the code and
      guidance in the body, H-225). Next, part 2b: preview, sending and the letters list with the
      PDF writer and the part 2 must-dos above.
+   - #70 review round 1 (security and clinical), fixed in #70: every version write matches the
+     version the caller loaded (an edit landing between the read and an approval is refused with
+     409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
+     it leaves (no link, and no personal field beyond the approved, rendered template), as
+     `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

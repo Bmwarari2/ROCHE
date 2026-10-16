@@ -2106,3 +2106,14 @@ append-only.
 
 **Tests**: `apps/api/test/letter-templates.test.ts` (5); `adapters.test.ts` 2 new;
 `evidence-link.test.ts` extended.
+
+## 2026-10-16: Letter template routes, review round 1 of #70 (HZ-051)
+
+- Every template version write (edit, approve, retire, discard) matches the version the caller
+  loaded, so an edit landing between the read and the write is refused (409, audited) and the edited
+  text is never approved unseen.
+- The refusal of a letter-only kind as email is audited.
+- Docs: HZ-051 row, STATUS (the email body check and the rendered-body ADR-0051 check for part 2b).
+
+**Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
+email, cross-tenant).

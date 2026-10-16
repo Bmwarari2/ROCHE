@@ -219,6 +219,17 @@ async function versionFor(
   return { template, row };
 }
 
+/**
+ * The version row exactly as the caller loaded it: an edit that lands between the read and this
+ * write changes `version`, so the write matches nothing (#70 review, HZ-051).
+ */
+const sameVersion = (versionId: string, version: number) =>
+  and(eq(letterTemplateVersion.id, versionId), eq(letterTemplateVersion.version, version));
+
+/** Someone changed the version after it was read: refused and audited, nothing written. */
+const staleVersion = (action: string, id: string) =>
+  refused(problems.conflict(), action, id, "version_conflict");
+
 const IdParam = z.object({ id: z.uuid() });
 const VersionParam = z.object({ id: z.uuid(), versionId: z.uuid() });
 
@@ -288,12 +299,17 @@ export const letterTemplatesRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, WRITE);
       const body = c.req.valid("json");
-      if (body.channel === "email" && LETTER_ONLY_KINDS.includes(body.kind)) {
-        throw problems.invalid(
-          "Incident follow-up and duty of candour letters carry health details, so they are letters only.",
-        );
-      }
       const item = await change(c, access, A.drafted, null, async (tx) => {
+        if (body.channel === "email" && LETTER_ONLY_KINDS.includes(body.kind)) {
+          throw refused(
+            problems.invalid(
+              "Incident follow-up and duty of candour letters carry health details, so they are letters only.",
+            ),
+            A.drafted,
+            null,
+            "letter_only_kind",
+          );
+        }
         const [template] = await tx
           .insert(letterTemplate)
           .values({ kind: body.kind, channel: body.channel })
@@ -444,9 +460,9 @@ export const letterTemplatesRouter = createRouter()
             subject: template.channel === "email" ? body.subject : null,
             body: body.body,
           })
-          .where(eq(letterTemplateVersion.id, versionId))
+          .where(sameVersion(versionId, body.version))
           .returning();
-        if (!row) throw new Error("version not updated");
+        if (!row) throw staleVersion(A.edited, id);
         await audit(c, tx, access, {
           action: A.edited,
           resourceType: "letter_template",
@@ -517,9 +533,9 @@ export const letterTemplatesRouter = createRouter()
         const [approved] = await tx
           .update(letterTemplateVersion)
           .set({ state: "approved", approvedBy: access.tenantUserId, approvedAt: new Date() })
-          .where(eq(letterTemplateVersion.id, versionId))
+          .where(sameVersion(versionId, body.version))
           .returning();
-        if (!approved) throw new Error("version not updated");
+        if (!approved) throw staleVersion(A.approved, id);
         await audit(c, tx, access, {
           action: A.approved,
           resourceType: "letter_template",
@@ -568,9 +584,9 @@ export const letterTemplatesRouter = createRouter()
             retiredAt: new Date(),
             retirementReason: body.reason,
           })
-          .where(eq(letterTemplateVersion.id, versionId))
+          .where(sameVersion(versionId, body.version))
           .returning();
-        if (!row) throw new Error("version not updated");
+        if (!row) throw staleVersion(A.retired, id);
         await audit(c, tx, access, {
           action: A.retired,
           resourceType: "letter_template",
@@ -614,9 +630,9 @@ export const letterTemplatesRouter = createRouter()
         const [row] = await tx
           .update(letterTemplateVersion)
           .set({ state: "discarded", discardReason: body.reason })
-          .where(eq(letterTemplateVersion.id, versionId))
+          .where(sameVersion(versionId, body.version))
           .returning();
-        if (!row) throw new Error("version not updated");
+        if (!row) throw staleVersion(A.discarded, id);
         await audit(c, tx, access, {
           action: A.discarded,
           resourceType: "letter_template",

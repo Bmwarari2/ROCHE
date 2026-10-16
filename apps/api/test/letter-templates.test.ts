@@ -1,6 +1,6 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
  * Letter and email templates through the API (comms.md rules 18 to 23 and section 5; COMMS-007;
@@ -226,5 +226,101 @@ describe("hazard HZ-051 letter and email templates", () => {
       [template.id],
     );
     expect(reasons).toEqual([{ reason: "retired" }]);
+  });
+});
+
+describe("hazard HZ-051 template changes race and reach", () => {
+  it("hazard HZ-051 refuses an approval when an edit lands between its read and its write", async () => {
+    const created = await make("manager", {
+      kind: "general",
+      channel: "letter",
+      name: "Race letter",
+      subject: null,
+      body: "Dear {{recipient.full_name}}, first words.",
+    });
+    const template = (await created.json()) as Template;
+    const draft = template.draft as Version;
+    // An edit by the manager, open but not committed: it holds the row and moves its version.
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+                set_config('app.user_id', $2, true)`,
+        [DEMO.tenantId, DEMO.users.manager.id],
+      );
+      await client.query(
+        "UPDATE letter_template_version SET body = 'Dear {{recipient.full_name}}, words nobody approved.' WHERE id = $1",
+        [draft.id],
+      );
+      // The approval reads the old version (the edit is not committed), then waits on the row.
+      const approving = as(
+        "owner",
+        `/v1/letter-templates/${template.id}/versions/${draft.id}/approve`,
+        { method: "POST", body: { version: draft.version } },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await client.query("COMMIT");
+      const response = await approving;
+      expect(response.status).toBe(409);
+    } finally {
+      client.release();
+    }
+    const [row] = await sql<{ state: string; body: string }>(
+      "SELECT state, body FROM letter_template_version WHERE id = $1",
+      [draft.id],
+    );
+    expect(row).toEqual({
+      state: "draft",
+      body: "Dear {{recipient.full_name}}, words nobody approved.",
+    });
+    const denied = await sql<{ reason: string }>(
+      "SELECT reason FROM audit_event WHERE resource_id = $1 AND action = 'comms.template.approved' AND outcome = 'denied'",
+      [template.id],
+    );
+    expect(denied.map((d) => d.reason)).toContain("version_conflict");
+  });
+
+  it("refuses an incident follow-up as an email, audited", async () => {
+    const response = await make("manager", {
+      kind: "incident_follow_up",
+      channel: "email",
+      name: "Follow-up",
+      subject: "A letter from us",
+      body: "Hello",
+    });
+    expect(response.status).toBe(422);
+    const denied = await sql<{ reason: string }>(
+      "SELECT reason FROM audit_event WHERE action = 'comms.template.drafted' AND outcome = 'denied' AND reason = 'letter_only_kind'",
+    );
+    expect(denied.length).toBeGreaterThan(0);
+  });
+
+  it("never shows one organisation's templates to another", async () => {
+    const list = (await (await as("manager", "/v1/letter-templates")).json()) as {
+      items: Template[];
+    };
+    const theirs = list.items[0] as Template;
+    const other = h.db.pool("harbour_owner");
+    const client = await other.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      await client.query(
+        "UPDATE role SET permissions = permissions || '{comms.template.write}' WHERE key = 'registered_manager'",
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    const asRae = (path: string) =>
+      h.request(path, { token: h.tokens.rae, tenant: OTHER.tenantId });
+    const listed = await asRae("/v1/letter-templates");
+    expect(listed.status).toBe(200);
+    expect(((await listed.json()) as { items: Template[] }).items).toEqual([]);
+    expect((await asRae(`/v1/letter-templates/${theirs.id}/versions`)).status).toBe(404);
   });
 });
