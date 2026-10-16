@@ -655,35 +655,41 @@ describe("statement of purpose versions in the database", () => {
 });
 
 describe("hazard HZ-011 cross-tenant denial for every evidence pack and statement table", () => {
-  const cases: [string, string, unknown[]][] = [
+  // Each insert names another organisation's row. It is refused by row-level security, or by the
+  // table's guard, which cannot see the hidden parent under it; never by a key or grant error.
+  const cases: [string, string, unknown[], RegExp][] = [
     [
       "evidence_pack_link",
       `INSERT INTO evidence_pack_link (tenant_id, pack_id, recipient_email, token_hash, expires_at)
        VALUES ($1, $2, 'ivy.inspector@example.invalid', ${hash("tb")}, now() + interval '1 day')`,
       [TENANT_A, PACK_NORTH],
+      /only for a released evidence pack|row-level security/,
     ],
     [
       "evidence_pack_link_code",
       `INSERT INTO evidence_pack_link_code (tenant_id, link_id, code_hash, valid_until)
-       SELECT $1, app.uuid_v7(), ${hash("000000")}, now() + interval '5 minutes'`,
+       VALUES ($1, $2, ${hash("000000")}, now() + interval '5 minutes')`,
       [TENANT_A],
+      /only for a live link|row-level security/,
     ],
     [
       "evidence_pack_bundle",
       "INSERT INTO evidence_pack_bundle (tenant_id, pack_id, content) VALUES ($1, $2, '{}')",
       [TENANT_A, PACK_NORTH],
+      /for a draft evidence pack|row-level security/,
     ],
     [
       "statement_of_purpose_version",
       `INSERT INTO statement_of_purpose_version (tenant_id, kind, content)
        VALUES ($1, 'baseline', '{}')`,
       [TENANT_A],
+      /row-level security/,
     ],
   ];
 
   it.each(cases)(
     "denies %s across organisations, to read and to write",
-    async (table, insert, params) => {
+    async (table, insert, params, refusal) => {
       // A code's only writable column is used_at (a column grant).
       const column = table === "evidence_pack_link_code" ? "used_at" : "tenant_id";
       const ofA = `SELECT count(*) AS n FROM ${table} WHERE tenant_id = '${TENANT_A}'`;
@@ -695,7 +701,19 @@ describe("hazard HZ-011 cross-tenant denial for every evidence pack and statemen
         c.query(`UPDATE ${table} SET ${column} = ${column} WHERE tenant_id = $1`, [TENANT_A]),
       );
       expect(changed.rowCount).toBe(0);
-      await expect(asOtherTenant((c) => c.query(insert, params))).rejects.toThrow();
+      // A code names one of the organisation's real links, so a missing key cannot pass for a refusal.
+      const values =
+        table === "evidence_pack_link_code"
+          ? [
+              ...params,
+              (
+                await asManager((c) =>
+                  c.query<{ id: string }>("SELECT id FROM evidence_pack_link LIMIT 1"),
+                )
+              ).rows[0]?.id,
+            ]
+          : params;
+      await expect(asOtherTenant((c) => c.query(insert, values))).rejects.toThrow(refusal);
     },
   );
 });
