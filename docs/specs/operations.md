@@ -380,8 +380,9 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     link, as rule 13 then does not ask for it. A second correction of the same back-entry is
     refused (the unique index): the form corrects the current version.
 - Bulk export (#45 review round 1, security M2): a downtime pack holds the whole home's records,
-  so building one on request and printing one need a fresh sign-in (step-up), as any bulk export
-  does (master prompt section 5.3). Opening the pack on screen needs MFA only. Each member opens,
+  so opening it, building one on request and printing one all need a fresh sign-in (step-up), as
+  any bulk export does (master prompt section 5.3; the JSON holds the same data as the PDF, #45
+  review round 2). The kiosk's own unlock is separate. Each member opens,
   prints or builds packs at most `downtime_pack.requests_per_hour` times an hour.
 
 ## 13. As built (slice 11 part 3a, downtime pack API)
