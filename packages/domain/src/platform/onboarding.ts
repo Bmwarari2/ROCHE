@@ -694,7 +694,9 @@ export type DecisionProblem =
   | "kind_not_for_class"
   | "no_own_period"
   | "not_longer"
-  | "safety_case_not_current";
+  | "safety_case_not_current"
+  | "reviewer_required"
+  | "reviewer_not_member";
 
 export interface DecisionIssue {
   readonly problem: DecisionProblem;
@@ -705,10 +707,34 @@ export interface DecisionIssue {
  * A decision on a tenant-default setting: accepting Harbour's default, or saying the organisation
  * has set its own, which needs its own figure in the rate table first. Never a tick on its own.
  */
+/**
+ * Who reviewed or assessed a clinical decision (HZ-027, HZ-018): an active member of the
+ * organisation, named when the decision is recorded. `null` when none was named.
+ */
+export type NamedReviewer = "active_member" | "not_member" | null;
+
+function reviewerIssue(reviewer: NamedReviewer): DecisionIssue | null {
+  if (reviewer === null) {
+    return {
+      problem: "reviewer_required",
+      message: "Say who reviewed it: your clinical lead or Clinical Safety Officer.",
+    };
+  }
+  if (reviewer === "not_member") {
+    return {
+      problem: "reviewer_not_member",
+      message: "Choose an active member of your organisation as the reviewer.",
+    };
+  }
+  return null;
+}
+
 export function checkSettingDecision(input: {
   readonly kind: SettingDecisionKind;
   readonly isTenantDefault: boolean;
   readonly hasOwnSetting: boolean;
+  /** For a clinical setting (`isClinicalSetting`): who reviewed it. Ignored for the others. */
+  readonly clinical?: { readonly reviewer: NamedReviewer };
 }): DecisionIssue | null {
   if (!input.isTenantDefault) {
     return {
@@ -722,7 +748,7 @@ export function checkSettingDecision(input: {
       message: "Set your own figure first, then record the decision.",
     };
   }
-  return null;
+  return input.clinical ? reviewerIssue(input.clinical.reviewer) : null;
 }
 
 /** Months in a retention period, to compare periods given in years or months. */
@@ -791,9 +817,11 @@ export function checkRetentionDecision(input: {
 export function checkDcb0160Recording(input: {
   readonly safetyCaseVersion: string;
   readonly currentSafetyCaseVersion: string;
+  /** The CSO or clinical lead who made the assessment. */
+  readonly assessor: NamedReviewer;
 }): DecisionIssue | null {
   return input.safetyCaseVersion.trim() === input.currentSafetyCaseVersion
-    ? null
+    ? reviewerIssue(input.assessor)
     : {
         problem: "safety_case_not_current",
         message: `Assess the deployment against the current safety case, ${input.currentSafetyCaseVersion}.`,

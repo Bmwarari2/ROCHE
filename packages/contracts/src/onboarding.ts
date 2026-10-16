@@ -52,12 +52,19 @@ export const OnboardingChecklist = z
     staffFileOption: z.enum(["staff_file.after_leaving", "staff_file.to_75th_birthday"]).nullable(),
     /** The organisation record's change counter, sent back to choose the staff file option. */
     version: z.number().int(),
+    /** The figure in force for each setting still to decide, shown with the decision. */
+    settings: z.array(z.object({ key: z.string(), value: z.number(), unit: z.string() })),
   })
   .meta({ id: "OnboardingChecklist" });
 export type OnboardingChecklist = z.infer<typeof OnboardingChecklist>;
 
 export const SettingDecision = z
-  .object({ rateKey: z.string().min(1).max(200), kind: z.enum(["accepted", "set"]) })
+  .object({
+    rateKey: z.string().min(1).max(200),
+    kind: z.enum(["accepted", "set"]),
+    /** The clinical lead or CSO who reviewed it: needed for a clinical setting (HZ-027). */
+    reviewedBy: z.uuid().optional(),
+  })
   .meta({ id: "SettingDecision" });
 export type SettingDecision = z.infer<typeof SettingDecision>;
 
@@ -87,6 +94,8 @@ export const Dcb0160Recording = z
   .object({
     /** The safety case version the assessment covers, as the recorder read it. */
     safetyCaseVersion: z.string().trim().min(1).max(40),
+    /** The CSO or clinical lead who made the assessment (needed). */
+    assessedBy: z.uuid().optional(),
   })
   .meta({ id: "Dcb0160Recording" });
 

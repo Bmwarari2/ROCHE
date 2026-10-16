@@ -1923,6 +1923,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain` (safety): `hazard HZ-027 counts post-fall observations from when the person was found` (`classifier.test.ts`; the found time was dropped before slice 7 stored it) | Passing |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 | `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-027 a post-fall chain with no steps`, `hazard HZ-027 post-fall observation figures not reviewed by the clinical lead` | Passing (Phase 1) |
+| `packages/domain/src/platform/onboarding.test.ts`: `HZ-027 clinical decisions name who reviewed them`; `apps/api/test/onboarding-decisions.test.ts`: `hazard HZ-027 accepts a clinical setting only with the clinical lead or CSO who reviewed it` (refused with no reviewer; the reviewer's member id in the audit event); `apps/web/e2e/onboarding.spec.ts`: a clinical setting refused on the page without its reviewer, then accepted naming them, with axe | Passing (slice 13 web) |
 | `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-027 a fall asks the point-of-care questions, not sure yet included`; `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (axe) | Passing (unit); e2e in hosted CI |
 
 ---
