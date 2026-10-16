@@ -6000,6 +6000,7 @@ export interface paths {
           subjectId?: string;
           category?:
             | "person_photo"
+            | "feed_photo"
             | "care_attachment"
             | "person_document"
             | "organisation_document";
@@ -16081,7 +16082,90 @@ export interface paths {
       };
     };
     put?: never;
-    post?: never;
+    /**
+     * Publish a family update from a note, an activity or a photo (HZ-022, HZ-061)
+     * @description comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable. Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishFeedItem"];
+        };
+      };
+      responses: {
+        /** @description Already published */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PublishedFeedItem"];
+          };
+        };
+        /** @description Published */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PublishedFeedItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -21301,6 +21385,7 @@ export interface components {
     /** @enum {string} */
     DocumentCategoryKey:
       | "person_photo"
+      | "feed_photo"
       | "care_attachment"
       | "person_document"
       | "organisation_document";
@@ -24814,6 +24899,37 @@ export interface components {
       | "photo_consent_withdrawn";
     WithdrawFeedItem: {
       reason: components["schemas"]["FeedWithdrawalReason"];
+    };
+    PublishedFeedItem: {
+      item: components["schemas"]["StaffFeedItem"];
+      lint: string[];
+    };
+    PublishFeedItem: {
+      /** Format: uuid */
+      id: string;
+      source:
+        | {
+            /** @enum {string} */
+            kind: "shared_note";
+            /** Format: uuid */
+            noteId: string;
+            text: string;
+          }
+        | {
+            /** @enum {string} */
+            kind: "activity";
+            /** Format: uuid */
+            activityId: string;
+          }
+        | {
+            /** @enum {string} */
+            kind: "photo";
+            /** Format: uuid */
+            documentId: string;
+            caption: string | null;
+            onlyThisPerson: boolean;
+          };
+      confirmationReason?: string;
     };
     LetterPreview: {
       /** Format: uuid */

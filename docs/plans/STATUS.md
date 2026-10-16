@@ -143,10 +143,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      scope `none`); `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role:
      run `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity
      test; `GET /v1/family/feed`, the portal link routes, `GET /v1/people/{id}/feed` and
-     `POST /v1/feed-items/{id}/withdraw`. Next, part 1b: publishing from source records
-     (`POST /v1/people/{id}/feed` with `composeFeedItem`, `care_note_share`, the publishing holds
-     and the photo basis, which the feed reads as missing until then, so photos stay closed);
-     then part 2, the web feed and staff screens; then channels, notifications and visit
+     `POST /v1/feed-items/{id}/withdraw`. Part 1b, publishing from records
+     (`feat/comms-feed-publish`): in review, `POST /v1/people/{id}/feed` for notes, activities and
+     photos (consent to photos required), the feed reading the photo basis. Follow-ups: visits and
+     care plan updates as sources; the exposure route; the next-of-kin step from safety in place of
+     "family not recorded as told"; the staff-name tenant setting (H-107); then part 2, the web feed and staff screens; then channels, notifications and visit
      booking. Open: the portal feed names no person (a family session cannot read `person`), so
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
@@ -441,6 +442,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      discard and retire with a reason, earlier versions). Next, part 2 stacked on it: the person's
      letters tab (preview showing name, room and photo; send with the preview's version and hash;
      409 `letter_changed` shows the new preview; the list).
+   - Slice 11, letters web part 2, the letters tab (`feat/web-letters-send`, stacked on part 1;
+     COMMS-007, HZ-051, HZ-001): in review. Follow-ups: letters to a contact need the contacts on
+     the record (the API has no contacts list for the web yet); an incident follow-up offers the
+     person's incidents only to holders of `safety.incident.manage`.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

@@ -2395,6 +2395,36 @@ refusals and a new draft. Tests: the journey's third test (stale form, stale sav
 **Tests**: `packages/db/test/onboarding-decisions.test.ts` (10); decision tables in
 `onboarding.test.ts` (19).
 
+## 2026-10-17: Slice 11 web part 2, the letters tab (COMMS-007)
+
+- `/people/{id}/letters`: choose an approved template, type only the admission or fee details it
+  uses, preview it with the person's name, room and photo (HZ-001), tick that it was checked and
+  make it with the preview's version and text hash; a changed letter (409) shows the new preview to
+  check again; refusals in words; the letters sent, each linked to its document.
+- Docs: comms.md section 11, the register, HZ-051, STATUS.
+
+**Tests**: `apps/web/src/lib/letters.test.ts` (9 more: typed details, pounds and pence, which
+templates are offered); `apps/web/e2e/letters.spec.ts` (2, axe on every state).
+
+## 2026-10-17: Slice 12 part 1b, publishing family updates (COMMS-001)
+
+- API: `POST /v1/people/{id}/feed` publishes one update from a care note (in words written for the
+  family), an activity (approved phrasing) or a photo (with the person's consent to photos, and
+  nobody else recognisable), through `composeFeedItem` with the residents, staff, publishing holds
+  and photo basis read in the system's view; the form's UUID makes a retry return the update;
+  audit and outbox with ids and codes only. `GET /v1/family/feed` reads the photo basis.
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/feed-publish.test.ts` (6).
+
+Review round 1 of #83: a photo is published only from a `feed_photo` document (a new document
+category; identification, wound and care photos and other documents refused, audited); the holds
+are tested through the API against the real query (open incident with the family not told, candour
+step, hospital; closed incident and family told not held); a reused id for another record is 409; a
+corrected note or activity is refused; a photo leaves the family feed when consent is withdrawn;
+`care_note_share` removed from the spec (publishing is the marking, H-370); H-370 and H-371 for the
+CSO. Tests: `feed-publish.test.ts` 14.
+
 ## 2026-10-17: Slice 13, the onboarding checklist part 2, decision routes (PLAT-018)
 
 - API (`platform.onboarding.manage`): record a setting decision, a retention decision, the staff

@@ -98,7 +98,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
 | `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |
-| `feed_item`, `feed_item_withdrawal`, `care_note_share`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
+| `feed_item`, `feed_item_withdrawal`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
 | `feed_view` (what a family member saw, under which decision) | audit_event.care_record |
 | `family_channel`, `family_notification_setting` | care_record, with the contact; push tokens are deleted when the device signs out, not retained |
 | `family_notification` and its deliveries | the class of the record they relate to (care_record) until the DPO sets a shorter period (H-106) |
