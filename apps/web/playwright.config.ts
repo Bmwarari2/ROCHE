@@ -33,6 +33,8 @@ export default defineConfig({
       command: "node dist/server.js",
       cwd: "../api",
       url: `${API_URL}/health`,
+      // Every journey signs in from one address here; the production limit (10) would refuse them.
+      env: { AUTH_SIGN_IN_PER_MINUTE: "600" },
       reuseExistingServer: !CI,
       timeout: 60_000,
       stdout: "ignore",

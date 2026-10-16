@@ -61,6 +61,7 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-080](#hz-080-a-revised-statement-of-purpose-not-sent-to-cqc-in-time) | A revised statement of purpose not sent to CQC in time | Minor / Medium / 2 | Minor / Low / 1 | Open | None (Phase 1) | Phase 1 |
 | [HZ-090](#hz-090-an-incident-form-records-an-assumed-answer-or-asks-a-notification-question-in-other-words) | An incident form records an assumed answer, or asks a notification question in other words | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-261) | Open | None (Phase 1) | Phase 1 |
 | [HZ-091](#hz-091-an-incident-is-closed-or-a-notification-recorded-as-submitted-or-not-required-on-a-wrong-or-stale-page) | An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-265) | Open | None (Phase 1) | Phase 1 |
 | [HZ-092](#hz-092-paper-records-confirmed-as-reviewed-at-reconciliation-without-being-found) | Paper records confirmed as reviewed at reconciliation without being found | Considerable / Medium / 3 | Considerable / Low / 2 (engineering proposal; the CSO rates it, H-267) | Open | None (Phase 1) | Phase 1 |
@@ -2142,6 +2143,8 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Design | One link per recipient: a hashed random token, opened only after a six-digit one-time code from a cryptographic source, stored hashed, used once and valid for at most 10 minutes, sent to the bound address; verification held in an HttpOnly session for that link, never on the link row; a failed-code count that never resets and locks the link for good; expiry at a tenant default up to a maximum; revocable at once; the bundle deleted when the link ends; every page watermarked with the recipient, purpose, time and pack id (`checkEvidencePackCode`, `evidencePackLinkAccess`, `evidencePackWatermark`, `evidencePackBundleDeletable`; quality.md rules 7, 8 and 10; ADR-0050) | Phase 1 (domain rules built, slice 11; routes with the API step) |
 | Design | `quality.evidence.read` is a care-record permission (MFA) held by the inspector role alone | Phase 1 (built, slice 11) |
 | Design | Every open, code attempt and revocation is audited | Phase 1 (API step) |
+| Design | The API reads each record added to a pack in the composer's own scope (anything else is not found) and keeps only the values the pack shows; text typed inside a structured value (an observation's drink or override reason) is free text, withheld until redacted by hand; the bundle is deleted at once on revoke or discard and by the five-minute sweep when a link has ended (quality.md section 13) | Phase 1 (built, slice 11 part 2a) |
+| Design | Release re-reads every record in the pack and is refused, naming each, when one was corrected or changed since it was added; each entry says how it came to be (a correction, a back-entry from paper with the paper time and outage, the recording time, a wrong device clock); readings carry labels and units; times carry GMT or BST (#60 review round 1; H-221, H-222) | Phase 1 (built, slice 11 part 2a) |
 | Design | The database holds the same line (migration 0057): a pack is visible only to holders of compose or release at every one of its locations who can see every person in its scope; its request is fixed once composed; items are append-only and hold outcomes, never values or redacted copies (the shown values live in the bundle, and whoever changes them becomes an editor; deleted when the link ends or the pack is revoked or discarded, never restored); a hand redaction is in the redactor's name and makes them an editor; release and every link only by a member outside the composer, editors, redactors and item writers, holding release at every location; a link goes to the pack's recipient only, expires within the maximum, and a new one replaces the last, revoked first; failed code attempts never go down; a code's lifetime is worked out by the database (at most 10 minutes) and it is used once, only while the link is live | Phase 1 (schema built, slice 11) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the quality lead reviews the redaction preview before asking a second person to release; the DPO confirms the redaction rules (H-96) | Phase 1 |
@@ -2159,6 +2162,11 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 releasing a pack: nobody who shaped it may release it`; `hazard HZ-050 issuing a new link is a release` | Passing (Phase 1, slice 11) |
 | `packages/domain/src/quality/evidence-pack.test.ts`: `hazard HZ-050 one-time codes` (six digits only, wrong link, malformed, used, expired, wrong code; `never resets the failed-attempt count, even after a correct code`); `hazard HZ-050 the link opens only for its recipient's own session, before expiry and revocation`; `lets a tenant shorten the code lifetime but never lengthen it` | Passing (Phase 1, slice 11) |
 | `packages/domain/src/quality/evidence-pack.test.ts`: `gives opening a released pack to the inspector role alone (least privilege)` | Passing (Phase 1, slice 11) |
+| `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 composing and minimising an evidence pack` (composed only in the composer's scope; free text withheld, staff as a role and identifiers withheld, with no withheld value in the bundle or the manifest; a record about someone outside the scope excluded; typed text inside an observation's reading treated as free text; a leaking hand redaction refused; release and a new link refused to the composer; the token stored only as its hash and never audited; a revoked pack's link stopped and bundle deleted) | Passing (Phase 1, slice 11 part 2a) |
+| `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 a pack says how each entry came to be, and shows the record as it stands` (a correction labelled, its reason withheld; a back-entry from paper labelled with the paper time and outage, its reference withheld; a wrong device clock; release refused after a correction, naming the record); `counts only the chart schema's own values as codes`; step-up on release and re-issue; `no-store` on the token responses | Passing (#60 review round 1) |
+| `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 release and a new link stop at what the releaser can stand behind` (a new link refused to an editor who is not the composer; release refused with `record_changed` when an incident's version moved on; release refused when the releaser cannot open a record, naming only the pack's own title; an observation's recording time and wrong device clock labelled) | Passing (#60 review round 2) |
+| `packages/domain/src/shared/time.test.ts`: `hazard HZ-050 times in an evidence pack say GMT or BST` (the repeated October hour read both ways) | Passing (#60 review round 1) |
+| `apps/api/test/evidence-packs.test.ts`: `hazard HZ-050 the bundle goes when the link ends` (a discarded draft's bundle deleted; the sweep deletes an expired link's bundle once, audited; an ended link cannot be issued again) | Passing (Phase 1, slice 11 part 2a) |
 | `apps/api`: `hazard HZ-050 the rendered pack contains no third party's name and no person outside its scope` (snapshot of a rendered fixture pack) | Planned, Phase 1 (API step) |
 | `packages/db/test/evidence-pack.test.ts`: `hazard HZ-050 evidence pack items, release and links in the database` (no values in items; append-only items; hand redactions in the redactor's name; no release by anyone who shaped the pack or of an empty pack; links to the recipient alone, within the maximum, replacing the last; hashed tokens and the token lookup; failed attempts never go down; codes used once; bundles changed only in a draft and deleted for good); `hazard HZ-011 evidence pack isolation and scope` | Passing (Phase 1, slice 11 schema) |
 
@@ -2588,6 +2596,47 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-091 never says someone else changed it after a conflict, which may be your own retry`, `hazard HZ-091 announces what was done only while the status still matches`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked`, and `hazard HZ-091 readSubmitForm (HZ-090: no time assumed)` (nothing chosen; `hazard HZ-091 allows no time after now, as the API allows none`; `hazard HZ-091 refuses a time skipped when the clocks went forward in March`; `hazard HZ-091 asks which time in the hour the clocks went back in October`); the `notificationManageView (ADR-0071)` table | Passing |
 | `apps/web/src/lib/refusals.test.ts`: `closing an incident and the notifications (HZ-013)` (every refusal run in the domain and recognised); `apps/web/src/components/safety/ManageForms.test.tsx`: `hazard HZ-091 says to sign in again and links back to the page, accessibly`, `hazard HZ-091 says the separation of duties refusal in words a manager can act on, accessibly` and `hazard HZ-091 shows the step-up notice for a step-up refusal, and nothing on success` (axe; the journey cannot reach these two states) | Passing |
 | `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted` and `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` (what to do first with the draft linked, empty, error, refused and done, each checked with axe) | Hosted CI |
+
+---
+
+## HZ-080 A revised statement of purpose not sent to CQC in time
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-080 |
+| Status | Open (whether it is in DCB0129 scope at all is for the CSO, H-224) |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lead engineer) |
+| Source | [quality.md](../specs/quality.md) rule 15 and section 14; CQC (Registration) Regulations 2009 regulation 12(3); #61 review round 1 |
+
+**Description**: an approved revision of the statement of purpose is not sent to CQC within
+`cqc.statement_of_purpose.revision_notice_days` (28) UK days, because nobody was told, the alert
+did not say which version or by when, or the due date moved with a clock change.
+
+**Causes**: no alert when the due date passes; an alert to someone who cannot record the
+submission; an alert in vague words; the due date worked out as 28 times 24 hours across a clock
+change; the alert sent again and again, or not at all after a failed run.
+
+**Effects**: a regulatory breach for the provider; people choosing a service from an out-of-date
+statement (for example a location or registered manager that has changed). No direct harm to a
+person receiving care.
+
+**Initial risk**: severity Minor, likelihood Medium, **risk 2**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The database sets the due date on approval in UK wall-clock days (migration 0057); the hourly job tells every active holder of `safety.notification.submit` once, urgently, through the overdue chain, naming the version and the due date, and audits the gap daily when nobody can be told; recording the submission acknowledges the alerts | Phase 1 (built, slice 11 part 2b) |
+| Training and user documentation | The words of the alert, a "due soon" reminder and who receives it (H-219) | Phase 1 |
+
+**Target residual risk**: severity Minor, likelihood Low, **risk 1**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/statement-of-purpose.test.ts`: `hazard HZ-080 tells the holders of safety.notification.submit once, naming the version and the due date, when the revision is overdue`; `pins the 28 UK days across the October clock change`; the due date at approval matches 28 UK days to the minute | Passing (#61 review round 1) |
 
 ---
 

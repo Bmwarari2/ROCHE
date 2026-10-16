@@ -263,7 +263,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      migration 0057; quality.md section 12): six tables with forced RLS, the workflow guards,
      separation of duties in the database, hashed tokens and codes, bundle deletion and the
      definer token lookup (new NOLOGIN role `harbour_evidence_link_reader`: run `pnpm
-     db:bootstrap` first, H-216; storage split for the DPO, H-217). Next, part 2, the API: the
+     db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
      routes, public link routes and audit and outbox events of section 5, the PDF through the
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
      notification-overdue job. Follow-ups: an inspector with a Harbour account
@@ -279,6 +279,33 @@ only when they link spec, code, tests and user documentation; no user guides exi
        restrictive policy for system sessions so they reach that link alone;
      - (Low) the API increments `failed_code_attempts` on a wrong code (tested), stores codes as an
        HMAC with a server key rather than an unsalted SHA-256, and caps live codes per link.
+   - Slice 11, evidence pack and statement of purpose part 2a, the evidence pack routes and the
+     bundle sweep (`feat/quality-evidence-pack-api`; quality.md section 13): compose, add records
+     (care notes, observations, incidents), hand redaction, release with the link, re-issue,
+     revoke and discard, with audit and outbox events; the `evidence-bundle-sweep` job (the #56
+     Medium requirement, tested). Next: part 2b, the statement of purpose routes and the
+     notification-overdue job (stacked); part 2c, the public link routes (`app.link_id` and a
+     link-session policy in migration 0058, codes as an HMAC with a server key, the failed-attempt
+     count, a cap on live codes, the session cookie) and the PDF through the ADR-0040 writer.
+     Follow-ups: the other seven record types of the field map; staff shown as their role from the
+     closed list (as built every staff name prints "[member of staff]", H-218); a superseded
+     incident version cannot be added after it changes, only a new pack.
+   - Slice 11 part 2b, the statement of purpose routes and the notification-overdue job
+     (`feat/quality-statement-of-purpose-api`, stacked on part 2a; quality.md section 14): built,
+     PR open. Follow-ups: the overdue alert's words and who receives it (every active holder of
+     `safety.notification.submit` anywhere, H-219); the CQC notification wording or template
+     itself is not generated (the record holds the reference or how it was sent).
+   - #61 review round 1, fixed in #61: the overdue alert names the version and the due date; the
+     28 UK days are tested across the October clock change; step-up on recording the notification
+     is tested; HZ-080 logged (DCB0129 scope for the CSO, H-224); H-219 asks about a "due soon"
+     reminder.
+   - #60 review round 1 (clinical and security), fixed in #60: release re-reads every record and
+     is refused, saying which, when one was corrected or changed since it was added; corrections,
+     back-entries from paper (paper time, outage, reference), the recording time and a wrong
+     device clock are labelled in the pack; observation readings have a label and unit per chart
+     field and only the chart schema's own values count as codes; care-note tags are free text;
+     times carry GMT or BST; the token responses say `no-store` (the API logs no request bodies).
+     For the CSO and DPO: H-221 to H-223. Follow-up: reason codes in audit rows (H-223).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

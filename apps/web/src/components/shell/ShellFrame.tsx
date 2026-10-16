@@ -90,7 +90,9 @@ export function ShellFrame({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [collapsed, setCollapsed] = useState(false);
+  // Null until the browser has said whether this is a phone: the sidebar then collapses by CSS on a
+  // narrow screen, so the first paint never lays out the full-width sidebar there.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
@@ -231,8 +233,9 @@ export function ShellFrame({
             items={items}
             currentId={currentSection(pathname)}
             label={labels.navigation}
-            collapsed={collapsed}
+            collapsed={collapsed ?? false}
             onCollapsedChange={setCollapsed}
+            {...(collapsed === null ? { className: "hb-sidebar--narrow-auto" } : {})}
             linkComponent={Link}
           />
         </div>
