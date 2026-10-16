@@ -5,7 +5,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { demoPerson, expectAccessible, signIn, signInManagerWithPasskey } from "./support";
+import { demoPerson, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * Phase 1 slice 11 web: a location's downtime page (OPS-028; hazards HZ-017 and HZ-021) against
@@ -414,7 +414,7 @@ test("hazard HZ-021 the manager opens the pack with its freshness in words and p
 }) => {
   // The pack is a whole-home record that needs a fresh step-up, which counts only from a second
   // factor used in the last few minutes (ADR-0072 amendment): the manager signs in with a passkey.
-  await signInManagerWithPasskey(page);
+  await signInWithDemoPasskey(page);
   await openLocation(page);
   await page.getByRole("link", { name: "Open the pack" }).click();
   await page.waitForURL((url) => url.pathname === `/downtime/${DEMO_LOCATION}/pack`);

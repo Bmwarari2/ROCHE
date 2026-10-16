@@ -150,8 +150,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      "family not recorded as told"; the staff-name tenant setting (H-107). Part 2a
      (`feat/web-family-feed`, stacked on part 1b): the preview route and the staff "Family updates"
      tab (choose a record, words for the family, problems at each field, preview, publish once,
-     take down with a reason), with a Playwright journey. Next, part 2b, the family's portal page;
-     then channels, notifications and visit booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     take down with a reason), with a Playwright journey. Part 2b (`feat/web-family-portal`,
+     stacked on 2a): the family's `/updates` page (statement, time checked, updates, taken-down
+     notices; a closed feed reads as no decision), a family member's home, and a demo portal
+     account for the journeys. Follow-up: name the person on each feed once the API returns a
+     name the decision allows (numbered for now; HZ-001). Then channels, notifications and visit
+     booking. Open: the portal feed names no person (a family session cannot read `person`), so
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
@@ -181,8 +185,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
      file and DCB0160 decisions, audited with refusals.
    - Part 3, the checklist (`feat/platform-onboarding-checklist`): `GET /v1/onboarding` works
      every item out from the records; the go-live check now reads the escalation policy links
-     (HZ-014). Next: sub-processor notices (rules 24 and 25), sample data mode, then the web
-     screens for the DPIA and the checklist.
+     (HZ-014).
+   - Web, the DPIA page (`feat/web-dpia-onboarding`, platform-completions.md section 10f): the
+     governance, preparing and signing in-app, with step-up notices and a journey with axe. The
+     signing form is offered only to the named lead who prepared none of it. Open: the typed name
+     is checked for length and bound to the version's SHA-256, never against the signer's account
+     name (the API records the session's member as signer); decide whether it must match before a
+     pilot. `db:seed` now refuses to seed the demo tenant in production unless
+     `HARBOUR_SEED_DEMO=0` (reference data only). Next:
+     the onboarding checklist page, then sub-processor notices and sample data mode.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and

@@ -626,6 +626,19 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
 - Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
   organisations, telling their leads, and recording a resolution), then the web screens.
 
+## 10f. As built (slice 13 web, the DPIA page)
+
+- `/settings/data-protection` (any DPIA permission; "Data protection" in the module menu): where
+  the DPIA stands as an icon and a word, why a review is due and what Harbour still needs; the
+  governance form for `platform.tenant.manage` (the lead from the active members, the DPO, sector,
+  privacy notice, DPA date in day, month and year boxes, use beyond direct care, the optional
+  processing; the AI provider is kept as it is); the open version's answers and residual risk
+  ratings with the ICO reference, and "Mark ready to sign", for `platform.dpia.prepare`; and the
+  prepared version's signature for `platform.dpia.sign`, showing the version's SHA-256 the typed
+  name binds to. Naming a different lead and signing say how to step up (`StepUpNotice`), with
+  the way back. The demo organisation now has a CQC provider ID (`1-DEMO000000`), so its DPIA can
+  be signed in the journey.
+
 ## 10s. As built (slice 13, search)
 
 ### Part 1, the index

@@ -284,8 +284,8 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
       }
 
       await client.query(
-        `INSERT INTO tenant (id, name, legal_name, legal_form, status, nation, terminology, brand_name)
-         VALUES ($1, 'Harbour Demo Care', 'Harbour Demo Care Ltd', 'limited_company', 'active', 'england', 'resident', 'Harbour Demo Care')`,
+        `INSERT INTO tenant (id, name, legal_name, legal_form, status, nation, terminology, brand_name, cqc_provider_id)
+         VALUES ($1, 'Harbour Demo Care', 'Harbour Demo Care Ltd', 'limited_company', 'active', 'england', 'resident', 'Harbour Demo Care', '1-DEMO000000')`,
         [DEMO.tenantId],
       );
       await client.query(
