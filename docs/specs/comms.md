@@ -187,11 +187,13 @@ by the caller.
    (`LIVE_PERSON_STATUSES`: active, on leave, in hospital, from people/lifecycle.ts). Discharge and
    death close sharing (people.md rules 2 and 13, the `close_sharing` effect); a correction of a
    discharge or death recorded in error does not reopen it until a manager reinstates the decision.
-   Nothing new is composed for a closed record. A family member who had a decision then sees
-   "Updates are paused. The home will be in touch." (`FEED_PAUSED_STATEMENT`, wording for the CSO,
-   H-110), never a feed that is suddenly empty; someone who never had a decision sees no change. A
-   death or a discharge is never announced through the feed or a notification: staff tell the
-   family in person or by phone.
+   Nothing new is composed for a closed record. A feed closed by the person's status looks exactly
+   like a feed with no decision in force: the same statement, no entries and no status-specific
+   notice, so the portal can never tell a family about a death or discharge before the home does
+   (#75 and #76 review; the domain's `FEED_PAUSED_STATEMENT` is not shown). A death or a discharge
+   is never announced through the feed or a notification: staff tell the family in person or by
+   phone. Whether staff may post a closing message once the next of kin have been told is for the
+   CSO (H-110).
 4. **Withdrawal hides from then on; what was seen stays seen.** Withdrawing or suspending a decision
    closes its sections at the next request. It cannot undo a view, so every view is kept
    (`feed_view`, with the decision that allowed it and the capacity finding then): `feedExposure`

@@ -2142,6 +2142,6 @@ email, cross-tenant).
   assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
 - Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
 
-**Tests**: `packages/db/test/family-feed.test.ts` (23: 17 table-driven parity cases between the SQL
+**Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
 and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
 list.
