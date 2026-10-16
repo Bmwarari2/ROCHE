@@ -153,7 +153,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | QUAL-006 | Provider Information Return prefill | 11.2 | 2 | todo | - | - | - | - |
 | QUAL-007 | Capacity Tracker and ASC-WDS returns prefill | 11.2, 12.3 | 3 | todo | - | - | - | - |
 | QUAL-008 | Policy library with versioning, read-and-sign, vendor import and starter templates | 11.2 | 2 | todo | - | - | - | - |
-| QUAL-009 | Statement of purpose with change tracking | 11.2 | 1 | partial | [quality](quality.md#statement-of-purpose-qual-009) | `packages/domain/src/quality/statement-of-purpose.ts`, `packages/domain/src/quality/rates.ts`, `packages/db/src/schema/quality.ts` (migration 0057) | `packages/domain/src/quality/statement-of-purpose.test.ts`, `packages/db/test/evidence-pack.test.ts` | - |
+| QUAL-009 | Statement of purpose with change tracking | 11.2 | 1 | partial | [quality](quality.md#statement-of-purpose-qual-009) | `apps/api/src/routes/statement-of-purpose.ts`, `packages/domain/src/quality/statement-of-purpose.ts`, `packages/domain/src/quality/rates.ts`, `packages/db/src/schema/quality.ts` (migration 0057) | `packages/domain/src/quality/statement-of-purpose.test.ts`, `packages/db/test/evidence-pack.test.ts` | - |
 | QUAL-010 | Registration and governance records: RM and NI details, fit and proper persons, Reg 14 absence notifications, Reg 15 changes, certificates, minutes, risk register, business continuity plan | 11.2 | 3 | todo | - | - | - | - |
 | QUAL-011 | Resident, family and staff surveys | 11.2 | 3 | todo | - | - | - | - |
 | QUAL-012 | DSPT and Cyber Essentials evidence tracker with ICO registration records | 11.2 | 2 | todo | - | - | - | - |

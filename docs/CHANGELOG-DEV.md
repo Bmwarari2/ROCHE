@@ -1972,6 +1972,21 @@ ended.
 
 **Tests**: `apps/api/test/evidence-packs.test.ts`, 12 new.
 
+## 2026-10-16: Slice 11, statement of purpose routes and the overdue job (QUAL-009, part 2b)
+
+The statement of purpose API on migration 0057 (quality.md section 14): list versions with the
+Schedule 3 checklist and the regulation 12(3) clock, draft the baseline or a revision, edit and
+discard drafts, approve by someone who did not write or edit it (change summary and registration
+prompts stored; outbox `quality.statement_of_purpose.approved`), record the CQC notification by a
+holder of `safety.notification.submit` with step-up, and the changes view. The worker's
+`statement-of-purpose-overdue` job tells the submit holders once through the overdue chain and
+publishes `quality.statement_of_purpose.notification_overdue`. `submitHolders` now also answers for
+the whole organisation.
+
+- Docs: quality.md section 14, H-219, STATUS, feature register.
+
+**Tests**: `apps/api/test/statement-of-purpose.test.ts`, 5 new.
+
 ## 2026-10-16: Evidence pack routes, review round 1 of #60 (HZ-050)
 
 - Release re-reads each record in the pack and is refused (409 `record_changed`, naming each) when
@@ -1990,3 +2005,12 @@ ended.
 **Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
 re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
 `time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
+
+## 2026-10-16: Statement of purpose, review round 1 of #61
+
+- The overdue alert names the version and the due date in plain words.
+- Docs: HZ-080 (new: a revised statement of purpose not sent to CQC in time), H-219 updated (a
+  "due soon" reminder), H-224 (DCB0129 scope), quality.md section 14, STATUS.
+
+**Tests**: `apps/api/test/statement-of-purpose.test.ts` 1 new and 3 extended (the 28 UK days across
+the October clock change, the alert's words, step-up on recording the notification).

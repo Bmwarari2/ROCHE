@@ -10,6 +10,7 @@ import {
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
   generatePlanTaskSeries,
@@ -70,6 +71,7 @@ const QUEUES = {
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
   evidenceBundles: "evidence-bundle-sweep",
+  statementOverdue: "statement-of-purpose-overdue",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -140,6 +142,9 @@ await work(QUEUES.invitations, async () => {
 await work(QUEUES.evidenceBundles, async () => {
   await sweepEvidenceBundlesJob(deps);
 });
+await work(QUEUES.statementOverdue, async () => {
+  await escalateStatementsOfPurpose(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -179,6 +184,8 @@ await boss.schedule(QUEUES.invitations, "17 3 * * *");
 
 // Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).
 await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");
+// Hourly: a revision is due at CQC by the day (regulation 12(3)); each is alerted once.
+await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
 
 logger.info("Harbour worker started");
 

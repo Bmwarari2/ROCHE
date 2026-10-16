@@ -290,6 +290,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Follow-ups: the other seven record types of the field map; staff shown as their role from the
      closed list (as built every staff name prints "[member of staff]", H-218); a superseded
      incident version cannot be added after it changes, only a new pack.
+   - Slice 11 part 2b, the statement of purpose routes and the notification-overdue job
+     (`feat/quality-statement-of-purpose-api`, stacked on part 2a; quality.md section 14): built,
+     PR open. Follow-ups: the overdue alert's words and who receives it (every active holder of
+     `safety.notification.submit` anywhere, H-219); the CQC notification wording or template
+     itself is not generated (the record holds the reference or how it was sent).
+   - #61 review round 1, fixed in #61: the overdue alert names the version and the due date; the
+     28 UK days are tested across the October clock change; step-up on recording the notification
+     is tested; HZ-080 logged (DCB0129 scope for the CSO, H-224); H-219 asks about a "due soon"
+     reminder.
    - #60 review round 1 (clinical and security), fixed in #60: release re-reads every record and
      is refused, saying which, when one was corrected or changed since it was added; corrections,
      back-entries from paper (paper time, outage, reference), the recording time and a wrong
