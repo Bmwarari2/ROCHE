@@ -19671,7 +19671,7 @@ export interface paths {
     put?: never;
     /**
      * Record a decision on a setting Harbour chose
-     * @description platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.
+     * @description platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.
      */
     post: {
       parameters: {
@@ -19890,7 +19890,7 @@ export interface paths {
     put?: never;
     /**
      * Record the organisation's DCB0160 assessment
-     * @description platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one (422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.
+     * @description platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.
      */
     post: {
       parameters: {
@@ -26341,6 +26341,11 @@ export interface components {
       /** @enum {string|null} */
       staffFileOption: "staff_file.after_leaving" | "staff_file.to_75th_birthday" | null;
       version: number;
+      settings: {
+        key: string;
+        value: number;
+        unit: string;
+      }[];
     };
     OnboardingItem: {
       key: string;
@@ -26372,6 +26377,8 @@ export interface components {
       rateKey: string;
       /** @enum {string} */
       kind: "accepted" | "set";
+      /** Format: uuid */
+      reviewedBy?: string;
     };
     RetentionDecision: {
       recordClass: string;
@@ -26390,6 +26397,8 @@ export interface components {
     };
     Dcb0160Recording: {
       safetyCaseVersion: string;
+      /** Format: uuid */
+      assessedBy?: string;
     };
   };
   responses: never;
