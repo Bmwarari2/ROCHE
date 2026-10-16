@@ -58,6 +58,10 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   `checkGrantPermissions` refuses portal permissions in grants, and a stored mixed role is ignored.
   The API passes `"portal"` from the family portal step onwards.
 - MFA: required for every permission that touches care records (`mfa_enrolment_required` otherwise).
+  It counts only when the session itself signed in, or confirmed a code, with a passkey, an
+  authenticator code or a backup code (ADR-0072); a member with a factor enrolled whose session
+  did not use it gets `mfa_verification_required` and is sent to sign in with it. Sessions from
+  before this rule fail closed.
 - Step-up: controlled drugs, residents' money approval, data export, break-glass, statutory
   notifications, support-access approval and revoking a Care mode device need a sign-in within 10
   minutes.

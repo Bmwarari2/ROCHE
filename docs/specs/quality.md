@@ -290,3 +290,26 @@ schema, API or web changes in this slice.
 | `statement-of-purpose.ts` | `STATEMENT_OF_PURPOSE_ITEMS`, `LEGAL_STATUSES`, `checkStatementOfPurpose`, `statementOfPurposeChanges`, `statementOfPurposeRegistrationPrompts`, `STATEMENT_OF_PURPOSE_WORKFLOW`, `checkStatementOfPurposeApproval`, `statementOfPurposeNotificationState`, `checkStatementOfPurposeNotificationRecord`, `startStatementOfPurposeRevision` | Rules 11 to 15 |
 | `rates.ts` | `EVIDENCE_PACK_RATE_KEYS`, `resolveEvidencePackPolicy`, `EVIDENCE_CODE_MAX_VALID_MINUTES`, `STATEMENT_OF_PURPOSE_RATE_KEYS`, `resolveStatementOfPurposeRates` | The link and code policy and the regulation 12(3) period |
 | `../shared/email.ts` | `isPlausibleEmail`, `normaliseEmail` | Recipient addresses: printable ASCII only, lower-cased in ASCII (no Unicode case-folding), checked with a loop (no backtracking) |
+
+## 12. As built (slice 11, schema: migration 0057)
+
+`packages/db/src/schema/quality.ts` and migration 0057 (`feat/quality-evidence-pack`). Forced RLS
+with the tenant policy on every table; the routes, audit and outbox events of section 5 follow
+in the API step.
+
+| Table | Built as |
+| --- | --- |
+| `evidence_pack` | Mutable, versioned. Visible to holders of `quality.evidence_pack.compose` or `.release` at every one of its locations, in a scope covering them all, who can see every person in scope (`app.evidence_pack_visible`, `app.evidence_pack_permitted`); composed as a draft in the composer's own name. The request is fixed once composed (compose a new pack to change it); editors are added by the database; it moves only along `EVIDENCE_PACK_WORKFLOW` in the mover's name; release needs an included item, a holder of release at every location and someone outside `app.evidence_pack_contributors` (composer, editors, hand redactors, item writers) |
+| `evidence_pack_item` | Append-only. Included items carry field outcomes, never the shown values or a redacted copy (kinds, outcomes and reasons checked against the domain's lists; keys, labels and titles bounded); excluded items carry their reason (`EVIDENCE_EXCLUSION_REASONS`). A hand redaction is a new row superseding the item, in the redactor's name, and makes them an editor |
+| `evidence_pack_bundle` | The shown values (hand-redacted copies included) by item and field key, written while a draft; whoever writes or changes it, other than the composer, becomes an editor and so a contributor; deleted (content cleared, never restored) when the link ends (`link_ended`) or the pack is revoked or discarded. Not versioned, so no copy survives in the history; not exported |
+| `evidence_pack_link` | Mutable, versioned. Only for a released pack, to its recipient, by a non-contributor holding release at every location, expiring within `evidence_pack.link_expiry_days.max` (UK days; no figure refuses). One live link per pack; a new one replaces the last, revoked as `reissued` first. Failed attempts never go down; a revoked link is final; an open is recorded only while the link is live (released, unrevoked, unexpired, under 5 failed codes) |
+| `evidence_pack_link_code` | Issued only for a live link; `valid_until` worked out by the database (`evidence_pack.code_valid_minutes`, at most 10); only `used_at` may change, once, before it lapses, while the link is live (a column grant) |
+| `statement_of_purpose_version` | Readable by holders of `quality.statement_of_purpose.write` or `.approve` or `safety.notification.submit` anywhere (`app.holds_permission_anywhere`); drafted by holders of write, numbered by the database; the first is the baseline. A draft's editors join its contributors; approval of the content as it stands, different from the current version, by an approver who is neither author nor contributor, supersedes the current version inside the same trigger and sets `notification_due_at` for a revision (`cqc.statement_of_purpose.revision_notice_days`, UK days). Approved versions are fixed except the CQC notification, recorded once by a holder of `safety.notification.submit` |
+
+The public link routes find a link with `app.evidence_pack_link_for_token(token_hash)` (the API passes the SHA-256 hex digest, never the raw token) (security
+definer, owned by the NOLOGIN role `harbour_evidence_link_reader`, which reads only the link's
+tenant, id, pack and token hash), then work in that organisation as the system on that link alone.
+Tests: `packages/db/test/evidence-pack.test.ts`; the RLS coverage test lists `evidence_pack_item`
+as append-only; the export catalogue classifies every new column (token and code hashes secret).
+Opening a released pack with a Harbour inspector account (`quality.evidence.read`) needs a policy
+of its own in the API step.

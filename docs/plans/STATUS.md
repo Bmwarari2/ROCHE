@@ -259,6 +259,26 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - the nightly job covers active locations only;
      - the kiosk route needs a location-bound branch for reads with no member before it is built;
      - the seeded places wording still needs the CSO's confirmation (H-201).
+   - Slice 11, evidence pack and statement of purpose part 1, schema (`feat/quality-evidence-pack`,
+     migration 0057; quality.md section 12): six tables with forced RLS, the workflow guards,
+     separation of duties in the database, hashed tokens and codes, bundle deletion and the
+     definer token lookup (new NOLOGIN role `harbour_evidence_link_reader`: run `pnpm
+     db:bootstrap` first, H-216; storage split for the DPO, H-217). Next, part 2, the API: the
+     routes, public link routes and audit and outbox events of section 5, the PDF through the
+     downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
+     notification-overdue job. Follow-ups: an inspector with a Harbour account
+     (`quality.evidence.read`, scope `none`) opening a pack released to their address needs its
+     own policy; the migration number 0057 follows 0056 (#50), so its journal `when` must stay
+     after #50's at merge.
+   - Requirements for part 2 from #56 security review round 1 (the schema fixes are in #56: bundle
+     editors are contributors, no redacted copies or long free text in the manifest, the token
+     lookup takes the hex digest, cross-tenant tests for every table):
+     - (Medium) a pg-boss sweep deletes bundles when a link ends or expires, with a test; part 2
+       does not ship without it;
+     - (Low) the public routes run as `app.is_system()`: set a per-transaction `app.link_id` and a
+       restrictive policy for system sessions so they reach that link alone;
+     - (Low) the API increments `failed_code_attempts` on a wrong code (tested), stores codes as an
+       HMAC with a server key rather than an unsalted SHA-256, and caps live codes per link.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -571,6 +591,22 @@ only when they link spec, code, tests and user documentation; no user guides exi
       function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
       (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
       with the client address and a prefix of the token's hash only.
+    - `fix/platform-mfa-session-factor` (#43 review M5, ADR-0072, HZ-112, H-358): built. MFA counts only
+      when the session signed in or confirmed a code with a passkey, TOTP or backup code (a record in
+      `auth.verification`, no migration); a member with a factor whose session did not use it gets
+      `mfa_verification_required` and the web sends them to `/sign-in?reason=mfa`; the operator
+      console uses the same rule; sessions from before the deploy fail closed. Follow-ups: the mobile
+      app must add `mfa_verification_required` to `SESSION_PROBLEM_CODES` (mobile lane); step-up
+      permissions outside care records still need only a fresh sign-in, not a second factor;
+      Lane A may move the record to an `auth.session` column. Still open for Lane A (a migration):
+      `harbour_membership_reader` granted to `harbour_owner` `WITH INHERIT TRUE`; make it `SET` only.
+    - #57 security review round 1: a password-only session could enrol its own factor or remove the
+      member's; adding, showing or removing a factor now needs a session that used one once one is
+      enrolled (a first enrolment goes ahead), and a session gets five wrong codes. Next PR: step-up
+      outside care records (controlled drugs, residents' money, export, break-glass, notifications)
+      should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
+      password sign-in. When mobile resumes: add `mfa_verification_required` to
+      `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
 
 ## Human actions outstanding
 

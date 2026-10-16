@@ -37,6 +37,7 @@ describe("problemMessage", () => {
     ["missing_permission", "errors.forbidden"],
     ["mfa_enrolment_required", "errors.forbidden"],
     ["step_up_required", "errors.stepUpRequired"],
+    ["mfa_verification_required", "errors.mfaVerifyRequired"],
     ["not_found", "errors.notFound"],
   ] as const)("maps %s to plain words", (code, key) => {
     expect(problemMessage({ code, detail: "ignored" }, t)).toEqual({ code, message: t(key) });
