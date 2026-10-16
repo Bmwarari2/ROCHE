@@ -7,13 +7,16 @@ import { cache } from "react";
 import { EntryBadges } from "@/components/care/EntryBadges";
 import { Notice } from "@/components/care/Notice";
 import { CommunicationStatus } from "@/components/people/CommunicationStatus";
+import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { questionsYouMayAnswer } from "@/lib/incident-forms";
 import {
   incidentPersonFacts,
   incidentPersonLine,
@@ -70,11 +73,19 @@ const when = (iso: string | null) => formatDateTime(iso) ?? null;
  * people on it, as the API returns them, with the questions about statutory notifications still
  * to answer and the statutory notifications with their clocks and warnings (#42 review); an
  * overdue notification is named at the top, linked to them (#49 review). A reader who cannot see
- * everyone on it sees the header and their own people only. Answering the questions and preparing
- * the notifications follow (docs/plans/STATUS.md).
+ * everyone on it sees the header and their own people only. The questions are answered here by a
+ * manager, or the falls questions by whoever raised it; preparing the notifications follows
+ * (docs/plans/STATUS.md).
  */
-export default async function IncidentPage({ params }: { readonly params: Params }) {
+export default async function IncidentPage({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: Promise<{ recorded?: string | string[] }>;
+}) {
   const { id } = await params;
+  const { recorded } = await searchParams;
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const listTitle = t("safety.incidents.title");
@@ -96,6 +107,20 @@ export default async function IncidentPage({ params }: { readonly params: Params
   const section = (name: string) => t("safety.incident.section", { section: name });
   const notRecorded = t("common.notRecorded");
   const questions = incident.restricted ? 0 : incident.openQuestionCount;
+  // The questions the viewer may answer here, as the API allows (ADR-0071): every one for a
+  // manager, the point-of-care falls questions for the person who raised it.
+  const answerable = questionsYouMayAnswer(incident.classifier?.openQuestions ?? [], {
+    canReport: can(me.permissions, "safety.incident.report"),
+    manages: can(me.permissions, "safety.incident.manage"),
+    raisedByYou: incident.raisedBy === me.tenantUserId,
+    closed: incident.status === "closed",
+    restricted: incident.restricted,
+  });
+  const mayAnswer =
+    can(me.permissions, "safety.incident.report") &&
+    !incident.restricted &&
+    incident.status !== "closed" &&
+    (can(me.permissions, "safety.incident.manage") || incident.raisedBy === me.tenantUserId);
   const overdue = overdueCount(incident.classifier);
   // RIDDOR's over-seven-day threshold for its label, from the rate table on the incident's date.
   const riddor = [
@@ -121,9 +146,10 @@ export default async function IncidentPage({ params }: { readonly params: Params
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
         </span>
-        <span>{title}</span>
+        <span aria-current="page">{title}</span>
       </nav>
       <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
+      {recorded === "1" ? <RecordedArrival /> : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />
         {incident.restricted ? (
@@ -231,7 +257,12 @@ export default async function IncidentPage({ params }: { readonly params: Params
               closed={incident.status === "closed"}
               now={new Date()}
               linked={can(me.permissions, "safety.incident.manage")}
-            />
+              answerable={answerable.length}
+            >
+              {mayAnswer ? (
+                <ClassifierQuestions incidentId={incident.id} questions={answerable} />
+              ) : null}
+            </IncidentNotifications>
           </div>
         </Card>
       )}

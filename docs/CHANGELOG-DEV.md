@@ -1847,6 +1847,44 @@ password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outco
 
 **Tests**: `apps/api/test/mfa-session-factor.test.ts` 1 new (twenty codes sent at once).
 
+## 2026-10-16: Slice 9 part 4a, record an incident and answer the classifier's questions (SAFE-001, SAFE-002)
+
+- Web: `/incidents/new` records an incident or near miss (`safety.incident.report`), from the
+  incidents list (choosing one of the reporter's locations) or from a person's record, where it is
+  offered only when `access.reaching` lists the permission (ADR-0071) and is about them at their
+  home. Emergency services, GP and (about a person) death are yes or no with nothing chosen and
+  must be answered (#42 follow-up); a fall asks the two falls questions, "not sure yet" included
+  (HZ-027). One UUIDv7 per incident goes with every attempt (HZ-029); once recorded, its page opens.
+- Web: the incident page offers its open questions in the catalogue's words (every one to a
+  holder of `safety.incident.manage`, the falls questions to whoever raised it); a blank question
+  stays open; saving classifies again. The questions notice says "Answer them below" when the form
+  is there. Incident and answer refusals are mapped in `refusals.ts`; `sendAndRevalidate` is the
+  shared server action helper.
+- i18n: 28 new `safety.question(s).*`, `safety.record.*` and `care.refusal.*` entries in English
+  and Welsh (Welsh listed untranslated); the questions' words repeat the domain's word for word.
+- Docs: HZ-090 (new), HZ-013 and HZ-027 rows; H-261 and H-262; STATUS item 19; safety.md
+  section 5; feature register SAFE-001 and SAFE-002.
+
+**Tests**: `apps/web` `incident-forms.test.ts` (35) and the incident refusals in
+`refusals.test.ts`; `e2e/incident-forms.spec.ts` (2 journeys with axe, hosted CI).
+
+**Next**: part 4b on a stacked branch: review and close, prepare a notification, submit it or mark
+it not required with step-up.
+
+
+## 2026-10-16: Slice 9 part 4a, review round 1 of #55 (SAFE-001, SAFE-002)
+
+- When it happened is chosen every time (nothing chosen at first); "just now" is taken on the
+  server, never the browser's clock (HZ-090, HZ-027). The person's communication needs are shown
+  beside their name on the form (AIS). Yes or no questions are required, emergency services and
+  GP say to ask the person in charge first; a refused location says to tell the person in charge.
+- The incident page says "Incident recorded" and focuses its heading after saving; breadcrumbs mark
+  the current page; question hints and errors are tied to their fieldsets and boxes.
+- Docs: HZ-090 time control; H-263 and H-264; STATUS item 19 follow-ups.
+
+**Tests**: `incident-forms.test.ts` (36); the e2e adds axe on the empty form and questions, and a
+refusal on an incident closed meanwhile (hosted CI).
+
 ## 2026-10-16: Invitation accept page, web part (PLAT-004, STATUS item 20)
 
 - `/invitation#<token>`: the token from the fragment, kept in the tab's session storage while the

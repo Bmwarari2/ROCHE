@@ -50,7 +50,10 @@ export type RefusalKey =
   | "assessedOn"
   | "riskReview"
   | "iddsiAdvisedBy"
-  | "scale2Clinician";
+  | "scale2Clinician"
+  | "incidentClosed"
+  | "incidentLocation"
+  | "classifierAnswer";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -239,6 +242,23 @@ const RULES: readonly Rule[] = [
     key: "scale2Clinician",
     fields: ["spo2Scale2Clinician"],
     found: has("Record the clinician who decided to use SpO2 scale 2."),
+  },
+  // Incidents (the API's own checks in apps/api/src/routes/incidents.ts) and the classifier's
+  // answers (`classifierAnswerProblem` in packages/domain, prefixed by the question's key).
+  {
+    key: "incidentClosed",
+    fields: [],
+    found: has("A closed incident cannot be changed."),
+  },
+  { key: "incidentLocation", fields: ["location"], found: has("The location was not found.") },
+  {
+    key: "classifierAnswer",
+    fields: [],
+    found: (detail) =>
+      detail.includes("Answer yes, no or not sure yet.") ||
+      detail.includes(", or not sure yet.") ||
+      detail.includes("Choose one of the options.") ||
+      detail.includes("Choose one or more of the options"),
   },
 ];
 

@@ -319,6 +319,23 @@ incident page say when the clocks were worked out; on the incident page each not
 its page for a holder of `safety.incident.manage`. Not shown yet: the prepared form, the DoLS
 statement and the API's reason a draft is no longer indicated; the forms follow.
 
+Web incident forms, slice 9 part 4a (`apps/web/src/app/(shell)/incidents/new/`,
+`apps/web/src/components/safety/`, `apps/web/src/lib/incident-forms.ts`): `/incidents/new` records
+an incident for holders of `safety.incident.report`, from the incidents list (a location where the
+member works) or from a person's record, offered there only when the person's `access.reaching`
+lists the permission (ADR-0071). Emergency services, GP and, for a person, whether they died are
+yes or no questions with nothing chosen (`CreateIncident` defaults the first two to false, so the
+form never leaves them out, HZ-090); a fall asks the two point-of-care questions, each needing an
+answer. The incident's UUIDv7 is made by the form and sent with every attempt. On the incident
+page the open questions are offered in the catalogue's words, which repeat `CLASSIFIER_QUESTIONS`
+word for word (a question or option the catalogue does not know is shown in the API's English,
+marked): every question to a holder of `safety.incident.manage`, the falls questions to the person
+who raised it, none on a closed or partly hidden incident. Gaps logged, no API change: the web
+cannot tell where each permission reaches (no per-permission locations in `/v1/me`, no `access` on
+`IncidentDetail`), so the API's refusal is the last word; answers have no client id; "when found",
+other people, body-map marks, infection details, the family told and LeDeR facts are not on the
+form yet (STATUS item 19, H-262).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos

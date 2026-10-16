@@ -22,8 +22,8 @@ export const metadata: Metadata = { title: t("safety.incidents.title") };
  * HZ-013): each with its status in word and icon, whether part of it is hidden from the viewer,
  * and how many notification questions are still to answer. The API returns the newest 500, so
  * when that many come back the open and under-review ones are fetched besides, and the page says
- * older incidents are not listed (#42 review). Read only for now; recording and managing
- * incidents follow (docs/plans/STATUS.md).
+ * older incidents are not listed (#42 review). Recording one starts here
+ * for holders of `safety.incident.report`; managing incidents follows (docs/plans/STATUS.md).
  */
 export default async function IncidentsPage() {
   const { me, locationId } = await getShellContext();
@@ -54,6 +54,11 @@ export default async function IncidentsPage() {
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
         description={t("safety.incidents.description")}
+        primaryAction={
+          can(me.permissions, "safety.incident.report") ? (
+            <ButtonLink href="/incidents/new">{t("safety.record.title")}</ButtonLink>
+          ) : null
+        }
         secondaryActions={
           can(me.permissions, "safety.incident.manage") ? (
             <ButtonLink href="/notifications/statutory" variant="secondary">

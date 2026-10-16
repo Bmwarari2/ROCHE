@@ -20,6 +20,7 @@ export function WhenField({
   id,
   error,
   errorParts,
+  explicit,
 }: {
   readonly name?: string;
   readonly legend?: string;
@@ -28,15 +29,24 @@ export function WhenField({
   readonly error?: string;
   /** The boxes the error is about; all of them when not given. */
   readonly errorParts?: readonly string[];
+  /**
+   * Nothing chosen until the person chooses, with these words for the two choices (an incident,
+   * whose clocks start at this time: HZ-090). "Now" is then taken by the server, not the browser.
+   */
+  readonly explicit?: {
+    readonly hint: string;
+    readonly now: { readonly label: string; readonly description: string };
+    readonly earlier: { readonly label: string; readonly description: string };
+  };
 }) {
-  const [mode, setMode] = useState<Mode>("now");
+  const [mode, setMode] = useState<Mode | null>(explicit ? null : "now");
   const [start, setStart] = useState<Record<DateTimePart, string> | null>(null);
   const boxes = boxesOf(errorParts);
   return (
     <div className="flex flex-col gap-4">
       <RadioGroup<Mode>
         legend={legend}
-        hint={t("care.entry.whenHint")}
+        hint={explicit?.hint ?? t("care.entry.whenHint")}
         name={`${name}-mode`}
         layout="inline"
         value={mode}
@@ -44,14 +54,19 @@ export function WhenField({
           if (next === "earlier" && start === null) setStart(dateTimePartsAt(Date.now()));
           setMode(next);
         }}
-        {...(mode === "now" && id ? { id } : {})}
-        {...(mode === "now" && error ? { error } : {})}
+        {...(mode !== "earlier" && id ? { id } : {})}
+        {...(mode !== "earlier" && error ? { error } : {})}
+        {...(explicit ? { required: true } : {})}
         options={[
-          { value: "now", label: t("care.when.now"), description: t("care.when.nowHint") },
+          {
+            value: "now",
+            label: explicit?.now.label ?? t("care.when.now"),
+            description: explicit?.now.description ?? t("care.when.nowHint"),
+          },
           {
             value: "earlier",
-            label: t("care.when.earlier"),
-            description: t("care.when.earlierHint"),
+            label: explicit?.earlier.label ?? t("care.when.earlier"),
+            description: explicit?.earlier.description ?? t("care.when.earlierHint"),
           },
         ]}
       />

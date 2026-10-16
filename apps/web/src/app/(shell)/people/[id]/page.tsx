@@ -1,4 +1,4 @@
-import { Meter, StatusChip, Tile } from "@harbour/ui";
+import { ButtonLink, Meter, StatusChip, Tile } from "@harbour/ui";
 import {
   Activity,
   CircleCheck,
@@ -19,7 +19,7 @@ import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { bandChip, bandLabel } from "@/lib/assessments";
 import { planStatusChip, planVersions } from "@/lib/care-plan";
-import { can, entryChains, tabHref, windowStart } from "@/lib/care-record";
+import { can, entryChains, tabHref, windowStart, writeAccess } from "@/lib/care-record";
 import { fluidDayView, news2Chip, news2FromFlags } from "@/lib/charts";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -106,7 +106,15 @@ async function PersonOverviewTab({ params }: { readonly params: Params }) {
 
   return (
     <>
-      <h2 className="m-0 text-eyebrow">{t("care.overview.title")}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="m-0 text-eyebrow">{t("care.overview.title")}</h2>
+        {/* Only where the API lists the permission as reaching this person (ADR-0071). */}
+        {writeAccess(person, me.permissions, "safety.incident.report").canWrite ? (
+          <ButtonLink href={`/incidents/new?person=${id}`} variant="secondary">
+            {t("safety.record.title")}
+          </ButtonLink>
+        ) : null}
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {versions ? (
           <Tile
