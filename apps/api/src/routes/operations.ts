@@ -222,7 +222,7 @@ export const operationsRouter = createRouter()
       tags: ["operations"],
       summary: "The location's downtime pack, with its freshness now",
       description:
-        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Opening is audited.",
+        "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Needs a fresh sign-in (a whole-home pack is a bulk export). Opening is audited.",
       security,
       request: { params: Params },
       responses: {
@@ -238,6 +238,9 @@ export const operationsRouter = createRouter()
       const { id } = c.req.valid("param");
       const action = "operations.downtime_pack.opened";
       await requireReach(c, access, READ, id, action);
+      // The JSON holds the same whole-home data as the PDF, so it needs the same fresh sign-in
+      // (#45 review round 2): step-up on the print alone could be skipped by asking for JSON.
+      await requireStepUp(c, access, action);
       await requirePackLimit(c, access);
       const read = await readPack(c, access, id, { action, reason: "read" });
       return c.json(packOut(read), 200);

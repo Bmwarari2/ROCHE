@@ -12638,7 +12638,7 @@ export interface paths {
     };
     /**
      * The location's downtime pack, with its freshness now
-     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Opening is audited.
+     * @description The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). Needs a fresh sign-in (a whole-home pack is a bulk export). Opening is audited.
      */
     get: {
       parameters: {
