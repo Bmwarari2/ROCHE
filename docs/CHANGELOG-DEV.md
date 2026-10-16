@@ -1924,6 +1924,39 @@ submitted form, a stable key for required content).
   component tests with axe for the step-up and separation-of-duties refusals; the journey scopes
   alerts to `main` and scans the "what to do first" state with its linked draft.
 
+## 2026-10-16: Invitation accept page, web part (PLAT-004, STATUS item 20)
+
+- `/invitation#<token>`: the token from the fragment, kept in the tab's session storage while the
+  person signs in first, stripped from the address bar, sent only in server-action bodies;
+  `Referrer-Policy: no-referrer` on the page.
+- Shows the organisation, the masked address and the expiry; creates a sign-in (name, password
+  with the NCSC rules up front and an accessible show or hide), asks the person to sign in first,
+  or joins with the current sign-in; then sign-in and MFA enrolment at `/settings/security`.
+- Expired, withdrawn, used, unknown, incomplete and throttled links in plain words; the error
+  summary takes focus and links to each field.
+- The NCSC rules move to `passwordRuleBroken` in @harbour/domain; the API's `passwordProblem`
+  keeps its words (and adds "Use 128 characters or fewer.").
+- Strings in en-GB and cy (Welsh copies English, listed as untranslated).
+- Not in this PR: the managers' list and invite form (no members list route or team page yet).
+
+**Tests**: `apps/web` `lib/invitations.test.ts` and `PasswordField.test.tsx` (axe), e2e
+`invitation.spec.ts` (axe); `packages/domain` `passwords.test.ts`.
+
+After #59 review round 1: the page calls same-origin route handlers (`/api/invitations/lookup`
+and `/accept`, JSON only, Origin checked) instead of server actions, so the journey can draw every
+state with `page.route`; the e2e now covers the create-sign-in form (rules, show or hide, error
+summary), sign-in ready, sign in first, expired, withdrawn, used and throttled, each with axe. The
+kept token carries its time and is dropped after 30 minutes, on sign-out and on the create path;
+an existing sign-in also lands on enrolment; headings take focus, "Sending" is announced, the
+form checks the NCSC rules before sending. Tests: 14 new unit tests, 7 new journeys.
+
+After #59 review round 2: the invitation route handlers accept only an Origin exactly equal to
+`PUBLIC_WEB_URL` (scheme and port included) and a parsed `application/json` media type; the
+lookup and accept answers are checked against the contract (`InvitationLookup`,
+`InvitationAccepted`) before the page sees them; `serverApi` forwards only the right-most
+X-Forwarded-For hop outside `TRUSTED_PROXY_CIDRS` (`clientAddress`, mirroring the API's
+`throttleAddress`; the web task now gets `TRUSTED_PROXY_CIDRS` from Terraform). Tests: 40 new.
+
 ## 2026-10-16: Step-up needs a second factor used within the window (PLAT-004, STATUS item 20)
 
 - Step-up counts from the second factor (passkey, authenticator code or backup code) the session

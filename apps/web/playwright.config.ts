@@ -43,7 +43,7 @@ export default defineConfig({
       url: `${WEB_URL}/api/health`,
       reuseExistingServer: !CI,
       timeout: 120_000,
-      env: { API_URL, NEXT_TELEMETRY_DISABLED: "1" },
+      env: { API_URL, PUBLIC_WEB_URL: WEB_URL, NEXT_TELEMETRY_DISABLED: "1" },
       stdout: "ignore",
       stderr: "pipe",
     },
