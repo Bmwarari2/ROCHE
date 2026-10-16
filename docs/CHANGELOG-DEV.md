@@ -2231,3 +2231,16 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
   rows, STATUS.
 
 **Tests**: `apps/api/test/letters.test.ts` 5 new and 3 changed; domain `ports.test.ts` 2 new.
+
+## 2026-10-17: Slice 12 part 1, the family feed schema (COMMS-001)
+
+- Migration 0061 (after #71's 0060): `family_portal_user`, `feed_item`, `feed_item_withdrawal` and
+  `feed_view` with forced RLS; family sessions (`app.family`, scope `none`); `app.family_can_see`,
+  a definer function owned by the new NOLOGIN role `harbour_family_reader`, mirroring
+  `checkFeedItemVisibility`; an update taken down shows only to a viewer who saw it; no person
+  assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
+
+**Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
+and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
+list.
