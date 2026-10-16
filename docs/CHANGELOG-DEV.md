@@ -1990,3 +1990,11 @@ ended.
 **Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
 re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
 `time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
+
+## 2026-10-17: Slice 5 web part 1, the shift handover screens (CARE-013, COMMS-006)
+
+- Handover in the navigation; a location's page with this shift's handover (or compile it) and
+  the last week's; one handover's items by person with communication needs beside each name,
+  each a reference in words with an icon and a link to its record; notes on items and on the
+  whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
+  reloading when items were added since (HZ-018, H-269).
