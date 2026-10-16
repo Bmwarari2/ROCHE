@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { ObservationValues } from "@harbour/contracts";
 import {
   auditEvent,
   careNote,
@@ -9,6 +10,7 @@ import {
   incident,
   location,
   observation,
+  outage,
   person,
   type Transaction,
   tenantUser,
@@ -24,7 +26,7 @@ import {
   type EvidencePackRequest,
   type EvidenceRecordType,
   type EvidenceRedactionReason,
-  formatUkDateTime,
+  formatUkDateTimeWithZone,
   resolveEvidencePackPolicy,
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -145,8 +147,164 @@ async function corrected(
   return row !== undefined;
 }
 
-/** Strings that are codes (enums), not typed text: only these go in a chart's values. */
-const CODE = /^[a-z0-9_]{1,40}$/;
+/** A time as the pack prints it: UK date and time with GMT or BST (the repeated October hour). */
+const when = (instant: Date) => formatUkDateTimeWithZone(instant);
+
+/**
+ * How an observation's values read, per chart (the contract's `ObservationValues`): a label and a
+ * unit for each number, yes or no, and the chart schema's own enum values as codes. Anything else
+ * (a string that is not one of the schema's values, or a key the schema does not name) was typed
+ * by a person, so it goes to the comment, free text withheld until redacted by hand.
+ */
+const READING: Readonly<
+  Record<string, Readonly<Record<string, { label: string; unit?: string }>>>
+> = {
+  fluid_intake: {
+    ml: { label: "Amount", unit: "ml" },
+    iddsiLevel: { label: "IDDSI level" },
+    refused: { label: "Refused" },
+  },
+  fluid_output: { ml: { label: "Amount", unit: "ml" }, kind: { label: "Kind" } },
+  food: {
+    meal: { label: "Meal" },
+    portion: { label: "Portion eaten" },
+    iddsiLevel: { label: "IDDSI level" },
+    refused: { label: "Refused" },
+  },
+  repositioning: {
+    position: { label: "Position" },
+    skinChecked: { label: "Skin checked" },
+    declined: { label: "Declined" },
+  },
+  bowel: {
+    bristolType: { label: "Bristol stool type" },
+    noMovement: { label: "No movement" },
+    amount: { label: "Amount" },
+  },
+  weight: { kg: { label: "Weight", unit: "kg" }, method: { label: "Method" } },
+  vitals: {
+    respirationRate: { label: "Respiration rate", unit: "breaths a minute" },
+    spo2: { label: "Oxygen saturation", unit: "%" },
+    onOxygen: { label: "On oxygen" },
+    systolic: { label: "Systolic blood pressure", unit: "mmHg" },
+    pulse: { label: "Pulse", unit: "beats a minute" },
+    consciousness: { label: "Consciousness" },
+    temperature: { label: "Temperature", unit: "°C" },
+  },
+};
+
+type Schema = { _zod?: { def?: { type?: string; innerType?: unknown; entries?: object } } };
+
+/** The enum values a chart field's schema allows, or null when it is not an enum. */
+function enumValues(schema: unknown): ReadonlySet<string> | null {
+  let at = schema as Schema | undefined;
+  while (at?._zod?.def?.innerType) at = at._zod.def.innerType as Schema;
+  const def = at?._zod?.def;
+  return def?.type === "enum" && def.entries
+    ? new Set(Object.values(def.entries).map(String))
+    : null;
+}
+
+/** Each chart's field schemas, from the contract. */
+const CHART_SCHEMAS = new Map(
+  ObservationValues.options.map((o) => [String(o.shape.chart.value), o.shape as object]),
+);
+
+/** The reading in words, and anything typed. */
+export function observationReading(
+  chart: string,
+  values: Readonly<Record<string, unknown>>,
+): { readonly reading: string[]; readonly typed: string[] } {
+  const known = READING[chart] ?? {};
+  const shape = (CHART_SCHEMAS.get(chart) ?? {}) as Record<string, unknown>;
+  const reading: string[] = [];
+  const typed: string[] = [];
+  // In the chart's own order (stored keys come back in any order), then anything else.
+  const keys = [
+    ...Object.keys(known).filter((k) => Object.hasOwn(values, k)),
+    ...Object.keys(values).filter((k) => !Object.hasOwn(known, k)),
+  ];
+  for (const key of keys) {
+    const value = values[key];
+    if (key === "chart" || value === null || value === undefined) continue;
+    const label = known[key];
+    if (label && typeof value === "number" && Number.isFinite(value)) {
+      reading.push(`${label.label} ${value}${label.unit ? ` ${label.unit}` : ""}`);
+    } else if (label && typeof value === "boolean") {
+      reading.push(`${label.label}: ${yesNo(value)}`);
+    } else if (label && typeof value === "string" && enumValues(shape[key])?.has(value)) {
+      reading.push(`${label.label}: ${words(value)}`);
+    } else if (typeof value === "string") {
+      typed.push(value);
+    }
+  }
+  return { reading, typed };
+}
+
+type EntryRow = typeof careNote.$inferSelect | typeof observation.$inferSelect;
+
+/**
+ * How an append-only entry came to be (#60 review round 1, HZ-050): when it was recorded and
+ * whether the device clock was out; a correction of an earlier entry, with its reason (typed:
+ * free text); a back-entry from paper, with the paper date and time, the outage and the paper
+ * reference (typed: free text). An inspector reads these as a person reading the record would.
+ */
+async function provenanceFields(tx: Transaction, row: EntryRow): Promise<EvidenceField[]> {
+  const fields = [field("recorded_at", "Recorded in Harbour", when(row.recordedAt))];
+  if (row.clockDrift) {
+    fields.push(
+      field("clock_drift", "Device clock", "The device's clock was wrong when this was written"),
+    );
+  }
+  if (row.supersedesId) {
+    const table = "body" in row ? careNote : observation;
+    const [earlier] = await tx
+      .select({ occurredAt: table.occurredAt, recordedAt: table.recordedAt })
+      .from(table)
+      .where(eq(table.id, row.supersedesId));
+    fields.push(
+      field(
+        "correction_of",
+        "Correction",
+        earlier
+          ? `Correction of an earlier entry recorded ${when(earlier.recordedAt)}`
+          : "Correction of an earlier entry",
+      ),
+    );
+    if (row.correctionReason) {
+      fields.push(field("correction_reason", "Reason for the correction", row.correctionReason));
+    }
+  }
+  if (row.lateEntryReason === "downtime" && row.paperDate && row.paperTime) {
+    const [cut] = row.outageId
+      ? await tx
+          .select({ kind: outage.kind, startedAt: outage.startedAt })
+          .from(outage)
+          .where(eq(outage.id, row.outageId))
+      : [];
+    const [y, m, d] = row.paperDate.split("-");
+    const time = row.paperTime.slice(0, 5);
+    const repeated =
+      row.paperOccurrence === "earlier"
+        ? " (the first time the clock showed it)"
+        : row.paperOccurrence === "later"
+          ? " (the second time the clock showed it)"
+          : "";
+    fields.push(
+      field(
+        "back_entry",
+        "Back-entered from paper",
+        `Written on paper at ${d}/${m}/${y} ${time}${repeated} during ${
+          cut ? `a ${words(cut.kind)} outage from ${when(cut.startedAt)}` : "an outage"
+        }, and entered in Harbour later`,
+      ),
+    );
+    if (row.paperReference) {
+      fields.push(field("paper_reference", "Paper reference", row.paperReference));
+    }
+  }
+  return fields;
+}
 
 interface Loaded {
   readonly item: Omit<EvidenceItem, "id" | "qualityStatementIds">;
@@ -175,9 +333,10 @@ async function loadCareNote(tx: Transaction, id: string): Promise<Loaded | null>
       fields: [
         ...personFields(p),
         field("category", "Category", words(row.category)),
-        ...(row.tags.length > 0 ? [field("tags", "Tags", row.tags.map(words).join(", "))] : []),
-        field("occurred_at", "When", formatUkDateTime(row.occurredAt)),
+        ...(row.tags.length > 0 ? [field("tags", "Tags", row.tags.join(", "))] : []),
+        field("occurred_at", "When", when(row.occurredAt)),
         field("late_entry", "Written late", yesNo(row.lateEntry)),
+        ...(await provenanceFields(tx, row)),
         field("text", "Note", row.body),
         ...(author ? [field("author", "Written by", author)] : []),
       ],
@@ -191,17 +350,7 @@ async function loadObservation(tx: Transaction, id: string): Promise<Loaded | nu
   const [p] = await peopleNamed(tx, [row.personId]);
   if (!p) return null;
   const recordedBy = await staffName(tx, row.createdBy);
-  // Numbers, yes or no and codes are the reading; any other text was typed, so is free text.
-  const values: string[] = [];
-  const typed: string[] = [];
-  for (const [key, value] of Object.entries(row.values as Record<string, unknown>)) {
-    if (key === "chart" || value === null || value === undefined) continue;
-    if (typeof value === "number") values.push(`${words(key)} ${value}`);
-    else if (typeof value === "boolean") values.push(`${words(key)} ${yesNo(value)}`);
-    else if (typeof value === "string" && CODE.test(value))
-      values.push(`${words(key)} ${words(value)}`);
-    else if (typeof value === "string") typed.push(`${words(key)}: ${value}`);
-  }
+  const { reading, typed } = observationReading(row.chart, row.values as Record<string, unknown>);
   const about = { aboutPersonId: p.id };
   return {
     corrected: await corrected(tx, observation, id),
@@ -218,9 +367,11 @@ async function loadObservation(tx: Transaction, id: string): Promise<Loaded | nu
       fields: [
         ...personFields(p),
         field("chart", "Chart", words(row.chart)),
-        field("occurred_at", "When", formatUkDateTime(row.occurredAt)),
-        ...(values.length > 0 ? [field("values", "Reading", values.join("; "), about)] : []),
-        ...(typed.length > 0 ? [field("comment", "Comment", typed.join("; "))] : []),
+        field("occurred_at", "When", when(row.occurredAt)),
+        field("late_entry", "Written late", yesNo(row.lateEntry)),
+        ...(await provenanceFields(tx, row)),
+        ...(reading.length > 0 ? [field("values", "Reading", reading.join("; "), about)] : []),
+        ...(typed.length > 0 ? [field("comment", "Typed with the reading", typed.join("; "))] : []),
         ...(recordedBy ? [field("recorded_by", "Recorded by", recordedBy)] : []),
       ],
     },
@@ -262,7 +413,18 @@ async function loadIncident(tx: Transaction, id: string): Promise<Loaded | null>
       fields: [
         ...(only ? personFields(only) : []),
         field("type", "Type", words(row.type)),
-        field("occurred_at", "When", formatUkDateTime(row.occurredAt)),
+        field("occurred_at", "When", when(row.occurredAt)),
+        field("recorded_at", "Recorded in Harbour", when(row.recordedAt)),
+        field("late_entry", "Written late", yesNo(row.lateEntry)),
+        ...(row.clockDrift
+          ? [
+              field(
+                "clock_drift",
+                "Device clock",
+                "The device's clock was wrong when this was written",
+              ),
+            ]
+          : []),
         ...(place ? [field("location", "Location", place.name)] : []),
         ...(row.severity ? [field("severity", "Severity", words(row.severity))] : []),
         ...(row.harmGrade ? [field("harm_grade", "Harm", words(row.harmGrade), about)] : []),

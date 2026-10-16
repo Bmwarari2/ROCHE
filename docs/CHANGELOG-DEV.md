@@ -1800,7 +1800,7 @@ the new NOLOGIN role `harbour_evidence_link_reader`.
 - Domain: `EVIDENCE_EXCLUSION_REASONS`; export catalogue entries for the six tables (bundle not
   exported; token and code hashes secret).
 - Docs: quality.md section 12, retention.md, data-standards.md, HZ-050 control and test rows,
-  H-216 and H-217, STATUS, feature register.
+  H-216 (now H-220, a number used twice) and H-217, STATUS, feature register.
 
 **Tests**: `packages/db` `evidence-pack.test.ts`, 13 new; RLS coverage lists the new append-only
 table.
@@ -1809,6 +1809,120 @@ After #56 security review round 1: writing or changing a bundle makes the member
 a releaser or link issuer); the manifest holds no redacted copy, and keys, labels and titles are
 bounded; the token lookup takes the SHA-256 hex digest; cross-tenant read and write denial is
 tested for every table; the part 2 requirements are in STATUS. Tests: 5 new, 2 changed.
+
+## 2026-10-16: MFA counts only for the session that used it (#43 review M5)
+
+- API: care records (and the operator console) need a session that signed in, or confirmed a
+  code, with a passkey, an authenticator code or a backup code; having one enrolled is no longer
+  enough. A Better Auth `after` hook records the factor per session in `auth.verification`
+  (no migration). New refusal `mfa_verification_required` when a factor is enrolled but unused.
+- Web: that refusal goes to `/sign-in?reason=mfa` (with the next path) and a message to use the
+  passkey or the authenticator code; 3 new i18n entries (Welsh listed untranslated).
+- Docs: ADR-0072, HZ-112, H-358, platform.md, STATUS item 20.
+
+**Release note**: after this deploy, everyone signed in is asked to sign in again with their
+passkey or authenticator code before opening care records. Sessions from before the deploy fail
+closed (refused until they re-verify); nothing else is affected. The mobile app does not yet know
+the new code (follow-up).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` (6); harness and three test files mark their
+password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outcome.test.ts` (1).
+
+## 2026-10-16: MFA session factor, security review round 1 of #57
+
+- A password-only session can no longer enrol its own authenticator app or passkey, or remove
+  the member's, once one is enrolled (a first enrolment still goes ahead); the web security page
+  sends such a session to sign in with its factor. Five wrong codes per session, then sign in
+  again. The factor record matches on its value too.
+- Docs: ADR-0072, HZ-112 rows, STATUS item 20 follow-ups (step-up factor, mobile code).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 2 new (8 in all); `apps/web`
+`problems.test.ts` 2 new.
+
+## 2026-10-16: MFA session factor, security review round 2 of #57
+
+- The in-session code limit takes the attempt before the code is checked, under an advisory lock
+  on the session, so parallel requests on one token get at most five checks; a right code clears
+  them.
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 1 new (twenty codes sent at once).
+
+## 2026-10-16: Slice 9 part 4a, record an incident and answer the classifier's questions (SAFE-001, SAFE-002)
+
+- Web: `/incidents/new` records an incident or near miss (`safety.incident.report`), from the
+  incidents list (choosing one of the reporter's locations) or from a person's record, where it is
+  offered only when `access.reaching` lists the permission (ADR-0071) and is about them at their
+  home. Emergency services, GP and (about a person) death are yes or no with nothing chosen and
+  must be answered (#42 follow-up); a fall asks the two falls questions, "not sure yet" included
+  (HZ-027). One UUIDv7 per incident goes with every attempt (HZ-029); once recorded, its page opens.
+- Web: the incident page offers its open questions in the catalogue's words (every one to a
+  holder of `safety.incident.manage`, the falls questions to whoever raised it); a blank question
+  stays open; saving classifies again. The questions notice says "Answer them below" when the form
+  is there. Incident and answer refusals are mapped in `refusals.ts`; `sendAndRevalidate` is the
+  shared server action helper.
+- i18n: 28 new `safety.question(s).*`, `safety.record.*` and `care.refusal.*` entries in English
+  and Welsh (Welsh listed untranslated); the questions' words repeat the domain's word for word.
+- Docs: HZ-090 (new), HZ-013 and HZ-027 rows; H-261 and H-262; STATUS item 19; safety.md
+  section 5; feature register SAFE-001 and SAFE-002.
+
+**Tests**: `apps/web` `incident-forms.test.ts` (35) and the incident refusals in
+`refusals.test.ts`; `e2e/incident-forms.spec.ts` (2 journeys with axe, hosted CI).
+
+**Next**: part 4b on a stacked branch: review and close, prepare a notification, submit it or mark
+it not required with step-up.
+
+
+## 2026-10-16: Slice 9 part 4a, review round 1 of #55 (SAFE-001, SAFE-002)
+
+- When it happened is chosen every time (nothing chosen at first); "just now" is taken on the
+  server, never the browser's clock (HZ-090, HZ-027). The person's communication needs are shown
+  beside their name on the form (AIS). Yes or no questions are required, emergency services and
+  GP say to ask the person in charge first; a refused location says to tell the person in charge.
+- The incident page says "Incident recorded" and focuses its heading after saving; breadcrumbs mark
+  the current page; question hints and errors are tied to their fieldsets and boxes.
+- Docs: HZ-090 time control; H-263 and H-264; STATUS item 19 follow-ups.
+
+**Tests**: `incident-forms.test.ts` (36); the e2e adds axe on the empty form and questions, and a
+refusal on an incident closed meanwhile (hosted CI).
+
+## 2026-10-16: Slice 9 part 4b, review and close incidents, prepare and submit notifications (SAFE-001 to SAFE-003)
+
+- Web: the incident page's "Review and close" for `safety.incident.manage`: start the review, send
+  it back to open or close it with a reason; close never offered to the person who raised it, and
+  what to do first (each notification linked, the open questions) while the API would refuse.
+- Web: the statutory notification page prepares it (an answer per line of required content, ready
+  only when every line is answered), records it as submitted once ready (time chosen every time,
+  the regulator's reference) and decides "not required" with a reason, each where its permission
+  reaches the person (ADR-0071), with step-up as break-glass does it. Every write sends the page's
+  version; a stale page is refused in words that do not blame anyone else. After each form the
+  page opens again at its heading and says what was done.
+- Refusals: closing (open notifications, questions, candour), the workflow's steps, a finished
+  notification and the submission evidence are mapped in `refusals.ts`; `separation_of_duties`
+  gets its own words.
+- i18n: 56 new `safety.manage.*`, `care.refusal.*` and `errors.*` entries in English and Welsh
+  (Welsh listed untranslated).
+- Docs: HZ-091 (new) and an HZ-013 row; H-265 and H-266; STATUS item 19; safety.md section 5;
+  feature register SAFE-002.
+
+**Tests**: `incident-review.test.ts` (new), `refusals.test.ts` (closing and notifications),
+`ManageForms.test.tsx` (step-up notice with axe); `e2e/incident-review.spec.ts` (4 journeys, axe on
+every state, hosted CI).
+
+**Next**: the follow-ups in STATUS item 19 (an `access` block on `IncidentDetail`, uploads for the
+submitted form, a stable key for required content).
+
+## 2026-10-16: Slice 9 part 4b, review round 1 of #58
+
+- "Not required" on a notification Harbour found needed says so, needs a reason of at least 20
+  characters and a ticked confirmation, and names the consequence; provisional drafts keep the
+  short reason (H-265).
+- The forms say nothing on success; the page announces only a status that matches, refocuses on
+  each action and drops `?done=`. The step-up notice takes focus again on a repeat. No future
+  tolerance on the submission time. The API's English labels carry `lang` (`labelLang` on
+  `TextArea`). "Questions above" links to them.
+- Tests: HZ-091 in the test names and the hazard log; clock-change, future and "needed" cases;
+  component tests with axe for the step-up and separation-of-duties refusals; the journey scopes
+  alerts to `main` and scans the "what to do first" state with its linked draft.
 
 ## 2026-10-16: Slice 11, evidence pack routes and the bundle sweep (QUAL-003, part 2a)
 
@@ -1839,3 +1953,22 @@ the whole organisation.
 - Docs: quality.md section 14, H-219, STATUS, feature register.
 
 **Tests**: `apps/api/test/statement-of-purpose.test.ts`, 5 new.
+
+## 2026-10-16: Evidence pack routes, review round 1 of #60 (HZ-050)
+
+- Release re-reads each record in the pack and is refused (409 `record_changed`, naming each) when
+  one was corrected or changed since it was added, or the releaser cannot open it.
+- A pack labels how each entry came to be: a correction of an earlier entry (reason withheld until
+  redacted), a back-entry from paper with the paper time and the outage (reference withheld until
+  redacted), the time recorded in Harbour and a wrong device clock. Domain: the field map gains
+  these keys; care-note tags are free text.
+- Observation readings: a label and unit per chart field, IDDSI levels, and only the chart
+  schema's own enum values as codes; any other text goes to hand review.
+- Domain: `formatUkDateTimeWithZone` (GMT or BST), used for every time in a pack.
+- The token responses set `Cache-Control: no-store`.
+- Docs: quality.md sections 4 and 13, HZ-050 rows, H-220 (renumbered H-216), H-221 to H-223,
+  STATUS.
+
+**Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
+re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
+`time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.

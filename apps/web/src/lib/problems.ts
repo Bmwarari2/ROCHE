@@ -9,6 +9,7 @@ export const PROBLEM_CODES = [
   "not_a_member",
   "missing_permission",
   "mfa_enrolment_required",
+  "mfa_verification_required",
   "step_up_required",
   "not_found",
 ] as const;
@@ -53,7 +54,23 @@ export function redirectForProblem(code: string | undefined, nextPath?: string):
       return withNext("/choose-organisation", nextPath);
     case "mfa_enrolment_required":
       return "/settings/security?reason=mfa";
+    // A second factor is set up but this session did not use it (ADR-0072): sign in again with it.
+    case "mfa_verification_required":
+      return withNext("/sign-in", nextPath, { reason: "mfa" });
     default:
       return null;
   }
+}
+
+/**
+ * Where to send someone whose session may not change their second factors: once one is enrolled,
+ * adding, showing or removing one needs a session that used it (ADR-0072, HZ-112). Better Auth
+ * answers `MFA_VERIFICATION_REQUIRED`; anything else is the form's own error.
+ */
+export function factorChangeRedirect(error: unknown, nextPath: string): string | null {
+  const code =
+    typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  return code === "MFA_VERIFICATION_REQUIRED"
+    ? redirectForProblem("mfa_verification_required", nextPath)
+    : null;
 }

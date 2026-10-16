@@ -29,6 +29,7 @@ import {
   type EvidencePackField,
   type EvidencePackReleaseProblem,
   evidencePackWatermark,
+  formatUkDateTimeWithZone,
   normaliseEmail,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -604,6 +605,35 @@ export const evidencePacksRouter = createRouter()
         if (!check.ok) {
           throw refused(releaseProblem(check.problems), A.released, id, check.problems.join(","));
         }
+        // The pack must show each record as it stands now (#60 review round 1, HZ-050): a record
+        // corrected or changed since it was added, or one the releaser cannot read, stops release.
+        const stale: string[] = [];
+        for (const item of items.filter((i) => i.exclusionReason === null)) {
+          const found = await loadEvidenceRecord(
+            tx,
+            item.recordType as EvidenceItem["recordType"],
+            item.recordId,
+            item.qualityStatementIds,
+          );
+          const what = `${item.title} (${formatUkDateTimeWithZone(item.occurredAt)})`;
+          if (!found) stale.push(`${what}: you cannot open it`);
+          else if (found.corrected) stale.push(`${what}: corrected since it was added`);
+          else if (found.item.recordVersion !== item.recordVersion)
+            stale.push(`${what}: changed since it was added`);
+        }
+        if (stale.length > 0) {
+          throw refused(
+            new HttpProblem(
+              409,
+              "record_changed",
+              "The pack no longer matches the record. Compose a new pack.",
+              `${stale.join("; ")}.`,
+            ),
+            A.released,
+            id,
+            "record_changed",
+          );
+        }
         await tx
           .update(evidencePack)
           .set({ state: "released", releasedBy: access.tenantUserId, releasedAt: now })
@@ -632,6 +662,8 @@ export const evidencePacksRouter = createRouter()
         });
         return { linkId: link.id, token, expiresAt: link.expiresAt.toISOString() };
       });
+      // The token is in this response only: never cached (the /v1 middleware says so too).
+      c.header("cache-control", "no-store");
       return c.json(issued, 201);
     },
   )
@@ -735,6 +767,8 @@ export const evidencePacksRouter = createRouter()
         });
         return { linkId: link.id, token, expiresAt: link.expiresAt.toISOString() };
       });
+      // The token is in this response only: never cached (the /v1 middleware says so too).
+      c.header("cache-control", "no-store");
       return c.json(issued, 201);
     },
   )

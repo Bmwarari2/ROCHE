@@ -2,12 +2,21 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuthSchema } from "@harbour/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { bearer, twoFactor } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
 import { passwordProblem } from "./password-policy";
+import {
+  clearCodeAttempts,
+  FACTOR_CHANGE_ROUTES,
+  FACTOR_ROUTES,
+  IN_SESSION_CODE_ROUTES,
+  recordSessionFactor,
+  reserveCodeAttempt,
+  sessionMfa,
+} from "./session-factor";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
 
 /** A session lasts 12 hours from its last refresh (platform.md, Identity). */
@@ -23,8 +32,16 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
 export function createAuth(config: Config, authPool: pg.Pool) {
   const db = drizzle(authPool);
   const passkeyOrigin = config.webOrigins[0] ?? config.BETTER_AUTH_URL;
+  // The session a request carries, resolved as the API does (cookie or bearer token). A user
+  // `before` hook runs before the bearer plugin rewrites the header, so it asks the instance.
+  const resolver: {
+    session?: (headers: Headers) => Promise<{
+      session: { id: string; expiresAt: Date };
+      user: { id: string; twoFactorEnabled?: boolean | null };
+    } | null>;
+  } = {};
 
-  return betterAuth({
+  const auth = betterAuth({
     appName: "Harbour",
     baseURL: config.BETTER_AUTH_URL,
     basePath: "/api/auth",
@@ -76,6 +93,55 @@ export function createAuth(config: Config, authPool: pg.Pool) {
               throw new APIError("BAD_REQUEST", { message: problem, code: "WEAK_PASSWORD" });
           }
         }
+        const changesFactor = FACTOR_CHANGE_ROUTES.has(ctx.path);
+        if (!changesFactor && !IN_SESSION_CODE_ROUTES.has(ctx.path)) return;
+        const found = await resolver.session?.(
+          ctx.request?.headers ?? ctx.headers ?? new Headers(),
+        );
+        if (!found) {
+          // Changing a factor always needs a session; a code with none is a sign-in's second step.
+          if (changesFactor) throw new APIError("UNAUTHORIZED", { code: "UNAUTHORIZED" });
+          return;
+        }
+        if (changesFactor) {
+          // Once a factor is enrolled, only a session that used one may add, show or remove one
+          // (#57 security review round 1, HZ-112); a first enrolment goes ahead.
+          const mfa = await sessionMfa(authPool, {
+            authUserId: found.user.id,
+            sessionId: found.session.id,
+            twoFactorEnabled: found.user.twoFactorEnabled === true,
+          });
+          if (mfa === "verify") {
+            throw new APIError("FORBIDDEN", {
+              message: "Sign in again with your passkey or authenticator app first.",
+              code: "MFA_VERIFICATION_REQUIRED",
+            });
+          }
+        } else if (
+          !(await reserveCodeAttempt(authPool, found.session.id, new Date(found.session.expiresAt)))
+        ) {
+          // Better Auth limits wrong codes only at sign-in; a session gets a few, then signs in again.
+          // The attempt is taken before the code is checked, so parallel requests cannot pass it.
+          throw new APIError("TOO_MANY_REQUESTS", {
+            message: "Too many wrong codes. Sign in again to try more.",
+            code: "TOO_MANY_ATTEMPTS",
+          });
+        }
+      }),
+      // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
+      // care records open only for a session that used a second factor (#43 review M5, ADR-0072).
+      after: createAuthMiddleware(async (ctx) => {
+        const factor = FACTOR_ROUTES.get(ctx.path);
+        if (!factor) return;
+        if (isAPIError(ctx.context.returned)) return;
+        // A right code on an existing session gives it its attempts back.
+        const existing = ctx.context.session?.session;
+        if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
+          await clearCodeAttempts(authPool, existing.id);
+        }
+        const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
+        if (!session) return;
+        await recordSessionFactor(authPool, session.id, factor, new Date(session.expiresAt));
       }),
     },
     plugins: [
@@ -84,6 +150,11 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       bearer(),
     ],
   });
+  resolver.session = (headers) =>
+    auth.api.getSession({ headers, query: { disableRefresh: true } }) as ReturnType<
+      NonNullable<typeof resolver.session>
+    >;
+  return auth;
 }
 
 export type Auth = ReturnType<typeof createAuth>;

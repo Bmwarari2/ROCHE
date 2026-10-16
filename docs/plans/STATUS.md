@@ -263,7 +263,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      migration 0057; quality.md section 12): six tables with forced RLS, the workflow guards,
      separation of duties in the database, hashed tokens and codes, bundle deletion and the
      definer token lookup (new NOLOGIN role `harbour_evidence_link_reader`: run `pnpm
-     db:bootstrap` first, H-216; storage split for the DPO, H-217). Next, part 2, the API: the
+     db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
      routes, public link routes and audit and outbox events of section 5, the PDF through the
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
      notification-overdue job. Follow-ups: an inspector with a Harbour account
@@ -295,6 +295,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
      PR open. Follow-ups: the overdue alert's words and who receives it (every active holder of
      `safety.notification.submit` anywhere, H-219); the CQC notification wording or template
      itself is not generated (the record holds the reference or how it was sent).
+   - #60 review round 1 (clinical and security), fixed in #60: release re-reads every record and
+     is refused, saying which, when one was corrected or changed since it was added; corrections,
+     back-entries from paper (paper time, outage, reference), the recording time and a wrong
+     device clock are labelled in the pack; observation readings have a label and unit per chart
+     field and only the chart schema's own values count as codes; care-note tags are free text;
+     times carry GMT or BST; the token responses say `no-store` (the API logs no request bodies).
+     For the CSO and DPO: H-221 to H-223. Follow-up: reason codes in audit rows (H-223).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -562,6 +569,53 @@ only when they link spec, code, tests and user documentation; no user guides exi
       `submit` on the reads. For the CSO (with H-257 and H-258): accept the deadlines on a
       finished notification shown as "Deadlines it had to meet", and "Clocks worked out at ...
       Reload the page to bring them up to date." with no automatic refresh.
+    - Built on `feat/web-incident-forms` (part 4a): `/incidents/new` records an incident
+      (`safety.incident.report`) from the incidents list (the reporter's locations) or from a
+      person's record (offered only where `access.reaching` lists it; about them at their home),
+      with emergency services, GP and death asked every time, never assumed no (the #42
+      follow-up, HZ-090), the falls questions on a fall (HZ-027) and a UUIDv7 kept across retries;
+      the incident page offers its open questions in the catalogue's words (every one to a
+      manager, the falls questions to whoever raised it). Still to do: part 4b (review and close,
+      prepare, submit or mark not required with step-up). Gaps logged, no API change: `/v1/me`
+      gives no per-permission locations, and `IncidentDetail` has no `access` block, so the
+      location choice lists where the member works and the questions form follows the held
+      permissions (the API refuses where the scope does not reach, ADR-0071); classifier answers
+      carry no client id (a retry stores the same answer again, harmlessly); the form does not
+      yet ask when the person was found (H-262), nor add other people, staff or visitors,
+      body-map marks, infection details, the family told or LeDeR facts.
+    - Follow-ups from #55 review round 1 (H-263, H-264): per-permission locations on `/v1/me`
+      (so the location choice lists only where `safety.incident.report` reaches); with no person
+      on the incident `died` is sent as false and the form cannot add a person; incident-specific
+      tests for a future time and the hour the clocks change; the Welsh wording of the questions
+      is not checked against the domain (only English is); "not sure" for emergency services
+      and GP needs a contract change (API follow-up).
+    - Built on `feat/web-incident-review-submit` (part 4b, stacked on #55; HZ-091, H-265,
+      H-266): the incident page's "Review and close" for `safety.incident.manage` (start the
+      review; send it back to open or close, each with a reason; never close for the person who
+      raised it; what to do first, linked, while a notification or question is open); the
+      notification page prepares it (an answer per line of required content, ready only when
+      all are answered), records it as submitted once ready (time chosen every time, the
+      regulator's reference) and decides "not required" with a reason, each where its
+      permission reaches the person (`access.reaching`), with step-up as break-glass does it
+      (sign in again, back to the page). Every write sends the page's version, so a stale page
+      is refused in words. Gaps logged, no API change: no client id on these writes (the version
+      stands in: a retry after a lost connection is refused as changed, and says it may be the
+      person's own attempt); `IncidentDetail` has no `access` block, so review and close follow
+      the held permission (the API decides scope); the candour record is not on the incident, so
+      an open one is said only by the API's refusal; the web cannot attach the submitted form
+      (uploads), so the reference is required; what was typed is lost at the step-up sign-in;
+      the prepared answers are keyed by the API's English line (cut to 80 characters), so a
+      reworded line leaves an earlier answer under the old words (shown only in the API's
+      content; a `requiredContent` key in the contract would fix it); "Who submitted" names
+      the member only as "you" or "another member" (H-73).
+    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+      so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
+      the page, which announces only a matching status and drops `?done=`; no future tolerance
+      on the submission time. Left: "just now" still sends the server's time, since
+      `SubmitNotification.submittedAt` is required (an API change would let the API stamp it);
+      the step-up notice and the separation-of-duties refusal are checked with axe in component
+      tests only, since the journey cannot force a stale sign-in (needs a test hook) and close is
+      never offered to the person who raised the incident.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the
@@ -596,6 +650,22 @@ only when they link spec, code, tests and user documentation; no user guides exi
       function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
       (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
       with the client address and a prefix of the token's hash only.
+    - `fix/platform-mfa-session-factor` (#43 review M5, ADR-0072, HZ-112, H-358): built. MFA counts only
+      when the session signed in or confirmed a code with a passkey, TOTP or backup code (a record in
+      `auth.verification`, no migration); a member with a factor whose session did not use it gets
+      `mfa_verification_required` and the web sends them to `/sign-in?reason=mfa`; the operator
+      console uses the same rule; sessions from before the deploy fail closed. Follow-ups: the mobile
+      app must add `mfa_verification_required` to `SESSION_PROBLEM_CODES` (mobile lane); step-up
+      permissions outside care records still need only a fresh sign-in, not a second factor;
+      Lane A may move the record to an `auth.session` column. Still open for Lane A (a migration):
+      `harbour_membership_reader` granted to `harbour_owner` `WITH INHERIT TRUE`; make it `SET` only.
+    - #57 security review round 1: a password-only session could enrol its own factor or remove the
+      member's; adding, showing or removing a factor now needs a session that used one once one is
+      enrolled (a first enrolment goes ahead), and a session gets five wrong codes. Next PR: step-up
+      outside care records (controlled drugs, residents' money, export, break-glass, notifications)
+      should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
+      password sign-in. When mobile resumes: add `mfa_verification_required` to
+      `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
 
 ## Human actions outstanding
 

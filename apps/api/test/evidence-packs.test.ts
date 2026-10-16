@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { createDatabase } from "@harbour/db";
+import { createDatabase as appDatabase, createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sweepEvidenceBundlesJob } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE } from "./support/harness";
+import { observationReading, sweepEvidenceBundles } from "../src/services/evidence-pack";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Inspector evidence packs through the API (quality.md rules 1 to 10 and section 5; QUAL-003;
@@ -41,6 +42,19 @@ async function sql<T = Record<string, unknown>>(text: string, params: unknown[] 
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** Runs `fn` with `who`'s sign-in an hour old, past the step-up window, then puts it back. */
+async function withStaleSignIn<T>(who: string, fn: () => Promise<T>): Promise<T> {
+  const auth = h.db.pool("harbour_auth");
+  const token = (h.tokens[who] ?? "").split(".")[0];
+  const update = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
+  await auth.query(update, [token, new Date(Date.now() - 3_600_000)]);
+  try {
+    return await fn();
+  } finally {
+    await auth.query(update, [token, new Date()]);
+  }
+}
 
 interface Field {
   key: string;
@@ -203,7 +217,7 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
     const [obs] = await sql<{ id: string }>(
       `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, created_by)
        VALUES ($1, $2, now(), 'fluid_intake',
-         '{"chart": "fluid_intake", "ml": 200, "drink": "Tea from Gwen Visitor", "refused": false}', $3)
+         '{"chart": "fluid_intake", "ml": 200, "drink": "Tea from Gwen Visitor", "iddsiLevel": "2", "refused": false}', $3)
        RETURNING id`,
       [inScope, DEMO.locationId, DEMO.users.carer.id],
     );
@@ -219,12 +233,26 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
     const fields = pack.items.find((i) => i.recordId === obs?.id)?.fields ?? [];
     expect(fields.find((f) => f.key === "values")).toMatchObject({
       outcome: "included",
-      value: "ml 200; refused No",
+      value: "Amount 200 ml; IDDSI level: 2; Refused: No",
     });
     expect(fields.find((f) => f.key === "comment")).toMatchObject({
       outcome: "withheld",
       value: null,
     });
+  });
+
+  it("counts only the chart schema's own values as codes: a typed word goes to hand review", () => {
+    expect(observationReading("fluid_output", { ml: 100, kind: "sarah" })).toEqual({
+      reading: ["Amount 100 ml"],
+      typed: ["sarah"],
+    });
+    expect(observationReading("vitals", { temperature: 37.2, consciousness: "alert" })).toEqual({
+      reading: ["Consciousness: alert", "Temperature 37.2 °C"],
+      typed: [],
+    });
+    expect(observationReading("weight", { kg: 70, unexpectedKey: "anything" }).typed).toEqual([
+      "anything",
+    ]);
   });
 
   it("refuses a record the composer cannot see, and a record already in the pack", async () => {
@@ -267,11 +295,20 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
       body: { version: pack.version },
     });
     expect(own.status).toBe(403);
+    const stale = await withStaleSignIn("owner", () =>
+      as("owner", `/v1/evidence-packs/${pack.id}/release`, {
+        method: "POST",
+        body: { version: pack.version },
+      }),
+    );
+    expect(stale.status).toBe(403);
+    expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
     const response = await as("owner", `/v1/evidence-packs/${pack.id}/release`, {
       method: "POST",
       body: { version: pack.version },
     });
     expect(response.status).toBe(201);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const issued = (await response.json()) as { linkId: string; token: string; expiresAt: string };
     expect(issued.token.length).toBeGreaterThanOrEqual(43);
     const [link] = await sql<{ token_hash: string }>(
@@ -308,11 +345,19 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
       },
     );
     expect(byComposer.status).toBe(403);
+    const stale = await withStaleSignIn("owner", () =>
+      as("owner", `/v1/evidence-packs/${pack.id}/links/${old?.id}/reissue`, {
+        method: "POST",
+        body: { version: old?.version },
+      }),
+    );
+    expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
     const response = await as("owner", `/v1/evidence-packs/${pack.id}/links/${old?.id}/reissue`, {
       method: "POST",
       body: { version: old?.version },
     });
     expect(response.status).toBe(201);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const links = await sql<{
       id: string;
       revocation_reason: string | null;
@@ -370,9 +415,21 @@ describe("hazard HZ-050 the bundle goes when the link ends", () => {
       appDb: createDatabase(h.db.pool("harbour_app")),
       logger: createLogger("silent"),
     };
-    // Still open: nothing to delete.
+    // Still open: nothing to delete, and the bundle is still there.
     expect(await sweepEvidenceBundlesJob(deps)).toBe(0);
+    const [live] = await sql<{ content: unknown }>(
+      "SELECT content FROM evidence_pack_bundle WHERE pack_id = $1",
+      [pack.id],
+    );
+    expect(live?.content).not.toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Another organisation's sweep never reaches this one's bundles.
+    const other = await withRequestContext(
+      appDatabase(h.db.pool("harbour_app")),
+      { tenantId: OTHER.tenantId, userId: null, scope: "tenant", locationIds: [] },
+      (tx) => sweepEvidenceBundles(tx, OTHER.tenantId, new Date()),
+    );
+    expect(other).toBe(0);
     expect(await sweepEvidenceBundlesJob(deps)).toBe(1);
     expect(await sweepEvidenceBundlesJob(deps)).toBe(0);
     const [bundle] = await sql<{ content: unknown; deletion_reason: string }>(
@@ -397,5 +454,91 @@ describe("hazard HZ-050 the bundle goes when the link ends", () => {
       body: { version: link?.version },
     });
     expect(reissue.status).toBe(409);
+  });
+});
+
+describe("hazard HZ-050 a pack says how each entry came to be, and shows the record as it stands", () => {
+  const fieldsOf = (pack: Pack, recordId: string) =>
+    new Map(pack.items.find((i) => i.recordId === recordId)?.fields.map((f) => [f.key, f]));
+
+  it("labels a correction of an earlier entry, its reason withheld until redacted", async () => {
+    const pack = await compose();
+    const first = await note(inScope, "Had a bath.");
+    const [fix] = await sql<{ id: string }>(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by,
+         supersedes_id, correction_reason)
+       VALUES ($1, $2, now(), 'personal_care', 'Had a shower.', $3, $4, 'Wrong word used')
+       RETURNING id`,
+      [inScope, DEMO.locationId, DEMO.users.carer.id, first],
+    );
+    expect((await addNote(pack, first)).status).toBe(409);
+    const added = (await (await addNote(pack, fix?.id as string)).json()) as Pack;
+    const fields = fieldsOf(added, fix?.id as string);
+    expect(fields.get("correction_of")?.outcome).toBe("included");
+    expect(fields.get("correction_of")?.value).toMatch(
+      /^Correction of an earlier entry recorded \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)$/,
+    );
+    expect(fields.get("correction_reason")).toMatchObject({ outcome: "withheld", value: null });
+    expect(fields.get("recorded_at")?.value).toMatch(/ (GMT|BST)$/);
+  });
+
+  it("labels a back-entry from paper with the paper time and the outage, and a wrong device clock", async () => {
+    const declared = await as("manager", `/v1/locations/${DEMO.locationId}/outages`, {
+      method: "POST",
+      body: {
+        kind: "power",
+        description: "Power cut, whole building",
+        startedAt: new Date(Math.floor((Date.now() - 30 * 60_000) / 60_000) * 60_000).toISOString(),
+      },
+    });
+    expect(declared.status).toBe(201);
+    const { id: outageId } = (await declared.json()) as { id: string };
+    const at = new Date(Math.floor((Date.now() - 10 * 60_000) / 60_000) * 60_000);
+    const [paper] = await sql<{ id: string }>(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by,
+         late_entry_reason, outage_id, paper_date, paper_time, paper_occurrence, paper_reference,
+         clock_drift)
+       VALUES ($1, $2, $3::timestamptz, 'personal_care', 'Assisted with a wash.', $4, 'downtime', $5,
+         ($3::timestamptz AT TIME ZONE 'Europe/London')::date,
+         ($3::timestamptz AT TIME ZONE 'Europe/London')::time, 'only', 'DT-001', true)
+       RETURNING id`,
+      [inScope, DEMO.locationId, at, DEMO.users.carer.id, outageId],
+    );
+    const pack = await compose();
+    const added = (await (await addNote(pack, paper?.id as string)).json()) as Pack;
+    const fields = fieldsOf(added, paper?.id as string);
+    expect(fields.get("back_entry")?.outcome).toBe("included");
+    expect(fields.get("back_entry")?.value).toMatch(
+      /^Written on paper at \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} during a power outage from .+ (GMT|BST), and entered in Harbour later$/,
+    );
+    expect(fields.get("paper_reference")).toMatchObject({ outcome: "withheld", value: null });
+    expect(fields.get("clock_drift")).toMatchObject({
+      outcome: "included",
+      value: "The device's clock was wrong when this was written",
+    });
+  });
+
+  it("refuses release when a record was corrected after it was added, saying which", async () => {
+    const pack = await compose();
+    const noted = await note(inScope, "Went for a walk.");
+    const added = (await (await addNote(pack, noted)).json()) as Pack;
+    await sql(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by,
+         supersedes_id, correction_reason)
+       VALUES ($1, $2, now(), 'activity', 'Went to the garden.', $3, $4, 'Wrong place')`,
+      [inScope, DEMO.locationId, DEMO.users.carer.id, noted],
+    );
+    const response = await as("owner", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version: added.version },
+    });
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { detail: string }).detail).toContain(
+      "Care note: personal care",
+    );
+    const [row] = await sql<{ state: string }>("SELECT state FROM evidence_pack WHERE id = $1", [
+      pack.id,
+    ]);
+    expect(row?.state).toBe("draft");
   });
 });

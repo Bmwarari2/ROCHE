@@ -96,7 +96,7 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    | Record type | Organisational | Care content | Staff name | Third party | Free text |
    | --- | --- | --- | --- | --- | --- |
    | `incident` | `type`, `occurred_at`, `location`, `severity`, `emergency_services` | `harm_grade`, `injury` | `raised_by`, `closed_by`, `staff_involved`, `witness_staff` | `witness_other`, `family_informed` | `description`, `immediate_actions` |
-   | `care_note` | `category`, `tags`, `occurred_at`, `late_entry` | none | `author` | none | `text` |
+   | `care_note` | `category`, `occurred_at`, `late_entry` | none | `author` | none | `text`, `tags` (any word a person chose) |
    | `observation` | `chart`, `occurred_at` | `values`, `news2` | `recorded_by` | none | `comment` |
    | `body_map_mark` | none | `region`, `side`, `mark_type`, `category`, `size` | `recorded_by` | none | `note` |
    | `assessment` | `tool`, `tool_version`, `next_due_on` | `score`, `band`, `workings` | `assessor` | none | none |
@@ -106,6 +106,9 @@ is statutory (`resolveStatementOfPurposeRates`, England only until the nation pa
    | `visit_log` | `kind`, `starts_at`, `ends_at` | `restrictions_applied` | `recorded_by` | `visitor_name` | `visitor_relationship`, `restriction_reason`, `notes` |
    | `advance_care_record` | `kind`, `completed_on`, `review_due_on`, `status` | `cpr_decision` | none | `clinician_name` | `details`, `withdrawn_reason` |
 
+   Care notes and observations also have `recorded_at`, `late_entry`, `clock_drift`,
+   `correction_of` and `back_entry` (organisational, Harbour's own words) and `correction_reason`
+   and `paper_reference` (free text); incidents have `recorded_at`, `late_entry` and `clock_drift`.
    Every type also has `person_name` and `room` (care content, so kept only for a person in scope)
    and `nhs_number`, `date_of_birth`, `address` and `phone` (direct identifiers, always withheld).
    `visitor_relationship` is typed by a person ("my son's partner, Jo"), so it is free text. A new
@@ -328,6 +331,16 @@ of its own in the API step.
 | `POST .../release` | Release permission with step-up (`requirePermission`), then `checkEvidencePackRelease` with the database's contributors and the rate-table policy, then the database's own checks; the link is issued in the same transaction; the 256-bit token is returned once and only its SHA-256 stored; `.released` and the outbox `quality.evidence_pack.released` (pack, link, expiry) |
 | `POST .../links/{linkId}/reissue` | The pack's latest link only, while it has not ended and the bundle exists (an ended link means a new pack); `checkEvidencePackLinkReissue`; the old link revoked as `reissued` and the new one issued in one transaction; `.link_reissued` |
 | `POST .../revoke`, `POST .../discard` | Compose permission with a reason; revoking also revokes the live link (`pack_revoked`); both delete the bundle at once (`.bundle_deleted`); revoke publishes `quality.evidence_pack.revoked` |
+
+After #60 review round 1: release re-reads every included record in the releaser's scope and is
+refused (409 `record_changed`, naming each) when one was corrected or changed since it was added or
+the releaser cannot open it. Each entry says how it came to be: "Correction of an earlier entry
+recorded [time]" (reason free text), "Written on paper at [paper time] during a [kind] outage from
+[time], and entered in Harbour later" (paper reference free text), "Recorded in Harbour [time]" and
+a wrong device clock. Readings use a label and unit per chart field (`observationReading`), and
+only the chart schema's own enum values count as codes. Every time is UK time with GMT or BST
+(`formatUkDateTimeWithZone`). The token responses say `no-store`; the API logs no request bodies.
+Human actions H-221 to H-223.
 
 Refusals decided in the API and those the database raises (separation of duties 403, workflow
 409) are audited as denied. The worker's `evidence-bundle-sweep` queue (every 5 minutes, per

@@ -319,6 +319,40 @@ incident page say when the clocks were worked out; on the incident page each not
 its page for a holder of `safety.incident.manage`. Not shown yet: the prepared form, the DoLS
 statement and the API's reason a draft is no longer indicated; the forms follow.
 
+Web incident forms, slice 9 part 4a (`apps/web/src/app/(shell)/incidents/new/`,
+`apps/web/src/components/safety/`, `apps/web/src/lib/incident-forms.ts`): `/incidents/new` records
+an incident for holders of `safety.incident.report`, from the incidents list (a location where the
+member works) or from a person's record, offered there only when the person's `access.reaching`
+lists the permission (ADR-0071). Emergency services, GP and, for a person, whether they died are
+yes or no questions with nothing chosen (`CreateIncident` defaults the first two to false, so the
+form never leaves them out, HZ-090); a fall asks the two point-of-care questions, each needing an
+answer. The incident's UUIDv7 is made by the form and sent with every attempt. On the incident
+page the open questions are offered in the catalogue's words, which repeat `CLASSIFIER_QUESTIONS`
+word for word (a question or option the catalogue does not know is shown in the API's English,
+marked): every question to a holder of `safety.incident.manage`, the falls questions to the person
+who raised it, none on a closed or partly hidden incident. Gaps logged, no API change: the web
+cannot tell where each permission reaches (no per-permission locations in `/v1/me`, no `access` on
+`IncidentDetail`), so the API's refusal is the last word; answers have no client id; "when found",
+other people, body-map marks, infection details, the family told and LeDeR facts are not on the
+form yet (STATUS item 19, H-262).
+
+Web review and notification forms, slice 9 part 4b (`apps/web/src/lib/incident-review.ts`,
+`apps/web/src/components/safety/IncidentManage.tsx` and `NotificationManage.tsx`; HZ-091): the
+incident page's "Review and close", for a holder of `safety.incident.manage` on an incident seen
+whole and not closed, starts the review, sends it back to open with a reason, or closes it with a
+reason; close is never offered to the person who raised it (rule 11, the domain's
+`INCIDENT_WORKFLOW`), and while a notification is a draft or ready or a question is open the card
+lists what to do first, linked, instead of the form. The notification page prepares it (one
+answer per line of `requiredContent`, stored under that line cut to 80 characters, plus "Other
+details"; marking it ready needs every line answered), records it as submitted once ready (when,
+chosen every time, and the regulator's reference) and decides "not required" with a reason. Each
+form needs its permission held and, for a notification about a person, listed in that person's
+`access.reaching` (ADR-0071); submitting and "not required" ask for a fresh sign-in as break-glass
+does (sign in again, then back to the page). Every write sends the version the page was drawn
+from; a stale page is refused in words that do not blame anyone else. Gaps logged, no API change:
+no `access` on `IncidentDetail`, no candour state on the incident, no upload for the submitted
+form, and no stable key for a line of required content (STATUS item 19, H-266).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos

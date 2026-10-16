@@ -67,6 +67,20 @@ const IDENTIFIERS = {
 } as const;
 
 /**
+ * How an entry came to be (care.md corrections; operations.md back-entry): Harbour's own words,
+ * except the correction reason and the paper reference, which a person typed.
+ */
+const PROVENANCE = {
+  recorded_at: "organisational",
+  late_entry: "organisational",
+  clock_drift: "organisational",
+  correction_of: "organisational",
+  correction_reason: "free_text",
+  back_entry: "organisational",
+  paper_reference: "free_text",
+} as const;
+
+/**
  * The kind of every field of every evidence record type (quality.md rule 3 table). Every column a
  * person types into is `free_text`. A field missing from the map is treated as `free_text`.
  */
@@ -76,6 +90,9 @@ export const EVIDENCE_FIELD_KIND_MAP: Readonly<
   incident: {
     ...PERSON,
     ...IDENTIFIERS,
+    recorded_at: "organisational",
+    clock_drift: "organisational",
+    late_entry: "organisational",
     type: "organisational",
     occurred_at: "organisational",
     location: "organisational",
@@ -95,8 +112,10 @@ export const EVIDENCE_FIELD_KIND_MAP: Readonly<
   care_note: {
     ...PERSON,
     ...IDENTIFIERS,
+    ...PROVENANCE,
     category: "organisational",
-    tags: "organisational",
+    // Tags are any lower-case word a person chose, not a closed list: free text.
+    tags: "free_text",
     occurred_at: "organisational",
     late_entry: "organisational",
     text: "free_text",
@@ -105,6 +124,7 @@ export const EVIDENCE_FIELD_KIND_MAP: Readonly<
   observation: {
     ...PERSON,
     ...IDENTIFIERS,
+    ...PROVENANCE,
     chart: "organisational",
     occurred_at: "organisational",
     values: "care_content",
