@@ -542,3 +542,150 @@ describe("hazard HZ-050 a pack says how each entry came to be, and shows the rec
     expect(row?.state).toBe("draft");
   });
 });
+
+describe("hazard HZ-050 release and a new link stop at what the releaser can stand behind", () => {
+  async function incidentAbout(people: readonly string[]) {
+    const [row] = await sql<{ id: string }>(
+      `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids)
+       VALUES ($1, 'fall', now() - interval '1 hour', 'Found on the floor.', $2, $3) RETURNING id`,
+      [DEMO.locationId, DEMO.users.carer.id, people],
+    );
+    for (const personId of people) {
+      await sql(
+        `INSERT INTO incident_person (incident_id, kind, role, person_id)
+         VALUES ($1, 'service_user', 'affected', $2)`,
+        [row?.id, personId],
+      );
+    }
+    return row?.id as string;
+  }
+
+  const addIncident = (pack: Pack, incidentId: string, who = "manager") =>
+    as(who, `/v1/evidence-packs/${pack.id}/items`, {
+      method: "POST",
+      body: {
+        items: [{ recordType: "incident", recordId: incidentId, qualityStatementIds: ["safe.3"] }],
+        version: pack.version,
+      },
+    });
+
+  it("hazard HZ-050 refuses a new link to a contributor who edited the pack, not only its composer", async () => {
+    const pack = await compose();
+    const first = (await (
+      await addNote(pack, await note(inScope, "Played cards."))
+    ).json()) as Pack;
+    // The quality lead adds a record: an editor, so a contributor.
+    const edited = await addNote(first, await note(inScope, "Sang songs."), "quality");
+    expect(edited.status).toBe(200);
+    const byEditor = (await edited.json()) as Pack;
+    expect(byEditor.contributorIds).toContain(LODGE.qualityLeadId);
+    const releasedByEditor = await as("quality", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version: byEditor.version },
+    });
+    expect(releasedByEditor.status).toBe(403);
+    const released = await as("owner", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version: byEditor.version },
+    });
+    expect(released.status).toBe(201);
+    const { linkId } = (await released.json()) as { linkId: string };
+    const [link] = await sql<{ version: number }>(
+      "SELECT version FROM evidence_pack_link WHERE id = $1",
+      [linkId],
+    );
+    const reissue = await as("quality", `/v1/evidence-packs/${pack.id}/links/${linkId}/reissue`, {
+      method: "POST",
+      body: { version: link?.version },
+    });
+    expect(reissue.status).toBe(403);
+    const [still] = await sql<{ revoked_at: Date | null }>(
+      "SELECT revoked_at FROM evidence_pack_link WHERE id = $1",
+      [linkId],
+    );
+    expect(still?.revoked_at).toBeNull();
+  });
+
+  it("hazard HZ-050 refuses release with record_changed when a record's version moved on since it was added", async () => {
+    const pack = await compose();
+    const incidentId = await incidentAbout([inScope]);
+    const added = await addIncident(pack, incidentId);
+    expect(added.status).toBe(200);
+    const withIncident = (await added.json()) as Pack;
+    const fields = new Map(withIncident.items[0]?.fields.map((f) => [f.key, f]));
+    expect(fields.get("recorded_at")?.value).toMatch(/ (GMT|BST)$/);
+    expect(fields.get("late_entry")).toMatchObject({ outcome: "included", value: "No" });
+    await sql("UPDATE incident SET immediate_actions = 'Checked for injury.' WHERE id = $1", [
+      incidentId,
+    ]);
+    const response = await as("owner", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version: withIncident.version },
+    });
+    expect(response.status).toBe(409);
+    const problem = (await response.json()) as { code: string; detail: string };
+    expect(problem.code).toBe("record_changed");
+    expect(problem.detail).toContain("Incident: fall");
+    expect(problem.detail).toContain("changed since it was added");
+  });
+
+  it("hazard HZ-050 refuses release when the releaser cannot open a record, naming only what the pack shows", async () => {
+    // Composed by the quality lead (the whole organisation); the incident also involves someone
+    // at Harbour Lodge, outside the Registered Manager's scope, who is not in the pack.
+    const response = await as("quality", "/v1/evidence-packs", {
+      method: "POST",
+      body: {
+        recipient: { name: "Ivy Inspector", organisation: "CQC", email: "ivy@example.invalid" },
+        purpose: "Assessment of Harbour House, safe key question",
+        from: "2026-01-01",
+        to: today(),
+        locationIds: [DEMO.locationId],
+        qualityStatementIds: null,
+        personIds: [inScope],
+      },
+    });
+    expect(response.status).toBe(201);
+    const pack = (await response.json()) as Pack;
+    const added = await addIncident(
+      pack,
+      await incidentAbout([inScope, LODGE.personId]),
+      "quality",
+    );
+    expect(added.status).toBe(200);
+    const withIncident = (await added.json()) as Pack;
+    const refused = await as("manager", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version: withIncident.version },
+    });
+    expect(refused.status).toBe(409);
+    const problem = (await refused.json()) as { code: string; detail: string };
+    expect(problem.code).toBe("record_changed");
+    expect(problem.detail).toMatch(/^Incident: fall \(.+\): you cannot open it\.$/);
+    expect(problem.detail).not.toMatch(/Gwen|Outofscope/);
+    const [row] = await sql<{ state: string }>("SELECT state FROM evidence_pack WHERE id = $1", [
+      pack.id,
+    ]);
+    expect(row?.state).toBe("draft");
+  });
+
+  it("hazard HZ-050 labels an observation's provenance: when it was recorded and a wrong device clock", async () => {
+    const pack = await compose();
+    const [obs] = await sql<{ id: string }>(
+      `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, created_by, clock_drift)
+       VALUES ($1, $2, now(), 'weight', '{"chart": "weight", "kg": 70.5, "method": "chair"}', $3, true)
+       RETURNING id`,
+      [inScope, DEMO.locationId, DEMO.users.carer.id],
+    );
+    const added = await as("manager", `/v1/evidence-packs/${pack.id}/items`, {
+      method: "POST",
+      body: {
+        items: [{ recordType: "observation", recordId: obs?.id, qualityStatementIds: ["safe.2"] }],
+        version: pack.version,
+      },
+    });
+    const fields = new Map(((await added.json()) as Pack).items[0]?.fields.map((f) => [f.key, f]));
+    expect(fields.get("values")?.value).toBe("Weight 70.5 kg; Method: chair");
+    expect(fields.get("recorded_at")?.value).toMatch(/ (GMT|BST)$/);
+    expect(fields.get("clock_drift")?.outcome).toBe("included");
+  });
+});
