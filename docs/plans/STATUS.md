@@ -324,6 +324,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Logged, not blocking this merge: the code email's subject and body need an email port with a
      body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
      external recipient.
+   - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
+     migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
+     tables with forced RLS, the version workflow and separation of duties in the database, and
+     letters only from approved versions to the person or their own contacts. Next, part 2, the
+     API: template and version routes, merge fields, preview and sending with the PDF writer, the
+     email port's body (H-225; the evidence pack code email moves its guidance into the body),
+     audit and outbox events.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
