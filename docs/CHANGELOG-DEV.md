@@ -2093,3 +2093,18 @@ the retention class tied to the incident grade.
 
 **Tests**: `packages/db/test/letter-templates.test.ts` (8); RLS coverage lists `letter` as
 append-only.
+
+## 2026-10-17: Slice 11 web part B, paper records on the care record forms (OPS-028)
+
+- "When" on the notes, chart, body map, activity and visit forms offers "From a paper downtime
+  form" while the person's location has an open or closed outage: the outage, the date and time
+  written on the form with nothing filled in, the reference, and why when it is outside the
+  outage (HZ-017, H-268).
+- The API's refusals at their fields: why an entry in an outage is not from paper, the H-208
+  reason on correcting a paper note, a reconciled outage's record kept for review (HZ-006), and
+  one correction only.
+- Review round 1 of #64: a NEWS2 reading from paper says it is from the paper's time, before
+  saving and on its result; a record kept for review starts the form again; a recent reconciled
+  or cancelled outage is said; a malformed outage id is refused; spring-gap and autumn tests; the
+  journey scans the chart, body map, activity and visit forms and a correction outside the
+  outage; the journeys lay their outages after any already there, so a retry never overlaps.
