@@ -61,6 +61,7 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-080](#hz-080-a-revised-statement-of-purpose-not-sent-to-cqc-in-time) | A revised statement of purpose not sent to CQC in time | Minor / Medium / 2 | Minor / Low / 1 | Open | None (Phase 1) | Phase 1 |
 | [HZ-090](#hz-090-an-incident-form-records-an-assumed-answer-or-asks-a-notification-question-in-other-words) | An incident form records an assumed answer, or asks a notification question in other words | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-261) | Open | None (Phase 1) | Phase 1 |
 | [HZ-091](#hz-091-an-incident-is-closed-or-a-notification-recorded-as-submitted-or-not-required-on-a-wrong-or-stale-page) | An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-265) | Open | None (Phase 1) | Phase 1 |
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
@@ -2591,6 +2592,47 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-091 never says someone else changed it after a conflict, which may be your own retry`, `hazard HZ-091 announces what was done only while the status still matches`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked`, and `hazard HZ-091 readSubmitForm (HZ-090: no time assumed)` (nothing chosen; `hazard HZ-091 allows no time after now, as the API allows none`; `hazard HZ-091 refuses a time skipped when the clocks went forward in March`; `hazard HZ-091 asks which time in the hour the clocks went back in October`); the `notificationManageView (ADR-0071)` table | Passing |
 | `apps/web/src/lib/refusals.test.ts`: `closing an incident and the notifications (HZ-013)` (every refusal run in the domain and recognised); `apps/web/src/components/safety/ManageForms.test.tsx`: `hazard HZ-091 says to sign in again and links back to the page, accessibly`, `hazard HZ-091 says the separation of duties refusal in words a manager can act on, accessibly` and `hazard HZ-091 shows the step-up notice for a step-up refusal, and nothing on success` (axe; the journey cannot reach these two states) | Passing |
 | `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted` and `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` (what to do first with the draft linked, empty, error, refused and done, each checked with axe) | Hosted CI |
+
+---
+
+## HZ-080 A revised statement of purpose not sent to CQC in time
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-080 |
+| Status | Open (whether it is in DCB0129 scope at all is for the CSO, H-224) |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lead engineer) |
+| Source | [quality.md](../specs/quality.md) rule 15 and section 14; CQC (Registration) Regulations 2009 regulation 12(3); #61 review round 1 |
+
+**Description**: an approved revision of the statement of purpose is not sent to CQC within
+`cqc.statement_of_purpose.revision_notice_days` (28) UK days, because nobody was told, the alert
+did not say which version or by when, or the due date moved with a clock change.
+
+**Causes**: no alert when the due date passes; an alert to someone who cannot record the
+submission; an alert in vague words; the due date worked out as 28 times 24 hours across a clock
+change; the alert sent again and again, or not at all after a failed run.
+
+**Effects**: a regulatory breach for the provider; people choosing a service from an out-of-date
+statement (for example a location or registered manager that has changed). No direct harm to a
+person receiving care.
+
+**Initial risk**: severity Minor, likelihood Medium, **risk 2**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The database sets the due date on approval in UK wall-clock days (migration 0057); the hourly job tells every active holder of `safety.notification.submit` once, urgently, through the overdue chain, naming the version and the due date, and audits the gap daily when nobody can be told; recording the submission acknowledges the alerts | Phase 1 (built, slice 11 part 2b) |
+| Training and user documentation | The words of the alert, a "due soon" reminder and who receives it (H-219) | Phase 1 |
+
+**Target residual risk**: severity Minor, likelihood Low, **risk 1**.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/statement-of-purpose.test.ts`: `hazard HZ-080 tells the holders of safety.notification.submit once, naming the version and the due date, when the revision is overdue`; `pins the 28 UK days across the October clock change`; the due date at approval matches 28 UK days to the minute | Passing (#61 review round 1) |
 
 ---
 

@@ -54,6 +54,7 @@ import {
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sessionsRouter } from "./routes/sessions";
+import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
@@ -232,6 +233,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
+  app.route("/", statementOfPurposeRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
