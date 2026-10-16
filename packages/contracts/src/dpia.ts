@@ -29,9 +29,20 @@ export const DataProtectionSettings = z
     marketingEnabled: z.boolean(),
     aiFreeTextEnabled: z.boolean(),
     aiProvider: z.enum(["bedrock_london", "bedrock_eu", "anthropic", "tenant_own"]).nullable(),
+    /** The organisation record's change counter, sent back to save (a stale save is refused). */
+    version: z.number().int(),
   })
   .meta({ id: "DataProtectionSettings" });
 export type DataProtectionSettings = z.infer<typeof DataProtectionSettings>;
+
+/**
+ * The governance settings to save, with the `version` read. Naming a different lead needs a fresh
+ * step-up, and the new lead must hold `platform.dpia.sign`.
+ */
+export const SaveDataProtectionSettings = DataProtectionSettings.omit({ version: true })
+  .extend({ expectedVersion: z.number().int() })
+  .meta({ id: "SaveDataProtectionSettings" });
+export type SaveDataProtectionSettings = z.infer<typeof SaveDataProtectionSettings>;
 
 export const DpiaVersion = z
   .object({

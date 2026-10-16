@@ -45,6 +45,7 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
 export type ExportRetention =
   | "care_record"
   | "audit_event"
+  | "dpia"
   | "serious_incident"
   | "downtime_pack"
   | "downtime_record"
@@ -1553,7 +1554,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The organisation's DPIA, one row per version (platform-completions.md rules 17 to 22): Harbour's prefill, the organisation's answers and residual risk ratings, who prepared it, and its signature by the data protection lead. A signed version never changes.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dpia",
     personal: false,
     columns: {
       id: "exported",

@@ -539,14 +539,21 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   AI provider). The guard keeps a version's identity and preparers (who only ever grow: whoever
   changes or prepares it joins them), returns a changed prepared version to draft, lets only the
   named lead holding `platform.dpia.sign` sign a prepared version unchanged in their own name
-  (never a preparer, also a check constraint), and lets a signed version change only to be
-  superseded. Nothing is deleted.
+  (never a preparer, also a check constraint, with the signature, statement and basis present),
+  and lets a signed version change only to be superseded, by the named lead with a later version
+  prepared, and only if that later version is signed in the same transaction (a deferred check).
+  Nothing is deleted. On `tenant`, `tenant_governance_guard` lets only a holder of
+  `platform.tenant.manage` change the governance columns, and only a member whose role holds
+  `platform.dpia.sign` be named lead (`app.member_holds_role_permission`).
 - Routes (`apps/api/src/routes/dpia.ts`): `GET /v1/dpia` (state, review triggers, settings,
   missing configuration, the open and signed versions); `PUT /v1/dpia/draft` (saves answers,
   residual ratings and ICO reference with Harbour's prefill refreshed, `expectedVersion`);
   `POST /v1/dpia/draft/prepare` (freezes it with its SHA-256); `POST /v1/dpia/{id}/sign`
-  (step-up; `checkDpiaSignOff`, every problem at once as 422 `dpia_not_signable`; the version in
-  force superseded); `PUT /v1/settings/data-protection` (`platform.tenant.manage`). The prefill
+  (step-up; `checkDpiaSignOff`, every problem at once as 422 `dpia_not_signable`; the row locked,
+  and the version in force superseded only when this one is signed); `PUT
+  /v1/settings/data-protection` (`platform.tenant.manage`, `expectedVersion`; naming a different
+  lead needs step-up and a member who may sign, audits the old and new lead ids and tells the lead
+  replaced, with ids only). The prefill
   reads the configuration (`services/dpia.ts`): locations and regulators, service types, modules
   in force (an AI provider chosen counts the AI module as planned), SMS when connected, device
   modes, the offline window and retention schedule, and counts. Saved, prepared, signed (and

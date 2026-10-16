@@ -2353,5 +2353,11 @@ state).
 - Docs: platform-completions.md section 10d, records of processing, data standards, feature
   register, STATUS.
 
-**Tests**: `apps/api/test/dpia.test.ts` (10).
+- Security review: naming a different lead needs step-up and a lead who may sign, audits both
+  ids and tells the lead replaced; settings saves carry `expectedVersion`; the database guards the
+  governance columns (`platform.tenant.manage`); signing locks the row and rolls back if nothing
+  was signed; a signed version is superseded only by signing a later one in the same transaction;
+  the `dpia` retention class (interim period, H-115).
+
+**Tests**: `apps/api/test/dpia.test.ts` (15).
 

@@ -21838,6 +21838,9 @@
               "tenant_own",
               null
             ]
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -21850,7 +21853,8 @@
           "usesDataBeyondDirectCare",
           "marketingEnabled",
           "aiFreeTextEnabled",
-          "aiProvider"
+          "aiProvider",
+          "version"
         ]
       },
       "DpiaVersion": {
@@ -22042,6 +22046,96 @@
         "required": [
           "typedName",
           "sha256Seen"
+        ]
+      },
+      "SaveDataProtectionSettings": {
+        "type": "object",
+        "properties": {
+          "leadId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dpoName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "dpoEmail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 254,
+            "format": "email"
+          },
+          "sector": {
+            "type": "string",
+            "enum": [
+              "independent",
+              "public"
+            ]
+          },
+          "privacyNoticeUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "dpaSignedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "usesDataBeyondDirectCare": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "marketingEnabled": {
+            "type": "boolean"
+          },
+          "aiFreeTextEnabled": {
+            "type": "boolean"
+          },
+          "aiProvider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "bedrock_london",
+              "bedrock_eu",
+              "anthropic",
+              "tenant_own",
+              null
+            ]
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leadId",
+          "dpoName",
+          "dpoEmail",
+          "sector",
+          "privacyNoticeUrl",
+          "dpaSignedOn",
+          "usesDataBeyondDirectCare",
+          "marketingEnabled",
+          "aiFreeTextEnabled",
+          "aiProvider",
+          "expectedVersion"
         ]
       }
     },
@@ -44348,7 +44442,7 @@
           "platform"
         ],
         "summary": "The organisation's data protection governance",
-        "description": "platform.tenant.manage. Names the data protection officer or lead (an active member, who signs the DPIA), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Audited with what changed, never the values of names or addresses.",
+        "description": "platform.tenant.manage. Names the data protection officer or lead (an active member holding platform.dpia.sign, who signs the DPIA; naming a different lead needs a fresh step-up and tells the one replaced), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Send the `version` read (409 when stale). Audited with what changed and the old and new lead ids, never the values of names or addresses.",
         "security": [
           {
             "bearerAuth": []
@@ -44361,7 +44455,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DataProtectionSettings"
+                "$ref": "#/components/schemas/SaveDataProtectionSettings"
               }
             }
           }
@@ -44389,6 +44483,16 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

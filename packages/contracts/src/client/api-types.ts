@@ -19062,7 +19062,7 @@ export interface paths {
     get?: never;
     /**
      * The organisation's data protection governance
-     * @description platform.tenant.manage. Names the data protection officer or lead (an active member, who signs the DPIA), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Audited with what changed, never the values of names or addresses.
+     * @description platform.tenant.manage. Names the data protection officer or lead (an active member holding platform.dpia.sign, who signs the DPIA; naming a different lead needs a fresh step-up and tells the one replaced), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Send the `version` read (409 when stale). Audited with what changed and the old and new lead ids, never the values of names or addresses.
      */
     put: {
       parameters: {
@@ -19073,7 +19073,7 @@ export interface paths {
       };
       requestBody?: {
         content: {
-          "application/json": components["schemas"]["DataProtectionSettings"];
+          "application/json": components["schemas"]["SaveDataProtectionSettings"];
         };
       };
       responses: {
@@ -19097,6 +19097,15 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -25246,6 +25255,7 @@ export interface components {
       aiFreeTextEnabled: boolean;
       /** @enum {string|null} */
       aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
+      version: number;
     };
     DpiaVersion: {
       /** Format: uuid */
@@ -25297,6 +25307,25 @@ export interface components {
       typedName: string;
       statement?: string;
       sha256Seen: string;
+    };
+    SaveDataProtectionSettings: {
+      /** Format: uuid */
+      leadId: string | null;
+      dpoName: string | null;
+      /** Format: email */
+      dpoEmail: string | null;
+      /** @enum {string} */
+      sector: "independent" | "public";
+      /** Format: uri */
+      privacyNoticeUrl: string | null;
+      /** Format: date */
+      dpaSignedOn: string | null;
+      usesDataBeyondDirectCare: boolean | null;
+      marketingEnabled: boolean;
+      aiFreeTextEnabled: boolean;
+      /** @enum {string|null} */
+      aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
+      expectedVersion: number;
     };
   };
   responses: never;

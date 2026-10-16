@@ -3,10 +3,11 @@ import {
   DpiaOverview,
   DpiaVersion,
   PrepareDpia,
+  SaveDataProtectionSettings,
   SaveDpia,
   SignDpia,
 } from "@harbour/contracts";
-import { dpia, type Transaction, tenant, tenantUser } from "@harbour/db";
+import { dpia, notification, type Transaction, tenant } from "@harbour/db";
 import {
   dpiaBasis as basisOf,
   checkDpiaSignOff,
@@ -20,7 +21,7 @@ import {
   type RiskLevel,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray, isNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import {
@@ -28,6 +29,7 @@ import {
   requireAnyPermission,
   requirePermission,
   stepUpAtFor,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -66,6 +68,7 @@ const settingsOf = (t: typeof tenant.$inferSelect) => ({
   marketingEnabled: t.marketingEnabled,
   aiFreeTextEnabled: t.aiFreeTextEnabled,
   aiProvider: t.aiProvider as DataProtectionSettings["aiProvider"],
+  version: t.version,
 });
 
 /** The prefill for the organisation as it stands now, and what it covers. */
@@ -305,9 +308,14 @@ export const dpiaRouter = createRouter()
       const now = new Date();
       const requestId = c.get("requestId");
       const outcome = await withTenant(c, async (tx) => {
-        const [row] = await tx.select().from(dpia).where(eq(dpia.id, id));
+        // Locked, so a concurrent sign or save waits and then sees what this one did.
+        const [row] = await tx.select().from(dpia).where(eq(dpia.id, id)).for("update");
         if (!row) return { missing: true as const };
-        const [t] = await tx.select().from(tenant).where(eq(tenant.id, access.tenantId));
+        const [t] = await tx
+          .select()
+          .from(tenant)
+          .where(eq(tenant.id, access.tenantId))
+          .for("share");
         const answers = row.answers as Record<string, Record<string, string>>;
         const check = checkDpiaSignOff({
           draft: row.prefill as unknown as DpiaDraft,
@@ -345,12 +353,9 @@ export const dpiaRouter = createRouter()
           })
           .where(and(eq(dpia.id, id), eq(dpia.status, "prepared")))
           .returning();
-        if (!signed)
-          return {
-            issues: [
-              { problem: "not_prepared", message: "Mark the DPIA as ready for sign-off first." },
-            ],
-          };
+        // The row is locked and was prepared, so this cannot happen; if it does, nothing commits
+        // (the version signed before stays in force).
+        if (!signed) throw problems.conflict();
         await auditInTx(tx, access, {
           action: "platform.dpia.signed",
           resourceType: "dpia",
@@ -394,30 +399,48 @@ export const dpiaRouter = createRouter()
       tags: ["platform"],
       summary: "The organisation's data protection governance",
       description:
-        "platform.tenant.manage. Names the data protection officer or lead (an active member, who signs the DPIA), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Audited with what changed, never the values of names or addresses.",
+        "platform.tenant.manage. Names the data protection officer or lead (an active member holding platform.dpia.sign, who signs the DPIA; naming a different lead needs a fresh step-up and tells the one replaced), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Send the `version` read (409 when stale). Audited with what changed and the old and new lead ids, never the values of names or addresses.",
       security,
-      request: { body: { content: { "application/json": { schema: DataProtectionSettings } } } },
-      responses: { 200: jsonBody(DataProtectionSettings, "Saved"), ...errorResponses },
+      request: {
+        body: { content: { "application/json": { schema: SaveDataProtectionSettings } } },
+      },
+      responses: {
+        200: jsonBody(DataProtectionSettings, "Saved"),
+        ...errorResponses,
+        ...conflictResponse,
+      },
     }),
     async (c) => {
       const access = await requirePermission(c, "platform.tenant.manage");
-      const input = c.req.valid("json");
+      const { expectedVersion, ...input } = c.req.valid("json");
+      const requestId = c.get("requestId");
       const saved = await withTenant(c, async (tx) => {
-        if (input.leadId) {
-          const [lead] = await tx
-            .select({ id: tenantUser.id })
-            .from(tenantUser)
-            .where(
-              and(
-                eq(tenantUser.id, input.leadId),
-                isNull(tenantUser.deletedAt),
-                inArray(tenantUser.status, ["active"]),
-              ),
+        const [before] = await tx
+          .select()
+          .from(tenant)
+          .where(eq(tenant.id, access.tenantId))
+          .for("update");
+        if (!before) throw problems.notFound();
+        if (before.version !== expectedVersion)
+          throw new HttpProblem(
+            409,
+            "version_conflict",
+            "The settings changed since you opened them.",
+            "Reload them and try again.",
+          );
+        const previousLeadId = before.dataProtectionLeadId;
+        const leadChanged = input.leadId !== previousLeadId;
+        // Who signs the DPIA is as sensitive as signing it: a different lead needs step-up.
+        if (leadChanged && !access.stepUpFresh) return { stepUp: true as const };
+        if (leadChanged && input.leadId) {
+          const held = await tx.execute<{ holds: boolean }>(
+            sql`SELECT app.member_holds_role_permission(${input.leadId}::uuid, 'platform.dpia.sign') AS holds`,
+          );
+          if (!held.rows[0]?.holds)
+            throw problems.invalid(
+              "Name an active member whose role lets them sign the DPIA as the lead.",
             );
-          if (!lead)
-            throw problems.invalid("Name an active member of the organisation as the lead.");
         }
-        const [before] = await tx.select().from(tenant).where(eq(tenant.id, access.tenantId));
         const [t] = await tx
           .update(tenant)
           .set({
@@ -432,9 +455,9 @@ export const dpiaRouter = createRouter()
             aiFreeTextEnabled: input.aiFreeTextEnabled,
             aiProvider: input.aiProvider,
           })
-          .where(eq(tenant.id, access.tenantId))
+          .where(and(eq(tenant.id, access.tenantId), eq(tenant.version, expectedVersion)))
           .returning();
-        if (!t || !before) throw problems.notFound();
+        if (!t) throw problems.conflict();
         const was = settingsOf(before);
         const now = settingsOf(t);
         await auditInTx(tx, access, {
@@ -442,12 +465,42 @@ export const dpiaRouter = createRouter()
           resourceType: "tenant",
           resourceId: access.tenantId,
           scope: {
-            changed: (Object.keys(now) as (keyof typeof now)[]).filter((k) => was[k] !== now[k]),
+            changed: (Object.keys(now) as (keyof typeof now)[]).filter(
+              (k) => k !== "version" && was[k] !== now[k],
+            ),
+            // Opaque member ids only.
+            ...(leadChanged ? { previousLeadId, leadId: input.leadId } : {}),
           },
-          requestId: c.get("requestId"),
+          requestId,
         });
+        if (leadChanged && previousLeadId) {
+          // The member replaced is told, with ids only, so a change they did not expect is seen.
+          await tx.insert(notification).values({
+            recipientTenantUserId: previousLeadId,
+            kind: "platform.data_protection.lead_replaced",
+            severity: "warning",
+            title: "You are no longer the data protection lead",
+            body: "Someone else now signs the DPIA. Tell your registered manager if you did not expect this.",
+            link: "/settings/data-protection",
+            channels: ["in_app", "email"],
+            sourceType: "tenant",
+            sourceId: access.tenantId,
+            dedupeKey: `dp_lead_replaced:${access.tenantId}:${t.version}`,
+          });
+        }
         return now;
       });
+      if ("stepUp" in saved) {
+        await writeAudit(c.get("services").appPool, access, {
+          action: "platform.data_protection.updated",
+          outcome: "denied",
+          resourceType: "tenant",
+          resourceId: access.tenantId,
+          reason: "step_up_required",
+          requestId,
+        });
+        throw stepUpRefusal(access);
+      }
       return c.json(saved, 200);
     },
   );
