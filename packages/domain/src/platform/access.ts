@@ -389,21 +389,21 @@ export type AuthorisationDecision =
   | { readonly allowed: false; readonly reason: "missing_permission" | "step_up_required" };
 
 /**
- * Decides whether an action may proceed. Step-up actions need an authentication event no older
- * than `stepUpWindowSeconds`.
+ * Decides whether an action may proceed. Step-up actions need a second factor used on the session
+ * (`stepUpAt`, never a password sign-in time; ADR-0072 amendment) no older than
+ * `stepUpWindowSeconds`.
  */
 export function authorise(
   access: EffectiveAccess,
   permission: Permission,
-  lastStrongAuthAt: Date | null,
+  stepUpAt: Date | null,
   now: Date,
   stepUpWindowSeconds: number,
 ): AuthorisationDecision {
   if (!can(access, permission)) return { allowed: false, reason: "missing_permission" };
   if (requiresStepUp(permission)) {
     const fresh =
-      lastStrongAuthAt !== null &&
-      now.getTime() - lastStrongAuthAt.getTime() <= stepUpWindowSeconds * 1000;
+      stepUpAt !== null && now.getTime() - stepUpAt.getTime() <= stepUpWindowSeconds * 1000;
     if (!fresh) return { allowed: false, reason: "step_up_required" };
   }
   return { allowed: true };

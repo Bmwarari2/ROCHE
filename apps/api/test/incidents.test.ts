@@ -33,7 +33,7 @@ import {
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { submitHolders } from "../src/services/safety";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Slice 7 through the API: incidents, the classifier on the server, statutory notifications with
@@ -95,12 +95,7 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
 }
 
 async function setSessionAge(user: keyof Harness["tokens"], minutes: number) {
-  await h.db
-    .pool("harbour_auth")
-    .query(
-      "UPDATE auth.session SET created_at = now() - make_interval(mins => $2) WHERE token = $1",
-      [h.tokens[user]?.split(".")[0], minutes],
-    );
+  await ageSession(h.db.pool("harbour_auth"), h.tokens[user]?.split(".")[0] ?? "", minutes * 60);
 }
 
 interface IncidentInput {
