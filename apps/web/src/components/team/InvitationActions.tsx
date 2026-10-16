@@ -5,7 +5,7 @@ import { Ban, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState, useTransition } from "react";
 import { resendInvitation, revokeInvitation } from "@/app/actions/team";
-import { FormFeedback } from "@/components/care/FormFeedback";
+import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
 import type { ActionResult } from "@/lib/outcome";
 
@@ -13,6 +13,7 @@ const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 
 /** A button that asks before it acts, in a sheet that says what will happen. */
 function Confirmed({
+  path,
   open: openLabel,
   title,
   body,
@@ -21,6 +22,8 @@ function Confirmed({
   variant,
   act,
 }: {
+  /** The member's page, opened again after the action and after a fresh sign-in. */
+  readonly path: string;
   readonly open: string;
   readonly title: string;
   readonly body: string;
@@ -50,7 +53,7 @@ function Confirmed({
       closeLabel={t("common.close")}
     >
       <div className="flex flex-col gap-4">
-        <FormFeedback result={result?.ok ? null : result} success="" />
+        <ManageFeedback result={result} path={path} stepUp={t("team.stepUp.action")} />
         <div className="flex flex-wrap justify-end gap-2">
           <SheetClose asChild>
             <Button variant="secondary">{t("common.cancel")}</Button>
@@ -63,7 +66,10 @@ function Confirmed({
                 setResult(outcome);
                 if (outcome.ok) {
                   setOpen(false);
-                  router.replace(`?done=${outcome.done ?? ""}`, { scroll: false });
+                  // `at` makes each action a new arrival, so sending again twice is said twice.
+                  router.replace(`${path}?done=${outcome.done ?? ""}&at=${Date.now()}`, {
+                    scroll: false,
+                  });
                   router.refresh();
                 }
               })
@@ -89,6 +95,7 @@ export function ResendInvitation({
 }) {
   return (
     <Confirmed
+      path={`/settings/team/${memberId}`}
       open={again ? t("team.resend.again") : t("team.resend.first")}
       title={t("team.resend.title", { name })}
       body={t("team.resend.body", { name })}
@@ -106,9 +113,16 @@ export function ResendInvitation({
 }
 
 /** Withdraws an open invitation: its link stops working at once. */
-export function RevokeInvitation({ invitationId }: { readonly invitationId: string }) {
+export function RevokeInvitation({
+  memberId,
+  invitationId,
+}: {
+  readonly memberId: string;
+  readonly invitationId: string;
+}) {
   return (
     <Confirmed
+      path={`/settings/team/${memberId}`}
       open={t("team.revoke.open")}
       title={t("team.revoke.title")}
       body={t("team.revoke.body")}

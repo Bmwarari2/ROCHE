@@ -20,8 +20,11 @@ import { type ActionResult, errorFor, type FieldErrors, fieldErrors } from "@/li
 export function StepUpNotice({
   next,
   refusal,
+  body,
 }: {
   readonly next: string;
+  /** What the step needs and what happens to what was typed; the notification forms' by default. */
+  readonly body?: string;
   /** The refusal shown; a new one (the same step refused again) takes focus again. */
   readonly refusal?: unknown;
 }) {
@@ -39,7 +42,7 @@ export function StepUpNotice({
       <ShieldCheck size={20} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
       <div className="flex flex-col gap-2">
         <p className="m-0 font-semibold">{t("auth.stepUp.title")}</p>
-        <p className="m-0">{t("safety.manage.stepUp")}</p>
+        <p className="m-0">{body ?? t("safety.manage.stepUp")}</p>
         <div>
           <Link href={href} className={buttonClassName({ variant: "primary" })}>
             {t("people.breakGlass.signInAgain")}
@@ -81,13 +84,18 @@ export function ManageFeedback({
   result,
   path,
   fieldIds,
+  stepUp,
 }: {
   readonly result: ActionResult<unknown> | null;
   readonly path: string;
+  /** The step-up notice's words, when the form's differ from the notification forms'. */
+  readonly stepUp?: string;
   readonly fieldIds?: Readonly<Record<string, string>>;
 }) {
   if (!result || result.ok) return null;
-  if (result.code === "step_up_required") return <StepUpNotice next={path} refusal={result} />;
+  if (result.code === "step_up_required") {
+    return <StepUpNotice next={path} refusal={result} {...(stepUp ? { body: stepUp } : {})} />;
+  }
   return <FormFeedback result={result} success="" {...(fieldIds ? { fieldIds } : {})} />;
 }
 

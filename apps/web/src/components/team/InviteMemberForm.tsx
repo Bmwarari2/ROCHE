@@ -6,8 +6,8 @@ import { Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { addAndInvite } from "@/app/actions/team";
-import { FormFeedback } from "@/components/care/FormFeedback";
 import { useEntryId, useFieldIds } from "@/components/care/form-state";
+import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 import { ORGANISATION, readInvite } from "@/lib/team";
@@ -48,7 +48,7 @@ export function InviteMemberForm({
       if (outcome.ok) {
         entry.next();
         const done = outcome.data.emailSent ? "sent" : "emailFailed";
-        router.push(`/settings/team/${outcome.data.memberId}?done=${done}`);
+        router.push(`/settings/team/${outcome.data.memberId}?done=${done}&at=${Date.now()}`);
       }
     });
   };
@@ -107,7 +107,12 @@ export function InviteMemberForm({
           {pending ? t("common.saving") : t("team.invite.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success={t("team.done", { done: "sent" })} fieldIds={ids} />
+      <ManageFeedback
+        result={result}
+        path="/settings/team"
+        fieldIds={ids}
+        stepUp={t("team.stepUp.form")}
+      />
     </form>
   );
 }

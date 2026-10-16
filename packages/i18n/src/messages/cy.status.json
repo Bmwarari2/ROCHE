@@ -1438,6 +1438,8 @@
     "team.revoke.body",
     "team.revoke.confirm",
     "team.done",
-    "team.refusal"
+    "team.refusal",
+    "team.stepUp.form",
+    "team.stepUp.action"
   ]
 }

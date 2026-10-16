@@ -1,10 +1,11 @@
 import { Card, EmptyState, PageHeader } from "@harbour/ui";
-import { MailX, TriangleAlert } from "lucide-react";
+import { MailX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
+import { EmailFailedNotice } from "@/components/team/EmailFailedNotice";
 import { ResendInvitation, RevokeInvitation } from "@/components/team/InvitationActions";
 import { TeamChip } from "@/components/team/TeamChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
@@ -48,7 +49,10 @@ export default async function MemberInvitationsPage({
   });
   if (!listed.data) failWith(listed.error, listed.response, `/settings/team/${memberId}`);
   const invitations = listed.data.items;
-  const done = firstParam((await searchParams).done);
+  const query = await searchParams;
+  const done = firstParam(query.done);
+  // A new `at` with each action, so the same outcome twice is said twice.
+  const at = firstParam(query.at) ?? "";
   const when = (iso: string | null) => formatDateTime(iso) ?? "";
 
   return (
@@ -61,13 +65,10 @@ export default async function MemberInvitationsPage({
       </Link>
       <PageHeader eyebrow={t("team.title")} title={member.displayName} />
       {done && DONE.has(done) ? (
-        <ArrivalNotice key={done}>{t("team.done", { done })}</ArrivalNotice>
+        <ArrivalNotice key={`${done}-${at}`}>{t("team.done", { done })}</ArrivalNotice>
       ) : null}
       {done === "emailFailed" ? (
-        <p role="alert" className="m-0 inline-flex items-center gap-2 font-semibold">
-          <TriangleAlert size={18} strokeWidth={1.5} aria-hidden="true" />
-          <span>{t("team.done", { done })}</span>
-        </p>
+        <EmailFailedNotice key={at}>{t("team.done", { done })}</EmailFailedNotice>
       ) : null}
       <Card as="section" title={t("team.member.about")} headingLevel={2}>
         <div className="flex flex-col gap-2">
@@ -111,7 +112,7 @@ export default async function MemberInvitationsPage({
                   </p>
                   {mayRevoke(inv) ? (
                     <div>
-                      <RevokeInvitation invitationId={inv.id} />
+                      <RevokeInvitation memberId={member.id} invitationId={inv.id} />
                     </div>
                   ) : null}
                 </li>
