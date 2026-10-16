@@ -1,6 +1,6 @@
 {
-  "id": "1e629a1a-2dc3-4c4a-94d8-b895becf604b",
-  "prevId": "3bd7aaae-9232-4fc0-959c-650445e8b091",
+  "id": "4d1bc097-5754-40b3-8e22-40dc13ae6760",
+  "prevId": "6804cac5-b7a2-4da1-927e-94cb3cdc08a5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2271,6 +2271,16 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "search_body": {
+          "name": "search_body",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "app.search_vector(body)"
+          }
         },
         "tags": {
           "name": "tags",
@@ -11884,6 +11894,26 @@
           "primaryKey": false,
           "notNull": false
         },
+        "search_names": {
+          "name": "search_names",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))"
+          }
+        },
+        "search_room": {
+          "name": "search_room",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "app.search_vector(room_label)"
+          }
+        },
         "communication_needs": {
           "name": "communication_needs",
           "type": "jsonb",
@@ -17501,6 +17531,16 @@
           "primaryKey": false,
           "notNull": false
         },
+        "search_title": {
+          "name": "search_title",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "app.search_vector(title || ' ' || coalesce(file_name, ''))"
+          }
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -20237,6 +20277,16 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "search_name": {
+          "name": "search_name",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "type": "stored",
+            "as": "app.search_vector(display_name)"
+          }
         },
         "email": {
           "name": "email",
@@ -23902,6 +23952,260 @@
       },
       "isRLSEnabled": false
     },
+    "public.sub_processor_notice": {
+      "name": "sub_processor_notice",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "sub_processor_key": {
+          "name": "sub_processor_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "use": {
+          "name": "use",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "announced_at": {
+          "name": "announced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sub_processor_notice_key_idx": {
+          "name": "sub_processor_notice_key_idx",
+          "columns": [
+            {
+              "expression": "sub_processor_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "announced_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sub_processor_notice_kind": {
+          "name": "sub_processor_notice_kind",
+          "value": "kind IN ('new', 'replacement')"
+        },
+        "sub_processor_notice_dates": {
+          "name": "sub_processor_notice_dates",
+          "value": "effective_from >= announced_at"
+        },
+        "sub_processor_notice_use": {
+          "name": "sub_processor_notice_use",
+          "value": "use ->> 'kind' IN ('always', 'capability', 'ai_provider')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sub_processor_response": {
+      "name": "sub_processor_response",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "sub_processor_key": {
+          "name": "sub_processor_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notice_id": {
+          "name": "notice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grounds": {
+          "name": "grounds",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolution": {
+          "name": "resolution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "responded_by": {
+          "name": "responded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sub_processor_response_key_idx": {
+          "name": "sub_processor_response_key_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sub_processor_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "responded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "sub_processor_response_tenant_id_tenant_id_fk": {
+          "name": "sub_processor_response_tenant_id_tenant_id_fk",
+          "tableFrom": "sub_processor_response",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenant",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "sub_processor_response_notice_id_sub_processor_notice_id_fk": {
+          "name": "sub_processor_response_notice_id_sub_processor_notice_id_fk",
+          "tableFrom": "sub_processor_response",
+          "columnsFrom": [
+            "notice_id"
+          ],
+          "tableTo": "sub_processor_notice",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "sub_processor_response_by_fk": {
+          "name": "sub_processor_response_by_fk",
+          "tableFrom": "sub_processor_response",
+          "columnsFrom": [
+            "tenant_id",
+            "responded_by"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sub_processor_response_tenant_id_id_key": {
+          "name": "sub_processor_response_tenant_id_id_key",
+          "columns": [
+            "tenant_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "sub_processor_response_kind": {
+          "name": "sub_processor_response_kind",
+          "value": "CASE kind\n        WHEN 'acknowledged' THEN grounds IS NULL AND resolution IS NULL AND responded_by IS NOT NULL\n        WHEN 'objected' THEN notice_id IS NOT NULL AND char_length(btrim(grounds)) BETWEEN 20 AND 4000\n          AND resolution IS NULL AND responded_by IS NOT NULL\n        WHEN 'objection_resolved' THEN notice_id IS NOT NULL AND grounds IS NULL\n          AND resolution IN ('objection_withdrawn', 'not_used_for_tenant', 'services_ended')\n        ELSE false END"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.device_binding": {
       "name": "device_binding",
       "schema": "",
@@ -26447,260 +26751,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.sub_processor_notice": {
-      "name": "sub_processor_notice",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "sub_processor_key": {
-          "name": "sub_processor_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "use": {
-          "name": "use",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "announced_at": {
-          "name": "announced_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sub_processor_notice_key_idx": {
-          "name": "sub_processor_notice_key_idx",
-          "columns": [
-            {
-              "expression": "sub_processor_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "announced_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "sub_processor_notice_kind": {
-          "name": "sub_processor_notice_kind",
-          "value": "kind IN ('new', 'replacement')"
-        },
-        "sub_processor_notice_dates": {
-          "name": "sub_processor_notice_dates",
-          "value": "effective_from >= announced_at"
-        },
-        "sub_processor_notice_use": {
-          "name": "sub_processor_notice_use",
-          "value": "use ->> 'kind' IN ('always', 'capability', 'ai_provider')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.sub_processor_response": {
-      "name": "sub_processor_response",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "sub_processor_key": {
-          "name": "sub_processor_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notice_id": {
-          "name": "notice_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grounds": {
-          "name": "grounds",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolution": {
-          "name": "resolution",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "responded_by": {
-          "name": "responded_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "responded_at": {
-          "name": "responded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "sub_processor_response_key_idx": {
-          "name": "sub_processor_response_key_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sub_processor_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "responded_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "sub_processor_response_tenant_id_tenant_id_fk": {
-          "name": "sub_processor_response_tenant_id_tenant_id_fk",
-          "tableFrom": "sub_processor_response",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenant",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "sub_processor_response_notice_id_sub_processor_notice_id_fk": {
-          "name": "sub_processor_response_notice_id_sub_processor_notice_id_fk",
-          "tableFrom": "sub_processor_response",
-          "columnsFrom": [
-            "notice_id"
-          ],
-          "tableTo": "sub_processor_notice",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "sub_processor_response_by_fk": {
-          "name": "sub_processor_response_by_fk",
-          "tableFrom": "sub_processor_response",
-          "columnsFrom": [
-            "tenant_id",
-            "responded_by"
-          ],
-          "tableTo": "tenant_user",
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "sub_processor_response_tenant_id_id_key": {
-          "name": "sub_processor_response_tenant_id_id_key",
-          "columns": [
-            "tenant_id",
-            "id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "sub_processor_response_kind": {
-          "name": "sub_processor_response_kind",
-          "value": "CASE kind\n        WHEN 'acknowledged' THEN grounds IS NULL AND resolution IS NULL AND responded_by IS NOT NULL\n        WHEN 'objected' THEN notice_id IS NOT NULL AND char_length(btrim(grounds)) BETWEEN 20 AND 4000\n          AND resolution IS NULL AND responded_by IS NOT NULL\n        WHEN 'objection_resolved' THEN notice_id IS NOT NULL AND grounds IS NULL\n          AND resolution IN ('objection_withdrawn', 'not_used_for_tenant', 'services_ended')\n        ELSE false END"
-        }
-      },
       "isRLSEnabled": false
     }
   },

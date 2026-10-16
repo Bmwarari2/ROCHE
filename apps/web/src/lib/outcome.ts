@@ -105,6 +105,10 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     }
     case "outage_reconciled":
     case "back_entry_refused":
+    // The DPIA and onboarding decisions (PLAT-023, PLAT-018): the API's own words say every
+    // problem at once and what to do.
+    case "dpia_not_signable":
+    case "decision_not_recordable":
       return { code, message: detail || t("care.errors.invalid") };
     case "back_entry_already_corrected":
       return { code, message: t("care.paper.alreadyCorrected") };

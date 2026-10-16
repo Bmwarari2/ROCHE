@@ -160,6 +160,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
 
+   - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
+     platform-completions.md section 10s; PLAT-013, ADR-0070): `app.search_terms` equal to the
+     domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Next: the
+     search route (plan, second filter, ranking, audit), then the web search box, then break-glass
+     search with `break_glass_event.kind`.
    - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
@@ -183,8 +188,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
      file and DCB0160 decisions, audited with refusals.
    - Part 3, the checklist (`feat/platform-onboarding-checklist`): `GET /v1/onboarding` works
      every item out from the records; the go-live check now reads the escalation policy links
-     (HZ-014). Next: sub-processor notices (rules 24 and 25), sample data mode, then the web
-     screens for the DPIA and the checklist.
+     (HZ-014).
+   - Web, the DPIA page (`feat/web-dpia-onboarding`, platform-completions.md section 10f): the
+     governance, preparing and signing in-app, with step-up notices and a journey with axe. The
+     signing form is offered only to the named lead who prepared none of it. Open: the typed name
+     is checked for length and bound to the version's SHA-256, never against the signer's account
+     name (the API records the session's member as signer); decide whether it must match before a
+     pilot. `db:seed` now refuses to seed the demo tenant in production unless
+     `HARBOUR_SEED_DEMO=0` (reference data only).
+   - Web, the onboarding checklist page (`feat/web-onboarding-checklist`, section 10g): every
+     item from the records, with the decisions recorded on the page; a clinical setting and the
+     DCB0160 assessment name the clinical lead or CSO who reviewed or made it, kept as a member id
+     in the audit event (the decision tables do not store it yet: add a column when the schema is
+     next touched). Open before Welsh or a pilot: the checklist shows settings and record classes
+     by their keys, and the domain's reasons in English. Next: sub-processor notices (rules 24
+     and 25), then sample data mode.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
