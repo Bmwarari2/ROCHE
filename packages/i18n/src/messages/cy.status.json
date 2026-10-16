@@ -1294,8 +1294,6 @@
     "care.round.urgent",
     "care.round.started",
     "care.round.catchUp",
-    "care.round.due",
-    "care.round.assignee",
     "care.round.start",
     "care.round.startNamed",
     "care.round.done",
@@ -1309,6 +1307,7 @@
     "care.round.reasonRequired",
     "care.round.skipSubmit",
     "care.round.moved",
-    "care.round.arrived"
+    "care.round.arrived",
+    "care.round.dueLine"
   ]
 }

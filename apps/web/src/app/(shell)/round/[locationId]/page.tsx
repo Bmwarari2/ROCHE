@@ -1,4 +1,4 @@
-import type { PersonSummary, RoundTask } from "@harbour/contracts";
+import type { RoundTask } from "@harbour/contracts";
 import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
 import { CircleAlert, ClipboardCheck, History, RotateCcw, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
@@ -6,17 +6,26 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { Notice } from "@/components/care/Notice";
+import { RoundRefresh } from "@/components/care/RoundRefresh";
 import { RoundTaskActions } from "@/components/care/RoundTaskActions";
-import { CommunicationStatus } from "@/components/people/CommunicationStatus";
+import { PersonHeaderCompact } from "@/components/people/PersonHeader";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { staffName } from "@/lib/mca";
-import { communicationSummary, personNames } from "@/lib/people";
+import { personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
-import { forPerson, roundCounts, roundShown, roundTaskActions, timeStateChip } from "@/lib/round";
+import {
+  dueLine,
+  forPerson,
+  nextReadIn,
+  recordHref,
+  roundCounts,
+  roundShown,
+  roundTaskActions,
+  timeStateChip,
+} from "@/lib/round";
 
 type Params = Promise<{ locationId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -25,33 +34,6 @@ export const metadata: Metadata = { title: t("care.round.title") };
 
 const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 const MOVED = new Set(["in_progress", "done", "skipped"]);
-
-/** A person's name and room, with their communication needs beside it (AIS; HZ-001). */
-function PersonLine({ person }: { readonly person: PersonSummary }) {
-  const name = personNames(person).full;
-  return (
-    <div className="flex flex-col gap-1">
-      <h3 className="m-0 text-body font-semibold">
-        <Link
-          href={`/people/${person.id}`}
-          className="inline-flex min-h-target items-center underline"
-        >
-          {person.roomLabel ? t("care.round.personRoom", { name, room: person.roomLabel }) : name}
-        </Link>
-      </h3>
-      <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
-        <dt className="text-body-dense font-semibold">{t("people.header.communicationNeeds")}</dt>
-        <dd className="m-0">
-          <CommunicationStatus
-            summary={communicationSummary(person, t)}
-            flagLabel={t("people.header.communicationNeeds")}
-            compact
-          />
-        </dd>
-      </dl>
-    </div>
-  );
-}
 
 /**
  * The round (care.md rule 8; CARE-013; hazards HZ-001, HZ-003, HZ-024): the location's open tasks
@@ -98,7 +80,7 @@ export default async function RoundPage({
     ? areas.flatMap((a) => a.stops).find((s) => s.person)?.person
     : null;
 
-  const taskLine = (task: RoundTask) => (
+  const taskLine = (task: RoundTask, name: string | null) => (
     <li
       key={task.id}
       className="flex flex-col gap-2 rounded-input border border-border p-3"
@@ -117,13 +99,7 @@ export default async function RoundPage({
           <StatusChip status="info" label={t("care.round.catchUp")} icon={RotateCcw} />
         ) : null}
       </p>
-      <p className="m-0 text-body-dense">
-        {t("care.round.due", { dateTime: formatDateTime(task.dueAt) ?? "" })}
-        {task.planAction?.whenText ? ` · ${task.planAction.whenText}` : ""}
-        {task.assigneeStaff
-          ? ` · ${t("care.round.assignee", { who: staffName(task.assigneeStaff, t) })}`
-          : ""}
-      </p>
+      <p className="m-0 text-body-dense">{dueLine(task, t)}</p>
       {task.planAction?.notice ? (
         <p className="m-0 flex items-start gap-2 font-semibold">
           <History size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
@@ -136,8 +112,9 @@ export default async function RoundPage({
         version={task.version}
         title={task.planAction?.action ?? task.title}
         actions={roundTaskActions(task, canWrite)}
-        recordHref={task.personId ? `/people/${task.personId}/charts` : null}
+        recordHref={recordHref(task)}
         returnTo={base}
+        name={name}
       />
     </li>
   );
@@ -156,8 +133,9 @@ export default async function RoundPage({
       {moved && MOVED.has(moved) ? (
         <ArrivalNotice key={at ?? moved}>{t("care.round.arrived", { moved })}</ArrivalNotice>
       ) : null}
-      <p className="m-0 text-body-dense">
-        {t("care.round.counts", counts)}{" "}
+      <RoundRefresh inMs={nextReadIn(areas)} />
+      <p className="m-0 text-body-dense">{t("care.round.counts", counts)}</p>
+      <p className="m-0 text-body-dense text-text-secondary">
         {t("care.round.readAt", { dateTime: formatDateTime(round.readAt) ?? "" })}
       </p>
       {round.complete ? null : (
@@ -203,9 +181,11 @@ export default async function RoundPage({
                   className="flex flex-col gap-3 border-b border-border pb-4"
                 >
                   {stop.person ? (
-                    <PersonLine person={stop.person} />
+                    <PersonHeaderCompact person={stop.person} />
                   ) : (
-                    <h3 className="m-0 text-body font-semibold">{t("care.round.noPerson")}</h3>
+                    <h3 className="m-0 text-body font-semibold">
+                      {t("care.round.noPerson", { hidden: String(stop.personId !== null) })}
+                    </h3>
                   )}
                   {stop.person && !personId ? (
                     <Link
@@ -216,7 +196,9 @@ export default async function RoundPage({
                     </Link>
                   ) : null}
                   <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                    {stop.tasks.map(taskLine)}
+                    {stop.tasks.map((task) =>
+                      taskLine(task, stop.person ? personNames(stop.person).full : null),
+                    )}
                   </ul>
                   {stop.notRounds.length > 0 ? (
                     <ul className="m-0 flex list-none flex-col gap-1 p-0">

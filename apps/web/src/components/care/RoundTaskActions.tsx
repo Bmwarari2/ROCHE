@@ -28,6 +28,7 @@ export function RoundTaskActions({
   actions,
   recordHref,
   returnTo,
+  name,
 }: {
   readonly locationId: string;
   readonly taskId: string;
@@ -39,7 +40,10 @@ export function RoundTaskActions({
   readonly recordHref: string | null;
   /** The round's address, to come back to with what was done said and focused. */
   readonly returnTo: string;
+  /** Whose task it is, for the buttons' names; null for a task about no one person. */
+  readonly name: string | null;
 }) {
+  const who = name ?? "none";
   const router = useRouter();
   const inline = useInlineForm<HTMLInputElement>();
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
@@ -53,7 +57,8 @@ export function RoundTaskActions({
         version,
         ...(reason ? { reason } : {}),
       });
-      setResult(outcome);
+      // On success the round opens again and its notice takes focus: nothing to say here.
+      setResult(outcome.ok ? null : outcome);
       if (outcome.ok) {
         inline.hide();
         const sep = returnTo.includes("?") ? "&" : "?";
@@ -79,7 +84,7 @@ export function RoundTaskActions({
             ref={inline.firstField}
             id={ids.reason}
             name="reason"
-            label={t("care.round.reason", { title })}
+            label={t("care.round.reason", { title, name: who })}
             hint={t("care.round.reasonHint")}
             required
             maxLength={500}
@@ -107,7 +112,7 @@ export function RoundTaskActions({
               variant="secondary"
               icon={<Play size={16} strokeWidth={1.5} />}
               disabled={pending}
-              aria-label={t("care.round.startNamed", { title })}
+              aria-label={t("care.round.startNamed", { title, name: who })}
               onClick={() => move("in_progress")}
             >
               {t("care.round.start")}
@@ -117,7 +122,7 @@ export function RoundTaskActions({
             <Button
               icon={<Check size={16} strokeWidth={1.5} />}
               disabled={pending}
-              aria-label={t("care.round.doneNamed", { title })}
+              aria-label={t("care.round.doneNamed", { title, name: who })}
               onClick={() => move("done")}
             >
               {t("care.round.done")}
@@ -127,7 +132,7 @@ export function RoundTaskActions({
             <Link
               href={recordHref}
               className={buttonClassName({ variant: "primary" })}
-              aria-label={t("care.round.recordNamed", { title })}
+              aria-label={t("care.round.recordNamed", { title, name: who })}
             >
               {t("care.round.record")}
             </Link>
@@ -137,7 +142,7 @@ export function RoundTaskActions({
               ref={inline.trigger}
               variant="secondary"
               icon={<CircleX size={16} strokeWidth={1.5} />}
-              aria-label={t("care.round.skipNamed", { title })}
+              aria-label={t("care.round.skipNamed", { title, name: who })}
               onClick={() => {
                 setResult(null);
                 inline.show();

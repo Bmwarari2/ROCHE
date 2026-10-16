@@ -13,6 +13,7 @@ const DEMO_TENANT = "0194d000-0000-7000-8000-000000000001";
 const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
 const RUN = Date.now().toString(36);
 const BEN = demoPerson(2);
+const NAME = "Ben Sample";
 
 const main = (page: Page) => page.getByRole("main");
 const alertIn = (page: Page) => main(page).getByRole("alert");
@@ -51,41 +52,50 @@ test("hazard HZ-003 the nurse works through Ben's tasks on the round, every stat
   await expect(page.getByRole("heading", { level: 1, name: "Round" })).toBeVisible();
   await expectAccessible(page, "round");
 
-  // Only Ben's stop, his name with his communication needs beside it (HZ-001).
+  // Only Ben's stop, under the compact point-of-care header (HZ-001).
   await page
-    .getByRole("link", { name: /^Show only .+'s tasks$/ })
-    .filter({ hasText: "Ben" })
+    .getByRole("link", { name: `Show only ${NAME}'s tasks` })
     .first()
     .click();
   await page.waitForURL((url) => url.searchParams.get("person") === BEN);
-  await expect(
-    main(page).getByRole("term").filter({ hasText: "Communication needs" }).first(),
-  ).toBeVisible();
-  const first = page.getByRole("listitem").filter({ hasText: check }).last();
-  await expect(first.getByText(/^(Still to come|Due now)$/)).toBeVisible();
+  const header = page.locator("[data-person-header]").filter({
+    has: page.getByRole("heading", { level: 3, name: new RegExp(`^${NAME}`) }),
+  });
+  for (const term of ["Allergies", "Resuscitation", "Communication needs"]) {
+    await expect(header.getByRole("term").filter({ hasText: term })).toBeVisible();
+  }
+  const taskItem = (title: string) =>
+    page.locator("[data-round-task]").filter({ has: page.getByText(title, { exact: true }) });
+  await expect(taskItem(check).getByText(/^(Still to come|Due now)$/)).toBeVisible();
   await expectAccessible(page, "round for one person");
 
-  await first.getByRole("button", { name: `Start ${check}` }).click();
+  await taskItem(check)
+    .getByRole("button", { name: `Start ${check} for ${NAME}` })
+    .click();
   await expect(arrival(page)).toHaveText("Task started.");
   await expect(arrival(page)).toBeFocused();
-  const started = page.getByRole("listitem").filter({ hasText: check }).last();
-  await expect(started.getByText("Started", { exact: true })).toBeVisible();
+  await expect(taskItem(check).getByText("Started", { exact: true })).toBeVisible();
+  await expectAccessible(page, "task started");
 
   // Not done: the reason is required, the summary takes focus.
-  await started.getByRole("button", { name: `Not done: ${check}` }).click();
-  await expect(started.getByLabel(`Why was it not done? (${check})`)).toBeFocused();
-  await started.getByRole("button", { name: "Mark not done" }).click();
+  const reason = `Why was ${check} for ${NAME} not done?`;
+  await taskItem(check)
+    .getByRole("button", { name: `Not done: ${check} for ${NAME}` })
+    .click();
+  await expect(taskItem(check).getByLabel(reason)).toBeFocused();
+  await taskItem(check).getByRole("button", { name: "Mark not done" }).click();
   await expect(alertIn(page)).toBeFocused();
   await expect(alertIn(page)).toContainText("Say why it was not done");
   await expectAccessible(page, "not done refused");
-  await started.getByLabel(`Why was it not done? (${check})`).fill("Asleep, will try at 03:00");
-  await started.getByRole("button", { name: "Mark not done" }).click();
+  await taskItem(check).getByLabel(reason).fill("Asleep, will try at 03:00");
+  await taskItem(check).getByRole("button", { name: "Mark not done" }).click();
   await expect(arrival(page)).toHaveText("Task marked not done.");
-  await expect(page.getByRole("listitem").filter({ hasText: check })).toHaveCount(0);
+  await expect(taskItem(check)).toHaveCount(0);
 
-  const second = page.getByRole("listitem").filter({ hasText: walk }).last();
-  await second.getByRole("button", { name: `Done: ${walk}` }).click();
+  await taskItem(walk)
+    .getByRole("button", { name: `Done: ${walk} for ${NAME}` })
+    .click();
   await expect(arrival(page)).toHaveText("Task done.");
-  await expect(page.getByRole("listitem").filter({ hasText: walk })).toHaveCount(0);
+  await expect(taskItem(walk)).toHaveCount(0);
   await expectAccessible(page, "round after tasks done");
 });

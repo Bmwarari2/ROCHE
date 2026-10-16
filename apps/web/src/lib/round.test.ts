@@ -1,6 +1,15 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { forPerson, roundCounts, roundShown, roundTaskActions, timeStateChip } from "./round";
+import {
+  dueLine,
+  forPerson,
+  nextReadIn,
+  recordHref,
+  roundCounts,
+  roundShown,
+  roundTaskActions,
+  timeStateChip,
+} from "./round";
 
 const t = createTranslator("en-GB");
 const ADA = "0194d000-0000-7000-8600-000000000001";
@@ -76,11 +85,72 @@ describe("the round view (care.md rule 8; CARE-013)", () => {
 
   it("counts the tasks shown by where they stand, escalated with overdue", () => {
     const areas = [
-      { area: null, stops: [stop(ADA, ["due", "overdue", "escalated", "upcoming", "closed"])] },
+      {
+        area: null,
+        stops: [stop(ADA, ["due", "overdue", "escalated", "upcoming", "closed", "paused"])],
+      },
     ];
-    expect(roundCounts(areas as never)).toEqual({ overdue: 2, due: 1, upcoming: 1 });
-    expect(t("care.round.counts", { overdue: 0, due: 1, upcoming: 2 })).toBe(
+    expect(roundCounts(areas as never)).toEqual({ overdue: 2, due: 1, upcoming: 1, notKnown: 1 });
+    expect(t("care.round.counts", { overdue: 0, due: 1, upcoming: 2, notKnown: 0 })).toBe(
       "None overdue, 1 due now, 2 still to come.",
     );
+    expect(t("care.round.counts", { overdue: 1, due: 0, upcoming: 0, notKnown: 1 })).toBe(
+      "1 overdue, none due now, none still to come, 1 in a state not known.",
+    );
+  });
+
+  it("hazard HZ-009 says when a task is due in one whole sentence, naming the zone on 25/10/2026", () => {
+    expect(
+      dueLine(
+        {
+          dueAt: "2026-10-25T00:30:00Z",
+          assigneeStaff: { id: ADA, displayName: "Nell Nurse", jobTitle: "Clinical lead" },
+          planAction: { whenText: "at night" } as never,
+        },
+        t,
+      ),
+    ).toBe("Due 25/10/2026 01:30 BST, at night, for Nell Nurse, Clinical lead");
+    expect(
+      dueLine({ dueAt: "2026-10-25T01:30:00Z", assigneeStaff: null, planAction: null }, t),
+    ).toBe("Due 25/10/2026 01:30 GMT");
+  });
+
+  it("hazard HZ-003 names the task and the person on every action", () => {
+    expect(t("care.round.doneNamed", { title: "Turn", name: "Ada Example" })).toBe(
+      "Done: Turn for Ada Example",
+    );
+    expect(t("care.round.reason", { title: "Turn", name: "Ada Example" })).toBe(
+      "Why was Turn for Ada Example not done?",
+    );
+    expect(t("care.round.startNamed", { title: "Check the lift", name: "none" })).toBe(
+      "Start Check the lift",
+    );
+  });
+
+  it("opens the task's own record form where the task says which", () => {
+    expect(recordHref({ kind: "repositioning", evidenceType: "observation", personId: ADA })).toBe(
+      `/people/${ADA}/charts?record=repositioning`,
+    );
+    expect(recordHref({ kind: "activity", evidenceType: "activity_record", personId: ADA })).toBe(
+      `/people/${ADA}/activities`,
+    );
+    expect(recordHref({ kind: "review", evidenceType: null, personId: ADA })).toBe(
+      `/people/${ADA}`,
+    );
+    expect(recordHref({ kind: "review", evidenceType: null, personId: null })).toBeNull();
+  });
+
+  it("hazard HZ-003 reads the round again when a task's state can next change, or within 5 minutes", () => {
+    const now = Date.parse("2026-10-16T10:00:00Z");
+    const soon = (dueAt: string) =>
+      [
+        {
+          area: null,
+          stops: [{ tasks: [{ windowStart: null, dueAt, windowEnd: null }] }],
+        },
+      ] as never;
+    expect(nextReadIn(soon("2026-10-16T10:02:00Z"), now)).toBe(120_000);
+    expect(nextReadIn(soon("2026-10-16T12:00:00Z"), now)).toBe(300_000);
+    expect(nextReadIn(soon("2026-10-16T09:00:00Z"), now)).toBe(300_000);
   });
 });
