@@ -75,3 +75,39 @@ CREATE POLICY link_session_no_insert ON public.evidence_pack_link AS RESTRICTIVE
 CREATE POLICY link_session_none ON public.statement_of_purpose_version AS RESTRICTIVE FOR ALL
   TO harbour_app, harbour_owner
   USING (NOT app.is_link_session()) WITH CHECK (NOT app.is_link_session());
+--> statement-breakpoint
+
+-- Nothing else a link request has no business reading (#66 security review L1): the audit trail,
+-- staff, alerts, tasks, documents, roles and grants. It may still write its own audit rows (an
+-- insert reads nothing back; the chain trigger is a definer) and read the organisation's email
+-- connection and the rate table, which its code needs.
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['audit_event', 'tenant_user', 'notification', 'task', 'document',
+      'role_assignment', 'access_grant', 'outbox_event'] LOOP
+    EXECUTE format(
+      'CREATE POLICY link_session_no_read ON public.%I AS RESTRICTIVE FOR SELECT '
+      'TO harbour_app, harbour_owner USING (NOT app.is_link_session())', t);
+  END LOOP;
+END
+$$;
+--> statement-breakpoint
+
+-- A link request only counts a wrong code or records an open; it never revokes or otherwise
+-- changes its link (#66 security review L2).
+CREATE OR REPLACE FUNCTION app.evidence_pack_link_session_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF app.is_link_session()
+     AND (NEW.revoked_at, NEW.revoked_by, NEW.revocation_reason)
+       IS DISTINCT FROM (OLD.revoked_at, OLD.revoked_by, OLD.revocation_reason) THEN
+    RAISE EXCEPTION 'A link request cannot revoke its link'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER evidence_pack_link_session_guard BEFORE UPDATE ON public.evidence_pack_link
+  FOR EACH ROW EXECUTE FUNCTION app.evidence_pack_link_session_guard();

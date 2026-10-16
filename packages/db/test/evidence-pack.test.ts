@@ -826,4 +826,34 @@ describe("hazard HZ-050 a link session reaches its own link alone (migration 005
       /row-level security|only to a draft/,
     );
   });
+
+  it("reads none of the audit trail, staff, alerts, tasks or grants, yet writes its own audit rows", async () => {
+    await asLink(async (c) => {
+      await c.query(
+        "INSERT INTO audit_event (tenant_id, action, resource_type, resource_id) VALUES ($1, 'quality.evidence_pack.opened', 'evidence_pack_link', $2)",
+        [TENANT_A, link1],
+      );
+      for (const table of [
+        "audit_event",
+        "tenant_user",
+        "notification",
+        "task",
+        "role_assignment",
+      ]) {
+        expect(await count(c, table)).toBe(0);
+      }
+    });
+    expect(await asSystem((c) => count(c, "tenant_user"))).toBeGreaterThan(0);
+  });
+
+  it("never revokes its own link", async () => {
+    await expect(
+      asLink((c) =>
+        c.query(
+          "UPDATE evidence_pack_link SET revoked_at = now(), revocation_reason = 'pack_revoked' WHERE id = $1",
+          [link1],
+        ),
+      ),
+    ).rejects.toThrow(/cannot revoke its link/);
+  });
 });

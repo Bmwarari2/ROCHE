@@ -1,4 +1,11 @@
-import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from "node:crypto";
 import {
   auditEvent,
   type Database,
@@ -128,25 +135,39 @@ export function codeMatches(
 // The session cookie (rule 8: HttpOnly, Secure, SameSite=Strict, this link alone)
 // ------------------------------------------------------------------------------------------------
 
-export const EVIDENCE_SESSION_COOKIE = "harbour_evidence_session";
+/**
+ * `__Host-`: the browser keeps it only from this host, over HTTPS, for path `/`, never for a
+ * parent domain (#66 security review L5).
+ */
+export const EVIDENCE_SESSION_COOKIE = "__Host-harbour_evidence_session";
 
 export interface LinkSessionCookie extends FoundLink, EvidencePackLinkSession {
   readonly expiresAt: number;
 }
 
-const sign = (secret: string, payload: string) =>
-  createHmac("sha256", secret).update(`evidence-session:${payload}`).digest("base64url");
+/** Separate keys from the one server secret: one to encrypt the cookie, one to sign it. */
+const derive = (secret: string, purpose: string) =>
+  createHmac("sha256", secret).update(`evidence-session:${purpose}`).digest();
 
+const sign = (secret: string, payload: string) =>
+  createHmac("sha256", derive(secret, "sign")).update(payload).digest("base64url");
+
+/**
+ * The cookie: the session encrypted with AES-256-GCM (so the recipient's address is never
+ * readable in it), then signed. `iv.ciphertext.signature`, each base64url.
+ */
 export function signLinkSession(secret: string, session: LinkSessionCookie): string {
-  const payload = Buffer.from(
-    JSON.stringify({
-      t: session.tenantId,
-      l: session.linkId,
-      p: session.packId,
-      e: session.verifiedEmail,
-      x: session.expiresAt,
-    }),
-  ).toString("base64url");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", derive(secret, "encrypt"), iv);
+  const plain = JSON.stringify({
+    t: session.tenantId,
+    l: session.linkId,
+    p: session.packId,
+    e: session.verifiedEmail,
+    x: session.expiresAt,
+  });
+  const sealed = Buffer.concat([cipher.update(plain, "utf8"), cipher.final(), cipher.getAuthTag()]);
+  const payload = `${iv.toString("base64url")}.${sealed.toString("base64url")}`;
   return `${payload}.${sign(secret, payload)}`;
 }
 
@@ -158,18 +179,23 @@ export function readLinkSession(
   value: string | undefined,
   now: number = Date.now(),
 ): LinkSessionCookie | null {
-  if (!value || value.length > 1024) return null;
-  const [payload, signature, extra] = value.split(".");
-  if (!payload || !signature || extra !== undefined) return null;
-  const expected = Buffer.from(sign(secret, payload));
+  if (!value || value.length > 2048) return null;
+  const [ivText, sealedText, signature, extra] = value.split(".");
+  if (!ivText || !sealedText || !signature || extra !== undefined) return null;
+  const expected = Buffer.from(sign(secret, `${ivText}.${sealedText}`));
   const given = Buffer.from(signature);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<
-      string,
-      unknown
-    >;
-    const { t, l, p, e, x } = parsed;
+    const iv = Buffer.from(ivText, "base64url");
+    const sealed = Buffer.from(sealedText, "base64url");
+    if (iv.length !== 12 || sealed.length <= 16) return null;
+    const decipher = createDecipheriv("aes-256-gcm", derive(secret, "encrypt"), iv);
+    decipher.setAuthTag(sealed.subarray(sealed.length - 16));
+    const plain = Buffer.concat([
+      decipher.update(sealed.subarray(0, sealed.length - 16)),
+      decipher.final(),
+    ]).toString("utf8");
+    const { t, l, p, e, x } = JSON.parse(plain) as Record<string, unknown>;
     if (
       typeof t !== "string" ||
       typeof l !== "string" ||

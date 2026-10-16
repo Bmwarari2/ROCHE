@@ -22,7 +22,7 @@ import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { writeAudit } from "../http/audit";
-import { type AppEnv, clientIp } from "../http/context";
+import type { AppEnv } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { throttleAddress } from "../http/throttle";
 import {
@@ -93,13 +93,20 @@ const refusalProblem = (reason: EvidencePackLinkRefusal) =>
     EVIDENCE_PACK_LINK_MESSAGES[reason],
   );
 
-/** Throttles per client address (the trusted-proxy hop), then per link once it is known. */
+/** The client address from the trusted-proxy hop (`throttleAddress`), or null. */
+const addressOf = (c: Context<AppEnv>) =>
+  throttleAddress(c.req.header("x-forwarded-for"), c.get("services").config.trustedProxies);
+
+/**
+ * Throttles per client address (the trusted-proxy hop; with none, one shared bucket rather than
+ * none at all, #66 security review L3), then per link once it is known.
+ */
 function throttle(c: Context<AppEnv>, link: string | null): void {
-  const services = c.get("services");
-  const { address, link: perLink } = services.evidenceLinkThrottles;
-  const from = throttleAddress(c.req.header("x-forwarded-for"), services.config.trustedProxies);
+  const { address, link: perLink } = c.get("services").evidenceLinkThrottles;
   const wait =
-    link === null ? (from === null ? null : address.take(from)) : perLink.take(`link:${link}`);
+    link === null
+      ? address.take(`address:${addressOf(c) ?? "unknown"}`)
+      : perLink.take(`link:${link}`);
   if (wait === null) return;
   const limited = new HttpProblem(
     429,
@@ -120,7 +127,7 @@ async function linkFor(c: Context<AppEnv>, token: string, action: string): Promi
       action,
       outcome: "denied",
       reason: "unknown_token",
-      ip: clientIp(c),
+      ip: addressOf(c),
       requestId: c.get("requestId"),
     });
     throw problems.notFound();
@@ -166,7 +173,7 @@ export const evidenceLinkRouter = createRouter()
       const { token } = c.req.valid("json");
       const services = c.get("services");
       const found = await linkFor(c, token, A.codeSent);
-      const meta = { ip: clientIp(c), requestId: c.get("requestId") };
+      const meta = { ip: addressOf(c), requestId: c.get("requestId") };
       const code = newEvidenceCode();
       const outcome = await inLinkSession(
         services.db,
@@ -260,7 +267,7 @@ export const evidenceLinkRouter = createRouter()
       const services = c.get("services");
       const secret = services.config.EVIDENCE_LINK_SECRET;
       const found = await linkFor(c, token, A.codeFailed);
-      const meta = { ip: clientIp(c), requestId: c.get("requestId") };
+      const meta = { ip: addressOf(c), requestId: c.get("requestId") };
       const outcome = await inLinkSession(
         services.db,
         found,
@@ -333,7 +340,7 @@ export const evidenceLinkRouter = createRouter()
           httpOnly: true,
           secure: true,
           sameSite: "Strict",
-          path: "/p/evidence",
+          path: "/",
           maxAge: Math.max(1, Math.floor((expiresAt - Date.now()) / 1000)),
         },
       );
@@ -367,7 +374,7 @@ export const evidenceLinkRouter = createRouter()
       if (!session) throw refusalProblem("code_required");
       throttle(c, null);
       throttle(c, session.linkId);
-      const meta = { ip: clientIp(c), requestId: c.get("requestId") };
+      const meta = { ip: addressOf(c), requestId: c.get("requestId") };
       const outcome = await inLinkSession(
         services.db,
         session,

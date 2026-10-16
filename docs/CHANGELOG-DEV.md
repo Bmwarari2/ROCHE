@@ -2008,3 +2008,16 @@ re-issue, `no-store`, the sweep sparing a live bundle and staying in its organis
 
 **Tests**: `apps/api/test/evidence-link.test.ts` (11); `packages/db/test/evidence-pack.test.ts` 4 new
 (the link session); `config.test.ts` 1 new.
+
+## 2026-10-16: Evidence pack link routes, review round 1 of #66
+
+- The printed pack gives its composing and release times with GMT or BST and says it shows the
+  records as they stood at release (H-222 open); a field with no value says it is not available.
+- 0058: link sessions read none of the audit trail, staff, alerts, tasks, documents, roles, grants
+  or outbox, and a trigger refuses them revoking their link.
+- The per-address throttle falls back to a shared bucket; audit rows take the trusted hop's
+  address; the session cookie is `__Host-`, path `/`, encrypted and signed.
+- Docs: quality.md section 15, HZ-050 rows, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` 2 new and 3 extended (the multi-page pack, the
+deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.

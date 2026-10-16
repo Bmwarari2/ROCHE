@@ -373,3 +373,13 @@ instance's memory. `/p/*` responses are `no-store`. `EVIDENCE_LINK_SECRET` comes
 Manager (the `api` secret's `evidence_link_secret`) and the API refuses to start in production
 without it. Tests: `apps/api/test/evidence-link.test.ts`, `packages/db/test/evidence-pack.test.ts`
 (the link session). Human actions H-225 to H-227.
+
+After #66 review round 1: the printed pack's header gives the composing and release times with GMT
+or BST, and its first page says it shows the records as they stood when it was released (H-222);
+a field the bundle has no value for prints "Withheld: not available in this pack". A link session
+reads none of `audit_event`, `tenant_user`, `notification`, `task`, `document`,
+`role_assignment`, `access_grant` or `outbox_event`, and a trigger refuses it revoking its link.
+The per-address throttle uses one shared bucket when no client address is known, audit rows take
+the address from the trusted hop, and the cookie is `__Host-harbour_evidence_session` (path `/`),
+its content encrypted with AES-256-GCM and signed, so the recipient's address is not readable in
+it.

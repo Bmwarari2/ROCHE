@@ -2,7 +2,7 @@ import { createHash, createHmac } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness } from "./support/harness";
-import { pdfText } from "./support/pdf-text";
+import { pdfPages, pdfText } from "./support/pdf-text";
 
 /**
  * The public evidence pack link (quality.md section 15; ADR-0050; hazard HZ-050): the token only
@@ -149,7 +149,7 @@ describe("hazard HZ-050 the evidence pack link opens only for its recipient's ow
 
   it("needs this link's session to open the pack", async () => {
     expect((await open()).status).toBe(401);
-    expect((await open("harbour_evidence_session=forged.value")).status).toBe(401);
+    expect((await open("__Host-harbour_evidence_session=forged.value.x")).status).toBe(401);
   });
 
   it("takes the right code once and sets an HttpOnly, Secure, SameSite=Strict cookie for the link", async () => {
@@ -160,8 +160,15 @@ describe("hazard HZ-050 the evidence pack link opens only for its recipient's ow
     expect(header).toMatch(/HttpOnly/);
     expect(header).toMatch(/Secure/);
     expect(header).toMatch(/SameSite=Strict/);
-    expect(header).toMatch(/Path=\/p\/evidence/);
+    expect(header).toMatch(/^__Host-harbour_evidence_session=/);
+    expect(header).toMatch(/Path=\/(;|$)/);
+    expect(header).not.toMatch(/Domain=/);
     expect(header).not.toContain(pack.token);
+    // The recipient's address is encrypted in the cookie, never readable.
+    const value = cookieOf(verified).split("=")[1] ?? "";
+    for (const part of value.split(".")) {
+      expect(Buffer.from(part, "base64url").toString("latin1")).not.toContain("ivy@");
+    }
     session = cookieOf(verified);
     const again = await post("/p/evidence/verify", { token: pack.token, code });
     expect(again.status).toBe(422);
@@ -185,6 +192,13 @@ describe("hazard HZ-050 the evidence pack link opens only for its recipient's ow
     expect(text).not.toContain("Gwen Visitor");
     expect(text).not.toContain("Cat Carer");
     expect(text).toContain("Withheld: free text may name other people");
+    // The release time and what it means (#66 clinical review; H-222), in UK time with GMT or BST.
+    expect(text.replace(/\s+/g, " ")).toMatch(
+      /Composed \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)\. Released \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)\./,
+    );
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "This pack shows the records as they stood when it was released",
+    );
     const audits = await sql<{ action: string; scope: string; reason: string | null }>(
       "SELECT action, scope::text, reason FROM audit_event WHERE resource_id = $1 ORDER BY occurred_at",
       [pack.linkId],
@@ -262,13 +276,142 @@ describe("hazard HZ-050 one-time codes lock the link for good", () => {
       code: await codeFor(first.token),
     });
     const session = cookieOf(verified);
-    // The cookie names its own link only; changing it breaks the signature.
-    const [payload, signature] = session.split("=")[1]?.split(".") ?? [];
-    const decoded = JSON.parse(Buffer.from(payload ?? "", "base64url").toString("utf8"));
-    const swapped = Buffer.from(
-      JSON.stringify({ ...decoded, l: second.linkId, p: second.packId }),
-    ).toString("base64url");
-    expect((await open(`harbour_evidence_session=${swapped}.${signature}`)).status).toBe(401);
-    expect((await open(session)).status).toBe(200);
+    // The cookie names its own link only, sealed and signed: any change to it opens nothing.
+    const [name, value] = session.split("=");
+    const [iv, sealed, signature] = (value ?? "").split(".");
+    const flipped = `${sealed?.slice(0, -2)}${sealed?.endsWith("A") ? "B" : "A"}${sealed?.slice(-1)}`;
+    expect((await open(`${name}=${iv}.${flipped}.${signature}`)).status).toBe(401);
+    expect((await open(`${name}=${iv}.${sealed}.${signature?.slice(1)}x`)).status).toBe(401);
+    const opened = await open(session);
+    expect(opened.status).toBe(200);
+    expect(pdfText(new Uint8Array(await opened.arrayBuffer()))).toContain(`Pack ${first.packId}`);
+    expect(second.packId).not.toBe(first.packId);
+  });
+});
+
+describe("hazard HZ-050 the printed pack", () => {
+  it("refuses to open once the bundle is gone, even while the link is live, audited", async () => {
+    const pack = await releasedPack();
+    const verified = await post("/p/evidence/verify", {
+      token: pack.token,
+      code: await codeFor(pack.token),
+    });
+    const session = cookieOf(verified);
+    // Only possible by going round the guard (the database deletes a bundle only at link end).
+    await sql("ALTER TABLE evidence_pack_bundle DISABLE TRIGGER evidence_pack_bundle_guard");
+    try {
+      await sql(
+        "UPDATE evidence_pack_bundle SET content = NULL, deleted_at = now(), deletion_reason = 'link_ended' WHERE pack_id = $1",
+        [pack.packId],
+      );
+    } finally {
+      await sql("ALTER TABLE evidence_pack_bundle ENABLE TRIGGER evidence_pack_bundle_guard");
+    }
+    expect((await open(session)).status).toBe(410);
+    const denied = await sql<{ reason: string }>(
+      "SELECT reason FROM audit_event WHERE resource_id = $1 AND action = 'quality.evidence_pack.opened' AND outcome = 'denied'",
+      [pack.linkId],
+    );
+    expect(denied.map((d) => d.reason)).toEqual(["bundle_deleted"]);
+  });
+
+  it("prints every page with the header, and labels a correction and a paper back-entry with units and GMT or BST", async () => {
+    const composed = await as("manager", "/v1/evidence-packs", {
+      method: "POST",
+      body: {
+        recipient: { name: "Ivy Inspector", organisation: "CQC", email: "ivy@example.invalid" },
+        purpose: "Assessment of Harbour House, safe key question",
+        from: "2026-01-01",
+        to: new Date().toISOString().slice(0, 10),
+        locationIds: [DEMO.locationId],
+        qualityStatementIds: null,
+        personIds: [inScope],
+      },
+    });
+    const pack = (await composed.json()) as { id: string; version: number };
+    const weight = (kg: number) => JSON.stringify({ chart: "weight", kg, method: "chair" });
+    const [first] = await sql<{ id: string }>(
+      `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, created_by)
+       VALUES ($1, $2, now() - interval '2 hours', 'weight', $3::jsonb, $4) RETURNING id`,
+      [inScope, DEMO.locationId, weight(70), DEMO.users.carer.id],
+    );
+    const [fixed] = await sql<{ id: string }>(
+      `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, created_by,
+         supersedes_id, correction_reason)
+       VALUES ($1, $2, now() - interval '2 hours', 'weight', $3::jsonb, $4, $5, 'Misread the scale')
+       RETURNING id`,
+      [inScope, DEMO.locationId, weight(70.5), DEMO.users.carer.id, first?.id],
+    );
+    const declared = await as("manager", `/v1/locations/${DEMO.locationId}/outages`, {
+      method: "POST",
+      body: {
+        kind: "network",
+        description: "Network down",
+        startedAt: new Date(Math.floor((Date.now() - 40 * 60_000) / 60_000) * 60_000).toISOString(),
+      },
+    });
+    const { id: outageId } = (await declared.json()) as { id: string };
+    const at = new Date(Math.floor((Date.now() - 20 * 60_000) / 60_000) * 60_000);
+    const [paper] = await sql<{ id: string }>(
+      `INSERT INTO observation (person_id, location_id, occurred_at, chart, values, created_by,
+         late_entry_reason, outage_id, paper_date, paper_time, paper_occurrence)
+       VALUES ($1, $2, $3::timestamptz, 'weight', $4::jsonb, $5, 'downtime', $6,
+         ($3::timestamptz AT TIME ZONE 'Europe/London')::date,
+         ($3::timestamptz AT TIME ZONE 'Europe/London')::time, 'only')
+       RETURNING id`,
+      [inScope, DEMO.locationId, at, weight(71), DEMO.users.carer.id, outageId],
+    );
+    const notes: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const [n] = await sql<{ id: string }>(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by)
+         VALUES ($1, $2, now() - make_interval(mins => $3), 'activity', 'Joined the quiz.', $4)
+         RETURNING id`,
+        [inScope, DEMO.locationId, 60 + i, DEMO.users.carer.id],
+      );
+      notes.push(n?.id as string);
+    }
+    const added = await as("manager", `/v1/evidence-packs/${pack.id}/items`, {
+      method: "POST",
+      body: {
+        items: [
+          { recordType: "observation", recordId: fixed?.id, qualityStatementIds: ["safe.2"] },
+          { recordType: "observation", recordId: paper?.id, qualityStatementIds: ["safe.2"] },
+          ...notes.map((id) => ({
+            recordType: "care_note",
+            recordId: id,
+            qualityStatementIds: ["safe.1"],
+          })),
+        ],
+        version: pack.version,
+      },
+    });
+    expect(added.status).toBe(200);
+    const { version } = (await added.json()) as { version: number };
+    const released = await as("owner", `/v1/evidence-packs/${pack.id}/release`, {
+      method: "POST",
+      body: { version },
+    });
+    const { token } = (await released.json()) as { token: string };
+    const verified = await post("/p/evidence/verify", { token, code: await codeFor(token) });
+    const response = await open(cookieOf(verified));
+    expect(response.status).toBe(200);
+    const pages = pdfPages(new Uint8Array(await response.arrayBuffer())).map((p) => p.join(" "));
+    expect(pages.length).toBeGreaterThan(1);
+    for (const page of pages) {
+      expect(page).toContain("Prepared for Ivy Inspector, CQC.");
+      expect(page).toMatch(/Released \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)\./);
+      expect(page).toMatch(/Page \d+ of \d+/);
+    }
+    const text = pages.join(" ");
+    expect(text).toContain("Weight 70.5 kg; Method: chair");
+    expect(text).toContain("Weight 71 kg");
+    expect(text).toMatch(
+      /Correction of an earlier entry recorded \d{2}\/\d{2}\/\d{4} \d{2}:\d{2} (GMT|BST)/,
+    );
+    expect(text).toMatch(
+      /Written on paper at .+ during a network outage from .+ (GMT|BST), and entered in Harbour later/,
+    );
+    expect(text).not.toContain("Misread the scale");
   });
 });

@@ -305,6 +305,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
      API instance (a shared table, as for invitations); the code goes in the email's title until
      the email port carries a body (H-225); an inspector with a Harbour account
      (`quality.evidence.read`) still needs its own route.
+   - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
+     composed and released (GMT or BST) and that it shows the records as they stood at release
+     (H-222 stays open for the CSO); a field with no value prints "Withheld: not available in this
+     pack"; link sessions read none of the audit trail, staff, alerts, tasks, documents, roles,
+     grants or outbox, and cannot revoke their link (0058); the per-address throttle falls back to
+     one shared bucket when no address is known; audit rows take the address from the trusted hop;
+     the session cookie is `__Host-`, path `/`, encrypted (AES-256-GCM) and signed.
+     Logged, not blocking this merge: the code email's subject and body need an email port with a
+     body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
+     external recipient.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
