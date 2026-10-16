@@ -299,7 +299,8 @@ export function checkNoticeResponse(input: {
   readonly actorTenantUserId: string;
   /** The tenant's designated DPO or named data protection lead(s), from governance settings. */
   readonly designatedLeadIds: readonly string[];
-  readonly lastMfaSignInAt: Date | null;
+  /** When the session last used a second factor (passkey, authenticator or backup code), never a sign-in time (ADR-0072 amendment): step-up needs one within the window. */
+  readonly stepUpAt: Date | null;
   readonly stepUpWindowSeconds: number;
   readonly grounds?: string;
   readonly now: Date;
@@ -313,7 +314,7 @@ export function checkNoticeResponse(input: {
   const decision = authorise(
     input.access,
     "platform.dpia.sign",
-    input.lastMfaSignInAt,
+    input.stepUpAt,
     input.now,
     input.stepUpWindowSeconds,
   );

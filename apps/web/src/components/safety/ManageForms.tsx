@@ -12,8 +12,9 @@ import { type ManageDone, manageResult, REASON_MAX, readReason } from "@/lib/inc
 import { type ActionResult, errorFor, type FieldErrors, fieldErrors } from "@/lib/outcome";
 
 /**
- * "Sign in again to confirm it is you", for a step that needs a fresh sign-in (submitting a
- * statutory notification or deciding it is not required; section 5.3), as break-glass says it:
+ * "Confirm with your passkey or authenticator code", for a step that needs step-up (submitting a
+ * statutory notification or deciding it is not required; section 5.3; a password sign-in alone
+ * never counts, ADR-0072 amendment), as break-glass says it:
  * an alert that takes focus, with the link back to this page after signing in. What was typed is
  * not kept, and it says so.
  */
@@ -56,7 +57,7 @@ export function StepUpNotice({
 /**
  * Sends one of the manager's forms and, on success, opens the page again at `done`, which says
  * what was done and starts at its heading. A refusal is said in words a manager can act on; a
- * step that needs a fresh sign-in says so, with the way back.
+ * step that needs step-up asks for the passkey or authenticator code, with the way back.
  */
 export function useManageSend(path: string) {
   const router = useRouter();

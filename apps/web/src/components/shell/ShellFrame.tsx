@@ -14,6 +14,7 @@ import {
   ClipboardList,
   CloudOff,
   House,
+  ListChecks,
   LogOut,
   ShieldCheck,
   TriangleAlert,
@@ -42,6 +43,8 @@ export interface ShellFrameLabels {
   readonly navigation: string;
   readonly home: string;
   readonly people: string;
+  /** Shown only to people who read care plans (care.plan.read), whose round it is. */
+  readonly round?: string | undefined;
   /** Shown only to people who take part in the shift handover (care.handover.manage). */
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
@@ -78,6 +81,7 @@ export interface ShellFrameProps {
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
   if (pathname.startsWith("/handover")) return "handover";
+  if (pathname.startsWith("/round")) return "round";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -164,6 +168,9 @@ export function ShellFrame({
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
     { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.round
+      ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
     ...(labels.handover
       ? [
           {

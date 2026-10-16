@@ -5,6 +5,7 @@ import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
 import {
+  ageSession,
   createHarness,
   type Harness,
   LODGE,
@@ -239,10 +240,7 @@ describe("hazard HZ-110 a manager signs a member of staff out of every device", 
   it("hazard HZ-110 needs platform.user.manage and a fresh sign-in", async () => {
     expect((await revoke(h.tokens.carer ?? "", DEMO.users.nurse.id)).status).toBe(403);
     const manager = await browserSignIn("manager");
-    await auth().query(
-      "UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE token = $1",
-      [rawToken(manager.token)],
-    );
+    await ageSession(auth(), rawToken(manager.token) ?? "", 3600);
     const stale = await revoke(manager.token, DEMO.users.carer.id);
     expect(stale.status).toBe(403);
     expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");

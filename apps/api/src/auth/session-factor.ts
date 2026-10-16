@@ -37,31 +37,55 @@ export async function recordSessionFactor(
   );
 }
 
+/** What the session has proved: the MFA state, and whether a factor's last use is fresh. */
+export interface SessionFactorState {
+  readonly mfa: "satisfied" | "verify" | "enrol";
+  /**
+   * True when this session proved a second factor (a sign-in completed with one, or a code or
+   * passkey confirmed on it) no more than the step-up window ago, judged on the database's clock.
+   * Step-up counts from this, never from a password sign-in (ADR-0072 amendment, HZ-112).
+   */
+  readonly stepUpFresh: boolean;
+}
+
 /**
- * Whether the member must enrol a second factor, must confirm it on this session, or has.
- * `enrol`: neither an authenticator app nor a passkey is set up. `verify`: one is, but this session
- * did not use it (a password-only sign-in, a trusted device, or a session from before this check).
- * One query; a factor record older than the session's expiry is moved on with it.
+ * Whether the member must enrol a second factor, must confirm it on this session, or has, and
+ * when the session last used it. `enrol`: neither an authenticator app nor a passkey is set up.
+ * `verify`: one is, but this session did not use it (a password-only sign-in, a trusted device,
+ * or a session from before this check). One query; a factor record older than the session's
+ * expiry is moved on with it. Each use is its own row, so the latest `created_at` is the last use;
+ * it is fresh while `now() - created_at <= windowSeconds` (inclusive, on the database's clock).
  */
-export async function sessionMfa(
+export async function sessionFactorState(
   authPool: pg.Pool,
   session: {
     readonly authUserId: string;
     readonly sessionId: string;
     readonly twoFactorEnabled: boolean;
   },
-): Promise<"satisfied" | "verify" | "enrol"> {
-  const { rows } = await authPool.query<{ passkey: boolean; stale: boolean | null }>(
+  windowSeconds: number,
+): Promise<SessionFactorState> {
+  const { rows } = await authPool.query<{
+    passkey: boolean;
+    stale: boolean | null;
+    factor_at: Date | null;
+    fresh: boolean | null;
+  }>(
     `SELECT EXISTS (SELECT 1 FROM auth.passkey WHERE user_id = $1) AS passkey,
-            (SELECT v.expires_at < s.expires_at
-               FROM auth.verification v JOIN auth.session s ON s.id = $2 AND s.user_id = $1
-              WHERE v.identifier = $3 AND v.value IN ('passkey', 'totp', 'backup_code')
-              ORDER BY v.expires_at DESC LIMIT 1) AS stale`,
-    [session.authUserId, session.sessionId, factorIdentifier(session.sessionId)],
+            f.stale, f.factor_at, now() - f.factor_at <= make_interval(secs => $4) AS fresh
+       FROM (SELECT bool_and(v.expires_at < s.expires_at) AS stale,
+                    max(v.created_at) AS factor_at
+               FROM auth.session s
+               JOIN auth.verification v ON v.identifier = $3
+                AND v.value IN ('passkey', 'totp', 'backup_code')
+              WHERE s.id = $2 AND s.user_id = $1) f`,
+    [session.authUserId, session.sessionId, factorIdentifier(session.sessionId), windowSeconds],
   );
   const row = rows[0];
-  if (!session.twoFactorEnabled && !row?.passkey) return "enrol";
-  if (row?.stale === null || row?.stale === undefined) return "verify";
+  if (!session.twoFactorEnabled && !row?.passkey) return { mfa: "enrol", stepUpFresh: false };
+  if (row?.factor_at === null || row?.factor_at === undefined) {
+    return { mfa: "verify", stepUpFresh: false };
+  }
   if (row.stale) {
     await authPool.query(
       `UPDATE auth.verification v SET expires_at = s.expires_at, updated_at = now()
@@ -71,7 +95,19 @@ export async function sessionMfa(
       [factorIdentifier(session.sessionId), session.sessionId],
     );
   }
-  return "satisfied";
+  return { mfa: "satisfied", stepUpFresh: row.fresh === true };
+}
+
+/** The MFA state alone (`sessionFactorState`). */
+export async function sessionMfa(
+  authPool: pg.Pool,
+  session: {
+    readonly authUserId: string;
+    readonly sessionId: string;
+    readonly twoFactorEnabled: boolean;
+  },
+): Promise<"satisfied" | "verify" | "enrol"> {
+  return (await sessionFactorState(authPool, session, 0)).mfa;
 }
 
 /**

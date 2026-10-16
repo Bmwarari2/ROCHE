@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Members for managers (PLAT-004; platform.md, Members; hazard HZ-011): the list and adding an
@@ -210,17 +210,15 @@ describe("hazard HZ-011 adding an invited member", () => {
 
   it("needs a fresh sign-in", async () => {
     const auth = h.db.pool("harbour_auth");
-    const age = (when: string) =>
-      auth.query(`UPDATE auth.session SET created_at = ${when} WHERE user_id = $1`, [
-        h.authIds.owner,
-      ]);
-    await age("now() - interval '1 hour'");
+    // Step-up counts from the factor the session used, so both the sign-in and the factor age.
+    const token = (h.tokens.owner ?? "").split(".")[0] ?? "";
+    await ageSession(auth, token, 3_600);
     try {
       const response = await create(newMember(await roleId("care_worker"), DEMO.locationId));
       expect(response.status).toBe(403);
       expect(await codeOf(response)).toBe("step_up_required");
     } finally {
-      await age("now()");
+      await ageSession(auth, token, 0);
     }
   });
 

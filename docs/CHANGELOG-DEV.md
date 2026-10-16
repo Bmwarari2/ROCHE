@@ -2133,6 +2133,61 @@ append-only.
 **Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
 email, cross-tenant).
 
+## 2026-10-16: Step-up needs a second factor used within the window (PLAT-004, STATUS item 20)
+
+- Step-up counts from the second factor (passkey, authenticator code or backup code) the session
+  last used, read from the per-use rows in `auth.verification` (no migration), within
+  `STEP_UP_WINDOW_SECONDS`; a fresh password sign-in no longer counts. A member holding a step-up
+  permission with no factor enrolled gets `mfa_enrolment_required`. An in-session code (under the
+  five-attempt limit) or a passkey sign-in refreshes it.
+- Every step-up path reads it: `refusalOf`, `stepUpFresh` (workflow moves, `requireStepUp`, task
+  links) and the operator's owner invitation. `ageSession` in the test harness ages the sign-in
+  and the factor together.
+- Web: the step-up wording (sign-in page, break-glass, the notification forms, the API's problem
+  detail) now says "confirm with your passkey or authenticator code"; the flows are unchanged.
+- Docs: ADR-0072 amendment; HZ-112 control and verification rows; H-359; platform.md; STATUS item 20.
+
+**Release note**: controlled-drug, residents' money, export, break-glass, statutory notification
+and other step-up actions now ask you to confirm with your passkey or authenticator code if you
+have not used it in the last 10 minutes, even if you signed in recently with your password. If you
+hold one of these permissions and have not set up a passkey or authenticator app, Harbour asks you
+to set one up first.
+
+**Tests**: `step-up-factor.test.ts` (new, 65), and the step-up cases in `api`, `incidents`,
+`downtime`, `flags-and-sessions`, `device-integrity` and `people-lifecycle` now age the factor too.
+
+After #63 security review round 1: the code that completes a first enrolment no longer records a
+session factor, so someone with only the password of an account with no factor cannot enrol their
+own authenticator and step up at once (they sign in again with it). Step-up freshness is judged in
+SQL (`now() - max(created_at) <= window`, inclusive). The domain's `lastMfaSignInAt` inputs are now
+`stepUpAt`. New tests: no factor enrolled, About me links, residents' money at exit, task links,
+exact statuses, an in-session code and a backup code refreshing step-up, and the five-code limit.
+
+After #63 review round 2: the first-enrolment verdict is kept per request, not per session, so a
+right code sent alongside a wrong one, or two right codes in parallel, on the enrolling session
+record no factor (tests with parallel requests). The person confirms a code on the session or signs
+in with the new factor before it counts.
+
+After #63 hosted e2e: the step-up journeys sign in with a password alone, which no longer steps up.
+`seed-users` with `HARBOUR_DEMO_E2E_PASSKEY=1` (CI and `ci-local.sh` only) gives the demo manager a
+passkey derived from a published phrase; `e2e/support.ts` loads the same key into Chromium's
+virtual authenticator (`addManagerPasskey`, `signInManagerWithPasskey`). Break-glass now asserts
+that a password-only session gets "Confirm it is you", then confirms with the passkey and opens the
+record; the death notification and "not required" journeys sign the manager in with the passkey.
+
+After the security check of 13f170b (Medium): `seed-users` refuses `HARBOUR_DEMO_E2E_PASSKEY=1` and
+`HARBOUR_DEMO_MFA=off` unless `NODE_ENV` is development or test, `HARBOUR_ENV` is not dev, staging
+or pilot, every database URL is local (or the CI `postgres` service container) and the demo
+manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-seed-guard.test.ts`).
+
+## 2026-10-17: Slice 5 web part 2, the round view (CARE-013)
+
+- Round in the navigation for those who read care plans; the location's open tasks for the shift
+  by area and room, each person's name, room and communication needs, each task's time state in
+  an icon and words, the plan action as its plan words it, and the actions that are not rounds.
+- Start, done, and not done with a reason, for those who record care; a task that needs a record
+  links to where it is made; the round opens again saying what was done (HZ-003, H-270).
+
 ## 2026-10-17: Members routes for managers (PLAT-004)
 
 - `GET /v1/members`: the invited, active and suspended members `platform.user.manage` reaches

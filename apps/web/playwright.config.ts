@@ -4,7 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
  * Web journeys with axe (WCAG 2.2 AA). Starts the API (built: apps/api/dist) and the web app
  * (built: next build) unless they are already running locally. The database must hold the demo
  * tenant: `pnpm --filter @harbour/db migrate && pnpm --filter @harbour/db seed &&
- * HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users`.
+ * HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off HARBOUR_DEMO_E2E_PASSKEY=1 pnpm --filter
+ * @harbour/api seed:users` (the last gives the demo manager the passkey the step-up journeys use).
  */
 const WEB_URL = process.env.WEB_URL ?? "http://localhost:3000";
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
