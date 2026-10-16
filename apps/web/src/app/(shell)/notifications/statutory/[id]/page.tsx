@@ -2,8 +2,9 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { cache, type ReactNode } from "react";
 import { ClocksAsOf, SafetyWarning, When } from "@/components/safety/IncidentNotifications";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
@@ -19,19 +20,31 @@ import {
   notificationWarnings,
 } from "@/lib/incidents";
 import { personNames } from "@/lib/people";
-import { readOrFail } from "@/lib/person-record";
+import { getPerson, readOrFail } from "@/lib/person-record";
 import {
   citationLine,
   deadlineLines,
   notificationSource,
   notificationSubject,
+  submitterHint,
 } from "@/lib/statutory-notifications";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
 type Row = readonly [field: string, value: ReactNode, dateTime?: string | null];
 
-export const metadata: Metadata = { title: t("safety.notification.pageTitle") };
+/** One read per request, shared by the page title and the page. */
+const getNotification = cache(async (id: string) => {
+  const api = await tenantApi();
+  return api.GET("/v1/notifications/statutory/{id}", { params: { path: { id } } });
+});
+
+/** The page title names the kind of notification, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const kind = isUuid(id) ? (await getNotification(id)).data?.kind : undefined;
+  return { title: kind ? notificationKindLabel(kind, t) : t("safety.notification.pageTitle") };
+}
 
 const link = "inline-flex min-h-target items-center underline";
 
@@ -84,12 +97,14 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const listTitle = t("safety.notifications.title");
-  if (!can(me.permissions, "safety.incident.manage")) return <SafetyForbidden title={listTitle} />;
+  // The overdue alert sends holders of safety.notification.submit here: say who can act (H-260).
+  const forbidden = <SafetyForbidden title={listTitle} hint={submitterHint(me.permissions, t)} />;
+  if (!can(me.permissions, "safety.incident.manage")) return forbidden;
   const api = await tenantApi();
-  const result = await api.GET("/v1/notifications/statutory/{id}", { params: { path: { id } } });
+  const result = await getNotification(id);
   if (problemCode(result.error) === "not_found") notFound();
   const item = readOrFail(result, `/notifications/statutory/${id}`);
-  if (!item) return <SafetyForbidden title={listTitle} />;
+  if (!item) return forbidden;
   const now = new Date();
   const source = notificationSource(item);
   // The incident it was drafted on, for its name, status, open answers and RIDDOR's threshold;
@@ -107,8 +122,9 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
           },
         })
       : null;
-  const people = item.personId ? await api.GET("/v1/people", { params: { query: {} } }) : null;
-  const names = new Map((people?.data?.items ?? []).map((p) => [p.id, personNames(p).full]));
+  // The one person it is about (a view the API audits), for their name and communication needs.
+  const person = item.personId ? (await getPerson(item.personId)).person : null;
+  const names = new Map(person ? [[person.id, personNames(person).full]] : []);
   const title = notificationKindLabel(item.kind, t, threshold?.data?.value);
   const location = me.locations.find((l) => l.id === item.locationId);
   const subject = notificationSubject(item, names, t);
@@ -127,7 +143,7 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
         <span aria-hidden="true" className="px-2 text-text-secondary">
           ›
         </span>
-        <span>{title}</span>
+        <span aria-current="page">{title}</span>
       </nav>
       <PageHeader
         eyebrow={location?.name ?? t("safety.incident.locationHidden")}
@@ -141,6 +157,7 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
         </p>
         <ClocksAsOf now={now} />
         {subject ? <p className="m-0">{subject}</p> : null}
+        {person ? <PersonNeeds person={person} /> : null}
         {notificationWarnings(item, waitingFor, t).map((text) => (
           <SafetyWarning key={text} text={text} />
         ))}
@@ -162,7 +179,11 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
           </p>
         </Card>
       ) : null}
-      <Card as="section" title={section("deadlines")} headingLevel={2}>
+      <Card
+        as="section"
+        title={section(item.clock === "done" ? "history" : "deadlines")}
+        headingLevel={2}
+      >
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {deadlineLines(item, t).map((line) => (
             <li key={line.text}>

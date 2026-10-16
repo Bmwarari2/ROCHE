@@ -1710,3 +1710,15 @@ task the nightly job keeps open while the places are unconfirmed.
 
 **Tests**: `apps/web` `statutory-notifications.test.ts` (13) and one new axe test in
 `IncidentNotifications.test.tsx`; `e2e/statutory-notifications.spec.ts` (3 journeys, hosted CI).
+
+## 2026-10-16: Slice 9 part 3, review round 1 of #52 (SAFE-002, SAFE-003)
+
+- The list reads each status on its own (HZ-013, clinical H1) and warns when unfinished
+  notifications may be missing; communication needs beside who a notification is about (AIS);
+  the person on a notification's page is read by id; a submitter without `manage` is told who
+  can act (H-260); unreadable due times sort first; finished deadlines headed as history; page
+  title, breadcrumb `aria-current` and described links on the incident page.
+- Docs: HZ-013 rows moved into the Verification table; STATUS item 19.
+
+**Tests**: `apps/web` `statutory-notifications.test.ts` 9 new; e2e names, axe on every page and
+the needs of demo person 3 (hosted CI).

@@ -305,7 +305,9 @@ them), and kept under Incidents in the sidebar, never the notification centre.
 to do (an unknown clock, then overdue, then due soonest) and submitted or not required, each with
 its kind linking to its page, its clock and status (icons and words), who it is about (people the
 reader cannot see are numbered consistently across the list, and the list says so), its due time,
-location, recipient and warnings; it warns when the API's limit of 1,000 is reached.
+location, recipient, warnings and the person's communication needs; each status is read on its
+own, so finished ones never push an unfinished one past the API's limit of 1,000, and a cut
+unfinished read warns that unfinished notifications may be missing (#52 review).
 `/notifications/statutory/{id}`, the page the overdue alert links to, shows the clock, status,
 who it is about (unnumbered when not shown), warnings (waiting for answers read from its
 incident), every deadline in the law's terms (kept once done), the record it was drafted on (the

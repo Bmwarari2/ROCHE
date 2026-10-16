@@ -482,6 +482,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
       API's English (marked `lang="en-GB"`); RIDDOR's threshold is read for the label only on a
       notification's page (from its incident's date), so the list says "the reporting
       threshold".
+    - Review round 1 of #52 (fixed): the list reads draft, ready, submitted and not-required
+      notifications separately, so a recent overdue draft is never pushed off by old finished
+      ones, and warns when an unfinished read is cut; communication needs beside who a
+      notification is about; an unreadable due time sorts first; deadlines on a finished
+      notification are headed as history; the page title names the kind. H-260: a holder of
+      `safety.notification.submit` without `safety.incident.manage` (whom the overdue alert sends
+      to the notification's page) now sees who can act (the Registered Manager or whoever manages
+      incidents there) on the forbidden page; letting them read it needs the API to accept
+      `submit` on the reads. For the CSO (with H-257 and H-258): accept the deadlines on a
+      finished notification shown as "Deadlines it had to meet", and "Clocks worked out at ...
+      Reload the page to bring them up to date." with no automatic refresh.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the

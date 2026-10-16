@@ -1079,16 +1079,17 @@
   "safety.notifications.title": "Statutory notifications",
   "safety.notifications.description": "Every statutory notification you can see, with its clock: those still to do first, overdue before due.",
   "safety.notifications.group": "{group, select, todo {Still to do} done {Submitted or not required} other {Other notifications}}",
-  "safety.notifications.empty": "{group, select, todo {Nothing still to do} done {None submitted or marked not required yet} other {None}}",
-  "safety.notifications.truncated": "Not every notification is listed: this list shows the first {limit}, soonest due first.",
+  "safety.notifications.empty": "{group, select, todo {Nothing still to do. New notifications appear here when an incident needs one.} done {None submitted or marked not required yet} other {None}}",
+  "safety.notifications.truncated": "{reach, select, unfinished {Unfinished notifications may be missing: there are more than {limit} drafts or notifications ready to submit, and this list shows the soonest due.} other {Not every finished notification is listed: this list shows up to {limit} submitted and {limit} not required, oldest due first.}}",
   "safety.notifications.numbered": "People you cannot see are numbered: the same number is the same person on this list.",
   "safety.notification.pageTitle": "Statutory notification",
   "safety.notification.asOf": "Clocks worked out at {dateTime}. Reload the page to bring them up to date.",
-  "safety.notification.section": "{section, select, deadlines {Deadlines} reasons {Why Harbour drafted it} content {What it must include} sources {Where the duty comes from} outcome {How it ended} other {Details}}",
-  "safety.notification.field": "{field, select, source {Drafted on} location {Location} submittedAt {Submitted} submittedBy {Recorded as submitted by} externalReference {Regulator's reference} evidence {Evidence} notRequiredReason {Why it is not required} classifierVersion {Checked with classifier version} other {Detail}}",
+  "safety.notification.section": "{section, select, deadlines {Deadlines} history {Deadlines it had to meet} reasons {Why Harbour drafted it} content {What it must include} sources {Where the duty comes from} outcome {How it ended} other {Details}}",
+  "safety.notification.field": "{field, select, source {Drafted on} location {Location} submittedAt {Submitted} submittedBy {Recorded as submitted by} externalReference {Regulator's reference} evidence {Evidence} notRequiredReason {Why it is not required} classifierVersion {Checked with Harbour rules version} other {Detail}}",
   "safety.notification.sourceLink": "{source, select, incident {{title, select, none {The incident} other {{title}}}} dols {The DoLS register} other {The person's record}}",
   "safety.notification.evidence": "A document is attached",
   "safety.notification.noOutcome": "Not submitted or decided yet",
   "safety.notification.citation": "{source}: {provision}",
-  "safety.notification.englishOnly": "Shown in English only for now."
+  "safety.notification.englishOnly": "Shown in English only for now.",
+  "safety.notifications.submitterHint": "You can submit statutory notifications, but this page is for staff who manage incidents. Ask the Registered Manager, or someone who manages incidents at this location, to open it with you."
 }

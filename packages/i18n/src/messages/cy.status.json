@@ -1091,6 +1091,7 @@
     "safety.notification.evidence",
     "safety.notification.noOutcome",
     "safety.notification.citation",
-    "safety.notification.englishOnly"
+    "safety.notification.englishOnly",
+    "safety.notifications.submitterHint"
   ]
 }

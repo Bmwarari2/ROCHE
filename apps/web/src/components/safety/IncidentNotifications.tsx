@@ -122,8 +122,12 @@ export function IncidentNotifications({
               >
                 <h3 className="m-0 text-body font-semibold">
                   {linked ? (
+                    // Described by who and when, so two links of the same kind are told apart.
                     <Link
                       href={`/notifications/statutory/${item.id}`}
+                      aria-describedby={
+                        subject ? `about-${item.id} due-${item.id}` : `due-${item.id}`
+                      }
                       className="inline-flex min-h-target items-center underline"
                     >
                       {notificationKindLabel(item.kind, t, riddorDays)}
@@ -132,14 +136,16 @@ export function IncidentNotifications({
                     notificationKindLabel(item.kind, t, riddorDays)
                   )}
                 </h3>
-                {subject ? <span>{subject}</span> : null}
+                {subject ? <span id={`about-${item.id}`}>{subject}</span> : null}
                 <span className="flex flex-wrap items-center gap-2">
                   <SafetyChip chip={notificationClockChip(item, now, t)} />
                   {status ? <SafetyChip chip={status} /> : null}
                 </span>
-                {notificationDueLines(item, classifier?.outputs ?? [], t).map((line) => (
-                  <When key={line.text} line={line} />
-                ))}
+                <span id={`due-${item.id}`} className="flex flex-col gap-1">
+                  {notificationDueLines(item, classifier?.outputs ?? [], t).map((line) => (
+                    <When key={line.text} line={line} />
+                  ))}
+                </span>
                 <span className="text-body-dense text-text-secondary">
                   {t("safety.notification.recipient", { kind: item.kind })}
                 </span>

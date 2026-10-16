@@ -1,10 +1,11 @@
-import type { StatutoryNotificationSummary } from "@harbour/contracts";
+import type { PersonSummary, StatutoryNotificationSummary } from "@harbour/contracts";
 import { Card, PageHeader } from "@harbour/ui";
 import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { ClocksAsOf, SafetyWarning, When } from "@/components/safety/IncidentNotifications";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
@@ -22,6 +23,8 @@ import {
   hasHiddenSubjects,
   NOTIFICATION_LIST_LIMIT,
   notificationGroups,
+  notificationsToList,
+  submitterHint,
 } from "@/lib/statutory-notifications";
 
 export const metadata: Metadata = { title: t("safety.notifications.title") };
@@ -29,11 +32,13 @@ export const metadata: Metadata = { title: t("safety.notifications.title") };
 function Item({
   item,
   subject,
+  person,
   location,
   now,
 }: {
   readonly item: StatutoryNotificationSummary;
   readonly subject: string | undefined;
+  readonly person: PersonSummary | undefined;
   readonly location: string;
   readonly now: Date;
 }) {
@@ -61,6 +66,7 @@ function Item({
       </span>
       <span id={describedBy} className="flex flex-col gap-1">
         {subject ? <span>{subject}</span> : null}
+        {person ? <PersonNeeds person={person} /> : null}
         {lines.map((line) => (
           <When key={line.text} line={line} />
         ))}
@@ -86,20 +92,32 @@ function Item({
 export default async function StatutoryNotificationsPage() {
   const { me, locationId } = await getShellContext();
   const title = t("safety.notifications.title");
-  if (!can(me.permissions, "safety.incident.manage")) return <SafetyForbidden title={title} />;
+  const forbidden = <SafetyForbidden title={title} hint={submitterHint(me.permissions, t)} />;
+  if (!can(me.permissions, "safety.incident.manage")) return forbidden;
   const api = await tenantApi();
-  const { data, error, response } = await api.GET("/v1/notifications/statutory", {
-    params: { query: locationId ? { locationId } : {} },
-  });
-  if (!data) {
-    if (problemCode(error) === "missing_permission") return <SafetyForbidden title={title} />;
+  // Each status read on its own, so old finished ones never push an unfinished one off the list.
+  const read = async (status: StatutoryNotificationSummary["status"]) => {
+    const query = { ...(locationId ? { locationId } : {}), status };
+    const { data, error, response } = await api.GET("/v1/notifications/statutory", {
+      params: { query },
+    });
+    if (data) return data.items;
+    if (problemCode(error) === "missing_permission") return null;
     return failWith(error, response, "/notifications/statutory");
-  }
-  // The reader's own people, for who a notification is about; others are numbered.
+  };
+  const [draft, ready, submitted, notRequired] = await Promise.all(
+    (["draft", "ready", "submitted", "not_required"] as const).map(read),
+  );
+  if (!draft || !ready || !submitted || !notRequired) return forbidden;
+  const data = notificationsToList([draft, ready], [submitted, notRequired]);
+  // The reader's own people, for who a notification is about and their communication needs;
+  // others are numbered.
   const list = await api.GET("/v1/people", { params: { query: {} } });
-  const names = new Map((list.data?.items ?? []).map((p) => [p.id, personNames(p).full]));
+  const people = new Map((list.data?.items ?? []).map((p) => [p.id, p]));
+  const names = new Map([...people].map(([key, p]) => [key, personNames(p).full]));
   const now = new Date();
   const groups = notificationGroups(data.items);
+  const cut = { todo: data.truncated === "unfinished", done: data.truncated === "finished" };
   const subjects = notificationSubjects([...groups.todo, ...groups.done], names, t);
   const location = me.locations.find((l) => l.id === locationId);
   const locationNames = new Map(me.locations.map((l) => [l.id, l.name]));
@@ -111,11 +129,14 @@ export default async function StatutoryNotificationsPage() {
         title={title}
         description={t("safety.notifications.description")}
       />
-      {data.items.length >= NOTIFICATION_LIST_LIMIT ? (
+      {data.truncated ? (
         <Notice
           tone="warning"
           icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
-          title={t("safety.notifications.truncated", { limit: NOTIFICATION_LIST_LIMIT })}
+          title={t("safety.notifications.truncated", {
+            reach: data.truncated,
+            limit: NOTIFICATION_LIST_LIMIT,
+          })}
         />
       ) : null}
       <ClocksAsOf now={now} />
@@ -129,7 +150,7 @@ export default async function StatutoryNotificationsPage() {
           headingLevel={2}
           title={t("safety.notifications.group", { group })}
         >
-          {groups[group].length === 0 ? (
+          {groups[group].length === 0 && !cut[group] ? (
             <p className="m-0">{t("safety.notifications.empty", { group })}</p>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-3 p-0">
@@ -138,6 +159,7 @@ export default async function StatutoryNotificationsPage() {
                   key={item.id}
                   item={item}
                   subject={subjects.get(item.id)}
+                  person={item.personId ? people.get(item.personId) : undefined}
                   location={
                     locationNames.get(item.locationId) ?? t("safety.incident.locationHidden")
                   }

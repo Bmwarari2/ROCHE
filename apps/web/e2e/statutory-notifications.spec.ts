@@ -58,6 +58,25 @@ async function recordPoliceIncident(page: Page): Promise<{ incident: Recorded; i
   return { incident, id: police?.id ?? "" };
 }
 
+/** Records a fall in which demo person 3 died: a death notification about her, overdue at once. */
+async function recordDeath(page: Page): Promise<string> {
+  const response = await page.request.post(`${API_URL}/v1/incidents`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+    data: {
+      locationId: DEMO_LOCATION,
+      type: "fall",
+      occurredAt: at(-40),
+      description: `Found on the floor of her room, not breathing (${RUN}).`,
+      people: [{ kind: "service_user", role: "affected", personId: demoPerson(3), died: true }],
+    },
+  });
+  expect(response.status(), await response.text()).toBe(201);
+  const incident = (await response.json()) as Recorded;
+  const death = incident.classifier?.notifications.find((n) => n.kind === "cqc_reg16_death");
+  expect(death, "a death notification draft").toBeDefined();
+  return death?.id ?? "";
+}
+
 /** Presses Tab until the target has focus: the keyboard is the only way in. */
 async function tabTo(page: Page, target: Locator, limit = 400) {
   for (let presses = 0; presses < limit; presses += 1) {
@@ -75,6 +94,7 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
 }) => {
   await as(context, "nurse");
   const { incident, id } = await recordPoliceIncident(page);
+  const death = await recordDeath(page);
 
   // From the incidents list, the nurse (safety.incident.manage) goes to the notifications.
   await page.goto("/incidents");
@@ -106,6 +126,13 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
   await expect(item.getByText(/^Due by \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/)).toBeVisible();
   await expect(item.getByText("To the Care Quality Commission")).toBeVisible();
   await expect(item.getByText(/^Provisional: it rests on an answer of not sure\./)).toBeVisible();
+  // Who a notification is about, with her communication needs beside her name (AIS).
+  const about = todo
+    .getByRole("listitem")
+    .filter({ has: todo.locator(`a[href="/notifications/statutory/${death}"]`) });
+  await expect(about.getByText("About Cara Placeholder")).toBeVisible();
+  await expect(about.getByRole("term")).toHaveText("Communication needs");
+  await expect(about.getByRole("definition")).toContainText("Uses a hearing loop");
   await expectAccessible(page, "statutory notifications");
 
   // Open it with the keyboard.
@@ -118,9 +145,11 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
       name: "Incident reported to or investigated by the police",
     }),
   ).toBeVisible();
-  await expect(page).toHaveTitle(/^Statutory notification/);
-  await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link")).toHaveText(
-    "Statutory notifications",
+  await expect(page).toHaveTitle(/^Incident reported to or investigated by the police/);
+  const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+  await expect(breadcrumb.getByRole("link")).toHaveText("Statutory notifications");
+  await expect(breadcrumb.locator('[aria-current="page"]')).toHaveText(
+    "Incident reported to or investigated by the police",
   );
   await expect(page.getByText(/^Overdue for \d+ (minute|minutes|hour|hours)$/)).toBeVisible();
   await expect(page.getByText("Draft", { exact: true })).toBeVisible();
@@ -147,8 +176,16 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
   await expectAccessible(page, "statutory notifications, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 
+  // The death notification's page: who it is about, with her communication needs.
+  await page.goto(`/notifications/statutory/${death}`);
+  await expect(page.getByText("About Cara Placeholder")).toBeVisible();
+  const needs = page.locator("main dl").filter({ hasText: "Communication needs" }).first();
+  await expect(needs.getByRole("definition")).toContainText("Uses a hearing loop");
+  await expectAccessible(page, "statutory notification about a person");
+
   // From the incident, the notification opens its own page.
   await page.goto(`/incidents/${incident.id}`);
+  await expectAccessible(page, "incident with linked notifications");
   const onIncident = section(page, "Statutory notifications").locator(
     `a[href="/notifications/statutory/${id}"]`,
   );
@@ -159,7 +196,7 @@ test("hazard HZ-013 the nurse finds an overdue notification and reads its deadli
   await page.waitForURL((url) => url.pathname === `/incidents/${incident.id}`);
 });
 
-test("a carer without safety.incident.manage is told the notification pages are not for them", async ({
+test("hazard HZ-013 a carer without safety.incident.manage is told the notification pages are not for them", async ({
   page,
   context,
 }) => {
@@ -174,13 +211,16 @@ test("a carer without safety.incident.manage is told the notification pages are 
     await expect(page.getByText("Incident reported to or investigated by the police")).toHaveCount(
       0,
     );
+    await expectAccessible(page, `${path}, no access`);
   }
-  await expectAccessible(page, "statutory notification, no access");
   await page.goto("/incidents");
   await expect(page.getByRole("link", { name: "Statutory notifications" })).toHaveCount(0);
 });
 
-test("the statutory notification pages reflow at 320 px", async ({ page, context }) => {
+test("hazard HZ-013 the statutory notification pages reflow at 320 px", async ({
+  page,
+  context,
+}) => {
   await as(context, "nurse");
   const { id } = await recordPoliceIncident(page);
   await page.setViewportSize({ width: 320, height: 900 });
@@ -193,6 +233,6 @@ test("the statutory notification pages reflow at 320 px", async ({ page, context
     await page.locator('[data-collapsed="true"]').waitFor();
     await settleAnimations(page);
     expect(await overflow(), `${path} scrolls sideways`).toBeLessThanOrEqual(0);
+    await expectAccessible(page, `${path} at 320 px`);
   }
-  await expectAccessible(page, "statutory notification at 320 px");
 });

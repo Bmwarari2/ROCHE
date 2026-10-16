@@ -5,9 +5,12 @@ import {
   citationLine,
   deadlineLines,
   hasHiddenSubjects,
+  NOTIFICATION_LIST_LIMIT,
   notificationGroups,
   notificationSource,
   notificationSubject,
+  notificationsToList,
+  submitterHint,
 } from "./statutory-notifications";
 
 const t = createTranslator("en-GB");
@@ -117,5 +120,70 @@ describe("the statutory notification pages (safety.md section 5; HZ-013)", () =>
     );
     expect(line.text).toBe("CQC Regulations 2009: regulation 18");
     expect(line.href).toBe(linked ? url : null);
+  });
+
+  const many = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, n) => ({ id: `${prefix}-${n}` }));
+
+  it("hazard HZ-013 keeps a recent overdue draft listed however many finished notifications there are", () => {
+    const list = notificationsToList(
+      [[{ id: "overdue-draft" }], []],
+      [many("submitted", NOTIFICATION_LIST_LIMIT), many("not-required", 3)],
+    );
+    expect(list.items.map((n) => n.id)).toContain("overdue-draft");
+    expect(list.truncated).toBe("finished");
+  });
+
+  it.each([
+    ["drafts", [many("draft", NOTIFICATION_LIST_LIMIT), []], [[]], "unfinished"],
+    ["ready ones", [[], many("ready", NOTIFICATION_LIST_LIMIT)], [[]], "unfinished"],
+    [
+      "unfinished and finished",
+      [many("draft", NOTIFICATION_LIST_LIMIT), []],
+      [many("done", NOTIFICATION_LIST_LIMIT)],
+      "unfinished",
+    ],
+    ["nothing", [many("draft", 2), many("ready", 1)], [many("done", 4)], null],
+  ])(
+    "hazard HZ-013 says unfinished notifications may be missing when a read of %s hits the limit",
+    (_, unfinished, finished, truncated) => {
+      const list = notificationsToList(unfinished, finished);
+      expect(list.truncated).toBe(truncated);
+      expect(
+        t("safety.notifications.truncated", {
+          reach: "unfinished",
+          limit: NOTIFICATION_LIST_LIMIT,
+        }),
+      ).toMatch(/^Unfinished notifications may be missing/);
+    },
+  );
+
+  it("never lists a notification twice", () => {
+    expect(notificationsToList([[{ id: "a" }], [{ id: "a" }]], [[{ id: "b" }]]).items).toEqual([
+      { id: "a" },
+      { id: "b" },
+    ]);
+  });
+
+  it.each([
+    [["safety.notification.submit"], true],
+    [["safety.notification.submit", "safety.incident.manage"], false],
+    [["safety.incident.read"], false],
+  ])(
+    "hazard HZ-013 tells a submitter sent by the overdue alert who can act (%j)",
+    (permissions, told) => {
+      const hint = submitterHint(permissions, t);
+      expect(hint === null).toBe(!told);
+      if (told) expect(hint).toContain("Registered Manager");
+    },
+  );
+
+  it("hazard HZ-013 puts a due time that cannot be read first, never lost in the order", () => {
+    const groups = notificationGroups([
+      item("soon", "overdue", "2026-10-12T09:00:00Z"),
+      item("unreadable", "overdue", "not a time"),
+      item("later", "overdue", "2026-10-13T09:00:00Z"),
+    ]);
+    expect(groups.todo.map((n) => n.id)).toEqual(["unreadable", "soon", "later"]);
   });
 });

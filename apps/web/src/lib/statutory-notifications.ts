@@ -29,6 +29,39 @@ export function notificationGroups<N extends Pick<StatutoryNotificationSummary, 
   };
 }
 
+/**
+ * The notifications to list, from separate reads of the unfinished ones (draft and ready) and the
+ * finished ones (submitted and not required), each held to the API's limit and sorted soonest due
+ * first (HZ-013, #52 review): one read of every status, cut at the limit, could lose a recent
+ * overdue draft under a thousand old finished ones. `truncated` says what may be missing:
+ * unfinished ones when either of their reads hit the limit (the to-do section then never says it
+ * is empty), else finished ones.
+ */
+export function notificationsToList<I extends Pick<StatutoryNotificationSummary, "id">>(
+  unfinished: readonly (readonly I[])[],
+  finished: readonly (readonly I[])[],
+): { readonly items: I[]; readonly truncated: "unfinished" | "finished" | null } {
+  const byId = new Map<string, I>();
+  for (const item of [...unfinished, ...finished].flat()) byId.set(item.id, item);
+  const full = (list: readonly I[]) => list.length >= NOTIFICATION_LIST_LIMIT;
+  return {
+    items: [...byId.values()],
+    truncated: unfinished.some(full) ? "unfinished" : finished.some(full) ? "finished" : null,
+  };
+}
+
+/**
+ * What a holder of `safety.notification.submit` without `safety.incident.manage` is told on a
+ * notification page they cannot open (the overdue alert sends them there; #52 review, H-260):
+ * who can act on it. Null for anyone else.
+ */
+export function submitterHint(permissions: readonly string[], t: Translator): string | null {
+  return permissions.includes("safety.notification.submit") &&
+    !permissions.includes("safety.incident.manage")
+    ? t("safety.notifications.submitterHint")
+    : null;
+}
+
 export interface NotificationSource {
   readonly source: "incident" | "dols" | "person";
   /** The incident's id, or the person's. */
