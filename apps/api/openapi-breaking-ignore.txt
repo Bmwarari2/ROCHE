@@ -1,0 +1,1 @@
+POST /v1/sync/refused-entries removed 'subschema #1, subschema #2, subschema #3, subschema #4, subschema #5' from the request body 'oneOf' list

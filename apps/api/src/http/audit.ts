@@ -21,6 +21,11 @@ export interface AuditInput {
   readonly before?: unknown;
   readonly after?: unknown;
   readonly scope?: Record<string, unknown>;
+  /**
+   * Keys added to the scope (the given one, or by default the request's), never replacing it: for
+   * example the outage a back-entry cites, beside the scope and locations that authorised it.
+   */
+  readonly scopeExtra?: Record<string, unknown>;
   readonly requestId?: string;
   readonly actorAuthUserId?: string;
   readonly ip?: string | null;
@@ -29,6 +34,15 @@ export interface AuditInput {
 export function stateHash(state: unknown): string | null {
   if (state === undefined) return null;
   return createHash("sha256").update(JSON.stringify(state)).digest("hex");
+}
+
+function scopeOf(access: TenantAccess | null, input: AuditInput) {
+  // By default, the scope the request ran under: its permission's (ADR-0071).
+  const base =
+    input.scope ??
+    (access ? { scope: access.context.scope, locations: access.context.locationIds } : null);
+  if (!input.scopeExtra || Object.keys(input.scopeExtra).length === 0) return base;
+  return { ...(base ?? {}), ...input.scopeExtra };
 }
 
 function values(access: TenantAccess | null, input: AuditInput) {
@@ -41,10 +55,7 @@ function values(access: TenantAccess | null, input: AuditInput) {
     outcome: input.outcome ?? "success",
     resourceType: input.resourceType ?? null,
     resourceId: input.resourceId ?? null,
-    // By default, the scope the request ran under: its permission's (ADR-0071).
-    scope:
-      input.scope ??
-      (access ? { scope: access.context.scope, locations: access.context.locationIds } : null),
+    scope: scopeOf(access, input),
     ip: access?.ip ?? input.ip ?? null,
     deviceId: access?.deviceId ?? null,
     requestId: input.requestId ?? null,

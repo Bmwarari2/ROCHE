@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { entryInput, entryOutput } from "./entries";
+import { entryDowntimeInput, entryDowntimeOutput, entryInput, entryOutput } from "./entries";
 import { EscalationPolicyRef } from "./escalation-policy";
 import { StaffName } from "./staff";
 import { Recurrence } from "./tasks";
@@ -619,6 +619,7 @@ export const ActivityEngagement = z
 export const CreateActivityRecord = z
   .object({
     ...entryInput,
+    ...entryDowntimeInput,
     activity: z.string().trim().min(2).max(120),
     format: z.enum(["group", "one_to_one"]),
     /** Shared by every person's record of the same group session. */
@@ -634,6 +635,7 @@ export type CreateActivityRecord = z.infer<typeof CreateActivityRecord>;
 export const ActivityRecordItem = z
   .object({
     ...entryOutput,
+    ...entryDowntimeOutput,
     activity: z.string(),
     format: z.enum(["group", "one_to_one"]),
     groupSessionId: uuid.nullable(),
@@ -657,6 +659,7 @@ export const VisitKind = z
 export const CreateVisit = z
   .object({
     ...entryInput,
+    ...entryDowntimeInput,
     /** `occurredAt` is when the visit started. */
     kind: VisitKind,
     contactId: uuid.optional(),
@@ -673,6 +676,7 @@ export type CreateVisit = z.infer<typeof CreateVisit>;
 export const VisitItem = z
   .object({
     ...entryOutput,
+    ...entryDowntimeOutput,
     kind: VisitKind,
     contactId: uuid.nullable(),
     visitorName: z.string().nullable(),
