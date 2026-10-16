@@ -2475,3 +2475,15 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 
 **Tests**: `apps/web/src/lib/dpia.test.ts` (9), `components/dpia/DpiaFeedback.test.tsx` (2),
 `apps/web/e2e/dpia.spec.ts` (3, with axe on each state).
+
+## 2026-10-17: Slice 13 web, the onboarding checklist page (PLAT-018)
+
+- Web: `/settings/onboarding` ("Getting started") shows progress, what blocks go-live and each
+  item as an icon and words with its reason; people still outstanding link to their records with
+  what they lack. The owner accepts settings, decides retention, chooses the staff file option
+  and records the DCB0160 assessment on the page; refusals show the API's words (also for a
+  refused DPIA signature).
+- Docs: platform-completions.md section 10g, feature register, STATUS.
+
+**Tests**: `apps/web/src/lib/onboarding.test.ts` (13), `apps/web/e2e/onboarding.spec.ts` (2, with
+axe on each state).
