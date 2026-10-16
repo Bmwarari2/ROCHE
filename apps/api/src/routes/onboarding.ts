@@ -35,7 +35,7 @@ import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { onboardingStateFor } from "../services/onboarding";
+import { onboardingStateFor, sampleDataState } from "../services/onboarding";
 import { rateRows } from "../services/rates";
 import { conflictResponse, createRouter, errorResponses, jsonBody, security } from "./openapi";
 
@@ -125,6 +125,7 @@ export const onboardingRouter = createRouter()
           now,
         );
         const checklist = onboardingChecklist(state);
+        const sample = await sampleDataState(tx);
         // The figure in force for each setting still to decide, so a decision shows what it accepts.
         const pending = checklist.items
           .filter((i) => i.key === "rates_reviewed" || i.key === "clinical_settings_reviewed")
@@ -154,6 +155,7 @@ export const onboardingRouter = createRouter()
           staffFileOption: t.staffFileOption as OnboardingChecklist["staffFileOption"],
           version: t.version,
           settings,
+          sampleData: { present: sample.hasSample, mayLoad: !sample.hasSample && !sample.hasReal },
         };
       });
       return c.json(body, 200);

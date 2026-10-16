@@ -8,6 +8,7 @@ import type { PersonListItem } from "@/lib/people";
 import { AllergyChip } from "./AllergyChip";
 import { CommunicationStatus } from "./CommunicationStatus";
 import { PersonAvatar } from "./PersonAvatar";
+import { SampleBadge } from "./SampleBadge";
 
 export interface PeopleTableLabels {
   readonly caption: string;
@@ -58,9 +59,12 @@ export function PeopleTable({
       sortValue: (person) => person.sortName,
       cell: (person) => (
         <span className="flex flex-col">
-          <Link href={`/people/${person.id}`} className="font-semibold text-link">
-            {person.hasPreferred ? person.preferred : person.full}
-          </Link>
+          <span className="flex flex-wrap items-center gap-2">
+            <Link href={`/people/${person.id}`} className="font-semibold text-link">
+              {person.hasPreferred ? person.preferred : person.full}
+            </Link>
+            <SampleBadge sample={person.sample} />
+          </span>
           {person.hasPreferred ? (
             <span className="text-callout font-normal text-text-secondary">{person.full}</span>
           ) : null}

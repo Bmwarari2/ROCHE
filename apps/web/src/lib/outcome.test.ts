@@ -12,6 +12,19 @@ import {
 const t = createTranslator("en-GB");
 
 describe("problemMessage", () => {
+  it.each([
+    ["real_people_exist", "Sample data can only be loaded before you add real people."],
+    ["already_loaded", "Sample data is already loaded."],
+    ["nothing_to_remove", "There is no sample data to remove."],
+    [
+      "held",
+      "A legal hold is in place on a sample person. Release the hold, then remove the sample data.",
+    ],
+    ["no_location", "Add a location before you load sample data."],
+  ])("hazard HZ-072 says the sample data refusal %s in plain words", (code, message) => {
+    expect(problemMessage({ code, detail: "ignored" }, t)).toEqual({ code, message });
+  });
+
   it("hazard HZ-019 says a refusal by rule in the catalogue's words, tied to its fields", () => {
     const detail =
       "The mark is drawn on the person's left but the person's right was chosen. Check the side and try again.";

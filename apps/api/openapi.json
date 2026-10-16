@@ -202,6 +202,9 @@
             "additionalProperties": {
               "type": "boolean"
             }
+          },
+          "sampleData": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -213,7 +216,8 @@
           "permissions",
           "roleKeys",
           "scope",
-          "flags"
+          "flags",
+          "sampleData"
         ],
         "description": "The signed-in user, their active tenant and effective access"
       },
@@ -567,6 +571,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "sample": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -580,7 +587,8 @@
           "locationName",
           "roomLabel",
           "hasPhoto",
-          "communicationNeeds"
+          "communicationNeeds",
+          "sample"
         ]
       },
       "PersonStatus": {
@@ -891,6 +899,9 @@
             "type": "string",
             "format": "date-time"
           },
+          "sample": {
+            "type": "boolean"
+          },
           "version": {
             "type": "integer"
           },
@@ -950,6 +961,7 @@
           "iddsiFoodLevel",
           "iddsiDrinkLevel",
           "statusChangedAt",
+          "sample",
           "version"
         ]
       },
@@ -22951,6 +22963,21 @@
                 "unit"
               ]
             }
+          },
+          "sampleData": {
+            "type": "object",
+            "properties": {
+              "present": {
+                "type": "boolean"
+              },
+              "mayLoad": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "present",
+              "mayLoad"
+            ]
           }
         },
         "required": [
@@ -22962,7 +22989,8 @@
           "currentSafetyCaseVersion",
           "staffFileOption",
           "version",
-          "settings"
+          "settings",
+          "sampleData"
         ]
       },
       "OnboardingItem": {

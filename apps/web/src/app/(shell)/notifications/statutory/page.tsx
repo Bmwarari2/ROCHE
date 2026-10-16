@@ -18,7 +18,7 @@ import {
   notificationSubjects,
   notificationWarnings,
 } from "@/lib/incidents";
-import { personNames } from "@/lib/people";
+import { personNames, sampleName } from "@/lib/people";
 import {
   hasHiddenSubjects,
   NOTIFICATION_LIST_LIMIT,
@@ -114,7 +114,9 @@ export default async function StatutoryNotificationsPage() {
   // others are numbered.
   const list = await api.GET("/v1/people", { params: { query: {} } });
   const people = new Map((list.data?.items ?? []).map((p) => [p.id, p]));
-  const names = new Map([...people].map(([key, p]) => [key, personNames(p).full]));
+  const names = new Map(
+    [...people].map(([key, p]) => [key, sampleName(p, personNames(p).full, t)]),
+  );
   const now = new Date();
   const groups = notificationGroups(data.items);
   const cut = { todo: data.truncated === "unfinished", done: data.truncated === "finished" };

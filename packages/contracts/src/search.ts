@@ -41,6 +41,8 @@ export const SearchPersonResult = z
     hasPhoto: z.boolean(),
     /** Accessible Information Standard needs, by their display words (shown before opening). */
     communicationNeeds: z.array(z.string()),
+    /** HZ-072: an invented sample person, shown with the "Sample" badge. */
+    sample: z.boolean(),
   })
   .meta({ id: "SearchPersonResult" });
 

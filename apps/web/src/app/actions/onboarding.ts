@@ -86,3 +86,22 @@ export async function recordDcb0160(
     return { ok: response.ok, error };
   });
 }
+
+/** Loads the sample people (rules 29 and 30); the API refuses once a real person exists. */
+export async function loadSampleData(): Promise<ActionResult<null>> {
+  return send(async (api) => {
+    const { response, error } = await api.POST("/v1/onboarding/sample-data");
+    return { ok: response.ok, error };
+  });
+}
+
+/**
+ * Removes the sample people and what was recorded about them while practising (rule 32), with a
+ * fresh step-up; the API refuses while a legal hold is in place.
+ */
+export async function removeSampleData(): Promise<ActionResult<null>> {
+  return send(async (api) => {
+    const { response, error } = await api.DELETE("/v1/onboarding/sample-data");
+    return { ok: response.ok, error };
+  });
+}

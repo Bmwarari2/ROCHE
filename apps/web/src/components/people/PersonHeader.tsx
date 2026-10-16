@@ -19,6 +19,7 @@ import { AllergyChip } from "./AllergyChip";
 import { CommunicationFlag } from "./CommunicationFlag";
 import { CommunicationStatus } from "./CommunicationStatus";
 import { PersonAvatar } from "./PersonAvatar";
+import { SampleBadge } from "./SampleBadge";
 
 function Detail({ term, children }: { readonly term: string; readonly children: ReactNode }) {
   return (
@@ -115,7 +116,12 @@ export function PersonHeader({
                   : locationName}
               </p>
             ) : null}
-            <h1 className="m-0 text-title">{names.hasPreferred ? names.preferred : names.full}</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="m-0 text-title">
+                {names.hasPreferred ? names.preferred : names.full}
+              </h1>
+              <SampleBadge sample={person.sample} />
+            </div>
             {names.hasPreferred ? (
               <p className="m-0 text-body text-text-secondary">{names.full}</p>
             ) : null}
@@ -255,6 +261,7 @@ export function PersonHeaderCompact({
             {room ? t("people.header.nameAndRoom", { name: names.full, room }) : names.full}
           </a>
         </Heading>
+        <SampleBadge sample={person.sample} />
       </div>
       <dl className="m-0 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Detail term={t("people.header.allergiesTitle")}>

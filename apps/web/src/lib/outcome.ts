@@ -110,6 +110,16 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "dpia_not_signable":
     case "decision_not_recordable":
       return { code, message: detail || t("care.errors.invalid") };
+    // Sample data mode (platform-completions.md rules 30 and 32; HZ-072): plain words for each
+    // refusal, from the catalogue.
+    case "real_people_exist":
+    case "already_loaded":
+    case "no_location":
+    case "nothing_to_remove":
+    case "held":
+    case "referenced_by_other_records":
+    case "remove_sample_data_first":
+      return { code, message: t("onboarding.sample.refusal", { code }) };
     case "back_entry_already_corrected":
       return { code, message: t("care.paper.alreadyCorrected") };
     case "missing_permission":

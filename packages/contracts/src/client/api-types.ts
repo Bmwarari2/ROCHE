@@ -20453,6 +20453,7 @@ export interface components {
       flags: {
         [key: string]: boolean;
       };
+      sampleData: boolean;
     };
     LocationSummary: {
       /** Format: uuid */
@@ -20533,6 +20534,7 @@ export interface components {
       roomLabel: string | null;
       hasPhoto: boolean;
       communicationNeeds: string[];
+      sample: boolean;
     } | null;
     /**
      * @description The person lifecycle (people.md rule 1)
@@ -20627,6 +20629,7 @@ export interface components {
       iddsiDrinkLevel: "0" | "1" | "2" | "3" | "4" | "not_recorded";
       /** Format: date-time */
       statusChangedAt: string;
+      sample: boolean;
       version: number;
       access?: {
         reaching: string[];
@@ -26700,6 +26703,10 @@ export interface components {
         value: number;
         unit: string;
       }[];
+      sampleData: {
+        present: boolean;
+        mayLoad: boolean;
+      };
     };
     OnboardingItem: {
       key: string;
