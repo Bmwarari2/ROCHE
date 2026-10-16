@@ -566,6 +566,33 @@ only when they link spec, code, tests and user documentation; no user guides exi
       tests for a future time and the hour the clocks change; the Welsh wording of the questions
       is not checked against the domain (only English is); "not sure" for emergency services
       and GP needs a contract change (API follow-up).
+    - Built on `feat/web-incident-review-submit` (part 4b, stacked on #55; HZ-091, H-265,
+      H-266): the incident page's "Review and close" for `safety.incident.manage` (start the
+      review; send it back to open or close, each with a reason; never close for the person who
+      raised it; what to do first, linked, while a notification or question is open); the
+      notification page prepares it (an answer per line of required content, ready only when
+      all are answered), records it as submitted once ready (time chosen every time, the
+      regulator's reference) and decides "not required" with a reason, each where its
+      permission reaches the person (`access.reaching`), with step-up as break-glass does it
+      (sign in again, back to the page). Every write sends the page's version, so a stale page
+      is refused in words. Gaps logged, no API change: no client id on these writes (the version
+      stands in: a retry after a lost connection is refused as changed, and says it may be the
+      person's own attempt); `IncidentDetail` has no `access` block, so review and close follow
+      the held permission (the API decides scope); the candour record is not on the incident, so
+      an open one is said only by the API's refusal; the web cannot attach the submitted form
+      (uploads), so the reference is required; what was typed is lost at the step-up sign-in;
+      the prepared answers are keyed by the API's English line (cut to 80 characters), so a
+      reworded line leaves an earlier answer under the old words (shown only in the API's
+      content; a `requiredContent` key in the contract would fix it); "Who submitted" names
+      the member only as "you" or "another member" (H-73).
+    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+      so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
+      the page, which announces only a matching status and drops `?done=`; no future tolerance
+      on the submission time. Left: "just now" still sends the server's time, since
+      `SubmitNotification.submittedAt` is required (an API change would let the API stamp it);
+      the step-up notice and the separation-of-duties refusal are checked with axe in component
+      tests only, since the journey cannot force a stale sign-in (needs a test hook) and close is
+      never offered to the person who raised the incident.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the

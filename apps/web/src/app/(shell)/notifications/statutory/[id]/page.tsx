@@ -4,13 +4,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache, type ReactNode } from "react";
 import { ClocksAsOf, SafetyWarning, When } from "@/components/safety/IncidentNotifications";
+import { NotificationManage } from "@/components/safety/NotificationManage";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, entryAuthor } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import {
+  contentFields,
+  doneToShow,
+  judgedNeeded,
+  manageDone,
+  notificationManageView,
+} from "@/lib/incident-review";
 import {
   incidentStatusChip,
   incidentTitle,
@@ -89,11 +98,19 @@ function EnglishList({ lines }: { readonly lines: readonly string[] }) {
  * overdue alert links to, for holders of `safety.incident.manage` as the API allows: its clock and
  * status as icons and words with when they were worked out, who it is about, the record it was
  * drafted on with that record's status (#49 review round 2), its warnings, every deadline in the
- * law's terms, why Harbour drafted it, what it must include, the sources and how it ended. Read
- * only; preparing, submitting and deciding "not required" follow (docs/plans/STATUS.md).
+ * law's terms, why Harbour drafted it, what it must include, the sources and how it ended. The
+ * forms to prepare it, record that it was submitted or decide it is not required (with step-up)
+ * appear only where `notificationManageView` offers them (ADR-0071).
  */
-export default async function StatutoryNotificationPage({ params }: { readonly params: Params }) {
+export default async function StatutoryNotificationPage({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: Promise<{ done?: string | string[] }>;
+}) {
   const { id } = await params;
+  const done = manageDone((await searchParams).done);
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const listTitle = t("safety.notifications.title");
@@ -124,6 +141,12 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
       : null;
   // The one person it is about (a view the API audits), for their name and communication needs.
   const person = item.personId ? (await getPerson(item.personId)).person : null;
+  // Each form only where its permission reaches the person it is about (ADR-0071); a person the
+  // reader cannot open at all reaches nothing. About no one, the held permissions decide.
+  const reaching = item.personId ? (person ? (person.access?.reaching ?? null) : []) : null;
+  const manage = notificationManageView(item, me.permissions, reaching);
+  const fields = contentFields(item.requiredContent);
+  const shownDone = doneToShow(done, item.status);
   const names = new Map(person ? [[person.id, personNames(person).full]] : []);
   const title = notificationKindLabel(item.kind, t, threshold?.data?.value);
   const location = me.locations.find((l) => l.id === item.locationId);
@@ -150,6 +173,9 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
         title={title}
         description={t("safety.notification.recipient", { kind: item.kind })}
       />
+      {shownDone ? (
+        <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
+      ) : null}
       <div className="flex flex-col gap-2">
         <p className="m-0 flex flex-wrap items-center gap-2">
           <SafetyChip chip={notificationClockChip(item, now, t)} />
@@ -220,6 +246,37 @@ export default async function StatutoryNotificationPage({ params }: { readonly p
               );
             })}
           </ul>
+        </Card>
+      ) : null}
+      {manage.prepare || manage.submit || manage.notRequired ? (
+        <Card as="section" title={section("act")} headingLevel={2}>
+          <NotificationManage
+            target={{
+              id: item.id,
+              incidentId: item.incidentId,
+              version: item.version,
+              status: item.status,
+            }}
+            judgedNeeded={judgedNeeded(item)}
+            view={manage}
+            fields={fields}
+            content={item.content}
+          />
+        </Card>
+      ) : Object.keys(item.content).length > 0 ? (
+        <Card as="section" title={section("prepared")} headingLevel={2}>
+          <dl className="m-0 flex flex-col gap-3">
+            {fields
+              .filter((field) => item.content[field.key])
+              .map((field) => (
+                <div key={field.name} className="min-w-0">
+                  <dt className="text-body-dense font-semibold">
+                    {field.line ?? t("safety.manage.prepare.notes")}
+                  </dt>
+                  <dd className="m-0 whitespace-pre-line break-words">{item.content[field.key]}</dd>
+                </div>
+              ))}
+          </dl>
         </Card>
       ) : null}
       <Card as="section" title={section("outcome")} headingLevel={2}>

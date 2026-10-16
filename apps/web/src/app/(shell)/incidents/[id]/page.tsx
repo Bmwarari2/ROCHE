@@ -8,6 +8,7 @@ import { EntryBadges } from "@/components/care/EntryBadges";
 import { Notice } from "@/components/care/Notice";
 import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { ClassifierQuestions } from "@/components/safety/ClassifierQuestions";
+import { IncidentManage } from "@/components/safety/IncidentManage";
 import { IncidentNotifications } from "@/components/safety/IncidentNotifications";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
@@ -17,11 +18,13 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { questionsYouMayAnswer } from "@/lib/incident-forms";
+import { doneToShow, incidentManageView, manageDone } from "@/lib/incident-review";
 import {
   incidentPersonFacts,
   incidentPersonLine,
   incidentStatusChip,
   incidentTitle,
+  notificationKindLabel,
   overdueCount,
 } from "@/lib/incidents";
 import { communicationSummary, personNames } from "@/lib/people";
@@ -74,18 +77,20 @@ const when = (iso: string | null) => formatDateTime(iso) ?? null;
  * to answer and the statutory notifications with their clocks and warnings (#42 review); an
  * overdue notification is named at the top, linked to them (#49 review). A reader who cannot see
  * everyone on it sees the header and their own people only. The questions are answered here by a
- * manager, or the falls questions by whoever raised it; preparing the notifications follows
- * (docs/plans/STATUS.md).
+ * manager, or the falls questions by whoever raised it. A manager reviews and closes it here
+ * (`incidentManageView`), never the person who raised it; each notification is prepared and
+ * submitted on its own page.
  */
 export default async function IncidentPage({
   params,
   searchParams,
 }: {
   readonly params: Params;
-  readonly searchParams: Promise<{ recorded?: string | string[] }>;
+  readonly searchParams: Promise<{ recorded?: string | string[]; done?: string | string[] }>;
 }) {
   const { id } = await params;
-  const { recorded } = await searchParams;
+  const { recorded, done: doneParam } = await searchParams;
+  const done = manageDone(doneParam);
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const listTitle = t("safety.incidents.title");
@@ -121,6 +126,9 @@ export default async function IncidentPage({
     !incident.restricted &&
     incident.status !== "closed" &&
     (can(me.permissions, "safety.incident.manage") || incident.raisedBy === me.tenantUserId);
+  // Review and close, for a manager, never "close" for the person who raised it (rule 11).
+  const manage = incidentManageView(incident, me);
+  const shownDone = doneToShow(done, incident.status);
   const overdue = overdueCount(incident.classifier);
   // RIDDOR's over-seven-day threshold for its label, from the rate table on the incident's date.
   const riddor = [
@@ -150,6 +158,9 @@ export default async function IncidentPage({
       </nav>
       <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
       {recorded === "1" ? <RecordedArrival /> : null}
+      {shownDone && recorded !== "1" ? (
+        <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
+      ) : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />
         {incident.restricted ? (
@@ -266,6 +277,21 @@ export default async function IncidentPage({
           </div>
         </Card>
       )}
+      {manage ? (
+        <Card as="section" title={section("manage")} headingLevel={2} className="break-words">
+          <IncidentManage
+            incidentId={incident.id}
+            version={incident.version}
+            view={manage}
+            notificationLabels={Object.fromEntries(
+              (incident.classifier?.notifications ?? []).map((n) => [
+                n.kind,
+                notificationKindLabel(n.kind, t, threshold?.data?.value),
+              ]),
+            )}
+          />
+        </Card>
+      ) : null}
       <Card as="section" title={section("people")} headingLevel={2} className="break-words">
         {incident.people.length === 0 ? (
           <p className="m-0">

@@ -5,6 +5,7 @@ import type {
   ClassifierQuestionKey,
   ClassifierState,
   IncidentDetail,
+  StatutoryNotificationDetail,
 } from "@harbour/contracts";
 import { sendAndRevalidate } from "@/lib/care-actions";
 import { isUuid } from "@/lib/context-cookies";
@@ -68,6 +69,118 @@ export async function answerIncidentQuestions(
     api.POST("/v1/incidents/{id}/classifier", {
       params: { path: { id: incidentId } },
       body: { answers: [...answers] },
+    }),
+  );
+}
+
+/**
+ * Start an incident's review, or send it back to open with a reason (`safety.incident.manage`).
+ * The version makes a second attempt after an unknown outcome a conflict, never a second move.
+ */
+export async function reviewIncident(
+  incidentId: string,
+  input: {
+    readonly to: "under_review" | "open";
+    readonly reason?: string;
+    readonly version: number;
+  },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], (api) =>
+    api.POST("/v1/incidents/{id}/review", {
+      params: { path: { id: incidentId } },
+      body: {
+        to: input.to,
+        version: input.version,
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
+    }),
+  );
+}
+
+/**
+ * Close an incident with a reason (`safety.incident.manage`, never the person who raised it). The
+ * API refuses while a notification is a draft or ready, a question is open or the candour record
+ * is open, and says which.
+ */
+export async function closeIncident(
+  incidentId: string,
+  input: { readonly reason: string; readonly version: number },
+): Promise<ActionResult<IncidentDetail>> {
+  if (!isUuid(incidentId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(["/incidents", "/notifications/statutory"], (api) =>
+    api.POST("/v1/incidents/{id}/close", {
+      params: { path: { id: incidentId } },
+      body: { reason: input.reason, version: input.version },
+    }),
+  );
+}
+
+/** The incident's pages and the notification pages, which show a notification's status. */
+const notificationPaths = (incidentId: string | null) => [
+  "/notifications/statutory",
+  incidentId && isUuid(incidentId) ? `/incidents/${incidentId}` : "/incidents",
+];
+
+/** Fill in a notification's form, and mark it ready or back to draft (`safety.incident.manage`). */
+export async function prepareNotification(
+  notificationId: string,
+  incidentId: string | null,
+  input: {
+    readonly content: Record<string, string>;
+    readonly ready: boolean;
+    readonly version: number;
+  },
+): Promise<ActionResult<StatutoryNotificationDetail>> {
+  if (!isUuid(notificationId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(notificationPaths(incidentId), (api) =>
+    api.POST("/v1/notifications/statutory/{id}/prepare", {
+      params: { path: { id: notificationId } },
+      body: { content: input.content, ready: input.ready, version: input.version },
+    }),
+  );
+}
+
+/**
+ * Record that a ready notification was submitted on the regulator's own portal, with its
+ * reference (`safety.notification.submit`, step-up). "Just now" is when the server receives the
+ * form, never the browser's clock (HZ-090).
+ */
+export async function submitNotification(
+  notificationId: string,
+  incidentId: string | null,
+  input: {
+    readonly submittedAt: string | null;
+    readonly externalReference: string;
+    readonly version: number;
+  },
+): Promise<ActionResult<StatutoryNotificationDetail>> {
+  if (!isUuid(notificationId)) return refused(t("errors.notFound"), "not_found");
+  const submittedAt = input.submittedAt ?? new Date().toISOString();
+  if (!isIsoInstant(submittedAt)) {
+    return refused(t("safety.manage.submitError", { field: "submittedAt" }), "invalid", [
+      "submittedAt",
+    ]);
+  }
+  return sendAndRevalidate(notificationPaths(incidentId), (api) =>
+    api.POST("/v1/notifications/statutory/{id}/submit", {
+      params: { path: { id: notificationId } },
+      body: { submittedAt, externalReference: input.externalReference, version: input.version },
+    }),
+  );
+}
+
+/** Decide a notification is not required, with the reason (`safety.notification.submit`, step-up). */
+export async function markNotificationNotRequired(
+  notificationId: string,
+  incidentId: string | null,
+  input: { readonly reason: string; readonly version: number },
+): Promise<ActionResult<StatutoryNotificationDetail>> {
+  if (!isUuid(notificationId)) return refused(t("errors.notFound"), "not_found");
+  return sendAndRevalidate(notificationPaths(incidentId), (api) =>
+    api.POST("/v1/notifications/statutory/{id}/not-required", {
+      params: { path: { id: notificationId } },
+      body: { reason: input.reason, version: input.version },
     }),
   );
 }
