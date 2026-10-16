@@ -282,7 +282,7 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
     }
   });
 
-  it("needs a fresh sign-in to build on request, but not to read", async () => {
+  it("needs a fresh sign-in to build on request and to read", async () => {
     const session = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
     await auth().query(session, [rawToken(h.tokens.owner ?? ""), new Date(Date.now() - 3_600_000)]);
     try {
@@ -292,7 +292,9 @@ describe("hazard HZ-021 a pack that no longer serves is built again, safely (#45
       const printed = await as("owner", `${url()}?format=pdf`);
       expect(printed.status).toBe(403);
       expect(((await printed.json()) as { code: string }).code).toBe("step_up_required");
-      expect((await as("owner", url())).status).toBe(200);
+      const read = await as("owner", url());
+      expect(read.status).toBe(403);
+      expect(((await read.json()) as { code: string }).code).toBe("step_up_required");
     } finally {
       await auth().query(session, [rawToken(h.tokens.owner ?? ""), new Date()]);
     }
