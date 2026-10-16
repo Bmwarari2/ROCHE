@@ -161,7 +161,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
      migration 0065; platform-completions.md section 10h): notices and append-only responses with
      forced RLS; the named lead acknowledges or objects within the window; the checklist reads
      the acknowledgements.
-   - The operator side (`feat/platform-sub-processor-operator`, migration 0066): announce with
+   - The operator side (`feat/platform-sub-processor-operator`, migration 0067): announce with
      the timing check and tell each affected organisation; read and resolve objections only
      through definer functions owned by the new NOLOGIN role `harbour_notice_resolver` (run
      `pnpm db:bootstrap` before migrating). Next: sample data mode, then the web screens.

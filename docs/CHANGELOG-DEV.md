@@ -2490,7 +2490,7 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 - API: an admin with a fresh step-up announces a notice; the affected organisations come from
   their configuration, the effective date respects the longest notice period
   (`checkNoticeTiming`), and each organisation's lead (or owners) is told, with its audit trail.
-- Migration 0066: objections are read and resolved only through definer functions owned by the
+- Migration 0067: objections are read and resolved only through definer functions owned by the
   NOLOGIN role `harbour_notice_resolver` (bootstrap adds it), which check the admin, need an open
   objection and write the organisation's audit trail; the operator role's direct access to
   responses is revoked.

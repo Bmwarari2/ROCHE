@@ -623,7 +623,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   holders; the register entry is not acknowledged while a notice about it has an open objection;
   each notice's window uses the organisation's notice period in force on the UK date it was
   announced.
-- Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0066): an admin with
+- Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0067): an admin with
   a fresh step-up announces a notice (`POST /operator/sub-processor-notices`); the organisations
   it affects are worked out from their configuration (`subProcessorConfigFor`, never people),
   the effective date may not come before the longest of their notice periods
