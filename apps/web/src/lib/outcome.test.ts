@@ -1,6 +1,13 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { errorFor, fieldErrors, outcomeUnknown, problemMessage, refused } from "./outcome";
+import {
+  collectedRefusal,
+  errorFor,
+  fieldErrors,
+  outcomeUnknown,
+  problemMessage,
+  refused,
+} from "./outcome";
 
 const t = createTranslator("en-GB");
 
@@ -99,5 +106,22 @@ describe("problemMessage", () => {
     });
     expect(outcomeUnknown({ ok: false, code: "unavailable", message: "x" })).toBe(true);
     expect(outcomeUnknown(result)).toBe(false);
+  });
+});
+
+describe("collectedRefusal", () => {
+  it("lists every problem the form found, each at its field, with the boxes of a date", () => {
+    const result = collectedRefusal([
+      { field: "kind", message: "Choose what has stopped working" },
+      { field: "startedAt", message: "Enter when it started", parts: ["day", "month"] },
+    ]);
+    expect(result).toEqual({
+      ok: false,
+      code: "invalid",
+      message: "Choose what has stopped working",
+      fields: { kind: "Choose what has stopped working", startedAt: "Enter when it started" },
+      parts: { startedAt: ["day", "month"] },
+    });
+    expect(collectedRefusal([])).toBeNull();
   });
 });
