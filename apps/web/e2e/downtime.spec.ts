@@ -5,7 +5,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { demoPerson, expectAccessible, PASSWORD, signIn } from "./support";
+import { demoPerson, expectAccessible, signIn, signInManagerWithPasskey } from "./support";
 
 /**
  * Phase 1 slice 11 web: a location's downtime page (OPS-028; hazards HZ-017 and HZ-021) against
@@ -409,21 +409,14 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   await expectAccessible(page, "outage closed");
 });
 
-test("hazard HZ-021 the nurse opens the pack with its freshness in words and prints it, never kept", async ({
+test("hazard HZ-021 the manager opens the pack with its freshness in words and prints it, never kept", async ({
   page,
-  context,
 }) => {
-  await as(context, "nurse");
+  // The pack is a whole-home record that needs a fresh step-up, which counts only from a second
+  // factor used in the last few minutes (ADR-0072 amendment): the manager signs in with a passkey.
+  await signInManagerWithPasskey(page);
   await openLocation(page);
   await page.getByRole("link", { name: "Open the pack" }).click();
-  // The pack is a whole-home record: a session older than the step-up window signs in again.
-  await page.waitForURL((url) => /\/(sign-in|downtime\/[^/]+\/pack)$/.test(url.pathname));
-  if (new URL(page.url()).pathname === "/sign-in") {
-    await expect(page.getByText("Confirm it is you")).toBeVisible();
-    await page.getByLabel("Email address").fill("nurse@example.invalid");
-    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  }
   await page.waitForURL((url) => url.pathname === `/downtime/${DEMO_LOCATION}/pack`);
   await expect(page.getByRole("heading", { level: 1, name: "Downtime pack" })).toBeVisible();
   await expect(
