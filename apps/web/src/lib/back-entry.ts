@@ -2,6 +2,7 @@ import type { BackEntryInput, EntryBackEntry, OutageItem } from "@harbour/contra
 import { MIN_BACK_ENTRY_REASON_LENGTH } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import { datePartName } from "@harbour/ui";
+import { isUuid } from "./context-cookies";
 import { formatDateTime } from "./format";
 import type { FieldProblem } from "./outcome";
 import { type FormLike, readDateTimeField, readWhen } from "./uk-time";
@@ -27,6 +28,25 @@ export const PAPER_FIELDS = [
 export interface EntryDowntime {
   readonly backEntry?: BackEntryInput;
   readonly notFromPaperReason?: string;
+}
+
+/**
+ * After `outage_reconciled` the server has kept the record for the nurse in charge's review
+ * (H-216): the form starts again with a new id, so it cannot be saved a second time as "Now".
+ */
+export function keptForReview(result: { readonly ok: boolean; readonly code?: string }): boolean {
+  return !result.ok && result.code === "outage_reconciled";
+}
+
+/** "16/10/2026 09:15": the date and time written on a paper record. */
+export function paperWritten(entry: Pick<EntryBackEntry, "paperDate" | "paperTime">): string {
+  const [year, month, day] = entry.paperDate.split("-");
+  return `${day}/${month}/${year} ${entry.paperTime}`;
+}
+
+/** Whether a recent outage here is reconciled or cancelled and none takes paper records now. */
+export function paperClosedOff(outages: readonly OutageItem[]): boolean {
+  return outages.length > 0 && paperOutages(outages).length === 0;
 }
 
 /** Outages a paper record can still be entered against, newest first. */
@@ -86,7 +106,7 @@ export function readEntryWhen(
     };
   }
   const problems: FieldProblem[] = [];
-  const outage = outages.find((o) => o.id === value(form, "outageId"));
+  const outage = paperOutages(outages).find((o) => o.id === value(form, "outageId"));
   if (!outage) problems.push({ field: "outageId", message: t("care.paper.outageRequired") });
   const read = readDateTimeField(form, name, { subject: t("care.paper.subject"), t, now });
   if (!read.ok) problems.push({ field: name, message: read.message, parts: read.parts });
@@ -144,4 +164,28 @@ export function correctionBackEntry(
     ...(original.paperReference ? { paperReference: original.paperReference } : {}),
     outsideOutageReason: outsideOutageReason.trim().slice(0, 500),
   };
+}
+
+/**
+ * Only the back-entry fields, so nothing else a client sends reaches the API body; null when the
+ * outage named is not an id, so the write is refused rather than sent as an ordinary entry.
+ */
+export function downtimeBody(downtime: EntryDowntime | undefined): EntryDowntime | null {
+  if (!downtime) return {};
+  const reason = downtime.notFromPaperReason?.trim();
+  if (downtime.backEntry) {
+    const b = downtime.backEntry;
+    if (!isUuid(b.outageId)) return null;
+    return {
+      backEntry: {
+        outageId: b.outageId,
+        paperDate: b.paperDate,
+        paperTime: b.paperTime,
+        ...(b.occurrence ? { occurrence: b.occurrence } : {}),
+        ...(b.outsideOutageReason ? { outsideOutageReason: b.outsideOutageReason } : {}),
+        ...(b.paperReference ? { paperReference: b.paperReference } : {}),
+      },
+    };
+  }
+  return reason ? { notFromPaperReason: reason } : {};
 }

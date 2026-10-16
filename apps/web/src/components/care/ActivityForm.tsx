@@ -5,7 +5,7 @@ import { Button, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordActivity } from "@/app/actions/care-records";
 import { readWholeNumber } from "@/lib/assessments";
-import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
+import { keptForReview, PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import { characterCount, t } from "@/lib/i18n";
 import {
   type ActionResult,
@@ -100,7 +100,8 @@ export function ActivityForm({
         ...(minutes !== null ? { durationMinutes: minutes } : {}),
       });
       setResult(outcome);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setAttendance(null);
         entry.next();

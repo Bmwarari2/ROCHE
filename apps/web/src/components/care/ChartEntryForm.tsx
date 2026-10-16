@@ -5,7 +5,7 @@ import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/u
 import { Lock, TriangleAlert } from "lucide-react";
 import { type FormEvent, useRef, useState, useTransition } from "react";
 import { recordObservation } from "@/app/actions/care-record";
-import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
+import { keptForReview, PAPER_FIELDS, paperWritten, readEntryWhen } from "@/lib/back-entry";
 import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-record";
 import {
   AMOUNTS,
@@ -122,6 +122,8 @@ export function ChartEntryForm({
   const [news2, setNews2] = useState<News2Flags | null>(null);
   // The organisation's escalation policy the save returned, shown with the result (#26 round 3).
   const [policy, setPolicy] = useState<EscalationPolicyRef | null>(null);
+  // A reading entered from paper: its result says it is from then (HZ-017).
+  const [paperAt, setPaperAt] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const [noMovement, setNoMovement] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -158,8 +160,12 @@ export function ChartEntryForm({
       });
       setResult(outcome);
       setNews2(outcome.ok ? news2FromFlags(outcome.data.flags) : null);
+      setPaperAt(
+        outcome.ok && outcome.data.backEntry ? paperWritten(outcome.data.backEntry) : null,
+      );
       setPolicy(outcome.ok ? outcome.data.escalationPolicy : null);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setNoMovement(false);
         entry.next();
@@ -428,7 +434,7 @@ export function ChartEntryForm({
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
-          paper={{ outages, ids, result }}
+          paper={{ outages, ids, result, notice: t("care.paper.readingBefore") }}
         />
         <div>
           <Button type="submit" disabled={pending}>
@@ -443,7 +449,13 @@ export function ChartEntryForm({
         {...(chart === "vitals" ? { focusOnSuccess: news2Ref } : {})}
       />
       {news2 && result?.ok ? (
-        <News2Result news2={news2} escalationPolicy={policy} headingLevel={4} ref={news2Ref} />
+        <News2Result
+          news2={news2}
+          escalationPolicy={policy}
+          headingLevel={4}
+          ref={news2Ref}
+          paperAt={paperAt}
+        />
       ) : null}
     </div>
   );

@@ -3,7 +3,7 @@ import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "./api";
-import type { EntryDowntime } from "./back-entry";
+import { downtimeBody, type EntryDowntime } from "./back-entry";
 import { isUuid } from "./context-cookies";
 import { t } from "./i18n";
 import { type ActionResult, problemMessage, refused } from "./outcome";
@@ -65,27 +65,6 @@ export interface EntryTiming {
   readonly downtime?: EntryDowntime;
 }
 
-/** Only the back-entry fields, so nothing else a client sends reaches the API body. */
-function downtimeBody(downtime: EntryDowntime | undefined): EntryDowntime {
-  if (!downtime) return {};
-  const reason = downtime.notFromPaperReason?.trim();
-  if (downtime.backEntry) {
-    const b = downtime.backEntry;
-    if (!isUuid(b.outageId)) return {};
-    return {
-      backEntry: {
-        outageId: b.outageId,
-        paperDate: b.paperDate,
-        paperTime: b.paperTime,
-        ...(b.occurrence ? { occurrence: b.occurrence } : {}),
-        ...(b.outsideOutageReason ? { outsideOutageReason: b.outsideOutageReason } : {}),
-        ...(b.paperReference ? { paperReference: b.paperReference } : {}),
-      },
-    };
-  }
-  return reason ? { notFromPaperReason: reason } : {};
-}
-
 /**
  * The entry's time for the API, and the header that carries the device's clock reading
  * (`x-harbour-sent-at`, care.md rule 3), or a refusal saying what to enter.
@@ -103,11 +82,15 @@ export function entryTime(timing: EntryTiming):
   if (!isIsoInstant(timing.occurredAt)) {
     return refused(t("care.errors.whenRequired"), "invalid", ["occurredAt"]);
   }
+  const downtime = downtimeBody(timing.downtime);
+  if (downtime === null) {
+    return refused(t("care.paper.outageRequired"), "invalid", ["outageId"]);
+  }
   return {
     id: timing.id,
     occurredAt: timing.occurredAt,
     headers: isIsoInstant(timing.sentAt) ? { "x-harbour-sent-at": timing.sentAt } : {},
-    downtime: downtimeBody(timing.downtime),
+    downtime,
   };
 }
 

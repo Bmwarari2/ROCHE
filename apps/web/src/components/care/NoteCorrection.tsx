@@ -1,6 +1,7 @@
 "use client";
 
 import type { CreateCareNote, EntryBackEntry } from "@harbour/contracts";
+import { MIN_BACK_ENTRY_REASON_LENGTH } from "@harbour/domain";
 import { Button, TextArea, TextField } from "@harbour/ui";
 import { PencilLine } from "lucide-react";
 import { type FormEvent, useState, useTransition } from "react";
@@ -63,8 +64,14 @@ export function NoteCorrection({
       return;
     }
     const outside = String(form.get("outsideOutageReason") ?? "").trim();
-    if (askOutside && note.backEntry && !outside) {
-      setResult(refused(t("care.paper.outsideReasonAgain"), "invalid", ["outsideOutageReason"]));
+    if (askOutside && note.backEntry && outside.length < MIN_BACK_ENTRY_REASON_LENGTH) {
+      setResult(
+        refused(
+          t("care.paper.outsideReasonLength", { min: MIN_BACK_ENTRY_REASON_LENGTH }),
+          "invalid",
+          ["outsideOutageReason"],
+        ),
+      );
       return;
     }
     startTransition(async () => {

@@ -1,6 +1,6 @@
 import type { EscalationPolicyRef } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
-import { Activity } from "lucide-react";
+import { Activity, TriangleAlert } from "lucide-react";
 import type { Ref } from "react";
 import { TOOL_SOURCES } from "@/lib/assessments";
 import { type News2Flags, news2Chip } from "@/lib/charts";
@@ -20,6 +20,7 @@ export function News2Result({
   escalationPolicy,
   headingLevel = 3,
   ref,
+  paperAt = null,
 }: {
   readonly news2: News2Flags;
   /** The policy the save returned: shown, or "none configured" when null; left out when undefined. */
@@ -27,6 +28,8 @@ export function News2Result({
   readonly headingLevel?: 2 | 3 | 4;
   /** Set to move focus here once vital signs are saved, so the result is read out. */
   readonly ref?: Ref<HTMLElement>;
+  /** When the reading was entered from a paper form, the date and time written on it (HZ-017). */
+  readonly paperAt?: string | null;
 }) {
   const Heading = `h${headingLevel}` as const;
   return (
@@ -47,6 +50,17 @@ export function News2Result({
           icon={Activity}
         />
       </div>
+      {paperAt ? (
+        <p className="m-0 flex gap-2 font-semibold" data-paper-reading="">
+          <TriangleAlert
+            size={18}
+            strokeWidth={1.5}
+            aria-hidden="true"
+            className="mt-0.5 shrink-0"
+          />
+          <span>{t("care.paper.readingFrom", { time: paperAt })}</span>
+        </p>
+      ) : null}
       <p className="m-0 font-semibold">{t("care.news2.response", { response: news2.response })}</p>
       {news2.monitoring ? (
         <p className="m-0">{t("care.news2.monitoring", { frequency: news2.monitoring })}</p>

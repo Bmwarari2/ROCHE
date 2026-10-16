@@ -3,9 +3,13 @@ import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
   correctionBackEntry,
+  downtimeBody,
   insideOutage,
+  keptForReview,
   PAPER_FIELDS,
+  paperClosedOff,
   paperOutages,
+  paperWritten,
   readEntryWhen,
 } from "./back-entry";
 import { problemMessage } from "./outcome";
@@ -165,6 +169,77 @@ describe("hazard HZ-017 entering a paper record from an outage on the care recor
       ok: true,
       instant: NOW.toISOString(),
       downtime: { notFromPaperReason: "Remembered at handover" },
+    });
+  });
+
+  it("hazard HZ-009 refuses a time in the hour the clocks went forward, and asks which repeated time", () => {
+    const spring = outage({ startedAt: "2026-03-28T22:00:00Z", endedAt: "2026-03-29T05:00:00Z" });
+    const gap = readEntryWhen(
+      form({
+        "occurredAt-mode": "paper",
+        outageId: OUTAGE,
+        "occurredAt-day": "29",
+        "occurredAt-month": "03",
+        "occurredAt-year": "2026",
+        "occurredAt-hour": "01",
+        "occurredAt-minute": "30",
+      }),
+      "occurredAt",
+      t,
+      [spring],
+      { now: new Date("2026-03-29T12:00:00Z") },
+    );
+    expect(gap.ok).toBe(false);
+    if (!gap.ok) expect(gap.problems[0]?.parts).toEqual(["hour", "minute"]);
+    const autumn = outage({ startedAt: "2026-10-24T22:00:00Z", endedAt: "2026-10-25T03:00:00Z" });
+    const unsure = readEntryWhen(
+      form({
+        "occurredAt-mode": "paper",
+        outageId: OUTAGE,
+        "occurredAt-day": "25",
+        "occurredAt-month": "10",
+        "occurredAt-year": "2026",
+        "occurredAt-hour": "01",
+        "occurredAt-minute": "30",
+      }),
+      "occurredAt",
+      t,
+      [autumn],
+      { now: new Date("2026-10-25T12:00:00Z") },
+    );
+    expect(unsure.ok).toBe(false);
+    if (!unsure.ok) expect(unsure.problems[0]?.parts).toEqual(["fold"]);
+  });
+
+  it("never takes a reconciled or cancelled outage, and says when only those are recent", () => {
+    const reconciled = outage({ state: "reconciled" });
+    const read = readEntryWhen(
+      form({ "occurredAt-mode": "paper", outageId: OUTAGE, ...boxes("16", "9", "15") }),
+      "occurredAt",
+      t,
+      [reconciled],
+      { now: NOW },
+    );
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.problems.map((p) => p.field)).toEqual(["outageId"]);
+    expect(paperClosedOff([reconciled])).toBe(true);
+    expect(paperClosedOff([reconciled, outage()])).toBe(false);
+    expect(paperClosedOff([])).toBe(false);
+  });
+
+  it("hazard HZ-006 starts the form again once the record is kept for review, and names the paper time", () => {
+    expect(keptForReview({ ok: false, code: "outage_reconciled" })).toBe(true);
+    expect(keptForReview({ ok: false, code: "invalid" })).toBe(false);
+    expect(keptForReview({ ok: true })).toBe(false);
+    expect(paperWritten({ paperDate: "2026-10-16", paperTime: "09:15" })).toBe("16/10/2026 09:15");
+  });
+
+  it("refuses an outage that is not an id rather than sending an ordinary entry", () => {
+    expect(
+      downtimeBody({ backEntry: { outageId: "x", paperDate: "2026-10-16", paperTime: "09:15" } }),
+    ).toBeNull();
+    expect(downtimeBody({ notFromPaperReason: " From memory " })).toEqual({
+      notFromPaperReason: "From memory",
     });
   });
 

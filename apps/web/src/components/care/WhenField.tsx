@@ -10,6 +10,7 @@ import {
   TextField,
 } from "@harbour/ui";
 import { useState } from "react";
+import { paperClosedOff, paperOutages } from "@/lib/back-entry";
 import { outageTitle, outageWindow } from "@/lib/downtime";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor } from "@/lib/outcome";
@@ -30,6 +31,8 @@ export interface PaperOptions {
   readonly outages: readonly OutageItem[];
   readonly ids: PaperFieldIds;
   readonly result: ActionResult<unknown> | null;
+  /** Said above the paper fields, for example that a reading is from the paper's time. */
+  readonly notice?: string;
 }
 
 /**
@@ -76,7 +79,8 @@ export function WhenField({
   const [mode, setMode] = useState<Mode | null>(explicit ? null : "now");
   const [start, setStart] = useState<Record<DateTimePart, string> | null>(null);
   const boxes = boxesOf(errorParts);
-  const outages = paper?.outages ?? [];
+  const outages = paperOutages(paper?.outages ?? []);
+  const closedOff = paperClosedOff(paper?.outages ?? []);
   const fieldError = (field: string) => (paper ? errorFor(paper.result, field) : undefined);
   const notFromPaper = fieldError("notFromPaperReason");
   const boxesShown = mode === "earlier" || mode === "paper";
@@ -117,6 +121,9 @@ export function WhenField({
             : []),
         ]}
       />
+      {closedOff ? (
+        <p className="m-0 text-body-dense text-text-secondary">{t("care.paper.closedOff")}</p>
+      ) : null}
       {mode === "earlier" ? (
         <DateTimeInput
           legend={t("care.when.enter")}
@@ -144,6 +151,7 @@ export function WhenField({
       ) : null}
       {mode === "paper" && paper ? (
         <div className="flex flex-col gap-4 border-s-4 border-border ps-4">
+          {paper.notice ? <p className="m-0 font-semibold">{paper.notice}</p> : null}
           <RadioGroup<string>
             id={paper.ids.outageId}
             legend={t("care.paper.outage")}

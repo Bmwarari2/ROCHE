@@ -1328,6 +1328,10 @@
     "care.paper.notFromPaperHint",
     "care.paper.detailsRequired",
     "care.paper.alreadyCorrected",
-    "care.paper.correctOutsideReason"
+    "care.paper.correctOutsideReason",
+    "care.paper.outsideReasonLength",
+    "care.paper.closedOff",
+    "care.paper.readingBefore",
+    "care.paper.readingFrom"
   ]
 }

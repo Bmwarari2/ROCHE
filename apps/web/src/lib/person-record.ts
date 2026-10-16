@@ -76,5 +76,15 @@ export const getEntryOutages = cache(async (locationId: string): Promise<OutageI
   const { data } = await api.GET("/v1/locations/{id}/outages", {
     params: { path: { id: locationId } },
   });
-  return data ? paperOutages(data.items) : [];
+  if (!data) return [];
+  // Reconciled or cancelled in the last week: no paper choice, but a hint to tell the nurse in
+  // charge (a convenience window for the hint, not a rule).
+  const recent = Date.now() - 7 * 24 * 3_600_000;
+  return [
+    ...paperOutages(data.items),
+    ...data.items.filter(
+      (o) =>
+        (o.state === "reconciled" || o.state === "cancelled") && Date.parse(o.startedAt) >= recent,
+    ),
+  ];
 });

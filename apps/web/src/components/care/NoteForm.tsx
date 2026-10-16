@@ -4,7 +4,7 @@ import type { CreateCareNote, OutageItem } from "@harbour/contracts";
 import { Button, SelectField, TextArea } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordNote } from "@/app/actions/care-record";
-import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
+import { keptForReview, PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import { NOTE_CATEGORIES, NOTE_MAX_LENGTH } from "@/lib/care-record";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, collectedRefusal, errorFor, partsFor, refused } from "@/lib/outcome";
@@ -55,7 +55,8 @@ export function NoteForm({
       setResult(outcome);
       // A fresh form for the next note, with the time back to "now" and a new id. After an
       // unknown outcome the id stays, so trying again cannot save the note twice.
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         entry.next();
       }

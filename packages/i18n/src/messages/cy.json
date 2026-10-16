@@ -1319,7 +1319,7 @@
   "care.paper.reference": "Form reference (optional)",
   "care.paper.referenceHint": "If the form has a number, enter it, so each form is counted once.",
   "care.paper.referenceTooLong": "Enter the form reference in 80 characters or fewer",
-  "care.paper.outsideReason": "If the time on the form is outside the outage, why? (optional)",
+  "care.paper.outsideReason": "Why is the time outside the outage? (only if it is)",
   "care.paper.outsideReasonHint": "For example, the form was dated after the power came back. Do not write anyone's name.",
   "care.paper.outsideReasonRequired": "The time on the form is outside the outage ({from} to {to, select, none {now} other {{to}}}). Say why in {min} characters or more.",
   "care.paper.outsideReasonAgain": "This paper record's time is outside its outage. Say why.",
@@ -1327,5 +1327,9 @@
   "care.paper.notFromPaperHint": "This time falls in an outage. If you are copying a paper form, choose \"From a paper downtime form\" instead. Otherwise, for example: remembered at handover.",
   "care.paper.detailsRequired": "This time falls in an outage. Enter it from the paper form, or say why it was not written on paper.",
   "care.paper.alreadyCorrected": "This paper record has been corrected already. Reload the page and correct the current version.",
-  "care.paper.correctOutsideReason": "Why is the time outside the outage?"
+  "care.paper.correctOutsideReason": "Why is the time outside the outage?",
+  "care.paper.outsideReasonLength": "Say why the time is outside the outage in {min} characters or more",
+  "care.paper.closedOff": "A recent outage here has been reconciled or cancelled, so paper records cannot be entered against it here. Give any paper form to the nurse in charge.",
+  "care.paper.readingBefore": "A reading from a paper form is from the time written on it. Check it was escalated on paper, and check the person now.",
+  "care.paper.readingFrom": "This reading is from {time}. Check it was escalated on paper, and check the person now."
 }

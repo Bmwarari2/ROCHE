@@ -12,7 +12,7 @@ import {
 import { type FormEvent, useState, useTransition } from "react";
 import { recordBodyMark } from "@/app/actions/care-record";
 import { readNumber, readYesNo } from "@/lib/assessments";
-import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
+import { keptForReview, PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import {
   BODY_REGIONS,
   type BodySide,
@@ -148,7 +148,8 @@ export function BodyMapRecorder({
         ...size("depthMm"),
       });
       setResult(outcome);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setPlace(null);
         setSide(null);
