@@ -54,7 +54,7 @@ const classifier = (over: Partial<ClassifierView>): ClassifierView => ({
   ...over,
 });
 
-function draw(view: ClassifierView | null, access = manager) {
+function draw(view: ClassifierView | null, access = manager, linked = false) {
   document.body.innerHTML = `<main><h1>Incident</h1><section aria-labelledby="h"><h2 id="h">Statutory notifications</h2>${renderToStaticMarkup(
     <IncidentNotifications
       classifier={view}
@@ -62,6 +62,7 @@ function draw(view: ClassifierView | null, access = manager) {
       names={names}
       closed={false}
       now={NOW}
+      linked={linked}
     />,
   )}</section></main>`;
   return document.body;
@@ -227,6 +228,27 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
     );
     expect(order.slice(0, 2)).toEqual(["cqc_reg18_abuse", "safeguarding_s42"]);
     expect(order.slice(-2).sort()).toEqual(["candour", "cqc_reg18_police"]);
+    await expectAccessible(body);
+  });
+
+  it("hazard HZ-013 says when the clocks were worked out, and links each notification for a manager, with no axe violations", async () => {
+    const body = draw(
+      classifier({ notifications: [notification({ id: "n-1", kind: "cqc_reg18_police" })] }),
+      manager,
+      true,
+    );
+    const asOf = [...body.querySelectorAll("time")].find((time) =>
+      time.textContent?.startsWith("Clocks worked out at"),
+    );
+    expect(asOf?.textContent).toBe(
+      "Clocks worked out at 12/10/2026 17:05. Reload the page to bring them up to date.",
+    );
+    expect(asOf?.getAttribute("datetime")).toBe(NOW.toISOString());
+    const link = body.querySelector<HTMLAnchorElement>(
+      '[data-notification="cqc_reg18_police"] h3 a',
+    );
+    expect(link?.getAttribute("href")).toBe("/notifications/statutory/n-1");
+    expect(link?.textContent).toBe("Incident reported to or investigated by the police");
     await expectAccessible(body);
   });
 });

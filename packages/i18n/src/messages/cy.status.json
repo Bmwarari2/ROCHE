@@ -1076,6 +1076,21 @@
     "safety.notification.about",
     "safety.notification.task",
     "safety.notification.elsewhere",
-    "safety.notification.taskPast"
+    "safety.notification.taskPast",
+    "safety.notifications.title",
+    "safety.notifications.description",
+    "safety.notifications.group",
+    "safety.notifications.empty",
+    "safety.notifications.truncated",
+    "safety.notifications.numbered",
+    "safety.notification.pageTitle",
+    "safety.notification.asOf",
+    "safety.notification.section",
+    "safety.notification.field",
+    "safety.notification.sourceLink",
+    "safety.notification.evidence",
+    "safety.notification.noOutcome",
+    "safety.notification.citation",
+    "safety.notification.englishOnly"
   ]
 }
