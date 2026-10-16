@@ -1,5 +1,9 @@
 # Development log
 
+> **Frozen on 2026-10-16.** New entries are one file per pull request in
+> [docs/changelog-dev/](changelog-dev/README.md) ([ADR-0073](decisions/0073-changelog-fragments.md)).
+> Do not append here; this file is the history before that date.
+
 One entry per working session (section 20 rule 9): what changed, what is next, human actions
 logged, test status.
 
@@ -2483,22 +2487,24 @@ be read are said so; tests for a record corrected between preview and publishing
 preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
 a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
 
-## 2026-10-17: Slice 12 part 2b, the family's updates page (COMMS-001)
+## 2026-10-17: Slice 13, sub-processor notices, organisation side (PLAT-023, rules 24 and 25)
 
-- Web: `/updates` for a family member's portal session (their home, and "Updates" in the side bar):
-  the statement that these are not the full care record, the time checked and the last update,
-  each update and a "Taken down" notice for one they saw; a closed feed reads exactly as no
-  decision; an MFA notice with the way to set it up.
-- Local end-to-end: `seed-users.ts` adds Ada Example's invented next of kin as a portal account with
-  the end-to-end passkey (`HARBOUR_DEMO_E2E_PASSKEY=1` only).
-- Docs: comms.md section 11, HZ-061 (the web row now passing), the register, STATUS.
+- Migration 0065: `sub_processor_notice` (Thapsus's, read by all, announced only by the operator
+  role, never changed) and `sub_processor_response` (append-only; only the named data protection
+  lead holding `platform.dpia.sign` acknowledges or objects; Thapsus records resolutions).
+- Domain: `noticeResponseFrom` and `subProcessorAcknowledgementsFrom`, table-driven.
+- API: the sub-processors in use with their notices and states; acknowledge (register or notice)
+  and object within the window, step-up, audited without the grounds. The onboarding checklist
+  reads the acknowledgements, and a later notice reopens one.
+- Docs: platform-completions.md section 10h, records of processing, data standards, retention,
+  feature register, STATUS.
 
-**Tests**: `apps/web/e2e/family-feed.spec.ts` (2, axe on every state); `apps/web/src/lib/family-feed.test.ts`
-(the portal-only home).
+**Tests**: `apps/api/test/sub-processors.test.ts` (6), `sub-processors.test.ts` stored responses (5).
 
-Review round 1 of #88: a family member sees no staff navigation (the people link needs
-`people.person.read`; no location switcher); an account with no access at all (such as a family member whose link was
-revoked) is sent to `/updates` and told how to get it; the MFA notice in plainer words; axe on the MFA notice and the
-not-linked page; the e2e passkey helpers renamed `addDemoPasskey` and `signInWithDemoPasskey`; the
-seed stops with an error when no contact matches. Numbered feeds stay a logged follow-up.
+## 2026-10-17: Sub-processor notices, review of #92
 
+- Responses are read through roles only; objection grounds go to DPIA permission holders only.
+- No register acknowledgement while a notice about the sub-processor has an open objection.
+- Each notice's window uses the notice period in force on the UK date it was announced.
+- Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
+  database), and the operator role refused anything but a resolution.
