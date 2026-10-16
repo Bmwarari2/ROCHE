@@ -12,8 +12,9 @@ import { demoPerson, expectAccessible, PASSWORD, signIn } from "./support";
  * the demo tenant. The nurse (clinical lead: operations.downtime.read and .manage) declares,
  * corrects, reconciles, cancels and closes outages on the screens, and opens and prints the
  * downtime pack with a fresh sign-in; the carer is offered none of it. Outages at a location never
- * overlap, so the journey uses windows in the last two hours and expects the fresh database the
- * e2e job prepares. The manager enters paper records through the API, so the nurse (who entered
+ * overlap, so every window is laid out in the minutes before a base time after every outage
+ * already there (a retry, or another journey, leaves its own), and an outage left open by an
+ * earlier attempt is cancelled or closed first. The manager enters paper records through the API, so the nurse (who entered
  * none) can reconcile them (H-203). Every state is checked with axe.
  */
 
@@ -21,19 +22,68 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
 const DEMO_TENANT = "0194d000-0000-7000-8000-000000000001";
 const DEMO_LOCATION = "0194d000-0000-7000-8000-000000000101";
 const RUN = `run ${Date.now().toString(36)}`;
-const T0 = Date.now();
+const MINUTE = 60_000;
+/** The minute the journeys' outages end at; set once the existing outages are known. */
+let BASE = Math.floor(Date.now() / MINUTE) * MINUTE;
+/** The windows lie in the six minutes before BASE (see `layOutAfterExistingOutages`). */
+const SPAN_MINUTES = 6;
+
+interface ExistingOutage {
+  readonly id: string;
+  readonly state: string;
+  readonly startedAt: string;
+  readonly endedAt: string | null;
+  readonly version: number;
+}
+
+/**
+ * Cancels (or, once a paper record cites it, closes a minute after its start) any outage an
+ * earlier attempt left open, then sets BASE so the journeys' windows start after every outage
+ * still at the location, waiting for the clock when an earlier attempt ended moments ago.
+ */
+async function layOutAfterExistingOutages(request: APIRequestContext) {
+  const headers = { "x-harbour-tenant": DEMO_TENANT };
+  const url = `${API_URL}/v1/locations/${DEMO_LOCATION}/outages`;
+  const read = async () =>
+    ((await (await request.get(url, { headers })).json()) as { items: ExistingOutage[] }).items;
+  for (const o of (await read()).filter((x) => x.state === "declared")) {
+    const cancelled = await request.post(`${API_URL}/v1/outages/${o.id}/cancel`, {
+      headers,
+      data: { reason: "Left open by an earlier test attempt.", version: o.version },
+    });
+    if (cancelled.ok()) continue;
+    const end = new Date(Date.parse(o.startedAt) + MINUTE).toISOString();
+    await request.post(`${API_URL}/v1/outages/${o.id}/close`, {
+      headers,
+      data: { endedAt: end, version: o.version },
+    });
+  }
+  const latest = Math.max(
+    0,
+    ...(await read())
+      .filter((o) => o.state !== "cancelled" && o.endedAt)
+      .map((o) => Date.parse(o.endedAt as string)),
+  );
+  const earliest = Math.ceil(latest / MINUTE) * MINUTE + SPAN_MINUTES * MINUTE;
+  while (Math.floor(Date.now() / MINUTE) * MINUTE < earliest) {
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  BASE = Math.floor(Date.now() / MINUTE) * MINUTE;
+}
 
 test.describe.configure({ mode: "serial" });
 
 const sessions: Record<string, Awaited<ReturnType<BrowserContext["cookies"]>>> = {};
 
 test.beforeAll(async ({ browser }, testInfo) => {
-  // Three sign-ins one after another: give the hook room beyond one test's default.
-  test.setTimeout(180_000);
+  // Three sign-ins one after another, and on a retry a wait for the clock to pass the earlier
+  // attempt's outages: give the hook room beyond one test's default.
+  test.setTimeout(600_000);
   for (const user of ["nurse", "carer", "manager"]) {
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
     await signIn(await context.newPage(), `${user}@example.invalid`);
     sessions[user] = await context.cookies();
+    if (user === "nurse") await layOutAfterExistingOutages(context.request);
     await context.close();
   }
 });
@@ -43,7 +93,7 @@ async function as(context: BrowserContext, user: string) {
   await context.addCookies(sessions[user] ?? []);
 }
 
-/** A moment `minutes` from the start of the run, as the UK wall clock the boxes ask for. */
+/** A moment `minutes` from BASE, as the UK wall clock the boxes ask for. */
 function ukParts(minutes: number): Record<"day" | "month" | "year" | "hour" | "minute", string> {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", {
@@ -55,7 +105,7 @@ function ukParts(minutes: number): Record<"day" | "month" | "year" | "hour" | "m
       minute: "2-digit",
       hourCycle: "h23",
     })
-      .formatToParts(new Date(T0 + minutes * 60_000))
+      .formatToParts(new Date(BASE + minutes * MINUTE))
       .map((p) => [p.type, p.value]),
   );
   return {
@@ -81,10 +131,10 @@ async function fillWhen(page: Page, legend: string, minutes: number) {
   }
 }
 
-/** The instant `minutes` from the start of the run, to the minute, with its UK date and time. */
+/** The instant `minutes` from BASE (a whole minute), with its UK date and time. */
 function paperTime(minutes: number) {
-  const ms = Math.floor((T0 + minutes * 60_000) / 60_000) * 60_000;
-  const p = ukParts((ms - T0) / 60_000);
+  const ms = BASE + minutes * MINUTE;
+  const p = ukParts(minutes);
   return {
     occurredAt: new Date(ms).toISOString(),
     paperDate: `${p.year}-${p.month}-${p.day}`,
@@ -160,7 +210,7 @@ test("hazard HZ-092 the nurse finds and checks each possible duplicate and late 
     {
       kind: "power",
       description: `Power cut before the round (${RUN}).`,
-      startedAt: paperTime(-120).occurredAt,
+      startedAt: paperTime(-6).occurredAt,
     },
     201,
   );
@@ -181,14 +231,14 @@ test("hazard HZ-092 the nurse finds and checks each possible duplicate and late 
     return note.id;
   };
   // The same wash written on two forms; and one written after the true end (H-207).
-  const first = await paperNote(1, -110, "Washed and dressed");
-  const second = await paperNote(1, -108, "Washed and dressed, from the second form");
-  const late = await paperNote(2, -95, "Drink offered");
+  const first = await paperNote(1, -6, "Washed and dressed");
+  const second = await paperNote(1, -5, "Washed and dressed, from the second form");
+  const late = await paperNote(2, -4, "Drink offered");
   await as(context, "nurse");
   await call(
     page.request,
     `/v1/outages/${outage.id}/close`,
-    { endedAt: paperTime(-100).occurredAt, version: outage.version },
+    { endedAt: paperTime(-4).occurredAt, version: outage.version },
     200,
   );
 
@@ -261,7 +311,7 @@ test("hazard HZ-017 the nurse declares, corrects and reconciles an outage, every
   await expectAccessible(page, "declare outage refused");
 
   // Declared after it ended: closed at once, so its paper records can be entered.
-  await declare(page, "Power cut", `The power went off in the east wing (${RUN}).`, -60, -40);
+  await declare(page, "Power cut", `The power went off in the east wing (${RUN}).`, -4, -2);
   await expect(
     main(page).getByText("Closed: paper records to enter", { exact: true }),
   ).toBeVisible();
@@ -274,15 +324,15 @@ test("hazard HZ-017 the nurse declares, corrects and reconciles an outage, every
     page.getByRole("group", { name: "When did it really start?" }).getByLabel("Day"),
   ).toBeFocused();
   await expectAccessible(page, "correct form open");
-  await fillWhen(page, "When did it really start?", -55);
-  await fillWhen(page, "When did it really end?", -40);
+  await fillWhen(page, "When did it really start?", -3);
+  await fillWhen(page, "When did it really end?", -2);
   await page
     .getByLabel("Why are the times being corrected?")
-    .fill("The generator log shows 5 minutes later.");
+    .fill("The generator log shows a minute later.");
   await page.getByRole("button", { name: "Correct times", exact: true }).click();
   await page.waitForURL(/\?done=corrected$/);
   await expect(arrival(page)).toHaveText("Outage times corrected.");
-  await expect(main(page).getByText("The generator log shows 5 minutes later.")).toBeVisible();
+  await expect(main(page).getByText("The generator log shows a minute later.")).toBeVisible();
 
   // Reconcile: the statement is required, then the outage is final.
   const reconcile = page.getByRole("region", { name: "Reconcile the paper records" });
@@ -304,7 +354,7 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   context,
 }) => {
   await as(context, "nurse");
-  await declare(page, "Network down", `The router restarted (${RUN}).`, -30);
+  await declare(page, "Network down", `The router restarted (${RUN}).`, -2);
   await expect(main(page).getByText("Open", { exact: true })).toBeVisible();
   await expectAccessible(page, "open outage");
 
@@ -328,7 +378,7 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   await expect(main(page).getByText("Cancelled", { exact: true })).toBeVisible();
   await expectAccessible(page, "cancelled outage");
 
-  await declare(page, "Harbour not available", `Harbour could not be reached (${RUN}).`, -20);
+  await declare(page, "Harbour not available", `Harbour could not be reached (${RUN}).`, -1);
   // While it is open, no second outage can be declared.
   await openLocation(page);
   await expect(page.getByRole("button", { name: "Declare outage" })).toHaveCount(0);
@@ -351,7 +401,9 @@ test("the nurse cancels an outage declared in error, and closes another when sys
   await expect(arrival(page)).toHaveText(
     "Outage closed. Paper records from it can now be entered.",
   );
-  await expect(main(page).getByText(/^Paper records to be entered by /)).toBeVisible();
+  await expect(
+    main(page).getByText("Paper records to be entered by", { exact: true }),
+  ).toBeVisible();
   await expectAccessible(page, "outage closed");
 });
 
