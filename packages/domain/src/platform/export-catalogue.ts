@@ -799,7 +799,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   },
   "public.break_glass_event": {
     context: "people",
-    description: "Records opened outside scope, with the typed justification and review.",
+    description:
+      "Records opened, and break-glass searches made, outside scope, with the typed justification and review.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: true,
@@ -807,7 +808,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       tenant_user_id: "exported",
-      person_id: "exported",
+      kind: {
+        description:
+          "open (a record opened outside scope) or search (a break-glass search; the people shown are in its audit event).",
+      },
+      person_id: {
+        description: "The person whose record was opened (person.id); empty for a search.",
+      },
+      shown_location_ids: {
+        description:
+          "For a search, the homes whose people were shown (location.id), for the weekly report.",
+      },
       justification: {
         description: "The typed justification for opening or finding a record outside scope.",
       },
@@ -3434,6 +3445,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         },
       },
       status_changed_at: { description: "When the current status began (instant, UTC)." },
+      is_sample: {
+        description:
+          "An invented person loaded as sample data (rule 29); sample rows are never exported, so always false here.",
+      },
+      sample_batch_id: {
+        description: "The sample batch an invented person came with (empty here).",
+      },
       nhs_number: {
         description: "NHS number, 10 digits without spaces, check digit validated (MODS).",
       },
@@ -4093,6 +4111,25 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.sample_batch": {
+    context: "platform",
+    description:
+      "Sample data batches (platform-completions.md rules 29 to 32): who loaded invented people to learn Harbour, when, how many, and when the batch was removed.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      loaded_by: "exported",
+      loaded_at: "exported",
+      people: { description: "How many invented people the batch loaded.", unit: "people" },
+      removed_by: "exported",
+      removed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.service": {

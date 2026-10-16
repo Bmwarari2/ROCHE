@@ -477,6 +477,20 @@
       "when": 1792167603686,
       "tag": "0068_definer_function_acls",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792167800818,
+      "tag": "0069_sample_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1792169579986,
+      "tag": "0070_break_glass_search",
+      "breakpoints": true
     }
   ]
 }

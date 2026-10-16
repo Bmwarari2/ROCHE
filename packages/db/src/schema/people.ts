@@ -19,6 +19,7 @@ import { id, mutableColumns, searchVector, tenantId } from "./_columns";
 import { allergyStatus, contactRole, personStatus, placementType } from "./enums";
 import { admissionDecision } from "./people-lifecycle";
 import { document, location, service, tenant, tenantUser } from "./platform";
+import { sampleBatch } from "./sample-data";
 
 /** `ROOM_STATUSES` in packages/domain (occupancy.ts): a room is held after a death until cleared. */
 export const ROOM_STATUS_SQL = sqlList(["available", "out_of_service", "awaiting_clearance"]);
@@ -142,11 +143,20 @@ export const person = pgTable(
      * (people.md rules 2 and 3). Kept in step by a trigger when only `status` is written.
      */
     statusChangedAt: timestamp("status_changed_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Sample data mode (rule 29; HZ-072): an invented person loaded with a sample batch. */
+    isSample: boolean("is_sample").notNull().default(false),
+    sampleBatchId: uuid("sample_batch_id"),
     ...mutableColumns(),
   },
   (t) => [
     unique("person_tenant_id_id_key").on(t.tenantId, t.id),
     unique("person_tenant_nhs_number_key").on(t.tenantId, t.nhsNumber),
+    foreignKey({
+      name: "person_sample_batch_fk",
+      columns: [t.tenantId, t.sampleBatchId],
+      foreignColumns: [sampleBatch.tenantId, sampleBatch.id],
+    }),
+    check("person_sample", sql`is_sample = (sample_batch_id IS NOT NULL)`),
     foreignKey({
       name: "person_location_fk",
       columns: [t.tenantId, t.locationId],
@@ -348,7 +358,18 @@ export const breakGlassEvent = pgTable(
     id: id(),
     tenantId: tenantId(),
     tenantUserId: uuid("tenant_user_id").notNull(),
-    personId: uuid("person_id").notNull(),
+    /**
+     * `open` (a record opened outside scope) or `search` (a break-glass search, platform-completions.md
+     * rule 9): a search names no one person, and its `expires_at` is when it ran, so it opens nothing.
+     */
+    kind: text("kind").notNull().default("open"),
+    /** The person opened; null for a search, whose people shown are in its audit event. */
+    personId: uuid("person_id"),
+    /**
+     * For a search, the homes whose people were shown (location ids, for the weekly report);
+     * empty for an opening, whose home is the person's.
+     */
+    shownLocationIds: uuid("shown_location_ids").array().notNull().default(sql`'{}'::uuid[]`),
     justification: text("justification").notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -361,6 +382,11 @@ export const breakGlassEvent = pgTable(
   },
   (t) => [
     personFk("break_glass_person_fk", t),
+    check(
+      "break_glass_kind",
+      sql`kind IN ('open', 'search') AND (kind = 'open') = (person_id IS NOT NULL)
+        AND (kind = 'open' OR expires_at = opened_at)`,
+    ),
     check(
       "break_glass_reason_code",
       sql`reason_code IS NULL OR reason_code IN (${BREAK_GLASS_REASON_SQL})`,

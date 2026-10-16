@@ -641,6 +641,110 @@
           "query"
         ]
       },
+      "BreakGlassSearchResults": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "preferredName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "dateOfBirth": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nhsNumber": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "$ref": "#/components/schemas/PersonStatus"
+                },
+                "sameName": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "preferredName",
+                "dateOfBirth",
+                "nhsNumber",
+                "status",
+                "sameName"
+              ]
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "more": {
+            "type": "boolean"
+          },
+          "breakGlassId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "more",
+          "breakGlassId"
+        ]
+      },
+      "RunBreakGlassSearch": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "reasonCode": {
+            "$ref": "#/components/schemas/BreakGlassReasonCode"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "includeArchived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "reasonCode",
+          "reason"
+        ]
+      },
+      "BreakGlassReasonCode": {
+        "type": "string",
+        "enum": [
+          "emergency_care",
+          "covering_another_area",
+          "safeguarding",
+          "incident_or_complaint",
+          "request_from_professional",
+          "other"
+        ]
+      },
       "DeviceSessionList": {
         "type": "object",
         "properties": {
@@ -1179,17 +1283,6 @@
         "required": [
           "personId",
           "justification"
-        ]
-      },
-      "BreakGlassReasonCode": {
-        "type": "string",
-        "enum": [
-          "emergency_care",
-          "covering_another_area",
-          "safeguarding",
-          "incident_or_complaint",
-          "request_from_professional",
-          "other"
         ]
       },
       "PersonStatusChangeResult": {
@@ -23152,6 +23245,23 @@
           "safetyCaseVersion"
         ]
       },
+      "SampleDataBatch": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "people": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "batchId",
+          "people"
+        ]
+      },
       "SubProcessorNoticeAnnounced": {
         "type": "object",
         "properties": {
@@ -23500,6 +23610,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search/break-glass": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Find a person outside your access, with a reason",
+        "description": "Needs step-up, a reason code and a typed reason. NHS number or full name, whole words only; at most 10 people, identity only. Alerts the Registered Manager and the data protection lead, is limited per day, and is audited with ids only; the reason is kept in the break-glass record.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBreakGlassSearch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "People found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreakGlassSearchResults"
                 }
               }
             }
@@ -46511,6 +46689,122 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OnboardingDecisionRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/onboarding/sample-data": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Load sample data",
+        "description": "platform.onboarding.manage. Loads one batch of plainly invented people (family name Example, 999-range NHS numbers) at the organisation's first location, only while no real person exists and no batch is loaded (409 real_people_exist, already_loaded). Every real person then waits until the batch is removed. Audited (platform.onboarding.sample_loaded, batch id and count), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleDataBatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Remove the sample data",
+        "description": "platform.onboarding.manage with a fresh step-up (403 step_up_required). Removes the loaded batch in one step through app.remove_sample_batch: its people and every record made about them while practising, or nothing (409 nothing_to_remove; held while a legal hold is in place; referenced_by_other_records when an outage or downtime pack still refers to them). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id, people and records per table), refusals here.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleDataBatch"
                 }
               }
             }
