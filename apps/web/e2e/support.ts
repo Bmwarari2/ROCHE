@@ -69,9 +69,12 @@ export async function signIn(page: Page, email: string) {
  * derivation as the seed). Step-up counts only from a second factor used in the last few minutes
  * (ADR-0072 amendment), so journeys that step up confirm with this, as a person would.
  */
-export async function addManagerPasskey(page: Page) {
+export async function addManagerPasskey(page: Page, who: "manager" | "owner" = "manager") {
+  // The manager's labels are the original ones; the owner's are prefixed (seed-users.ts).
   const digest = (label: string) =>
-    createHash("sha256").update(`harbour e2e demo passkey: ${label}`).digest();
+    createHash("sha256")
+      .update(`harbour e2e demo passkey: ${who === "owner" ? `owner ${label}` : label}`)
+      .digest();
   // PKCS#8 for a P-256 private key, the scalar appended (RFC 5915, public key omitted).
   const privateKey = Buffer.concat([
     Buffer.from("3041020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420", "hex"),
@@ -96,16 +99,16 @@ export async function addManagerPasskey(page: Page) {
       isResidentCredential: true,
       rpId: process.env.PASSKEY_RP_ID ?? new URL(WEB_URL).hostname,
       privateKey: privateKey.toString("base64"),
-      userHandle: Buffer.from("e2e-demo-manager").toString("base64"),
+      userHandle: Buffer.from(`e2e-demo-${who}`).toString("base64"),
       // The API refuses a signature count that does not go up; each run starts above the last.
       signCount: Math.floor(Date.now() / 1000),
     },
   });
 }
 
-/** Signs the demo manager in with their passkey: a session whose step-up is fresh. */
-export async function signInManagerWithPasskey(page: Page) {
-  await addManagerPasskey(page);
+/** Signs the demo manager (or owner) in with their passkey: a session whose step-up is fresh. */
+export async function signInManagerWithPasskey(page: Page, who: "manager" | "owner" = "manager") {
+  await addManagerPasskey(page, who);
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
   await page.waitForURL((url) => url.pathname === "/");

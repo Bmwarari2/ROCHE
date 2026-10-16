@@ -27,11 +27,11 @@ pnpm --filter @harbour/web dev  # web on http://localhost:3000
 Demo sign-ins (password `correct horse battery staple`): `owner@example.invalid`,
 `manager@example.invalid`, `nurse@example.invalid`, `carer@example.invalid`. Leave
 `HARBOUR_DEMO_MFA` unset to require TOTP or a passkey, as in every real environment. For the web
-journeys add `HARBOUR_DEMO_E2E_PASSKEY=1`: it gives the demo manager a passkey whose key is derived
+journeys add `HARBOUR_DEMO_E2E_PASSKEY=1`: it gives the demo manager and the demo owner each a passkey whose key is derived
 from a published phrase, which `apps/web/e2e/support.ts` loads into Chromium's virtual
 authenticator so step-up journeys confirm with a second factor (ADR-0072). Local tests only: that
 key is public and grants MFA and step-up (break-glass, statutory notifications, export) as the
-manager, and `HARBOUR_DEMO_MFA=off` opens care records with a password alone. So `seed-users`
+manager or the owner, and `HARBOUR_DEMO_MFA=off` opens care records with a password alone. So `seed-users`
 refuses both unless `NODE_ENV` is `development` or `test`, `HARBOUR_ENV` is not `dev`, `staging` or
 `pilot`, every database URL points at `localhost`, `127.0.0.1` or `::1` (or the `postgres` service
 container when `CI=true`), and the demo manager is linked in the demo tenant
@@ -66,6 +66,7 @@ because the PowerSync rules engine uses `using` declarations (configured in each
 | --- | --- |
 | New migration | `cd packages/db && npx drizzle-kit generate --name=<change>` (see the `add-migration` skill) |
 | Reset the local database | `pnpm db:reset && pnpm db:migrate && pnpm db:seed` |
+| Run the export worker's job once (no worker running; the export journey does this) | `pnpm --filter @harbour/api exports:run` |
 | Regenerate the OpenAPI document and typed client | `pnpm --filter @harbour/api openapi && pnpm --filter @harbour/contracts generate:client` |
 | Regenerate the permission matrix | `pnpm --filter @harbour/domain permissions:doc` |
 | Storybook | `pnpm storybook` |
