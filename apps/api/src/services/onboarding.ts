@@ -10,6 +10,8 @@ import {
   retentionDecision,
   role,
   roleAssignment,
+  subProcessorNotice,
+  subProcessorResponse,
   type Transaction,
   type tenant,
   tenantSettingDecision,
@@ -23,6 +25,8 @@ import {
   type Permission,
   type PersonStatus,
   type RetentionDecisionKind,
+  type StoredNoticeResponse,
+  subProcessorAcknowledgementsFrom,
   subProcessorsInUse,
   tenantDefaultRateKeys,
   touchesCareRecords,
@@ -38,11 +42,9 @@ import { roleHolders, roleInForce } from "./role-holders";
 /**
  * The organisation's state as the onboarding checklist reads it (platform-completions.md rules
  * 26 and 27; `onboardingChecklist`). Everything comes from records, never a box ticked. Where the
- * schema does not hold a fact yet, the state says so plainly rather than guessing done:
- * sub-processor acknowledgements arrive with the notices (rules 24 and 25), device modes and
- * device management with the kiosk work, the sample flag with sample data mode (rules 29 to 32)
- * (both unknown until then, so their go-live items stay open),
- * and the opt-out check date with the people module, so until then every current person counts as
+ * schema does not hold a fact yet, the state says so plainly rather than guessing done: device
+ * modes and device management arrive with the kiosk work, the sample flag with sample data mode
+ * (rules 29 to 32; both unknown until then, so their go-live items stay open), and the opt-out check date with the people module, so until then every current person counts as
  * not checked, and a recorded "no decision in place" resuscitation statement counts only once the
  * care module stores one.
  */
@@ -250,8 +252,28 @@ export async function onboardingStateFor(
       capabilities: config.capabilities,
       aiProvider: config.aiProvider,
     }),
-    subProcessorAcknowledgements: [],
-    subProcessorChangedAt: {},
+    subProcessorAcknowledgements: subProcessorAcknowledgementsFrom(
+      (await tx.select().from(subProcessorResponse)).map((r) => ({
+        subProcessorKey: r.subProcessorKey,
+        noticeId: r.noticeId,
+        kind: r.kind as StoredNoticeResponse["kind"],
+        grounds: r.grounds,
+        resolution: r.resolution as StoredNoticeResponse["resolution"],
+        respondedAt: r.respondedAt,
+      })),
+    ),
+    // When each sub-processor's entry last changed: its latest notice.
+    subProcessorChangedAt: Object.fromEntries(
+      (
+        await tx
+          .select({
+            key: subProcessorNotice.subProcessorKey,
+            at: max(subProcessorNotice.announcedAt),
+          })
+          .from(subProcessorNotice)
+          .groupBy(subProcessorNotice.subProcessorKey)
+      ).flatMap((r) => (r.at ? [[r.key, r.at]] : [])),
+    ),
     dataOptOut: {
       usesDataBeyondDirectCare: t.usesDataBeyondDirectCare,
       peopleNotChecked: people.length,

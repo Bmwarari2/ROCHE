@@ -44,6 +44,8 @@ const APPEND_ONLY_TABLES = [
   "tenant_setting_decision",
   "retention_decision",
   "dcb0160_record",
+  "sub_processor_notice",
+  "sub_processor_response",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];
