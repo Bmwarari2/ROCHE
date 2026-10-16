@@ -690,8 +690,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
       `POST /v1/members` (an invited member with one role, step-up, `app.may_assign_role` then
       `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
       (row-level security on adding members and role assignments; numbered after #69's 0059, so
-      it merges after #69). Next: the managers' invitation screens in apps/web
-      (`feat/web-invitation-screens`, stacked). #71 security review: (M1, fixed) giving a role
+      it merges after #69). Web part (`feat/web-invitation-screens`, stacked on it): Team in the
+      navigation for holders of `platform.user.manage` (`/settings/team`): the members it reaches
+      at the chosen location, each with their state and their latest invitation's as an icon and
+      a word; invite someone (name, work address, a role and where, checked with `CreateMember`
+      and the roles the manager may give); a member's page with their invitations, sending again
+      only while they are still invited and withdrawing only an open one, each after a
+      confirmation; Playwright with axe on every state (`team.spec.ts`). Accepted and expired
+      invitations are not reached in the journey (they need the emailed link or a day to pass);
+      their chips are unit tested. #71 security review: (M1, fixed) giving a role
       counts only the giver's own roles, never an access grant (`app.holds_role_permission_at`),
       so acting up never becomes a lasting role. Follow-ups: (1) the members list is narrowed in
       the application only (`membersReached`), as the invitation routes are; the database lets

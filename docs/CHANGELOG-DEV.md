@@ -2111,3 +2111,15 @@ append-only.
   (M1); a retry with another name is 409; follow-ups logged in STATUS.
 
 **Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).
+
+## 2026-10-17: The managers' team and invitation screens (PLAT-004)
+
+- Team in the navigation for holders of `platform.user.manage`: the members reached at the
+  chosen location with their state and latest invitation as an icon and a word; invite someone
+  (name, work address, role and where, checked with `CreateMember`); a member's invitations with
+  send again (still invited only) and withdraw (pending only), each after a confirmation.
+- Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: platform.md (As built), feature register, STATUS.
+
+**Tests**: `apps/web/src/lib/team.test.ts` (24); `apps/web/e2e/team.spec.ts` (4, axe on every
+state).

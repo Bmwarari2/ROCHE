@@ -17,6 +17,7 @@ import {
   LogOut,
   ShieldCheck,
   TriangleAlert,
+  UserPlus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -47,6 +48,8 @@ export interface ShellFrameLabels {
   readonly incidents?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
+  /** Shown only to people who invite and manage staff (platform.user.manage). */
+  readonly team?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -81,6 +84,7 @@ function currentSection(pathname: string): string {
   }
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -187,6 +191,16 @@ export function ShellFrame({
             label: labels.downtime,
             href: "/downtime",
             icon: <CloudOff {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.team
+      ? [
+          {
+            id: "team",
+            label: labels.team,
+            href: "/settings/team",
+            icon: <UserPlus {...icon} />,
           },
         ]
       : []),
