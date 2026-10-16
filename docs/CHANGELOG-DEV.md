@@ -1979,3 +1979,10 @@ to set one up first.
 
 **Tests**: `step-up-factor.test.ts` (new, 65), and the step-up cases in `api`, `incidents`,
 `downtime`, `flags-and-sessions`, `device-integrity` and `people-lifecycle` now age the factor too.
+
+After #63 security review round 1: the code that completes a first enrolment no longer records a
+session factor, so someone with only the password of an account with no factor cannot enrol their
+own authenticator and step up at once (they sign in again with it). Step-up freshness is judged in
+SQL (`now() - max(created_at) <= window`, inclusive). The domain's `lastMfaSignInAt` inputs are now
+`stepUpAt`. New tests: no factor enrolled, About me links, residents' money at exit, task links,
+exact statuses, an in-session code and a backup code refreshing step-up, and the five-code limit.

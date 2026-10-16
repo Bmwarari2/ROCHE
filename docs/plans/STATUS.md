@@ -666,6 +666,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
       given `stepUpAt` when their routes are built; the web could offer an in-place code prompt
       instead of a full sign-in; mobile (paused) must send step-up actions through the same
       confirmation.
+    - #63 security review round 1: the code completing a first enrolment records no factor (M1);
+      step-up freshness is judged in SQL on the database's clock (L1); the domain inputs are
+      `stepUpAt` and a source test checks every `authorise` call (L2); more HTTP tests (L3).
 
 ## Human actions outstanding
 
