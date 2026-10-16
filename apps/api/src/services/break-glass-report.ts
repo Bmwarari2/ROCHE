@@ -60,8 +60,19 @@ export async function eventsInWeek(
     })
     .from(breakGlassEvent)
     .innerJoin(person, eq(person.id, breakGlassEvent.personId))
-    .where(and(gte(breakGlassEvent.openedAt, week.start), lt(breakGlassEvent.openedAt, week.end)));
-  return rows.map((r) => ({ ...r, reasonCode: r.reasonCode as BreakGlassReasonCode | null }));
+    .where(
+      and(
+        // Openings only: break-glass searches name no one person (a later step lists them).
+        eq(breakGlassEvent.kind, "open"),
+        gte(breakGlassEvent.openedAt, week.start),
+        lt(breakGlassEvent.openedAt, week.end),
+      ),
+    );
+  return rows.flatMap((r) =>
+    r.personId
+      ? [{ ...r, personId: r.personId, reasonCode: r.reasonCode as BreakGlassReasonCode | null }]
+      : [],
+  );
 }
 
 /** Builds and stores last week's report for each location of one tenant (tenant-wide scope). */

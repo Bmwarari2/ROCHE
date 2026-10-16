@@ -229,6 +229,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/search/break-glass": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Find a person outside your access, with a reason
+     * @description Needs step-up, a reason code and a typed reason. NHS number or full name, whole words only; at most 10 people, identity only. Alerts the Registered Manager and the data protection lead, is limited per day, and is audited with ids only; the reason is kept in the break-glass record.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RunBreakGlassSearch"];
+        };
+      };
+      responses: {
+        /** @description People found */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BreakGlassSearchResults"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/me/sessions": {
     parameters: {
       query?: never;
@@ -20201,6 +20271,35 @@ export interface components {
       types?: components["schemas"]["SearchEntityType"][];
       includeArchived?: boolean;
     };
+    BreakGlassSearchResults: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+        preferredName: string | null;
+        dateOfBirth: string | null;
+        nhsNumber: string | null;
+        status: components["schemas"]["PersonStatus"];
+        sameName: boolean;
+      }[];
+      total: number;
+      /** Format: uuid */
+      breakGlassId: string;
+    };
+    RunBreakGlassSearch: {
+      query: string;
+      reasonCode: components["schemas"]["BreakGlassReasonCode"];
+      reason: string;
+      includeArchived?: boolean;
+    };
+    /** @enum {string} */
+    BreakGlassReasonCode:
+      | "emergency_care"
+      | "covering_another_area"
+      | "safeguarding"
+      | "incident_or_complaint"
+      | "request_from_professional"
+      | "other";
     DeviceSessionList: {
       items: components["schemas"]["DeviceSession"][];
     };
@@ -20343,14 +20442,6 @@ export interface components {
       justification: string;
       reasonCode?: components["schemas"]["BreakGlassReasonCode"];
     };
-    /** @enum {string} */
-    BreakGlassReasonCode:
-      | "emergency_care"
-      | "covering_another_area"
-      | "safeguarding"
-      | "incident_or_complaint"
-      | "request_from_professional"
-      | "other";
     PersonStatusChangeResult: {
       /** Format: uuid */
       personId: string;

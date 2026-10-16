@@ -669,7 +669,7 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 | `app.search_vector(text)` and `app.harbour_search` | The terms as an unstemmed `tsvector` (a copy of the `simple` configuration), so queries use `to_tsquery('app.harbour_search', $n)` with the bound queries from `normaliseSearchQuery` |
 | Generated columns | `person.search_names` (given, family and preferred names) and `person.search_room`; `tenant_user.search_name` (display name only); `document.search_title` (title and display file name, never contents); `care_note.search_body`. Plain-text copies of their columns: purged with the row, internal in the export catalogue, and beyond crypto-shredding if their source is later encrypted (H-380). Adding them rewrites the four tables under an exclusive lock: before go-live with the release, then only in a maintenance window or by the batched alternative ([search-index runbook](../runbooks/search-index.md)) |
 | Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
-| Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
+| Break-glass search | Migration 0070 (part 4): `break_glass_event.kind` (`open` or `search`); a search names no person and its `expires_at` is when it ran (a CHECK), so it can never widen the break-glass scope |
 
 ### Part 2, the route
 
@@ -696,7 +696,20 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 | The box | A `search` landmark with a form that posts (so pressing Enter before the scripts load never puts the words in the address), a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
 | Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word, and their communication needs; a same-name warning in the warning style, saying to check the photo and the date of birth or age, whichever is shown (HZ-001). "Searching" is announced; a capped search asks for another word. Each result links to the person, the document or the person's notes |
 | Refusals | In words at the box: nothing typed, a mistyped NHS number, no shift recorded, access ended, people who have left without the permission, MFA |
-| Follow-ups | Break-glass search and its dialog; offline search on mobile labelled "This device only" |
+| Follow-ups | Offline search on mobile labelled "This device only"; the weekly break-glass report listing searches beside the openings |
+
+### Part 4, break-glass search
+
+`POST /v1/search/break-glass` and "Search outside your access" on `/search`
+(`feat/platform-break-glass-search`; migration 0070, after other lanes' 0067 to 0069).
+
+| Piece | Built as |
+| --- | --- |
+| Who | `platform.search.use` and `people.person.break_glass`, with step-up (a second factor within the window), refused and audited as opening a record is. A reason code and a typed reason of 20 to 1,000 characters; a full name (two words or more, whole words, names only, never rooms) or an exact NHS number; fewer than `break_glass.search_max_per_day` such searches by the member in 24 hours |
+| Reading | Across the organisation, never another (tenant first, under forced RLS), at most 10 people, identity only: name, preferred name, date of birth, NHS number and status, never location or room. Read-only: a result links to the person's address, where the ordinary break-glass step opens the record |
+| Record and alert | A `search` break-glass record holds the typed reason and reason code; it opens nothing. The Registered Manager of each home whose people were shown and the organisation's data protection lead are told in generic words (never the searcher); with no one to tell, an `platform.search.break_glass_alert_unrouted` audit event. At the daily limit the search is refused (429), audited, and the data protection lead told |
+| Audit | `platform.search.break_glass` with `searchAuditEvent` and the break-glass record's id (people shown as care-record views); never the words or the reason. Refusals `platform.search.refused` with the problem and `breakGlass: true` |
+| Web | A sheet with the query, the reason code and the reason; problems at their fields; the passkey notice after a password sign-in; results read-only with same-name warnings |
 
 ## 11. Open questions
 

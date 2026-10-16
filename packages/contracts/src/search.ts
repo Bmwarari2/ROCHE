@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PersonStatus } from "./people";
+import { BreakGlassReasonCode, PersonStatus } from "./people";
 
 /**
  * Permission-aware search (PLAT-013; platform-completions.md rules 1 to 8; ADR-0070; HZ-001,
@@ -108,3 +108,38 @@ export const SearchResults = z
   .meta({ id: "SearchResults" });
 export type SearchResults = z.infer<typeof SearchResults>;
 export type SearchResultItem = z.infer<typeof SearchResultItem>;
+
+/**
+ * A break-glass search (platform-completions.md rule 9): a person outside the user's scope, by NHS
+ * number or full name (whole words only), with a reason code and a typed reason kept in the
+ * break-glass record, never in the audit event.
+ */
+export const RunBreakGlassSearch = z
+  .object({
+    query: z.string().max(200),
+    reasonCode: BreakGlassReasonCode,
+    reason: z.string().max(1000),
+    includeArchived: z.boolean().optional(),
+  })
+  .meta({ id: "RunBreakGlassSearch" });
+
+export const BreakGlassSearchResults = z
+  .object({
+    /** Identity only, read-only: location and room appear once the record is opened. */
+    items: z.array(
+      z.object({
+        id: uuid,
+        name: z.string(),
+        preferredName: z.string().nullable(),
+        dateOfBirth: z.string().nullable(),
+        nhsNumber: z.string().nullable(),
+        status: PersonStatus,
+        sameName: z.boolean(),
+      }),
+    ),
+    total: z.number().int(),
+    /** The break-glass record holding the reason; opening a result is a separate break-glass step. */
+    breakGlassId: uuid,
+  })
+  .meta({ id: "BreakGlassSearchResults" });
+export type BreakGlassSearchResults = z.infer<typeof BreakGlassSearchResults>;

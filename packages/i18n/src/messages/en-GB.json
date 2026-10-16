@@ -1767,5 +1767,20 @@
   "platform.search.noteTitle": "Note about {name}",
   "platform.search.searching": "Searching",
   "platform.search.communication": "Communication needs: {needs}",
-  "platform.search.capped": "More than {limit, number} matches: add another word to narrow your search."
+  "platform.search.capped": "More than {limit, number} matches: add another word to narrow your search.",
+  "platform.breakGlassSearch.cardTitle": "Someone not in your search",
+  "platform.breakGlassSearch.cardBody": "If you must find a person outside your access, for example in an emergency, you can search with break-glass. Your Registered Manager and data protection lead are told, and it is limited each day.",
+  "platform.breakGlassSearch.title": "Search outside your access",
+  "platform.breakGlassSearch.body": "Search by full name or NHS number. Tell us why: your Registered Manager and data protection lead will be told. Results show who the person is, never where they live; open a record with break-glass on the record itself.",
+  "platform.breakGlassSearch.query": "Full name or NHS number",
+  "platform.breakGlassSearch.queryHint": "First and last name as whole words, or the 10-digit NHS number.",
+  "platform.breakGlassSearch.reasonCode": "Why you need to find them",
+  "platform.breakGlassSearch.chooseReason": "Choose a reason",
+  "platform.breakGlassSearch.reasonOption": "{code, select, emergency_care {Emergency care} covering_another_area {Covering another area} safeguarding {Safeguarding} incident_or_complaint {An incident or complaint} request_from_professional {A request from a professional} other {Something else}}",
+  "platform.breakGlassSearch.reasonCodeRequired": "Choose the reason that fits best.",
+  "platform.breakGlassSearch.submit": "Search with break-glass",
+  "platform.breakGlassSearch.stepUp": "Searching outside your access needs your passkey or authenticator code. Sign in again, then search again; what you typed is not kept.",
+  "platform.breakGlassSearch.limit": "You have made the most break-glass searches allowed in 24 hours. The data protection lead has been told.",
+  "platform.breakGlassSearch.readOnly": "For identifying the person only. To read their record, open it and use break-glass there.",
+  "platform.breakGlassSearch.none": "No one matches. Check the full name or the NHS number."
 }

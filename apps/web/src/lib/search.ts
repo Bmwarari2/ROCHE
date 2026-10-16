@@ -8,6 +8,25 @@ import type { SearchResultItem, SearchResults } from "@harbour/contracts";
 
 export const SEARCH_USE = "platform.search.use";
 export const SEARCH_ARCHIVED = "platform.search.archived";
+export const BREAK_GLASS = "people.person.break_glass";
+
+/** Break-glass search (rule 9): the reason codes and the typed reason's bounds the API checks. */
+export const BREAK_GLASS_REASON_CODES = [
+  "emergency_care",
+  "covering_another_area",
+  "safeguarding",
+  "incident_or_complaint",
+  "request_from_professional",
+  "other",
+] as const;
+export type BreakGlassReasonCode = (typeof BREAK_GLASS_REASON_CODES)[number];
+export const BREAK_GLASS_REASON_MIN = 20;
+export const BREAK_GLASS_REASON_MAX = 1000;
+
+/** The break-glass search is offered with search and the break-glass permission. */
+export function breakGlassSearchShown(permissions: readonly string[]): boolean {
+  return permissions.includes(SEARCH_USE) && permissions.includes(BREAK_GLASS);
+}
 export const SEARCH_MAX_LENGTH = 200;
 export const SEARCH_KINDS = ["all", "person", "staff", "document", "note"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];

@@ -348,7 +348,13 @@ export const breakGlassEvent = pgTable(
     id: id(),
     tenantId: tenantId(),
     tenantUserId: uuid("tenant_user_id").notNull(),
-    personId: uuid("person_id").notNull(),
+    /**
+     * `open` (a record opened outside scope) or `search` (a break-glass search, platform-completions.md
+     * rule 9): a search names no one person, and its `expires_at` is when it ran, so it opens nothing.
+     */
+    kind: text("kind").notNull().default("open"),
+    /** The person opened; null for a search, whose people shown are in its audit event. */
+    personId: uuid("person_id"),
     justification: text("justification").notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -361,6 +367,11 @@ export const breakGlassEvent = pgTable(
   },
   (t) => [
     personFk("break_glass_person_fk", t),
+    check(
+      "break_glass_kind",
+      sql`kind IN ('open', 'search') AND (kind = 'open') = (person_id IS NOT NULL)
+        AND (kind = 'open' OR expires_at = opened_at)`,
+    ),
     check(
       "break_glass_reason_code",
       sql`reason_code IS NULL OR reason_code IN (${BREAK_GLASS_REASON_SQL})`,
