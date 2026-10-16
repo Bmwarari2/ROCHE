@@ -19131,6 +19131,295 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/onboarding/setting-decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a decision on a setting Harbour chose
+     * @description platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SettingDecision"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OnboardingDecisionRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/onboarding/retention-decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a decision on how long a kind of record is kept
+     * @description platform.onboarding.manage. Accepts or lengthens a class with a default, or sets the period of, or marks not used, a class the organisation's policy sets (checkRetentionDecision: lengthening or setting needs the organisation's own period first, longer than the default when lengthened; 422 decision_not_recordable otherwise). The staff file option is chosen on its own route. Append-only. Audited (platform.retention.decided, with the class and kind), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RetentionDecision"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OnboardingDecisionRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/onboarding/staff-file-option": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Choose how long staff files are kept
+     * @description platform.onboarding.manage. One of the schedule's two staff file options, for all staff files. Send the organisation record's `version` as read (409 when stale). Audited (platform.retention.decided, with the option).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StaffFileOptionChoice"];
+        };
+      };
+      responses: {
+        /** @description Chosen */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffFileOptionChosen"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/onboarding/dcb0160": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the organisation's DCB0160 assessment
+     * @description platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one (422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["Dcb0160Recording"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OnboardingDecisionRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -25326,6 +25615,35 @@ export interface components {
       /** @enum {string|null} */
       aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
       expectedVersion: number;
+    };
+    OnboardingDecisionRecorded: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      decidedAt: string;
+    };
+    SettingDecision: {
+      rateKey: string;
+      /** @enum {string} */
+      kind: "accepted" | "set";
+    };
+    RetentionDecision: {
+      recordClass: string;
+      /** @enum {string} */
+      kind: "accepted" | "lengthened" | "period_set" | "not_used";
+    };
+    StaffFileOptionChosen: {
+      /** @enum {string} */
+      option: "staff_file.after_leaving" | "staff_file.to_75th_birthday";
+      version: number;
+    };
+    StaffFileOptionChoice: {
+      /** @enum {string} */
+      option: "staff_file.after_leaving" | "staff_file.to_75th_birthday";
+      expectedVersion: number;
+    };
+    Dcb0160Recording: {
+      safetyCaseVersion: string;
     };
   };
   responses: never;

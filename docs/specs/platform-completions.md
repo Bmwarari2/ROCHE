@@ -573,8 +573,17 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `checkRetentionDecision` (rule 26's kinds per class; lengthening or setting needs the
   organisation's own period, a lengthened one longer than the default; the staff file option on
   its own) and `checkDcb0160Recording` (the current safety case only), table-driven.
-- Next: the decision routes, then `GET /v1/onboarding`, which works the checklist out from these
-  records and the rest of the organisation's state.
+- Decision routes (`apps/api/src/routes/onboarding.ts`, `platform.onboarding.manage`): `POST
+  /v1/onboarding/setting-decisions`, `POST /v1/onboarding/retention-decisions`, `PUT
+  /v1/onboarding/staff-file-option` (the organisation record's `expectedVersion`) and `POST
+  /v1/onboarding/dcb0160`, each audited (`platform.setting.decided`, `platform.retention.decided`,
+  `platform.dcb0160.recorded`), refusals as 422 `decision_not_recordable` and audited too.
+  `SAFETY_CASE_VERSION` in the API's configuration names the safety case for the release.
+- Default taken (section 20 rule 2): decisions, including the clinical settings and the DCB0160
+  record, are made by holders of `platform.onboarding.manage` (the owner), as section 3 says;
+  whether the clinical ones need the clinical lead's own permission is for the CSO (H-122).
+- Next: `GET /v1/onboarding`, which works the checklist out from these records and the rest of
+  the organisation's state.
 
 ## 11. Open questions
 
