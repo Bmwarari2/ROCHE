@@ -137,13 +137,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
-   - Slice 12 part 1, the family feed schema (`feat/comms-family-feed`, migration 0061, after
-     #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
-     `feed_item_withdrawal`, `feed_view`; family sessions (`app.family`, scope `none`);
-     `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role: run
-     `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity test.
-     Next, the API part stacked on it (`feat/comms-family-feed-api`), then part 1b, publishing
-     from source records, then part 2, the web.
+   - Slice 12 part 1, the family feed schema and API (`feat/comms-family-feed` and the stacked `feat/comms-family-feed-api`, migration 0061,
+     after #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
+     `feed_item_withdrawal`, `feed_view`; portal sessions resolved from the links (`app.family`,
+     scope `none`); `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role:
+     run `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity
+     test; `GET /v1/family/feed`, the portal link routes, `GET /v1/people/{id}/feed` and
+     `POST /v1/feed-items/{id}/withdraw`. Next, part 1b: publishing from source records
+     (`POST /v1/people/{id}/feed` with `composeFeedItem`, `care_note_share`, the publishing holds
+     and the photo basis, which the feed reads as missing until then, so photos stay closed);
+     then part 2, the web feed and staff screens; then channels, notifications and visit
+     booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
+     (`tenant_user`, `location`, roles) are readable by any member including a portal session,
+     as for staff with scope `none`, and need a review before the portal goes live.
    - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
      migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,

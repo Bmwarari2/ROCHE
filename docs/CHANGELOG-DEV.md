@@ -2145,3 +2145,14 @@ email, cross-tenant).
 **Tests**: `packages/db/test/family-feed.test.ts` (23: 17 table-driven parity cases between the SQL
 and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
 list.
+
+## 2026-10-17: Slice 12 part 1, the family feed API (COMMS-001)
+
+- A member with a `family_portal_user` link is resolved as a portal session (portal roles only,
+  scope `none`, `app.family`).
+- API: `GET /v1/family/feed` (portal sessions only, a `feed_view` per entry, audit with ids only,
+  `no-store`); portal links (`GET`/`POST /v1/people/{id}/family-portal-links`, `.../revoke`);
+  `GET /v1/people/{id}/feed`; `POST /v1/feed-items/{id}/withdraw`.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
+
+**Tests**: `apps/api/test/family-feed.test.ts` (8).

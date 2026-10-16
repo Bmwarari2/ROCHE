@@ -488,6 +488,7 @@ export * from "./client-id";
 export * from "./devices";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
+export * from "./family-feed";
 export * from "./handover";
 export * from "./invitations";
 export * from "./letters";
