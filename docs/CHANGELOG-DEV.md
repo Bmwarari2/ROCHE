@@ -1980,3 +1980,13 @@ X-Forwarded-For hop outside `TRUSTED_PROXY_CIDRS` (`clientAddress`, mirroring th
   list every problem at once; refused prints say why in words that take focus, with when the
   pack can be opened again; "Download the pack to print (PDF)", described by the step-up hint;
   breadcrumbs carry `aria-current`; axe on each open form and refusal.
+
+## 2026-10-17: Slice 11 web part B, paper records on the care record forms (OPS-028)
+
+- "When" on the notes, chart, body map, activity and visit forms offers "From a paper downtime
+  form" while the person's location has an open or closed outage: the outage, the date and time
+  written on the form with nothing filled in, the reference, and why when it is outside the
+  outage (HZ-017, H-268).
+- The API's refusals at their fields: why an entry in an outage is not from paper, the H-208
+  reason on correcting a paper note, a reconciled outage's record kept for review (HZ-006), and
+  one correction only.
