@@ -29,6 +29,7 @@ import {
   withdrawDeathNotifications,
 } from "../services/death-notifications";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
+import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
@@ -40,6 +41,7 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import {
   ESCALATION_UNROUTED_ACTION,
   type EscalationRun,
@@ -550,6 +552,33 @@ export async function buildDowntimePacks(deps: TaskDeps, now = new Date()): Prom
   );
   if (built > 0) deps.logger.info({ built }, "downtime packs built");
   return built;
+}
+
+/**
+ * Evidence pack bundles (quality.md rule 10; HZ-050): deleted once the pack is revoked or
+ * discarded or its link has ended (revoked or expired); the manifest stays.
+ */
+export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const deleted = await eachTenant(deps, "evidence-bundle-sweep", (tx, tenantId) =>
+    sweepEvidenceBundles(tx, tenantId, now),
+  );
+  if (deleted > 0) deps.logger.info({ deleted }, "evidence pack bundles deleted");
+  return deleted;
+}
+
+/**
+ * Revised statements of purpose past their regulation 12(3) date (quality.md rule 15): the
+ * holders of safety.notification.submit are told once, through the overdue chain.
+ */
+export async function escalateStatementsOfPurpose(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const alerted = await eachTenant(deps, "statement-of-purpose-overdue", (tx, tenantId) =>
+    escalateOverdueStatements(tx, tenantId, now),
+  );
+  if (alerted > 0) deps.logger.info({ alerted }, "overdue statement of purpose revisions alerted");
+  return alerted;
 }
 
 /**

@@ -43,6 +43,18 @@ export function formatUkDateTime(instant: Date): string {
   return `${formatUkDate(instant)} ${formatUkTime(instant)}`;
 }
 
+/**
+ * As `formatUkDateTime`, with "GMT" or "BST" after the time, so a time in the repeated hour when
+ * the clocks go back (01:00 to 01:59 in late October) reads one way only (HZ-050: a pack read by
+ * someone outside the provider, with no other way to tell the two apart).
+ */
+export function formatUkDateTimeWithZone(instant: Date): string {
+  const w = toUkWallClock(instant);
+  const asUtc = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second);
+  const wholeSeconds = Math.floor(instant.getTime() / 1000) * 1000;
+  return `${formatUkDateTime(instant)} ${asUtc === wholeSeconds ? "GMT" : "BST"}`;
+}
+
 interface WallClock {
   readonly year: number;
   readonly month: number;
