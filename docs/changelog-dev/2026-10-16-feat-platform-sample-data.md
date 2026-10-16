@@ -57,3 +57,10 @@ Branch `feat/platform-sample-data`, PR #98. Migration 0069, after #95 (0067) and
   (`downtime_pack`, `escalation_policy_link`, `outage`). It also checks that the list runs
   children before parents and matches the role's DELETE grants exactly.
 - Only a released legal hold is deleted, so a hold placed after the check is never removed.
+
+## CI fix
+
+- The onboarding journey expected "Sample data is removed" to block go-live, as it did while
+  Harbour could not read it. It now reads the records: the demo organisation has no batch in
+  place, so the item is done. The journey checks the device enrolment item for "cannot check yet",
+  and the sample data web journey shows the item blocking while a batch is loaded.
