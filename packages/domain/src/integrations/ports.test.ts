@@ -72,6 +72,8 @@ describe("outboundBodyProblem (an email body carries no link and no NHS number)"
     ["See www.example.invalid", "Body contains a link."],
     ["NHS number 999 123 4567", "Body looks like it contains an NHS number."],
     ["Call the home on 01632 960000.", null],
+    ["NHS number 999-123-4567", "Body looks like it contains an NHS number."],
+    ["Write to mailto:someone@example.invalid", "Body contains a link."],
   ])("%s", (body, expected) => {
     expect(outboundBodyProblem(body)).toBe(expected);
   });

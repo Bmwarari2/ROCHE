@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { LetterList, LetterPreview, LetterRequest, SendLetter } from "@harbour/contracts";
 import {
   contact,
+  incident,
   letter,
   letterTemplate,
   letterTemplateVersion,
@@ -13,16 +15,23 @@ import {
   type MergeFieldKey,
   type RenderedTemplate,
   renderTemplate,
+  toUkWallClock,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requirePermission,
+  type TenantAccess,
+  usablePermissions,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { destroyingOnFailure, storeDocument } from "../services/documents";
-import { letterValues, SENDER_TYPED_FIELDS } from "../services/letters";
+import { letterValues, type PersonRow, SENDER_TYPED_FIELDS } from "../services/letters";
 import { renderPdf } from "../services/pdf";
 import { domainVersion } from "./letter-templates";
 import {
@@ -39,10 +48,11 @@ import { audit } from "./people-shared";
  * Letters and emails from approved templates (comms.md rules 24 and 25 and section 5; COMMS-007;
  * ADR-0051; hazard HZ-051). `comms.letter.manage` in the person's scope, with MFA (a letter holds
  * the person's details); an incident follow-up also needs `safety.incident.manage`. Values come from
- * the record, except the admission and fee details the sender types. Preview stores nothing; send
- * stores the letter row (field keys, never an email's content), the rendered PDF for a letter as a
- * document about the person, or the provider's message id for an email. Duty of candour letters
- * wait for the candour record's relevant person (STATUS).
+ * the record, except the admission and fee details the sender types. Preview stores nothing and
+ * shows who the letter is about; send must match the preview exactly (the version and a hash of the
+ * text) and stores the letter row (field keys only) and a posted letter's PDF as a document about
+ * the person. Sending email waits for the worker-based send (STATUS; HZ-051); duty of candour
+ * letters wait for the candour record's relevant person.
  */
 
 const MANAGE = "comms.letter.manage";
@@ -73,11 +83,22 @@ async function letterAccess(c: Context<AppEnv>, body: Request | null): Promise<T
   return access;
 }
 
+const ukToday = () => {
+  const w = toUkWallClock(new Date());
+  return `${w.year}-${String(w.month).padStart(2, "0")}-${String(w.day).padStart(2, "0")}`;
+};
+
+/** What the sender confirmed: the subject and text exactly as previewed (SHA-256, hex). */
+const textHash = (rendered: RenderedTemplate) =>
+  createHash("sha256")
+    .update(`${rendered.subject ?? ""}\n${rendered.text}`, "utf8")
+    .digest("hex");
+
 interface Made {
   readonly rendered: RenderedTemplate;
   readonly versionId: string;
+  readonly person: PersonRow;
   readonly recipientName: string;
-  readonly recipientEmail: string | null;
   readonly contactId: string | null;
 }
 
@@ -89,8 +110,17 @@ async function make(
   personId: string,
   body: Request,
 ): Promise<Made> {
+  const refuse = (problem: HttpProblem, reason: string) =>
+    refused(problem, action, personId, reason);
   const [subject] = await tx.select().from(person).where(eq(person.id, personId));
-  if (!subject) throw refused(problems.notFound(), action, personId, "not_found_or_out_of_scope");
+  if (!subject) throw refuse(problems.notFound(), "not_found_or_out_of_scope");
+  // No template kind is written for after a death yet; candour, which is, is refused below.
+  if (subject.status === "deceased") {
+    throw refuse(
+      problems.invalid("This person has died. Letters about them are not made here."),
+      "person_deceased",
+    );
+  }
   const [template] = await tx
     .select()
     .from(letterTemplate)
@@ -102,20 +132,16 @@ async function make(
         .where(eq(letterTemplateVersion.id, template.currentVersionId))
     : [];
   if (!template || !version) {
-    throw refused(
+    throw refuse(
       new HttpProblem(409, "template_not_in_use", "This template has no approved version in use."),
-      action,
-      personId,
       "template_not_in_use",
     );
   }
   if (template.kind === "duty_of_candour") {
-    throw refused(
+    throw refuse(
       problems.invalid(
         "Duty of candour letters are not made here yet: the candour record must name the relevant person first.",
       ),
-      action,
-      personId,
       "candour_not_supported",
     );
   }
@@ -123,38 +149,64 @@ async function make(
   const fields = checkTemplateDefinition(domain).fields;
   const namesIncident = fields.some((f) => f.startsWith("incident."));
   if (namesIncident !== Boolean(body.incidentId)) {
-    throw refused(
+    throw refuse(
       problems.invalid(
         namesIncident
           ? "Choose the incident this letter is about."
           : "This template is not about an incident.",
       ),
-      action,
-      personId,
       namesIncident ? "incident_required" : "incident_not_used",
     );
+  }
+  if (body.incidentId) {
+    const [found] = await tx
+      .select({ people: incident.personIds })
+      .from(incident)
+      .where(and(eq(incident.id, body.incidentId), isNull(incident.deletedAt)));
+    if (!found) throw refuse(problems.notFound(), "incident_not_found");
+    // Its free-text account may name everyone involved: a shared incident's letter would carry
+    // another resident's details (#72 review, HZ-051). A family-facing summary is a follow-up.
+    if (found.people.length > 1) {
+      throw refuse(
+        problems.invalid(
+          "This incident involves more than one person, so its account cannot go in a letter about one of them.",
+        ),
+        "incident_involves_others",
+      );
+    }
+    if (found.people[0] !== personId) {
+      throw refuse(
+        problems.invalid("This incident is not about this person."),
+        "incident_wrong_person",
+      );
+    }
   }
   const typed = body.values ?? {};
   const notTyped = Object.keys(typed).filter((k) => !SENDER_TYPED_FIELDS.has(k));
   if (notTyped.length > 0) {
-    throw refused(
+    throw refuse(
       problems.invalid(
         `These details come from the record and cannot be typed: ${notTyped.join(", ")}.`,
       ),
-      action,
-      personId,
       "value_not_typed",
     );
   }
   let recipient: typeof contact.$inferSelect | null = null;
   if (body.recipient.kind === "contact") {
-    const contactId = body.recipient.contactId;
+    // A current contact of this person only: not removed, and not past their authority's end.
     const [found] = await tx
       .select()
       .from(contact)
-      .where(and(eq(contact.id, contactId), eq(contact.personId, personId)));
+      .where(
+        and(
+          eq(contact.id, body.recipient.contactId),
+          eq(contact.personId, personId),
+          isNull(contact.deletedAt),
+          or(isNull(contact.validUntil), gte(contact.validUntil, ukToday())),
+        ),
+      );
     recipient = found ?? null;
-    if (!recipient) throw refused(problems.notFound(), action, personId, "contact_not_found");
+    if (!recipient) throw refuse(problems.notFound(), "contact_not_found");
   }
   const values = await letterValues(
     tx,
@@ -162,7 +214,7 @@ async function make(
       tenantId: access.tenantId,
       senderId: access.tenantUserId,
       person: subject,
-      contact: recipient ?? null,
+      contact: recipient,
       incidentId: body.incidentId ?? null,
       typed,
     },
@@ -170,10 +222,8 @@ async function make(
   );
   const result = renderTemplate(domain, { subjectPersonId: personId, values });
   if (!result.ok) {
-    throw refused(
+    throw refuse(
       problems.invalid(result.problems.map((p) => p.message).join(" ")),
-      action,
-      personId,
       result.problems.map((p) => p.problem).join(","),
     );
   }
@@ -185,23 +235,20 @@ async function make(
     rendered.channel === "email" &&
     (rendered.containsSpecialCategory || identifiers.length > 0)
   ) {
-    throw refused(
+    throw refuse(
       problems.invalid(
         "This email would carry health details or an identifier. Send it as a letter.",
       ),
-      action,
-      personId,
       "special_category_in_email",
     );
   }
-  const recipientName = recipient
-    ? `${recipient.givenName} ${recipient.familyName}`
-    : `${subject.givenName} ${subject.familyName}`;
   return {
     rendered,
     versionId: version.id,
-    recipientName,
-    recipientEmail: recipient ? recipient.email : null,
+    person: subject,
+    recipientName: recipient
+      ? `${recipient.givenName} ${recipient.familyName}`
+      : `${subject.givenName} ${subject.familyName}`,
     contactId: recipient?.id ?? null,
   };
 }
@@ -218,7 +265,7 @@ export const lettersRouter = createRouter()
       tags: ["comms"],
       summary: "Preview a letter or email (nothing is stored)",
       description:
-        "comms.letter.manage in the person's scope, with MFA; safety.incident.manage too for an incident letter. Renders the template's version in use with the person's details and lists the personal-data fields, for the check before sending (rule 25). Refusals say what is missing. Audited with field keys only.",
+        "comms.letter.manage in the person's scope, with MFA; safety.incident.manage too for an incident letter. Renders the template's version in use with the person's details and shows who it is about (name, room, photo) and the personal-data fields, for the check before sending (rule 25). Returns the version and a hash of the text, which the send must repeat. Refusals say what is missing. Audited with field keys only.",
       security,
       request: {
         params: PersonParam,
@@ -250,8 +297,18 @@ export const lettersRouter = createRouter()
           return out;
         }),
       );
+      const p = made.person;
       return c.json(
         {
+          templateVersionId: made.versionId,
+          textHash: textHash(made.rendered),
+          person: {
+            id: p.id,
+            fullName: `${p.givenName} ${p.familyName}`,
+            preferredName: p.preferredName,
+            roomLabel: p.roomLabel,
+            photoUrl: p.photoDocumentId ? `/v1/people/${p.id}/photo` : null,
+          },
           channel: made.rendered.channel,
           subject: made.rendered.subject,
           text: made.rendered.text,
@@ -268,9 +325,9 @@ export const lettersRouter = createRouter()
       method: "post",
       path: "/v1/people/{id}/letters",
       tags: ["comms"],
-      summary: "Send a letter or email",
+      summary: "Send a letter",
       description:
-        "As the preview, once the sender has confirmed it. A letter is rendered to PDF through the pack PDF writer (values as text, never markup) and stored as a document about the person; an email goes through the organisation's email provider to the contact's address and only the provider's message id is kept. The letter row holds the template version, recipient and field keys, never the content. Audited; outbox comms.letter.sent.",
+        "As the preview, with the preview's version and text hash: a letter that would differ from what was confirmed is refused (409). A letter is rendered to PDF through the pack PDF writer (values as text, never markup) and stored as a document about the person. Email is refused (422, email_sending_not_available) until the worker-based send exists. The letter row holds the template version, recipient and field keys, never the content. Audited; outbox comms.letter.sent.",
       security,
       request: {
         params: PersonParam,
@@ -288,69 +345,54 @@ export const lettersRouter = createRouter()
       const body = c.req.valid("json");
       const access = await letterAccess(c, body);
       const services = c.get("services");
-      // An email is sent once rendered, then recorded; a letter's document and row in one go.
-      const emailed = await withAuditedRefusal(c, access, () =>
-        withTenant(c, async (tx) => {
-          const made = await make(tx, access, A.sent, id, body);
-          if (made.rendered.channel !== "email") return { made, providerId: null };
-          if (!made.recipientEmail) {
-            throw refused(
-              problems.invalid("Choose a contact with an email address."),
-              A.sent,
-              id,
-              "no_email_address",
-            );
-          }
-          const adapter = await services.adapterFor(access.tenantId, "email", tx);
-          const result = await adapter.send({
-            idempotencyKey: c.get("requestId"),
-            title: made.rendered.subject ?? "",
-            link: null,
-            to: made.recipientEmail,
-            body: made.rendered.text,
-          });
-          if (!result.ok) {
-            throw refused(
-              new HttpProblem(
-                502,
-                "email_not_sent",
-                "The email could not be sent. Try again later.",
-              ),
-              A.sent,
-              id,
-              result.retryable ? "email_retryable" : "email_failed",
-            );
-          }
-          return { made, providerId: result.providerMessageId };
-        }),
-      );
       const letterId = await withAuditedRefusal(c, access, () =>
         destroyingOnFailure(services.storage, (storage) =>
           withTenant(c, async (tx) => {
-            const { made, providerId } = emailed;
-            let documentId: string | null = null;
-            if (made.rendered.channel === "letter") {
-              const bytes = renderPdf({
-                title: "Letter",
-                lines: made.rendered.text.split("\n").map((text) => ({ text })),
-                footer: (n, total) => `Page ${n} of ${total}.`,
-              });
-              const doc = await storeDocument(
-                tx,
-                { storage, scanner: services.scanner },
-                access.tenantId,
-                {
-                  bytes,
-                  declaredType: "application/pdf",
-                  category: "person_document",
-                  title: "Letter",
-                  fileName: "letter.pdf",
-                  personId: id,
-                  subjectType: "letter",
-                },
+            const made = await make(tx, access, A.sent, id, body);
+            if (
+              made.versionId !== body.templateVersionId ||
+              textHash(made.rendered) !== body.textHash
+            ) {
+              throw refused(
+                new HttpProblem(
+                  409,
+                  "letter_changed",
+                  "The letter has changed since you checked it. Preview it again.",
+                ),
+                A.sent,
+                id,
+                "preview_changed",
               );
-              documentId = doc.id;
             }
+            // A send then record across two steps could send twice or leave one unrecorded: email
+            // waits for the worker-based send (STATUS; HZ-051).
+            if (made.rendered.channel === "email") {
+              throw refused(
+                problems.invalid("Sending email is not available yet. Send it as a letter."),
+                A.sent,
+                id,
+                "email_sending_not_available",
+              );
+            }
+            const bytes = renderPdf({
+              title: "Letter",
+              lines: made.rendered.text.split("\n").map((text) => ({ text })),
+              footer: (n, total) => `Page ${n} of ${total}.`,
+            });
+            const doc = await storeDocument(
+              tx,
+              { storage, scanner: services.scanner },
+              access.tenantId,
+              {
+                bytes,
+                declaredType: "application/pdf",
+                category: "person_document",
+                title: "Letter",
+                fileName: "letter.pdf",
+                personId: id,
+                subjectType: "letter",
+              },
+            );
             const [row] = await tx
               .insert(letter)
               .values({
@@ -363,8 +405,7 @@ export const lettersRouter = createRouter()
                 specialCategory: made.rendered.containsSpecialCategory,
                 resultsToFollow: made.rendered.resultsToFollow,
                 incidentId: body.incidentId ?? null,
-                documentId,
-                deliveryReference: providerId,
+                documentId: doc.id,
                 sentBy: access.tenantUserId,
                 retentionClass: "care_record",
               })
@@ -407,9 +448,9 @@ export const lettersRouter = createRouter()
       method: "get",
       path: "/v1/people/{id}/letters",
       tags: ["comms"],
-      summary: "The letters and emails sent about a person",
+      summary: "The letters sent about a person",
       description:
-        "comms.letter.manage in the person's scope, with MFA (#69 review: reading letters needs a comms permission, not only the person in scope). Template version, recipient, channel and the field keys used; never the content (a letter's PDF is its document). Audited.",
+        "comms.letter.manage in the person's scope, with MFA (#69 review: reading letters needs a comms permission, not only the person in scope). Template version, recipient, channel and the field keys used; never the content (a letter's PDF is its document). The incident is shown only to holders of safety.incident.manage. Audited.",
       security,
       request: { params: PersonParam },
       responses: {
@@ -421,6 +462,7 @@ export const lettersRouter = createRouter()
     async (c) => {
       const { id } = c.req.valid("param");
       const access = await letterAccess(c, null);
+      const seesIncidents = usablePermissions(access).has(INCIDENTS);
       const rows = await withTenant(c, async (tx) => {
         const [found] = await tx.select({ id: person.id }).from(person).where(eq(person.id, id));
         if (!found) return null;
@@ -438,7 +480,7 @@ export const lettersRouter = createRouter()
             contactId: r.contactId,
             personalFields: r.personalFields,
             specialCategory: r.specialCategory,
-            incidentId: r.incidentId,
+            incidentId: seesIncidents ? r.incidentId : null,
             documentId: r.documentId,
             sentBy: r.sentBy,
             sentAt: r.sentAt.toISOString(),

@@ -10,7 +10,7 @@ import {
   tenantUser,
 } from "@harbour/db";
 import { type MergeFieldKey, type MergeValue, toUkWallClock } from "@harbour/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { rateNumber } from "./rates";
 
 /**
@@ -97,6 +97,7 @@ export async function letterValues(
       .from(roleAssignment)
       .innerJoin(role, eq(role.id, roleAssignment.roleId))
       .where(and(eq(roleAssignment.tenantUserId, ctx.senderId), isNull(roleAssignment.deletedAt)))
+      .orderBy(asc(role.name), asc(role.id))
       .limit(1);
     put("sender.name", general(s?.name));
     put("sender.role", general(r?.name ?? "Member of staff"));

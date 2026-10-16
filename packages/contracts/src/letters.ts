@@ -132,10 +132,24 @@ export const LetterRequest = z
 export const SendLetter = LetterRequest.extend({
   /** The sender has seen the preview: the person, the recipient and the personal details. */
   confirmed: z.literal(true),
+  /** From the preview: the send is refused (409) if the letter would differ in any way. */
+  templateVersionId: uuid,
+  textHash: z.string().regex(/^[0-9a-f]{64}$/),
 }).meta({ id: "SendLetter" });
 
 export const LetterPreview = z
   .object({
+    /** Repeat both when sending: they pin the letter to exactly what was checked. */
+    templateVersionId: uuid,
+    textHash: z.string(),
+    /** Who the letter is about, for the check before sending (rule 25, HZ-001). */
+    person: z.object({
+      id: uuid,
+      fullName: z.string(),
+      preferredName: z.string().nullable(),
+      roomLabel: z.string().nullable(),
+      photoUrl: z.string().nullable(),
+    }),
     channel: TemplateChannel,
     subject: z.string().nullable(),
     text: z.string(),

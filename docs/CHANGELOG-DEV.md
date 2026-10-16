@@ -2129,3 +2129,17 @@ email, cross-tenant).
 - Docs: comms.md section 11, HZ-051 rows, H-228, records of processing, feature register, STATUS.
 
 **Tests**: `apps/api/test/letters.test.ts` (7); domain `ports.test.ts` 6 new.
+
+## 2026-10-16: Letters, review round 1 of #72 (HZ-051)
+
+- The send repeats the preview's version and text hash and is refused (409) if the letter would
+  differ; the preview shows the person (name, room, photo).
+- Only current contacts; an incident involving anyone else is refused; a person who has died is
+  refused; the list shows incidents only to holders of safety.incident.manage; `sender.role` is
+  chosen in a fixed order.
+- Email sending is refused (422) until the worker-based send exists (STATUS); previews still render.
+- The email body guard also catches hyphenated or spaced NHS numbers and `mailto:`.
+- Docs: comms.md rule 24 (the ADR-0040 writer, plain-text SES) and section 11, HZ-051 causes and
+  rows, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` 5 new and 3 changed; domain `ports.test.ts` 2 new.

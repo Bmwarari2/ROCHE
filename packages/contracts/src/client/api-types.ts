@@ -15723,7 +15723,7 @@ export interface paths {
     put?: never;
     /**
      * Preview a letter or email (nothing is stored)
-     * @description comms.letter.manage in the person's scope, with MFA; safety.incident.manage too for an incident letter. Renders the template's version in use with the person's details and lists the personal-data fields, for the check before sending (rule 25). Refusals say what is missing. Audited with field keys only.
+     * @description comms.letter.manage in the person's scope, with MFA; safety.incident.manage too for an incident letter. Renders the template's version in use with the person's details and shows who it is about (name, room, photo) and the personal-data fields, for the check before sending (rule 25). Returns the version and a hash of the text, which the send must repeat. Refusals say what is missing. Audited with field keys only.
      */
     post: {
       parameters: {
@@ -15810,8 +15810,8 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * The letters and emails sent about a person
-     * @description comms.letter.manage in the person's scope, with MFA (#69 review: reading letters needs a comms permission, not only the person in scope). Template version, recipient, channel and the field keys used; never the content (a letter's PDF is its document). Audited.
+     * The letters sent about a person
+     * @description comms.letter.manage in the person's scope, with MFA (#69 review: reading letters needs a comms permission, not only the person in scope). Template version, recipient, channel and the field keys used; never the content (a letter's PDF is its document). The incident is shown only to holders of safety.incident.manage. Audited.
      */
     get: {
       parameters: {
@@ -15873,8 +15873,8 @@ export interface paths {
     };
     put?: never;
     /**
-     * Send a letter or email
-     * @description As the preview, once the sender has confirmed it. A letter is rendered to PDF through the pack PDF writer (values as text, never markup) and stored as a document about the person; an email goes through the organisation's email provider to the contact's address and only the provider's message id is kept. The letter row holds the template version, recipient and field keys, never the content. Audited; outbox comms.letter.sent.
+     * Send a letter
+     * @description As the preview, with the preview's version and text hash: a letter that would differ from what was confirmed is refused (409). A letter is rendered to PDF through the pack PDF writer (values as text, never markup) and stored as a document about the person. Email is refused (422, email_sending_not_available) until the worker-based send exists. The letter row holds the template version, recipient and field keys, never the content. Audited; outbox comms.letter.sent.
      */
     post: {
       parameters: {
@@ -23114,6 +23114,17 @@ export interface components {
       version: number;
     };
     LetterPreview: {
+      /** Format: uuid */
+      templateVersionId: string;
+      textHash: string;
+      person: {
+        /** Format: uuid */
+        id: string;
+        fullName: string;
+        preferredName: string | null;
+        roomLabel: string | null;
+        photoUrl: string | null;
+      };
       channel: components["schemas"]["TemplateChannel"];
       subject: string | null;
       text: string;
@@ -23153,6 +23164,9 @@ export interface components {
       };
       /** @enum {boolean} */
       confirmed: true;
+      /** Format: uuid */
+      templateVersionId: string;
+      textHash: string;
     };
     LetterList: {
       items: components["schemas"]["LetterItem"][];

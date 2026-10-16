@@ -103,12 +103,19 @@ export const MAX_OUTBOUND_BODY_LENGTH = 40_000;
 export function outboundBodyProblem(body: string): string | null {
   if (body.length > MAX_OUTBOUND_BODY_LENGTH) return "Body is too long.";
   const lower = body.toLowerCase();
-  if (lower.includes("http://") || lower.includes("https://") || lower.includes("www.")) {
+  if (
+    lower.includes("http://") ||
+    lower.includes("https://") ||
+    lower.includes("www.") ||
+    lower.includes("mailto:")
+  ) {
     return "Body contains a link.";
   }
   // The NHS number's own grouping (3, 3, 4 digits), as the title check reads it; a telephone
   // number, which a letter may carry, is not refused.
-  if (/\b\d{3}\s?\d{3}\s?\d{4}\b/.test(body)) return "Body looks like it contains an NHS number.";
+  if (/\b\d{3}[\s-]?\d{3}[\s-]?\d{4}\b/.test(body)) {
+    return "Body looks like it contains an NHS number.";
+  }
   return null;
 }
 
