@@ -16661,6 +16661,9 @@
           "built": {
             "type": "boolean"
           },
+          "rebuildFailed": {
+            "type": "boolean"
+          },
           "pages": {
             "type": "array",
             "items": {
@@ -16688,6 +16691,7 @@
           "freshness",
           "header",
           "built",
+          "rebuildFailed",
           "pages",
           "warnings"
         ],
@@ -16737,6 +16741,9 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -16744,7 +16751,8 @@
           "marLocation",
           "peepLocation",
           "confirmedAt",
-          "confirmedBy"
+          "confirmedBy",
+          "version"
         ],
         "description": "Where a location keeps the paper MAR and the PEEPs (location settings downtime.mar_location and downtime.peep_location); unconfirmed places print as not set (H-201)"
       },
@@ -16765,12 +16773,17 @@
           },
           "confirm": {
             "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
           "marLocation",
           "peepLocation",
-          "confirm"
+          "confirm",
+          "version"
         ]
       },
       "OutageList": {
@@ -33907,7 +33920,7 @@
           "operations"
         ],
         "summary": "The location's downtime pack, with its freshness now (JSON or PDF)",
-        "description": "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, the places changed, or it expired. `format=pdf` prints it with the header worked out now on every page (HZ-021). Opening and printing are audited.",
+        "description": "The latest pack you can open, built on the spot when it no longer names exactly the people receiving care here with their status now, anything it was built from changed, or it expired (HZ-021). If that build fails, the latest pack is served and says so (`rebuildFailed`). `format=pdf` prints it with the header worked out now on every page, and needs a fresh sign-in (a bulk export). Opening and printing are audited. HEAD is refused.",
         "security": [
           {
             "bearerAuth": []
@@ -33996,6 +34009,26 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       },
@@ -34003,7 +34036,8 @@
         "tags": [
           "operations"
         ],
-        "summary": "Build the location's downtime pack now",
+        "summary": "Build the location's downtime pack now, unless the latest still serves",
+        "description": "Needs a fresh sign-in (a whole-home pack is a bulk export). The latest pack is reused when nothing it was built from has changed (`built` says which).",
         "security": [
           {
             "bearerAuth": []
@@ -34025,7 +34059,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Built",
+            "description": "Built, or the latest reused",
             "content": {
               "application/json": {
                 "schema": {
@@ -34066,6 +34100,26 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not available just now; the problem says what to use instead",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -34145,6 +34199,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

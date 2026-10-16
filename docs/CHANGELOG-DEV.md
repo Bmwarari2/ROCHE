@@ -1543,6 +1543,83 @@ item 19 logs the follow-ups.
 **Tests**: `apps/web` 425 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
 fresh scratch database, run locally.
 
+## 2026-10-13: The incident screens, part 2: the notifications on an incident (slice 9)
+
+- The incident page shows each statutory notification with its clock as an icon and a word
+  (overdue first, then the soonest due, then done), when it is due, its recipient and its
+  warnings: provisional, no longer indicated (only that, though the API keeps the draft
+  provisional) and a Harbour target rather than a legal deadline.
+- Questions still to answer, the kinds waiting for them, "not checked yet" and "not checked
+  outside England" warn; "no notification found" only when nothing is open (HZ-013).
+- Kinds and recipients come from the catalogue, checked against the domain's
+  `NOTIFICATION_KINDS`. No API change; the gaps are in safety.md section 5 and STATUS item 19.
+
+**Tests**: `apps/web` 434 unit, `packages/i18n` 48; Playwright `e2e/incidents.spec.ts` on a
+fresh scratch database, run locally.
+
+## 2026-10-13: The incident screens, part 2, review round 1 (#49)
+
+Clinical and accessibility review of the notifications on an incident. "No notification found"
+now also needs no outputs and no open check that decides one (RIDDOR's absence check, the
+safeguarding decision guide, an outbreak's links, the candour decision), each said with its date.
+Warnings show only on drafts still open, each with a next step; one waiting for answers says so.
+Deadlines are in the law's terms ("Without delay: the clock started ...", RIDDOR's second
+deadline), an overdue clock says for how long, and an overdue chip at the top links to the
+section, which now comes before the people. Draft and ready are chips; not required uses the
+not-applicable style; notifications about one person name them. A component test draws every
+state with axe-core. Hazard log: HZ-013 control and verification, an HZ-008 assessment, HZ-001
+and HZ-009 rows; human actions H-256 (restated) to H-260; STATUS item 19 follow-ups.
+
+**Tests**: `apps/web` 459 unit (with the component test), `packages/i18n` 48; Playwright
+`e2e/incidents.spec.ts` on a fresh scratch database, run locally.
+
+## 2026-10-13: The incident screens, part 2, review round 2 (#49)
+
+The overdue chip is a native link to the notifications' heading, which takes focus, so the
+keyboard lands there (WCAG 2.4.3); the journey opens it by keyboard. Checks that decide a
+notification are left out once the incident is closed, and once their date has passed read
+"Check whether this was done: ..." (the stored tasks never clear; H-259 corrected). Candour's
+spoken step counts from when the clock started; the written target reads "Harbour's target by";
+the check lines carry their time; RIDDOR's threshold is looked up by the UK date; unknown clocks
+count in the overdue chip. H-257 adds candour and RIDDOR's time of day; STATUS item 19 logs the
+round's follow-ups.
+
+**Tests**: `apps/web` 462 unit (with the component test), `packages/i18n` 48; Playwright
+`e2e/incidents.spec.ts` on a fresh scratch database, run locally.
+
+## 2026-10-13: Invitations, migration 0054 (Lane D)
+
+- `invitation` (forced row-level security; the app role inserts its member, link, expiry and
+  sender only, cannot read the hash, revokes only, never deletes) and the NOLOGIN role
+  `harbour_invitation_owner`, held by `harbour_owner` with SET but not INHERIT. Definer functions:
+  lookup, claim (locks), the sign-in record, acceptance (checks the sign-in's email), the first
+  owner's invitation (expiry from the rate table, the operator from the session), the member-change
+  trigger, the lapsed-invitation sweep and the narrow unlinked sign-in list.
+- Database tests: sender rules (round 2 N2), coverage of the member's permissions (M3), the
+  operator path, single-use acceptance, revocations with no reviser (N1: the sweep, a worker-style
+  status change), and the unlinked sign-in list leaving other sign-ins alone. Database 450, API 737,
+  domain 4,159 passing.
+
+
+## 2026-10-13: #48 review round 1, invitation store (Lane D)
+
+- H1: the unlinked sign-in sweep never lists a sign-in that any membership row names, in any
+  organisation and any state (`app.auth_user_has_membership`, a yes-or-no definer owned by
+  `harbour_membership_reader`), or an operator's; and `record_invitation_sign_in` records only a
+  sign-in at the invitation's address created after the invitation.
+- M1: the sign-in is recorded in its own committed transaction before the acceptance's, so it
+  survives a rollback and the sweep can find it. M2: the database refuses an expiry past the global
+  `invitation.expiry_hours_max`; an organisation's figure never raises it. M3: member-change
+  revocations, the first owner's superseded invitation and the recorded claim are audited.
+- Found by the new per-role test: `EXECUTE` on the definer functions was still open to `PUBLIC`,
+  because `harbour_owner` (holding the owner role without INHERIT) could not revoke once ownership
+  had moved; the grants are now set before the change of owner.
+- Lows: the first owner's invitation checks the organisation's status and takes only a live owner
+  role; a member revokes only as revoked or superseded; `clock_timestamp()` for expiry; an MFA
+  requirement change revokes; deleted members refused; callers' settings restored; no address
+  update grant; narrower column grants for the definer owner; the SET-not-INHERIT membership
+  asserted. Database 470, API 737, domain 4,159 passing.
+
 ## 2026-10-13: Slice 11 part 3a-1, downtime pack API (OPS-028)
 
 Stacked on part 2. `GET` and `POST /v1/locations/{id}/downtime-pack` (operations.md section 13):
@@ -1565,8 +1642,54 @@ every page, page breaks and a footer naming whose page it is (HZ-001).
 
 Stacked on part 3a-2 (operations.md section 13): the nightly job (hourly catch-up, once per
 location and UK night, each location in its own savepoint); a system rebuild after people
-lifecycle events (`server_rebuild`, migration 0054) at both the old and the new location; `PUT
+lifecycle events (`server_rebuild`, migration 0055) at both the old and the new location; `PUT
 /v1/locations/{id}/downtime-places`, confirmed by a holder of `platform.location.manage`, with the
 task the nightly job keeps open while the places are unconfirmed.
 
 **Tests**: `apps/api` 2 more in `downtime.test.ts` and the places route in a third.
+
+## 2026-10-13: Slice 11 part 3a-1, review round 1 of #45 (OPS-028)
+
+- A stored pack is served only while nothing it was built from has changed since its information's
+  time, now the database's clock (H1): a new DNACPR, allergy or room swap means a new pack.
+- One build at a time per location; a POST reuses the pack when nothing changed and needs a fresh
+  sign-in; a per-member limit from `downtime_pack.requests_per_hour` (security M1, M2).
+- A failed rebuild serves the latest pack, saying so, audited (clinical M1); during an outage,
+  "anything recorded since" is the earlier of the information's time and the outage's start
+  (clinical M2).
+- A location out of reach is audited as denied; allergies are each person's own current ones, as
+  on the phone (`currentAllergiesOf`, also used by the hospital transfer pack); the four copies of
+  `rateRows` are one.
+- Docs: operations.md sections 12 and 13, rates.md, HZ-007, HZ-015 and HZ-021 rows, H-209 and
+  H-210, STATUS follow-ups.
+
+**Tests**: `apps/api` `downtime.test.ts` 11 (7 new); `packages/domain` 1 new.
+
+## 2026-10-13: Slice 11 part 3a-2, review round 1 of #46 (OPS-028)
+
+- Printing needs a fresh sign-in and counts against the per-member limit before the pack is read
+  (security M2, M3); the printed audit is written once the PDF is drawn; HEAD is refused.
+- Every person's page says to confirm who they are with a colleague who knows them, and the front
+  sheet says photos are not printed (clinical M3, H-211); an ADRT held prints "ADRT also held:
+  read it before any decision about resuscitation" and is never read as nothing recorded
+  (clinical M4, H-212).
+- Header times carry BST or GMT on a clock-change day (HZ-009); "1 person" is singular.
+- Docs: operations.md section 13, HZ-001, HZ-015 and HZ-021 rows, H-211 to H-213, STATUS.
+
+**Tests**: `apps/api` `downtime.test.ts` 3 new and printing in the step-up test; `packages/domain`
+4 new.
+
+## 2026-10-15: Slice 11 part 3b, review round 1 of #47 (OPS-028)
+
+- A bed move publishes `people.person.moved` and rebuilds both locations' packs (H2); a places
+  change rebuilds the location's pack.
+- Outbox handlers of one event run on their own; a failed rebuild is logged by opaque ids and
+  never holds back the death notification (clinical M5); after the nightly run a location with no
+  pack in date raises a task for its Registered Manager.
+- The places task is raised after the build in its own savepoint, due at the end of the day
+  `downtime.places_confirm_due_days` from now; the places route takes the location's version,
+  refuses a deleted location and completes the task through the task workflow.
+- Migration 0055 also refuses a pack naming a stored document.
+- Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
+
+**Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.

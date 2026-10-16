@@ -9,7 +9,12 @@ import type {
   SectionSource,
   TransferAllergy,
 } from "../people/transfer-pack";
-import { formatUkDateTime, toUkWallClock } from "../shared/time";
+import {
+  formatUkDateTime,
+  isUkClockChangeDay,
+  toUkWallClock,
+  ukZoneAbbreviation,
+} from "../shared/time";
 import type { OperationsRates } from "./rates";
 
 /**
@@ -343,6 +348,11 @@ export interface DowntimePersonPage {
     readonly allergies: AllergyStatement;
     /** Every ReSPECT and DNACPR decision in force, newest first; empty when none or withheld. */
     readonly resuscitation: readonly DowntimeResuscitationRecord[];
+    /**
+     * An advance decision to refuse treatment is held in force (HZ-015): printed beside the CPR
+     * decision, never as one, and never read as nothing recorded.
+     */
+    readonly adrtHeld: boolean;
     readonly eatingAndDrinking: DowntimeIddsiContent;
     readonly communication: CommunicationStatement;
     readonly evacuation: EvacuationPlanStatement | null;
@@ -405,6 +415,12 @@ const NOT_RECORDED_NOTES: Partial<Record<DowntimeSectionKey, string>> = {
   care_plan: "No active care plan. Follow the paper care plan if there is one.",
   risks: "No active risk assessments recorded.",
 };
+
+/** Printed in the resuscitation section whenever an ADRT is held (HZ-015; wording H-100). */
+export const ADRT_HELD_NOTE = "ADRT also held: read it before any decision about resuscitation.";
+
+/** With an ADRT and no CPR decision: never "not recorded" (#46 review round 1, clinical M4). */
+export const ADRT_ONLY_NOTE = `No ReSPECT or DNACPR decision is held in Harbour. ${ADRT_HELD_NOTE}`;
 
 /** Words for a resuscitation conflict, printed inside the section (to confirm with the CSO, H-100). */
 export const RESUSCITATION_CONFLICT_NOTE =
@@ -578,7 +594,11 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
     ? resuscitationInForce(person.resuscitation.data, ukDate(from))
     : [];
   const decisions = new Set(resuscitation.map((r) => r.decision));
+  const adrtHeld =
+    resusOwn && person.resuscitation.data.some((r) => r.kind === "adrt" && r.status === "active");
   if (!resusOwn) set("resuscitation", "withheld", person.resuscitation.asOf);
+  else if (resuscitation.length === 0 && adrtHeld)
+    set("resuscitation", "included", person.resuscitation.asOf, ADRT_ONLY_NOTE);
   else if (resuscitation.length === 0)
     set("resuscitation", "not_recorded", person.resuscitation.asOf);
   else if (decisions.size > 1) {
@@ -727,6 +747,7 @@ function personPage(person: DowntimePersonInput, from: Date, until: Date): Downt
       photo: photoOwn ? (person.photo?.data ?? null) : null,
       allergies,
       resuscitation,
+      adrtHeld,
       eatingAndDrinking: {
         food: food.text,
         drink: drink.text,
@@ -843,27 +864,46 @@ export interface DowntimeFreshnessContext {
   readonly clockDriftMinutes: number;
 }
 
+/**
+ * dd/mm/yyyy hh:mm UK time, with BST or GMT on a clock-change day so the two 01:30s in October
+ * differ (HZ-009; #46 review round 1), as the transfer pack prints it.
+ */
+function packTime(instant: Date): string {
+  const w = toUkWallClock(instant);
+  const time = formatUkDateTime(instant);
+  return isUkClockChangeDay(w.year, w.month, w.day)
+    ? `${time} ${ukZoneAbbreviation(instant)}`
+    : time;
+}
+
 /** Whether a pack can still be relied on at `at`, in words for the page (operations.md rule 2). */
 export function downtimePackFreshness(
   pack: Pick<DowntimePack, "asAt" | "validUntil">,
   at: Date,
   context: DowntimeFreshnessContext,
 ): DowntimeFreshness {
-  const asAt = formatUkDateTime(pack.asAt);
-  const until = formatUkDateTime(pack.validUntil);
+  const asAt = packTime(pack.asAt);
+  const until = packTime(pack.validUntil);
   const hoursOld = Math.max(0, Math.floor((at.getTime() - pack.asAt.getTime()) / MS_PER_HOUR));
   if (pack.asAt.getTime() - at.getTime() > context.clockDriftMinutes * MS_PER_MINUTE) {
     return {
       state: "clock_behind",
       hoursOld,
-      notice: `Check this device's clock: it shows ${formatUkDateTime(at)}, earlier than this pack's information (${asAt}). Until the clock is right, treat the pack as possibly out of date and check allergies, resuscitation status and diet with the nurse in charge.`,
+      notice: `Check this device's clock: it shows ${packTime(at)}, earlier than this pack's information (${asAt}). Until the clock is right, treat the pack as possibly out of date and check allergies, resuscitation status and diet with the nurse in charge.`,
     };
   }
   if (context.outage !== null) {
+    // Paper began when the outage did, so a pack made after it began still misses what is on
+    // paper since then (#45 review round 1, clinical M2): the earlier of the two.
+    const since = packTime(
+      context.outage.startedAt.getTime() < pack.asAt.getTime()
+        ? context.outage.startedAt
+        : pack.asAt,
+    );
     return {
       state: "outage",
       hoursOld,
-      notice: `Latest available pack: information as at ${asAt}. Anything recorded since ${asAt} is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.`,
+      notice: `Latest available pack: information as at ${asAt}. Anything recorded since ${since} is on paper or not shown here: check the downtime forms and ask the nurse in charge about changes.`,
     };
   }
   if (at.getTime() < pack.validUntil.getTime()) {
@@ -901,7 +941,7 @@ export function downtimePageHeader(
     lines: [
       `Downtime pack for ${pack.locationName}`,
       freshness.notice,
-      `Made ${formatUkDateTime(pack.generatedAt)}. Printed or shown ${formatUkDateTime(printedAt)}.`,
+      `Made ${packTime(pack.generatedAt)}. Printed or shown ${packTime(printedAt)}.`,
       DOWNTIME_BACK_ENTRY_INSTRUCTION,
     ],
   };

@@ -195,11 +195,37 @@ only when they link spec, code, tests and user documentation; no user guides exi
      and the places route (`feat/operations-downtime-api`), and part 3c, outages and back-entry
      through the API. Follow-ups: the kiosk fetch route and photos on
      the printed pages (mobile step).
+   - Follow-ups from #45 review round 1 (security and clinical):
+     - opening a pack is audited once for the pack, not once per person on it (per-person audit
+       rows for care-record views);
+     - the HZ-001 withhold check does not run for the sections the builder stamps with the
+       person's own id (the medicines and evacuation places);
+     - a risk prints its residual band, or its initial band when no residual one is set, without
+       saying which;
+     - the pack does not leave out sample people (HZ-072) until sample data mode exists;
+     - "nothing changed since" compares change times with the information's time on the database
+       clock: a change in a transaction that began before the build and committed after it reads
+       as older than the pack, so is caught only by the next rebuild (a fingerprint column is the
+       fuller fix).
    - Slice 11 part 3a-2, the printed downtime pack (`feat/operations-downtime-pack-api`, stacked
      on part 3a-1; operations.md section 13): built, PR to follow part 3a-1.
+   - Follow-ups from #46 review round 1:
+     - render the PDF in a worker thread, so a large home's pack does not hold the API's event
+       loop;
+     - the CPR wording and its emphasis for the CSO (H-100, H-212);
+     - unconfirmed places on the front sheet (H-201, H-213);
+     - double-sided printing would put two people's pages on one sheet: a deployer control to print
+       single-sided (H-214);
+     - an out-of-date pack's header is words only; whether it needs more emphasis (H-209).
    - Slice 11 part 3b, nightly packs, rebuilds after moves and the places route
-     (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0054; operations.md section
+     (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0055; operations.md section
      13): built, PR to follow part 3a-2.
+   - Follow-ups from #47 review round 1:
+     - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
+       keep a slow home's rebuild from delaying other events;
+     - the nightly job covers active locations only;
+     - the kiosk route needs a location-bound branch for reads with no member before it is built;
+     - the seeded places wording still needs the CSO's confirmation (H-201).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -397,9 +423,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
 19. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
-    incident's read view are on `feat/web-incidents`): part 2, the statutory notifications on the
-    incident page with their clocks and warnings (`feat/web-incident-notifications`, stacked on
-    part 1); the statutory notification pages (`/notifications/statutory` with every draft's clock
+    incident's read view are on `feat/web-incidents`, the notifications with their clocks on the
+    incident page on `feat/web-incident-notifications`): the statutory notification pages
+    (`/notifications/statutory` with every draft's clock
     for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
     content and sources, which the overdue alert already links to; the sidebar's `/notifications`
     section must not claim that path); then the forms, each offered only where `access.reaching`
@@ -408,27 +434,52 @@ only when they link spec, code, tests and user documentation; no user guides exi
     questions in the catalogue's words, review and close (`safety.incident.manage`, never the
     person who raised it), prepare a notification, and submit it or mark it not required with
     step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
-    no staff names (H-73); the list has no paging past 500.
+    no staff names (H-73); the list has no paging past 500; a draft stays `provisional` after the
+    answer that made it changes; the questions, exclusions, reasoning and tasks are English only.
     - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
       2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
       "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
       an alert when the sidebar is folded to its icons; a reader without `people.person.read`
       sees several "A person we support" with nothing to tell them apart; no demo account lacks
       `safety.incident.read`, so the hidden Incidents item is unit tested only.
-20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
-    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
-    one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
-    in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
-    owner role, with the sign-in's email checked inside; inviters must hold every permission of the
-    member's roles, the address copied by the database and cleared when the invitation closes; an
-    operator may invite only a first owner, through a definer function; an expiry ceiling;
-    throttling per client address and token; a lapsed-invitation sweep; members never created
-    without MFA). Next, stacked on #43 (numbered provisionally): migration 0054 with the table,
-    the functions and their database tests; then the invite, lookup, accept, revoke, list and sweep
-    routes; the operator's owner invitation and the invitation email; the web accept page with the
-    password rules and the redirect to enrolment, with Playwright and axe (H-355). Then
-    `fix/platform-mfa-session-factor` (#43 review M5): MFA counts only when the session used a
-    passkey or a verified TOTP code, not merely when one is enrolled.
+    - Follow-ups from #42 review round 2: `INCIDENT_LIST_LIMIT` repeats the API's 500 (the API
+      should return a `truncated` flag, or the limit should be a shared contract constant);
+      communication needs for people outside the reader's people list are left out silently
+      (say "not shown to you"); the list gives no sign that an incident's notifications have not
+      been checked yet; the "What happened" field repeats its section's heading; the breadcrumb
+      link has no 44 px target; the journey neither opens nor scans the closed incident's page
+      with axe; when needs are recorded the incident page says "Communication needs" twice (the
+      label and the flag), so drop the flag's label there or hide the label visually.
+    - Follow-ups from #49 review round 1 (H-256 to H-260 ask the CSO): the clocks are worked out
+      when the page is drawn, with no "as of" time and no refresh; a submitted death notification
+      for a death later recorded in error shows as submitted on the incident (the correction task
+      is the only cue); the local warning line (`SafetyWarning`) belongs in `@harbour/ui`; the
+      reviewers' copy suggestions go to the CSO's wording review (H-258); the open questions are
+      counted twice, in the header chip and the section's notice; the classifier's tasks carry no
+      done state, so "RIDDOR may be needed: check on ..." stays after the check until the
+      incident is classified again (H-259).
+    - Follow-ups from #49 review round 2: the outbreak line "Needed, and drafted on another
+      record" neither names nor links that record, nor shows its status; "person N" on a
+      notification has nothing to match in the people section; there is no cue at the top of the
+      page for the "not checked yet" and "outside England" notices; the reviewers' optional copy
+      points go to H-258.
+20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
+    in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
+    `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the
+    first owner's invitation, the member-change trigger and the two sweeps), with database tests.
+    Next: the invite, lookup, accept, revoke, list and sweep routes (the worker deletes unlinked
+    sign-ins through the auth pool); the operator's owner invitation (setting `app.operator_id`)
+    and the invitation email; the web accept page with the password rules and the redirect to
+    enrolment, with Playwright and axe (H-355). Then `fix/platform-mfa-session-factor` (#43 review
+    M5): MFA counts only when the session used a passkey or a verified TOTP code, not merely when
+    one is enrolled. Follow-up: `harbour_membership_reader` is granted to `harbour_owner` with
+    `INHERIT`, so its open policies reach the owner's own queries; make it `SET` only as
+    `harbour_invitation_owner` is. Logged from #48 review round 1: `invitation_scope` lets a
+    locations-scoped role read and revoke every invitation in the organisation, so the routes must
+    narrow both to the members `platform.user.manage` reaches (as `app.may_invite` does for
+    sending), with a test; and the routes pass the token to the definer functions only as a bound
+    parameter, never interpolated into SQL or logged. Existing clusters run `pnpm db:bootstrap`
+    before migration 0054 (it creates `harbour_invitation_owner`).
 
 ## Human actions outstanding
 

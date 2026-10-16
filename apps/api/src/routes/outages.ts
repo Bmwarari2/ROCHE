@@ -99,13 +99,15 @@ function onOutageError(error: unknown): never {
 
 /** The outage, where the caller's manage permission reaches its location. */
 async function managedOutage(
+  c: Context<AppEnv>,
   tx: Transaction,
   access: TenantAccess,
   id: string,
+  action: string,
 ): Promise<OutageRow> {
   const [row] = await tx.select().from(outage).where(eq(outage.id, id));
   if (!row) throw problems.notFound();
-  requireReach(access, MANAGE, row.locationId);
+  await requireReach(c, access, MANAGE, row.locationId, action);
   return row;
 }
 
@@ -263,7 +265,7 @@ export const outagesRouter = createRouter()
       const access = await requirePermission(c, MANAGE);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      requireReach(access, MANAGE, id);
+      await requireReach(c, access, MANAGE, id, "operations.outage.declared");
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const rates = await ratesAt(tx, access, id, now);
@@ -340,7 +342,7 @@ export const outagesRouter = createRouter()
       const body = c.req.valid("json") as z.infer<typeof CloseOutage>;
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const row = await managedOutage(tx, access, id);
+        const row = await managedOutage(c, tx, access, id, "operations.outage.closed");
         const rates = await ratesAt(tx, access, row.locationId, now);
         const endedAt = new Date(body.endedAt);
         const check = checkOutageClosure(outageWindow(row), { endedAt, closedAt: now }, rates);
@@ -399,7 +401,13 @@ export const outagesRouter = createRouter()
       const { id } = c.req.valid("param");
       const now = new Date();
       const out = await withTenant(c, async (tx): Promise<OutageReconciliationT> => {
-        const row = await managedOutage(tx, access, id);
+        const row = await managedOutage(
+          c,
+          tx,
+          access,
+          id,
+          "operations.outage.reconciliation_viewed",
+        );
         const r = await reconciliation(
           tx,
           access,
@@ -443,7 +451,7 @@ export const outagesRouter = createRouter()
       const body = c.req.valid("json") as z.infer<typeof ReconcileOutage>;
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const row = await managedOutage(tx, access, id);
+        const row = await managedOutage(c, tx, access, id, "operations.outage.reconciled");
         const r = await reconciliation(tx, access, row, body, now);
         if (r.stops.length > 0) throw problems.invalid(r.stops.join(" "));
         const reconciled = await changeOutage(tx, row, body.version, {
@@ -491,7 +499,7 @@ export const outagesRouter = createRouter()
       const body = c.req.valid("json") as z.infer<typeof CancelOutage>;
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const row = await managedOutage(tx, access, id);
+        const row = await managedOutage(c, tx, access, id, "operations.outage.cancelled");
         if (row.state !== "declared") {
           throw problems.invalid("Only an open outage declared in error can be cancelled.");
         }
@@ -526,7 +534,7 @@ export const outagesRouter = createRouter()
       const body = c.req.valid("json") as z.infer<typeof CorrectOutage>;
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
-        const row = await managedOutage(tx, access, id);
+        const row = await managedOutage(c, tx, access, id, "operations.outage.corrected");
         if (row.state === "reconciled" || row.state === "cancelled") {
           throw problems.invalid("A reconciled or cancelled outage is final.");
         }

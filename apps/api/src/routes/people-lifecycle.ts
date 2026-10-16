@@ -65,6 +65,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { permissionsReaching, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { publish } from "../outbox";
 import {
   currentPlacement,
   currentRecords,
@@ -1303,6 +1304,20 @@ export const peopleLifecycleRouter = createRouter()
             locationId: target.locationId,
           })
           .where(and(eq(person.id, id), eq(person.version, body.version)));
+        // A move changes the room, and perhaps the home, on the downtime packs (#47 review round
+        // 1, H2): operations builds them again at both locations.
+        await publish(tx, {
+          context: "people",
+          aggregateType: "person",
+          aggregateId: id,
+          type: "people.person.moved",
+          payload: {
+            personId: id,
+            locationId: p.locationId,
+            toLocationId: target.locationId,
+            roomChanged: true,
+          },
+        });
         await audit(c, tx, access, {
           action: "people.bed.move",
           resourceType: "bed_occupancy",

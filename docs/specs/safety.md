@@ -275,8 +275,21 @@ kind, with their communication needs). A restricted reader is told part of it is
 "About this incident" (times, who raised it, severity and harm) and no narrative or contacts.
 Types, statuses and labels are the catalogue's, never the API's English. After review round 1
 (#42): the incident page shows the questions about statutory notifications still to answer as a
-warning chip, says when notifications are not checked yet or not checked outside England, and
-says it does not show the questions or notifications yet (until part 2, H-256); the page title
+warning chip and (part 2) the statutory notifications, before the people, with an overdue chip
+at the top linking to them: each with its clock (overdue for how long, due, submitted, not
+required), its status as its own chip, its deadlines in the law's terms from the classifier's
+outputs (without delay from when the clock started; RIDDOR's second deadline), who it is about
+for one person, its recipient and, on a draft still open, its warnings with a next step
+(provisional; waiting for answers; no longer indicated; a Harbour target, as soon as possible
+for a safeguarding concern or a missing person). Open questions, the kinds waiting for them,
+checks that decide whether one is needed (RIDDOR's absence check, the safeguarding decision
+guide, an outbreak's links, the candour decision), outputs drafted on another record, "not
+checked yet" and "outside England" warn; "no notification found" is said only when none of these
+is there (#49 review round 1). Kinds and recipients are the catalogue's, checked against
+`NOTIFICATION_KINDS`; RIDDOR's threshold is read from `/v1/rates`. A draft stays `provisional`
+after the answer that made it changes, so the web shows only "no longer indicated" on such a
+draft; the questions' text, the exclusions, the reasoning and the tasks' own words are English
+from the API and not shown (the page gives the count and its own words). The page title
 names the incident by its date; a location the reader cannot see reads "Location not shown to
 you"; when the API's limit of 500 is reached the list fetches the open and under-review incidents
 besides and says older incidents are not listed. Gaps logged, no API change: staff are "you" or
@@ -323,7 +336,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture. Built so far: `apps/web/e2e/incidents.spec.ts` reads the list and an
-  incident, and the restricted view, with axe (slice 9, part 1).
+  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9).
 
 ## 10. Open questions
 
