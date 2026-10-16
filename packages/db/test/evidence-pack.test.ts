@@ -717,3 +717,113 @@ describe("hazard HZ-011 cross-tenant denial for every evidence pack and statemen
     },
   );
 });
+
+describe("hazard HZ-050 a link session reaches its own link alone (migration 0058)", () => {
+  const PACK_1 = "0199f000-0000-7000-8000-0000000000d1";
+  const PACK_2 = "0199f000-0000-7000-8000-0000000000d2";
+  let link1: string;
+  let link2: string;
+  const asLink = <T>(fn: (c: pg.PoolClient) => Promise<T>, scope: "none" | "tenant" = "none") =>
+    inContext(
+      app(),
+      { ...ctx(TENANT_A, null, scope), evidenceLink: { linkId: link1, packId: PACK_1 } },
+      fn,
+    );
+
+  beforeAll(async () => {
+    for (const [pack, token] of [
+      [PACK_1, "session-1"],
+      [PACK_2, "session-2"],
+    ] as const) {
+      await asManager(async (c) => {
+        await insertPack(c, { id: pack, locations: [a.locationNorth], people: [a.personAda] });
+        await insertItem(c, { pack });
+        await c.query(
+          `INSERT INTO evidence_pack_bundle (pack_id, content) VALUES ($1, '{"i": {"type": "Fall"}}')`,
+          [pack],
+        );
+      });
+      const id = await asNorth(async (c) => {
+        await c.query(
+          "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+          [pack],
+        );
+        return (await insertLink(c, { pack, token })).rows[0]?.id as string;
+      });
+      if (pack === PACK_1) link1 = id;
+      else link2 = id;
+    }
+  });
+
+  it("sees its link, its pack, the pack's items and bundle, and nothing else", async () => {
+    await asLink(async (c) => {
+      const packs = await c.query<{ id: string }>("SELECT id FROM evidence_pack");
+      expect(packs.rows.map((r) => r.id)).toEqual([PACK_1]);
+      const links = await c.query<{ id: string }>("SELECT id FROM evidence_pack_link");
+      expect(links.rows.map((r) => r.id)).toEqual([link1]);
+      const items = await c.query<{ pack_id: string }>("SELECT pack_id FROM evidence_pack_item");
+      expect(new Set(items.rows.map((r) => r.pack_id))).toEqual(new Set([PACK_1]));
+      expect(await count(c, "evidence_pack_bundle")).toBe(1);
+      expect(await count(c, "statement_of_purpose_version")).toBe(0);
+      expect(await count(c, "person")).toBe(0);
+    });
+  });
+
+  it("is held to its link even if it claims the organisation's scope", async () => {
+    // The API never does this (`assertValidContext` refuses it); the database holds the line too.
+    await asLink(async (c) => {
+      const packs = await c.query<{ id: string }>("SELECT id FROM evidence_pack");
+      expect(packs.rows.map((r) => r.id)).toEqual([PACK_1]);
+      expect(await count(c, "evidence_pack_link")).toBe(1);
+      expect(await count(c, "statement_of_purpose_version")).toBe(0);
+    }, "tenant");
+  });
+
+  it("counts a wrong code and issues a code on its own link, and on no other", async () => {
+    await asLink(async (c) => {
+      const counted = await c.query(
+        "UPDATE evidence_pack_link SET failed_code_attempts = failed_code_attempts + 1 WHERE id = $1",
+        [link1],
+      );
+      expect(counted.rowCount).toBe(1);
+      const other = await c.query(
+        "UPDATE evidence_pack_link SET failed_code_attempts = failed_code_attempts + 1 WHERE id = $1",
+        [link2],
+      );
+      expect(other.rowCount).toBe(0);
+      await c.query(
+        `INSERT INTO evidence_pack_link_code (link_id, code_hash, valid_until)
+         VALUES ($1, ${hash("111111")}, now() + interval '5 minutes')`,
+        [link1],
+      );
+    });
+    await expect(
+      asLink((c) =>
+        c.query(
+          `INSERT INTO evidence_pack_link_code (link_id, code_hash, valid_until)
+           VALUES ($1, ${hash("222222")}, now() + interval '5 minutes')`,
+          [link2],
+        ),
+      ),
+      // The issue trigger cannot see the other link, so refuses it as not live; RLS would too.
+    ).rejects.toThrow(/row-level security|only for a live link/);
+  });
+
+  it("only reads the pack, items and bundle: no revoking, discarding or deleting them", async () => {
+    await asLink(async (c) => {
+      const revoked = await c.query(
+        "UPDATE evidence_pack SET state = 'revoked', revoked_at = now(), revocation_reason = 'x' WHERE id = $1",
+        [PACK_1],
+      );
+      expect(revoked.rowCount).toBe(0);
+      const cleared = await c.query(
+        "UPDATE evidence_pack_bundle SET content = NULL, deleted_at = now(), deletion_reason = 'link_ended' WHERE pack_id = $1",
+        [PACK_1],
+      );
+      expect(cleared.rowCount).toBe(0);
+    });
+    await expect(asLink((c) => insertItem(c, { pack: PACK_1 }))).rejects.toThrow(
+      /row-level security|only to a draft/,
+    );
+  });
+});
