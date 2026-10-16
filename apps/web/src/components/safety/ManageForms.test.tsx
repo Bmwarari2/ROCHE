@@ -60,6 +60,7 @@ describe("ManageFeedback", () => {
       <ManageFeedback result={{ ok: false, code: "step_up_required", message: "" }} path={path} />,
     );
     expect(stepUp).toContain("Sign in again");
+    expect(stepUp).toContain("confirm with your passkey or authenticator code");
     expect(
       renderToStaticMarkup(<ManageFeedback result={{ ok: true, data: null }} path={path} />),
     ).toBe("");
