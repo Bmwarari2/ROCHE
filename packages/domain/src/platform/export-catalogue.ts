@@ -4359,6 +4359,51 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.sub_processor_notice": {
+    context: "platform",
+    description:
+      "Thapsus's notices of a new or replacement sub-processor (platform-completions.md rules 24 and 25), the same for every organisation.",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: false,
+    reasonNotExported:
+      "Thapsus's own notices, the same for every organisation and published in sub-processors.md; the organisation's responses are exported with the notice id and sub-processor key.",
+    columns: {},
+  },
+  "public.sub_processor_response": {
+    context: "platform",
+    description:
+      "The organisation's responses to sub-processors (rules 24 and 25; append-only): its data protection lead acknowledging one it uses (a notice, or the register at onboarding) or objecting to a notice with its grounds, and how Thapsus resolved an objection.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      sub_processor_key: { description: "The sub-processor (the key in sub-processors.md)." },
+      notice_id: { description: "The notice answered; empty for acknowledging the register." },
+      kind: {
+        description: "What the row records.",
+        codes: {
+          acknowledged: "The data protection lead acknowledged it.",
+          objected: "The data protection lead objected, within the notice period.",
+          objection_resolved: "Thapsus recorded how the objection was resolved.",
+        },
+      },
+      grounds: { description: "Why the organisation objected (an objection only)." },
+      resolution: {
+        description: "How an objection was resolved.",
+        codes: {
+          objection_withdrawn: "The organisation withdrew it; the sub-processor may be used.",
+          not_used_for_tenant: "Thapsus agreed not to use it for this organisation.",
+          services_ended: "The organisation ended the affected services.",
+        },
+      },
+      responded_by: "exported",
+      responded_at: "exported",
+      created_at: "exported",
+    },
+  },
   "public.support_access_request": {
     context: "platform",
     description: "Thapsus support access requests and the organisation's decisions.",

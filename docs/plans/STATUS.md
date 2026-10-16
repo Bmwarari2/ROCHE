@@ -157,6 +157,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
      governance, and the prepare, save, sign and settings routes.
+   - Slice 13, sub-processor notices, organisation side (`feat/platform-sub-processor-notices`,
+     migration 0065; platform-completions.md section 10h): notices and append-only responses with
+     forced RLS; the named lead acknowledges or objects within the window; the checklist reads
+     the acknowledgements. Next: the operator side, then sample data mode.
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.
