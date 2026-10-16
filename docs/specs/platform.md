@@ -373,12 +373,14 @@ As built, the routes (`apps/api/src/routes/invitations.ts`, `operator-invitation
   listing and the deletion would be deleted; the window is milliseconds once a night, and only for
   a sign-in already 24 hours unlinked.
 
-As built, the accept page (`apps/web/src/app/(auth)/invitation`, `app/actions/invitations.ts`,
+As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handlers
+`app/api/invitations/lookup` and `/accept` (same origin and JSON only), `lib/invitation-server.ts`,
 `lib/invitations.ts`):
 
-- The page reads the token from the fragment, keeps it in the tab's session storage (so it
-  survives signing in first; cleared once accepted or once the link can never work), replaces the
-  address with `/invitation`, and sends it to the API only in server-action and request bodies.
+- The page reads the token from the fragment, keeps it in the tab's session storage with the time
+  (so it survives signing in first; dropped after 30 minutes, on sign-out, once accepted, once the
+  link can never work, and on the create-sign-in path, which does not need it), replaces the
+  address with `/invitation`, and sends it only in request bodies.
   `Referrer-Policy: no-referrer` and `noindex` on the page.
 - It shows the organisation's name, the masked address and the expiry (UK time). The lookup does
   not name the inviter, so neither does the page. Then, by `path`: a form for a name and a
@@ -387,7 +389,8 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, `app/actions/in
   errors at each field and in a summary that takes focus); or "sign in first" (`sign_in_first`,
   from the lookup or the accept's 409), returning to the page after signing in; or "accept" with
   the current sign-in. A new sign-in then signs in and lands on `/settings/security?reason=mfa`;
-  an existing one goes to `/settings/security`. The organisation joined becomes the active one.
+  an existing one goes there straight away. Focus moves to each view's heading; while sending, the
+  button keeps focus and a polite status says "Sending". The organisation joined becomes the active one.
 - Expired, withdrawn, used, already a member, another address, unknown, incomplete and throttled
   (429, the wait from Retry-After in minutes) links are each said in plain words with what to do.
 

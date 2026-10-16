@@ -545,7 +545,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
     before migration 0054 (it creates `harbour_invitation_owner`).
     Web part (`feat/web-invitation-accept-page`): `/invitation` reads the token from the fragment,
     keeps it in the tab's session storage while the person signs in first, strips it from the
-    address bar and sends it only in server-action bodies (`Referrer-Policy: no-referrer` on the
+    address bar and sends it only in request bodies to same-origin route handlers (`Referrer-Policy: no-referrer` on the
     page); shows the organisation, the masked address and the expiry, then creates a sign-in (name,
     password with the NCSC rules up front, shared as `passwordRuleBroken` in @harbour/domain), or
     asks the person to sign in first, or joins with the current sign-in; then sign-in and

@@ -8,7 +8,11 @@ import {
   type InvitationRefusal,
   isFinal,
   isInvitationToken,
+  isSameOrigin,
+  KEPT_TOKEN_MINUTES,
+  keptToken,
   offersSignIn,
+  readKeptToken,
   retryMinutes,
   SIGN_IN_THEN_RETURN,
   tokenFromFragment,
@@ -111,8 +115,8 @@ describe("after accepting", () => {
     expect(safeNextPath(target.searchParams.get("next"))).toBe(ENROLMENT_PATH);
   });
 
-  it("sends an existing sign-in to the security page", () => {
-    expect(destinationAfterAccept("enrol")).toBe("/settings/security");
+  it("sends an existing sign-in to enrolment too", () => {
+    expect(destinationAfterAccept("enrol")).toBe(ENROLMENT_PATH);
   });
 
   it("comes back to the page after signing in first, without the token in the URL", () => {
@@ -144,5 +148,40 @@ describe("password rules", () => {
     const hint = t("invitation.password.hint");
     expect(hint).toContain("at least 12 characters");
     expect(hint).toContain("You do not need numbers, symbols or capital letters");
+  });
+});
+
+describe("the kept token", () => {
+  const at = new Date("2026-10-16T10:00:00Z");
+  const later = (minutes: number) => new Date(at.getTime() + minutes * 60_000);
+
+  it("lasts 30 minutes in this tab", () => {
+    const stored = keptToken(TOKEN, at);
+    expect(readKeptToken(stored, at)).toBe(TOKEN);
+    expect(readKeptToken(stored, later(KEPT_TOKEN_MINUTES))).toBe(TOKEN);
+    expect(readKeptToken(stored, later(KEPT_TOKEN_MINUTES + 1))).toBeNull();
+    expect(readKeptToken(stored, later(-1))).toBeNull();
+  });
+
+  it.each([null, "", "not json", TOKEN, JSON.stringify({ token: "short", at: at.getTime() })])(
+    "ignores %s",
+    (stored) => {
+      expect(readKeptToken(stored, at)).toBeNull();
+    },
+  );
+});
+
+describe("isSameOrigin", () => {
+  it.each([
+    ["https://app.example.invalid", "app.example.invalid", true],
+    ["http://localhost:3000", "localhost:3000", true],
+    ["https://app.example.invalid", "app.example.invalid, internal:3000", true],
+    ["https://evil.example.invalid", "app.example.invalid", false],
+    ["http://localhost:3001", "localhost:3000", false],
+    [null, "app.example.invalid", false],
+    ["null", "app.example.invalid", false],
+    ["https://app.example.invalid", null, false],
+  ])("%s for %s is %s", (origin, host, expected) => {
+    expect(isSameOrigin(origin, host)).toBe(expected);
   });
 });

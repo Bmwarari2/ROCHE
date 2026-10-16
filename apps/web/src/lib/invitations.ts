@@ -12,6 +12,49 @@ import type { PasswordRule } from "@harbour/domain";
 /** Session storage key for the token while the person signs in first. One tab only. */
 export const INVITATION_TOKEN_KEY = "harbour.invitation";
 
+/** How long a kept token lasts: long enough to sign in first, short on a shared computer. */
+export const KEPT_TOKEN_MINUTES = 30;
+
+/** The stored form of a kept token: the token and when it was kept. */
+export function keptToken(token: string, now: Date): string {
+  return JSON.stringify({ token, at: now.getTime() });
+}
+
+/** The kept token, or null when there is none, it is not one, or it is older than 30 minutes. */
+export function readKeptToken(stored: string | null, now: Date): string | null {
+  if (!stored) return null;
+  try {
+    const { token, at } = JSON.parse(stored) as { token?: unknown; at?: unknown };
+    if (!isInvitationToken(token) || typeof at !== "number") return null;
+    const age = now.getTime() - at;
+    return age >= 0 && age <= KEPT_TOKEN_MINUTES * 60_000 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Forgets a kept token (signing out, accepting, or a link that can never work). */
+export function forgetKeptToken(): void {
+  try {
+    window.sessionStorage.removeItem(INVITATION_TOKEN_KEY);
+  } catch {
+    // Storage blocked: nothing was kept.
+  }
+}
+
+/**
+ * Whether a request's Origin is this site (the invitation route handlers accept nothing else).
+ * `host` is the host the person reached: X-Forwarded-Host behind the load balancer, else Host.
+ */
+export function isSameOrigin(origin: string | null, host: string | null): boolean {
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host.split(",")[0]?.trim();
+  } catch {
+    return false;
+  }
+}
+
 /** The token's shape (`InvitationToken` in @harbour/contracts): 43 base64url characters. */
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
@@ -105,12 +148,11 @@ export type AcceptResult =
 export const ENROLMENT_PATH = "/settings/security?reason=mfa";
 
 /**
- * Where to go after accepting. A new sign-in signs in first, then lands on enrolment; an existing
- * sign-in goes straight to the security page (it may already have a second factor, and the API
- * sends anyone who still needs one there with ?reason=mfa).
+ * Where to go after accepting: enrolment. A new sign-in signs in first and lands there; an
+ * existing one goes straight there (the page shows what is already set up).
  */
 export function destinationAfterAccept(next: "sign_in" | "enrol"): string {
-  if (next === "enrol") return "/settings/security";
+  if (next === "enrol") return ENROLMENT_PATH;
   return `/sign-in?${new URLSearchParams({ next: ENROLMENT_PATH }).toString()}`;
 }
 

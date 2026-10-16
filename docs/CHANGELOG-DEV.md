@@ -1800,3 +1800,11 @@ time; the correction index's conflict maps to the 409; H-216 extended. Tests: 5 
 
 **Tests**: `apps/web` `lib/invitations.test.ts` and `PasswordField.test.tsx` (axe), e2e
 `invitation.spec.ts` (axe); `packages/domain` `passwords.test.ts`.
+
+After #59 review round 1: the page calls same-origin route handlers (`/api/invitations/lookup`
+and `/accept`, JSON only, Origin checked) instead of server actions, so the journey can draw every
+state with `page.route`; the e2e now covers the create-sign-in form (rules, show or hide, error
+summary), sign-in ready, sign in first, expired, withdrawn, used and throttled, each with axe. The
+kept token carries its time and is dropped after 30 minutes, on sign-out and on the create path;
+an existing sign-in also lands on enrolment; headings take focus, "Sending" is announced, the
+form checks the NCSC rules before sending. Tests: 14 new unit tests, 7 new journeys.

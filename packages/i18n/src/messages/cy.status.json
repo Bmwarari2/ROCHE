@@ -1122,6 +1122,8 @@
     "security.password.show",
     "security.password.hide",
     "security.password.shown",
-    "security.password.hidden"
+    "security.password.hidden",
+    "invitation.form.problem",
+    "invitation.sending"
   ]
 }

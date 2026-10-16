@@ -1121,5 +1121,7 @@
   "security.password.show": "Show password",
   "security.password.hide": "Hide password",
   "security.password.shown": "Your password is shown",
-  "security.password.hidden": "Your password is hidden"
+  "security.password.hidden": "Your password is hidden",
+  "invitation.form.problem": "There is a problem",
+  "invitation.sending": "Sending"
 }

@@ -1,5 +1,4 @@
-"use server";
-
+import "server-only";
 import { passwordRuleBroken } from "@harbour/domain";
 import { cookies } from "next/headers";
 import { isSecureRequest, problemCode, serverApi } from "@/lib/api";
@@ -15,9 +14,10 @@ import {
 } from "@/lib/invitations";
 
 /**
- * The invitation page's calls to the API (PLAT-004). The browser reaches only /api/auth, so the
- * page sends the token here in a server action's body; it goes on to the API in a request body,
- * with the person's session cookie when they have one. Nothing here logs, stores or returns it.
+ * The invitation page's calls to the API (PLAT-004), behind the route handlers in
+ * app/api/invitations. The page posts the token to them in a JSON body; it goes on to the API in
+ * a request body, with the person's session cookie when they have one. Nothing here logs, stores
+ * or returns it.
  */
 
 /** What a failed call means for the page: throttled, unknown, refused, or unreachable. */
