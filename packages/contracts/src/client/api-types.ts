@@ -16257,6 +16257,87 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/feed/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * What publishing would make, or what stops it, with nothing stored
+     * @description As POST /v1/people/{id}/feed, but nothing is written: the words the family would see, the plain-English suggestions, or each problem with its code, so the form can show it at its field. Audited with ids and codes only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishFeedItem"];
+        };
+      };
+      responses: {
+        /** @description Preview */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FeedPreview"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/letters/preview": {
     parameters: {
       query?: never;
@@ -19209,6 +19290,234 @@ export interface paths {
       };
     };
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sub-processors": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The sub-processors the organisation uses, and the notices about them
+     * @description A DPIA or onboarding permission. The sub-processors its configuration uses, each acknowledged or not since its entry last changed, and every notice with where it stands for the organisation (noticeStateFor) and when its objection window ends (the organisation's sub_processor.notice_days).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Sub-processors */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubProcessorOverview"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sub-processors/{key}/acknowledge": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Acknowledge a sub-processor the organisation uses
+     * @description platform.dpia.sign with step-up, by the named data protection lead (checkNoticeResponse; 422 notice_response_refused otherwise): its register entry at onboarding, or a notice about it (`noticeId`). Append-only. Audited (platform.sub_processor.acknowledged), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          key: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AcknowledgeSubProcessor"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubProcessorResponseRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/sub-processor-notices/{id}/object": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Object to a sub-processor notice, within its window
+     * @description platform.dpia.sign with step-up, by the named data protection lead, while the organisation's objection window is open, with data protection grounds of 20 characters or more (checkNoticeResponse; 422 notice_response_refused otherwise). While the objection is open the sub-processor does not process the organisation's data (mayProcessTenantData). Append-only. Audited (platform.sub_processor.objected) with the notice id, never the grounds; refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ObjectToNotice"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SubProcessorResponseRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -24966,8 +25275,14 @@ export interface components {
     WithdrawFeedItem: {
       reason: components["schemas"]["FeedWithdrawalReason"];
     };
-    PublishedFeedItem: {
-      item: components["schemas"]["StaffFeedItem"];
+    FeedPreview: {
+      ok: boolean;
+      kind: components["schemas"]["FeedItemKind"] & (string | null);
+      text: string | null;
+      problems: {
+        problem: string;
+        message: string;
+      }[];
       lint: string[];
     };
     PublishFeedItem: {
@@ -24996,6 +25311,10 @@ export interface components {
             onlyThisPerson: boolean;
           };
       confirmationReason?: string;
+    };
+    PublishedFeedItem: {
+      item: components["schemas"]["StaffFeedItem"];
+      lint: string[];
     };
     LetterPreview: {
       /** Format: uuid */
@@ -25797,6 +26116,69 @@ export interface components {
       /** @enum {string|null} */
       aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
       expectedVersion: number;
+    };
+    SubProcessorOverview: {
+      noticeDays: number;
+      mayRespond: boolean;
+      inUse: {
+        key: string;
+        name: string;
+        service: string;
+        purpose: string;
+        location: string;
+        outsideUk: boolean;
+        /** Format: date-time */
+        acknowledgedAt: string | null;
+        /** Format: date-time */
+        changedAt: string | null;
+        acknowledged: boolean;
+      }[];
+      notices: {
+        /** Format: uuid */
+        id: string;
+        subProcessorKey: string;
+        /** @enum {string} */
+        kind: "new" | "replacement";
+        /** Format: date-time */
+        announcedAt: string;
+        /** Format: date-time */
+        effectiveFrom: string;
+        /** Format: date-time */
+        windowEndsAt: string;
+        /** @enum {string} */
+        state:
+          | "not_applicable"
+          | "awaiting_response"
+          | "acknowledged"
+          | "objected"
+          | "objection_resolved"
+          | "deemed_accepted";
+        /** Format: date-time */
+        acknowledgedAt: string | null;
+        objection: components["schemas"]["SubProcessorObjection"];
+      }[];
+    };
+    SubProcessorObjection: {
+      /** Format: date-time */
+      at: string;
+      grounds: string | null;
+      /** Format: date-time */
+      resolvedAt: string | null;
+      /** @enum {string|null} */
+      resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended" | null;
+    } | null;
+    SubProcessorResponseRecorded: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      respondedAt: string;
+    };
+    AcknowledgeSubProcessor: {
+      /** Format: uuid */
+      noticeId?: string;
+    };
+    ObjectToNotice: {
+      grounds: string;
     };
     OnboardingChecklist: {
       items: components["schemas"]["OnboardingItem"][];

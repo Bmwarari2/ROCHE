@@ -19282,11 +19282,48 @@
           "reason"
         ]
       },
-      "PublishedFeedItem": {
+      "FeedPreview": {
         "type": "object",
         "properties": {
-          "item": {
-            "$ref": "#/components/schemas/StaffFeedItem"
+          "ok": {
+            "type": "boolean"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedItemKind"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "problem": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "problem",
+                "message"
+              ]
+            }
           },
           "lint": {
             "type": "array",
@@ -19296,7 +19333,10 @@
           }
         },
         "required": [
-          "item",
+          "ok",
+          "kind",
+          "text",
+          "problems",
           "lint"
         ]
       },
@@ -19395,6 +19435,24 @@
         "required": [
           "id",
           "source"
+        ]
+      },
+      "PublishedFeedItem": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/StaffFeedItem"
+          },
+          "lint": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "item",
+          "lint"
         ]
       },
       "LetterPreview": {
@@ -22252,6 +22310,225 @@
           "aiFreeTextEnabled",
           "aiProvider",
           "expectedVersion"
+        ]
+      },
+      "SubProcessorOverview": {
+        "type": "object",
+        "properties": {
+          "noticeDays": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mayRespond": {
+            "type": "boolean"
+          },
+          "inUse": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "service": {
+                  "type": "string"
+                },
+                "purpose": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "outsideUk": {
+                  "type": "boolean"
+                },
+                "acknowledgedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "changedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "acknowledged": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "service",
+                "purpose",
+                "location",
+                "outsideUk",
+                "acknowledgedAt",
+                "changedAt",
+                "acknowledged"
+              ]
+            }
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subProcessorKey": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "replacement"
+                  ]
+                },
+                "announcedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "windowEndsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "not_applicable",
+                    "awaiting_response",
+                    "acknowledged",
+                    "objected",
+                    "objection_resolved",
+                    "deemed_accepted"
+                  ]
+                },
+                "acknowledgedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "objection": {
+                  "$ref": "#/components/schemas/SubProcessorObjection"
+                }
+              },
+              "required": [
+                "id",
+                "subProcessorKey",
+                "kind",
+                "announcedAt",
+                "effectiveFrom",
+                "windowEndsAt",
+                "state",
+                "acknowledgedAt",
+                "objection"
+              ]
+            }
+          }
+        },
+        "required": [
+          "noticeDays",
+          "mayRespond",
+          "inUse",
+          "notices"
+        ]
+      },
+      "SubProcessorObjection": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "grounds": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "objection_withdrawn",
+              "not_used_for_tenant",
+              "services_ended",
+              null
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "grounds",
+          "resolvedAt",
+          "resolution"
+        ]
+      },
+      "SubProcessorResponseRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "respondedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "respondedAt"
+        ]
+      },
+      "AcknowledgeSubProcessor": {
+        "type": "object",
+        "properties": {
+          "noticeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ObjectToNotice": {
+        "type": "object",
+        "properties": {
+          "grounds": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "grounds"
         ]
       },
       "OnboardingChecklist": {
@@ -41727,6 +42004,95 @@
         }
       }
     },
+    "/v1/people/{id}/feed/preview": {
+      "post": {
+        "tags": [
+          "comms"
+        ],
+        "summary": "What publishing would make, or what stops it, with nothing stored",
+        "description": "As POST /v1/people/{id}/feed, but nothing is written: the words the family would see, the plain-English suggestions, or each problem with its code, so the form can show it at its field. Audited with ids and codes only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFeedItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/people/{id}/letters/preview": {
       "post": {
         "tags": [
@@ -44951,6 +45317,244 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sub-processors": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The sub-processors the organisation uses, and the notices about them",
+        "description": "A DPIA or onboarding permission. The sub-processors its configuration uses, each acknowledged or not since its entry last changed, and every notice with where it stands for the organisation (noticeStateFor) and when its objection window ends (the organisation's sub_processor.notice_days).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sub-processors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubProcessorOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sub-processors/{key}/acknowledge": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Acknowledge a sub-processor the organisation uses",
+        "description": "platform.dpia.sign with step-up, by the named data protection lead (checkNoticeResponse; 422 notice_response_refused otherwise): its register entry at onboarding, or a notice about it (`noticeId`). Append-only. Audited (platform.sub_processor.acknowledged), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeSubProcessor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubProcessorResponseRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sub-processor-notices/{id}/object": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Object to a sub-processor notice, within its window",
+        "description": "platform.dpia.sign with step-up, by the named data protection lead, while the organisation's objection window is open, with data protection grounds of 20 characters or more (checkNoticeResponse; 422 notice_response_refused otherwise). While the objection is open the sub-processor does not process the organisation's data (mayProcessTenantData). Append-only. Audited (platform.sub_processor.objected) with the notice id, never the grounds; refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObjectToNotice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubProcessorResponseRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -23,6 +23,7 @@ export type RecordTab =
   | "capacity"
   | "activities"
   | "letters"
+  | "family-updates"
   | "history";
 
 interface TabDefinition {
@@ -32,7 +33,8 @@ interface TabDefinition {
     | "care.plan.read"
     | "care.note.read"
     | "people.person.read"
-    | "comms.letter.manage";
+    | "comms.letter.manage"
+    | "comms.feed.publish";
 }
 
 /** In the order the tabs appear: plan and assessments first, then the daily record. */
@@ -48,6 +50,7 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "letters", needs: "comms.letter.manage" },
+  { tab: "family-updates", needs: "comms.feed.publish" },
   { tab: "history", needs: "people.person.read" },
 ];
 

@@ -601,7 +601,34 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   newest report in `docs/clinical-safety/safety-case/`), and a test checks the default names a
   report there.
 
-## 10f. As built (slice 13, the search index)
+## 10h. As built (slice 13, sub-processor notices, organisation side)
+
+- Migration 0065: `sub_processor_notice` (global, Thapsus's; everyone reads, only the operator
+  role announces; never changes) and `sub_processor_response` (append-only, forced RLS; read
+  with a DPIA or onboarding permission; written by the application only as the named data
+  protection lead holding `platform.dpia.sign` through a role, in their own name, acknowledging
+  or objecting; the operator role records a resolution).
+- Domain: `noticeResponseFrom` (the latest acknowledgement, the latest objection and the first
+  resolution after it) and `subProcessorAcknowledgementsFrom` (the checklist's acknowledgements),
+  table-driven.
+- Routes (`apps/api/src/routes/sub-processors.ts`): `GET /v1/sub-processors` (the sub-processors
+  in use, each acknowledged or not since its latest notice, and every notice with its state and
+  when the organisation's window ends); `POST /v1/sub-processors/{key}/acknowledge` (the register
+  entry, or a notice with `noticeId`); `POST /v1/sub-processor-notices/{id}/object` (grounds of 20
+  characters or more, within the window). Both answers need `platform.dpia.sign` with step-up by
+  the named lead (`checkNoticeResponse`), refusals as 422 `notice_response_refused`, audited with
+  ids and keys only, never the grounds. The onboarding checklist's `sub_processors_acknowledged`
+  now reads the responses and notices. Review of #92: responses are read through roles only
+  (`app.holds_role_permission_somewhere`), and the grounds are returned only to DPIA permission
+  holders; the register entry is not acknowledged while a notice about it has an open objection;
+  each notice's window uses the organisation's notice period in force on the UK date it was
+  announced.
+- Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
+  organisations, telling their leads, and recording a resolution), then the web screens.
+
+## 10s. As built (slice 13, search)
+
+### Part 1, the index
 
 Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
 
