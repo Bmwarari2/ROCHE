@@ -1783,6 +1783,33 @@ ids; one shared copy limit); alerts and tasks from a back-entered observation sa
 paper, with the paper time, and the outbox event carries it; the label falls back to the paper
 time; the correction index's conflict maps to the 409; H-216 extended. Tests: 5 new, 3 extended.
 
+## 2026-10-16: Slice 11, evidence pack and statement of purpose schema (QUAL-003, QUAL-009)
+
+Part 1 of the schema and API step for quality.md (section 12): migration 0057 adds
+`evidence_pack`, `evidence_pack_item` (append-only), `evidence_pack_link`,
+`evidence_pack_link_code`, `evidence_pack_bundle` and `statement_of_purpose_version`, each with
+forced RLS and the tenant policy. Packs follow their locations and people and the compose or
+release permission at every location; the database fixes the request once composed, keeps field
+values out of the manifest, records editors and hand redactors, refuses release or a link by anyone
+who shaped the pack, binds links to the recipient within the maximum expiry, never lowers failed
+code attempts, works out code lifetimes, deletes bundles for good at link end, and approves a
+statement of purpose only by someone who did not write it, superseding the current version and
+starting the regulation 12(3) clock. A security-definer lookup finds a link by its token, owned by
+the new NOLOGIN role `harbour_evidence_link_reader`.
+
+- Domain: `EVIDENCE_EXCLUSION_REASONS`; export catalogue entries for the six tables (bundle not
+  exported; token and code hashes secret).
+- Docs: quality.md section 12, retention.md, data-standards.md, HZ-050 control and test rows,
+  H-216 and H-217, STATUS, feature register.
+
+**Tests**: `packages/db` `evidence-pack.test.ts`, 13 new; RLS coverage lists the new append-only
+table.
+
+After #56 security review round 1: writing or changing a bundle makes the member an editor (so not
+a releaser or link issuer); the manifest holds no redacted copy, and keys, labels and titles are
+bounded; the token lookup takes the SHA-256 hex digest; cross-tenant read and write denial is
+tested for every table; the part 2 requirements are in STATUS. Tests: 5 new, 2 changed.
+
 ## 2026-10-16: Slice 9 part 4a, record an incident and answer the classifier's questions (SAFE-001, SAFE-002)
 
 - Web: `/incidents/new` records an incident or near miss (`safety.incident.report`), from the
