@@ -63,7 +63,8 @@ export function useManageSend(path: string) {
     startTransition(async () => {
       const outcome = manageResult(await call(), t);
       setResult(outcome);
-      if (outcome.ok) router.replace(`${path}?done=${done}`);
+      // `at` makes each save a new arrival, so a second identical save is said and focused again.
+      if (outcome.ok) router.replace(`${path}?done=${done}&at=${Date.now()}`);
     });
   /** Errors the form found before sending, with the date boxes each is about when it says. */
   const fail = (errors: FieldErrors, parts?: Readonly<Record<string, readonly string[]>>) =>
