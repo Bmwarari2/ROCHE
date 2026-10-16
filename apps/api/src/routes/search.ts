@@ -9,13 +9,14 @@ import {
   searchRefusalAuditEvent,
 } from "@harbour/domain";
 import { createRoute } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
 import { accessRowsOf } from "../services/access-rows";
 import { rateNumber } from "../services/rates";
-import { searchRows } from "../services/search";
+import { READ_LIMIT, searchRows } from "../services/search";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 import { audit } from "./people-shared";
 
@@ -89,15 +90,37 @@ export const searchRouter = createRouter().openapi(
     const access = await requirePermission(c, "platform.search.use");
     const body = c.req.valid("json");
     const now = new Date();
+    // A per-member limit from the rate table (`search.requests_per_minute`), so search cannot be
+    // used to sweep the records a name at a time; never a literal.
+    const perMinute = await withTenant(c, (tx) =>
+      rateNumber(tx, access.tenantId, "search.requests_per_minute"),
+    );
+    await requireWithinLimit(
+      c.get("services").db,
+      access,
+      new RateLimiter("search", perMinute, 60_000),
+    );
     const asked: readonly SearchEntityType[] = body.types?.length
       ? body.types
       : ["person", "staff", "document", "note"];
     const out = await withAuditedRefusal(c, access, () =>
       withTenant(c, async (tx) => {
+        // A technical bound on the whole search, so a slow query cannot hold a connection.
+        await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
         const [me] = await tx
           .select({ isAgency: tenantUser.isAgency })
           .from(tenantUser)
           .where(eq(tenantUser.id, access.tenantUserId));
+        // A member whose row cannot be read is refused, never treated as not an agency worker.
+        if (!me) {
+          const event = searchRefusalAuditEvent("not_permitted", asked);
+          throw new AuditedRefusal(problems.forbidden(), {
+            action: event.action,
+            outcome: event.outcome,
+            resourceType: event.resourceType,
+            scope: event.scope,
+          });
+        }
         const checked = buildSearchPlan(
           { rawQuery: body.query, entityTypes: asked, includeArchived: body.includeArchived },
           {
@@ -106,7 +129,7 @@ export const searchRouter = createRouter().openapi(
             mfaEnrolled: access.mfaSatisfied,
             window: {
               roleEndsAt: await roleEndsAt(tx, access, now),
-              isAgencyWorker: me?.isAgency === true,
+              isAgencyWorker: me.isAgency,
               // Rotas arrive in Phase 2: no shift is recorded, so agency search fails closed.
               agencyShiftEndsAt: null,
             },
@@ -131,7 +154,7 @@ export const searchRouter = createRouter().openapi(
           });
         }
         const plan = checked.plan;
-        const { hits, details } = await searchRows(tx, {
+        const { hits, details, capped } = await searchRows(tx, {
           tenantId: access.tenantId,
           actor: access.tenantUserId,
           access: access.effective,
@@ -139,7 +162,8 @@ export const searchRouter = createRouter().openapi(
         });
         const page = filterSearchResults(plan, hits, now);
         if (page.droppedByPlan > 0) {
-          // Row-level security and the plan disagree: an alarm with opaque counts only (HZ-011).
+          // The database returned rows the plan does not allow: the queries and the plan disagree.
+          // An alarm with opaque counts only (HZ-011), in the log and the audit trail.
           c.get("services").logger.error(
             {
               event: "security.search.dropped_by_plan",
@@ -148,6 +172,12 @@ export const searchRouter = createRouter().openapi(
             },
             "security.search.dropped_by_plan",
           );
+          await audit(c, tx, access, {
+            action: "platform.search.dropped_by_plan",
+            outcome: "error",
+            resourceType: "search",
+            scope: { dropped: page.droppedByPlan, read: hits.length },
+          });
         }
         const event = searchAuditEvent(plan, page);
         await audit(c, tx, access, {
@@ -181,6 +211,7 @@ export const searchRouter = createRouter().openapi(
                     locationName: person.locationName,
                     roomLabel: person.roomLabel,
                     hasPhoto: person.hasPhoto,
+                    communicationNeeds: person.communicationNeeds,
                   }
                 : null,
               staff: hit.entityType === "staff" ? (detail.staff ?? null) : null,
@@ -196,7 +227,9 @@ export const searchRouter = createRouter().openapi(
           }),
           counts: page.counts,
           total: page.total,
-          hasMore: page.hasMore,
+          hasMore: page.hasMore || capped,
+          capped,
+          readLimit: READ_LIMIT,
           omitted: [...plan.omitted],
           personScope: plan.personScope?.kind ?? null,
           staffScope: plan.staffScope?.kind ?? null,

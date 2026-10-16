@@ -19810,6 +19810,8 @@ export interface components {
       };
       total: number;
       hasMore: boolean;
+      capped: boolean;
+      readLimit: number;
       omitted: components["schemas"]["SearchOmission"][];
       /** @enum {string|null} */
       personScope: "tenant" | "locations" | "assigned" | null;
@@ -19867,6 +19869,7 @@ export interface components {
       locationName: string | null;
       roomLabel: string | null;
       hasPhoto: boolean;
+      communicationNeeds: string[];
     } | null;
     /**
      * @description The person lifecycle (people.md rule 1)

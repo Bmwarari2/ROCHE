@@ -2491,3 +2491,10 @@ number index removed; document title tests across tenants and scopes. Tests: `se
 
 **Tests**: `apps/api/test/search.test.ts` (11).
 
+Review round 1 of #93: corrected notes, deleted people and colleagues outside the staff scope are
+left out in SQL, so routine searches drop nothing and raise no alarm (now also an audit event);
+every query orders best matches first before its limit and says when results are capped; a
+per-member limit from the rate table (`search.requests_per_minute`) and a statement timeout; a
+member whose row cannot be read is refused; communication needs on person results. Tests:
+`search.test.ts` 14.
+

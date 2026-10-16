@@ -302,6 +302,12 @@
           "hasMore": {
             "type": "boolean"
           },
+          "capped": {
+            "type": "boolean"
+          },
+          "readLimit": {
+            "type": "integer"
+          },
           "omitted": {
             "type": "array",
             "items": {
@@ -350,6 +356,8 @@
           "counts",
           "total",
           "hasMore",
+          "capped",
+          "readLimit",
           "omitted",
           "personScope",
           "staffScope",
@@ -564,6 +572,12 @@
           },
           "hasPhoto": {
             "type": "boolean"
+          },
+          "communicationNeeds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -576,7 +590,8 @@
           "status",
           "locationName",
           "roomLabel",
-          "hasPhoto"
+          "hasPhoto",
+          "communicationNeeds"
         ]
       },
       "PersonStatus": {
