@@ -87,7 +87,7 @@ export const SearchResults = z
   .object({
     items: z.array(SearchResultItem),
     /** Per kind, counted only over what the user may see. */
-    counts: z.record(SearchEntityType, z.number().int()),
+    counts: z.record(z.string(), z.number().int()),
     total: z.number().int(),
     hasMore: z.boolean(),
     /** Kinds asked for and not searched, with why (never anything about a record). */

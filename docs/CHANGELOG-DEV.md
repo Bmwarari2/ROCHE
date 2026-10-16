@@ -2491,3 +2491,15 @@ number index removed; document title tests across tenants and scopes. Tests: `se
 
 **Tests**: `apps/api/test/search.test.ts` (11).
 
+## 2026-10-17: Slice 13 search part 3, the search page (PLAT-013)
+
+- Web: `/search` and "Search" in the side bar for `platform.search.use`: the box (with "Look in"
+  and, for those who may, people who have left), results that take focus and say where the search
+  looked and what it left out, people with photo, date of birth or age, NHS number and status as a
+  word, same-name warnings, and refusals in words. The words never reach the address. Strings in
+  en-GB; Welsh copied and listed as untranslated.
+- Docs: platform-completions.md section 10h, HZ-001, the register, STATUS.
+
+**Tests**: `apps/web/src/lib/search.test.ts` (7); `apps/web/e2e/search.spec.ts` (2, axe on every
+state).
+

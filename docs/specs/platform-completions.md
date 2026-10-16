@@ -627,6 +627,19 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 | Audit | `platform.search.run` with `searchAuditEvent` (the ids shown, people shown as care-record views); refusals `platform.search.refused` with the problem; never the words typed |
 | Refusals | Query problems 422 (`invalid` with the message); no permission, nothing to search, people who have left without the permission, access ended and no shift 403 with the problem as the code; MFA 403 asking to confirm or set up a second step |
 
+## 10h. As built (slice 13, the search page)
+
+`/search` (`feat/web-search`, stacked on the route), "Search" in the side bar for
+`platform.search.use`: `apps/web/src/app/(shell)/search/page.tsx`,
+`apps/web/src/components/search/SearchBox.tsx`, `apps/web/src/lib/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| The box | A `search` landmark with a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
+| Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word; a same-name warning with an icon and words (HZ-001). Each result links to the person, the document or the person's notes |
+| Refusals | In words at the box: nothing typed, a mistyped NHS number, no shift recorded, access ended, people who have left without the permission, MFA |
+| Follow-ups | Break-glass search and its dialog; offline search on mobile labelled "This device only" |
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

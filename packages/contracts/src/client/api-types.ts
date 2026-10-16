@@ -19803,10 +19803,7 @@ export interface components {
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
-        person?: number;
-        staff?: number;
-        document?: number;
-        note?: number;
+        [key: string]: number;
       };
       total: number;
       hasMore: boolean;
