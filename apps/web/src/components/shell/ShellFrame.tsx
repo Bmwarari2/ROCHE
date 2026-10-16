@@ -10,6 +10,7 @@ import {
   type SwitcherOption,
 } from "@harbour/ui";
 import {
+  Archive,
   Bell,
   ClipboardList,
   CloudOff,
@@ -53,6 +54,8 @@ export interface ShellFrameLabels {
   readonly downtime?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
+  /** Shown only to people who may export the organisation's data (platform.export.create). */
+  readonly dataExport?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -89,6 +92,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/settings/team")) return "team";
+  if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -208,6 +212,16 @@ export function ShellFrame({
             label: labels.team,
             href: "/settings/team",
             icon: <UserPlus {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataExport
+      ? [
+          {
+            id: "export",
+            label: labels.dataExport,
+            href: "/settings/export",
+            icon: <Archive {...icon} />,
           },
         ]
       : []),

@@ -2331,3 +2331,15 @@ fetch untaken, another holder, another organisation's id); `packages/db/test/ten
 **Tests**: `zip-writer.test.ts` 2 new (a failing source, a reader that stops);
 `export-worker.test.ts` 3 new (an upload failing partway or never starting, a cancel while built).
 
+## 2026-10-17: Slice 13 part 3, the export page (PLAT-015)
+
+- Data export in the navigation for holders of `platform.export.create`: ask for an export, each
+  export's state as an icon and a word with its expiry and size, download once after a warning
+  that it holds everyone's records (streamed through a same-origin route handler, never cached),
+  cancel after confirming; step-up refusals with passkey and authenticator wording.
+- The demo owner gets the end-to-end passkey; `exports:run` runs the worker's job once.
+- Strings in en-GB; Welsh copied and listed as untranslated.
+
+**Tests**: `apps/web/src/lib/exports.test.ts`; `apps/web/e2e/export.spec.ts` (3, axe on every
+state).
+
