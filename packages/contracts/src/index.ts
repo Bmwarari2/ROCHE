@@ -494,6 +494,7 @@ export * from "./mca";
 export * from "./operations";
 export * from "./people";
 export * from "./person-summary";
+export * from "./quality";
 export * from "./records";
 export * from "./safety";
 export * from "./staff";

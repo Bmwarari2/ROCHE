@@ -468,11 +468,38 @@
     padding: 12px;
     border-inline-end: var(--hairline) solid var(--border);
     background-color: var(--bg-secondary);
+  }
+
+  /* Width animates only when the person toggles it, never when the page settles its first state,
+     so a phone never lays out a half-collapsed sidebar wider than the screen allows. */
+  .hb-sidebar[data-animate="true"] {
     transition: width var(--motion-duration) var(--motion-easing);
   }
 
   .hb-sidebar--collapsed {
     width: calc(var(--touch-target) + 24px);
+  }
+
+  /* `hb-sidebar--narrow-auto`: until the app has chosen (before hydration), a narrow screen shows
+     icons only, as the app will once it runs. */
+  @media (max-width: 734px) {
+    .hb-sidebar--narrow-auto {
+      width: calc(var(--touch-target) + 24px);
+    }
+
+    .hb-sidebar--narrow-auto .hb-sidebar__link,
+    .hb-sidebar--narrow-auto .hb-sidebar__toggle {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .hb-sidebar--narrow-auto .hb-sidebar__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
   }
 
   .hb-sidebar__list {
@@ -680,6 +707,11 @@
     border: var(--hairline) solid var(--border);
     border-radius: var(--corner-card);
     background-color: var(--card);
+  }
+
+  .hb-table__scroll:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
   .hb-table__table {

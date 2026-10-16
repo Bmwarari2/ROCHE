@@ -79,11 +79,14 @@ export function Sidebar({
 }: SidebarProps) {
   const listId = useId();
   const [uncontrolledCollapsed, setUncontrolledCollapsed] = useState(defaultCollapsed);
+  // The width animates only after the person toggles it (not when the app sets its first state).
+  const [animate, setAnimate] = useState(false);
   const collapsed = collapsedProp ?? uncontrolledCollapsed;
   const Anchor = linkComponent ?? "a";
 
   const toggle = () => {
     const next = !collapsed;
+    setAnimate(true);
     if (collapsedProp === undefined) {
       setUncontrolledCollapsed(next);
     }
@@ -98,6 +101,7 @@ export function Sidebar({
         aria-label={label}
         className={cx("hb-sidebar", collapsed && "hb-sidebar--collapsed", className)}
         data-collapsed={collapsed ? "true" : "false"}
+        data-animate={animate ? "true" : undefined}
       >
         <ul id={listId} className="hb-sidebar__list">
           {items.map((item) => {
