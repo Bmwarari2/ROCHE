@@ -1990,3 +1990,21 @@ ended.
 **Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
 re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
 `time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
+
+## 2026-10-16: Slice 11, evidence pack link routes and the PDF (QUAL-003, part 2c)
+
+- Migration 0058: the link session (`app.link_id`, `app.link_pack_id`, `app.is_link_session()`)
+  and restrictive policies holding it to its own link, pack, items, bundle and codes, read only
+  except the link and codes, and none of the statement of purpose. `RequestContext.evidenceLink`.
+- API: `POST /p/evidence/code`, `POST /p/evidence/verify`, `GET /p/evidence/bundle` (quality.md
+  section 15): the token in a body only, looked up by its SHA-256; codes as an HMAC under
+  `EVIDENCE_LINK_SECRET`, at most three open; a wrong code counted in the same transaction and a
+  lock at five; a signed HttpOnly, Secure, SameSite=Strict session cookie for one link; the
+  watermarked PDF from the bundle through the ADR-0040 writer, `no-store`; throttles per address
+  and per link; every step audited with ids only.
+- Infra: `EVIDENCE_LINK_SECRET` from the `api` secret; the seed script creates it.
+- Docs: quality.md section 15, HZ-050 rows, H-225 to H-227, records of processing, data
+  standards, infra README, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` (11); `packages/db/test/evidence-pack.test.ts` 4 new
+(the link session); `config.test.ts` 1 new.
