@@ -4,6 +4,7 @@ import {
   type FeedDraft,
   familyUpdatesShown,
   feedProblemField,
+  isFamilyMember,
   isPortalOnly,
   needsConfirmation,
   previewRefusal,
@@ -178,5 +179,10 @@ describe("family updates on the web (COMMS-001, HZ-022)", () => {
     expect(isPortalOnly(["comms.portal.family", "comms.feed.read"])).toBe(true);
     expect(isPortalOnly(["comms.portal.family", "people.person.read"])).toBe(false);
     expect(isPortalOnly(["people.person.read", "comms.feed.publish"])).toBe(false);
+    // A family member whose link was revoked has no permissions at all: sent to the updates page.
+    expect(isFamilyMember({ permissions: [] })).toBe(true);
+    expect(isFamilyMember({ permissions: ["comms.portal.family", "comms.feed.read"] })).toBe(true);
+    expect(isFamilyMember({ permissions: ["people.person.read"] })).toBe(false);
+    expect(isFamilyMember({ permissions: ["care.note.write"] })).toBe(false);
   });
 });

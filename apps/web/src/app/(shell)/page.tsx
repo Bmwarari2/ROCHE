@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getShellContext } from "@/lib/api";
+import { isFamilyMember } from "@/lib/family-feed";
 import { peopleLabel, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: t("shell.nav.home") };
@@ -105,6 +107,8 @@ function tilesFor(roleKeys: readonly string[]): DashboardTile[] {
 /** The home dashboard. Empty in Phase 0: each tile says what will appear there. */
 export default async function HomePage() {
   const { me, locationId } = await getShellContext();
+  // A family member's portal session has no staff dashboard: their home is the updates page.
+  if (isFamilyMember(me)) redirect("/updates");
   const location = me.locations.find((l) => l.id === locationId);
   const people = peopleLabel(me.tenant.terminology);
   const tiles = tilesFor(me.roleKeys);
