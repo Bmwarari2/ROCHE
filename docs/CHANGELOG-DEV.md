@@ -1713,3 +1713,32 @@ the closure plus the clock-drift allowance; outages are locked before each chang
 correct are published; another home's outage is not found and audited as denied; the reconciliation
 selects only the columns it needs; `withTenantWideScope` restores the scope in a `finally`. Tests:
 3 new, 2 extended.
+
+## 2026-10-16: Slice 9 part 3, the statutory notification pages (SAFE-002, SAFE-003)
+
+- Web, read only: `/notifications/statutory` (still to do, then submitted or not required, each
+  with its clock, status, subject, due time, location, recipient and warnings) and
+  `/notifications/statutory/{id}` (the overdue alert's page: clock, status, warnings, every
+  deadline, the record it was drafted on with its status, reasons, required content, sources and
+  how it ended), for `safety.incident.manage`; the sidebar keeps Incidents current there, and the
+  incidents list links to the pages for managers.
+- #49 follow-ups on these pages: an "as of" line on the clocks (also on the incident page), a
+  hidden person unnumbered on their own page and numbered consistently on the list, the source
+  record named and linked with its status; the incident page links each notification to its page.
+- i18n: 15 new `safety.notification(s).*` entries in English and Welsh (Welsh listed untranslated).
+- Docs: safety.md section 5, HZ-013 rows, STATUS item 19, feature register SAFE-002.
+
+**Tests**: `apps/web` `statutory-notifications.test.ts` (13) and one new axe test in
+`IncidentNotifications.test.tsx`; `e2e/statutory-notifications.spec.ts` (3 journeys, hosted CI).
+
+## 2026-10-16: Slice 9 part 3, review round 1 of #52 (SAFE-002, SAFE-003)
+
+- The list reads each status on its own (HZ-013, clinical H1) and warns when unfinished
+  notifications may be missing; communication needs beside who a notification is about (AIS);
+  the person on a notification's page is read by id; a submitter without `manage` is told who
+  can act (H-260); unreadable due times sort first; finished deadlines headed as history; page
+  title, breadcrumb `aria-current` and described links on the incident page.
+- Docs: HZ-013 rows moved into the Verification table; STATUS item 19.
+
+**Tests**: `apps/web` `statutory-notifications.test.ts` 9 new; e2e names, axe on every page and
+the needs of demo person 3 (hosted CI).
