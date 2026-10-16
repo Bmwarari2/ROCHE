@@ -28,6 +28,7 @@ import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
 import { familyFeedRouter } from "./routes/family-feed";
+import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
@@ -243,6 +244,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
+  app.route("/", feedPublishRouter);
   app.route("/", lettersRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));

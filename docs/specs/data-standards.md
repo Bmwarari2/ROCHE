@@ -554,7 +554,8 @@ family feed; addresses follow the internet and telephone standards named below.
 | Harbour field | Standard mapping | Code list or format | Notes |
 | --- | --- | --- | --- |
 | `feed_item.kind` | Harbour | `activity`, `visit`, `appointment`, `shared_note`, `photo`, `care_plan_update`, `finance_statement` | Section from `FEED_ITEM_SECTIONS` (the `sharing_decision.sections` codes); `finance_statement` is a placeholder until Phase 3. |
-| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: shared notes come from `care_note_share`. |
+| `document.category = feed_photo` | Harbour | `feed_photo` (with `person_photo`, `care_attachment`, `person_document`, `organisation_document`) | The only category a family feed photo comes from (JPEG, PNG or WebP, 10 MB; `care_record`). |
+| `feed_item.text` | Harbour | Plain text, at most 1,000 characters; an approved phrase (`phrase_key`) or a member of staff's words | Never a clinical note: a shared note's words are written for the family when it is published (the publisher and time are the marking; `source_id` names the note). |
 | `feed_item.carePlanDomain` | PRSB PCSP need domains (as `care_plan_section.domain`) | `PCSP_DOMAINS` marked `may_appear` in `FEED_CARE_PLAN_DOMAINS` | Required for `care_plan_update` and empty otherwise (CHECK constraint); the CSO confirms the allow-list (H-110). |
 | `feed_item` confirmation | Harbour | Confirmed by (tenant user id) and reason (plain text, at least `FEED_CONFIRMATION_MIN_REASON_LENGTH` characters) | Only when staff words carry an event or wellbeing term (comms.md rule 12); both set or both empty. |
 | `feed_item.photoDocumentId` | Harbour | Document id | Only for `kind = 'photo'` (CHECK constraint). |
