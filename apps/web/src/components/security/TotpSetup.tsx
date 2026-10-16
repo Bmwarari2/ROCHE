@@ -7,6 +7,7 @@ import { refreshSecurity } from "@/app/actions/security";
 import { authClient } from "@/lib/auth-client";
 import { authMessages } from "@/lib/auth-messages";
 import { t } from "@/lib/i18n";
+import { factorChangeRedirect } from "@/lib/problems";
 import { QrCode } from "./QrCode";
 
 type Stage =
@@ -46,6 +47,11 @@ export function TotpSetup() {
     setBusy(true);
     try {
       const result = await authClient().twoFactor.enable({ password });
+      const redirect = factorChangeRedirect(result.error, "/settings/security");
+      if (redirect) {
+        router.push(redirect);
+        return;
+      }
       if (result.error || !result.data || !("totpURI" in result.data)) {
         setError(
           result.error?.status === 429

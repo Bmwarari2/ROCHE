@@ -1182,6 +1182,9 @@
     "safety.manage.notRequired.needed",
     "safety.manage.notRequired.neededHint",
     "safety.manage.notRequired.confirm",
-    "safety.manage.confirmError"
+    "safety.manage.confirmError",
+    "auth.mfaVerify.title",
+    "auth.mfaVerify.body",
+    "errors.mfaVerifyRequired"
   ]
 }

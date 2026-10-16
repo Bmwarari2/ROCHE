@@ -101,6 +101,8 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     // The person who raised an incident never closes it (safety.md rule 11).
     case "separation_of_duties":
       return { code, message: t("errors.separationOfDuties") };
+    case "mfa_verification_required":
+      return { code, message: t("errors.mfaVerifyRequired") };
     case "not_found":
       return { code, message: t("errors.notFound") };
     default:

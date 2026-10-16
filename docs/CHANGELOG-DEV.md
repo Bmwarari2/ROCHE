@@ -1783,6 +1783,70 @@ ids; one shared copy limit); alerts and tasks from a back-entered observation sa
 paper, with the paper time, and the outbox event carries it; the label falls back to the paper
 time; the correction index's conflict maps to the 409; H-216 extended. Tests: 5 new, 3 extended.
 
+## 2026-10-16: Slice 11, evidence pack and statement of purpose schema (QUAL-003, QUAL-009)
+
+Part 1 of the schema and API step for quality.md (section 12): migration 0057 adds
+`evidence_pack`, `evidence_pack_item` (append-only), `evidence_pack_link`,
+`evidence_pack_link_code`, `evidence_pack_bundle` and `statement_of_purpose_version`, each with
+forced RLS and the tenant policy. Packs follow their locations and people and the compose or
+release permission at every location; the database fixes the request once composed, keeps field
+values out of the manifest, records editors and hand redactors, refuses release or a link by anyone
+who shaped the pack, binds links to the recipient within the maximum expiry, never lowers failed
+code attempts, works out code lifetimes, deletes bundles for good at link end, and approves a
+statement of purpose only by someone who did not write it, superseding the current version and
+starting the regulation 12(3) clock. A security-definer lookup finds a link by its token, owned by
+the new NOLOGIN role `harbour_evidence_link_reader`.
+
+- Domain: `EVIDENCE_EXCLUSION_REASONS`; export catalogue entries for the six tables (bundle not
+  exported; token and code hashes secret).
+- Docs: quality.md section 12, retention.md, data-standards.md, HZ-050 control and test rows,
+  H-216 and H-217, STATUS, feature register.
+
+**Tests**: `packages/db` `evidence-pack.test.ts`, 13 new; RLS coverage lists the new append-only
+table.
+
+After #56 security review round 1: writing or changing a bundle makes the member an editor (so not
+a releaser or link issuer); the manifest holds no redacted copy, and keys, labels and titles are
+bounded; the token lookup takes the SHA-256 hex digest; cross-tenant read and write denial is
+tested for every table; the part 2 requirements are in STATUS. Tests: 5 new, 2 changed.
+
+## 2026-10-16: MFA counts only for the session that used it (#43 review M5)
+
+- API: care records (and the operator console) need a session that signed in, or confirmed a
+  code, with a passkey, an authenticator code or a backup code; having one enrolled is no longer
+  enough. A Better Auth `after` hook records the factor per session in `auth.verification`
+  (no migration). New refusal `mfa_verification_required` when a factor is enrolled but unused.
+- Web: that refusal goes to `/sign-in?reason=mfa` (with the next path) and a message to use the
+  passkey or the authenticator code; 3 new i18n entries (Welsh listed untranslated).
+- Docs: ADR-0072, HZ-112, H-358, platform.md, STATUS item 20.
+
+**Release note**: after this deploy, everyone signed in is asked to sign in again with their
+passkey or authenticator code before opening care records. Sessions from before the deploy fail
+closed (refused until they re-verify); nothing else is affected. The mobile app does not yet know
+the new code (follow-up).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` (6); harness and three test files mark their
+password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outcome.test.ts` (1).
+
+## 2026-10-16: MFA session factor, security review round 1 of #57
+
+- A password-only session can no longer enrol its own authenticator app or passkey, or remove
+  the member's, once one is enrolled (a first enrolment still goes ahead); the web security page
+  sends such a session to sign in with its factor. Five wrong codes per session, then sign in
+  again. The factor record matches on its value too.
+- Docs: ADR-0072, HZ-112 rows, STATUS item 20 follow-ups (step-up factor, mobile code).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 2 new (8 in all); `apps/web`
+`problems.test.ts` 2 new.
+
+## 2026-10-16: MFA session factor, security review round 2 of #57
+
+- The in-session code limit takes the attempt before the code is checked, under an advisory lock
+  on the session, so parallel requests on one token get at most five checks; a right code clears
+  them.
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 1 new (twenty codes sent at once).
+
 ## 2026-10-16: Slice 9 part 4a, record an incident and answer the classifier's questions (SAFE-001, SAFE-002)
 
 - Web: `/incidents/new` records an incident or near miss (`safety.incident.report`), from the

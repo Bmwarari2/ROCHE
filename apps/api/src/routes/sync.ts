@@ -30,7 +30,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
-import { requirePermission, withTenant } from "../http/context";
+import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
@@ -582,7 +582,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // device changes nothing. MFA is asked wherever the member's roles call for it, as on the
         // care routes.
         const access = c.get("access");
-        if (!access.mfaSatisfied) throw problems.mfaRequired();
+        if (!access.mfaSatisfied) throw mfaRefusal(access);
         await withTenant(c, (tx) => reportQuota.take(tx, access.tenantUserId));
         const report = c.req.valid("json");
         const receivedAt = new Date();
