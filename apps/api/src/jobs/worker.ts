@@ -5,6 +5,7 @@ import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { runJob } from "./run-job";
 import {
+  buildDowntimePacks,
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
@@ -62,6 +63,7 @@ const QUEUES = {
   handovers: "shift-handovers",
   taskEscalationRetries: "task-escalation-retries",
   unroutedReport: "unrouted-daily-report",
+  downtimePacks: "downtime-packs",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -122,6 +124,9 @@ await work(QUEUES.taskEscalationRetries, async () => {
 await work(QUEUES.unroutedReport, async () => {
   await reportUnroutedDaily(deps);
 });
+await work(QUEUES.downtimePacks, async () => {
+  await buildDowntimePacks(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -153,6 +158,9 @@ await boss.schedule(QUEUES.handovers, "*/5 * * * *");
 await boss.schedule(QUEUES.taskEscalationRetries, "53 * * * *");
 // Daily: one operator signal per organisation with unrouted safety work (on-call.md).
 await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
+// Nightly, and again every hour as a catch-up: each location gets one nightly downtime pack per UK
+// night, so a failed run is retried and a run that already built it does nothing (rule 8, HZ-021).
+await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
 
 logger.info("Harbour worker started");
 

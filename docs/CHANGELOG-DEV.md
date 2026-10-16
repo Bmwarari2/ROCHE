@@ -1638,6 +1638,16 @@ every page, page breaks and a footer naming whose page it is (HZ-001).
 
 **Tests**: `apps/api` 1 new in `downtime.test.ts`, and printing in the audit test.
 
+## 2026-10-13: Slice 11 part 3b, nightly packs, rebuilds and places (OPS-028)
+
+Stacked on part 3a-2 (operations.md section 13): the nightly job (hourly catch-up, once per
+location and UK night, each location in its own savepoint); a system rebuild after people
+lifecycle events (`server_rebuild`, migration 0055) at both the old and the new location; `PUT
+/v1/locations/{id}/downtime-places`, confirmed by a holder of `platform.location.manage`, with the
+task the nightly job keeps open while the places are unconfirmed.
+
+**Tests**: `apps/api` 2 more in `downtime.test.ts` and the places route in a third.
+
 ## 2026-10-13: Slice 11 part 3a-1, review round 1 of #45 (OPS-028)
 
 - A stored pack is served only while nothing it was built from has changed since its information's
@@ -1668,3 +1678,18 @@ every page, page breaks and a footer naming whose page it is (HZ-001).
 
 **Tests**: `apps/api` `downtime.test.ts` 3 new and printing in the step-up test; `packages/domain`
 4 new.
+
+## 2026-10-15: Slice 11 part 3b, review round 1 of #47 (OPS-028)
+
+- A bed move publishes `people.person.moved` and rebuilds both locations' packs (H2); a places
+  change rebuilds the location's pack.
+- Outbox handlers of one event run on their own; a failed rebuild is logged by opaque ids and
+  never holds back the death notification (clinical M5); after the nightly run a location with no
+  pack in date raises a task for its Registered Manager.
+- The places task is raised after the build in its own savepoint, due at the end of the day
+  `downtime.places_confirm_due_days` from now; the places route takes the location's version,
+  refuses a deleted location and completes the task through the task workflow.
+- Migration 0055 also refuses a pack naming a stored document.
+- Docs: operations.md section 13, rates.md, HZ-021 rows, H-214, STATUS.
+
+**Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.

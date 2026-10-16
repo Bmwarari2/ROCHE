@@ -1,6 +1,7 @@
 import {
   advanceCareRecord,
   allergy,
+  auditEvent,
   carePlan,
   carePlanSection,
   contact,
@@ -12,6 +13,7 @@ import {
   personCareProfile,
   riskAssessment,
   type Transaction,
+  task,
 } from "@harbour/db";
 import {
   type AdvanceCareRecordState,
@@ -32,9 +34,9 @@ import {
   resolveOperationsRates,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { publish } from "../outbox";
-import { rateRows } from "./rates";
+import { rateNumber, rateRows } from "./rates";
 import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from "./transfer-pack";
 
 /**
@@ -46,7 +48,7 @@ import { allergyStatementOf, communicationStatementOf, currentAllergiesOf } from
  * `platform.location.manage` prints as not set (H-201).
  */
 
-export type PackSource = "server_nightly" | "server_on_demand";
+export type PackSource = "server_nightly" | "server_rebuild" | "server_on_demand";
 type Nation = Exclude<RateNation, "uk" | "all">;
 
 const PLACE_NOT_SET = "where it is kept is not set in Harbour: ask the nurse in charge";
@@ -448,4 +450,212 @@ export async function freshnessContext(
     )
     .limit(1);
   return { outage: open ?? null, clockDriftMinutes: rates.clockDriftMinutes };
+}
+
+/** Written as the system: the nightly job and rebuilds after a move have no member. */
+export async function auditAsSystem(
+  tx: Transaction,
+  tenantId: string,
+  row: StoredPackRow,
+  reason: string,
+): Promise<void> {
+  await tx.insert(auditEvent).values({
+    tenantId,
+    action: "operations.downtime_pack.generated",
+    resourceType: "downtime_pack",
+    resourceId: row.id,
+    scope: { locationId: row.locationId, source: row.source, reason },
+  });
+}
+
+/**
+ * Builds a location's pack again, as the system, when the latest no longer serves the people
+ * receiving care there (operations.md section 12; HZ-021). Idempotent: a pack that still serves is
+ * kept. Returns whether one was built.
+ */
+export async function rebuildLocation(
+  tx: Transaction,
+  tenantId: string,
+  locationId: string,
+  reason: string,
+  now: Date,
+): Promise<boolean> {
+  const place = await packLocation(tx, locationId);
+  if (!place) return false;
+  // One build at a time per location, as on a read.
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtext(${`downtime-pack-build:${tenantId}:${locationId}`}))`,
+  );
+  const people = await livePeopleAt(tx, locationId);
+  const latestPack = await latestVisiblePack(tx, locationId);
+  if ((await packServes(tx, latestPack, people, now)) || (!latestPack && people.length === 0)) {
+    return false;
+  }
+  const row = await buildDowntimePack(tx, {
+    tenantId,
+    locationId,
+    source: "server_rebuild",
+    generatedBy: null,
+    now,
+  });
+  await auditAsSystem(tx, tenantId, row, reason);
+  return true;
+}
+
+/**
+ * After a person's admission, bed move, leave, hospital stay, return, discharge, death or
+ * correction: the pack again at the location they were at and the one they are at now.
+ */
+export async function rebuildAfterMove(
+  tx: Transaction,
+  tenantId: string,
+  personId: string,
+  fromLocationId: string | null,
+  now: Date,
+): Promise<number> {
+  const [current] = await tx
+    .select({ locationId: person.locationId })
+    .from(person)
+    .where(eq(person.id, personId));
+  const locations = new Set([fromLocationId, current?.locationId].filter((l): l is string => !!l));
+  let built = 0;
+  for (const locationId of locations) {
+    if (await rebuildLocation(tx, tenantId, locationId, "person_moved", now)) built++;
+  }
+  return built;
+}
+
+/** The task asking a holder of platform.location.manage to confirm the MAR and PEEP places. */
+export const DOWNTIME_PLACES_TASK = "operations.downtime_places";
+
+/** The task telling the Registered Manager a location has no pack in date (#47 review round 1). */
+export const DOWNTIME_PACK_MISSING_TASK = "operations.downtime_pack_missing";
+
+/** The end of the UK day `days` after today, from the database's clock. */
+async function endOfUkDay(tx: Transaction, days: number): Promise<Date> {
+  const { rows } = await tx.execute<{ at: string }>(
+    sql`SELECT ((((now() AT TIME ZONE 'Europe/London')::date + ${days}::int + 1)::timestamp
+          AT TIME ZONE 'Europe/London') - interval '1 minute') AS at`,
+  );
+  return new Date(rows[0]?.at as string);
+}
+
+/** Whether the location already has an open task of this kind. */
+async function hasOpenTask(tx: Transaction, kind: string, locationId: string): Promise<boolean> {
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, kind),
+        eq(task.sourceId, locationId),
+        inArray(task.status, ["open", "in_progress"]),
+      ),
+    )
+    .limit(1);
+  return open !== undefined;
+}
+
+/**
+ * While the places are unconfirmed, one open task for the location's Registered Manager to
+ * confirm them (H-201), due at the end of the day `downtime.places_confirm_due_days` from now, so
+ * it does not escalate the moment it is raised (HZ-008); confirming them completes it.
+ */
+export async function ensurePlacesTask(
+  tx: Transaction,
+  tenantId: string,
+  place: { readonly id: string; readonly confirmedAt: Date | null },
+): Promise<boolean> {
+  if (place.confirmedAt) return false;
+  if (await hasOpenTask(tx, DOWNTIME_PLACES_TASK, place.id)) return false;
+  const days = await rateNumber(tx, tenantId, "downtime.places_confirm_due_days");
+  await tx.insert(task).values({
+    kind: DOWNTIME_PLACES_TASK,
+    title: "Confirm where the paper MAR and the PEEPs are kept",
+    requiredPermission: "platform.location.manage",
+    locationId: place.id,
+    sourceType: "location",
+    sourceId: place.id,
+    assigneeRoleKey: "registered_manager",
+    dueAt: await endOfUkDay(tx, days),
+  });
+  return true;
+}
+
+/**
+ * The nightly pack for every location of the organisation (rule 8), once per location and UK
+ * night: a location that already has tonight's nightly pack is left alone, and each location runs
+ * in its own savepoint so one location's failure does not stop the others. Then, each in a
+ * savepoint of its own: the places task where the places are unconfirmed, and a task for the
+ * Registered Manager wherever the location has no pack in date (#47 review round 1).
+ */
+export async function buildNightlyPacks(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  onFailure: (locationId: string, error: unknown) => void,
+): Promise<number> {
+  const night = ukIsoDate(now);
+  const locations = await tx
+    .select({ id: location.id, confirmedAt: location.downtimePlacesConfirmedAt })
+    .from(location)
+    .where(and(isNull(location.deletedAt), eq(location.status, "active")));
+  let built = 0;
+  for (const place of locations) {
+    try {
+      built += await tx.transaction(async (sp) => {
+        await sp.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`downtime-pack:${tenantId}:${place.id}:${night}`}))`,
+        );
+        const done = await sp
+          .select({ id: downtimePack.id, generatedAt: downtimePack.generatedAt })
+          .from(downtimePack)
+          .where(
+            and(eq(downtimePack.locationId, place.id), eq(downtimePack.source, "server_nightly")),
+          )
+          .orderBy(desc(downtimePack.generatedAt))
+          .limit(1);
+        if (done[0] && ukIsoDate(done[0].generatedAt) === night) return 0;
+        const row = await buildDowntimePack(sp, {
+          tenantId,
+          locationId: place.id,
+          source: "server_nightly",
+          generatedBy: null,
+          now,
+        });
+        await auditAsSystem(sp, tenantId, row, "nightly");
+        return 1;
+      });
+    } catch (error) {
+      onFailure(place.id, error);
+    }
+    try {
+      await tx.transaction((sp) => ensurePlacesTask(sp, tenantId, place));
+    } catch (error) {
+      onFailure(place.id, error);
+    }
+    try {
+      await tx.transaction(async (sp) => {
+        const [inDate] = await sp
+          .select({ id: downtimePack.id })
+          .from(downtimePack)
+          .where(and(eq(downtimePack.locationId, place.id), gt(downtimePack.validUntil, now)))
+          .limit(1);
+        if (inDate || (await hasOpenTask(sp, DOWNTIME_PACK_MISSING_TASK, place.id))) return;
+        await sp.insert(task).values({
+          kind: DOWNTIME_PACK_MISSING_TASK,
+          title: "This location has no downtime pack in date: build one and find out why",
+          requiredPermission: "operations.downtime.read",
+          locationId: place.id,
+          sourceType: "location",
+          sourceId: place.id,
+          assigneeRoleKey: "registered_manager",
+          dueAt: now,
+        });
+      });
+    } catch (error) {
+      onFailure(place.id, error);
+    }
+  }
+  return built;
 }

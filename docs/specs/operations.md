@@ -340,9 +340,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     then refused until each current back-entry outside the window with no reason for it is in
     `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
     refused only when it would leave outside a back-entry that was inside the window before.
-- Not yet: the nightly job, rebuilds after moves and the places route (part 3b); outages and
-  back-entry through the API (part 3c); outages and packs in the sync streams, and the kiosk
-  fetch (with the mobile step).
+- Not yet: outages and back-entry through the API (part 3c); outages and packs in the sync
+  streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -439,3 +438,36 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
   change (HZ-009). "1 person" is singular.
 - The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
   block, and a footer naming whose page it is.
+
+Part 3b (`jobs/tasks.ts`, migration 0055, numbered after #48's 0054):
+
+- Nightly: the `downtime-packs` queue runs hourly; each location gets one `server_nightly` pack per
+  UK night, under an advisory lock, each location in its own savepoint, through `eachTenant`.
+- Rebuild on moves: after `people.person.admitted`, `went_on_leave`, `went_to_hospital`,
+  `returned`, `discharged`, `died` and `status_corrected`, the system builds the pack again
+  (`server_rebuild`, migration 0055) at the location the person was at and the one they are at,
+  when the latest no longer serves.
+- Places: `PUT /v1/locations/{id}/downtime-places` (`platform.location.manage`) sets them, and
+  with `confirm` confirms them in the caller's name and completes the `operations.downtime_places`
+  task, which the nightly job keeps open for the location's Registered Manager while they are
+  unconfirmed (H-201).
+- After #47 review round 1:
+  - A bed move (`POST /v1/people/{id}/bed-moves`) publishes `people.person.moved` (person, the
+    location they were at and the one they are at, room changed) in its transaction, and it is
+    one of the rebuild events, so both locations' packs are built again (H2). A places change
+    publishes `operations.downtime_places.changed`, and the system builds that location's pack
+    again.
+  - Each handler of an event runs on its own: a failed rebuild is logged for the operator by
+    opaque ids and left to the next read or the nightly job, and never holds back the death
+    notification; another handler's failure is raised again after the rebuild, so the event is
+    delivered again (both are idempotent). Rebuilds take the same per-location lock as reads.
+  - After the nightly run, a location with no pack in date gets an
+    `operations.downtime_pack_missing` task for its Registered Manager. The places task is raised
+    after the build, in its own savepoint, due at the end of the day
+    `downtime.places_confirm_due_days` from now rather than at once (HZ-008).
+  - The places route takes the location's `version` (409 when stale), refuses a deleted location,
+    and completes the task through the task workflow at its version.
+  - Migration 0055 also refuses a pack that names a stored document (`downtime_pack_no_document`):
+    the PDF is drawn per request.
+- Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
+  location, section 12); printing photos on the pages.

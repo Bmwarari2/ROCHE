@@ -28,6 +28,7 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
@@ -529,8 +530,52 @@ export async function reportBreakGlass(deps: TaskDeps, now = new Date()): Promis
 }
 
 /**
+ * The nightly downtime pack for every location (operations.md rule 8; HZ-021), once per location
+ * and UK night; a location's failure is logged and the others go on.
+ */
+export async function buildDowntimePacks(deps: TaskDeps, now = new Date()): Promise<number> {
+  const built = await eachTenant(deps, "downtime-packs", (tx, tenantId) =>
+    buildNightlyPacks(tx, tenantId, now, (locationId, error) =>
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: "downtime-packs",
+          tenantId,
+          locationId,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      ),
+    ),
+  );
+  if (built > 0) deps.logger.info({ built }, "downtime packs built");
+  return built;
+}
+
+/**
+ * The people lifecycle events after which a location's downtime pack is built again when it no
+ * longer serves the people receiving care there (operations.md section 12; HZ-021).
+ */
+export const PACK_REBUILD_EVENTS = [
+  "people.person.admitted",
+  "people.person.moved",
+  "people.person.went_on_leave",
+  "people.person.went_to_hospital",
+  "people.person.returned",
+  "people.person.discharged",
+  "people.person.died",
+  "people.person.status_corrected",
+] as const;
+
+/**
  * Module handlers for outbox events (idempotent: at-least-once delivery). The safety module drafts
- * the death notifications from `people.person.died` and flags them when the death is corrected.
+ * the death notifications from `people.person.died` and flags them when the death is corrected;
+ * operations builds the downtime pack again after any lifecycle event that changes who is
+ * receiving care at a location, their status or their room, and after the places change. Each
+ * handler of an event runs on its own (#47 review round 1, clinical M5): a failed rebuild never
+ * holds back the death notification, nor the reverse. A rebuild that fails is logged for the
+ * operator by opaque ids and left to the next read or the nightly job; any other failure is
+ * raised again after the rebuild has run, so the event is delivered again (both are idempotent).
  */
 export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   const inTenant = <T>(tenantId: string, fn: (tx: Transaction) => Promise<T>) =>
@@ -543,7 +588,31 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
     const value = (payload as { exitRecordId?: unknown } | null)?.exitRecordId;
     return typeof value === "string" ? value : null;
   };
-  return new Map<string, OutboxHandler>([
+  const logRebuildFailure = (event: Parameters<OutboxHandler>[0], error: unknown) =>
+    deps.logger.error(
+      {
+        event: WORKER_JOB_FAILED_EVENT,
+        queue: "downtime-pack-rebuild",
+        tenantId: event.tenantId,
+        outboxEventId: event.id,
+        code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+      },
+      WORKER_JOB_FAILED_EVENT,
+    );
+  const rebuild: OutboxHandler = async (event) => {
+    const payload = event.payload as { personId?: unknown; locationId?: unknown } | null;
+    const personId = payload?.personId;
+    if (typeof personId !== "string") return;
+    const from = typeof payload?.locationId === "string" ? payload.locationId : null;
+    try {
+      await inTenant(event.tenantId, (tx) =>
+        rebuildAfterMove(tx, event.tenantId, personId, from, new Date()),
+      );
+    } catch (error) {
+      logRebuildFailure(event, error);
+    }
+  };
+  const handlers = new Map<string, OutboxHandler>([
     [
       "people.person.died",
       async (event) => {
@@ -565,6 +634,31 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       },
     ],
   ]);
+  for (const type of PACK_REBUILD_EVENTS) {
+    const first = handlers.get(type);
+    handlers.set(type, async (event) => {
+      let failure: unknown = null;
+      try {
+        await first?.(event);
+      } catch (error) {
+        failure = error;
+      }
+      await rebuild(event);
+      if (failure) throw failure;
+    });
+  }
+  handlers.set("operations.downtime_places.changed", async (event) => {
+    const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
+    if (typeof locationId !== "string") return;
+    try {
+      await inTenant(event.tenantId, (tx) =>
+        rebuildLocation(tx, event.tenantId, locationId, "places_changed", new Date()),
+      );
+    } catch (error) {
+      logRebuildFailure(event, error);
+    }
+  });
+  return handlers;
 }
 
 export interface DeliveryDeps extends TaskDeps {

@@ -16701,6 +16701,7 @@
         "type": "string",
         "enum": [
           "server_nightly",
+          "server_rebuild",
           "server_on_demand",
           "kiosk_cache"
         ]
@@ -16712,6 +16713,77 @@
           "out_of_date",
           "outage",
           "clock_behind"
+        ]
+      },
+      "DowntimePlaces": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "marLocation": {
+            "type": "string"
+          },
+          "peepLocation": {
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "confirmedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "locationId",
+          "marLocation",
+          "peepLocation",
+          "confirmedAt",
+          "confirmedBy",
+          "version"
+        ],
+        "description": "Where a location keeps the paper MAR and the PEEPs (location settings downtime.mar_location and downtime.peep_location); unconfirmed places print as not set (H-201)"
+      },
+      "SetDowntimePlaces": {
+        "type": "object",
+        "properties": {
+          "marLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Where the paper MAR is kept, worded for the page"
+          },
+          "peepLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Where the PEEPs are kept, worded for the page"
+          },
+          "confirm": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "marLocation",
+          "peepLocation",
+          "confirm",
+          "version"
         ]
       },
       "RateValue": {
@@ -33686,6 +33758,105 @@
           },
           "503": {
             "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/downtime-places": {
+      "put": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Set, and confirm, where the location keeps the paper MAR and the PEEPs",
+        "description": "Until the eMAR and PEEPs are in Harbour, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDowntimePlaces"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The places",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimePlaces"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
             "content": {
               "application/problem+json": {
                 "schema": {

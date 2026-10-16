@@ -10,7 +10,7 @@ const uuid = z.uuid();
 const isoDateTime = z.iso.datetime({ offset: true });
 
 export const DowntimePackSource = z
-  .enum(["server_nightly", "server_on_demand", "kiosk_cache"])
+  .enum(["server_nightly", "server_rebuild", "server_on_demand", "kiosk_cache"])
   .meta({ id: "DowntimePackSource" });
 
 export const DowntimeFreshnessState = z
@@ -50,3 +50,33 @@ export const DowntimePackOut = z
     description: "A location's downtime pack, with its freshness worked out now (HZ-021)",
   });
 export type DowntimePackOut = z.infer<typeof DowntimePackOut>;
+
+const place = z.string().trim().min(1).max(200);
+
+export const SetDowntimePlaces = z
+  .object({
+    marLocation: place.meta({ description: "Where the paper MAR is kept, worded for the page" }),
+    peepLocation: place.meta({ description: "Where the PEEPs are kept, worded for the page" }),
+    /** Confirms both places in your name; changing a place without confirming leaves it unconfirmed. */
+    confirm: z.boolean(),
+    /** The location's version you read; a stale one is refused with 409. */
+    version: z.number().int().min(1),
+  })
+  .meta({ id: "SetDowntimePlaces" });
+export type SetDowntimePlaces = z.infer<typeof SetDowntimePlaces>;
+
+export const DowntimePlaces = z
+  .object({
+    locationId: uuid,
+    marLocation: z.string(),
+    peepLocation: z.string(),
+    confirmedAt: isoDateTime.nullable(),
+    confirmedBy: uuid.nullable(),
+    version: z.number().int(),
+  })
+  .meta({
+    id: "DowntimePlaces",
+    description:
+      "Where a location keeps the paper MAR and the PEEPs (location settings downtime.mar_location and downtime.peep_location); unconfirmed places print as not set (H-201)",
+  });
+export type DowntimePlaces = z.infer<typeof DowntimePlaces>;

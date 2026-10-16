@@ -1,5 +1,12 @@
-import { DowntimePackOut, type DowntimePackOut as DowntimePackOutT } from "@harbour/contracts";
 import {
+  DowntimePackOut,
+  type DowntimePackOut as DowntimePackOutT,
+  DowntimePlaces,
+  SetDowntimePlaces,
+} from "@harbour/contracts";
+import { location, task } from "@harbour/db";
+import {
+  checkTaskTransition,
   type DowntimePack,
   downtimePackFreshness,
   downtimePageHeader,
@@ -7,16 +14,19 @@ import {
   type Permission,
   type RateNation,
   scopeFor,
+  type TaskStatus,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
+import { publish } from "../outbox";
 import {
   buildDowntimePack,
+  DOWNTIME_PLACES_TASK,
   freshnessContext,
   latestVisiblePack,
   livePeopleAt,
@@ -28,6 +38,7 @@ import {
 import { renderDowntimePackPdf } from "../services/downtime-pack-pdf";
 import { rateNumber } from "../services/rates";
 import {
+  conflictResponse,
   createRouter,
   errorResponses,
   jsonBody,
@@ -36,7 +47,7 @@ import {
   security,
   unavailableResponse,
 } from "./openapi";
-import { audit, dbCode, requireStepUp } from "./people-shared";
+import { audit, dbCode, iso, requireStepUp } from "./people-shared";
 
 /**
  * The downtime pack routes (operations.md sections 5, 12 and 13; OPS-028; HZ-021). Reading needs
@@ -52,6 +63,7 @@ import { audit, dbCode, requireStepUp } from "./people-shared";
  */
 
 const READ: Permission = "operations.downtime.read";
+const PLACES: Permission = "platform.location.manage";
 const LIMIT_KEY = "downtime_pack.requests_per_hour";
 const HOUR_MS = 3_600_000;
 type Nation = Exclude<RateNation, "uk" | "all">;
@@ -314,5 +326,102 @@ export const operationsRouter = createRouter()
       await requirePackLimit(c, access);
       const read = await readPack(c, access, id, { action, reason: "asked" });
       return c.json(packOut(read), 201);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "put",
+      path: "/v1/locations/{id}/downtime-places",
+      tags: ["operations"],
+      summary: "Set, and confirm, where the location keeps the paper MAR and the PEEPs",
+      description:
+        "Until the eMAR and PEEPs are in Harbour, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).",
+      security,
+      request: {
+        params: Params,
+        body: { content: { "application/json": { schema: SetDowntimePlaces } } },
+      },
+      responses: {
+        200: jsonBody(DowntimePlaces, "The places"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, PLACES);
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      await requireReach(c, access, PLACES, id, "operations.downtime_places.changed");
+      const out = await withTenant(c, async (tx) => {
+        const now = new Date();
+        const [current] = await tx
+          .select({ version: location.version })
+          .from(location)
+          .where(and(eq(location.id, id), isNull(location.deletedAt)));
+        if (!current) throw problems.notFound();
+        if (current.version !== body.version) throw problems.conflict();
+        const [row] = await tx
+          .update(location)
+          .set({
+            downtimeMarLocation: body.marLocation,
+            downtimePeepLocation: body.peepLocation,
+            ...(body.confirm
+              ? { downtimePlacesConfirmedBy: access.tenantUserId, downtimePlacesConfirmedAt: now }
+              : {}),
+          })
+          .where(
+            and(
+              eq(location.id, id),
+              eq(location.version, body.version),
+              isNull(location.deletedAt),
+            ),
+          )
+          .returning();
+        if (!row) throw problems.conflict();
+        if (row.downtimePlacesConfirmedAt) {
+          // Through the task workflow: only an open task may be done, at the version read.
+          const open = await tx
+            .select({ id: task.id, status: task.status, version: task.version })
+            .from(task)
+            .where(
+              and(
+                eq(task.kind, DOWNTIME_PLACES_TASK),
+                eq(task.sourceId, id),
+                inArray(task.status, ["open", "in_progress"]),
+              ),
+            );
+          for (const t of open) {
+            if (!checkTaskTransition(t.status as TaskStatus, { to: "done" }).ok) continue;
+            await tx
+              .update(task)
+              .set({ status: "done", completedAt: now, completedBy: access.tenantUserId })
+              .where(and(eq(task.id, t.id), eq(task.version, t.version)));
+          }
+        }
+        // The packs show the places: build them again as the system (#47 review round 1).
+        await publish(tx, {
+          context: "operations",
+          aggregateType: "location",
+          aggregateId: id,
+          type: "operations.downtime_places.changed",
+          payload: { locationId: id, confirmed: row.downtimePlacesConfirmedAt !== null },
+        });
+        await audit(c, tx, access, {
+          action: "operations.downtime_places.changed",
+          resourceType: "location",
+          resourceId: id,
+          scope: { confirmed: row.downtimePlacesConfirmedAt !== null },
+        });
+        return {
+          locationId: row.id,
+          marLocation: row.downtimeMarLocation,
+          peepLocation: row.downtimePeepLocation,
+          confirmedAt: iso(row.downtimePlacesConfirmedAt),
+          confirmedBy: row.downtimePlacesConfirmedBy,
+          version: row.version,
+        };
+      });
+      return c.json(out, 200);
     },
   );

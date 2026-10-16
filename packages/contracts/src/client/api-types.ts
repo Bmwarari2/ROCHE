@@ -12806,6 +12806,96 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/downtime-places": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Set, and confirm, where the location keeps the paper MAR and the PEEPs
+     * @description Until the eMAR and PEEPs are in Harbour, the downtime pack says where these are kept. A place changed without `confirm` is unconfirmed again and prints as not set; confirming completes the task asking for it (H-201).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetDowntimePlaces"];
+        };
+      };
+      responses: {
+        /** @description The places */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DowntimePlaces"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -18923,9 +19013,29 @@ export interface components {
       }[];
     };
     /** @enum {string} */
-    DowntimePackSource: "server_nightly" | "server_on_demand" | "kiosk_cache";
+    DowntimePackSource: "server_nightly" | "server_rebuild" | "server_on_demand" | "kiosk_cache";
     /** @enum {string} */
     DowntimeFreshnessState: "current" | "out_of_date" | "outage" | "clock_behind";
+    /** @description Where a location keeps the paper MAR and the PEEPs (location settings downtime.mar_location and downtime.peep_location); unconfirmed places print as not set (H-201) */
+    DowntimePlaces: {
+      /** Format: uuid */
+      locationId: string;
+      marLocation: string;
+      peepLocation: string;
+      /** Format: date-time */
+      confirmedAt: string | null;
+      /** Format: uuid */
+      confirmedBy: string | null;
+      version: number;
+    };
+    SetDowntimePlaces: {
+      /** @description Where the paper MAR is kept, worded for the page */
+      marLocation: string;
+      /** @description Where the PEEPs are kept, worded for the page */
+      peepLocation: string;
+      confirm: boolean;
+      version: number;
+    };
     RateValue: {
       key: string;
       value: number;
