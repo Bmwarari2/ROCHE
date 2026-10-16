@@ -61,7 +61,7 @@ test.describe.configure({ mode: "serial" });
 
 let incidentPath = "";
 
-test("hazard HZ-027 the carer records a fall from a resident's record, never assumed no", async ({
+test("hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's record, never assumed no", async ({
   page,
 }) => {
   await signIn(page, "carer@example.invalid");

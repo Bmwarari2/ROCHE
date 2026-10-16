@@ -1926,7 +1926,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 | `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-027 a post-fall chain with no steps`, `hazard HZ-027 post-fall observation figures not reviewed by the clinical lead` | Passing (Phase 1) |
 | `packages/domain/src/platform/onboarding.test.ts`: `HZ-027 clinical decisions name who reviewed them`; `apps/api/test/onboarding-decisions.test.ts`: `hazard HZ-027 accepts a clinical setting only with the clinical lead or CSO who reviewed it` (refused with no reviewer; the reviewer's member id in the audit event); `apps/web/e2e/onboarding.spec.ts`: a clinical setting refused on the page without its reviewer, then accepted naming them, with axe | Passing (slice 13 web) |
-| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-027 a fall asks the point-of-care questions, not sure yet included`; `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (axe) | Passing (unit); e2e in hosted CI |
+| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-027 a fall asks the point-of-care questions, not sure yet included`; `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's record, never assumed no` (axe) | Passing (unit); e2e in hosted CI |
 
 ---
 
@@ -2582,7 +2582,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Test | Status |
 | --- | --- |
 | `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-090 has catalogue words for every question, its guidance and every option`, `hazard HZ-090 shows a question or option the catalogue does not know in the API's English, marked`, `hazard HZ-090 never assumes the time: just now or earlier is chosen every time`, `hazard HZ-090 never assumes no: emergency services and the GP are asked every time`, `hazard HZ-090 asks whether the person died when it is about someone`, `hazard HZ-090 reading an answer: not sure is an answer, blank is not` | Passing |
-| `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (the refusal summary names each unanswered question) | Passing (web journeys with axe in CI on every pull request and on `main`; run 38932679711 on `5b3d238`) |
+| `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 hazard HZ-090 the carer records a fall from a resident's record, never assumed no` (the refusal summary names each unanswered question) | Passing (web journeys with axe in CI on every pull request and on `main`; run 38932679711 on `5b3d238`) |
 
 ---
 
