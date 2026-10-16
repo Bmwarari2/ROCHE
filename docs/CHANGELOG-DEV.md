@@ -1742,3 +1742,21 @@ selects only the columns it needs; `withTenantWideScope` restores the scope in a
 
 **Tests**: `apps/web` `statutory-notifications.test.ts` 9 new; e2e names, axe on every page and
 the needs of demo person 3 (hosted CI).
+
+## 2026-10-16: MFA counts only for the session that used it (#43 review M5)
+
+- API: care records (and the operator console) need a session that signed in, or confirmed a
+  code, with a passkey, an authenticator code or a backup code; having one enrolled is no longer
+  enough. A Better Auth `after` hook records the factor per session in `auth.verification`
+  (no migration). New refusal `mfa_verification_required` when a factor is enrolled but unused.
+- Web: that refusal goes to `/sign-in?reason=mfa` (with the next path) and a message to use the
+  passkey or the authenticator code; 3 new i18n entries (Welsh listed untranslated).
+- Docs: ADR-0072, HZ-112, H-358, platform.md, STATUS item 20.
+
+**Release note**: after this deploy, everyone signed in is asked to sign in again with their
+passkey or authenticator code before opening care records. Sessions from before the deploy fail
+closed (refused until they re-verify); nothing else is affected. The mobile app does not yet know
+the new code (follow-up).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` (6); harness and three test files mark their
+password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outcome.test.ts` (1).

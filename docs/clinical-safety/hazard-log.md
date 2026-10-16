@@ -63,6 +63,7 @@
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
+| [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 
 Twelve hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -2563,6 +2564,45 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | --- | --- |
 | `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-111 the idle timeout is off unless the environment turns it on` (`never signs out an idle browser session with the default configuration`); `apps/api/test/config.test.ts`: `refuses the browser idle timeout (HZ-111) in production` | Passing (Phase 1) |
 | Playwright: a form half-filled, the warning shown before expiry, "Stay signed in" keeps the session; after expiry, signing in again in place keeps the typed text and stores none in the browser | Planned |
+
+---
+
+## HZ-112 Care records opened without a second factor, or staff shut out of them when the rule tightens
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-112 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | #43 review M5; `fix/platform-mfa-session-factor` (`apps/api/src/auth/session-factor.ts`, `apps/api/src/auth/better-auth.ts`, `apps/api/src/http/context.ts`, `apps/web/src/lib/problems.ts`); ADR-0072; related to HZ-006 (offline records), HZ-110 and HZ-111 |
+
+**Description**: MFA counted when a member merely had a passkey or authenticator app enrolled, so a stolen or guessed password alone opened care records for a passkey holder. Fixing it changes who can open records: every session from before the deploy is refused care records until the person signs in again with their passkey or authenticator code, and a nurse refused mid-shift who is sent to a page that cannot help (the enrolment page for a factor they already have) cannot reach a care plan, medicines information or an escalation note when they need it.
+
+**Causes**: MFA judged from the account's enrolment rather than the session; a deploy that tightens the rule while staff are signed in; a refusal that sends people to the wrong next step; the mobile app not yet knowing the new refusal code.
+
+**Effects**: personal and clinical information disclosed to someone holding only a password; or care delayed while staff cannot open the record (HZ-006, HZ-014).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | MFA counts for care records (and the operator console) only when the session signed in, or confirmed a code on the session, with a passkey, an authenticator code or a backup code; a password-only or trusted-device session does not count, and a session with no record fails closed (ADR-0072) | Built in Phase 1 (`fix/platform-mfa-session-factor`) |
+| Design | A person with a factor enrolled is told `mfa_verification_required` and the web sends them straight to sign in with it (`/sign-in?reason=mfa`, keeping where they were going), not to the enrolment page; anything that is not a care record keeps working | Built in Phase 1 (`apps/web/src/lib/problems.ts`, sign-in page) |
+| Process | The release note says every signed-in person will be asked to sign in again with their passkey or code before opening care records; deploy outside shift handover and tell staff beforehand (H-358) | Before the first real tenant |
+| Design | The mobile app reads `mfa_verification_required` as a session code (signs in again, keeping unsent entries under the hold rules) rather than as withdrawn access | Planned (mobile lane, STATUS item 20 follow-up) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the mobile control is built, then Very low, **risk 2** (an engineering proposal; the CSO decides, H-358).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/mfa-session-factor.test.ts`: `hazard HZ-112` cases (a passkey holder's password-only session is refused with `mfa_verification_required`; a passkey session is allowed; removing the passkey refuses again; a wrong code records nothing; a code confirmed when enrolling, on an existing session and at a new sign-in is allowed; a session with no record is refused) | Passing (Phase 1) |
+| `apps/web/src/lib/problems.test.ts` (`mfa_verification_required` goes to `/sign-in?reason=mfa` with the next path) and `apps/web/src/lib/outcome.test.ts` | Passing (Phase 1) |
+| Mobile: a 403 `mfa_verification_required` on the sync token is treated as a session code | Planned |
 
 ---
 
