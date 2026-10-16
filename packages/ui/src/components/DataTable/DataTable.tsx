@@ -226,7 +226,10 @@ export function DataTable<Row>({
           ) : null}
         </div>
       ) : null}
-      <div className="hb-table__scroll" style={{ maxHeight }}>
+      {/* A wide table scrolls inside its own region, never the page (WCAG 1.4.10 allows two-way
+          scrolling for data tables); the region is focusable so keyboard users can scroll it. */}
+      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must take focus so keyboard users can scroll it. */}
+      <section className="hb-table__scroll" style={{ maxHeight }} aria-label={caption} tabIndex={0}>
         <table className="hb-table__table">
           <caption className={hideCaption ? "hb-visually-hidden" : "hb-table__caption"}>
             {caption}
@@ -321,7 +324,7 @@ export function DataTable<Row>({
             )}
           </tbody>
         </table>
-      </div>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
 import { type ResidentFixture, residents } from "../../fixtures/residents";
 import { DataTable, type DataTableColumn } from "./DataTable";
@@ -52,7 +53,8 @@ describe("DataTable keyboard navigation", () => {
     const rows = bodyRows();
     expect(rows.map((row) => row.tabIndex)).toEqual([0, -1, -1, -1, -1, -1]);
 
-    // Tab past the sortable column headers to the first row.
+    // Tab past the scroll region and the sortable column headers to the first row.
+    await user.tab();
     await user.tab();
     await user.tab();
     await user.tab();
@@ -148,5 +150,17 @@ describe("DataTable density", () => {
     await user.click(within(group).getByRole("radio", { name: "Compact" }));
     expect(wrapper).toHaveAttribute("data-density", "compact");
     expect(onDensityChange).toHaveBeenCalledWith("compact");
+  });
+});
+
+describe("DataTable on a narrow screen", () => {
+  it("scrolls inside a named, focusable region rather than the page", async () => {
+    const { container } = renderTable();
+    const region = screen.getByRole("region", { name: "People living at Rowan House" });
+    expect(region).toHaveClass("hb-table__scroll");
+    expect(region.tabIndex).toBe(0);
+    expect(within(region).getByRole("table")).toBeInTheDocument();
+    const results = await axe.run(container, { rules: { "color-contrast": { enabled: false } } });
+    expect(results.violations.map((v) => v.id)).toEqual([]);
   });
 });
