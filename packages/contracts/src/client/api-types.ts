@@ -13463,6 +13463,746 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/evidence-packs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Evidence packs you can see
+     * @description Holders of quality.evidence_pack.compose or .release, for packs at locations where they hold one of them and whose people they can all see. Newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Evidence packs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Compose a draft evidence pack
+     * @description quality.evidence_pack.compose at every location asked for, seeing every person in scope (rule 1). The request is fixed once composed; the watermark names the recipient, purpose, time and pack. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ComposeEvidencePack"];
+        };
+      };
+      responses: {
+        /** @description Composed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An evidence pack's manifest
+     * @description The request, the current items with every field's outcome and reason (and the value the pack shows, while the bundle exists), the excluded items and why, the contributors and the links. Never a token or code. Audited as a view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The manifest */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add records to a draft pack
+     * @description quality.evidence_pack.compose. Each record is read in your own scope (one you cannot see reads as not found), tagged with the statements given, then kept or left out with its reason (rule 2) and minimised field by field (rule 3). Only the values the pack shows are kept, in the bundle. A member other than the composer becomes an editor, so cannot release it. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddEvidenceItems"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/items/{itemId}/fields/{key}/redaction": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Redact a free-text field by hand
+     * @description quality.evidence_pack.compose, on a draft. The redacted copy replaces the withheld text, in your name, as a new item row superseding the old one; you become a contributor, so cannot release the pack. Refused (422) when the copy still names a third party, a staff member while roles only are shown, a person outside the pack's scope, or holds a run of ten digits (rule 4). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          itemId: string;
+          key: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RedactEvidenceField"];
+        };
+      };
+      responses: {
+        /** @description Redacted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Release a pack and issue its link (step-up)
+     * @description quality.evidence_pack.release at every location, with a fresh sign-in, by someone who did not compose, redact or edit it (rule 6), with at least one item. Issues the link to the recipient, expiring within evidence_pack.link_expiry_days.max (default .default). The token is returned once and only its hash is stored. Audited; quality.evidence_pack.released.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReleaseEvidencePack"];
+        };
+      };
+      responses: {
+        /** @description Released; the link, once */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackLinkIssued"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/links/{linkId}/reissue": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Issue a new link to the same recipient (step-up)
+     * @description A new link is a release (rule 9): quality.evidence_pack.release, fresh sign-in, not a contributor, expiry within the maximum. Only for the pack's latest link while it has not expired (after a lock-out or a lost email); the old link is revoked as re-issued in the same transaction. `version` is the link's. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          linkId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReissueEvidencePackLink"];
+        };
+      };
+      responses: {
+        /** @description Issued; the link, once */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackLinkIssued"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a released pack
+     * @description quality.evidence_pack.compose (withdrawing access only makes things safer, so composers may). The pack is revoked, its link stops working at once and the bundle is deleted; the manifest stays. Audited; quality.evidence_pack.revoked.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndEvidencePack"];
+        };
+      };
+      responses: {
+        /** @description Revoked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-packs/{id}/discard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Discard a draft pack
+     * @description quality.evidence_pack.compose, with a reason. The bundle is deleted; the manifest stays. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndEvidencePack"];
+        };
+      };
+      responses: {
+        /** @description Discarded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidencePackDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -20218,6 +20958,191 @@ export interface components {
       startedAt: string;
       /** Format: date-time */
       endedAt: string | null;
+      reason: string;
+      version: number;
+    };
+    EvidencePackList: {
+      items: components["schemas"]["EvidencePackSummary"][];
+    };
+    EvidencePackSummary: {
+      /** Format: uuid */
+      id: string;
+      state: components["schemas"]["EvidencePackState"];
+      recipientName: string;
+      recipientOrganisation: string;
+      purpose: string;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      locationIds: string[];
+      /** Format: uuid */
+      composedBy: string;
+      /** Format: date-time */
+      composedAt: string;
+      /** Format: date-time */
+      releasedAt: string | null;
+      /** Format: date-time */
+      revokedAt: string | null;
+      /** Format: date-time */
+      discardedAt: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    EvidencePackState: "draft" | "released" | "revoked" | "discarded";
+    EvidencePackDetail: {
+      /** Format: uuid */
+      id: string;
+      state: components["schemas"]["EvidencePackState"];
+      recipientName: string;
+      recipientOrganisation: string;
+      purpose: string;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      locationIds: string[];
+      /** Format: uuid */
+      composedBy: string;
+      /** Format: date-time */
+      composedAt: string;
+      /** Format: date-time */
+      releasedAt: string | null;
+      /** Format: date-time */
+      revokedAt: string | null;
+      /** Format: date-time */
+      discardedAt: string | null;
+      version: number;
+      recipientEmail: string;
+      personIds: string[];
+      qualityStatementIds: string[] | null;
+      /** @enum {string} */
+      staffNames: "role_only" | "include";
+      watermark: string;
+      contributorIds: string[];
+      /** Format: uuid */
+      releasedBy: string | null;
+      /** Format: uuid */
+      revokedBy: string | null;
+      revocationReason: string | null;
+      /** Format: uuid */
+      discardedBy: string | null;
+      discardReason: string | null;
+      items: components["schemas"]["EvidencePackItem"][];
+      coverage: {
+        [key: string]: number;
+      };
+      links: components["schemas"]["EvidencePackLinkItem"][];
+      bundleDeleted: boolean;
+    };
+    EvidencePackItem: {
+      /** Format: uuid */
+      id: string;
+      recordType: string;
+      /** Format: uuid */
+      recordId: string;
+      recordVersion: number;
+      title: string;
+      /** Format: date-time */
+      occurredAt: string;
+      qualityStatementIds: string[];
+      exclusionReason: string | null;
+      fields: components["schemas"]["EvidencePackField"][];
+    };
+    EvidencePackField: {
+      key: string;
+      label: string;
+      /** @enum {string} */
+      kind:
+        | "organisational"
+        | "care_content"
+        | "direct_identifier"
+        | "staff_name"
+        | "third_party"
+        | "free_text";
+      /** @enum {string} */
+      outcome: "included" | "redacted" | "withheld";
+      reason: string | null;
+      reasonText: string | null;
+      /** Format: uuid */
+      redactedBy: string | null;
+      value: string | null;
+    };
+    EvidencePackLinkItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      issuedAt: string;
+      /** Format: uuid */
+      issuedBy: string;
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: uuid */
+      replacesLinkId: string | null;
+      /** Format: date-time */
+      revokedAt: string | null;
+      revocationReason: string | null;
+      failedCodeAttempts: number;
+      locked: boolean;
+      /** Format: date-time */
+      lastOpenedAt: string | null;
+    };
+    ComposeEvidencePack: {
+      recipient: {
+        name: string;
+        organisation: string;
+        email: string;
+      };
+      purpose: string;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      locationIds: string[];
+      qualityStatementIds: string[] | null;
+      personIds: string[];
+      /**
+       * @default role_only
+       * @enum {string}
+       */
+      staffNames: "role_only" | "include";
+    };
+    AddEvidenceItems: {
+      items: {
+        recordType: components["schemas"]["EvidenceRecordType"];
+        /** Format: uuid */
+        recordId: string;
+        qualityStatementIds: string[];
+      }[];
+      version: number;
+    };
+    /**
+     * @description The record types a pack can take through the API so far; the other types of the field map follow (quality.md section 13).
+     * @enum {string}
+     */
+    EvidenceRecordType: "incident" | "care_note" | "observation";
+    RedactEvidenceField: {
+      text: string;
+      version: number;
+    };
+    EvidencePackLinkIssued: {
+      /** Format: uuid */
+      linkId: string;
+      token: string;
+      /** Format: date-time */
+      expiresAt: string;
+    };
+    ReleaseEvidencePack: {
+      /** Format: date-time */
+      expiresAt?: string;
+      version: number;
+    };
+    ReissueEvidencePackLink: {
+      /** Format: date-time */
+      expiresAt?: string;
+      version: number;
+    };
+    EndEvidencePack: {
       reason: string;
       version: number;
     };

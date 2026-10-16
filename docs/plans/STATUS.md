@@ -279,6 +279,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
        restrictive policy for system sessions so they reach that link alone;
      - (Low) the API increments `failed_code_attempts` on a wrong code (tested), stores codes as an
        HMAC with a server key rather than an unsalted SHA-256, and caps live codes per link.
+   - Slice 11, evidence pack and statement of purpose part 2a, the evidence pack routes and the
+     bundle sweep (`feat/quality-evidence-pack-api`; quality.md section 13): compose, add records
+     (care notes, observations, incidents), hand redaction, release with the link, re-issue,
+     revoke and discard, with audit and outbox events; the `evidence-bundle-sweep` job (the #56
+     Medium requirement, tested). Next: part 2b, the statement of purpose routes and the
+     notification-overdue job (stacked); part 2c, the public link routes (`app.link_id` and a
+     link-session policy in migration 0058, codes as an HMAC with a server key, the failed-attempt
+     count, a cap on live codes, the session cookie) and the PDF through the ADR-0040 writer.
+     Follow-ups: the other seven record types of the field map; staff shown as their role from the
+     closed list (as built every staff name prints "[member of staff]", H-218); a superseded
+     incident version cannot be added after it changes, only a new pack.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

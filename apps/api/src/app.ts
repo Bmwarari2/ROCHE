@@ -23,6 +23,7 @@ import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
+import { evidencePacksRouter } from "./routes/evidence-packs";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
@@ -220,6 +221,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", statutoryNotificationsRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
+  app.route("/", evidencePacksRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);

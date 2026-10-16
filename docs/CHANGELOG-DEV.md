@@ -1809,3 +1809,18 @@ After #56 security review round 1: writing or changing a bundle makes the member
 a releaser or link issuer); the manifest holds no redacted copy, and keys, labels and titles are
 bounded; the token lookup takes the SHA-256 hex digest; cross-tenant read and write denial is
 tested for every table; the part 2 requirements are in STATUS. Tests: 5 new, 2 changed.
+
+## 2026-10-16: Slice 11, evidence pack routes and the bundle sweep (QUAL-003, part 2a)
+
+The evidence pack API on migration 0057 (quality.md section 13): compose a draft, add care notes,
+observations and incidents read in the composer's scope and minimised field by field, redact free
+text by hand (refused when the copy leaks), release with step-up by someone who did not shape the
+pack (the link's token shown once and stored as its SHA-256), issue a new link, revoke and discard.
+Every change and refusal is audited; release and revocation are published to the outbox. The
+worker's `evidence-bundle-sweep` deletes bundles once a pack is revoked or discarded or its link has
+ended.
+
+- Contracts: `packages/contracts/src/quality.ts`; OpenAPI and the client regenerated.
+- Docs: quality.md section 13, HZ-050 rows, H-218, STATUS.
+
+**Tests**: `apps/api/test/evidence-packs.test.ts`, 12 new.
