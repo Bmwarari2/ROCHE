@@ -156,9 +156,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
      the single download; the `platform.data.export` rename in role copies and grants; request,
-     list, cancel and the one-time download, step-up and audited. Next, part 2: the worker job that
-     builds the archive in one snapshot (tables, documents, current summary, schema and manifest),
-     the expiry sweep and the notification; then the web export page. The archive lives in the
+     list, cancel and the one-time download, step-up and audited. Part 2 (`feat/platform-full-export-worker`, stacked on #77): the worker builds
+     each queued export in one snapshot into a streamed ZIP in the exports bucket (tables,
+     documents, current summary, schema, manifest), tells the requester, and the sweep deletes
+     archives past expiry; platform-completions.md section 10b. Next: the web export page (part 3);
+     sample data rows join the export when the sample flag exists. The archive lives in the
      exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
      download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
      `checkExportRequest` is given none.

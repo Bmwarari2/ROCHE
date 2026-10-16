@@ -474,6 +474,43 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `harbour_app`, the table files, documents, current summary, `schema.json` and the manifest,
   `ready` or `failed`, audited), the expiry sweep that deletes the archive, and the notification.
 
+## 10b. As built (slice 13 part 2, the export worker)
+
+- `runQueuedExports` (`apps/api/src/jobs/exports.ts`, queue `full-exports`, every minute): for
+  every organisation, whatever its status (rule 15), claims the oldest queued export as the job
+  (no member, the organisation's view) and builds it (`services/export-build.ts`): as
+  `harbour_app` with the organisation's context, in one `REPEATABLE READ` read-only transaction
+  (`snapshotAt` is its start); the tables and columns from the database's own catalogue, planned
+  with `planExport`; each table read through a cursor twice in the same snapshot (CSV, then JSON
+  Lines), rows decided by `exportRowDecision` (soft-deleted out unless held; legal holds on the
+  row, the record or its person) and, for a changes-since export, `exportRowChangedSince`; the
+  documents' bytes streamed from the documents bucket when `exportDocumentDecision` includes them;
+  `destroyed.csv` from the destruction certificates; `current_summary.csv` from the transfer pack's
+  statements and `currentSummaryRow`; `schema.json`; the audit chain checked; `manifest.json` from
+  `buildExportManifest`. Every file goes straight into a streamed ZIP (`services/zip-writer.ts`:
+  deflate, data descriptors, ZIP64 end records; a single file of 4 GiB or more fails the export)
+  that the exports bucket receives as a multipart upload. Complete: `ready` with the expiry from
+  `export.link_expiry_hours` (capped by the maximum), audited `platform.export.ready` with counts,
+  and the requester told in the app and by email, ids only ("Your data export is ready", a link to
+  the export page). Incomplete or an error: `failed` with its problems, audited (only when it was still queued or
+  running), the requester told by ids only, the archive deleted, `worker.job.failed` logged; another
+  organisation's row raises `security.export.foreign_rows` (CloudWatch alarm
+  `<prefix>-export-foreign-rows`). Cancelled while it was built: the archive is deleted and no one
+  is told it is ready. #78 review: the ZIP writer reads its source and drains the deflater together
+  and stops both on a failure; a write waits on the archive's reader only until it drains, closes
+  or fails, and a failed upload stops the archive; the snapshot transaction is rolled back and its
+  connection released (or discarded) on every failure, with `idle_in_transaction_session_timeout`
+  and `statement_timeout` as backstops; the request context is set with `applyRequestContext`,
+  holds read with `isUnderLegalHold`, and a destroyed document's tombstone is listed in
+  `destroyed.csv` with its certificate rather than exported.
+- `sweepExports` (queue `export-expiry`, every 15 minutes): deletes each archive past its expiry,
+  then marks the export expired and records `platform.export.expired` (archive deleted), so a
+  failed delete is tried again; an export running more than `EXPORT_RUNNING_LIMIT_HOURS` (12, a
+  technical limit) is failed and its archive deleted.
+- Not yet: sample data (no flag until the sample data step); the web export page (part 3). The
+  current summary loads the organisation's people, allergies, advance care records and care
+  profiles at once (bounded by the number of people); the tables never are.
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

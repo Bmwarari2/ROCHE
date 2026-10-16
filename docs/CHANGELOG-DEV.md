@@ -2301,3 +2301,33 @@ attorney and best interests; follow-ups in STATUS. Tests: API 10, db 28.
 **Tests**: `apps/api/test/exports.test.ts` 4 new (concurrent downloads, a failed read leaves the
 fetch untaken, another holder, another organisation's id); `packages/db/test/tenant-export.test.ts`
 1 new and the grant rename; `config.test.ts` (`S3_EXPORTS_BUCKET` required in production).
+
+## 2026-10-17: Slice 13 part 2, the full export's worker (PLAT-015)
+
+- `runQueuedExports` builds each queued export as `harbour_app` in the organisation's context, in
+  one `REPEATABLE READ` read-only snapshot: every planned table (CSV and JSON Lines, through
+  cursors), the documents' bytes, `destroyed.csv`, `current_summary.csv`, `schema.json` and the
+  manifest, streamed as a ZIP into the exports bucket; ready (audited, the requester told by ids
+  only) or failed (audited, archive deleted, a security alarm for a foreign row).
+- `sweepExports` deletes archives past expiry and records it; an export left running is failed.
+- `ZipWriter`: streaming deflate with data descriptors and ZIP64 end records.
+- Docs: platform-completions.md section 10b, hazard log HZ-070 and HZ-071, records of processing,
+  feature register, STATUS.
+
+**Tests**: `apps/api/test/export-worker.test.ts` (10); `apps/api/test/zip-writer.test.ts` (6).
+
+## 2026-10-17: #78 review round 1 (the full export's worker)
+
+- A failed source or upload never hangs or crashes the worker: the ZIP writer reads and drains
+  together and stops both on a failure, waits on its reader only until it drains, closes or fails,
+  and never throws an unheard 'error'; the snapshot is rolled back and its connection released on
+  every failure, with idle-in-transaction and statement timeouts as backstops.
+- A cancelled export's archive is deleted; a failure is audited only when it ended an export, and
+  the requester is told by ids only. `worker.job.failed` on an incomplete export; a CloudWatch
+  alarm on `security.export.foreign_rows` (infra/modules/observability, on-call runbook).
+- `applyRequestContext`, `isUnderLegalHold`; destroyed document tombstones listed as destroyed;
+  `destroyed.csv` written row by row.
+
+**Tests**: `zip-writer.test.ts` 2 new (a failing source, a reader that stops);
+`export-worker.test.ts` 3 new (an upload failing partway or never starting, a cancel while built).
+
