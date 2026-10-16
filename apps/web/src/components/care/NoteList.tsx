@@ -40,7 +40,8 @@ export function NoteList({
       timeLabel: formatDateTime(original.occurredAt) ?? undefined,
       title: t("care.notes.category", { category: current.category }),
       icon: <NotebookPen size={14} strokeWidth={1.5} aria-hidden="true" />,
-      badges: <EntryBadges entry={original} />,
+      // The current version's id: the one an outage's reconciliation lists (HZ-092).
+      badges: <EntryBadges entry={{ ...original, id: current.id }} />,
       body: (chain.earlier.at(-1) ?? current).body,
       ...(corrected
         ? {
