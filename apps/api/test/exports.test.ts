@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
+import { outboxHandlers } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The free full export's routes (PLAT-015; platform-completions.md rules 12 to 15; hazards HZ-011
@@ -43,17 +45,17 @@ async function asJob(sql: string, params: unknown[]) {
 }
 
 /** Stands in for the export worker: marks the export ready with an archive in storage. */
-async function makeReady(id: string, bytes: Uint8Array) {
+async function makeReady(id: string, bytes: Uint8Array, expiresIn = "1 day") {
   const key = `tenants/${DEMO.tenantId}/exports/${id}/export.zip`;
-  await h.handle.services.storage.put(key, bytes, "application/zip");
+  await h.handle.services.exportStorage.put(key, bytes, "application/zip");
   await asJob("UPDATE tenant_export SET status = 'running', started_at = now() WHERE id = $1", [
     id,
   ]);
   await asJob(
     `UPDATE tenant_export SET status = 'ready', snapshot_at = now(), ready_at = now(),
-       expires_at = now() + interval '1 day', storage_key = $2, bytes = $3,
+       expires_at = now() + $5::interval, storage_key = $2, bytes = $3,
        manifest_sha256 = $4, schema_version = '1.1.0' WHERE id = $1`,
-    [id, key, bytes.length, createHash("sha256").update("manifest").digest("hex")],
+    [id, key, bytes.length, createHash("sha256").update("manifest").digest("hex"), expiresIn],
   );
   return key;
 }
@@ -125,28 +127,39 @@ describe("hazard HZ-070 asking for, listing and cancelling an export", () => {
 });
 
 describe("hazard HZ-070 downloading an export once", () => {
-  it("hands the archive to the requester once, records it, then deletes the archive", async () => {
-    const list = (await (await h.request("/v1/exports", as("owner"))).json()) as { items: Item[] };
-    const queued = list.items.find((i) => i.status === "queued");
-    expect(queued).toBeDefined();
-    const id = queued?.id ?? "";
-    expect((await h.request(`/v1/exports/${id}/download`, as("owner"))).status).toBe(409);
+  /** A fresh export, ready with an archive, after cancelling any still in hand. */
+  async function readyExport(bytes: Uint8Array, expiresIn = "1 day") {
+    await asJob(
+      `UPDATE tenant_export SET status = 'failed', failed_at = now()
+        WHERE status IN ('queued', 'running')`,
+      [],
+    );
+    const created = (await (await post("/v1/exports")).json()) as Item;
+    const key = await makeReady(created.id, bytes, expiresIn);
+    return { id: created.id, key };
+  }
+  const download = (id: string, who = "owner") => h.request(`/v1/exports/${id}/download`, as(who));
+  const archive = new Uint8Array([80, 75, 5, 6, ...new Array(18).fill(0)]);
 
-    const archive = new Uint8Array([80, 75, 5, 6, ...new Array(18).fill(0)]);
-    const key = await makeReady(id, archive);
+  it("streams the archive to the requester once, records it, and has the worker delete it", async () => {
+    const queued = (await (await post("/v1/exports")).json()) as Item;
+    expect((await download(queued.id)).status).toBe(409);
+    const { id, key } = await readyExport(archive);
     const listed = (await (await h.request("/v1/exports", as("owner"))).json()) as {
       items: Item[];
     };
     expect(listed.items.find((i) => i.id === id)?.mayDownload).toBe(true);
 
-    const response = await h.request(`/v1/exports/${id}/download`, as("owner"));
+    const response = await download(id);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/zip");
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("content-disposition")).toBe(
+      `attachment; filename="harbour-export-${id}.zip"`,
+    );
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(archive);
-    expect(await h.handle.services.storage.get(key)).toBeNull();
 
-    const again = await h.request(`/v1/exports/${id}/download`, as("owner"));
+    const again = await download(id);
     expect(again.status).toBe(410);
     expect(await codeOf(again)).toBe("export_already_downloaded");
     const [row] = await asJob(
@@ -160,17 +173,81 @@ describe("hazard HZ-070 downloading an export once", () => {
         "platform.export.downloaded:denied:already_downloaded",
       ]),
     );
+
+    // The worker deletes the archive from the outbox event (retried until it is gone).
+    const [event] = await asJob(
+      "SELECT tenant_id, event_type, aggregate_id, payload FROM outbox_event WHERE aggregate_id = $1",
+      [id],
+    );
+    expect(event).toMatchObject({
+      event_type: "platform.export.downloaded",
+      payload: { exportId: id },
+    });
+    const handler = outboxHandlers({
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: h.handle.services.db,
+      logger: createLogger("silent"),
+      exportStorage: h.handle.services.exportStorage,
+    }).get("platform.export.downloaded");
+    await handler?.({
+      id: "e",
+      tenantId: DEMO.tenantId,
+      eventType: "platform.export.downloaded",
+      aggregateId: id,
+      payload: { exportId: id },
+    });
+    expect(await h.handle.services.exportStorage.get(key)).toBeNull();
+  });
+
+  it("lets only one of two downloads at once through", async () => {
+    const { id } = await readyExport(archive);
+    const results = await Promise.all([download(id), download(id)]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 410]);
+    await Promise.all(results.map((r) => r.arrayBuffer()));
+  });
+
+  it("leaves the download untaken when the archive cannot be read, so it can be tried again", async () => {
+    const { id, key } = await readyExport(archive);
+    await h.handle.services.exportStorage.destroy(key);
+    expect((await download(id)).status).toBe(410);
+    const [row] = await asJob("SELECT downloaded_at FROM tenant_export WHERE id = $1", [id]);
+    expect(row).toEqual({ downloaded_at: null });
+  });
+
+  it("refuses another holder of the permission, and an id from another organisation", async () => {
+    const { id } = await readyExport(archive);
+    await asJob(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, organisation_wide)
+       SELECT $1, id, false FROM role WHERE key = 'owner'`,
+      [LODGE.qualityLeadId],
+    );
+    const other = await download(id, "quality");
+    expect(other.status).toBe(403);
+    expect(await codeOf(other)).toBe("not_requester");
+
+    const foreign = "0194e000-0000-7000-8000-00000000e001";
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [OTHER.tenantId],
+      );
+      await client.query("INSERT INTO tenant_export (id, requested_by) VALUES ($1, $2)", [
+        foreign,
+        OTHER.managerId,
+      ]);
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    expect((await download(foreign)).status).toBe(404);
   });
 
   it("refuses an expired export", async () => {
-    const created = (await (await post("/v1/exports")).json()) as Item;
-    await makeReady(created.id, new Uint8Array([1, 2, 3]));
-    await asJob(
-      "UPDATE tenant_export SET expires_at = ready_at + interval '1 second' WHERE id = $1",
-      [created.id],
-    );
+    const { id } = await readyExport(new Uint8Array([1, 2, 3]), "1 second");
     await new Promise((resolve) => setTimeout(resolve, 1_100));
-    const response = await h.request(`/v1/exports/${created.id}/download`, as("owner"));
+    const response = await download(id);
     expect(response.status).toBe(410);
     expect(await codeOf(response)).toBe("export_expired");
   });

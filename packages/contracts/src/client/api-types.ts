@@ -17718,7 +17718,7 @@ export interface paths {
     put?: never;
     /**
      * Cancel an export, deleting its archive
-     * @description platform.export.create with step-up. A queued, running or ready export; its archive is deleted at once. Audited (platform.export.revoked).
+     * @description platform.export.create with step-up. A queued, running or ready export; the worker then deletes its archive. Audited (platform.export.revoked).
      */
     post: {
       parameters: {
@@ -17800,7 +17800,7 @@ export interface paths {
     };
     /**
      * Download the export archive, once
-     * @description platform.export.create with step-up, by the person who asked only, while it is ready and unexpired (checkExportDownload). One fetch: the download is recorded (who and when) before the bytes leave, and the archive is then deleted; a second fetch is 410 export_already_downloaded. Audited (platform.export.downloaded).
+     * @description platform.export.create with step-up, by the person who asked only, while it is ready and unexpired (checkExportDownload). One fetch: the archive is opened, then the download is recorded (who and when) before the bytes stream out, and the worker then deletes the archive; a second fetch is 410 export_already_downloaded. A read that fails before the claim leaves it untaken, so the person can try again. Audited (platform.export.downloaded).
      */
     get: {
       parameters: {

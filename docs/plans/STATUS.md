@@ -143,9 +143,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      the single download; the `platform.data.export` rename in role copies and grants; request,
      list, cancel and the one-time download, step-up and audited. Next, part 2: the worker job that
      builds the archive in one snapshot (tables, documents, current summary, schema and manifest),
-     the expiry sweep and the notification; then the web export page. Interim: the archive lives
-     in the documents bucket under the export prefix until infra adds the export bucket; the
-     tenant has no `data_purged_at` yet, so `checkExportRequest` is given none.
+     the expiry sweep and the notification; then the web export page. The archive lives in the
+     exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
+     download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
+     `checkExportRequest` is given none.
    - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
      migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,

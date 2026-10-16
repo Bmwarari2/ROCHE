@@ -86,6 +86,16 @@ BEGIN
     RAISE EXCEPTION 'An export keeps who asked for it and what was asked, and is never deleted'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
+  -- What a ready export was built from and where it is kept never changes after (#77 review L2).
+  IF OLD.status IN ('ready', 'expired', 'revoked') AND OLD.ready_at IS NOT NULL
+     AND (NEW.storage_key, NEW.manifest_sha256, NEW.snapshot_at, NEW.expires_at, NEW.ready_at,
+          NEW.bytes, NEW.schema_version)
+       IS DISTINCT FROM
+         (OLD.storage_key, OLD.manifest_sha256, OLD.snapshot_at, OLD.expires_at, OLD.ready_at,
+          OLD.bytes, OLD.schema_version) THEN
+    RAISE EXCEPTION 'A ready export keeps its archive, manifest, snapshot and expiry'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
   IF OLD.status IN ('failed', 'expired', 'revoked') AND NEW IS DISTINCT FROM OLD THEN
     RAISE EXCEPTION 'A % export is final', OLD.status
       USING ERRCODE = 'integrity_constraint_violation';
@@ -125,8 +135,10 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.tenant_export
 --> statement-breakpoint
 
 -- Data migration (platform-completions.md section 3): the export permission was renamed from
--- platform.data.export to platform.export.create; existing role copies and grants follow, each
--- role change a new version, audited per tenant. Idempotent.
+-- platform.data.export to platform.export.create. The export needs it across the organisation, so
+-- it is renamed only in roles scoped to the organisation and in grants across it; elsewhere the old
+-- name, which nothing reads, is removed (#77 review L3). Each role change is a new version; every
+-- role and grant changed is audited per tenant. Idempotent.
 ALTER TABLE public.role NO FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE public.access_grant NO FORCE ROW LEVEL SECURITY;
@@ -134,30 +146,44 @@ ALTER TABLE public.access_grant NO FORCE ROW LEVEL SECURITY;
 DO $$
 DECLARE t uuid;
 BEGIN
-  FOR t IN SELECT DISTINCT tenant_id FROM public.role ORDER BY tenant_id LOOP
+  FOR t IN SELECT DISTINCT tenant_id FROM public.role
+           UNION SELECT DISTINCT tenant_id FROM public.access_grant ORDER BY 1 LOOP
     PERFORM set_config('app.tenant_id', t::text, true);
     PERFORM set_config('app.scope', 'tenant', true);
     WITH changed AS (
       UPDATE public.role r
-         SET permissions = CASE WHEN 'platform.export.create' = ANY (r.permissions)
-           THEN array_remove(r.permissions, 'platform.data.export')
+         SET permissions = CASE
+           WHEN r.scope_kind::text <> 'tenant' OR 'platform.export.create' = ANY (r.permissions)
+             THEN array_remove(r.permissions, 'platform.data.export')
            ELSE array_replace(r.permissions, 'platform.data.export', 'platform.export.create') END
        WHERE r.tenant_id = t AND 'platform.data.export' = ANY (r.permissions)
-       RETURNING r.id, r.key
+       RETURNING r.id, r.key, 'platform.export.create' = ANY (r.permissions) AS holds
     )
     INSERT INTO public.audit_event (tenant_id, actor_auth_user_id, actor_role_keys, action,
         outcome, resource_type, resource_id, scope, reason)
       SELECT t, 'system', ARRAY['system'], 'platform.role.permissions_migrated', 'success',
         'role', c.id::text,
         jsonb_build_object('migration', '0062_tenant_export', 'roleKey', c.key,
-          'renamed', jsonb_build_object('platform.data.export', 'platform.export.create')),
+          'removed', 'platform.data.export', 'holdsExport', c.holds),
         'The export permission was renamed (migration 0062)'
       FROM changed c;
-    UPDATE public.access_grant g
-       SET permissions = CASE WHEN 'platform.export.create' = ANY (g.permissions)
-           THEN array_remove(g.permissions, 'platform.data.export')
+    WITH changed AS (
+      UPDATE public.access_grant g
+         SET permissions = CASE
+           WHEN g.location_id IS NOT NULL OR 'platform.export.create' = ANY (g.permissions)
+             THEN array_remove(g.permissions, 'platform.data.export')
            ELSE array_replace(g.permissions, 'platform.data.export', 'platform.export.create') END
-     WHERE g.tenant_id = t AND 'platform.data.export' = ANY (g.permissions);
+       WHERE g.tenant_id = t AND 'platform.data.export' = ANY (g.permissions)
+       RETURNING g.id, 'platform.export.create' = ANY (g.permissions) AS holds
+    )
+    INSERT INTO public.audit_event (tenant_id, actor_auth_user_id, actor_role_keys, action,
+        outcome, resource_type, resource_id, scope, reason)
+      SELECT t, 'system', ARRAY['system'], 'platform.grant.permissions_migrated', 'success',
+        'access_grant', c.id::text,
+        jsonb_build_object('migration', '0062_tenant_export', 'removed', 'platform.data.export',
+          'holdsExport', c.holds),
+        'The export permission was renamed (migration 0062)'
+      FROM changed c;
   END LOOP;
   PERFORM set_config('app.tenant_id', '', true);
   PERFORM set_config('app.scope', '', true);

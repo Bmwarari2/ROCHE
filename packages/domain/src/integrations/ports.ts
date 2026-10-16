@@ -138,6 +138,10 @@ export interface DocumentStoragePort {
   get(key: string): Promise<Uint8Array | null>;
   destroy(key: string): Promise<void>;
   health(): Promise<HealthResult>;
+  /** Writes an object from a stream of unknown length without holding it in memory (the export). */
+  putStream(key: string, source: AsyncIterable<Uint8Array>, contentType: string): Promise<void>;
+  /** Reads an object as a stream; null when there is none. */
+  getStream(key: string): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
 /** `unavailable` keeps the upload quarantined: a document is never served unscanned in production. */

@@ -11,6 +11,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { auditInTx, writeAudit } from "../http/audit";
 import { requirePermission, stepUpAtFor, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { publish } from "../outbox";
 import { inSystemView } from "../services/devices";
 import { staffNames } from "../services/staff";
 import {
@@ -70,6 +71,27 @@ async function items(tx: Transaction, rows: readonly Row[], access: TenantAccess
         status === "ready" && r.downloadedAt === null && r.requestedBy === access.tenantUserId,
     };
   });
+}
+
+/** The worker deletes the archive on these events (retried until it is gone). Ids only. */
+function publishExportEvent(
+  tx: Transaction,
+  exportId: string,
+  type: "platform.export.downloaded" | "platform.export.revoked",
+) {
+  return publish(tx, {
+    context: "platform",
+    aggregateType: "tenant_export",
+    aggregateId: exportId,
+    type,
+    payload: { exportId },
+  });
+}
+
+/** Closes a storage stream the response will not send. */
+async function closeStream(body: AsyncIterable<Uint8Array>): Promise<void> {
+  const destroy = (body as { destroy?: () => void }).destroy;
+  if (typeof destroy === "function") destroy.call(body);
 }
 
 const DOWNLOAD_PROBLEM: Record<string, () => HttpProblem> = {
@@ -216,7 +238,7 @@ export const exportsRouter = createRouter()
       tags: ["platform"],
       summary: "Cancel an export, deleting its archive",
       description:
-        "platform.export.create with step-up. A queued, running or ready export; its archive is deleted at once. Audited (platform.export.revoked).",
+        "platform.export.create with step-up. A queued, running or ready export; the worker then deletes its archive. Audited (platform.export.revoked).",
       security,
       request: { params: IdParam },
       responses: {
@@ -229,7 +251,7 @@ export const exportsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, PERMISSION);
       const { id } = c.req.valid("param");
-      const key = await withTenant(c, async (tx) => {
+      await withTenant(c, async (tx) => {
         const [row] = await tx
           .update(tenantExport)
           .set({
@@ -243,7 +265,7 @@ export const exportsRouter = createRouter()
               inArray(tenantExport.status, ["queued", "running", "ready"]),
             ),
           )
-          .returning({ storageKey: tenantExport.storageKey });
+          .returning({ id: tenantExport.id });
         if (!row) {
           const [found] = await tx
             .select({ id: tenantExport.id })
@@ -257,9 +279,9 @@ export const exportsRouter = createRouter()
           resourceId: id,
           requestId: c.get("requestId"),
         });
-        return row.storageKey;
+        // The archive, if one was written, is deleted by the worker, retried until it is gone.
+        await publishExportEvent(tx, id, "platform.export.revoked");
       });
-      if (key) await c.get("services").storage.destroy(key);
       return c.body(null, 204);
     },
   )
@@ -270,7 +292,7 @@ export const exportsRouter = createRouter()
       tags: ["platform"],
       summary: "Download the export archive, once",
       description:
-        "platform.export.create with step-up, by the person who asked only, while it is ready and unexpired (checkExportDownload). One fetch: the download is recorded (who and when) before the bytes leave, and the archive is then deleted; a second fetch is 410 export_already_downloaded. Audited (platform.export.downloaded).",
+        "platform.export.create with step-up, by the person who asked only, while it is ready and unexpired (checkExportDownload). One fetch: the archive is opened, then the download is recorded (who and when) before the bytes stream out, and the worker then deletes the archive; a second fetch is 410 export_already_downloaded. A read that fails before the claim leaves it untaken, so the person can try again. Audited (platform.export.downloaded).",
       security,
       request: { params: IdParam },
       responses: {
@@ -286,60 +308,84 @@ export const exportsRouter = createRouter()
       const { id } = c.req.valid("param");
       const now = new Date();
       const requestId = c.get("requestId");
-      const outcome = await withTenant(
-        c,
-        async (tx): Promise<{ refused: string } | { key: string }> => {
-          const [row] = await tx.select().from(tenantExport).where(eq(tenantExport.id, id));
-          if (!row) return { refused: "not_found" };
-          const check = checkExportDownload({
-            export: {
-              id: row.id,
-              status: row.status as ExportStatus,
-              requestedBy: row.requestedBy,
-              expiresAt: row.expiresAt,
-            },
-            actorTenantUserId: access.tenantUserId,
-            access: access.effective,
-            stepUpAt: stepUpAtFor(access, now),
-            now,
-            stepUpWindowSeconds: access.stepUpWindowSeconds,
-          });
-          if (!check.ok) return { refused: check.problem };
-          const [claimed] = await tx
-            .update(tenantExport)
-            .set({ downloadedAt: sql`now()`, downloadedBy: access.tenantUserId })
-            .where(and(eq(tenantExport.id, id), isNull(tenantExport.downloadedAt)))
-            .returning({ storageKey: tenantExport.storageKey, bytes: tenantExport.bytes });
-          if (!claimed?.storageKey) return { refused: "already_downloaded" };
-          await auditInTx(tx, access, {
-            action: "platform.export.downloaded",
-            resourceType: "tenant_export",
-            resourceId: id,
-            scope: { bytes: claimed.bytes },
-            requestId,
-          });
-          return { key: claimed.storageKey };
-        },
-      );
-      if ("refused" in outcome) {
-        await writeAudit(c.get("services").appPool, access, {
+      const { appPool, exportStorage } = c.get("services");
+      const refuse = async (reason: string): Promise<never> => {
+        await writeAudit(appPool, access, {
           action: "platform.export.downloaded",
           outcome: "denied",
           resourceType: "tenant_export",
           resourceId: id,
-          reason: outcome.refused,
+          reason,
           requestId,
         });
-        if (outcome.refused === "not_found") throw problems.notFound();
-        const problem = DOWNLOAD_PROBLEM[outcome.refused];
-        throw problem ? problem() : problems.forbidden();
+        if (reason === "not_found") throw problems.notFound();
+        throw DOWNLOAD_PROBLEM[reason]?.() ?? problems.forbidden();
+      };
+      const checked = await withTenant(c, async (tx) => {
+        const [row] = await tx.select().from(tenantExport).where(eq(tenantExport.id, id));
+        if (!row) return { refused: "not_found" };
+        const check = checkExportDownload({
+          export: {
+            id: row.id,
+            status: row.status as ExportStatus,
+            requestedBy: row.requestedBy,
+            expiresAt: row.expiresAt,
+          },
+          actorTenantUserId: access.tenantUserId,
+          access: access.effective,
+          stepUpAt: stepUpAtFor(access, now),
+          now,
+          stepUpWindowSeconds: access.stepUpWindowSeconds,
+        });
+        if (!check.ok) return { refused: check.problem };
+        if (row.downloadedAt !== null || !row.storageKey) return { refused: "already_downloaded" };
+        return { key: row.storageKey };
+      });
+      if (!("key" in checked) || !checked.key) return refuse(checked.refused ?? "not_found");
+      // The archive is opened before the download is claimed: a read that fails here leaves the
+      // claim untaken, so the person can try again while the archive is there.
+      const body = await exportStorage.getStream(checked.key);
+      if (!body) return refuse("expired");
+      const claimed = await withTenant(c, async (tx) => {
+        const [row] = await tx
+          .update(tenantExport)
+          .set({ downloadedAt: sql`now()`, downloadedBy: access.tenantUserId })
+          .where(
+            and(
+              eq(tenantExport.id, id),
+              eq(tenantExport.status, "ready"),
+              isNull(tenantExport.downloadedAt),
+              sql`${tenantExport.expiresAt} > now()`,
+            ),
+          )
+          .returning({ bytes: tenantExport.bytes });
+        if (!row) {
+          const [current] = await tx
+            .select({ status: tenantExport.status, downloadedAt: tenantExport.downloadedAt })
+            .from(tenantExport)
+            .where(eq(tenantExport.id, id));
+          return current?.downloadedAt
+            ? "already_downloaded"
+            : current?.status === "revoked"
+              ? "revoked"
+              : "expired";
+        }
+        await auditInTx(tx, access, {
+          action: "platform.export.downloaded",
+          resourceType: "tenant_export",
+          resourceId: id,
+          scope: { bytes: row.bytes },
+          requestId,
+        });
+        // One fetch: the archive is deleted by the worker, retried until it is gone.
+        await publishExportEvent(tx, id, "platform.export.downloaded");
+        return null;
+      });
+      if (claimed !== null) {
+        await closeStream(body);
+        return refuse(claimed);
       }
-      const { storage } = c.get("services");
-      const bytes = await storage.get(outcome.key);
-      // One fetch: the archive goes once its bytes are in hand.
-      await storage.destroy(outcome.key);
-      if (!bytes) throw DOWNLOAD_PROBLEM.expired?.() ?? problems.notFound();
-      return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
+      return c.body(ReadableStream.from(body) as ReadableStream<Uint8Array<ArrayBuffer>>, 200, {
         "content-type": "application/zip",
         "content-disposition": `attachment; filename="harbour-export-${id}.zip"`,
         "cache-control": "no-store",

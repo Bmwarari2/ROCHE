@@ -459,11 +459,17 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   the export already in hand; `sinceExportId` for the changes since an earlier snapshot),
   `GET /v1/exports` (step-up, as every export route), `POST /v1/exports/{id}/revoke` (step-up;
   deletes the archive) and `GET /v1/exports/{id}/download` (step-up; `checkExportDownload`; the
-  download recorded before the bytes leave, then the archive deleted; a second fetch is 410
+  download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
   `export_already_downloaded`). The API streams the archive itself rather than minting a storage
   URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
-- Storage: until the separate export bucket exists, the archive is kept in the document store
-  (eu-west-2, SSE-KMS) at `tenants/<tenant>/exports/<export>/export.zip`.
+- Storage: the exports bucket (`S3_EXPORTS_BUCKET`; eu-west-2, SSE-KMS, lifecycle expiry) at
+  `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
+  reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the
+  archive before claiming the single fetch (a failed read leaves it untaken), streams it, and the
+  worker deletes it from the outbox event (`platform.export.downloaded`, `.revoked`), retried
+  until it is gone. #77 review: a ready export's archive, manifest, snapshot and expiry are frozen;
+  the rename is limited to organisation-wide roles and grants, the old name dropped elsewhere,
+  every change audited.
 - Next (part 2): the worker job that builds the archive (one `REPEATABLE READ` snapshot as
   `harbour_app`, the table files, documents, current summary, `schema.json` and the manifest,
   `ready` or `failed`, audited), the expiry sweep that deletes the archive, and the notification.

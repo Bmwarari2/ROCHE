@@ -1,7 +1,13 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { dirname, join, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
@@ -9,6 +15,7 @@ import {
   NoSuchKey,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from "@aws-sdk/client-s3";
 import type {
   DocumentStoragePort,
@@ -22,6 +29,9 @@ import type {
  * and tests; S3 (SSE-KMS by bucket default, versioned) in AWS; ClamAV over its INSTREAM protocol
  * in AWS; a mock scanner that recognises the EICAR test file for tests.
  */
+
+/** S3 multipart parts (the minimum is 5 MiB): the most of an export held in memory at once. */
+const PART_BYTES = 8 * 1024 * 1024;
 
 /** A document's bytes, or an export's archive (`exportStoragePrefix` plus `export.zip`). */
 const KEY_PATTERN =
@@ -65,6 +75,23 @@ export class LocalDocumentStorage implements DocumentStoragePort {
     await rm(this.path(key), { force: true });
   }
 
+  async putStream(key: string, source: AsyncIterable<Uint8Array>): Promise<void> {
+    const path = this.path(key);
+    await mkdir(dirname(path), { recursive: true });
+    await pipeline(Readable.from(source), createWriteStream(path, { mode: 0o600 }));
+  }
+
+  async getStream(key: string): Promise<AsyncIterable<Uint8Array> | null> {
+    const path = this.path(key);
+    try {
+      await stat(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    return createReadStream(path);
+  }
+
   async health(): Promise<HealthResult> {
     await mkdir(this.root, { recursive: true });
     return { ok: true, detail: "local disk" };
@@ -100,6 +127,70 @@ export class S3DocumentStorage implements DocumentStoragePort {
         new GetObjectCommand({ Bucket: this.bucket, Key: key }),
       );
       return result.Body ? new Uint8Array(await result.Body.transformToByteArray()) : null;
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * Writes a stream of unknown length as a multipart upload in parts of `PART_BYTES`, so at most
+   * one part is held in memory; SSE-KMS as for every object. A failed upload is aborted.
+   */
+  async putStream(key: string, source: AsyncIterable<Uint8Array>, contentType: string) {
+    assertKey(key);
+    const { UploadId } = await this.client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+        ServerSideEncryption: "aws:kms",
+      }),
+    );
+    const parts: { ETag: string | undefined; PartNumber: number }[] = [];
+    const upload = async (body: Buffer) => {
+      const PartNumber = parts.length + 1;
+      const { ETag } = await this.client.send(
+        new UploadPartCommand({ Bucket: this.bucket, Key: key, UploadId, PartNumber, Body: body }),
+      );
+      parts.push({ ETag, PartNumber });
+    };
+    try {
+      let pending: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of source) {
+        pending.push(Buffer.from(chunk));
+        size += chunk.length;
+        if (size >= PART_BYTES) {
+          await upload(Buffer.concat(pending));
+          pending = [];
+          size = 0;
+        }
+      }
+      if (size > 0 || parts.length === 0) await upload(Buffer.concat(pending));
+      await this.client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: this.bucket,
+          Key: key,
+          UploadId,
+          MultipartUpload: { Parts: parts },
+        }),
+      );
+    } catch (error) {
+      await this.client
+        .send(new AbortMultipartUploadCommand({ Bucket: this.bucket, Key: key, UploadId }))
+        .catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async getStream(key: string): Promise<AsyncIterable<Uint8Array> | null> {
+    assertKey(key);
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return (result.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
     } catch (error) {
       if (error instanceof NoSuchKey) return null;
       throw error;

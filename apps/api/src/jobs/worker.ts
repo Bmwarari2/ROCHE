@@ -1,6 +1,7 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
+import { createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
@@ -42,7 +43,12 @@ const workerPool = createPool(
 const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
 // The auth role, only to delete sign-ins an invitation's acceptance left unlinked (#48 review H1).
 const authPool = createPool(config.DATABASE_AUTH_URL, { max: 1 }, idleErrorLogger(logger, "auth"));
-const deps = { workerPool, appDb: createDatabase(appPool), logger };
+const deps = {
+  workerPool,
+  appDb: createDatabase(appPool),
+  logger,
+  exportStorage: createExportStorage(config),
+};
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
 const handlers = outboxHandlers(deps);

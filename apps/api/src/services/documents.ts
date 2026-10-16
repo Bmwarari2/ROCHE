@@ -133,6 +133,11 @@ export async function destroyingOnFailure<T>(
     get: (key) => storage.get(key),
     destroy: (key) => storage.destroy(key),
     health: () => storage.health(),
+    putStream: async (key, source, contentType) => {
+      written.push(key);
+      await storage.putStream(key, source, contentType);
+    },
+    getStream: (key) => storage.getStream(key),
   };
   try {
     return await run(tracking);

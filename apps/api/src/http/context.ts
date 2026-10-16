@@ -70,6 +70,8 @@ export interface Services {
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
+  /** The full export's archives (the exports bucket). */
+  readonly exportStorage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;

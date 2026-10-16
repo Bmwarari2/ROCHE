@@ -17,6 +17,7 @@ class NoScanner implements MalwareScanPort {
 
 export function createDocumentServices(config: Config): {
   storage: DocumentStoragePort;
+  exportStorage: DocumentStoragePort;
   scanner: MalwareScanPort;
 } {
   const storage =
@@ -29,5 +30,12 @@ export function createDocumentServices(config: Config): {
       : config.MALWARE_SCANNER === "mock"
         ? new MockMalwareScanner()
         : new NoScanner();
-  return { storage, scanner };
+  return { storage, exportStorage: createExportStorage(config), scanner };
+}
+
+/** The full export's archives: the exports bucket in AWS, never the documents bucket. */
+export function createExportStorage(config: Config): DocumentStoragePort {
+  return config.DOCUMENT_STORAGE === "s3" && config.S3_EXPORTS_BUCKET
+    ? new S3DocumentStorage(config.S3_EXPORTS_BUCKET)
+    : new LocalDocumentStorage(config.LOCAL_EXPORTS_DIR);
 }

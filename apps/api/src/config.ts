@@ -77,6 +77,9 @@ const Env = z.object({
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
   S3_DOCUMENTS_BUCKET: z.string().optional(),
+  /** The full export's archives (PLAT-015): the exports bucket in AWS (SSE-KMS, lifecycle expiry). */
+  LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),
+  S3_EXPORTS_BUCKET: z.string().optional(),
   /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
@@ -144,6 +147,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
     }
+    if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
       throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }

@@ -2201,3 +2201,17 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
   HZ-070, feature register, STATUS.
 
 **Tests**: `packages/db/test/tenant-export.test.ts` (13); `apps/api/test/exports.test.ts` (9).
+
+## 2026-10-17: #77 review round 1 (the full export's routes)
+
+- The download opens the archive before claiming the single fetch, streams it from the exports
+  bucket (`S3_EXPORTS_BUCKET`, never the documents bucket), and the worker deletes it from the
+  outbox event, retried; cancelling deletes it the same way. The claim also requires `ready` and
+  an unexpired link, and a miss is said as already downloaded, cancelled or expired.
+- The storage port writes and reads streams (S3 multipart, one 8 MiB part in memory at most).
+- 0062: a ready export's archive, manifest, snapshot and expiry are frozen; the rename is limited
+  to organisation-wide roles and grants (the old name dropped elsewhere), each change audited.
+
+**Tests**: `apps/api/test/exports.test.ts` 4 new (concurrent downloads, a failed read leaves the
+fetch untaken, another holder, another organisation's id); `packages/db/test/tenant-export.test.ts`
+1 new and the grant rename; `config.test.ts` (`S3_EXPORTS_BUCKET` required in production).

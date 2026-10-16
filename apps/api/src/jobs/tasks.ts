@@ -10,9 +10,12 @@ import {
   withRequestContext,
 } from "@harbour/db";
 import {
+  type DocumentStoragePort,
   deliveryOutcome,
   dueEscalationSteps,
   type EscalationStep,
+  EXPORT_ARCHIVE_FILE,
+  exportStoragePrefix,
   nextEscalationAt,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
@@ -61,6 +64,8 @@ export interface TaskDeps {
   readonly workerPool: pg.Pool;
   readonly appDb: Database;
   readonly logger: Logger;
+  /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
+  readonly exportStorage?: DocumentStoragePort;
 }
 
 /** An outbox handler receives a published event; handlers must be idempotent (at-least-once). */
@@ -641,7 +646,18 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       logRebuildFailure(event, error);
     }
   };
+  // A downloaded or cancelled export's archive goes (PLAT-015, HZ-070): a failure throws, so the
+  // relay backs off and retries until the archive is gone. Its key is built from the ids.
+  const deleteArchive: OutboxHandler = async (event) => {
+    const exportId = (event.payload as { exportId?: unknown } | null)?.exportId;
+    if (typeof exportId !== "string" || !deps.exportStorage) return;
+    await deps.exportStorage.destroy(
+      `${exportStoragePrefix(event.tenantId, exportId)}${EXPORT_ARCHIVE_FILE}`,
+    );
+  };
   const handlers = new Map<string, OutboxHandler>([
+    ["platform.export.downloaded", deleteArchive],
+    ["platform.export.revoked", deleteArchive],
     [
       "people.person.died",
       async (event) => {
