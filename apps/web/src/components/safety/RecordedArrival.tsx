@@ -5,11 +5,12 @@ import { useEffect } from "react";
 import { t } from "@/lib/i18n";
 
 /**
- * After the record an incident form saves, its page opens with focus on its heading (WCAG 2.4.3),
- * so keyboard and screen reader users start at the top of what they recorded, and says in a
- * polite status, with an icon and words, that it was recorded.
+ * After an incident form saves (recording it, reviewing or closing it, or preparing, submitting
+ * or deciding on a notification), its page opens with focus on its heading (WCAG 2.4.3), so
+ * keyboard and screen reader users start at the top of what changed, and says in a polite status,
+ * with an icon and words, what was done.
  */
-export function RecordedArrival() {
+export function RecordedArrival({ message }: { readonly message?: string }) {
   useEffect(() => {
     const heading = document.querySelector("h1");
     if (!heading) return;
@@ -20,7 +21,7 @@ export function RecordedArrival() {
     <div role="status">
       <p className="m-0 inline-flex items-center gap-2 font-semibold">
         <CircleCheck size={18} strokeWidth={1.5} aria-hidden="true" />
-        {t("safety.record.saved")}
+        {message ?? t("safety.record.saved")}
       </p>
     </div>
   );

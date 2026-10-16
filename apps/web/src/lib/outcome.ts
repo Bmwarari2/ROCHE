@@ -98,6 +98,9 @@ export function problemMessage(error: unknown, t: Translator): Problem {
       return { code, message: t("errors.forbidden") };
     case "step_up_required":
       return { code, message: t("errors.stepUpRequired") };
+    // The person who raised an incident never closes it (safety.md rule 11).
+    case "separation_of_duties":
+      return { code, message: t("errors.separationOfDuties") };
     case "not_found":
       return { code, message: t("errors.notFound") };
     default:
