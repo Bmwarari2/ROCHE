@@ -393,3 +393,53 @@ describe("hazard HZ-061 publishing waits while the family must hear from a perso
     expect(await held()).toBe(false);
   });
 });
+
+describe("hazard HZ-022 previewing an update stores nothing", () => {
+  const preview = (who: string, source: unknown, person = ADA) =>
+    as(who, `/v1/people/${person}/feed/preview`, { id: randomUUID(), source });
+  const items = async () => (await sql("SELECT id FROM feed_item")).length;
+
+  it("shows the family's words, or each problem with its code, and writes no update", async () => {
+    const before = await items();
+    const ok = await preview("manager", { kind: "activity", activityId });
+    expect(ok.status).toBe(200);
+    const shown = (await ok.json()) as { ok: boolean; kind: string; text: string };
+    expect(shown.ok).toBe(true);
+    expect(shown.kind).toBe("activity");
+    expect(shown.text).toContain("Garden club");
+
+    // The note was corrected earlier: a problem at the source field, not a refusal.
+    const corrected = await preview("manager", {
+      kind: "shared_note",
+      noteId,
+      text: "Addie enjoyed the music.",
+    });
+    expect(corrected.status).toBe(200);
+    const problem = (await corrected.json()) as { ok: boolean; problems: { problem: string }[] };
+    expect(problem.ok).toBe(false);
+    expect(problem.problems.map((p) => p.problem)).toEqual(["source_corrected"]);
+
+    const notForFeed = await preview("manager", {
+      kind: "photo",
+      documentId: await insertDocument("care_attachment", "Not for the feed"),
+      caption: null,
+      onlyThisPerson: true,
+    });
+    expect(
+      ((await notForFeed.json()) as { problems: { problem: string }[] }).problems[0]?.problem,
+    ).toBe("photo_not_for_feed");
+
+    expect(await items()).toBe(before);
+    const [event] = await sql<{ scope: { problems: string[] } }>(
+      "SELECT scope FROM audit_event WHERE action = 'comms.feed.previewed' ORDER BY occurred_at DESC LIMIT 1",
+    );
+    expect(event?.scope.problems).toEqual(["photo_not_for_feed"]);
+  });
+
+  it("denies those without the permission and another person's record", async () => {
+    expect((await preview("carer", { kind: "activity", activityId })).status).toBe(403);
+    expect((await preview("manager", { kind: "activity", activityId: benActivityId })).status).toBe(
+      404,
+    );
+  });
+});

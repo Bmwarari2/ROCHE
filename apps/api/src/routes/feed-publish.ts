@@ -1,4 +1,4 @@
-import { PublishedFeedItem, PublishFeedItem } from "@harbour/contracts";
+import { FeedPreview, PublishedFeedItem, PublishFeedItem } from "@harbour/contracts";
 import {
   activityRecord,
   careNote,
@@ -17,12 +17,19 @@ import {
 } from "@harbour/domain";
 import { createRoute, type z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
+import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
-import { requirePermission, usablePermissions, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requirePermission,
+  type TenantAccess,
+  usablePermissions,
+  withTenant,
+} from "../http/context";
 import { type HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import { composeFacts } from "../services/feed-publish";
-import { loadPerson } from "../services/people";
+import { loadPerson, type PersonRecord } from "../services/people";
 import {
   conflictResponse,
   createRouter,
@@ -186,151 +193,231 @@ async function sourceOf(
   };
 }
 
-export const feedPublishRouter = createRouter().openapi(
-  createRoute({
-    method: "post",
-    path: "/v1/people/{id}/feed",
-    tags: ["comms"],
-    summary: "Publish a family update from a note, an activity or a photo (HZ-022, HZ-061)",
-    description:
-      "comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable. Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.",
-    security,
-    request: {
-      params: PersonParam,
-      body: { content: { "application/json": { schema: PublishFeedItem } } },
+/**
+ * The update `composeFeedItem` would make from the request, or why its record cannot be used.
+ * The facts it needs are read in the system's view and never returned.
+ */
+async function compose(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  p: PersonRecord,
+  body: z.infer<typeof PublishFeedItem>,
+  now: Date,
+) {
+  const read = await sourceOf(tx, p.id, body, access.tenantUserId, now);
+  if (!read.ok) return { refused: read.reason } as const;
+  const facts = await withRequestContext(
+    c.get("services").db,
+    { tenantId: access.tenantId, userId: null, scope: "tenant", locationIds: [] },
+    (system) => composeFacts(system, { id: p.id, locationId: p.locationId }, now),
+  );
+  const result = composeFeedItem(read.source, {
+    person: {
+      id: p.id,
+      status: p.status as PersonStatus,
+      name: p.preferredName ?? p.givenName,
+      givenName: p.givenName,
+      familyName: p.familyName,
+      preferredName: p.preferredName,
     },
-    responses: {
-      200: jsonBody(PublishedFeedItem, "Already published"),
-      201: jsonBody(PublishedFeedItem, "Published"),
-      ...errorResponses,
-      ...notFoundResponse,
-      ...conflictResponse,
-    },
-  }),
-  async (c) => {
-    const access = await requirePermission(c, "comms.feed.publish");
-    const { id } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const now = new Date();
-    const refuse = (problem: HttpProblem, reason: string) =>
-      new AuditedRefusal(problem, {
-        action: "comms.feed.publish_refused",
-        outcome: "denied",
-        resourceType: "person",
-        resourceId: id,
-        reason,
-      });
-    const out = await withAuditedRefusal(c, access, () =>
-      withTenant(c, async (tx) => {
+    otherResidents: facts.otherResidents,
+    staff: facts.staff,
+    // The tenant setting for staff names is not built yet: first names only (H-107).
+    staffNames: "first_name_only",
+    photoBasis: facts.photoBasis,
+    openIncidents: facts.openIncidents,
+    candourStates: facts.candourStates,
+    confirmation: body.confirmationReason
+      ? {
+          by: access.tenantUserId,
+          permissions: usablePermissions(access),
+          reason: body.confirmationReason,
+        }
+      : null,
+    now,
+  });
+  return { refused: null, result } as const;
+}
+
+export const feedPublishRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/people/{id}/feed/preview",
+      tags: ["comms"],
+      summary: "What publishing would make, or what stops it, with nothing stored",
+      description:
+        "As POST /v1/people/{id}/feed, but nothing is written: the words the family would see, the plain-English suggestions, or each problem with its code, so the form can show it at its field. Audited with ids and codes only.",
+      security,
+      request: {
+        params: PersonParam,
+        body: { content: { "application/json": { schema: PublishFeedItem } } },
+      },
+      responses: {
+        200: jsonBody(FeedPreview, "Preview"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "comms.feed.publish");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const out = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id);
-        // A retry of an update already published returns it, whatever has changed since.
-        const [existing] = await tx.select().from(feedItem).where(eq(feedItem.id, body.id));
-        if (existing) {
-          // The same id for another person or another record is a different update: refused.
-          if (existing.personId !== id || existing.sourceId !== sourceIdOf(body)) {
-            throw problems.conflict();
-          }
-          return { status: 200 as const, item: itemOut(existing), lint: [] as string[] };
-        }
-        const read = await sourceOf(tx, id, body, access.tenantUserId, now);
-        if (!read.ok) {
-          throw refuse(
-            read.reason === "source_not_found"
-              ? problems.notFound()
-              : problems.invalid(SOURCE_REFUSALS[read.reason]),
-            read.reason,
-          );
-        }
-        const source = read.source;
-        const facts = await withRequestContext(
-          c.get("services").db,
-          { tenantId: access.tenantId, userId: null, scope: "tenant", locationIds: [] },
-          (system) => composeFacts(system, { id, locationId: p.locationId }, now),
-        );
-        const result = composeFeedItem(source, {
-          person: {
-            id,
-            status: p.status as PersonStatus,
-            name: p.preferredName ?? p.givenName,
-            givenName: p.givenName,
-            familyName: p.familyName,
-            preferredName: p.preferredName,
-          },
-          otherResidents: facts.otherResidents,
-          staff: facts.staff,
-          // The tenant setting for staff names is not built yet: first names only (H-107).
-          staffNames: "first_name_only",
-          photoBasis: facts.photoBasis,
-          openIncidents: facts.openIncidents,
-          candourStates: facts.candourStates,
-          confirmation: body.confirmationReason
-            ? {
-                by: access.tenantUserId,
-                permissions: usablePermissions(access),
-                reason: body.confirmationReason,
-              }
-            : null,
-          now,
-        });
-        if (!result.ok) {
-          throw refuse(
-            problems.invalid(result.problems.map((pr) => pr.message).join(" ")),
-            result.problems.map((pr) => pr.problem).join(","),
-          );
-        }
-        const composed = result.item;
-        const [row] = await tx
-          .insert(feedItem)
-          .values({
-            id: body.id,
-            personId: id,
-            kind: composed.kind,
-            section: composed.section,
-            carePlanDomain: composed.carePlanDomain,
-            sourceKind: composed.sourceKind,
-            sourceId: composed.sourceId,
-            occurredAt: composed.occurredAt,
-            text: composed.text,
-            photoDocumentId: composed.photoDocumentId,
-            phraseKey: composed.phraseKey,
-            composedBy: access.tenantUserId,
-            confirmedBy: composed.confirmation?.by ?? null,
-            confirmationReason: composed.confirmation?.reason ?? null,
-            otherPeopleIdentifiable: composed.kind === "photo" ? false : null,
-          })
-          .returning()
-          .catch((error: unknown) => {
-            if (dbCode(error) === "23505") throw problems.conflict();
-            throw error;
-          });
-        if (!row) throw problems.conflict();
-        // Ids and codes only: never the words, the caption or the confirmation reason.
+        const made = await compose(c, tx, access, p, body, new Date());
+        if (made.refused === "source_not_found") throw problems.notFound();
+        // A record that cannot be used is a problem at the source field, like any other.
+        const result = made.refused
+          ? ({
+              ok: false,
+              problems: [{ problem: made.refused, message: SOURCE_REFUSALS[made.refused] }],
+            } as const)
+          : made.result;
         await audit(c, tx, access, {
-          action: "comms.feed.item_published",
-          resourceType: "feed_item",
-          resourceId: row.id,
+          action: "comms.feed.previewed",
+          resourceType: "person",
+          resourceId: id,
           scope: {
-            personId: id,
-            kind: row.kind,
-            sourceKind: row.sourceKind,
-            sourceId: row.sourceId,
-            confirmed: row.confirmedBy !== null,
+            sourceKind: body.source.kind,
+            problems: result.ok ? [] : result.problems.map((pr) => pr.problem),
           },
         });
-        await publish(tx, {
-          context: "comms",
-          aggregateType: "feed_item",
-          aggregateId: row.id,
-          type: "comms.feed.item_published",
-          payload: { personId: id, feedItemId: row.id, section: row.section },
+        return result.ok
+          ? {
+              ok: true,
+              kind: result.item.kind,
+              text: result.item.text,
+              problems: [],
+              lint: result.lint.map((finding) => finding.message),
+            }
+          : {
+              ok: false,
+              kind: null,
+              text: null,
+              problems: result.problems.map((pr) => ({ problem: pr.problem, message: pr.message })),
+              lint: [],
+            };
+      });
+      return c.json(out, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/people/{id}/feed",
+      tags: ["comms"],
+      summary: "Publish a family update from a note, an activity or a photo (HZ-022, HZ-061)",
+      description:
+        "comms.feed.publish where the person lives. composeFeedItem: approved phrasing or the words written for the family, never the note itself; other people's names, contact details and clinical words refused; nothing while the person is in hospital, an incident waits for the next of kin or a candour step is open; event and wellbeing words only with confirmationReason; a photo only with the person's consent to photos and nobody else recognisable. Who sees it is decided by the sharing decisions. The id is the client's: a retry with the same id and source returns the update (200). Refusals are audited with problem codes only.",
+      security,
+      request: {
+        params: PersonParam,
+        body: { content: { "application/json": { schema: PublishFeedItem } } },
+      },
+      responses: {
+        200: jsonBody(PublishedFeedItem, "Already published"),
+        201: jsonBody(PublishedFeedItem, "Published"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "comms.feed.publish");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const now = new Date();
+      const refuse = (problem: HttpProblem, reason: string) =>
+        new AuditedRefusal(problem, {
+          action: "comms.feed.publish_refused",
+          outcome: "denied",
+          resourceType: "person",
+          resourceId: id,
+          reason,
         });
-        return {
-          status: 201 as const,
-          item: itemOut(row),
-          lint: result.lint.map((finding) => finding.message),
-        };
-      }),
-    );
-    return c.json({ item: out.item, lint: out.lint }, out.status);
-  },
-);
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const p = await loadPerson(tx, id);
+          // A retry of an update already published returns it, whatever has changed since.
+          const [existing] = await tx.select().from(feedItem).where(eq(feedItem.id, body.id));
+          if (existing) {
+            // The same id for another person or another record is a different update: refused.
+            if (existing.personId !== id || existing.sourceId !== sourceIdOf(body)) {
+              throw problems.conflict();
+            }
+            return { status: 200 as const, item: itemOut(existing), lint: [] as string[] };
+          }
+          const made = await compose(c, tx, access, p, body, now);
+          if (made.refused) {
+            throw refuse(
+              made.refused === "source_not_found"
+                ? problems.notFound()
+                : problems.invalid(SOURCE_REFUSALS[made.refused]),
+              made.refused,
+            );
+          }
+          const result = made.result;
+          if (!result.ok) {
+            throw refuse(
+              problems.invalid(result.problems.map((pr) => pr.message).join(" ")),
+              result.problems.map((pr) => pr.problem).join(","),
+            );
+          }
+          const composed = result.item;
+          const [row] = await tx
+            .insert(feedItem)
+            .values({
+              id: body.id,
+              personId: id,
+              kind: composed.kind,
+              section: composed.section,
+              carePlanDomain: composed.carePlanDomain,
+              sourceKind: composed.sourceKind,
+              sourceId: composed.sourceId,
+              occurredAt: composed.occurredAt,
+              text: composed.text,
+              photoDocumentId: composed.photoDocumentId,
+              phraseKey: composed.phraseKey,
+              composedBy: access.tenantUserId,
+              confirmedBy: composed.confirmation?.by ?? null,
+              confirmationReason: composed.confirmation?.reason ?? null,
+              otherPeopleIdentifiable: composed.kind === "photo" ? false : null,
+            })
+            .returning()
+            .catch((error: unknown) => {
+              if (dbCode(error) === "23505") throw problems.conflict();
+              throw error;
+            });
+          if (!row) throw problems.conflict();
+          // Ids and codes only: never the words, the caption or the confirmation reason.
+          await audit(c, tx, access, {
+            action: "comms.feed.item_published",
+            resourceType: "feed_item",
+            resourceId: row.id,
+            scope: {
+              personId: id,
+              kind: row.kind,
+              sourceKind: row.sourceKind,
+              sourceId: row.sourceId,
+              confirmed: row.confirmedBy !== null,
+            },
+          });
+          await publish(tx, {
+            context: "comms",
+            aggregateType: "feed_item",
+            aggregateId: row.id,
+            type: "comms.feed.item_published",
+            payload: { personId: id, feedItemId: row.id, section: row.section },
+          });
+          return {
+            status: 201 as const,
+            item: itemOut(row),
+            lint: result.lint.map((finding) => finding.message),
+          };
+        }),
+      );
+      return c.json({ item: out.item, lint: out.lint }, out.status);
+    },
+  );
