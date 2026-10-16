@@ -640,3 +640,20 @@ Slice 11 (letter and email templates, schema: migration 0059; `feat/comms-letter
 Tests: `packages/db/test/letter-templates.test.ts`; the RLS coverage test lists `letter` as
 append-only; the export catalogue describes every column. The API (template routes, preview and
 sending, the PDF and the email body) follows.
+
+Slice 11 (letter and email templates, API part 2a; `feat/comms-letter-templates-api`):
+`apps/api/src/routes/letter-templates.ts`, contracts in `packages/contracts/src/letters.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `GET /v1/merge-fields` | The catalogue (`MERGE_FIELDS`) with each field's type, data class and where it may go; holders of `comms.template.write`, `.approve` or `comms.letter.manage` |
+| `GET /v1/letter-templates`, `GET .../{id}/versions` | Each template with the version in use and its open draft (or every version, newest first), each with its problems in words (`checkTemplateDefinition`), the personal-data fields it uses and plain-English suggestions (`templateStyleWarnings`) |
+| `POST /v1/letter-templates` | Write: a template with its first draft; a letter-only kind as email is refused (422) before the database refuses it too; a draft with problems is saved and they are listed; `comms.template.drafted` |
+| `POST .../versions`, `PUT .../versions/{versionId}`, `.../discard` | Write: a new draft from the version in use (one at a time, 409), changes to a draft against the loaded version (the editor joins the contributors), discarding with a reason; `.drafted`, `.edited`, `.discarded` |
+| `POST .../versions/{versionId}/approve`, `.../retire` | Approve: `checkTemplateApproval` (not the author or an editor, no problems, different from the version in use), then the database's guard; the old version superseded; retiring with a reason takes the template out of use; `.approved`, `.retired` |
+
+Audit rows hold ids and codes only, never typed reasons (H-223). The email port gains a plain-text
+`body` (H-225): SES sends it in place of the title and link, and the evidence pack code email now
+has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
+body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
+Next, part 2b: preview, sending and the letters list, with the PDF writer.

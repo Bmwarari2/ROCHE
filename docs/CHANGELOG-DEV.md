@@ -2108,3 +2108,27 @@ append-only.
   or cancelled outage is said; a malformed outage id is refused; spring-gap and autumn tests; the
   journey scans the chart, body map, activity and visit forms and a correction outside the
   outage; the journeys lay their outages after any already there, so a retry never overlaps.
+
+## 2026-10-16: Slice 11, letter and email template routes and the email body (COMMS-007, part 2a)
+
+- API: `GET /v1/merge-fields`; `GET`/`POST /v1/letter-templates`; `GET`/`POST
+  .../{id}/versions`; `PUT .../versions/{versionId}`; `.../approve`, `.../retire`, `.../discard`
+  (comms.md section 11), each draft checked as it is saved with its problems listed, approval never
+  by the author or an editor, audited with ids and codes only.
+- The email port gains a plain-text `body` (H-225); the evidence pack code email moves the code into
+  the body under a generic subject.
+- Docs: comms.md section 11, H-225, HZ-051 row, STATUS.
+
+**Tests**: `apps/api/test/letter-templates.test.ts` (5); `adapters.test.ts` 2 new;
+`evidence-link.test.ts` extended.
+
+## 2026-10-16: Letter template routes, review round 1 of #70 (HZ-051)
+
+- Every template version write (edit, approve, retire, discard) matches the version the caller
+  loaded, so an edit landing between the read and the write is refused (409, audited) and the edited
+  text is never approved unseen.
+- The refusal of a letter-only kind as email is audited.
+- Docs: HZ-051 row, STATUS (the email body check and the rendered-body ADR-0051 check for part 2b).
+
+**Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
+email, cross-tenant).

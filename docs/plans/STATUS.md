@@ -311,8 +311,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
      session with `app.link_id`, codes as an HMAC under `EVIDENCE_LINK_SECRET`, the failed count
      in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
      page that reads the token from the link's fragment and posts it (web step); throttles are per
-     API instance (a shared table, as for invitations); the code goes in the email's title until
-     the email port carries a body (H-225); an inspector with a Harbour account
+     API instance (a shared table, as for invitations); the code email has a generic subject and the code in its body
+     (built in part 2a of the letter templates, H-225); an inspector with a Harbour account
      (`quality.evidence.read`) still needs its own route.
    - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
      composed and released (GMT or BST) and that it shows the records as they stood at release
@@ -343,6 +343,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
        `incident.*` and `candour.*` fields), MFA on reads, store `delivery_reference` as the
        provider's opaque id only, `personal_fields` as keys only, never an email's content, and
        log no personal data.
+   - Slice 11, letter and email templates part 2a, the template routes and the email body
+     (`feat/comms-letter-templates-api`, stacked on #69; comms.md section 11): merge fields,
+     templates and versions with approval, retirement and discarding; the email port's body,
+     which closes the item 5 note on the evidence pack code email (generic subject, the code and
+     guidance in the body, H-225). Next, part 2b: preview, sending and the letters list with the
+     PDF writer and the part 2 must-dos above.
+   - #70 review round 1 (security and clinical), fixed in #70: every version write matches the
+     version the caller loaded (an edit landing between the read and an approval is refused with
+     409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
+     it leaves (no link, and no personal field beyond the approved, rendered template), as
+     `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
