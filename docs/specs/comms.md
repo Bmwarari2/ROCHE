@@ -187,11 +187,13 @@ by the caller.
    (`LIVE_PERSON_STATUSES`: active, on leave, in hospital, from people/lifecycle.ts). Discharge and
    death close sharing (people.md rules 2 and 13, the `close_sharing` effect); a correction of a
    discharge or death recorded in error does not reopen it until a manager reinstates the decision.
-   Nothing new is composed for a closed record. A family member who had a decision then sees
-   "Updates are paused. The home will be in touch." (`FEED_PAUSED_STATEMENT`, wording for the CSO,
-   H-110), never a feed that is suddenly empty; someone who never had a decision sees no change. A
-   death or a discharge is never announced through the feed or a notification: staff tell the
-   family in person or by phone.
+   Nothing new is composed for a closed record. A feed closed by the person's status looks exactly
+   like a feed with no decision in force: the same statement, no entries and no status-specific
+   notice, so the portal can never tell a family about a death or discharge before the home does
+   (#75 and #76 review; the domain's `FEED_PAUSED_STATEMENT` is not shown). A death or a discharge
+   is never announced through the feed or a notification: staff tell the family in person or by
+   phone. Whether staff may post a closing message once the next of kin have been told is for the
+   CSO (H-110).
 4. **Withdrawal hides from then on; what was seen stays seen.** Withdrawing or suspending a decision
    closes its sections at the next request. It cannot undo a view, so every view is kept
    (`feed_view`, with the decision that allowed it and the capacity finding then): `feedExposure`
@@ -673,3 +675,15 @@ Not yet: duty of candour letters (refused until the candour record names the rel
 rule 21); sending email (the worker-based send above); a family-facing incident summary for
 incidents involving several people. Tests:
 `apps/api/test/letters.test.ts`.
+
+Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
+`packages/db/src/schema/comms.ts`.
+
+| Table or function | Built as |
+| --- | --- |
+| `family_portal_user` | Mutable. A portal account, a person and the contact the decisions name; one open link per account and contact; revoked with a reason, never reopened or deleted. A member always reads their own links; staff read and write them in the person's scope with `people.sharing.manage`. The database refuses a person assignment for a linked account, and a link for an assigned one |
+| `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
+| `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
+
+Next, the API (`feat/comms-family-feed-api`): portal sessions, `GET /v1/family/feed`, the portal
+links, the staff list and withdrawal; then part 1b, publishing from source records.

@@ -30,6 +30,11 @@ export interface RequestContext {
    * 'none', and row-level security holds it to this link and its pack alone.
    */
   readonly evidenceLink?: { readonly linkId: string; readonly packId: string };
+  /**
+   * A family portal session (ADR-0061, migration 0061): a member with scope 'none' whose feed rows
+   * open only through `app.family_can_see`, for the contacts their `family_portal_user` links name.
+   */
+  readonly family?: boolean;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,6 +65,9 @@ export function assertValidContext(ctx: RequestContext): void {
     if (ctx.userId !== null || ctx.scope !== "none") {
       throw new InvalidRequestContextError("a link session has no member and scope 'none'");
     }
+  }
+  if (ctx.family && (ctx.userId === null || ctx.scope !== "none" || ctx.evidenceLink)) {
+    throw new InvalidRequestContextError("a family session has a member and scope 'none'");
   }
 }
 
@@ -104,7 +112,8 @@ export async function applyRequestContext(tx: Transaction | Database, ctx: Reque
       set_config('app.scope_assigned', ${ctx.includesAssigned === true ? "true" : ""}, true),
       set_config('app.scope_break_glass', ${ctx.includesBreakGlass === true ? "true" : ""}, true),
       set_config('app.link_id', ${ctx.evidenceLink?.linkId ?? ""}, true),
-      set_config('app.link_pack_id', ${ctx.evidenceLink?.packId ?? ""}, true)
+      set_config('app.link_pack_id', ${ctx.evidenceLink?.packId ?? ""}, true),
+      set_config('app.family', ${ctx.family === true ? "true" : ""}, true)
   `);
 }
 
