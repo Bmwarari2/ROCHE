@@ -1768,6 +1768,22 @@
     "platform.search.noteTitle",
     "platform.search.searching",
     "platform.search.communication",
-    "platform.search.capped"
+    "platform.search.capped",
+    "platform.breakGlassSearch.cardTitle",
+    "platform.breakGlassSearch.cardBody",
+    "platform.breakGlassSearch.title",
+    "platform.breakGlassSearch.body",
+    "platform.breakGlassSearch.query",
+    "platform.breakGlassSearch.queryHint",
+    "platform.breakGlassSearch.reasonCode",
+    "platform.breakGlassSearch.chooseReason",
+    "platform.breakGlassSearch.reasonOption",
+    "platform.breakGlassSearch.reasonCodeRequired",
+    "platform.breakGlassSearch.submit",
+    "platform.breakGlassSearch.stepUp",
+    "platform.breakGlassSearch.limit",
+    "platform.breakGlassSearch.readOnly",
+    "platform.breakGlassSearch.none",
+    "platform.breakGlassSearch.more"
   ]
 }

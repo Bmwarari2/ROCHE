@@ -235,3 +235,45 @@ describe("no search function is a shortcut past row-level security", () => {
     ]);
   });
 });
+
+describe("hazard HZ-011 a break-glass search record opens nothing (migration 0070)", () => {
+  const owner = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+    inContext(db.pool("harbour_owner"), ctx(TENANT_A, null, "tenant"), fn);
+
+  it("names no person and lasts no time, so the break-glass scope never widens", async () => {
+    await owner((c) =>
+      c.query(
+        `INSERT INTO break_glass_event (tenant_user_id, kind, justification, opened_at, expires_at,
+           reason_code)
+         VALUES ($1, 'search', 'Finding a resident who arrived overnight', now(), now(),
+           'emergency_care')`,
+        [a.carer],
+      ),
+    );
+    // The care worker's break-glass scope still reaches only Ada (assigned), never Cara or Ben.
+    expect(
+      await people(
+        ctx(TENANT_A, a.carer, "assigned", [], { includesBreakGlass: true }),
+        "cara:* | ben:* | ada:*",
+      ),
+    ).toEqual(["Ada"]);
+  });
+
+  it.each([
+    ["a search naming a person", "'search'", "$2", "now()"],
+    ["a search lasting beyond when it ran", "'search'", "NULL", "now() + interval '1 hour'"],
+    ["an opening with no person", "'open'", "NULL", "now() + interval '1 hour'"],
+    ["an unknown kind", "'peek'", "$2", "now() + interval '1 hour'"],
+  ])("refuses %s", async (_label, kind, personId, expires) => {
+    await expect(
+      owner((c) =>
+        c.query(
+          `INSERT INTO break_glass_event (tenant_user_id, kind, person_id, justification, opened_at,
+             expires_at)
+           VALUES ($1, ${kind}, ${personId}, 'A reason long enough to be kept', now(), ${expires})`,
+          personId === "$2" ? [a.carer, a.personCara] : [a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/break_glass_kind/);
+  });
+});

@@ -1,10 +1,11 @@
 import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
+import { BreakGlassSearch } from "@/components/search/BreakGlassSearch";
 import { SearchBox } from "@/components/search/SearchBox";
 import { getShellContext } from "@/lib/api";
 import { t } from "@/lib/i18n";
-import { SEARCH_ARCHIVED, searchShown } from "@/lib/search";
+import { breakGlassSearchShown, SEARCH_ARCHIVED, searchShown } from "@/lib/search";
 
 export const metadata: Metadata = { title: t("platform.search.title") };
 
@@ -22,6 +23,16 @@ export default async function SearchPage() {
       <Card>
         <SearchBox mayIncludeArchived={me.permissions.includes(SEARCH_ARCHIVED)} />
       </Card>
+      {breakGlassSearchShown(me.permissions) ? (
+        <Card as="section" title={t("platform.breakGlassSearch.cardTitle")} headingLevel={2}>
+          <div className="flex flex-col gap-3">
+            <p className="m-0 max-w-prose">{t("platform.breakGlassSearch.cardBody")}</p>
+            <div>
+              <BreakGlassSearch />
+            </div>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

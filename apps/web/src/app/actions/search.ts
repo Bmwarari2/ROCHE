@@ -1,11 +1,19 @@
 "use server";
 
-import type { SearchResults } from "@harbour/contracts";
+import type { BreakGlassSearchResults, SearchResults } from "@harbour/contracts";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
-import { SEARCH_KINDS, SEARCH_MAX_LENGTH, type SearchKind, typesFor } from "@/lib/search";
+import {
+  BREAK_GLASS_REASON_CODES,
+  BREAK_GLASS_REASON_MAX,
+  BREAK_GLASS_REASON_MIN,
+  SEARCH_KINDS,
+  SEARCH_MAX_LENGTH,
+  type SearchKind,
+  typesFor,
+} from "@/lib/search";
 
 /**
  * Runs a search as the signed-in person (PLAT-013). The words go to the API in the request body,
@@ -56,5 +64,49 @@ function searchRefusal(error: unknown): ActionResult<never> | null {
       return refused(t("platform.search.refusal", { code }), code);
     default:
       return null;
+  }
+}
+
+/**
+ * A break-glass search (platform-completions.md rule 9): the API checks the permission, step-up,
+ * the reason and the daily limit, alerts the Registered Manager and the data protection lead, and
+ * keeps the reason in the break-glass record. The words and the reason go only in the body.
+ */
+export async function runBreakGlassSearch(input: {
+  readonly query: string;
+  readonly reasonCode: string;
+  readonly reason: string;
+}): Promise<ActionResult<BreakGlassSearchResults>> {
+  const reasonCode = BREAK_GLASS_REASON_CODES.find((c) => c === input.reasonCode);
+  if (!reasonCode) {
+    return refused(t("platform.breakGlassSearch.reasonCodeRequired"), "invalid", ["reasonCode"]);
+  }
+  const reason = input.reason.trim();
+  if (reason.length < BREAK_GLASS_REASON_MIN) {
+    return refused(t("people.breakGlass.tooShort", { min: BREAK_GLASS_REASON_MIN }), "invalid", [
+      "reason",
+    ]);
+  }
+  if (reason.length > BREAK_GLASS_REASON_MAX || input.query.length > SEARCH_MAX_LENGTH) {
+    return refused(t("care.errors.invalid"));
+  }
+  try {
+    const api = await tenantApi();
+    const { data, error } = await api.POST("/v1/search/break-glass", {
+      body: { query: input.query, reasonCode, reason },
+    });
+    if (data) return { ok: true, data };
+    const code =
+      typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+    if (code === "rate_limited") {
+      return refused(t("platform.breakGlassSearch.limit"), "rate_limited");
+    }
+    const problem = problemMessage(error, t);
+    return problem.code === "invalid"
+      ? { ok: false, ...problem, fields: { query: problem.message } }
+      : { ok: false, ...problem };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, ...problemMessage(undefined, t) };
   }
 }
