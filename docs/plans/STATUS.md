@@ -375,6 +375,27 @@ only when they link spec, code, tests and user documentation; no user guides exi
      409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
      it leaves (no link, and no personal field beyond the approved, rendered template), as
      `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
+   - Slice 11, letters part 2b, preview, sending and the list (`feat/comms-letters-api`, stacked
+     on #70; comms.md section 11): built, PR open, with the part 2 must-dos (comms.letter.manage
+     with MFA on every route including reads, safety.incident.manage for incident letters, values
+     from the record except typed admission and fee details, the provider's message id only, field
+     keys only, no email content stored), the body guard and ADR-0051 on the rendered output.
+     Follow-ups: duty of candour letters need the relevant person on the candour record; a letter's
+     PDF document keeps `care_record` retention even when the letter is `serious_incident` (the
+     retention slice); letter PDFs carry no letterhead or address block layout yet (H-228).
+   - #72 review round 1 (security and clinical), fixed in #72: the send must match the preview
+     (version and text hash, 409 otherwise); only current contacts; an incident involving anyone
+     else is refused; email sending refused (422) until the worker-based send; the preview shows the
+     person (name, room, photo); people who have died are refused; the list shows incidents only to
+     holders of `safety.incident.manage`; the body guard catches hyphenated NHS numbers and
+     `mailto:`. Follow-ups:
+     - the worker-based email send: insert a pending `letter` row (an expand change: a status
+       column), a pg-boss job keyed on the letter id sends once (the port's idempotency key is the
+       letter id), then the provider's message id is recorded; an email is never sent twice or
+       unrecorded (HZ-051);
+     - a family-facing incident summary, written for the family and approved, so incidents
+       involving several people can be written about without the internal account;
+     - letters after a death (to the next of kin or the estate), with the template kinds they need.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

@@ -100,3 +100,79 @@ export const LetterTemplateList = z
 export const LetterTemplateVersionList = z
   .object({ items: z.array(LetterTemplateVersionItem) })
   .meta({ id: "LetterTemplateVersionList" });
+
+// ------------------------------------------------------------------------------------------------
+// Letters (rules 24 and 25)
+// ------------------------------------------------------------------------------------------------
+
+export const LetterRecipient = z
+  .discriminatedUnion("kind", [
+    z.object({ kind: z.literal("person") }),
+    z.object({ kind: z.literal("contact"), contactId: uuid }),
+  ])
+  .meta({ id: "LetterRecipient" });
+
+export const LetterRequest = z
+  .object({
+    templateId: uuid,
+    recipient: LetterRecipient,
+    /** An incident follow-up letter's incident (needs safety.incident.manage). */
+    incidentId: uuid.optional(),
+    /**
+     * Values the sender types: admission and fee fields only; money in whole pence, dates
+     * yyyy-mm-dd. Every other field comes from the record.
+     */
+    values: z
+      .record(z.string().max(64), z.union([z.string().max(2000), z.number()]))
+      .refine((v) => Object.keys(v).length <= 10, "At most 10 values")
+      .optional(),
+  })
+  .meta({ id: "LetterRequest" });
+
+export const SendLetter = LetterRequest.extend({
+  /** The sender has seen the preview: the person, the recipient and the personal details. */
+  confirmed: z.literal(true),
+  /** From the preview: the send is refused (409) if the letter would differ in any way. */
+  templateVersionId: uuid,
+  textHash: z.string().regex(/^[0-9a-f]{64}$/),
+}).meta({ id: "SendLetter" });
+
+export const LetterPreview = z
+  .object({
+    /** Repeat both when sending: they pin the letter to exactly what was checked. */
+    templateVersionId: uuid,
+    textHash: z.string(),
+    /** Who the letter is about, for the check before sending (rule 25, HZ-001). */
+    person: z.object({
+      id: uuid,
+      fullName: z.string(),
+      preferredName: z.string().nullable(),
+      roomLabel: z.string().nullable(),
+      photoUrl: z.string().nullable(),
+    }),
+    channel: TemplateChannel,
+    subject: z.string().nullable(),
+    text: z.string(),
+    recipientName: z.string(),
+    personalDataFields: z.array(z.string()),
+    containsSpecialCategory: z.boolean(),
+  })
+  .meta({ id: "LetterPreview" });
+
+export const LetterItem = z
+  .object({
+    id: uuid,
+    templateVersionId: uuid,
+    channel: TemplateChannel,
+    recipientKind: z.enum(["person", "contact"]),
+    contactId: uuid.nullable(),
+    personalFields: z.array(z.string()),
+    specialCategory: z.boolean(),
+    incidentId: uuid.nullable(),
+    documentId: uuid.nullable(),
+    sentBy: uuid,
+    sentAt: isoDateTime,
+  })
+  .meta({ id: "LetterItem" });
+
+export const LetterList = z.object({ items: z.array(LetterItem) }).meta({ id: "LetterList" });
