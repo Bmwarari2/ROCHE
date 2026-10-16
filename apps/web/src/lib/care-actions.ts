@@ -3,6 +3,7 @@ import type { ApiClient } from "@harbour/contracts/client";
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { tenantApi } from "./api";
+import { downtimeBody, type EntryDowntime } from "./back-entry";
 import { isUuid } from "./context-cookies";
 import { t } from "./i18n";
 import { type ActionResult, problemMessage, refused } from "./outcome";
@@ -57,25 +58,39 @@ export interface EntryTiming {
   readonly occurredAt: string;
   /** The device's clock when the form was sent, so the API can flag clock drift (HZ-010). */
   readonly sentAt: string;
+  /**
+   * A record entered from a paper downtime form (its outage and the time written on it), or why
+   * an entry for a time in an outage is not from paper (operations.md section 14; HZ-017).
+   */
+  readonly downtime?: EntryDowntime;
 }
 
 /**
  * The entry's time for the API, and the header that carries the device's clock reading
  * (`x-harbour-sent-at`, care.md rule 3), or a refusal saying what to enter.
  */
-export function entryTime(
-  timing: EntryTiming,
-):
-  | { readonly id: string; readonly occurredAt: string; readonly headers: Record<string, string> }
+export function entryTime(timing: EntryTiming):
+  | {
+      readonly id: string;
+      readonly occurredAt: string;
+      readonly headers: Record<string, string>;
+      /** The back-entry fields to spread into the API body. */
+      readonly downtime: EntryDowntime;
+    }
   | ActionResult<never> {
   if (!isUuid(timing.id)) return refused(t("care.errors.invalid"));
   if (!isIsoInstant(timing.occurredAt)) {
     return refused(t("care.errors.whenRequired"), "invalid", ["occurredAt"]);
   }
+  const downtime = downtimeBody(timing.downtime);
+  if (downtime === null) {
+    return refused(t("care.paper.outageRequired"), "invalid", ["outageId"]);
+  }
   return {
     id: timing.id,
     occurredAt: timing.occurredAt,
     headers: isIsoInstant(timing.sentAt) ? { "x-harbour-sent-at": timing.sentAt } : {},
+    downtime,
   };
 }
 

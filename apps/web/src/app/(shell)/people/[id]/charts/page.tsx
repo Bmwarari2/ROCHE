@@ -23,7 +23,7 @@ import { CHARTS, type ChartKind, fluidDayView, isChart } from "@/lib/charts";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
-import { getCareProfile, getPerson, readOrFail } from "@/lib/person-record";
+import { getCareProfile, getEntryOutages, getPerson, readOrFail } from "@/lib/person-record";
 import { type CareProfileLoad, profileOf } from "@/lib/record-data";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
 import { addDays, isDatePart, isIsoDate, readDateField, ukToday } from "@/lib/uk-time";
@@ -112,6 +112,7 @@ async function ChartsTab({
   const dateLabel = formatDate(fluid.date) ?? fluid.date;
   // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
   const { canRecord: canWrite } = recordCareAccess(person, me.permissions);
+  const outages = canWrite ? await getEntryOutages(person.locationId) : [];
   const canSetUp = mayEditCarePlan(person, me.permissions) && profile !== null;
   // Why entries cannot be recorded, scoped to entries above chart settings the viewer can still
   // change, and why the settings are hidden when they cannot (review rounds 4 and 5).
@@ -211,6 +212,7 @@ async function ChartsTab({
         <Card as="section" title={t("care.charts.record.title", { chart })} headingLevel={3}>
           <ChartEntryForm
             personId={id}
+            outages={outages}
             chart={chart}
             profile={profile}
             profileKind={profileLoad.kind}
