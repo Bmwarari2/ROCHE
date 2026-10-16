@@ -281,3 +281,60 @@ export function checkSampleDataRemoval(input: {
   if (input.realReferences > 0) return fail("referenced_by_real_records");
   return { ok: true };
 }
+
+/** One invented person the sample batch loads (rule 29). */
+export interface SamplePersonSeed {
+  readonly givenName: string;
+  readonly familyName: string;
+  readonly preferredName: string;
+  /** "yyyy-mm-dd". */
+  readonly dateOfBirth: string;
+  /** 999 range, with a valid check digit. */
+  readonly nhsNumber: string;
+  readonly roomLabel: string;
+  readonly allergyStatus: "unknown" | "no_known_allergies" | "has_allergies";
+}
+
+/**
+ * The people a sample batch loads: plainly invented (family name "Example", 999-range NHS numbers
+ * that pass their check digit), varied enough to practise with (one whose allergy status is not
+ * yet known, as on a real admission). Checked with `checkSamplePerson` by the tests.
+ */
+export const SAMPLE_PEOPLE: readonly SamplePersonSeed[] = [
+  {
+    givenName: "Ada",
+    familyName: SAMPLE_FAMILY_NAME,
+    preferredName: "Ada",
+    dateOfBirth: "1938-02-01",
+    nhsNumber: "9996000001",
+    roomLabel: "Sample 1",
+    allergyStatus: "has_allergies",
+  },
+  {
+    givenName: "Benjamin",
+    familyName: SAMPLE_FAMILY_NAME,
+    preferredName: "Ben",
+    dateOfBirth: "1941-07-14",
+    nhsNumber: "9996000028",
+    roomLabel: "Sample 2",
+    allergyStatus: "no_known_allergies",
+  },
+  {
+    givenName: "Cara",
+    familyName: SAMPLE_FAMILY_NAME,
+    preferredName: "Cara",
+    dateOfBirth: "1950-11-30",
+    nhsNumber: "9996000036",
+    roomLabel: "Sample 3",
+    allergyStatus: "unknown",
+  },
+  {
+    givenName: "Devendra",
+    familyName: SAMPLE_FAMILY_NAME,
+    preferredName: "Dev",
+    dateOfBirth: "1946-04-22",
+    nhsNumber: "9996000044",
+    roomLabel: "Sample 4",
+    allergyStatus: "no_known_allergies",
+  },
+];

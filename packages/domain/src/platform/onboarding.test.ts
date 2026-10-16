@@ -27,6 +27,7 @@ import {
   isOfcomDramaNumber,
   REAL_RECORD_CREATION_PATHS,
   SAMPLE_BADGE,
+  SAMPLE_PEOPLE,
   SAMPLE_WATERMARK,
   type SampleDataSurface,
   sampleFlagForNewRecord,
@@ -976,4 +977,21 @@ describe("rule 26 the DCB0160 assessment covers this release", () => {
         null,
     ).toBe(expected);
   });
+});
+
+describe("rule 29 the sample batch is plainly invented", () => {
+  it.each(SAMPLE_PEOPLE.map((p) => [`${p.givenName} ${p.familyName}`, p] as const))(
+    "%s passes checkSamplePerson",
+    (_, p) => {
+      expect(
+        checkSamplePerson({
+          familyName: p.familyName,
+          nhsNumber: p.nhsNumber,
+          emails: [],
+          phones: [],
+          address: null,
+        }),
+      ).toEqual([]);
+    },
+  );
 });

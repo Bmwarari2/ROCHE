@@ -32,6 +32,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.announce_sub_processor_notice": ["harbour_operator"],
   "app.sub_processor_objections": ["harbour_operator"],
   "app.resolve_sub_processor_objection": ["harbour_operator"],
+  // Sample data mode (migration 0069).
+  "app.sample_people": ["harbour_app", "harbour_owner"],
+  "app.remove_sample_batch": ["harbour_app"],
 };
 
 let db: TestDatabase;
