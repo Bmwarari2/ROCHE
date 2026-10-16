@@ -16,6 +16,7 @@ export * from "./platform";
 export * from "./quality";
 export * from "./records";
 export * from "./safety";
+export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";
 export * from "./work";

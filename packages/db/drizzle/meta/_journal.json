@@ -477,6 +477,13 @@
       "when": 1792167603686,
       "tag": "0068_definer_function_acls",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792167800818,
+      "tag": "0069_sample_data",
+      "breakpoints": true
     }
   ]
 }

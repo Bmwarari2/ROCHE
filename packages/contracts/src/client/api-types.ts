@@ -19949,6 +19949,122 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/onboarding/sample-data": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Load sample data
+     * @description platform.onboarding.manage. Loads one batch of plainly invented people (family name Example, 999-range NHS numbers) at the organisation's first location, only while no real person exists and no batch is loaded (409 real_people_exist, already_loaded). Every real person then waits until the batch is removed. Audited (platform.onboarding.sample_loaded, batch id and count), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Done */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SampleDataBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Remove the sample data
+     * @description platform.onboarding.manage with a fresh step-up (403 step_up_required). Removes the loaded batch in one step through app.remove_sample_batch: its people and every record made about them while practising, or nothing (409 nothing_to_remove; held while a legal hold is in place; referenced_by_other_records when an outage or downtime pack still refers to them). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id, people and records per table), refusals here.
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Done */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SampleDataBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -26637,6 +26753,11 @@ export interface components {
       safetyCaseVersion: string;
       /** Format: uuid */
       assessedBy?: string;
+    };
+    SampleDataBatch: {
+      /** Format: uuid */
+      batchId: string;
+      people: number;
     };
     SubProcessorNoticeAnnounced: {
       /** Format: uuid */

@@ -29,6 +29,8 @@ const person = new Table(
     communication_needs: column.text,
     /** 'unknown' | 'no_known_allergies' | 'has_allergies' (HZ-007: unknown is not "none"). */
     allergy_status: column.text,
+    /** 1 for an invented sample person (HZ-072): shown with the "Sample" badge. */
+    is_sample: column.integer,
     updated_at: column.text,
     version: column.integer,
   },
