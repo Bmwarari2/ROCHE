@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { downtimeNavShown } from "@/lib/downtime";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 
@@ -46,6 +47,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         home: t("shell.nav.home"),
         people: peopleLabel(me.tenant.terminology),
         incidents: incidentsNavLabel(me.permissions, t),
+        downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),

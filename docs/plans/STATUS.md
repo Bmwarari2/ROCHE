@@ -719,6 +719,33 @@ only when they link spec, code, tests and user documentation; no user guides exi
       password sign-in. When mobile resumes: add `mfa_verification_required` to
       `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
 
+21. Slice 11 web, the downtime screens (OPS-028; HZ-017, HZ-021, HZ-092; `feat/web-downtime`).
+    PR A built: `/downtime` (Downtime in the navigation for holders of `operations.downtime.read`
+    or `.manage`) and a location's page: the pack opened on its own page (freshness in an icon and
+    words, the header lines, when it was made, how many pages and warnings) and printed as a PDF
+    streamed from the API and never stored, both with a fresh sign-in and never prefetched, over
+    the hourly limit or with no pack the page says what to use instead; the outages with their
+    state; declare (only while none is open), close, correct, cancel and reconcile, with the
+    reasons and version the API needs, nothing chosen by default, and the reconciliation's counts,
+    blockers in the API's words, and a box to tick for each possible duplicate group and each
+    back-entry outside the window (H-267). A back-entered entry shows its label wherever its badges
+    are shown. Next: PR B, the back-entry fields on the care record forms (the outage, the date and
+    time written on paper, the outside-the-outage reason, not-from-paper). API gaps logged here,
+    for Lane A:
+    - No read of the MAR and PEEP places (`GET /v1/locations/{id}/downtime-places` returning
+      `DowntimePlaces` with the location's `version`), so the web cannot show or confirm them: the
+      `PUT` needs the version. The places form waits on it (H-201 still met by the task and the
+      pack's wording).
+    - No per-location `reaching` (`/v1/me` has the permissions and work locations only), so the
+      location page offers an action where the permission is held anywhere and the person works at
+      the location; the API refuses it in words where it does not reach (ADR-0071). Add a
+      `reaching` list per location to `/v1/me` or a `GET /v1/locations/{id}` with `access`.
+    - The reconciliation returns entry ids only, so the screen lists short references, which
+      every record list now shows beside "Entered from a paper record" (#62 review round 1). Lane
+      A: return the person, the entry's kind and time and a link per entry in
+      `duplicateGroups` and `outsideWindowEntryIds`, so each can be opened from the screen
+      (HZ-092); the CSO decides whether reconciling may go live before then (H-267).
+
 ## Human actions outstanding
 
 All of [human-actions.md](human-actions.md) is open (H-01 to H-171). The project owner has
