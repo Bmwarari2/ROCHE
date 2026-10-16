@@ -927,6 +927,21 @@ only when they link spec, code, tests and user documentation; no user guides exi
     Gaps: the handover items are references only, so the reader opens each record; the location
     page offers compiling for the permission held anywhere (no per-location `reaching`).
 
+## Security notes
+
+- 2026-10-17, definer function execute rights (#97): migration 0061 revoked PUBLIC's execute
+  right on `app.family_can_see` and `app.family_item_shown` after handing them to their NOLOGIN
+  owner, when only that owner could revoke it, so every login role could execute them and learn,
+  yes or no, whether a sharing decision would show a family an update (no record contents).
+  Found in the #95 review; migration 0068 revokes it as the owner; `definer-acls.test.ts` keeps
+  every definer function to its listed callers; ADR-0002 and the add-migration skill carry the
+  rule. Exposure: database roles only (the API never lets a session call them directly); H-372
+  confirms Supabase's `anon` and `authenticated` roles never had USAGE on `app` in dev and staging.
+- 2026-10-17, migration ordering (#97 review): Drizzle skips a pending migration whose journal
+  `when` is earlier than the last one applied. `migration-journal.test.ts` checks `idx` and
+  `when` increase and tags match their `idx`; parallel branches regenerate their entry after
+  merging main (order #91, #95, #97, sample data).
+
 ## Human actions outstanding
 
 All of [human-actions.md](human-actions.md) is open (H-01 to H-171). The project owner has
