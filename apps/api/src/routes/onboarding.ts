@@ -12,15 +12,21 @@ import {
   rateTable,
   retentionClass,
   retentionDecision,
+  type Transaction,
   tenant,
   tenantSettingDecision,
+  tenantUser,
 } from "@harbour/db";
 import {
   checkDcb0160Recording,
   checkRetentionDecision,
   checkSettingDecision,
   type DecisionIssue,
+  isClinicalSetting,
+  type NamedReviewer,
   onboardingChecklist,
+  type RateNation,
+  resolveRate,
   tenantDefaultRateKeys,
 } from "@harbour/domain";
 import { createRoute } from "@hono/zod-openapi";
@@ -30,6 +36,7 @@ import { auditInTx, writeAudit } from "../http/audit";
 import { type AppEnv, requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { onboardingStateFor } from "../services/onboarding";
+import { rateRows } from "../services/rates";
 import { conflictResponse, createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /**
@@ -61,6 +68,18 @@ async function refuse(
     "The decision cannot be recorded.",
     issue.message,
   );
+}
+
+/** Whether a named reviewer is an active member of the organisation (opaque id, never a name). */
+async function namedMember(tx: Transaction, id: string | undefined): Promise<NamedReviewer> {
+  if (!id) return null;
+  const [member] = await tx
+    .select({ id: tenantUser.id })
+    .from(tenantUser)
+    .where(
+      and(eq(tenantUser.id, id), eq(tenantUser.status, "active"), isNull(tenantUser.deletedAt)),
+    );
+  return member ? "active_member" : "not_member";
 }
 
 const recorded = (r: { id: string; at: Date }): Recorded => ({
@@ -106,6 +125,21 @@ export const onboardingRouter = createRouter()
           now,
         );
         const checklist = onboardingChecklist(state);
+        // The figure in force for each setting still to decide, so a decision shows what it accepts.
+        const pending = checklist.items
+          .filter((i) => i.key === "rates_reviewed" || i.key === "clinical_settings_reviewed")
+          .flatMap((i) => i.outstanding);
+        const rows = pending.length > 0 ? await rateRows(tx, pending) : [];
+        const today = now.toISOString().slice(0, 10);
+        const nation = t.nation as Exclude<RateNation, "uk" | "all">;
+        const settings = pending.flatMap((key) => {
+          try {
+            const rate = resolveRate(rows, key, nation, today, access.tenantId);
+            return [{ key, value: rate.value, unit: rate.unit }];
+          } catch {
+            return [];
+          }
+        });
         return {
           ...checklist,
           items: checklist.items.map(({ people, outstanding, ...item }) => ({
@@ -119,6 +153,7 @@ export const onboardingRouter = createRouter()
           currentSafetyCaseVersion: state.currentSafetyCaseVersion,
           staffFileOption: t.staffFileOption as OnboardingChecklist["staffFileOption"],
           version: t.version,
+          settings,
         };
       });
       return c.json(body, 200);
@@ -131,7 +166,7 @@ export const onboardingRouter = createRouter()
       tags: ["platform"],
       summary: "Record a decision on a setting Harbour chose",
       description:
-        "platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.",
+        "platform.onboarding.manage. Accepts Harbour's default for a tenant-default setting, or records that the organisation set its own (which needs its own figure in the rate table first; 422 decision_not_recordable otherwise). A clinical setting names the clinical lead or CSO who reviewed it (`reviewedBy`, an active member), kept in the audit event. Append-only; a later change by Harbour reopens it. Audited (platform.setting.decided, with the key and kind), refusals too.",
       security,
       request: { body: { content: { "application/json": { schema: SettingDecision } } } },
       responses: decisionResponses,
@@ -154,6 +189,9 @@ export const onboardingRouter = createRouter()
           kind: input.kind,
           isTenantDefault: tenantDefaultRateKeys(global).includes(input.rateKey),
           hasOwnSetting: own !== undefined,
+          ...(isClinicalSetting(input.rateKey)
+            ? { clinical: { reviewer: await namedMember(tx, input.reviewedBy) } }
+            : {}),
         });
         if (issue) return { issue };
         const [row] = await tx
@@ -165,7 +203,14 @@ export const onboardingRouter = createRouter()
           action,
           resourceType: "tenant_setting_decision",
           resourceId: row.id,
-          scope: { rateKey: input.rateKey, kind: input.kind },
+          // Opaque ids only: who reviewed a clinical setting is a member id.
+          scope: {
+            rateKey: input.rateKey,
+            kind: input.kind,
+            ...(input.reviewedBy && isClinicalSetting(input.rateKey)
+              ? { reviewedBy: input.reviewedBy }
+              : {}),
+          },
           requestId: c.get("requestId"),
         });
         return { row };
@@ -281,19 +326,23 @@ export const onboardingRouter = createRouter()
       tags: ["platform"],
       summary: "Record the organisation's DCB0160 assessment",
       description:
-        "platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one (422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.",
+        "platform.onboarding.manage. Records that the organisation's CSO or clinical lead has assessed the deployment (DCB0160) against Harbour's safety case for this release; the version sent must be the current one, and `assessedBy` names the CSO or clinical lead who made it (an active member, kept in the audit event; 422 decision_not_recordable otherwise). Append-only. Audited (platform.dcb0160.recorded, with the version), refusals too.",
       security,
       request: { body: { content: { "application/json": { schema: Dcb0160Recording } } } },
       responses: decisionResponses,
     }),
     async (c) => {
       const access = await requirePermission(c, "platform.onboarding.manage");
-      const { safetyCaseVersion } = c.req.valid("json");
+      const { safetyCaseVersion, assessedBy } = c.req.valid("json");
       const action = "platform.dcb0160.recorded";
       const current = c.get("services").config.SAFETY_CASE_VERSION;
-      const issue = checkDcb0160Recording({ safetyCaseVersion, currentSafetyCaseVersion: current });
-      if (issue) return refuse(c, access, action, issue);
-      const row = await withTenant(c, async (tx) => {
+      const outcome = await withTenant(c, async (tx) => {
+        const issue = checkDcb0160Recording({
+          safetyCaseVersion,
+          currentSafetyCaseVersion: current,
+          assessor: await namedMember(tx, assessedBy),
+        });
+        if (issue) return { issue };
         const [r] = await tx
           .insert(dcb0160Record)
           .values({ safetyCaseVersion })
@@ -303,11 +352,13 @@ export const onboardingRouter = createRouter()
           action,
           resourceType: "dcb0160_record",
           resourceId: r.id,
-          scope: { safetyCaseVersion },
+          // Opaque ids only: the assessor is a member id.
+          scope: { safetyCaseVersion, assessedBy },
           requestId: c.get("requestId"),
         });
-        return r;
+        return { row: r };
       });
-      return c.json(recorded(row), 201);
+      if (outcome.issue) return refuse(c, access, action, outcome.issue);
+      return c.json(recorded(outcome.row), 201);
     },
   );
