@@ -252,9 +252,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
      downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
      notification-overdue job. Follow-ups: an inspector with a Harbour account
      (`quality.evidence.read`, scope `none`) opening a pack released to their address needs its
-     own policy; the public routes work as the system in the organisation (a narrower,
-     link-bound context would limit an API bug's reach); the migration number 0057 follows
-     0056 (#50), so its journal `when` must stay after #50's at merge.
+     own policy; the migration number 0057 follows 0056 (#50), so its journal `when` must stay
+     after #50's at merge.
+   - Requirements for part 2 from #56 security review round 1 (the schema fixes are in #56: bundle
+     editors are contributors, no redacted copies or long free text in the manifest, the token
+     lookup takes the hex digest, cross-tenant tests for every table):
+     - (Medium) a pg-boss sweep deletes bundles when a link ends or expires, with a test; part 2
+       does not ship without it;
+     - (Low) the public routes run as `app.is_system()`: set a per-transaction `app.link_id` and a
+       restrictive policy for system sessions so they reach that link alone;
+     - (Low) the API increments `failed_code_attempts` on a wrong code (tested), stores codes as an
+       HMAC with a server key rather than an unsalted SHA-256, and caps live codes per link.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

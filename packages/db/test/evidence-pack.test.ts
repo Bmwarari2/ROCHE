@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   EVIDENCE_CODE_MAX_VALID_MINUTES,
   EVIDENCE_EXCLUSION_REASONS,
@@ -42,6 +43,8 @@ const asNorth = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
 const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.carer, "assigned"), fn);
+const asReleaser = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.carer, "locations", [a.locationNorth]), fn);
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_B, b.manager, "tenant"), fn);
 
@@ -49,6 +52,7 @@ const PACK_NORTH = "0199f000-0000-7000-8000-0000000000a1";
 const PACK_BOTH = "0199f000-0000-7000-8000-0000000000a2";
 const PACK_B = "0199f000-0000-7000-8000-0000000000b1";
 const ITEM_NORTH = "0199f000-0000-7000-8000-0000000000c1";
+const sha256 = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
 const hash = (text: string) => `encode(sha256(convert_to('${text}', 'UTF8')), 'hex')`;
 
 const insertPack = (
@@ -132,14 +136,17 @@ beforeAll(async () => {
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
          ('0199f000-0000-7000-8000-000000000501', 'owner', 'Owner', 'tenant', $1),
-         ('0199f000-0000-7000-8000-000000000502', 'deputy_manager', 'Deputy', 'location', $2)`,
+         ('0199f000-0000-7000-8000-000000000502', 'deputy_manager', 'Deputy', 'location', $2),
+         ('0199f000-0000-7000-8000-000000000504', 'quality_lead', 'Quality lead', 'location',
+          '{quality.evidence_pack.compose,quality.evidence_pack.release,people.person.read}')`,
       [quality, deputy],
     );
     await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
          ($1, '0199f000-0000-7000-8000-000000000501', NULL),
          ($2, '0199f000-0000-7000-8000-000000000502', $3),
-         ($4, $5, $3)`,
+         ($4, $5, $3),
+         ($4, '0199f000-0000-7000-8000-000000000504', $3)`,
       [a.manager, a.northManager, a.locationNorth, a.carer, a.roleCarer],
     );
   });
@@ -259,6 +266,38 @@ describe("hazard HZ-050 evidence pack items, release and links in the database",
     await expect(
       asNorth((c) => insertItem(c, { pack: PACK_NORTH, fields: field({ kind: "gossip" }) })),
     ).rejects.toThrow(/no values/);
+    // No redacted copy and no long free text in the manifest: they would outlive the bundle.
+    await expect(
+      asNorth((c) =>
+        insertItem(c, {
+          pack: PACK_NORTH,
+          fields: field({ label: "Who was there: Ada's son Jo Example and ".repeat(3) }),
+        }),
+      ),
+    ).rejects.toThrow(/no values/);
+    await expect(
+      asNorth((c) =>
+        insertItem(c, {
+          pack: PACK_NORTH,
+          supersedes: ITEM_NORTH,
+          fields: field({
+            outcome: "redacted",
+            reason: "free_text_redacted_by_hand",
+            redactedBy: a.northManager,
+            redactedText: "[relative] was told.",
+          }),
+        }),
+      ),
+    ).rejects.toThrow(/no values/);
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `INSERT INTO evidence_pack_item (pack_id, record_type, record_id, record_version, title,
+             occurred_at) VALUES ($1, 'incident', app.uuid_v7(), 1, $2, now())`,
+          [PACK_NORTH, "x".repeat(121)],
+        ),
+      ),
+    ).rejects.toThrow(/evidence_pack_item_title/);
   });
 
   it("keeps items append-only", async () => {
@@ -274,7 +313,6 @@ describe("hazard HZ-050 evidence pack items, release and links in the database",
       outcome: "redacted",
       reason: "free_text_redacted_by_hand",
       redactedBy: a.northManager,
-      redactedText: "[relative] was told.",
     });
     await expect(
       asManager((c) =>
@@ -285,7 +323,6 @@ describe("hazard HZ-050 evidence pack items, release and links in the database",
       outcome: "redacted",
       reason: "free_text_redacted_by_hand",
       redactedBy: a.manager,
-      redactedText: "[relative] was told.",
     });
     await asManager((c) =>
       insertItem(c, { pack: PACK_NORTH, fields: mine, supersedes: ITEM_NORTH }),
@@ -352,13 +389,18 @@ describe("hazard HZ-050 evidence pack items, release and links in the database",
 
     // The token lookup, before any organisation is chosen.
     const found = await inContext(app(), null, (c) =>
-      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", ["t1"]),
+      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", [sha256("t1")]),
     );
     expect(found.rows).toEqual([{ tenant_id: TENANT_A, link_id: firstId, pack_id: pack }]);
     const unknown = await inContext(app(), null, (c) =>
-      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", ["nope"]),
+      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", [sha256("nope")]),
     );
     expect(unknown.rows).toEqual([]);
+    // The raw token is never accepted.
+    const raw = await inContext(app(), null, (c) =>
+      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", ["t1"]),
+    );
+    expect(raw.rows).toEqual([]);
 
     // A new link only replaces the last, revoked as re-issued in the same transaction.
     await expect(asNorth((c) => insertLink(c, { pack, token: "t2" }))).rejects.toThrow(
@@ -449,6 +491,35 @@ describe("hazard HZ-050 evidence pack items, release and links in the database",
         c.query("UPDATE evidence_pack_link SET last_opened_at = now() WHERE id = $1", [linkId]),
       ),
     ).rejects.toThrow(/only while it is live/);
+  });
+
+  it("makes whoever changes the shown values an editor, who may not release or link", async () => {
+    const pack = "0199f000-0000-7000-8000-0000000000a7";
+    await asManager(async (c) => {
+      await insertPack(c, { id: pack, locations: [a.locationNorth], people: [a.personAda] });
+      await insertItem(c, { pack });
+      await c.query(
+        `INSERT INTO evidence_pack_bundle (pack_id, content) VALUES ($1, '{"i": {"type": "Fall"}}')`,
+        [pack],
+      );
+    });
+    await asNorth((c) =>
+      c.query(
+        `UPDATE evidence_pack_bundle SET content = '{"i": {"type": "Slip"}}' WHERE pack_id = $1`,
+        [pack],
+      ),
+    );
+    const release = (c: pg.PoolClient) =>
+      c.query(
+        "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+        [pack],
+      );
+    await expect(asNorth(release)).rejects.toThrow(/may release it/);
+    await asReleaser(release);
+    await expect(asNorth((c) => insertLink(c, { pack, token: "t5" }))).rejects.toThrow(
+      /may issue its link/,
+    );
+    await asReleaser((c) => insertLink(c, { pack, token: "t5" }));
   });
 
   it("changes a bundle only in a draft, and deletes it for good when the pack ends", async () => {
@@ -581,4 +652,50 @@ describe("statement of purpose versions in the database", () => {
     await asManager(notify);
     await expect(asManager(notify)).rejects.toThrow(/recorded once/);
   });
+});
+
+describe("hazard HZ-011 cross-tenant denial for every evidence pack and statement table", () => {
+  const cases: [string, string, unknown[]][] = [
+    [
+      "evidence_pack_link",
+      `INSERT INTO evidence_pack_link (tenant_id, pack_id, recipient_email, token_hash, expires_at)
+       VALUES ($1, $2, 'ivy.inspector@example.invalid', ${hash("tb")}, now() + interval '1 day')`,
+      [TENANT_A, PACK_NORTH],
+    ],
+    [
+      "evidence_pack_link_code",
+      `INSERT INTO evidence_pack_link_code (tenant_id, link_id, code_hash, valid_until)
+       SELECT $1, app.uuid_v7(), ${hash("000000")}, now() + interval '5 minutes'`,
+      [TENANT_A],
+    ],
+    [
+      "evidence_pack_bundle",
+      "INSERT INTO evidence_pack_bundle (tenant_id, pack_id, content) VALUES ($1, $2, '{}')",
+      [TENANT_A, PACK_NORTH],
+    ],
+    [
+      "statement_of_purpose_version",
+      `INSERT INTO statement_of_purpose_version (tenant_id, kind, content)
+       VALUES ($1, 'baseline', '{}')`,
+      [TENANT_A],
+    ],
+  ];
+
+  it.each(cases)(
+    "denies %s across organisations, to read and to write",
+    async (table, insert, params) => {
+      // A code's only writable column is used_at (a column grant).
+      const column = table === "evidence_pack_link_code" ? "used_at" : "tenant_id";
+      const ofA = `SELECT count(*) AS n FROM ${table} WHERE tenant_id = '${TENANT_A}'`;
+      const own = await asManager((c) => c.query<{ n: string }>(ofA));
+      expect(Number(own.rows[0]?.n)).toBeGreaterThan(0);
+      const seen = await asOtherTenant((c) => c.query<{ n: string }>(ofA));
+      expect(Number(seen.rows[0]?.n)).toBe(0);
+      const changed = await asOtherTenant((c) =>
+        c.query(`UPDATE ${table} SET ${column} = ${column} WHERE tenant_id = $1`, [TENANT_A]),
+      );
+      expect(changed.rowCount).toBe(0);
+      await expect(asOtherTenant((c) => c.query(insert, params))).rejects.toThrow();
+    },
+  );
 });

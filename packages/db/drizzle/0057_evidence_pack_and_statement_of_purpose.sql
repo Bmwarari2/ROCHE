@@ -87,7 +87,8 @@ CREATE TABLE "evidence_pack_item" (
 	CONSTRAINT "evidence_pack_item_exclusion" CHECK (exclusion_reason IS NULL OR (exclusion_reason IN ('restricted_record', 'outside_date_range', 'location_not_requested', 'not_tagged', 'statement_not_requested', 'person_not_in_scope')
         AND fields = '[]'::jsonb AND supersedes_id IS NULL)),
 	CONSTRAINT "evidence_pack_item_fields" CHECK (jsonb_typeof(fields) = 'array'),
-	CONSTRAINT "evidence_pack_item_version" CHECK (record_version >= 1)
+	CONSTRAINT "evidence_pack_item_version" CHECK (record_version >= 1),
+	CONSTRAINT "evidence_pack_item_title" CHECK (char_length(btrim(title)) BETWEEN 1 AND 120)
 );
 --> statement-breakpoint
 CREATE TABLE "evidence_pack_link" (
@@ -454,8 +455,25 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.evidence_pack
   FOR EACH ROW EXECUTE FUNCTION app.capture_version();
 --> statement-breakpoint
 
+-- A member other than the composer who changes a draft (an item, a hand redaction or the
+-- bundle's shown values) becomes one of its editors, and so a contributor who may not release it
+-- or issue its link (#56 security review round 1).
+CREATE OR REPLACE FUNCTION app.evidence_pack_add_editor(p_pack_id uuid) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_actor uuid := app.current_user_id();
+BEGIN
+  IF v_actor IS NULL THEN RETURN; END IF;
+  UPDATE public.evidence_pack SET editor_ids = array_append(editor_ids, v_actor)
+    WHERE id = p_pack_id AND composed_by IS DISTINCT FROM v_actor
+      AND NOT v_actor = ANY (editor_ids);
+END
+$$;
+--> statement-breakpoint
+
 -- HZ-050: an item joins only a draft, in its writer's name. Its fields carry outcomes, never
--- values (those live in the bundle), with kinds, outcomes and reasons from the domain's lists; the
+-- values or redacted copies (those live in the bundle, deleted at link end), with bounded keys and
+-- labels and kinds, outcomes and reasons from the domain's lists; the
 -- people who redacted by hand are worked out from them, and a new hand redaction is the writer's
 -- own. A superseding row replaces an included item of the same pack and record. A member other
 -- than the composer becomes one of the pack's editors.
@@ -478,9 +496,11 @@ BEGIN
     SELECT 1 FROM jsonb_array_elements(NEW.fields) AS f
     WHERE jsonb_typeof(f) <> 'object'
        OR EXISTS (SELECT 1 FROM jsonb_object_keys(f) AS k
-                  WHERE k NOT IN ('key', 'label', 'kind', 'outcome', 'reason', 'redactedBy',
-                                  'redactedText'))
+                  WHERE k NOT IN ('key', 'label', 'kind', 'outcome', 'reason', 'redactedBy'))
        OR jsonb_typeof(f -> 'key') IS DISTINCT FROM 'string'
+       OR char_length(f ->> 'key') > 64
+       OR (f ? 'label' AND (jsonb_typeof(f -> 'label') IS DISTINCT FROM 'string'
+           OR char_length(f ->> 'label') > 80))
        OR (f ->> 'kind') IS NULL OR (f ->> 'kind') NOT IN ('organisational', 'care_content',
             'direct_identifier', 'staff_name', 'third_party', 'free_text')
        OR (f ->> 'outcome') IS NULL OR (f ->> 'outcome') NOT IN ('included', 'redacted', 'withheld')
@@ -490,7 +510,7 @@ BEGIN
             'redaction_incomplete'))
        OR (((f ->> 'reason') IS NOT DISTINCT FROM 'free_text_redacted_by_hand'
               AND (f ->> 'outcome') = 'redacted')
-           <> ((f ->> 'redactedBy') IS NOT NULL AND (f ->> 'redactedText') IS NOT NULL))
+           <> ((f ->> 'redactedBy') IS NOT NULL))
        OR ((f ->> 'outcome') = 'included') <> ((f ->> 'reason') IS NULL)) THEN
     RAISE EXCEPTION 'An evidence pack item holds field outcomes from the domain''s lists, and no values'
       USING ERRCODE = 'check_violation';
@@ -519,11 +539,7 @@ BEGIN
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
   END IF;
-  IF v_actor IS NOT NULL AND v_actor IS DISTINCT FROM v_pack.composed_by
-     AND NOT v_actor = ANY (v_pack.editor_ids) THEN
-    UPDATE public.evidence_pack SET editor_ids = array_append(editor_ids, v_actor)
-      WHERE id = NEW.pack_id;
-  END IF;
+  PERFORM app.evidence_pack_add_editor(NEW.pack_id);
   RETURN NEW;
 END
 $$;
@@ -719,7 +735,8 @@ CREATE TRIGGER no_truncate BEFORE TRUNCATE ON public.evidence_pack_link_code
   FOR EACH STATEMENT EXECUTE FUNCTION app.forbid_mutation();
 --> statement-breakpoint
 
--- Rule 10: a bundle is written for a draft and changes only while the pack is a draft. It is
+-- Rule 10: a bundle is written for a draft and changes only while the pack is a draft; whoever
+-- writes or changes it, other than the composer, becomes an editor. It is
 -- deleted (content cleared, never restored) only when it may be (`evidencePackBundleDeletable`):
 -- the pack discarded or revoked, or released with no link still live.
 CREATE OR REPLACE FUNCTION app.evidence_pack_bundle_guard() RETURNS trigger
@@ -736,6 +753,7 @@ BEGIN
     IF app.current_user_id() IS NOT NULL THEN NEW.created_by := app.current_user_id(); END IF;
     NEW.created_at := now();
     NEW.updated_at := now();
+    PERFORM app.evidence_pack_add_editor(NEW.pack_id);
     RETURN NEW;
   END IF;
   IF (NEW.id, NEW.tenant_id, NEW.pack_id, NEW.created_at, NEW.created_by)
@@ -759,6 +777,8 @@ BEGIN
   ELSIF v_state IS DISTINCT FROM 'draft' THEN
     RAISE EXCEPTION 'A bundle changes only while its pack is a draft'
       USING ERRCODE = 'integrity_constraint_violation';
+  ELSIF NEW.content IS DISTINCT FROM OLD.content THEN
+    PERFORM app.evidence_pack_add_editor(NEW.pack_id);
   END IF;
   NEW.updated_at := now();
   RETURN NEW;
@@ -980,14 +1000,15 @@ GRANT UPDATE (used_at) ON public.evidence_pack_link_code TO harbour_app;
 --> statement-breakpoint
 
 -- The public link routes find a link by its token before any organisation is chosen (ADR-0050):
--- the organisation, the link and its pack for the SHA-256 of the raw token, or no row. It changes
--- nothing and reveals nothing else; the routes then work in that organisation as the system, on
+-- the organisation, the link and its pack for the SHA-256 hex digest of the token, worked out by
+-- the API so the raw token never reaches the database or its logs; or no row. It changes nothing
+-- and reveals nothing else; the routes then work in that organisation as the system, on
 -- that link alone. Owned by harbour_evidence_link_reader, which reads only those columns.
-CREATE OR REPLACE FUNCTION app.evidence_pack_link_for_token(p_token text)
+CREATE OR REPLACE FUNCTION app.evidence_pack_link_for_token(p_token_hash text)
 RETURNS TABLE (tenant_id uuid, link_id uuid, pack_id uuid)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
   SELECT k.tenant_id, k.id, k.pack_id FROM public.evidence_pack_link k
-  WHERE k.token_hash = encode(sha256(convert_to(p_token, 'UTF8')), 'hex')
+  WHERE p_token_hash ~ '^[0-9a-f]{64}$' AND k.token_hash = p_token_hash
 $$;
 --> statement-breakpoint
 CREATE POLICY evidence_pack_link_reader ON public.evidence_pack_link AS PERMISSIVE FOR SELECT

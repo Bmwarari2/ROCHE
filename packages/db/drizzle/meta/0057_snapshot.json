@@ -18472,6 +18472,10 @@
         "evidence_pack_item_version": {
           "name": "evidence_pack_item_version",
           "value": "record_version >= 1"
+        },
+        "evidence_pack_item_title": {
+          "name": "evidence_pack_item_title",
+          "value": "char_length(btrim(title)) BETWEEN 1 AND 120"
         }
       },
       "isRLSEnabled": false

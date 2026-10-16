@@ -1924,7 +1924,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       fields: {
         description:
-          "Each field's key, label, kind, outcome (included, redacted or withheld), reason, who redacted it by hand and the redacted copy; never the shown values.",
+          "Each field's key, label, kind, outcome (included, redacted or withheld), reason, and who redacted it by hand; never the shown values or a redacted copy.",
       },
       redacted_by: { description: "Members who redacted a field by hand (tenant_user ids)." },
       created_at: "exported",

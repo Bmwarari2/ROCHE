@@ -1735,3 +1735,8 @@ the new NOLOGIN role `harbour_evidence_link_reader`.
 
 **Tests**: `packages/db` `evidence-pack.test.ts`, 13 new; RLS coverage lists the new append-only
 table.
+
+After #56 security review round 1: writing or changing a bundle makes the member an editor (so not
+a releaser or link issuer); the manifest holds no redacted copy, and keys, labels and titles are
+bounded; the token lookup takes the SHA-256 hex digest; cross-tenant read and write denial is
+tested for every table; the part 2 requirements are in STATUS. Tests: 5 new, 2 changed.

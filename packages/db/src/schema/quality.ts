@@ -157,8 +157,8 @@ export const evidencePack = pgTable(
 /**
  * One item considered for a pack (append-only): included with its field outcomes, or excluded with
  * its reason (internal manifest only). A hand redaction adds a new row that supersedes the item.
- * Field values never live here: they are in the bundle, deleted at link end; the manifest keeps
- * the outcomes, reasons, who redacted and the redacted copy. Retention `evidence_pack`.
+ * Field values and redacted copies never live here: they are in the bundle, deleted at link end;
+ * the manifest keeps the outcomes, reasons and who redacted. Retention `evidence_pack`.
  */
 export const evidencePackItem = pgTable(
   "evidence_pack_item",
@@ -177,8 +177,9 @@ export const evidencePackItem = pgTable(
     /** Null when included. */
     exclusionReason: text("exclusion_reason"),
     /**
-     * `EvidencePackField` outcomes without their values: key, label, kind, outcome, reason,
-     * redactedBy and, for a hand redaction, the redacted copy (`redactedText`).
+     * `EvidencePackField` outcomes without their values: key (at most 64 characters), label (at
+     * most 80), kind, outcome, reason and redactedBy. The redacted copy of a hand redaction lives
+     * in the bundle with the other shown values, so nothing typed survives the link's end here.
      */
     fields: jsonb("fields").notNull().default(sql`'[]'::jsonb`),
     /** Everyone who redacted a field by hand: worked out from `fields` by a trigger. */
@@ -209,6 +210,8 @@ export const evidencePackItem = pgTable(
     ),
     check("evidence_pack_item_fields", sql`jsonb_typeof(fields) = 'array'`),
     check("evidence_pack_item_version", sql`record_version >= 1`),
+    // A generic label Harbour builds, never free text; bounded so nothing else fits.
+    check("evidence_pack_item_title", sql`char_length(btrim(title)) BETWEEN 1 AND 120`),
     index("evidence_pack_item_pack_idx").on(t.tenantId, t.packId),
   ],
 );
