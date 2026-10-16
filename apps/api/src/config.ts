@@ -34,6 +34,12 @@ const Env = z.object({
    * without them every sign-in shares one throttle bucket.
    */
   TRUSTED_PROXY_CIDRS: z.string().default(""),
+  /**
+   * Sign-in attempts allowed per client address per minute. The end-to-end run raises it: its
+   * servers sit behind no proxy, so every journey's sign-in shares one address. Never above 10 in
+   * production.
+   */
+  AUTH_SIGN_IN_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
   POWERSYNC_URL: z.url().default("http://localhost:8080"),
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
@@ -53,6 +59,20 @@ const Env = z.object({
    */
   INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN: z.coerce.number().int().positive().default(10),
+  /**
+   * The server key for evidence pack links (ADR-0050): one-time codes are stored as an HMAC under
+   * it, and the link session cookie is signed with it. From Secrets Manager in deployed
+   * environments; the local default is refused in production.
+   */
+  EVIDENCE_LINK_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-evidence-link-secret-0123456789"),
+  /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
+  /** How long a verified link session lasts in the browser (never past the link's own expiry). */
+  EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
@@ -112,6 +132,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");
     }
+    if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
+      throw new Error("EVIDENCE_LINK_SECRET must be set in production");
+    }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
     // The local defaults point at localhost; a deployed task without its secret must not start.
@@ -120,6 +143,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    }
+    if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
+      throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");

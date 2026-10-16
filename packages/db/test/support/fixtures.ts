@@ -66,6 +66,12 @@ export async function inContext<T>(
           context.includesBreakGlass ? "true" : "",
         ],
       );
+      if (context.evidenceLink) {
+        await client.query(
+          "SELECT set_config('app.link_id', $1, true), set_config('app.link_pack_id', $2, true)",
+          [context.evidenceLink.linkId, context.evidenceLink.packId],
+        );
+      }
     }
     const result = await fn(client);
     await client.query("COMMIT");

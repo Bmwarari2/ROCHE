@@ -1972,6 +1972,21 @@ ended.
 
 **Tests**: `apps/api/test/evidence-packs.test.ts`, 12 new.
 
+## 2026-10-16: Slice 11, statement of purpose routes and the overdue job (QUAL-009, part 2b)
+
+The statement of purpose API on migration 0057 (quality.md section 14): list versions with the
+Schedule 3 checklist and the regulation 12(3) clock, draft the baseline or a revision, edit and
+discard drafts, approve by someone who did not write or edit it (change summary and registration
+prompts stored; outbox `quality.statement_of_purpose.approved`), record the CQC notification by a
+holder of `safety.notification.submit` with step-up, and the changes view. The worker's
+`statement-of-purpose-overdue` job tells the submit holders once through the overdue chain and
+publishes `quality.statement_of_purpose.notification_overdue`. `submitHolders` now also answers for
+the whole organisation.
+
+- Docs: quality.md section 14, H-219, STATUS, feature register.
+
+**Tests**: `apps/api/test/statement-of-purpose.test.ts`, 5 new.
+
 ## 2026-10-16: Evidence pack routes, review round 1 of #60 (HZ-050)
 
 - Release re-reads each record in the pack and is refused (409 `record_changed`, naming each) when
@@ -1991,6 +2006,69 @@ ended.
 re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
 `time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
 
+## 2026-10-16: Statement of purpose, review round 1 of #61
+
+- The overdue alert names the version and the due date in plain words.
+- Docs: HZ-080 (new: a revised statement of purpose not sent to CQC in time), H-219 updated (a
+  "due soon" reminder), H-224 (DCB0129 scope), quality.md section 14, STATUS.
+
+**Tests**: `apps/api/test/statement-of-purpose.test.ts` 1 new and 3 extended (the 28 UK days across
+the October clock change, the alert's words, step-up on recording the notification).
+
+## 2026-10-17: Slice 11 web part A, the downtime screens (OPS-028)
+
+- A location's downtime page: open the downtime pack (freshness in an icon and words, the
+  header lines, when it was made) and print it as a PDF streamed from the API, never stored; both
+  need a fresh sign-in, are never prefetched, and say what to use instead over the hourly limit.
+- Outages: listed with their state; declared, closed, corrected, cancelled and reconciled by
+  holders of `operations.downtime.manage` who work at the location, with the version and reasons
+  the API needs and nothing chosen by default; the reconciliation asks for each possible duplicate
+  and each back-entry outside the window to be ticked (HZ-092, H-267).
+- A back-entered entry shows "Entered from a paper record" and its label wherever its badges
+  are shown; one written later and not from paper shows its reason (HZ-017).
+- API gaps logged in STATUS item 21: no read of the places, no per-location `reaching`, and the
+  reconciliation returns ids only.
+
+## 2026-10-17: Slice 11 web part A, review round 1 of #62
+
+- A paper record's reference shows beside its label on every record list, the same one the
+  reconciliation lists, and the reconciliation says where to look (HZ-092); its tests carry
+  HZ-092, with a Playwright journey over a duplicate pair and a record after the true end.
+- Cancel says what it does and is dismissed with "Keep the outage"; the declare and correct forms
+  list every problem at once; refused prints say why in words that take focus, with when the
+  pack can be opened again; "Download the pack to print (PDF)", described by the step-up hint;
+  breadcrumbs carry `aria-current`; axe on each open form and refusal.
+
+## 2026-10-16: Slice 11, evidence pack link routes and the PDF (QUAL-003, part 2c)
+
+- Migration 0058: the link session (`app.link_id`, `app.link_pack_id`, `app.is_link_session()`)
+  and restrictive policies holding it to its own link, pack, items, bundle and codes, read only
+  except the link and codes, and none of the statement of purpose. `RequestContext.evidenceLink`.
+- API: `POST /p/evidence/code`, `POST /p/evidence/verify`, `GET /p/evidence/bundle` (quality.md
+  section 15): the token in a body only, looked up by its SHA-256; codes as an HMAC under
+  `EVIDENCE_LINK_SECRET`, at most three open; a wrong code counted in the same transaction and a
+  lock at five; a signed HttpOnly, Secure, SameSite=Strict session cookie for one link; the
+  watermarked PDF from the bundle through the ADR-0040 writer, `no-store`; throttles per address
+  and per link; every step audited with ids only.
+- Infra: `EVIDENCE_LINK_SECRET` from the `api` secret; the seed script creates it.
+- Docs: quality.md section 15, HZ-050 rows, H-225 to H-227, records of processing, data
+  standards, infra README, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` (11); `packages/db/test/evidence-pack.test.ts` 4 new
+(the link session); `config.test.ts` 1 new.
+
+## 2026-10-16: Evidence pack link routes, review round 1 of #66
+
+- The printed pack gives its composing and release times with GMT or BST and says it shows the
+  records as they stood at release (H-222 open); a field with no value says it is not available.
+- 0058: link sessions read none of the audit trail, staff, alerts, tasks, documents, roles, grants
+  or outbox, and a trigger refuses them revoking their link.
+- The per-address throttle falls back to a shared bucket; audit rows take the trusted hop's
+  address; the session cookie is `__Host-`, path `/`, encrypted and signed.
+- Docs: quality.md section 15, HZ-050 rows, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` 2 new and 3 extended (the multi-page pack, the
+deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.
 ## 2026-10-17: Slice 5 web part 1, the shift handover screens (CARE-013, COMMS-006)
 
 - Handover in the navigation; a location's page with this shift's handover (or compile it) and

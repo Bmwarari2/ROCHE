@@ -41,6 +41,7 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import {
   ESCALATION_UNROUTED_ACTION,
   type EscalationRun,
@@ -563,6 +564,21 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
   );
   if (deleted > 0) deps.logger.info({ deleted }, "evidence pack bundles deleted");
   return deleted;
+}
+
+/**
+ * Revised statements of purpose past their regulation 12(3) date (quality.md rule 15): the
+ * holders of safety.notification.submit are told once, through the overdue chain.
+ */
+export async function escalateStatementsOfPurpose(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const alerted = await eachTenant(deps, "statement-of-purpose-overdue", (tx, tenantId) =>
+    escalateOverdueStatements(tx, tenantId, now),
+  );
+  if (alerted > 0) deps.logger.info({ alerted }, "overdue statement of purpose revisions alerted");
+  return alerted;
 }
 
 /**

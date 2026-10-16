@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 /**
- * Quality: the inspector evidence pack (quality.md sections 4 and 5; QUAL-003; ADR-0050; hazard
- * HZ-050). Times are ISO 8601 with offset, dates yyyy-mm-dd (UK dates). Field values appear only as the pack shows them (minimised and redacted); a withheld
+ * Quality: the inspector evidence pack and the statement of purpose (quality.md sections 4 and 5;
+ * QUAL-003, QUAL-009; ADR-0050; hazard HZ-050). Times are ISO 8601 with offset, dates yyyy-mm-dd
+ * (UK dates). Field values appear only as the pack shows them (minimised and redacted); a withheld
  * field never carries one.
  */
 
@@ -94,6 +95,21 @@ export const EvidencePackLinkIssued = z
     expiresAt: isoDateTime,
   })
   .meta({ id: "EvidencePackLinkIssued" });
+
+/** The link's token: only ever in a request body, never in a URL Harbour serves. */
+const linkToken = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const EvidenceLinkCodeRequest = z
+  .object({ token: linkToken })
+  .meta({ id: "EvidenceLinkCodeRequest" });
+
+export const EvidenceLinkVerify = z
+  .object({ token: linkToken, code: z.string().trim().max(12) })
+  .meta({ id: "EvidenceLinkVerify" });
+
+export const EvidenceLinkCodeSent = z
+  .object({ sent: z.boolean() })
+  .meta({ id: "EvidenceLinkCodeSent", description: "Whether the email with the code was sent" });
 
 export const EvidencePackField = z
   .object({
@@ -192,3 +208,133 @@ export const EvidencePackDetail = EvidencePackSummary.extend({
   bundleDeleted: z.boolean(),
 }).meta({ id: "EvidencePackDetail" });
 export type EvidencePackDetail = z.infer<typeof EvidencePackDetail>;
+
+// ------------------------------------------------------------------------------------------------
+// The statement of purpose (rules 11 to 15)
+// ------------------------------------------------------------------------------------------------
+
+const contact = z.object({
+  fullName: z.string().trim().max(200),
+  businessAddress: z.string().trim().max(500),
+  businessPhone: z.string().trim().max(40),
+  email: z.string().trim().max(254).nullable(),
+});
+
+export const StatementOfPurposeContent = z
+  .object({
+    aimsAndObjectives: z.string().max(10_000),
+    serviceKinds: z.array(z.string().trim().max(200)).max(20),
+    needsMet: z.string().max(10_000),
+    provider: contact,
+    registeredManagers: z.array(contact.extend({ id: uuid })).max(50),
+    serviceAddress: z.string().trim().max(500),
+    consentsToEmailService: z.boolean(),
+    serviceEmail: z.string().trim().max(254).nullable(),
+    legalStatus: z
+      .enum([
+        "individual",
+        "partnership",
+        "limited_company",
+        "limited_liability_partnership",
+        "charitable_incorporated_organisation",
+        "community_interest_company",
+        "nhs_body",
+        "local_authority",
+        "other",
+      ])
+      .nullable(),
+    legalStatusDetail: z.string().trim().max(200).nullable(),
+    locations: z
+      .array(
+        z.object({
+          id: uuid,
+          name: z.string().trim().max(200),
+          address: z.string().trim().max(500),
+          cqcLocationId: z.string().trim().max(20).nullable(),
+        }),
+      )
+      .max(100),
+  })
+  .meta({ id: "StatementOfPurposeContent" });
+export type StatementOfPurposeContent = z.infer<typeof StatementOfPurposeContent>;
+
+export const StatementOfPurposeState = z
+  .enum(["draft", "approved", "superseded", "discarded"])
+  .meta({ id: "StatementOfPurposeState" });
+
+export const StatementOfPurposeVersionItem = z
+  .object({
+    id: uuid,
+    versionNumber: z.number().int(),
+    state: StatementOfPurposeState,
+    kind: z.enum(["baseline", "revision"]),
+    content: StatementOfPurposeContent,
+    authorId: uuid,
+    contributorIds: z.array(uuid),
+    supersedesId: uuid.nullable(),
+    /** Schedule 3: what is missing, in words; empty when complete. */
+    missing: z.array(z.string()),
+    warnings: z.array(z.string()),
+    changeSummary: z.array(z.unknown()),
+    registrationPrompts: z.array(z.unknown()),
+    approvedBy: uuid.nullable(),
+    approvedAt: isoDateTime.nullable(),
+    notification: z.object({
+      state: z.enum(["not_required", "due", "overdue", "notified"]),
+      dueAt: isoDateTime.nullable(),
+      notifiedAt: isoDateTime.nullable(),
+      notifiedBy: uuid.nullable(),
+      late: z.boolean(),
+    }),
+    discardReason: z.string().nullable(),
+    version: z.number().int(),
+  })
+  .meta({ id: "StatementOfPurposeVersionItem" });
+export type StatementOfPurposeVersionItem = z.infer<typeof StatementOfPurposeVersionItem>;
+
+export const StatementOfPurposeVersionList = z
+  .object({ items: z.array(StatementOfPurposeVersionItem) })
+  .meta({ id: "StatementOfPurposeVersionList" });
+
+export const DraftStatementOfPurpose = z
+  .object({
+    /** Required for the baseline; a revision starts from the current version when omitted. */
+    content: StatementOfPurposeContent.optional(),
+  })
+  .meta({ id: "DraftStatementOfPurpose" });
+
+export const EditStatementOfPurpose = z
+  .object({ content: StatementOfPurposeContent, version })
+  .meta({ id: "EditStatementOfPurpose" });
+
+export const ApproveStatementOfPurpose = z
+  .object({ version })
+  .meta({ id: "ApproveStatementOfPurpose" });
+
+export const DiscardStatementOfPurpose = z
+  .object({ reason: words(500), version })
+  .meta({ id: "DiscardStatementOfPurpose" });
+
+export const RecordStatementOfPurposeNotification = z
+  .object({
+    sentAt: isoDateTime,
+    /** The CQC reference, or how and when it was sent. */
+    evidence: words(500),
+  })
+  .meta({ id: "RecordStatementOfPurposeNotification" });
+
+export const StatementOfPurposeChanges = z
+  .object({
+    /** The version compared against: the current one for a draft, the one superseded otherwise. */
+    comparedWithId: uuid.nullable(),
+    sections: z.array(
+      z.object({
+        key: z.string(),
+        title: z.string(),
+        change: z.enum(["unchanged", "changed"]),
+        lines: z.array(z.string()),
+      }),
+    ),
+    registrationPrompts: z.array(z.object({ kind: z.string(), message: z.string() })),
+  })
+  .meta({ id: "StatementOfPurposeChanges" });

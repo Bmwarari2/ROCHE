@@ -4,6 +4,7 @@ import { loadConfig } from "../src/config";
 const PRODUCTION = {
   NODE_ENV: "production",
   BETTER_AUTH_SECRET: "a-deployed-secret-that-is-long-enough-0123456789",
+  EVIDENCE_LINK_SECRET: "a-deployed-evidence-link-key-long-enough-0123456789",
   SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----",
   DATABASE_APP_URL: "postgres://harbour_app@db.internal/harbour",
   DATABASE_AUTH_URL: "postgres://harbour_auth@db.internal/harbour",
@@ -21,6 +22,7 @@ describe("loadConfig", () => {
 
   it.each([
     "BETTER_AUTH_SECRET",
+    "EVIDENCE_LINK_SECRET",
     "SYNC_SIGNING_KEY_PEM",
     "DATABASE_APP_URL",
     "DATABASE_AUTH_URL",
@@ -37,6 +39,11 @@ describe("loadConfig", () => {
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
     ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
+    [
+      "more than 10 sign-ins a minute",
+      { AUTH_SIGN_IN_PER_MINUTE: "11" },
+      "AUTH_SIGN_IN_PER_MINUTE",
+    ],
     [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },
@@ -82,6 +89,7 @@ describe("loadConfig", () => {
     const config = loadConfig({ NODE_ENV: "development" });
     expect(config.DATABASE_OPERATOR_URL).toContain("localhost");
     expect(config.trustedProxies).toEqual([]);
+    expect(config.AUTH_SIGN_IN_PER_MINUTE).toBe(10);
   });
 
   it("splits comma-separated origins and proxy ranges", () => {
