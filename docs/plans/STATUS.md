@@ -306,6 +306,43 @@ only when they link spec, code, tests and user documentation; no user guides exi
      field and only the chart schema's own values count as codes; care-note tags are free text;
      times carry GMT or BST; the token responses say `no-store` (the API logs no request bodies).
      For the CSO and DPO: H-221 to H-223. Follow-up: reason codes in audit rows (H-223).
+   - Slice 11 part 2c, the public link routes and the PDF (`feat/quality-evidence-pack-public`,
+     stacked on #60, migration 0058; quality.md section 15): the #56 Low requirements (the link
+     session with `app.link_id`, codes as an HMAC under `EVIDENCE_LINK_SECRET`, the failed count
+     in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
+     page that reads the token from the link's fragment and posts it (web step); throttles are per
+     API instance (a shared table, as for invitations); the code goes in the email's title until
+     the email port carries a body (H-225); an inspector with a Harbour account
+     (`quality.evidence.read`) still needs its own route.
+   - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
+     composed and released (GMT or BST) and that it shows the records as they stood at release
+     (H-222 stays open for the CSO); a field with no value prints "Withheld: not available in this
+     pack"; link sessions read none of the audit trail, staff, alerts, tasks, documents, roles,
+     grants or outbox, and cannot revoke their link (0058); the per-address throttle falls back to
+     one shared bucket when no address is known; audit rows take the address from the trusted hop;
+     the session cookie is `__Host-`, path `/`, encrypted (AES-256-GCM) and signed.
+     Logged, not blocking this merge: the code email's subject and body need an email port with a
+     body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
+     external recipient.
+   - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
+     migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
+     tables with forced RLS, the version workflow and separation of duties in the database, and
+     letters only from approved versions to the person or their own contacts. Next, part 2, the
+     API: template and version routes, merge fields, preview and sending with the PDF writer, the
+     email port's body (H-225; the evidence pack code email moves its guidance into the body),
+     audit and outbox events.
+   - #69 security review round 1 (no High or blocking Medium); fixed in #69: the incident and its
+     grade come from the incident (about the letter's own person, on incident and candour letters
+     only) and set the retention class; link sessions reach none of the template and letter tables.
+     For part 2 and the retention slice:
+     - letters are readable by anyone with the person in scope: gate reads on a comms permission
+       in the API (or the SELECT policy);
+     - no crypto-shred path for `letter` yet (the retention slice);
+     - audit events come from the API (the tables have no audit triggers of their own);
+     - part 2 must: require `comms.letter.manage` (and `safety.incident.manage` for the
+       `incident.*` and `candour.*` fields), MFA on reads, store `delivery_reference` as the
+       provider's opaque id only, `personal_fields` as keys only, never an email's content, and
+       log no personal data.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -696,6 +733,43 @@ only when they link spec, code, tests and user documentation; no user guides exi
     - #63 security review round 1: the code completing a first enrolment records no factor (M1);
       step-up freshness is judged in SQL on the database's clock (L1); the domain inputs are
       `stepUpAt` and a source test checks every `authorise` call (L2); more HTTP tests (L3).
+
+21. Slice 11 web, the downtime screens (OPS-028; HZ-017, HZ-021, HZ-092; `feat/web-downtime`).
+    PR A built: `/downtime` (Downtime in the navigation for holders of `operations.downtime.read`
+    or `.manage`) and a location's page: the pack opened on its own page (freshness in an icon and
+    words, the header lines, when it was made, how many pages and warnings) and printed as a PDF
+    streamed from the API and never stored, both with a fresh sign-in and never prefetched, over
+    the hourly limit or with no pack the page says what to use instead; the outages with their
+    state; declare (only while none is open), close, correct, cancel and reconcile, with the
+    reasons and version the API needs, nothing chosen by default, and the reconciliation's counts,
+    blockers in the API's words, and a box to tick for each possible duplicate group and each
+    back-entry outside the window (H-267). A back-entered entry shows its label wherever its badges
+    are shown. Next: PR B, the back-entry fields on the care record forms (the outage, the date and
+    time written on paper, the outside-the-outage reason, not-from-paper). API gaps logged here,
+    for Lane A:
+    - No read of the MAR and PEEP places (`GET /v1/locations/{id}/downtime-places` returning
+      `DowntimePlaces` with the location's `version`), so the web cannot show or confirm them: the
+      `PUT` needs the version. The places form waits on it (H-201 still met by the task and the
+      pack's wording).
+    - No per-location `reaching` (`/v1/me` has the permissions and work locations only), so the
+      location page offers an action where the permission is held anywhere and the person works at
+      the location; the API refuses it in words where it does not reach (ADR-0071). Add a
+      `reaching` list per location to `/v1/me` or a `GET /v1/locations/{id}` with `access`.
+    - The reconciliation returns entry ids only, so the screen lists short references, which
+      every record list now shows beside "Entered from a paper record" (#62 review round 1). Lane
+      A: return the person, the entry's kind and time and a link per entry in
+      `duplicateGroups` and `outsideWindowEntryIds`, so each can be opened from the screen
+      (HZ-092); the CSO decides whether reconciling may go live before then (H-267).
+22. Slice 5 web, the round and handover screens (CARE-013, COMMS-006; HZ-001, HZ-018;
+    `feat/web-rounds-handover`). Part 1 built: Handover in the navigation for holders of
+    `care.handover.manage`; a location's page with the shift running now (compiled, or compile
+    it) and the last week's; one handover's items by person (name, room and communication needs),
+    each kind in an icon and words with a link to its record, notes on items and on the whole
+    handover, who has read it, and "I have read this handover" with the token of the handover as
+    shown (H-269). Next (part 2, its own PR): the round view (`GET /v1/locations/{id}/round`) by
+    area and room, with each task's time state and start, complete and skip where the API allows.
+    Gaps: the handover items are references only, so the reader opens each record; the location
+    page offers compiling for the permission held anywhere (no per-location `reaching`).
 
 ## Human actions outstanding
 

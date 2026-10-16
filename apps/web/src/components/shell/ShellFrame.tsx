@@ -9,7 +9,16 @@ import {
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
+import {
+  Bell,
+  ClipboardList,
+  CloudOff,
+  House,
+  LogOut,
+  ShieldCheck,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
@@ -32,8 +41,12 @@ export interface ShellFrameLabels {
   readonly navigation: string;
   readonly home: string;
   readonly people: string;
+  /** Shown only to people who take part in the shift handover (care.handover.manage). */
+  readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to people who open the downtime pack or manage outages. */
+  readonly downtime?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -61,11 +74,13 @@ export interface ShellFrameProps {
 
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
+  if (pathname.startsWith("/handover")) return "handover";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
   }
   if (pathname.startsWith("/notifications")) return "notifications";
+  if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -145,6 +160,16 @@ export function ShellFrame({
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
     { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.handover
+      ? [
+          {
+            id: "handover",
+            label: labels.handover,
+            href: "/handover",
+            icon: <ClipboardList {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.incidents
       ? [
           {
@@ -152,6 +177,16 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.downtime
+      ? [
+          {
+            id: "downtime",
+            label: labels.downtime,
+            href: "/downtime",
+            icon: <CloudOff {...icon} />,
           },
         ]
       : []),

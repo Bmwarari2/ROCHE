@@ -2015,6 +2015,85 @@ re-issue, `no-store`, the sweep sparing a live bundle and staying in its organis
 **Tests**: `apps/api/test/statement-of-purpose.test.ts` 1 new and 3 extended (the 28 UK days across
 the October clock change, the alert's words, step-up on recording the notification).
 
+## 2026-10-17: Slice 11 web part A, the downtime screens (OPS-028)
+
+- A location's downtime page: open the downtime pack (freshness in an icon and words, the
+  header lines, when it was made) and print it as a PDF streamed from the API, never stored; both
+  need a fresh sign-in, are never prefetched, and say what to use instead over the hourly limit.
+- Outages: listed with their state; declared, closed, corrected, cancelled and reconciled by
+  holders of `operations.downtime.manage` who work at the location, with the version and reasons
+  the API needs and nothing chosen by default; the reconciliation asks for each possible duplicate
+  and each back-entry outside the window to be ticked (HZ-092, H-267).
+- A back-entered entry shows "Entered from a paper record" and its label wherever its badges
+  are shown; one written later and not from paper shows its reason (HZ-017).
+- API gaps logged in STATUS item 21: no read of the places, no per-location `reaching`, and the
+  reconciliation returns ids only.
+
+## 2026-10-17: Slice 11 web part A, review round 1 of #62
+
+- A paper record's reference shows beside its label on every record list, the same one the
+  reconciliation lists, and the reconciliation says where to look (HZ-092); its tests carry
+  HZ-092, with a Playwright journey over a duplicate pair and a record after the true end.
+- Cancel says what it does and is dismissed with "Keep the outage"; the declare and correct forms
+  list every problem at once; refused prints say why in words that take focus, with when the
+  pack can be opened again; "Download the pack to print (PDF)", described by the step-up hint;
+  breadcrumbs carry `aria-current`; axe on each open form and refusal.
+
+## 2026-10-16: Slice 11, evidence pack link routes and the PDF (QUAL-003, part 2c)
+
+- Migration 0058: the link session (`app.link_id`, `app.link_pack_id`, `app.is_link_session()`)
+  and restrictive policies holding it to its own link, pack, items, bundle and codes, read only
+  except the link and codes, and none of the statement of purpose. `RequestContext.evidenceLink`.
+- API: `POST /p/evidence/code`, `POST /p/evidence/verify`, `GET /p/evidence/bundle` (quality.md
+  section 15): the token in a body only, looked up by its SHA-256; codes as an HMAC under
+  `EVIDENCE_LINK_SECRET`, at most three open; a wrong code counted in the same transaction and a
+  lock at five; a signed HttpOnly, Secure, SameSite=Strict session cookie for one link; the
+  watermarked PDF from the bundle through the ADR-0040 writer, `no-store`; throttles per address
+  and per link; every step audited with ids only.
+- Infra: `EVIDENCE_LINK_SECRET` from the `api` secret; the seed script creates it.
+- Docs: quality.md section 15, HZ-050 rows, H-225 to H-227, records of processing, data
+  standards, infra README, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` (11); `packages/db/test/evidence-pack.test.ts` 4 new
+(the link session); `config.test.ts` 1 new.
+
+## 2026-10-16: Evidence pack link routes, review round 1 of #66
+
+- The printed pack gives its composing and release times with GMT or BST and says it shows the
+  records as they stood at release (H-222 open); a field with no value says it is not available.
+- 0058: link sessions read none of the audit trail, staff, alerts, tasks, documents, roles, grants
+  or outbox, and a trigger refuses them revoking their link.
+- The per-address throttle falls back to a shared bucket; audit rows take the trusted hop's
+  address; the session cookie is `__Host-`, path `/`, encrypted and signed.
+- Docs: quality.md section 15, HZ-050 rows, records of processing, data standards, STATUS.
+
+**Tests**: `apps/api/test/evidence-link.test.ts` 2 new and 3 extended (the multi-page pack, the
+deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.
+## 2026-10-17: Slice 5 web part 1, the shift handover screens (CARE-013, COMMS-006)
+
+- Handover in the navigation; a location's page with this shift's handover (or compile it) and
+  the last week's; one handover's items by person with communication needs beside each name,
+  each a reference in words with an icon and a link to its record; notes on items and on the
+  whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
+  reloading when items were added since (HZ-018, H-269).
+
+
+## 2026-10-16: Slice 11, letter and email template schema (COMMS-007, part 1)
+
+Migration 0059 adds `letter_template`, `letter_template_version` and `letter` (comms.md section 11)
+with forced RLS and the tenant policy: templates for holders of the template or letter
+permissions; versions along `TEMPLATE_WORKFLOW`, fixed once approved and approved never by their
+author or an editor, superseding the version in use; letters append-only, in the person's scope,
+only from an approved version on its channel, to the person or one of their own contacts, with
+the retention class tied to the incident grade.
+
+- Domain: export catalogue entries for the three tables.
+- Docs: comms.md section 11, retention.md, data standards, records of processing, HZ-051 rows,
+  feature register, STATUS.
+
+**Tests**: `packages/db/test/letter-templates.test.ts` (8); RLS coverage lists `letter` as
+append-only.
+
 ## 2026-10-16: Step-up needs a second factor used within the window (PLAT-004, STATUS item 20)
 
 - Step-up counts from the second factor (passkey, authenticator code or backup code) the session

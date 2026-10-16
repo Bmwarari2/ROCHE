@@ -76,3 +76,65 @@ describe("EntryBadges", () => {
     },
   );
 });
+
+describe("EntryBadges for a record entered during or after an outage (operations.md rule 12)", () => {
+  const backEntry = {
+    outageId: "0194d000-0000-7000-8000-000000000999",
+    paperDate: "2026-10-16",
+    paperTime: "09:15",
+    occurrence: "only" as const,
+    outsideOutageReason: null,
+    paperReference: null,
+    label: "Written on paper 16/10/2026 09:15 during an outage; entered 16/10/2026 14:00",
+  };
+
+  it("hazard HZ-017 shows a back-entry's label beside the late entry, so it never reads as contemporaneous", () => {
+    const html = render({
+      lateEntry: true,
+      clockDrift: false,
+      recordedAt: "2026-10-16T13:00:00.000Z",
+      backEntry,
+      notFromPaper: null,
+    });
+    expect(words(html)).toBe(
+      `Entered from a paper record ${backEntry.label} Late entry Recorded 16/10/2026 14:00`,
+    );
+    expect(html).toContain("data-back-entry");
+    expect(html).toContain("<svg");
+  });
+
+  it("hazard HZ-092 shows the reference the outage's reconciliation lists, beside the paper label", () => {
+    const html = render({
+      id: "0194d000-0000-7000-8600-0000abcdef12",
+      lateEntry: false,
+      clockDrift: false,
+      recordedAt: "2026-10-16T13:00:00Z",
+      backEntry,
+    });
+    expect(words(html)).toBe(`Entered from a paper record ${backEntry.label} · Reference ABCDEF12`);
+  });
+
+  it("hazard HZ-017 says when the outage cannot be read, with the time written on the paper", () => {
+    const html = render({
+      lateEntry: false,
+      clockDrift: false,
+      recordedAt: "2026-10-16T13:00:00Z",
+      backEntry: { ...backEntry, label: null },
+    });
+    expect(words(html)).toBe(
+      "Entered from a paper record Entered later from a paper record written 16/10/2026 at 09:15",
+    );
+  });
+
+  it("hazard HZ-017 says an entry written later in an outage was not from paper, with why", () => {
+    const html = render({
+      lateEntry: true,
+      clockDrift: false,
+      recordedAt: "2026-10-16T13:00:00Z",
+      notFromPaper: { outageId: backEntry.outageId, reason: "Remembered at handover" },
+    });
+    expect(words(html)).toBe(
+      "Written later, not from paper Reason: Remembered at handover Late entry Recorded 16/10/2026 14:00",
+    );
+  });
+});

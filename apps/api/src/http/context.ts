@@ -83,6 +83,11 @@ export interface Services {
   ) => Promise<ChannelAdapter>;
   /** What the email mock was handed (development and tests; never used in production). */
   readonly mockEmail: MockEmail;
+  /** Evidence pack link requests (no one signed in): per client address and per link. */
+  readonly evidenceLinkThrottles: {
+    readonly address: MemoryThrottle;
+    readonly link: MemoryThrottle;
+  };
   /** Invitation links opened or accepted: per client address and per token hash. */
   readonly invitationThrottles: {
     readonly address: MemoryThrottle;

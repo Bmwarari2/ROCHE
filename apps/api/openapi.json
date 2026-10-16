@@ -18542,6 +18542,47 @@
           "registrationPrompts"
         ]
       },
+      "EvidenceLinkCodeSent": {
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sent"
+        ],
+        "description": "Whether the email with the code was sent"
+      },
+      "EvidenceLinkCodeRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "EvidenceLinkVerify": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 12
+          }
+        },
+        "required": [
+          "token",
+          "code"
+        ]
+      },
       "RateValue": {
         "type": "object",
         "properties": {
@@ -37982,6 +38023,221 @@
           },
           "422": {
             "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/evidence/code": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Send a one-time code to the link's recipient",
+        "description": "No sign-in. The token goes in the body. Sends a six-digit code to the address the link is bound to, never with the link; at most three codes open at once for a link; each lasts evidence_pack.code_valid_minutes (at most 10). Throttled per client address and per link. Audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceLinkCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Asked for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceLinkCodeSent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such link",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The link no longer opens: withdrawn, expired or locked",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate, or the code was wrong",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/evidence/verify": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Check a one-time code and open a session for this link",
+        "description": "No sign-in. A code that is not six digits is refused before it is compared and not counted. A right code is marked used and sets an HttpOnly, Secure, SameSite=Strict cookie for this link alone (never past the link's expiry). A wrong code adds one to the link's failed attempts in the same transaction; at the limit the link locks for good. Audited.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceLinkVerify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Verified; the session cookie is set"
+          },
+          "404": {
+            "description": "No such link",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The link no longer opens: withdrawn, expired or locked",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate, or the code was wrong",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/evidence/bundle": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Open the evidence pack (needs this link's session)",
+        "description": "No sign-in and no token: the session cookie set by /p/evidence/verify for this link. The link must still be open (released, not revoked, not expired, not locked) and the session's address the recipient's. Streams the watermarked PDF drawn from the bundle (never stored; no-store; attachment); refused once the bundle is deleted. Every open is audited.",
+        "responses": {
+          "200": {
+            "description": "The pack",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session for this link: enter the code first",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The session is for someone else",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such link",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The link no longer opens: withdrawn, expired or locked",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate, or the code was wrong",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
             "content": {
               "application/problem+json": {
                 "schema": {
