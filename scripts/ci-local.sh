@@ -70,7 +70,7 @@ e2e_database() {
     pnpm --filter @harbour/db bootstrap &&
     pnpm --filter @harbour/db migrate &&
     pnpm --filter @harbour/db seed &&
-    HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users
+    HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off HARBOUR_DEMO_E2E_PASSKEY=1 pnpm --filter @harbour/api seed:users
 }
 
 EVENT="$(event_file)"

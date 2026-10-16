@@ -215,7 +215,7 @@ jobs:
           pnpm --filter @harbour/db bootstrap
           pnpm --filter @harbour/db migrate
           pnpm --filter @harbour/db seed
-          HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users
+          HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off HARBOUR_DEMO_E2E_PASSKEY=1 pnpm --filter @harbour/api seed:users
       - run: pnpm --filter @harbour/web exec playwright install --with-deps chromium
       - run: pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
       - run: pnpm --filter @harbour/web test:e2e
