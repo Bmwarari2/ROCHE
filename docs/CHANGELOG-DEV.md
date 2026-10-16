@@ -2133,20 +2133,6 @@ append-only.
 **Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
 email, cross-tenant).
 
-<<<<<<< HEAD
-## 2026-10-17: Slice 12 part 1, the family feed schema (COMMS-001)
-
-- Migration 0061 (after #71's 0060): `family_portal_user`, `feed_item`, `feed_item_withdrawal` and
-  `feed_view` with forced RLS; family sessions (`app.family`, scope `none`); `app.family_can_see`,
-  a definer function owned by the new NOLOGIN role `harbour_family_reader`, mirroring
-  `checkFeedItemVisibility`; an update taken down shows only to a viewer who saw it; no person
-  assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
-- Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
-
-**Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
-and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
-list.
-=======
 ## 2026-10-16: Step-up needs a second factor used within the window (PLAT-004, STATUS item 20)
 
 - Step-up counts from the second factor (passkey, authenticator code or backup code) the session
@@ -2219,4 +2205,16 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
   (M1); a retry with another name is 409; follow-ups logged in STATUS.
 
 **Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).
->>>>>>> origin/main
+
+## 2026-10-17: Slice 12 part 1, the family feed schema (COMMS-001)
+
+- Migration 0061 (after #71's 0060): `family_portal_user`, `feed_item`, `feed_item_withdrawal` and
+  `feed_view` with forced RLS; family sessions (`app.family`, scope `none`); `app.family_can_see`,
+  a definer function owned by the new NOLOGIN role `harbour_family_reader`, mirroring
+  `checkFeedItemVisibility`; an update taken down shows only to a viewer who saw it; no person
+  assignment for a portal account; append-only feed rows (ADR-0061, comms.md section 2.1).
+- Docs: comms.md section 11, HZ-022, records of processing, data standards, the register, STATUS.
+
+**Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
+and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
+list.
