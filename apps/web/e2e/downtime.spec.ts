@@ -231,9 +231,11 @@ test("hazard HZ-092 the nurse finds and checks each possible duplicate and late 
     return note.id;
   };
   // The same wash written on two forms; and one written after the true end (H-207).
-  const first = await paperNote(1, -6, "Washed and dressed");
-  const second = await paperNote(1, -5, "Washed and dressed, from the second form");
-  const late = await paperNote(2, -4, "Drink offered");
+  // Else (5) and Cara (3): no other journey writes notes for them, so no note written at the
+  // time by another journey falls near these and joins the group.
+  const first = await paperNote(5, -6, "Washed and dressed");
+  const second = await paperNote(5, -5, "Washed and dressed, from the second form");
+  const late = await paperNote(3, -4, "Drink offered");
   await as(context, "nurse");
   await call(
     page.request,
@@ -243,7 +245,7 @@ test("hazard HZ-092 the nurse finds and checks each possible duplicate and late 
   );
 
   // The record shows the reference the reconciliation lists, beside the paper label.
-  await page.goto(`/people/${demoPerson(1)}/notes`);
+  await page.goto(`/people/${demoPerson(5)}/notes`);
   await expect(
     main(page)
       .locator("[data-back-entry]")
