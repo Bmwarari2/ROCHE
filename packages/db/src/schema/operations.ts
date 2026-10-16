@@ -26,7 +26,7 @@ import { workflowInstance } from "./work";
 
 /**
  * How a pack was built (data-standards.md, `downtime_pack.source`): by the nightly job, by the
- * system again after someone moved in, out or away (migration 0054), on demand by a member, or on
+ * system again after someone moved in, out or away (migration 0055), on demand by a member, or on
  * a kiosk from its cache.
  */
 export const DOWNTIME_PACK_SOURCES = [

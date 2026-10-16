@@ -438,13 +438,13 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
 - The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
   block, and a footer naming whose page it is.
 
-Part 3b (`jobs/tasks.ts`, migration 0054):
+Part 3b (`jobs/tasks.ts`, migration 0055, numbered after #48's 0054):
 
 - Nightly: the `downtime-packs` queue runs hourly; each location gets one `server_nightly` pack per
   UK night, under an advisory lock, each location in its own savepoint, through `eachTenant`.
 - Rebuild on moves: after `people.person.admitted`, `went_on_leave`, `went_to_hospital`,
   `returned`, `discharged`, `died` and `status_corrected`, the system builds the pack again
-  (`server_rebuild`, migration 0054) at the location the person was at and the one they are at,
+  (`server_rebuild`, migration 0055) at the location the person was at and the one they are at,
   when the latest no longer serves.
 - Places: `PUT /v1/locations/{id}/downtime-places` (`platform.location.manage`) sets them, and
   with `confirm` confirms them in the caller's name and completes the `operations.downtime_places`
@@ -466,7 +466,7 @@ Part 3b (`jobs/tasks.ts`, migration 0054):
     `downtime.places_confirm_due_days` from now rather than at once (HZ-008).
   - The places route takes the location's `version` (409 when stale), refuses a deleted location,
     and completes the task through the task workflow at its version.
-  - Migration 0054 also refuses a pack that names a stored document (`downtime_pack_no_document`):
+  - Migration 0055 also refuses a pack that names a stored document (`downtime_pack_no_document`):
     the PDF is drawn per request.
 - Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
   location, section 12); printing photos on the pages.

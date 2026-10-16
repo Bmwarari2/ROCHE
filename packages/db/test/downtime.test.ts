@@ -275,7 +275,7 @@ describe("hazard HZ-011 hazard HZ-021 a downtime pack follows its location and i
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("keeps a rebuild the system's and an on-demand pack a member's, and never names a document (migration 0054)", async () => {
+  it("keeps a rebuild the system's and an on-demand pack a member's, and never names a document (migration 0055)", async () => {
     const pack = (source: string, by: string | null, documentId: string | null = null) =>
       `INSERT INTO downtime_pack (location_id, source, generated_at, as_at, valid_until, generated_by,
          document_id, content)

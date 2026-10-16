@@ -1,5 +1,5 @@
 {
-  "id": "6a9370a8-3148-4b50-97c2-80fba9245ec5",
+  "id": "f0f450fb-ff88-474c-924e-d5e8fcad98c7",
   "prevId": "c46e841c-d105-4bbf-9971-53d4e830249a",
   "version": "7",
   "dialect": "postgresql",
@@ -5909,6 +5909,284 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.invitation": {
+      "name": "invitation",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "tenant_user_id": {
+          "name": "tenant_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "created_by_operator": {
+          "name": "created_by_operator",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_auth_user_id": {
+          "name": "accepted_auth_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_auth_user_id": {
+          "name": "claimed_auth_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by": {
+          "name": "revoked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocation_reason": {
+          "name": "revocation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "invitation_member_idx": {
+          "name": "invitation_member_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "invitation_one_open_key": {
+          "name": "invitation_one_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "accepted_at IS NULL AND revoked_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "invitation_tenant_id_tenant_id_fk": {
+          "name": "invitation_tenant_id_tenant_id_fk",
+          "tableFrom": "invitation",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitation_created_by_operator_operator_user_id_fk": {
+          "name": "invitation_created_by_operator_operator_user_id_fk",
+          "tableFrom": "invitation",
+          "tableTo": "operator_user",
+          "columnsFrom": [
+            "created_by_operator"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitation_member_fk": {
+          "name": "invitation_member_fk",
+          "tableFrom": "invitation",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "tenant_user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitation_created_by_fk": {
+          "name": "invitation_created_by_fk",
+          "tableFrom": "invitation",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "created_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invitation_revoked_by_fk": {
+          "name": "invitation_revoked_by_fk",
+          "tableFrom": "invitation",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "revoked_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invitation_tenant_id_id_key": {
+          "name": "invitation_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "invitation_token_hash_key": {
+          "name": "invitation_token_hash_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "invitation_token_hash": {
+          "name": "invitation_token_hash",
+          "value": "token_hash ~ '^[0-9a-f]{64}$'"
+        },
+        "invitation_one_sender": {
+          "name": "invitation_one_sender",
+          "value": "num_nonnulls(created_by, created_by_operator) = 1"
+        },
+        "invitation_expiry": {
+          "name": "invitation_expiry",
+          "value": "expires_at > created_at"
+        },
+        "invitation_accepted": {
+          "name": "invitation_accepted",
+          "value": "(accepted_at IS NULL) = (accepted_auth_user_id IS NULL)"
+        },
+        "invitation_revoked": {
+          "name": "invitation_revoked",
+          "value": "(revoked_at IS NULL) = (revocation_reason IS NULL)\n        AND (revocation_reason IS NULL OR revocation_reason IN\n          ('superseded', 'revoked', 'member_removed', 'member_changed', 'expired'))\n        AND (revoked_by IS NULL OR revoked_at IS NOT NULL)"
+        },
+        "invitation_email_open_only": {
+          "name": "invitation_email_open_only",
+          "value": "(email IS NOT NULL) = (accepted_at IS NULL AND revoked_at IS NULL)"
+        },
+        "invitation_final": {
+          "name": "invitation_final",
+          "value": "accepted_at IS NULL OR revoked_at IS NULL"
+        },
+        "invitation_claimed": {
+          "name": "invitation_claimed",
+          "value": "(claimed_at IS NULL) = (claimed_auth_user_id IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.best_interests_decision": {
       "name": "best_interests_decision",
       "schema": "",
@@ -7608,11 +7886,11 @@
       "checkConstraints": {
         "downtime_pack_source": {
           "name": "downtime_pack_source",
-          "value": "source IN ('server_nightly', 'server_rebuild', 'server_on_demand', 'kiosk_cache')"
+          "value": "source IN ('server_nightly', 'server_on_demand', 'kiosk_cache')"
         },
         "downtime_pack_generated_by": {
           "name": "downtime_pack_generated_by",
-          "value": "(source IN ('server_nightly', 'server_rebuild')) = (generated_by IS NULL)"
+          "value": "(source = 'server_nightly') = (generated_by IS NULL)"
         },
         "downtime_pack_times": {
           "name": "downtime_pack_times",
@@ -7621,10 +7899,6 @@
         "downtime_pack_json": {
           "name": "downtime_pack_json",
           "value": "jsonb_typeof(content) = 'object' AND jsonb_typeof(warnings) = 'object'"
-        },
-        "downtime_pack_no_document": {
-          "name": "downtime_pack_no_document",
-          "value": "document_id IS NULL"
         }
       },
       "isRLSEnabled": false

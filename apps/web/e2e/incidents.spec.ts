@@ -46,7 +46,10 @@ async function as(context: BrowserContext, user: string) {
 interface Incident {
   readonly id: string;
   readonly version: number;
-  readonly classifier: { readonly openQuestions: readonly { key: string; kind: string }[] } | null;
+  readonly classifier: {
+    readonly openQuestions: readonly { key: string; kind: string }[];
+    readonly notifications: readonly { id: string; kind: string; version: number }[];
+  } | null;
 }
 
 async function call<T = Incident>(
@@ -100,7 +103,7 @@ const section = (page: Page, name: string) => page.getByRole("region", { name })
 const cardFor = (page: Page, id: string) =>
   page.getByRole("article").filter({ has: page.locator(`a[href="/incidents/${id}"]`) });
 
-test("hazard HZ-013 the nurse finds an incident in the list, with its open questions, and reads it", async ({
+test("hazard HZ-013 the nurse finds an incident and reads its notifications, every warning in words", async ({
   page,
   context,
 }) => {
@@ -175,12 +178,9 @@ test("hazard HZ-013 the nurse finds an incident in the list, with its open quest
   await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link")).toHaveText(
     "Incidents",
   );
-  // HZ-013: the questions still open are said, and that this page does not show them yet.
+  // HZ-013: the questions still open are said beside the status.
   await expect(
     page.getByText(/^\d+ questions? about statutory notifications to answer$/),
-  ).toBeVisible();
-  await expect(
-    page.getByText("This page does not show the questions or statutory notifications yet"),
   ).toBeVisible();
   const details = section(page, "What happened");
   await expect(details.getByText(`(${RUN})`, { exact: false })).toBeVisible();
@@ -202,11 +202,104 @@ test("hazard HZ-013 the nurse finds an incident in the list, with its open quest
   await expect(ben.getByRole("definition")).toHaveText("Not recorded");
   await expect(people.getByText("Vic Visitor: witness")).toBeVisible();
 
+  // "Not sure" whether the police are involved drafts a provisional notification, overdue at once.
+  const notifications = section(page, "Statutory notifications");
+  await expect(
+    notifications.getByText(/questions? to answer before Harbour can say which notifications/),
+  ).toBeVisible();
+  // The nurse answers the questions (safety.incident.manage): the page says they are not here yet.
+  await expect(notifications.getByText(/^The questions are not on this page yet\./)).toBeVisible();
+  const police = notifications.locator('[data-notification="cqc_reg18_police"]');
+  await expect(
+    police.getByRole("heading", { name: "Incident reported to or investigated by the police" }),
+  ).toBeVisible();
+  await expect(police.getByText(/^Overdue for \d+ (minute|minutes|hour|hours)$/)).toBeVisible();
+  await expect(police.getByText("Draft", { exact: true })).toBeVisible();
+  // Without delay: the clock started when it happened, in a time element a machine can read.
+  const started = police.locator("time");
+  await expect(started).toHaveText(
+    /^Without delay: the clock started \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/,
+  );
+  expect(Date.parse((await started.getAttribute("datetime")) ?? "")).toBe(Date.parse(at(-45)));
+  await expect(police.getByText("To the Care Quality Commission")).toBeVisible();
+  await expect(police.getByText(/^Provisional: it rests on an answer of not sure\./)).toBeVisible();
+  // The overdue notification is named at the top of the page; by keyboard, the link moves focus
+  // into the notifications (WCAG 2.4.3), not only the view.
+  const overdue = page.getByRole("link", { name: /statutory notifications? overdue: go to/ });
+  await expect(overdue).toBeVisible();
+  await overdue.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#notifications$/);
+  await expect(notifications.locator(":focus")).toHaveText("Statutory notifications");
   await expectAccessible(page, "incident");
+
+  // A later "no" leaves the draft in place, flagged, until someone decides it is not required.
+  await call(
+    page.request,
+    `/v1/incidents/${incident.id}/classifier`,
+    { answers: [{ key: "police.involved", value: "no" }] },
+    200,
+  );
+  await page.reload();
+  await expect(police.getByText(/^The answers no longer show this is needed/)).toBeVisible();
+  await expect(police.getByText(/^Provisional:/)).toHaveCount(0);
+  await expectAccessible(page, "incident with a draft no longer indicated");
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "incident, dark theme");
   await page.goto("/incidents");
   await expectAccessible(page, "incidents list, dark theme");
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // The closed incident, every question answered "no": none found, said only now.
+  await page.goto(`/incidents/${toClose.id}`);
+  await expect(page.getByText("Closed", { exact: true }).first()).toBeVisible();
+  await expect(
+    section(page, "Statutory notifications").getByText(
+      "Harbour found no statutory notification to make on what is recorded so far",
+    ),
+  ).toBeVisible();
+  await expectAccessible(page, "closed incident");
+});
+
+test("hazard HZ-013 a safeguarding concern: a Harbour target, made as soon as possible, ready to submit", async ({
+  page,
+  context,
+}) => {
+  await as(context, "nurse");
+  const incident = await recordIncident(page.request, {
+    type: "safeguarding_concern",
+    occurredAt: at(-90),
+    description: `Bruising on her arm she could not explain (${RUN}).`,
+    people: [{ kind: "service_user", role: "affected", personId: demoPerson(3) }],
+    answers: [{ key: "safeguarding.concern", value: "yes" }],
+  });
+  const s42 = incident.classifier?.notifications.find((n) => n.kind === "safeguarding_s42");
+  expect(s42, "a safeguarding concern draft").toBeDefined();
+  await call(
+    page.request,
+    `/v1/notifications/statutory/${s42?.id}/prepare`,
+    { content: {}, ready: true, version: s42?.version },
+    200,
+  );
+
+  await page.goto(`/incidents/${incident.id}`);
+  const notifications = section(page, "Statutory notifications");
+  const concern = notifications.locator('[data-notification="safeguarding_s42"]');
+  await expect(concern.getByText("Ready to submit", { exact: true })).toBeVisible();
+  await expect(concern.getByText(/^Overdue for \d+ (hour|hours)$/)).toBeVisible();
+  await expect(
+    concern.getByText(
+      "This time is Harbour's target, not a legal deadline: make it as soon as possible all the same.",
+    ),
+  ).toBeVisible();
+  await expect(
+    notifications.locator('[data-notification="cqc_reg18_abuse"]').getByText("Draft", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expectAccessible(page, "incident with a safeguarding concern");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expectAccessible(page, "incident with a safeguarding concern, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 });
 
@@ -243,6 +336,7 @@ test("hazard HZ-013 a carer who cannot see everyone on an incident sees it partl
   await expect(page.getByText(`(${RUN})`, { exact: false })).toHaveCount(0);
   await expect(section(page, "Who was told")).toHaveCount(0);
   await expect(page.getByText(/questions? about statutory notifications/)).toHaveCount(0);
+  await expect(section(page, "Statutory notifications")).toHaveCount(0);
   await expectAccessible(page, "incident partly hidden");
 });
 
