@@ -18,7 +18,7 @@ import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { questionsYouMayAnswer } from "@/lib/incident-forms";
-import { incidentManageView, manageDone } from "@/lib/incident-review";
+import { doneToShow, incidentManageView, manageDone } from "@/lib/incident-review";
 import {
   incidentPersonFacts,
   incidentPersonLine,
@@ -128,6 +128,7 @@ export default async function IncidentPage({
     (can(me.permissions, "safety.incident.manage") || incident.raisedBy === me.tenantUserId);
   // Review and close, for a manager, never "close" for the person who raised it (rule 11).
   const manage = incidentManageView(incident, me);
+  const shownDone = doneToShow(done, incident.status);
   const overdue = overdueCount(incident.classifier);
   // RIDDOR's over-seven-day threshold for its label, from the rate table on the incident's date.
   const riddor = [
@@ -157,8 +158,8 @@ export default async function IncidentPage({
       </nav>
       <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
       {recorded === "1" ? <RecordedArrival /> : null}
-      {done && recorded !== "1" ? (
-        <RecordedArrival message={t("safety.manage.done", { done })} />
+      {shownDone && recorded !== "1" ? (
+        <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
       ) : null}
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={incidentStatusChip(incident.status, t)} />

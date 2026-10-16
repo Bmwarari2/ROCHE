@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, buttonClassName, TextArea } from "@harbour/ui";
+import { Button, buttonClassName, Checkbox, TextArea } from "@harbour/ui";
 import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,9 +17,17 @@ import { type ActionResult, errorFor, type FieldErrors, fieldErrors } from "@/li
  * an alert that takes focus, with the link back to this page after signing in. What was typed is
  * not kept, and it says so.
  */
-export function StepUpNotice({ next }: { readonly next: string }) {
+export function StepUpNotice({
+  next,
+  refusal,
+}: {
+  readonly next: string;
+  /** The refusal shown; a new one (the same step refused again) takes focus again. */
+  readonly refusal?: unknown;
+}) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => ref.current?.focus(), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each new refusal takes focus again.
+  useEffect(() => ref.current?.focus(), [refusal]);
   const href = `/sign-in?${new URLSearchParams({ reason: "step-up", next }).toString()}`;
   return (
     <div
@@ -60,8 +68,26 @@ export function useManageSend(path: string) {
   /** Errors the form found before sending, with the date boxes each is about when it says. */
   const fail = (errors: FieldErrors, parts?: Readonly<Record<string, readonly string[]>>) =>
     setResult({ ...fieldErrors(errors), ...(parts ? { parts } : {}) });
-  const stepUp = result !== null && !result.ok && result.code === "step_up_required";
-  return { result, pending, send, fail, stepUp };
+  return { result, pending, send, fail };
+}
+
+/**
+ * What a manager's form says after sending: a refusal (a summary that takes focus, linked to its
+ * fields) or the step-up notice. Success says nothing here: the page opens again and its status
+ * says what was done, with focus on its heading (RecordedArrival).
+ */
+export function ManageFeedback({
+  result,
+  path,
+  fieldIds,
+}: {
+  readonly result: ActionResult<unknown> | null;
+  readonly path: string;
+  readonly fieldIds?: Readonly<Record<string, string>>;
+}) {
+  if (!result || result.ok) return null;
+  if (result.code === "step_up_required") return <StepUpNotice next={path} refusal={result} />;
+  return <FormFeedback result={result} success="" {...(fieldIds ? { fieldIds } : {})} />;
 }
 
 /**
@@ -79,6 +105,8 @@ export function ReasonForm({
   done,
   onSend,
   destructive = false,
+  min,
+  confirm,
   children,
 }: {
   readonly title: string;
@@ -93,20 +121,28 @@ export function ReasonForm({
   readonly done: ManageDone;
   readonly onSend: (reason: string) => Promise<ActionResult<unknown>>;
   readonly destructive?: boolean;
+  /** The shortest reason taken, when more than 3 characters. */
+  readonly min?: number;
+  /** A box that must be ticked before sending, with the words that say what it confirms. */
+  readonly confirm?: string;
   /** Shown between the title and the reason. */
   readonly children?: ReactNode;
 }) {
-  const ids = useFieldIds(["reason"]);
+  const ids = useFieldIds(["reason", "confirm"]);
   const titleId = `${ids.reason}-title`;
-  const { result, pending, send, fail, stepUp } = useManageSend(path);
+  const { result, pending, send, fail } = useManageSend(path);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const read = readReason(new FormData(event.currentTarget), t, purpose);
+    const read = readReason(new FormData(event.currentTarget), t, purpose, {
+      ...(min ? { min } : {}),
+      confirm: Boolean(confirm),
+    });
     if (!read.ok) return fail(read.errors);
     send(done, () => onSend(read.reason));
   };
   const reasonError = errorFor(result, "reason");
+  const confirmError = errorFor(result, "confirm");
 
   return (
     <div className="flex flex-col gap-4">
@@ -136,6 +172,16 @@ export function ReasonForm({
           formatCount={(remaining) => characterCount(remaining)}
           {...(reasonError ? { error: reasonError } : {})}
         />
+        {confirm ? (
+          <Checkbox
+            id={ids.confirm}
+            name="confirm"
+            value="yes"
+            label={confirm}
+            required
+            {...(confirmError ? { error: confirmError } : {})}
+          />
+        ) : null}
         <div>
           <Button
             type="submit"
@@ -146,11 +192,7 @@ export function ReasonForm({
           </Button>
         </div>
       </form>
-      {stepUp ? (
-        <StepUpNotice next={path} />
-      ) : (
-        <FormFeedback result={result} success={t("safety.manage.done", { done })} fieldIds={ids} />
-      )}
+      <ManageFeedback result={result} path={path} fieldIds={ids} />
     </div>
   );
 }

@@ -1178,6 +1178,10 @@
     "safety.manage.notRequired.label",
     "safety.manage.notRequired.hint",
     "safety.manage.notRequired.submit",
-    "safety.manage.submit.notReady"
+    "safety.manage.submit.notReady",
+    "safety.manage.notRequired.needed",
+    "safety.manage.notRequired.neededHint",
+    "safety.manage.notRequired.confirm",
+    "safety.manage.confirmError"
   ]
 }

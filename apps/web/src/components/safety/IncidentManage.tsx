@@ -4,11 +4,10 @@ import { Button } from "@harbour/ui";
 import { CircleAlert, UserRoundX } from "lucide-react";
 import Link from "next/link";
 import { closeIncident, reviewIncident } from "@/app/actions/incidents";
-import { FormFeedback } from "@/components/care/FormFeedback";
 import { Notice } from "@/components/care/Notice";
 import { t } from "@/lib/i18n";
 import type { IncidentManageView } from "@/lib/incident-review";
-import { ReasonForm, useManageSend } from "./ManageForms";
+import { ManageFeedback, ReasonForm, useManageSend } from "./ManageForms";
 
 const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 const link = "inline-flex min-h-target items-center underline";
@@ -41,7 +40,7 @@ function StartReview({
           {pending ? t("common.saving") : t("safety.manage.review.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success={t("safety.manage.done", { done: "reviewing" })} />
+      <ManageFeedback result={result} path={path} />
     </div>
   );
 }
@@ -115,7 +114,12 @@ export function IncidentManage({
               </li>
             ))}
             {close.questions > 0 ? (
-              <li>{t("safety.manage.close.questions", { count: close.questions })}</li>
+              <li>
+                {/* A native link, so the browser moves focus to the questions' section. */}
+                <a href="#notifications" className={link}>
+                  {t("safety.manage.close.questions", { count: close.questions })}
+                </a>
+              </li>
             ) : null}
           </ul>
         </Notice>

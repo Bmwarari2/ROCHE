@@ -132,6 +132,26 @@ export function manageDone(value: string | string[] | undefined): ManageDone | n
     : null;
 }
 
+/** The statuses a record can have once each form is done. */
+const DONE_STATUS: Record<ManageDone, readonly string[]> = {
+  reviewing: ["under_review"],
+  reopened: ["open"],
+  closed: ["closed"],
+  saved: ["draft", "ready"],
+  ready: ["ready"],
+  draft: ["draft"],
+  submitted: ["submitted"],
+  notRequired: ["not_required"],
+};
+
+/**
+ * The `done` to announce, only while the record's status still matches it: an old address
+ * (bookmarked, or opened again after someone else changed the record) says nothing.
+ */
+export function doneToShow(done: ManageDone | null, status: string): ManageDone | null {
+  return done && DONE_STATUS[done].includes(status) ? done : null;
+}
+
 /**
  * A result as these forms say it. A version conflict may be this person's own earlier attempt,
  * saved after the connection failed, so it never says someone else changed the record.
@@ -143,13 +163,44 @@ export function manageResult<T>(result: ActionResult<T>, t: Translator): ActionR
   return result;
 }
 
-/** A reason of 3 to 1,000 characters, or the words that say what to write. */
-export function readReason(form: FormValues, t: Translator, purpose: string): ReasonRead {
+/**
+ * The shortest reason for deciding "not required" on a notification Harbour found needed (not
+ * provisional, still indicated): a sentence, not a word (#58 review round 1; the CSO confirms the
+ * figure, H-265).
+ */
+export const NEEDED_REASON_MIN = 20;
+
+/**
+ * Whether Harbour found this notification needed: neither provisional (resting on "not sure")
+ * nor flagged no longer indicated. Deciding "not required" on one then asks for a longer reason
+ * and an explicit confirmation (HZ-013).
+ */
+export function judgedNeeded(
+  item: Pick<StatutoryNotificationDetail, "provisional" | "noLongerIndicated">,
+): boolean {
+  return !item.provisional && !item.noLongerIndicated;
+}
+
+/**
+ * A reason of 3 (or `min`) to 1,000 characters and, with `confirm`, the confirmation ticked; or
+ * the words that say what to do, at each field.
+ */
+export function readReason(
+  form: FormValues,
+  t: Translator,
+  purpose: string,
+  options: { readonly min?: number; readonly confirm?: boolean } = {},
+): ReasonRead {
   const reason = text(form, "reason");
-  if (reason.length < REASON_MIN || reason.length > REASON_MAX) {
-    return { ok: false, errors: { reason: t("safety.manage.reasonError", { purpose }) } };
+  const min = options.min ?? REASON_MIN;
+  const errors: Record<string, string> = {};
+  if (reason.length < min || reason.length > REASON_MAX) {
+    errors.reason = t("safety.manage.reasonError", { purpose, min });
   }
-  return { ok: true, reason };
+  if (options.confirm && text(form, "confirm") !== "yes") {
+    errors.confirm = t("safety.manage.confirmError");
+  }
+  return Object.keys(errors).length > 0 ? { ok: false, errors } : { ok: true, reason };
 }
 
 /** One field of the prepared form: the required content line it answers, and its key. */
@@ -237,6 +288,8 @@ export function readSubmitForm(form: FormValues, now: Date, t: Translator): Subm
       subject: t("safety.manage.submittedSubject"),
       t,
       now,
+      // The API refuses any submission time after it receives the form.
+      futureToleranceMinutes: 0,
     });
     if (read.ok && read.instant) submittedAt = read.instant;
     else if (!read.ok) {

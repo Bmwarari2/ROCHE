@@ -1,14 +1,13 @@
 "use client";
 
 import { Button, TextArea, TextField } from "@harbour/ui";
-import { Info } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import type { FormEvent } from "react";
 import {
   markNotificationNotRequired,
   prepareNotification,
   submitNotification,
 } from "@/app/actions/incidents";
-import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { Notice } from "@/components/care/Notice";
 import { WhenField } from "@/components/care/WhenField";
@@ -16,13 +15,14 @@ import { characterCount, t } from "@/lib/i18n";
 import {
   CONTENT_MAX,
   type ContentField,
+  NEEDED_REASON_MIN,
   type NotificationManageView,
   REFERENCE_MAX,
   readPrepareForm,
   readSubmitForm,
 } from "@/lib/incident-review";
 import { errorFor, partsFor } from "@/lib/outcome";
-import { ReasonForm, StepUpNotice, useManageSend } from "./ManageForms";
+import { ManageFeedback, ReasonForm, useManageSend } from "./ManageForms";
 
 interface Target {
   readonly id: string;
@@ -91,6 +91,7 @@ function PrepareForm({
               id={ids[field.name]}
               name={field.name}
               label={field.line ?? t("safety.manage.prepare.notes")}
+              {...(field.line === null ? {} : { labelLang: "en-GB" })}
               hint={
                 field.line === null
                   ? t("safety.manage.prepare.notesHint")
@@ -116,11 +117,7 @@ function PrepareForm({
           </Button>
         </div>
       </form>
-      <FormFeedback
-        result={result}
-        success={t("safety.manage.done", { done: "saved" })}
-        fieldIds={ids}
-      />
+      <ManageFeedback result={result} path={pathOf(target.id)} fieldIds={ids} />
     </div>
   );
 }
@@ -134,7 +131,7 @@ const SUBMIT_FIELDS = ["submittedAt", "externalReference"] as const;
 function SubmitForm({ target }: { readonly target: Target }) {
   const ids = useFieldIds(SUBMIT_FIELDS);
   const path = pathOf(target.id);
-  const { result, pending, send, fail, stepUp } = useManageSend(path);
+  const { result, pending, send, fail } = useManageSend(path);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -202,15 +199,7 @@ function SubmitForm({ target }: { readonly target: Target }) {
           </Button>
         </div>
       </form>
-      {stepUp ? (
-        <StepUpNotice next={path} />
-      ) : (
-        <FormFeedback
-          result={result}
-          success={t("safety.manage.done", { done: "submitted" })}
-          fieldIds={ids}
-        />
-      )}
+      <ManageFeedback result={result} path={path} fieldIds={ids} />
     </div>
   );
 }
@@ -223,11 +212,17 @@ function SubmitForm({ target }: { readonly target: Target }) {
  */
 export function NotificationManage({
   target,
+  judgedNeeded,
   view,
   fields,
   content,
 }: {
   readonly target: Target;
+  /**
+   * Harbour found it needed (neither provisional nor no longer indicated): "not required" then
+   * says so, takes a longer reason and asks for a confirmation (HZ-013).
+   */
+  readonly judgedNeeded: boolean;
   readonly view: NotificationManageView;
   readonly fields: readonly ContentField[];
   readonly content: Readonly<Record<string, string>>;
@@ -251,18 +246,31 @@ export function NotificationManage({
           intro={t("safety.manage.notRequired.intro")}
           label={t("safety.manage.notRequired.label")}
           hint={t("safety.manage.notRequired.hint")}
-          purpose="notRequired"
+          purpose={judgedNeeded ? "notRequiredNeeded" : "notRequired"}
           submit={t("safety.manage.notRequired.submit")}
           path={pathOf(target.id)}
           done="notRequired"
           destructive
+          {...(judgedNeeded
+            ? { min: NEEDED_REASON_MIN, confirm: t("safety.manage.notRequired.confirm") }
+            : {})}
           onSend={(reason) =>
             markNotificationNotRequired(target.id, target.incidentId, {
               reason,
               version: target.version,
             })
           }
-        />
+        >
+          {judgedNeeded ? (
+            <Notice
+              tone="warning"
+              icon={<CircleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+              title={t("safety.manage.notRequired.needed")}
+            >
+              {t("safety.manage.notRequired.neededHint")}
+            </Notice>
+          ) : null}
+        </ReasonForm>
       ) : null}
     </div>
   );

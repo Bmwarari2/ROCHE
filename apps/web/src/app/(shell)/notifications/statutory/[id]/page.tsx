@@ -13,7 +13,13 @@ import { can, entryAuthor } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { contentFields, manageDone, notificationManageView } from "@/lib/incident-review";
+import {
+  contentFields,
+  doneToShow,
+  judgedNeeded,
+  manageDone,
+  notificationManageView,
+} from "@/lib/incident-review";
 import {
   incidentStatusChip,
   incidentTitle,
@@ -140,6 +146,7 @@ export default async function StatutoryNotificationPage({
   const reaching = item.personId ? (person ? (person.access?.reaching ?? null) : []) : null;
   const manage = notificationManageView(item, me.permissions, reaching);
   const fields = contentFields(item.requiredContent);
+  const shownDone = doneToShow(done, item.status);
   const names = new Map(person ? [[person.id, personNames(person).full]] : []);
   const title = notificationKindLabel(item.kind, t, threshold?.data?.value);
   const location = me.locations.find((l) => l.id === item.locationId);
@@ -166,7 +173,9 @@ export default async function StatutoryNotificationPage({
         title={title}
         description={t("safety.notification.recipient", { kind: item.kind })}
       />
-      {done ? <RecordedArrival message={t("safety.manage.done", { done })} /> : null}
+      {shownDone ? (
+        <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
+      ) : null}
       <div className="flex flex-col gap-2">
         <p className="m-0 flex flex-wrap items-center gap-2">
           <SafetyChip chip={notificationClockChip(item, now, t)} />
@@ -248,6 +257,7 @@ export default async function StatutoryNotificationPage({
               version: item.version,
               status: item.status,
             }}
+            judgedNeeded={judgedNeeded(item)}
             view={manage}
             fields={fields}
             content={item.content}
