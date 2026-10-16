@@ -276,12 +276,7 @@ export function LetterComposer({
             {preview.containsSpecialCategory ? ` ${t("comms.letters.specialCategory")}` : ""}
           </p>
           {/* A new preview is a new form: the confirmation is never carried over to it. */}
-          <form
-            key={preview.textHash}
-            className="flex flex-col gap-4"
-            onSubmit={onSend}
-            noValidate
-          >
+          <form key={preview.textHash} className="flex flex-col gap-4" onSubmit={onSend} noValidate>
             <Checkbox
               id={ids.confirm}
               name="confirm"

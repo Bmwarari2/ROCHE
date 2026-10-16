@@ -443,6 +443,93 @@ normalisers (people) that the current summary reuses. 2,486 tests in the domain 
 than before the slice), 99.7% line coverage; 3 catalogue tests in `packages/db`. Five rate-table
 rows added, all to verify. No schema, migration, API, web or mobile change in this slice.
 
+## 10a. As built (slice 13 part 1, the export's record and routes)
+
+- `tenant_export` (migration 0062, numbered after #71's 0060 and the family feed's 0061; merge
+  after both): forced RLS with the tenant policy; only holders of `platform.export.create` across
+  the organisation, and the export worker (no member, the organisation's view), see or change a
+  row; a request is queued in the requester's own name; the partial unique index allows one queued
+  or running export per organisation; a guard keeps who asked and what, moves the status forward
+  only (`queued` to `running`, `failed` or `revoked`; `running` to `ready`, `failed` or `revoked`;
+  `ready` to `expired` or `revoked`; the rest final), revokes in the reviser's own name and never
+  soft-deletes; the single download is set once, by the requester, while ready and unexpired. The
+  data migration renames `platform.data.export` to `platform.export.create` in role copies and
+  grants, audited per tenant. The other new slice 13 permissions are left to their own steps.
+- Routes (`apps/api/src/routes/exports.ts`): `POST /v1/exports` (step-up; 202 queued, or 200 with
+  the export already in hand; `sinceExportId` for the changes since an earlier snapshot),
+  `GET /v1/exports` (step-up, as every export route), `POST /v1/exports/{id}/revoke` (step-up;
+  deletes the archive) and `GET /v1/exports/{id}/download` (step-up; `checkExportDownload`; the
+  download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
+  `export_already_downloaded`). The API streams the archive itself rather than minting a storage
+  URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
+- Storage: the exports bucket (`S3_EXPORTS_BUCKET`; eu-west-2, SSE-KMS, lifecycle expiry) at
+  `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
+  reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the
+  archive before claiming the single fetch (a failed read leaves it untaken), streams it, and the
+  worker deletes it from the outbox event (`platform.export.downloaded`, `.revoked`), retried
+  until it is gone. #77 review: a ready export's archive, manifest, snapshot and expiry are frozen;
+  the rename is limited to organisation-wide roles and grants, the old name dropped elsewhere,
+  every change audited.
+- Next (part 2): the worker job that builds the archive (one `REPEATABLE READ` snapshot as
+  `harbour_app`, the table files, documents, current summary, `schema.json` and the manifest,
+  `ready` or `failed`, audited), the expiry sweep that deletes the archive, and the notification.
+
+## 10b. As built (slice 13 part 2, the export worker)
+
+- `runQueuedExports` (`apps/api/src/jobs/exports.ts`, queue `full-exports`, every minute): for
+  every organisation, whatever its status (rule 15), claims the oldest queued export as the job
+  (no member, the organisation's view) and builds it (`services/export-build.ts`): as
+  `harbour_app` with the organisation's context, in one `REPEATABLE READ` read-only transaction
+  (`snapshotAt` is its start); the tables and columns from the database's own catalogue, planned
+  with `planExport`; each table read through a cursor twice in the same snapshot (CSV, then JSON
+  Lines), rows decided by `exportRowDecision` (soft-deleted out unless held; legal holds on the
+  row, the record or its person) and, for a changes-since export, `exportRowChangedSince`; the
+  documents' bytes streamed from the documents bucket when `exportDocumentDecision` includes them;
+  `destroyed.csv` from the destruction certificates; `current_summary.csv` from the transfer pack's
+  statements and `currentSummaryRow`; `schema.json`; the audit chain checked; `manifest.json` from
+  `buildExportManifest`. Every file goes straight into a streamed ZIP (`services/zip-writer.ts`:
+  deflate, data descriptors, ZIP64 end records; a single file of 4 GiB or more fails the export)
+  that the exports bucket receives as a multipart upload. Complete: `ready` with the expiry from
+  `export.link_expiry_hours` (capped by the maximum), audited `platform.export.ready` with counts,
+  and the requester told in the app and by email, ids only ("Your data export is ready", a link to
+  the export page). Incomplete or an error: `failed` with its problems, audited (only when it was still queued or
+  running), the requester told by ids only, the archive deleted, `worker.job.failed` logged; another
+  organisation's row raises `security.export.foreign_rows` (CloudWatch alarm
+  `<prefix>-export-foreign-rows`). Cancelled while it was built: the archive is deleted and no one
+  is told it is ready. #78 review: the ZIP writer reads its source and drains the deflater together
+  and stops both on a failure; a write waits on the archive's reader only until it drains, closes
+  or fails, and a failed upload stops the archive; the snapshot transaction is rolled back and its
+  connection released (or discarded) on every failure, with `idle_in_transaction_session_timeout`
+  and `statement_timeout` as backstops; the request context is set with `applyRequestContext`,
+  holds read with `isUnderLegalHold`, and a destroyed document's tombstone is listed in
+  `destroyed.csv` with its certificate rather than exported.
+- `sweepExports` (queue `export-expiry`, every 15 minutes): deletes each archive past its expiry,
+  then marks the export expired and records `platform.export.expired` (archive deleted), so a
+  failed delete is tried again; an export running more than `EXPORT_RUNNING_LIMIT_HOURS` (12, a
+  technical limit) is failed and its archive deleted.
+- Not yet: sample data (no flag until the sample data step); the web export page (part 3). The
+  current summary loads the organisation's people, allergies, advance care records and care
+  profiles at once (bounded by the number of people); the tables never are.
+
+## 10c. As built (slice 13 part 3, the export page)
+
+- `/settings/export` (`apps/web/src/app/(shell)/settings/export`, `lib/exports.ts`), in the
+  navigation as "Data export" for holders of `platform.export.create` only; anyone else is told in
+  words. Every export route needs a step-up with a second factor, so the page sends the person to
+  confirm it is you before it lists anything; an action whose step-up lapsed shows the step-up
+  notice in words naming the passkey and the authenticator code, with the way back.
+- Ask for an export (offered while none is being made); each export's state as an icon and a word
+  (waiting to start, being prepared, ready to download, downloaded, expired, failed, cancelled;
+  an unknown state warns), when its link expires, its size and the manifest's warnings.
+- Download (the requester's own, ready and not yet fetched) opens a sheet first: the file can be
+  downloaded only once and holds the records of everyone the organisation supports and employs, so
+  it is saved straight away somewhere only authorised people can open. The file streams through a
+  same-origin route handler (`/settings/export/{id}/download`), never cached; a refusal returns to
+  the page with what happened in words that take focus, or to signing in again.
+- Cancel after a confirmation. Arrivals carry `at`, so the same outcome twice is said twice.
+- `pnpm --filter @harbour/api exports:run` runs the worker's job once for local journeys; the demo
+  owner gets the end-to-end passkey alongside the manager (`HARBOUR_DEMO_E2E_PASSKEY=1`).
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

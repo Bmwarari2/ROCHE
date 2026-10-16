@@ -684,11 +684,29 @@ the version in use and any draft (with its number of problems). Drafts are writt
 each problem the API found shown at its field (subject, channel or text) and the plain-English
 suggestions listed; the merge fields are listed with what each holds and where it may not go. An
 approver who wrote or edited the draft is not offered approval and is told why; someone else
-approves it. A new draft starts from the version in use; a draft is discarded, and the version in
+approves it, seeing the stored words read-only beside Approve (editing is behind "Edit draft", and
+Approve is not offered while the form is open). The form is keyed on the draft's version, so it
+always shows the words now stored; the saved draft's problems are also listed as links to their
+fields, a channel problem shown by the fixed channel. A new draft starts from the version in use; a draft is discarded, and the version in
 use retired, each with a reason. Every write sends the version the page showed, and the page then
 says what was done (a new `at` each time). Tests: `apps/web/src/lib/letters.test.ts`,
 `apps/web/e2e/letter-templates.spec.ts` (axe on every state). Next, part 2: the person's letters
 tab (preview, send, the list).
+
+Slice 11 (letters web, part 2: the letters tab; `feat/web-letters-send`):
+`/people/{id}/letters` in `apps/web`, `components/comms/LetterComposer.tsx`. A "Letters" tab on
+the record for holders of `comms.letter.manage` (MFA, as the API asks). The sender chooses a
+template in use (not duty of candour; incident follow-up only for holders of
+`safety.incident.manage`, with the person's incident chosen), types only the admission or fee
+details its words use (dates as day, month and year; money in pounds and pence, sent in whole
+pence), and previews it. The preview takes focus and shows who the letter is about (name, room,
+photo; rule 25, HZ-001), who it is to, the subject and words, and the personal details used.
+Sending needs a tick that it was checked and repeats the preview's version and text hash; a 409
+`letter_changed` shows the new preview, with the tick cleared, to check again. The API's refusals
+(email sending not available yet, an incident involving others, a template no longer in use) are
+said in words. The letters sent are listed with a link to each letter's document. Letters go to
+the person only: the record has no contacts list to choose a recipient from yet (STATUS). Tests:
+`apps/web/src/lib/letters.test.ts`, `apps/web/e2e/letters.spec.ts` (axe on every state).
 
 Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
 `packages/db/src/schema/comms.ts`.
@@ -699,5 +717,16 @@ Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms
 | `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
 | `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
 
-Next, the API (`feat/comms-family-feed-api`): portal sessions, `GET /v1/family/feed`, the portal
-links, the staff list and withdrawal; then part 1b, publishing from source records.
+Slice 12 (the family feed, API part 1; `feat/comms-family-feed-api`): `apps/api/src/routes/family-feed.ts`,
+contracts in `packages/contracts/src/family-feed.ts`.
+
+| Route | Built as |
+| --- | --- |
+| Portal sessions | A member with an open link is resolved as a portal session (`resolveAccess(..., "portal")`): portal roles only, no grants, scope `none`, `app.family` set |
+| `GET /v1/family/feed` | Portal sessions with `comms.feed.read` (MFA). Per linked person: the updates the database shows, judged again by `buildFamilyFeed` with the decisions, suspension periods, status and capacity finding read in the system's view (never returned); photos stay closed until part 1b reads their basis; a feed closed by the person's status reads exactly like one with no decision (same statement, no entries, no `lastUpdateAt`); the people read come only from the caller's links, never the request; MFA always, whatever `mfa_required` says; one `feed_view` per entry and a `comms.feed.viewed` audit event with ids and counts; `no-store` |
+| `GET`/`POST /v1/people/{id}/family-portal-links`, `.../{linkId}/revoke` | `people.sharing.manage`: only an account holding portal roles alone, whose verified email is the contact's email, can be linked (otherwise 422 `account_not_contact`, audited); `comms.portal_link.create`, `.revoke`, `.list`. The sharing decisions themselves are the people-sharing routes |
+| `GET /v1/people/{id}/feed`, `POST /v1/feed-items/{id}/withdraw` | `comms.feed.publish` or `.withdraw` to list (with any withdrawal); `.withdraw` to take one down (`checkFeedWithdrawal`, once, 409 after); `comms.feed.item_withdrawn` audit and outbox event |
+
+Next, part 1b: `POST /v1/people/{id}/feed` (compose and publish from a source record with
+`composeFeedItem`, `care_note_share`, the publishing holds and the photo basis) and
+`GET /v1/people/{id}/feed/exposure`. Then part 2, the web feed and staff screens.

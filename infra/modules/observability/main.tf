@@ -339,3 +339,34 @@ resource "aws_cloudwatch_metric_alarm" "worker_job_failed" {
   ok_actions          = local.actions
 }
 
+
+# An export met a row of another organisation (`security.export.foreign_rows`; PLAT-015, HZ-070):
+# row-level security has failed somewhere. The export is failed and never offered; any line is a
+# security incident (docs/runbooks/on-call.md).
+resource "aws_cloudwatch_log_metric_filter" "export_foreign_rows" {
+  name           = "${var.name_prefix}-export-foreign-rows"
+  log_group_name = var.worker_log_group_name
+  pattern        = "{ $.event = \"security.export.foreign_rows\" }"
+
+  metric_transformation {
+    name      = "ExportForeignRows"
+    namespace = local.worker_metric_namespace
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "export_foreign_rows" {
+  alarm_name          = "${var.name_prefix}-export-foreign-rows"
+  alarm_description   = "A full export met another organisation's row (security.export.foreign_rows): treat as a security incident. See docs/runbooks/on-call.md."
+  namespace           = local.worker_metric_namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.export_foreign_rows.metric_transformation[0].name
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}

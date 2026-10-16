@@ -2,10 +2,10 @@ import type { LetterItem } from "@harbour/contracts";
 import { Card } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { LetterComposer } from "@/components/comms/LetterComposer";
+import { TemplateArrival } from "@/components/comms/TemplateArrival";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
@@ -65,7 +65,7 @@ async function LettersTab({
         <h2 className="m-0 text-eyebrow">{t("comms.letters.title")}</h2>
         <p className="m-0 max-w-prose text-text-secondary">{t("comms.letters.intro")}</p>
       </div>
-      {done === "sent" ? <ArrivalNotice key={at}>{t("comms.letters.sent")}</ArrivalNotice> : null}
+      {done === "sent" ? <TemplateArrival key={at} message={t("comms.letters.sent")} /> : null}
       <Card as="section" title={t("comms.letters.makeTitle")} headingLevel={3}>
         {lettersRefused === "mfa_enrolment_required" ||
         lettersRefused === "mfa_verification_required" ? (

@@ -13,7 +13,7 @@ import { demoTenantRefusal, testOnlySwitchRefusal, wantsTestOnlySwitch } from ".
  * Password from HARBOUR_DEMO_PASSWORD (local default below). With HARBOUR_DEMO_MFA=off the demo
  * users may open care records without TOTP, for local end-to-end tests only; never on dev or staging.
  * Optionally HARBOUR_DEMO_OWNER_EMAIL makes the owner account use that address (e.g. Brian's, so
- * he can register a passkey on dev). With HARBOUR_DEMO_E2E_PASSKEY=1 the demo manager also gets a
+ * he can register a passkey on dev). With HARBOUR_DEMO_E2E_PASSKEY=1 the demo manager and owner each get a
  * passkey whose key anyone can derive (`e2ePasskey`), so the web journeys step up with a second
  * factor as a person would (ADR-0072 amendment); local end-to-end tests only, never on dev or
  * staging.
@@ -28,9 +28,12 @@ const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
  * Chromium's virtual authenticator. Returns the COSE public key Better Auth stores (base64) and the
  * credential id (base64url).
  */
-function e2ePasskey(): { publicKey: string; credentialId: string } {
+function e2ePasskey(who: "manager" | "owner"): { publicKey: string; credentialId: string } {
+  // The manager's labels are the original ones; the owner's are prefixed, so the keys differ.
   const digest = (label: string) =>
-    createHash("sha256").update(`harbour e2e demo passkey: ${label}`).digest();
+    createHash("sha256")
+      .update(`harbour e2e demo passkey: ${who === "owner" ? `owner ${label}` : label}`)
+      .digest();
   // PKCS#8 for a P-256 private key, the scalar appended (RFC 5915, public key omitted).
   const key = createPrivateKey({
     key: Buffer.concat([
@@ -96,6 +99,7 @@ async function managerTenant(authUserId: string): Promise<string | null> {
 }
 
 try {
+  const passkeyHolders: ["manager" | "owner", string][] = [];
   for (const key of Object.keys(DEMO.users) as DemoUserKey[]) {
     const user = DEMO.users[key];
     const email =
@@ -121,18 +125,23 @@ try {
       const refusal = demoTenantRefusal(await managerTenant(authUserId), DEMO.tenantId);
       if (refusal) throw new Error(refusal);
     }
-    if (key === "manager" && process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
-      const passkey = e2ePasskey();
-      await services.authPool.query(
-        `INSERT INTO auth.passkey (id, name, public_key, user_id, credential_id, counter,
-                                   device_type, backed_up, transports, created_at)
-         VALUES ('e2e-demo-manager-passkey', 'End-to-end test passkey', $1, $2, $3, 0,
-                 'singleDevice', false, 'internal', now())
-         ON CONFLICT (id) DO NOTHING`,
-        [passkey.publicKey, authUserId, passkey.credentialId],
-      );
-      console.log("The demo manager has the end-to-end passkey (local testing only)");
+    // The owner too: only the owner holds platform.export.create, whose routes need a step-up.
+    // Written after every user, so the manager's tenant check runs before any key (#80 review).
+    if ((key === "manager" || key === "owner") && process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
+      passkeyHolders.push([key, authUserId]);
     }
+  }
+  for (const [key, authUserId] of passkeyHolders) {
+    const passkey = e2ePasskey(key);
+    await services.authPool.query(
+      `INSERT INTO auth.passkey (id, name, public_key, user_id, credential_id, counter,
+                                 device_type, backed_up, transports, created_at)
+       VALUES ($4, 'End-to-end test passkey', $1, $2, $3, 0,
+               'singleDevice', false, 'internal', now())
+       ON CONFLICT (id) DO NOTHING`,
+      [passkey.publicKey, authUserId, passkey.credentialId, `e2e-demo-${key}-passkey`],
+    );
+    console.log(`The demo ${key} has the end-to-end passkey (local testing only)`);
   }
   // A second home with one invented resident nobody at Harbour House can see, so the web
   // journeys can open a record by break-glass and see it is for reading only (ADR-0071 review

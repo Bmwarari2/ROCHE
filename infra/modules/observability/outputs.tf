@@ -8,6 +8,7 @@ output "log_alarm_names" {
   value = {
     escalation_unrouted_daily = aws_cloudwatch_metric_alarm.escalation_unrouted_daily.alarm_name
     worker_job_failed         = aws_cloudwatch_metric_alarm.worker_job_failed.alarm_name
+    export_foreign_rows       = aws_cloudwatch_metric_alarm.export_foreign_rows.alarm_name
   }
 }
 
@@ -16,6 +17,7 @@ output "log_metric_filter_patterns" {
   value = {
     escalation_unrouted_daily = aws_cloudwatch_log_metric_filter.escalation_unrouted_daily.pattern
     worker_job_failed         = aws_cloudwatch_log_metric_filter.worker_job_failed.pattern
+    export_foreign_rows       = aws_cloudwatch_log_metric_filter.export_foreign_rows.pattern
   }
 }
 
@@ -41,6 +43,16 @@ output "log_alarm_rules" {
       threshold           = aws_cloudwatch_metric_alarm.worker_job_failed.threshold
       comparison_operator = aws_cloudwatch_metric_alarm.worker_job_failed.comparison_operator
       treat_missing_data  = aws_cloudwatch_metric_alarm.worker_job_failed.treat_missing_data
+    }
+    export_foreign_rows = {
+      log_group_name      = aws_cloudwatch_log_metric_filter.export_foreign_rows.log_group_name
+      filter_metric       = "${aws_cloudwatch_log_metric_filter.export_foreign_rows.metric_transformation[0].namespace}/${aws_cloudwatch_log_metric_filter.export_foreign_rows.metric_transformation[0].name}"
+      alarm_metric        = "${aws_cloudwatch_metric_alarm.export_foreign_rows.namespace}/${aws_cloudwatch_metric_alarm.export_foreign_rows.metric_name}"
+      statistic           = aws_cloudwatch_metric_alarm.export_foreign_rows.statistic
+      period              = aws_cloudwatch_metric_alarm.export_foreign_rows.period
+      threshold           = aws_cloudwatch_metric_alarm.export_foreign_rows.threshold
+      comparison_operator = aws_cloudwatch_metric_alarm.export_foreign_rows.comparison_operator
+      treat_missing_data  = aws_cloudwatch_metric_alarm.export_foreign_rows.treat_missing_data
     }
   }
 }

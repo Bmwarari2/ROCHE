@@ -165,8 +165,8 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),
 the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`) and the
 routes and the sweep (As built, below; `apps/api/test/invitations.test.ts`) and the accept page
-(`apps/web/src/app/(auth)/invitation`, As built below) and the members routes the managers'
-screens use (As built below); the managers' list and invite form follow. Built already
+(`apps/web/src/app/(auth)/invitation`, As built below), the members routes and the managers'
+team and invitation screens (`apps/web/src/app/(shell)/settings/team`, As built below). Built already
 and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
 deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
 set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
@@ -406,6 +406,19 @@ migration 0060), the routes the managers' invitation screens use:
   (`app.holds_role_permission_somewhere`),
   and a `role_assignment` only where `app.may_assign_role` allows. Changing an existing role
   assignment is not covered yet (no route does it): logged in STATUS.
+
+As built, the managers' screens (`/settings/team`, `lib/team.ts`, `actions/team.ts`): Team is in
+the navigation only for holders of `platform.user.manage`, and the pages refuse anyone else in
+words. The team page lists the members the API returns for the chosen location (or all of the
+manager's), each with their roles, their state and their latest invitation's state, each an icon
+and a word (pending, accepted, expired, withdrawn). Invite someone asks for a full name, a work
+address, a role and where it applies, offering only the roles and places the API says the manager
+may give; the fields are checked with `CreateMember` from @harbour/contracts before sending, and
+API refusals (`email_in_use`, `beyond_inviter` and the invitation refusals) are said in words at
+the field. Sending adds the member (`POST /v1/members`, with the form's id) and then invites them;
+the member's page says whether the email went. On a member's page, sending again is offered only
+while the member is still invited, and withdrawing only for a pending invitation, each after a
+confirmation sheet that says what happens to the link.
 
 As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handlers
 `app/api/invitations/lookup` and `/accept` (same origin and JSON only), `lib/invitation-server.ts`,

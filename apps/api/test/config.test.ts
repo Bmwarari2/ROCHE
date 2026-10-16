@@ -12,6 +12,7 @@ const PRODUCTION = {
   DATABASE_WORKER_URL: "postgres://harbour_worker@db.internal/harbour",
   DOCUMENT_STORAGE: "s3",
   S3_DOCUMENTS_BUCKET: "harbour-dev-documents",
+  S3_EXPORTS_BUCKET: "harbour-dev-exports",
   MALWARE_SCANNER: "clamd",
 } as const;
 
@@ -29,6 +30,7 @@ describe("loadConfig", () => {
     "DATABASE_OPERATOR_URL",
     "DATABASE_WORKER_URL",
     "S3_DOCUMENTS_BUCKET",
+    "S3_EXPORTS_BUCKET",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];

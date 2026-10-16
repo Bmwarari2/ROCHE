@@ -24,7 +24,12 @@ interface Template {
   readonly draft: Version | null;
 }
 
-async function call<T>(request: APIRequestContext, method: "post" | "put", path: string, data: object) {
+async function call<T>(
+  request: APIRequestContext,
+  method: "post" | "put",
+  path: string,
+  data: object,
+) {
   const response = await request[method](`${API_URL}${path}`, {
     headers: { "x-harbour-tenant": DEMO_TENANT },
     data,
@@ -41,7 +46,12 @@ async function other(browser: Browser, email: string): Promise<Page> {
 }
 
 /** A template drafted by the manager and approved by the owner. */
-async function approvedTemplate(manager: Page, owner: Page, channel: "letter" | "email", name: string) {
+async function approvedTemplate(
+  manager: Page,
+  owner: Page,
+  channel: "letter" | "email",
+  name: string,
+) {
   const made = await call<Template>(manager.request, "post", "/v1/letter-templates", {
     kind: channel === "letter" ? "fee_review" : "general",
     channel,
@@ -53,9 +63,14 @@ async function approvedTemplate(manager: Page, owner: Page, channel: "letter" | 
         : "Dear {{recipient.full_name}},\n\nThank you.",
   });
   const draft = made.draft as Version;
-  await call(owner.request, "post", `/v1/letter-templates/${made.id}/versions/${draft.id}/approve`, {
-    version: draft.version,
-  });
+  await call(
+    owner.request,
+    "post",
+    `/v1/letter-templates/${made.id}/versions/${draft.id}/approve`,
+    {
+      version: draft.version,
+    },
+  );
   return made.id;
 }
 
@@ -108,7 +123,10 @@ test("hazard HZ-051 hazard HZ-001 a letter is checked in a preview that shows wh
     "Letter made. It is saved with the person's documents, ready to print.",
   );
   await expect(
-    page.getByRole("region", { name: "Letters sent" }).getByRole("link", { name: "Open the letter" }).first(),
+    page
+      .getByRole("region", { name: "Letters sent" })
+      .getByRole("link", { name: "Open the letter" })
+      .first(),
   ).toBeVisible();
   await expectAccessible(page, "letter made");
 });
@@ -129,7 +147,12 @@ test("hazard HZ-051 a letter changed since the preview is shown again to check, 
   await expect(page.getByRole("heading", { name: "Check before sending" })).toBeFocused();
 
   // Meanwhile the owner writes a new version and the manager approves it.
-  const draft = await call<Version>(owner.request, "post", `/v1/letter-templates/${templateId}/versions`, {});
+  const draft = await call<Version>(
+    owner.request,
+    "post",
+    `/v1/letter-templates/${templateId}/versions`,
+    {},
+  );
   const edited = await call<Version>(
     owner.request,
     "put",
@@ -141,9 +164,14 @@ test("hazard HZ-051 a letter changed since the preview is shown again to check, 
       version: draft.version,
     },
   );
-  await call(page.request, "post", `/v1/letter-templates/${templateId}/versions/${draft.id}/approve`, {
-    version: edited.version,
-  });
+  await call(
+    page.request,
+    "post",
+    `/v1/letter-templates/${templateId}/versions/${draft.id}/approve`,
+    {
+      version: edited.version,
+    },
+  );
 
   await page.getByLabel("I have checked who this letter is about").check();
   await page.getByRole("button", { name: "Make the letter" }).click();
@@ -160,6 +188,8 @@ test("hazard HZ-051 a letter changed since the preview is shown again to check, 
   await page.getByRole("button", { name: "Preview the letter" }).click();
   await page.getByLabel("I have checked who this letter is about").check();
   await page.getByRole("button", { name: "Send the email" }).click();
-  await expect(alertIn(page)).toContainText("Sending email is not available yet. Send it as a letter.");
+  await expect(alertIn(page)).toContainText(
+    "Sending email is not available yet. Send it as a letter.",
+  );
   await expectAccessible(page, "email refused");
 });

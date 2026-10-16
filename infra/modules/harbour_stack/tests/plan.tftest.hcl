@@ -76,6 +76,11 @@ run "dev_defaults" {
     error_message = "The failed job alarm must match the worker's worker.job.failed event."
   }
 
+  assert {
+    condition     = module.observability.log_metric_filter_patterns.export_foreign_rows == "{ $.event = \"security.export.foreign_rows\" }"
+    error_message = "The export foreign rows alarm must match the worker's security.export.foreign_rows event (HZ-070)."
+  }
+
   # Each filter reads the worker's own log group, and each alarm reads the metric its filter
   # writes.
   assert {

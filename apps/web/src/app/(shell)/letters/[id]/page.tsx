@@ -3,22 +3,16 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrivalNotice } from "@/components/care/ArrivalNotice";
+import { DraftPanel } from "@/components/comms/DraftPanel";
 import { MergeFieldHelp } from "@/components/comms/MergeFieldHelp";
-import { ApproveVersion, EndVersion, StartDraft } from "@/components/comms/TemplateActions";
-import { TemplateForm } from "@/components/comms/TemplateForm";
+import { EndVersion, StartDraft } from "@/components/comms/TemplateActions";
+import { TemplateArrival } from "@/components/comms/TemplateArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import {
-  issuesByField,
-  templateActions,
-  templateName,
-  templatesNavShown,
-  versionChip,
-} from "@/lib/letters";
+import { templateActions, templateName, templatesNavShown, versionChip } from "@/lib/letters";
 import { firstParam } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
@@ -32,6 +26,15 @@ const DONE = new Set(["drafted", "saved", "approved", "retired", "discarded", "s
 function VersionText({ version }: { readonly version: LetterTemplateVersionItem }) {
   return (
     <div className="flex flex-col gap-2">
+      {version.issues.length > 0 ? (
+        <ul className="m-0 flex flex-col gap-1 ps-5">
+          {version.issues.map((issue) => (
+            <li key={`${issue.problem}:${issue.message}`}>
+              {t("comms.templates.problemAt", { message: issue.message })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {version.subject ? (
         <p className="m-0">
           <span className="font-semibold">{t("comms.templates.form.subject")}: </span>
@@ -100,7 +103,7 @@ export default async function TemplatePage({
         title={templateName(template, t)}
       />
       {done && DONE.has(done) ? (
-        <ArrivalNotice key={at}>{t("comms.templates.arrived", { done })}</ArrivalNotice>
+        <TemplateArrival key={at} message={t("comms.templates.arrived", { done })} />
       ) : null}
 
       {draft ? (
@@ -114,22 +117,16 @@ export default async function TemplatePage({
                 ? t("comms.templates.noProblems")
                 : t("comms.templates.problems", { count: draft.issues.length })}
             </p>
-            {actions.edit ? (
-              <TemplateForm
-                path={path}
-                mode={{
-                  kind: "edit",
-                  templateId: id,
-                  versionId: draft.id,
-                  version: draft.version,
-                  channel: template.channel,
-                  words: { name: draft.name, subject: draft.subject, body: draft.body },
-                  issues: issuesByField(draft.issues),
-                }}
-              />
-            ) : (
-              <VersionText version={draft} />
-            )}
+            <DraftPanel
+              path={path}
+              target={{ templateId: id, versionId: draft.id, version: draft.version }}
+              channel={template.channel}
+              words={{ name: draft.name, subject: draft.subject, body: draft.body }}
+              issues={draft.issues}
+              canEdit={actions.edit}
+              canApprove={actions.approve}
+              readOnly={<VersionText version={draft} />}
+            />
             {draft.styleWarnings.length > 0 ? (
               <section aria-labelledby="style-title" className="flex flex-col gap-1">
                 <h3 id="style-title" className="m-0 text-body font-semibold">
@@ -141,12 +138,6 @@ export default async function TemplatePage({
                   ))}
                 </ul>
               </section>
-            ) : null}
-            {actions.approve ? (
-              <ApproveVersion
-                path={path}
-                target={{ templateId: id, versionId: draft.id, version: draft.version }}
-              />
             ) : null}
             {actions.ownDraft ? (
               <p className="m-0 max-w-prose">{t("comms.templates.refusal.ownDraft")}</p>

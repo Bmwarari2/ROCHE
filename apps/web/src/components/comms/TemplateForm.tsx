@@ -1,14 +1,17 @@
 "use client";
 
 import { Button, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
+import { CircleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 import { createTemplate, editDraft } from "@/app/actions/letters";
 import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { characterCount, t } from "@/lib/i18n";
 import {
   BODY_MAX,
+  issueField,
+  issuesByField,
   NAME_MAX,
   readDraft,
   SUBJECT_MAX,
@@ -34,8 +37,15 @@ type Mode =
         readonly subject: string | null;
         readonly body: string;
       };
-      /** What the API found in the saved draft, at each field (rules 18 to 21). */
-      readonly issues: FieldErrors;
+      /** What the API found in the saved draft, each at its field (rules 18 to 21). */
+      readonly issues: readonly { readonly problem: string; readonly message: string }[];
+      /** Closes the form without saving, for an approver who opened it with "Edit draft". */
+      readonly onCancel?: () => void;
+      /**
+       * Opened from a button that is now gone: focus moves to the problems' heading, or to the
+       * first field when there are none, never left on the page body (WCAG 2.4.3).
+       */
+      readonly focusOnOpen?: boolean;
     };
 
 /**
@@ -52,7 +62,14 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
   );
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
-  const saved = mode.kind === "edit" ? mode.issues : {};
+  const saved: FieldErrors = mode.kind === "edit" ? issuesByField(mode.issues) : {};
+  const focusOnOpen = mode.kind === "edit" && mode.focusOnOpen === true;
+  const hasProblems = mode.kind === "edit" && mode.issues.length > 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when the form first opens.
+  useEffect(() => {
+    if (!focusOnOpen) return;
+    document.getElementById(hasProblems ? `${ids.body}-problems` : ids.name)?.focus();
+  }, []);
   // A refusal from this attempt wins at its field; otherwise the saved draft's problems show.
   const fieldError = (field: string) => errorFor(result, field) ?? saved[field];
 
@@ -79,6 +96,28 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
 
   return (
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      {mode.kind === "edit" && mode.issues.length > 0 && !result ? (
+        <SavedProblems issues={mode.issues} ids={ids} />
+      ) : null}
+      {mode.kind === "edit" ? (
+        <div className="flex flex-col gap-1">
+          <p id={ids.channel} tabIndex={-1} className="m-0">
+            <span className="font-semibold">{t("comms.templates.form.channel")}: </span>
+            {t("comms.templates.channel", { channel: mode.channel })}
+          </p>
+          {saved.channel ? (
+            <p className="m-0 inline-flex items-start gap-2 font-semibold">
+              <CircleAlert
+                size={18}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+              />
+              {t("comms.templates.problemAt", { message: saved.channel })}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {mode.kind === "create" ? (
         <>
           <SelectField
@@ -141,7 +180,7 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
         defaultValue={mode.kind === "edit" ? mode.words.body : ""}
         error={fieldError("body")}
       />
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending}>
           {pending
             ? t("common.saving")
@@ -151,8 +190,45 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
                   : "comms.templates.form.save",
               )}
         </Button>
+        {mode.kind === "edit" && mode.onCancel ? (
+          <Button variant="secondary" onClick={mode.onCancel}>
+            {t("common.cancel")}
+          </Button>
+        ) : null}
       </div>
       <ManageFeedback result={result} path={path} fieldIds={ids} />
     </form>
+  );
+}
+
+/**
+ * The saved draft's problems as a list that links to each field (WCAG 3.3.1), so none is counted
+ * without being shown, including one about the channel, which cannot be changed here.
+ */
+function SavedProblems({
+  issues,
+  ids,
+}: {
+  readonly issues: readonly { readonly problem: string; readonly message: string }[];
+  readonly ids: Readonly<Record<string, string>>;
+}) {
+  return (
+    <section aria-labelledby={`${ids.body}-problems`} className="flex flex-col gap-1">
+      <h3 id={`${ids.body}-problems`} tabIndex={-1} className="m-0 text-body font-semibold">
+        {t("comms.templates.problemsTitle")}
+      </h3>
+      <ul className="m-0 ps-5">
+        {issues.map((issue) => (
+          <li key={`${issue.problem}:${issue.message}`}>
+            <a
+              href={`#${ids[issueField(issue.problem)]}`}
+              className="inline-flex min-h-target items-center underline"
+            >
+              {issue.message}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
