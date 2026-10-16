@@ -2476,6 +2476,17 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 **Tests**: `apps/web/src/lib/dpia.test.ts` (9), `components/dpia/DpiaFeedback.test.tsx` (2),
 `apps/web/e2e/dpia.spec.ts` (3, with axe on each state).
 
+## 2026-10-17: The DPIA page, review of #89
+
+- The signing form is offered only to the named lead who prepared none of the version; the draft
+  form says each refusal at its field (a risk that stays high needs the ICO reference); the
+  status card is its own component, checked with axe when not started with details missing and
+  when a review is due; axe on the Registered Manager's view in the journey.
+- `db:seed` refuses to seed the demo tenant in production unless `HARBOUR_SEED_DEMO=0`.
+- Logged: the typed name is not checked against the signer's account.
+
+**Tests**: `lib/dpia.test.ts` (7 more), `components/dpia/DpiaStatus.test.tsx` (2).
+
 ## 2026-10-17: Slice 13 web, the onboarding checklist page (PLAT-018)
 
 - Web: `/settings/onboarding` ("Getting started") shows progress, what blocks go-live and each

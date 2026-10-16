@@ -1,11 +1,11 @@
 import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import { DraftForm, GovernanceForm, PrepareDpia, SignDpia } from "@/components/dpia/DpiaForms";
+import { DpiaStatus } from "@/components/dpia/DpiaStatus";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
-import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
-import { DPIA_PAGE, dpiaChip, dpiaShown, prefillOf } from "@/lib/dpia";
-import { formatDateTime } from "@/lib/format";
+import { DPIA_PAGE, dpiaShown, maySign, prefillOf } from "@/lib/dpia";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
 
@@ -41,7 +41,9 @@ export default async function DataProtectionPage({
     .map((m) => ({ id: m.id, name: m.displayName }));
   const done = firstParam((await searchParams).done);
   const open = dpia.open;
-  const signingFor = open?.status === "prepared" && may("platform.dpia.sign") ? open : null;
+  const signingFor = maySign(open, dpia.settings.leadId, me.tenantUserId, me.permissions)
+    ? open
+    : null;
   const draftPrefill = prefillOf((open ?? dpia.signed)?.prefill ?? {});
 
   return (
@@ -50,45 +52,7 @@ export default async function DataProtectionPage({
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("dpia.done", { done })} param="done" />
       ) : null}
-      <Card as="section" title={t("dpia.status.title")} headingLevel={2}>
-        <div className="flex flex-col gap-3">
-          <p className="m-0">
-            <SafetyChip chip={dpiaChip(dpia.state, t)} />
-          </p>
-          {dpia.signed?.signedAt ? (
-            <p className="m-0 text-body-dense">
-              {t("dpia.status.signed", {
-                name: dpia.signed.signedBy?.displayName ?? "",
-                dateTime: formatDateTime(dpia.signed.signedAt) ?? "",
-              })}
-            </p>
-          ) : null}
-          {dpia.reviewDueAt ? (
-            <p className="m-0 text-body-dense">
-              {t("dpia.status.reviewBy", {
-                date: formatDateTime(dpia.reviewDueAt)?.split(" ")[0] ?? "",
-              })}
-            </p>
-          ) : null}
-          {dpia.triggers.length > 0 ? (
-            <ul className="m-0 flex flex-col gap-1 ps-5">
-              {dpia.triggers.map((trigger) => (
-                <li key={trigger.kind}>{t("dpia.trigger", { kind: trigger.kind })}</li>
-              ))}
-            </ul>
-          ) : null}
-          {dpia.missingConfig.length > 0 ? (
-            <div className="flex flex-col gap-1">
-              <p className="m-0 font-semibold">{t("dpia.missing.title")}</p>
-              <ul className="m-0 flex flex-col gap-1 ps-5">
-                {dpia.missingConfig.map((key) => (
-                  <li key={key}>{t("dpia.missing", { key: key.replace(".", "_") })}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      </Card>
+      <DpiaStatus dpia={dpia} />
       {may("platform.tenant.manage") ? (
         <Card as="section" title={t("dpia.settings.title")} headingLevel={2}>
           <GovernanceForm settings={dpia.settings} members={leads} />

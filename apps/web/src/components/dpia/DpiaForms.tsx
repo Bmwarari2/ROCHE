@@ -14,7 +14,7 @@ import {
 } from "@/app/actions/dpia";
 import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
-import { DPIA_PAGE, type DpiaPrefill, readDraft, readSettings } from "@/lib/dpia";
+import { checkDraft, DPIA_PAGE, type DpiaPrefill, readDraft, readSettings } from "@/lib/dpia";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, fieldErrors, partsFor, partsRefusal } from "@/lib/outcome";
 import { dateBoxesOf, readDateField } from "@/lib/uk-time";
@@ -204,10 +204,21 @@ export function DraftForm({
   /** The open version's `version`, or undefined to start a new one. */
   readonly version: number | undefined;
 }) {
-  const { result, pending, send } = useDpiaSend();
+  const { result, setResult, pending, send } = useDpiaSend();
+  // One id per field, so a refusal is said at its field and the summary links to it.
+  const ids = useFieldIds([
+    ...prefill.sections.flatMap((s) => s.tenantFields.map((f) => `answer.${s.key}.${f}`)),
+    ...prefill.risks.map((r) => `risk.${r.id}`),
+    "icoReference",
+  ]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const draft = readDraft(new FormData(event.currentTarget), prefill);
+    const errors = checkDraft(draft, t);
+    if (Object.keys(errors).length > 0) {
+      setResult(fieldErrors(errors));
+      return;
+    }
     const input: DraftInput = {
       ...(version === undefined ? {} : { expectedVersion: version }),
       ...draft,
@@ -224,6 +235,8 @@ export function DraftForm({
             {section.tenantFields.map((field) => (
               <TextArea
                 key={field}
+                id={ids[`answer.${section.key}.${field}`]}
+                error={errorFor(result, `answer.${section.key}.${field}`)}
                 name={`answer.${section.key}.${field}`}
                 label={t("dpia.field", { field })}
                 rows={3}
@@ -239,6 +252,8 @@ export function DraftForm({
         {prefill.risks.map((risk) => (
           <SelectField
             key={risk.id}
+            id={ids[`risk.${risk.id}`]}
+            error={errorFor(result, `risk.${risk.id}`)}
             name={`risk.${risk.id}`}
             label={t("dpia.draft.risk", { id: risk.id, risk: risk.risk })}
             emptyOption={t("dpia.draft.riskEmpty")}
@@ -251,6 +266,8 @@ export function DraftForm({
         ))}
       </fieldset>
       <TextField
+        id={ids.icoReference}
+        error={errorFor(result, "icoReference")}
         name="icoReference"
         label={t("dpia.draft.ico")}
         hint={t("dpia.draft.icoHint")}
@@ -262,7 +279,7 @@ export function DraftForm({
           {pending ? t("common.saving") : t("dpia.draft.save")}
         </Button>
       </div>
-      <ManageFeedback result={result} path={DPIA_PAGE} />
+      <ManageFeedback result={result} path={DPIA_PAGE} fieldIds={ids} />
     </form>
   );
 }

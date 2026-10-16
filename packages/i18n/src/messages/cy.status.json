@@ -1647,6 +1647,7 @@
     "dpia.sign.submit",
     "dpia.sign.stepUp",
     "dpia.done",
+    "dpia.draft.icoRequired",
     "shell.nav.onboarding",
     "onboarding.title",
     "onboarding.description",

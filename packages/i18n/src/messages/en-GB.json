@@ -1646,6 +1646,7 @@
   "dpia.sign.submit": "Sign the DPIA",
   "dpia.sign.stepUp": "Signing the DPIA needs you to confirm it is you with your passkey or a code from your authenticator app. Then come back to this page and sign again.",
   "dpia.done": "{done, select, settings {Responsibilities saved.} saved {DPIA saved.} prepared {DPIA marked ready to sign. Ask your data protection lead to sign it.} signed {DPIA signed.} other {Done}}",
+  "dpia.draft.icoRequired": "Record the ICO consultation reference: a risk stays high after your measures, so consult the ICO before going ahead",
   "shell.nav.onboarding": "Getting started",
   "onboarding.title": "Getting started",
   "onboarding.description": "What your organisation needs before it goes live on Harbour. Each item is worked out from your records, so it shows as done only when it is.",

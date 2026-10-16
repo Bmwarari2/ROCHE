@@ -170,7 +170,12 @@ only when they link spec, code, tests and user documentation; no user guides exi
      every item out from the records; the go-live check now reads the escalation policy links
      (HZ-014).
    - Web, the DPIA page (`feat/web-dpia-onboarding`, platform-completions.md section 10f): the
-     governance, preparing and signing in-app, with step-up notices and a journey with axe.
+     governance, preparing and signing in-app, with step-up notices and a journey with axe. The
+     signing form is offered only to the named lead who prepared none of it. Open: the typed name
+     is checked for length and bound to the version's SHA-256, never against the signer's account
+     name (the API records the session's member as signer); decide whether it must match before a
+     pilot. `db:seed` now refuses to seed the demo tenant in production unless
+     `HARBOUR_SEED_DEMO=0` (reference data only).
    - Web, the onboarding checklist page (`feat/web-onboarding-checklist`, section 10g): every
      item from the records, with the decisions recorded on the page. Next: sub-processor notices
      (rules 24 and 25), then sample data mode.
