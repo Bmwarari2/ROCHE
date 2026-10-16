@@ -80,8 +80,8 @@ async function releasedPack(): Promise<{ packId: string; linkId: string; token: 
 async function codeFor(token: string): Promise<string> {
   const response = await post("/p/evidence/code", { token });
   expect(response.status).toBe(202);
-  const title = h.handle.services.mockEmail.sent.at(-1)?.title ?? "";
-  return /(\d{6})/.exec(title)?.[1] as string;
+  const body = h.handle.services.mockEmail.sent.at(-1)?.body ?? "";
+  return /(\d{6})/.exec(body)?.[1] as string;
 }
 
 const cookieOf = (response: Response) =>
@@ -121,8 +121,16 @@ describe("hazard HZ-050 the evidence pack link opens only for its recipient's ow
   it("sends a six-digit code to the bound address alone, kept as an HMAC under the server key", async () => {
     const code = await codeFor(pack.token);
     const mail = h.handle.services.mockEmail.sent.at(-1);
-    expect(mail).toMatchObject({ to: "ivy@example.invalid", link: null });
-    expect(mail?.title).not.toContain(pack.token);
+    expect(mail).toMatchObject({
+      to: "ivy@example.invalid",
+      link: null,
+      title: "Your code to open an evidence pack",
+    });
+    // The code is in the body only, never in the subject an inbox preview shows (H-225).
+    expect(mail?.title).not.toMatch(/\d{6}/);
+    expect(mail?.body).toContain(`Your code is ${code}.`);
+    expect(mail?.body).toContain("If you did not ask for this code");
+    expect(`${mail?.title}${mail?.body}`).not.toContain(pack.token);
     const [row] = await sql<{ code_hash: string }>(
       "SELECT code_hash FROM evidence_pack_link_code WHERE link_id = $1",
       [pack.linkId],

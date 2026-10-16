@@ -29,6 +29,7 @@ import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
+import { letterTemplatesRouter } from "./routes/letter-templates";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
@@ -235,6 +236,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
   app.route("/", evidenceLinkRouter);
+  app.route("/", letterTemplatesRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);

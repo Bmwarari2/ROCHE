@@ -1,10 +1,11 @@
 "use client";
 
-import type { EscalationPolicyRef, PersonCareProfile } from "@harbour/contracts";
+import type { EscalationPolicyRef, OutageItem, PersonCareProfile } from "@harbour/contracts";
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
 import { Lock, TriangleAlert } from "lucide-react";
 import { type FormEvent, useRef, useState, useTransition } from "react";
 import { recordObservation } from "@/app/actions/care-record";
+import { keptForReview, PAPER_FIELDS, paperWritten, readEntryWhen } from "@/lib/back-entry";
 import { IDDSI_DRINK_LEVELS, IDDSI_FOOD_LEVELS, iddsiLabel } from "@/lib/care-record";
 import {
   AMOUNTS,
@@ -21,9 +22,9 @@ import {
 } from "@/lib/chart-entry";
 import { type ChartKind, type News2Flags, news2FromFlags } from "@/lib/charts";
 import { t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal } from "@/lib/outcome";
+import { type ActionResult, collectedRefusal, errorFor, partsFor } from "@/lib/outcome";
 import type { CareProfileLoad } from "@/lib/record-data";
-import { readWhen } from "@/lib/uk-time";
+
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { News2Result } from "./News2Result";
@@ -33,7 +34,7 @@ import { WhenField } from "./WhenField";
 type Profile = Pick<PersonCareProfile, "iddsiFoodLevel" | "iddsiDrinkLevel" | "spo2Scale2">;
 type Field = ChartField;
 type Ids = Readonly<Record<Field, string>>;
-const FIELDS = CHART_FIELDS;
+const FIELDS = [...CHART_FIELDS, ...PAPER_FIELDS] as const;
 
 function isRefusal(value: unknown): value is ActionResult<never> {
   return typeof value === "object" && value !== null && "ok" in value;
@@ -101,12 +102,15 @@ const numberField = { type: "text", inputMode: "decimal", autoComplete: "off" } 
 /** Record one chart entry for a person (care.md rule 6; register row CARE-010). */
 export function ChartEntryForm({
   personId,
+  outages = [],
   chart,
   profile,
   profileKind,
   name,
 }: {
   readonly personId: string;
+  /** Outages a paper record can be entered against at the person's location. */
+  readonly outages?: readonly OutageItem[];
   readonly chart: ChartKind;
   readonly profile: Profile | null;
   /** Whether the person viewing could read the care profile (levels and SpO2 scale). */
@@ -118,6 +122,8 @@ export function ChartEntryForm({
   const [news2, setNews2] = useState<News2Flags | null>(null);
   // The organisation's escalation policy the save returned, shown with the result (#26 round 3).
   const [policy, setPolicy] = useState<EscalationPolicyRef | null>(null);
+  // A reading entered from paper: its result says it is from then (HZ-017).
+  const [paperAt, setPaperAt] = useState<string | null>(null);
   const [round, setRound] = useState(0);
   const [noMovement, setNoMovement] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -139,22 +145,27 @@ export function ChartEntryForm({
       setResult(values);
       return;
     }
-    const when = readWhen(form, "occurredAt", t);
+    const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) {
-      setResult(partsRefusal("occurredAt", when));
+      setResult(collectedRefusal(when.problems));
       return;
     }
     startTransition(async () => {
       const outcome = await recordObservation(personId, {
         id: entry.id,
         occurredAt: when.instant,
+        downtime: when.downtime,
         sentAt: new Date().toISOString(),
         values,
       });
       setResult(outcome);
       setNews2(outcome.ok ? news2FromFlags(outcome.data.flags) : null);
+      setPaperAt(
+        outcome.ok && outcome.data.backEntry ? paperWritten(outcome.data.backEntry) : null,
+      );
       setPolicy(outcome.ok ? outcome.data.escalationPolicy : null);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setNoMovement(false);
         entry.next();
@@ -423,6 +434,12 @@ export function ChartEntryForm({
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
+          paper={{
+            outages,
+            ids,
+            result,
+            ...(chart === "vitals" ? { notice: t("care.paper.readingBefore") } : {}),
+          }}
         />
         <div>
           <Button type="submit" disabled={pending}>
@@ -437,7 +454,13 @@ export function ChartEntryForm({
         {...(chart === "vitals" ? { focusOnSuccess: news2Ref } : {})}
       />
       {news2 && result?.ok ? (
-        <News2Result news2={news2} escalationPolicy={policy} headingLevel={4} ref={news2Ref} />
+        <News2Result
+          news2={news2}
+          escalationPolicy={policy}
+          headingLevel={4}
+          ref={news2Ref}
+          paperAt={paperAt}
+        />
       ) : null}
     </div>
   );
