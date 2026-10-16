@@ -8,6 +8,7 @@ import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { roundShown } from "@/lib/round";
+import { teamShown } from "@/lib/team";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -52,6 +53,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
