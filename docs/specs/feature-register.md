@@ -237,7 +237,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | COMMS-003 | Person's own portal (About Me, notes feed, preferences, feedback) | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-004 | Time-limited professional access | 15.1 | 4 | todo | - | - | - | - |
 | COMMS-005 | Internal messaging and announcements | 15.1 | 4 | todo | - | - | - | - |
-| COMMS-006 | Handover acknowledgement | 15.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts`, `packages/db/src/schema/care.ts` (`handover_acknowledgement`), `apps/api/src/routes/handovers.ts` | `packages/domain/src/care/handover.test.ts`, `packages/db/test/handover.test.ts`, `apps/api/test/rounds-and-handover.test.ts` | - |
+| COMMS-006 | Handover acknowledgement | 15.1 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/handover.ts`, `packages/db/src/schema/care.ts` (`handover_acknowledgement`), `apps/api/src/routes/handovers.ts`; web `apps/web/src/app/(shell)/handover`, `apps/web/src/lib/handover.ts` | `packages/domain/src/care/handover.test.ts`, `packages/db/test/handover.test.ts`, `apps/api/test/rounds-and-handover.test.ts`, `apps/web/src/lib/handover.test.ts`, `apps/web/e2e/handover.spec.ts` | - |
 | COMMS-007 | Letter and email templates with approval | 15.1 | 1 | partial | [comms](comms.md#letter-and-email-templates-comms-007-hz-051) | `packages/domain/src/comms/templates.ts`, `template-style.ts` | `packages/domain/src/comms/templates.test.ts`, `template-style.test.ts` | - |
 | COMMS-008 | Optional public website module with vacancies, fees, rating widget and enquiry form | 15.1 | 4 | todo | - | - | - | - |
 | INSI-001 | Role dashboards | 15.2 | 1 | todo | - | - | - | - |
