@@ -1,3 +1,4 @@
+import { createHash, createPrivateKey, createPublicKey } from "node:crypto";
 import { DEMO, type DemoUserKey, linkDemoUser } from "@harbour/db/seed";
 import pg from "pg";
 import { createApp } from "../src/app";
@@ -11,11 +12,47 @@ import { createLogger } from "../src/logger";
  * Password from HARBOUR_DEMO_PASSWORD (local default below). With HARBOUR_DEMO_MFA=off the demo
  * users may open care records without TOTP, for local end-to-end tests only; never on dev or staging.
  * Optionally HARBOUR_DEMO_OWNER_EMAIL makes the owner account use that address (e.g. Brian's, so
- * he can register a passkey on dev).
+ * he can register a passkey on dev). With HARBOUR_DEMO_E2E_PASSKEY=1 the demo manager also gets a
+ * passkey whose key anyone can derive (`e2ePasskey`), so the web journeys step up with a second
+ * factor as a person would (ADR-0072 amendment); local end-to-end tests only, never on dev or
+ * staging.
  */
 /** A second demo home and its one resident, outside Harbour House staff's reach. */
 const MEWS_LOCATION = "0194d000-0000-7000-8000-000000000150";
 const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
+
+/**
+ * The end-to-end passkey: a P-256 key derived from a published phrase, so it is no secret and
+ * proves nothing outside a local test database. apps/web/e2e/support.ts derives the same key for
+ * Chromium's virtual authenticator. Returns the COSE public key Better Auth stores (base64) and the
+ * credential id (base64url).
+ */
+function e2ePasskey(): { publicKey: string; credentialId: string } {
+  const digest = (label: string) =>
+    createHash("sha256").update(`harbour e2e demo passkey: ${label}`).digest();
+  // PKCS#8 for a P-256 private key, the scalar appended (RFC 5915, public key omitted).
+  const key = createPrivateKey({
+    key: Buffer.concat([
+      Buffer.from("3041020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420", "hex"),
+      digest("key"),
+    ]),
+    format: "der",
+    type: "pkcs8",
+  });
+  const jwk = createPublicKey(key).export({ format: "jwk" });
+  const coordinate = (value: string | undefined) => Buffer.from(value ?? "", "base64url");
+  // COSE_Key (RFC 9053): {1: 2 (EC2), 3: -7 (ES256), -1: 1 (P-256), -2: x, -3: y}.
+  const cose = Buffer.concat([
+    Buffer.from([0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x58, 0x20]),
+    coordinate(jwk.x),
+    Buffer.from([0x22, 0x58, 0x20]),
+    coordinate(jwk.y),
+  ]);
+  return {
+    publicKey: cose.toString("base64"),
+    credentialId: digest("credential").subarray(0, 16).toString("base64url"),
+  };
+}
 
 const config = loadConfig();
 if (config.NODE_ENV === "production") throw new Error("seed-users is for development only");
@@ -51,6 +88,18 @@ try {
     }
     await linkDemoUser(owner, key, authUserId);
     console.log(`Linked demo ${key}`);
+    if (key === "manager" && process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
+      const passkey = e2ePasskey();
+      await services.authPool.query(
+        `INSERT INTO auth.passkey (id, name, public_key, user_id, credential_id, counter,
+                                   device_type, backed_up, transports, created_at)
+         VALUES ('e2e-demo-manager-passkey', 'End-to-end test passkey', $1, $2, $3, 0,
+                 'singleDevice', false, 'internal', now())
+         ON CONFLICT (id) DO NOTHING`,
+        [passkey.publicKey, authUserId, passkey.credentialId],
+      );
+      console.log("The demo manager has the end-to-end passkey (local testing only)");
+    }
   }
   // A second home with one invented resident nobody at Harbour House can see, so the web
   // journeys can open a record by break-glass and see it is for reading only (ADR-0071 review

@@ -1991,3 +1991,10 @@ After #63 review round 2: the first-enrolment verdict is kept per request, not p
 right code sent alongside a wrong one, or two right codes in parallel, on the enrolling session
 record no factor (tests with parallel requests). The person confirms a code on the session or signs
 in with the new factor before it counts.
+
+After #63 hosted e2e: the step-up journeys sign in with a password alone, which no longer steps up.
+`seed-users` with `HARBOUR_DEMO_E2E_PASSKEY=1` (CI and `ci-local.sh` only) gives the demo manager a
+passkey derived from a published phrase; `e2e/support.ts` loads the same key into Chromium's
+virtual authenticator (`addManagerPasskey`, `signInManagerWithPasskey`). Break-glass now asserts
+that a password-only session gets "Confirm it is you", then confirms with the passkey and opens the
+record; the death notification and "not required" journeys sign the manager in with the passkey.
