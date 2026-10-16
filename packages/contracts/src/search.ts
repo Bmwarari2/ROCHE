@@ -137,7 +137,10 @@ export const BreakGlassSearchResults = z
         sameName: z.boolean(),
       }),
     ),
+    /** The people shown, at most the page size; `more` says others match too. */
     total: z.number().int(),
+    /** More people match than are shown: the searcher should add a word or use the NHS number. */
+    more: z.boolean(),
     /** The break-glass record holding the reason; opening a result is a separate break-glass step. */
     breakGlassId: uuid,
   })

@@ -47,8 +47,22 @@ const code = async (r: Response) => ((await r.json()) as { code: string }).code;
 interface Found {
   items: { id: string; name: string; dateOfBirth: string | null; nhsNumber: string | null }[];
   total: number;
+  more: boolean;
   breakGlassId: string;
 }
+
+/** The unrouted alert audited for one search record, if any. */
+const unrouted = async (resourceId: string) =>
+  (
+    await sql<{ reason: string }>(
+      `SELECT reason FROM audit_event WHERE action = 'platform.search.break_glass_alert_unrouted'
+       AND resource_id = $1`,
+      [resourceId],
+    )
+  ).map((r) => r.reason);
+
+const setLeadStatus = (status: string) =>
+  sql("UPDATE tenant_user SET status = $1 WHERE id = $2", [status, DEMO.users.nurse.id]);
 
 beforeAll(async () => {
   h = await createHarness();
@@ -107,6 +121,15 @@ describe("hazard HZ-011 break-glass search", () => {
       title: "A break-glass search was made",
       recipient: DEMO.users.nurse.id,
     });
+    // The lodge has no Registered Manager: the alert that could not go there is audited.
+    expect(await unrouted(found.breakGlassId)).toEqual(["no_registered_manager"]);
+
+    // The record keeps the home shown, for the weekly report.
+    const [shown] = await sql<{ shown_location_ids: string[] }>(
+      "SELECT shown_location_ids FROM break_glass_event WHERE id = $1",
+      [found.breakGlassId],
+    );
+    expect(shown?.shown_location_ids).toEqual([LODGE.locationId]);
 
     // Nothing widened: ordinary search and the record itself stay closed to the manager.
     const ordinary = await post("manager", "/v1/search", { query: "Gwen Outofscope" });
@@ -156,6 +179,36 @@ describe("hazard HZ-011 break-glass search", () => {
     expect(told.map((t) => t.recipient).sort()).toEqual(
       [DEMO.users.manager.id, DEMO.users.nurse.id].sort(),
     );
+    expect(await unrouted(found.breakGlassId)).toEqual([]);
+  });
+
+  it("never tells a suspended data protection lead, and audits the alert as unrouted", async () => {
+    await setLeadStatus("suspended");
+    try {
+      const found = (await (await breakGlass("manager", "Gwen Outofscope")).json()) as Found;
+      const told = await sql("SELECT 1 FROM notification WHERE source_id = $1", [
+        found.breakGlassId,
+      ]);
+      expect(told).toEqual([]);
+      expect(await unrouted(found.breakGlassId)).toEqual([
+        "no_registered_manager,no_data_protection_lead",
+      ]);
+    } finally {
+      await setLeadStatus("active");
+    }
+  });
+
+  it("hazard HZ-001: never says more were found than are shown, and asks for a narrower search", async () => {
+    await sql(
+      `INSERT INTO person (location_id, status, given_name, family_name)
+       SELECT $1, 'active', 'Bea', 'Manyfold' FROM generate_series(1, 11)`,
+      [LODGE.locationId],
+    );
+    const found = (await (await breakGlass("owner", "Bea Manyfold")).json()) as Found;
+    expect(found.items).toHaveLength(10);
+    expect(found).toMatchObject({ total: 10, more: true });
+    const one = (await (await breakGlass("owner", "Gwen Outofscope")).json()) as Found;
+    expect(one).toMatchObject({ total: 1, more: false });
   });
 
   it("refuses at the daily limit from the rate table and tells the data protection lead", async () => {
@@ -170,12 +223,15 @@ describe("hazard HZ-011 break-glass search", () => {
     // What is left of the owner's searches today (one was made above).
     const limit = Number(rate?.value) - Number(used?.n ?? 0);
     expect(limit).toBeGreaterThan(0);
-    const statuses: number[] = [];
-    for (let n = 0; n <= limit; n += 1) {
-      statuses.push((await breakGlass("owner", "Gwen Outofscope")).status);
-    }
-    expect(statuses.slice(0, limit).every((s) => s === 200)).toBe(true);
-    expect(statuses[limit]).toBe(429);
+    // All at once: the lock on the user lets exactly the searches left through.
+    const statuses = await Promise.all(
+      Array.from(
+        { length: limit + 2 },
+        async () => (await breakGlass("owner", "Gwen Outofscope")).status,
+      ),
+    );
+    expect(statuses.filter((s) => s === 200)).toHaveLength(limit);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(2);
     const told = await sql<{ title: string }>(
       `SELECT title FROM notification WHERE kind = 'platform.search.break_glass_limit'
        AND recipient_tenant_user_id = $1`,
@@ -186,5 +242,14 @@ describe("hazard HZ-011 break-glass search", () => {
       "SELECT scope FROM audit_event WHERE action = 'platform.search.refused' ORDER BY occurred_at DESC LIMIT 1",
     );
     expect(refused?.scope).toMatchObject({ problem: "rate_limited", breakGlass: true });
+
+    // With no active data protection lead, the refusal is still made and the alert audited.
+    await setLeadStatus("suspended");
+    try {
+      expect((await breakGlass("owner", "Gwen Outofscope")).status).toBe(429);
+      expect(await unrouted(DEMO.users.owner.id)).toEqual(["no_data_protection_lead"]);
+    } finally {
+      await setLeadStatus("active");
+    }
   });
 });

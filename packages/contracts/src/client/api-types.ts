@@ -20524,6 +20524,7 @@ export interface components {
         sameName: boolean;
       }[];
       total: number;
+      more: boolean;
       /** Format: uuid */
       breakGlassId: string;
     };

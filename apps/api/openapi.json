@@ -695,6 +695,9 @@
           "total": {
             "type": "integer"
           },
+          "more": {
+            "type": "boolean"
+          },
           "breakGlassId": {
             "type": "string",
             "format": "uuid"
@@ -703,6 +706,7 @@
         "required": [
           "items",
           "total",
+          "more",
           "breakGlassId"
         ]
       },

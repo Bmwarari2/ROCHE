@@ -1783,6 +1783,7 @@
     "platform.breakGlassSearch.stepUp",
     "platform.breakGlassSearch.limit",
     "platform.breakGlassSearch.readOnly",
-    "platform.breakGlassSearch.none"
+    "platform.breakGlassSearch.none",
+    "platform.breakGlassSearch.more"
   ]
 }

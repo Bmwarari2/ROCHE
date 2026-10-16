@@ -22,7 +22,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { rateNumber } from "../services/rates";
-import { roleHolders } from "../services/role-holders";
+import { roleHolders, toldOf } from "../services/role-holders";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 import { audit } from "./people-shared";
 
@@ -36,8 +36,45 @@ import { audit } from "./people-shared";
  * are withheld until the record is opened through the ordinary break-glass step. The typed reason
  * is kept once, in a `search` break-glass record that opens nothing; the search alerts the
  * Registered Manager of each home whose people were shown and the data protection lead; reaching
- * the daily limit refuses and tells the data protection lead. Audited with ids only.
+ * the daily limit refuses and tells the data protection lead. Anyone who could not be told (no
+ * Registered Manager in force at a home shown, or no active data protection lead) is audited as
+ * unrouted. The count and the record are taken under a lock on the user, so two searches at once
+ * cannot both pass the limit. Audited with ids only; the weekly report lists searches by home shown.
  */
+
+/** Recipients of a break-glass search alert who could not be told, as a coded audit reason. */
+export type UnroutedReason = "no_registered_manager" | "no_data_protection_lead";
+
+type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
+
+/** The data protection lead named on the organisation, if they may be told now (`toldOf`). */
+async function activeLead(tx: Tx, tenantId: string): Promise<string | null> {
+  const [org] = await tx
+    .select({ lead: tenant.dataProtectionLeadId })
+    .from(tenant)
+    .where(eq(tenant.id, tenantId));
+  if (!org?.lead) return null;
+  return (await toldOf(tx, [org.lead])).has(org.lead) ? org.lead : null;
+}
+
+async function auditUnrouted(
+  tx: Tx,
+  resourceType: string,
+  resourceId: string,
+  reasons: readonly UnroutedReason[],
+  locationIds: readonly string[],
+): Promise<void> {
+  if (reasons.length === 0) return;
+  await tx.insert(auditEvent).values({
+    tenantId: sql`app.current_tenant_id()`,
+    action: "platform.search.break_glass_alert_unrouted",
+    outcome: "error",
+    resourceType,
+    resourceId,
+    reason: reasons.join(","),
+    scope: { locationIds: [...locationIds] },
+  });
+}
 
 const TENANT_WIDE = {
   scope: "tenant" as const,
@@ -93,6 +130,10 @@ export const breakGlassSearchRouter = createRouter().openapi(
     let limitReached = false;
     const out = await withAuditedRefusal(c, access, () =>
       withTenant(c, async (tx) => {
+        // One search at a time per user: the count and the insert below cannot interleave.
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`break_glass_search:${access.tenantUserId}`}))`,
+        );
         const [used] = await inScopeOf(tx, TENANT_WIDE, () =>
           tx
             .select({ n: count() })
@@ -142,20 +183,6 @@ export const breakGlassSearchRouter = createRouter().openapi(
           });
         }
         const plan = checked.plan;
-        const [record] = await tx
-          .insert(breakGlassEvent)
-          .values({
-            tenantUserId: access.tenantUserId,
-            kind: "search",
-            personId: null,
-            justification: body.reason.trim(),
-            reasonCode: body.reasonCode,
-            openedAt: now,
-            expiresAt: now,
-          })
-          .returning({ id: breakGlassEvent.id });
-        if (!record) throw problems.conflict();
-
         const query = plan.query;
         const statuses = plan.personStatuses.join(",");
         const where =
@@ -192,20 +219,41 @@ export const breakGlassSearchRouter = createRouter().openapi(
           assignedToActor: false,
         }));
         const page = filterSearchResults(plan, hits, now);
+        const alert = breakGlassSearchAlert(page);
+
+        // The record holds the reason once, and the homes whose people were shown (for the weekly
+        // report); it opens nothing.
+        const [record] = await tx
+          .insert(breakGlassEvent)
+          .values({
+            tenantUserId: access.tenantUserId,
+            kind: "search",
+            personId: null,
+            shownLocationIds: [...alert.locationIds],
+            justification: body.reason.trim(),
+            reasonCode: body.reasonCode,
+            openedAt: now,
+            expiresAt: now,
+          })
+          .returning({ id: breakGlassEvent.id });
+        if (!record) throw problems.conflict();
 
         // The alert, as soon as the search runs: the Registered Manager of each home whose people
         // were shown, and the data protection lead; never the searcher themselves.
-        const alert = breakGlassSearchAlert(page);
-        const [org] = await tx
-          .select({ lead: tenant.dataProtectionLeadId })
-          .from(tenant)
-          .where(eq(tenant.id, access.tenantId));
-        const recipients = [
-          ...new Set([
-            ...(await roleHolders(tx, ["registered_manager"], alert.locationIds, now)),
-            ...(org?.lead ? [org.lead] : []),
-          ]),
-        ].filter((id) => id !== access.tenantUserId);
+        const unrouted: UnroutedReason[] = [];
+        const managers = new Set<string>();
+        for (const locationId of alert.locationIds) {
+          const atHome = await roleHolders(tx, ["registered_manager"], [locationId], now);
+          if (atHome.length === 0 && !unrouted.includes("no_registered_manager")) {
+            unrouted.push("no_registered_manager");
+          }
+          for (const id of atHome) managers.add(id);
+        }
+        const lead = await activeLead(tx, access.tenantId);
+        if (!lead) unrouted.push("no_data_protection_lead");
+        const recipients = [...new Set([...managers, ...(lead ? [lead] : [])])].filter(
+          (id) => id !== access.tenantUserId,
+        );
         for (const recipient of recipients) {
           await tx.insert(notification).values({
             recipientTenantUserId: recipient,
@@ -220,17 +268,7 @@ export const breakGlassSearchRouter = createRouter().openapi(
             dedupeKey: `break_glass_search:${record.id}:${recipient}`,
           });
         }
-        if (recipients.length === 0) {
-          await tx.insert(auditEvent).values({
-            tenantId: sql`app.current_tenant_id()`,
-            action: "platform.search.break_glass_alert_unrouted",
-            outcome: "error",
-            resourceType: "break_glass_event",
-            resourceId: record.id,
-            reason: "no_recipient",
-            scope: { locationIds: alert.locationIds },
-          });
-        }
+        await auditUnrouted(tx, "break_glass_event", record.id, unrouted, alert.locationIds);
         const event = searchAuditEvent(plan, page, { breakGlassRecordId: record.id });
         await audit(c, tx, access, {
           action: event.action,
@@ -254,7 +292,9 @@ export const breakGlassSearchRouter = createRouter().openapi(
               sameName: sameName.has(hit.id),
             };
           }),
-          total: page.total,
+          // At most the page: never "11 found" when the 11th row only shows there are more.
+          total: page.items.length,
+          more: page.hasMore,
           breakGlassId: record.id,
         };
       }),
@@ -278,23 +318,26 @@ async function refuseAtLimit(
   const now = new Date();
   const alert = breakGlassSearchAlert(null, true);
   await withTenant(c, async (tx) => {
-    const [org] = await tx
-      .select({ lead: tenant.dataProtectionLeadId })
-      .from(tenant)
-      .where(eq(tenant.id, access.tenantId));
-    if (org?.lead && org.lead !== access.tenantUserId) {
-      await tx.insert(notification).values({
-        recipientTenantUserId: org.lead,
-        kind: "platform.search.break_glass_limit",
-        severity: "warning",
-        title: alert.title,
-        body: alert.body,
-        link: "/settings/audit",
-        channels: ["in_app", "push"],
-        sourceType: "tenant_user",
-        sourceId: access.tenantUserId,
-        dedupeKey: `break_glass_search_limit:${access.tenantUserId}:${now.toISOString().slice(0, 10)}`,
-      });
+    const lead = await activeLead(tx, access.tenantId);
+    if (!lead) {
+      await auditUnrouted(tx, "tenant_user", access.tenantUserId, ["no_data_protection_lead"], []);
+    } else if (lead !== access.tenantUserId) {
+      await tx
+        .insert(notification)
+        .values({
+          recipientTenantUserId: lead,
+          kind: "platform.search.break_glass_limit",
+          severity: "warning",
+          title: alert.title,
+          body: alert.body,
+          link: "/settings/audit",
+          channels: ["in_app", "push"],
+          sourceType: "tenant_user",
+          sourceId: access.tenantUserId,
+          dedupeKey: `break_glass_search_limit:${access.tenantUserId}:${now.toISOString().slice(0, 10)}`,
+        })
+        // Told once a day: a second refusal the same day is still refused, without a second alert.
+        .onConflictDoNothing();
     }
   });
   const event = searchRefusalAuditEvent("rate_limited", ["person"]);

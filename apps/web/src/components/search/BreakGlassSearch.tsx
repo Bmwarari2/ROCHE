@@ -131,6 +131,11 @@ export function BreakGlassSearch() {
           <p className="m-0 text-body-dense text-text-secondary">
             {t("platform.breakGlassSearch.readOnly")}
           </p>
+          {found.more ? (
+            <p className="m-0 font-semibold">
+              {t("platform.breakGlassSearch.more", { count: found.total })}
+            </p>
+          ) : null}
           {found.items.length === 0 ? (
             <p className="m-0">{t("platform.breakGlassSearch.none")}</p>
           ) : (

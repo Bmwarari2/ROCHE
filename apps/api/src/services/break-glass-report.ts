@@ -10,6 +10,7 @@ import {
   breakGlassWeeklyReport as aggregate,
   type BreakGlassEventView,
   type BreakGlassReasonCode,
+  type BreakGlassSearchView,
   type BreakGlassWeek,
   PEOPLE_RATE_KEYS,
   previousBreakGlassReportWeek,
@@ -75,6 +76,34 @@ export async function eventsInWeek(
   );
 }
 
+/**
+ * The week's break-glass searches, each with the homes whose people it showed. A search that
+ * showed no one at a home (no match, or only people without a home) has no locations: the report
+ * puts it in every home's report so it is still reported weekly (master prompt section 4).
+ */
+export async function searchesInWeek(
+  tx: Transaction,
+  week: BreakGlassWeek,
+): Promise<(BreakGlassSearchView & { locationIds: readonly string[] })[]> {
+  const rows = await tx
+    .select({
+      id: breakGlassEvent.id,
+      tenantUserId: breakGlassEvent.tenantUserId,
+      reasonCode: breakGlassEvent.reasonCode,
+      openedAt: breakGlassEvent.openedAt,
+      locationIds: breakGlassEvent.shownLocationIds,
+    })
+    .from(breakGlassEvent)
+    .where(
+      and(
+        eq(breakGlassEvent.kind, "search"),
+        gte(breakGlassEvent.openedAt, week.start),
+        lt(breakGlassEvent.openedAt, week.end),
+      ),
+    );
+  return rows.map((r) => ({ ...r, reasonCode: r.reasonCode as BreakGlassReasonCode | null }));
+}
+
 /** Builds and stores last week's report for each location of one tenant (tenant-wide scope). */
 export async function generateBreakGlassReports(
   tx: Transaction,
@@ -84,6 +113,7 @@ export async function generateBreakGlassReports(
   const week = previousBreakGlassReportWeek(now);
   const threshold = await rateNumber(tx, tenantId, PEOPLE_RATE_KEYS.breakGlassRepeatThreshold);
   const events = await eventsInWeek(tx, week);
+  const searches = await searchesInWeek(tx, week);
   const locations = await tx
     .select({ id: location.id })
     .from(location)
@@ -95,6 +125,7 @@ export async function generateBreakGlassReports(
       events.filter((e) => e.locationId === locationId),
       week,
       threshold,
+      searches.filter((e) => e.locationIds.length === 0 || e.locationIds.includes(locationId)),
     );
     const [inserted] = await tx
       .insert(breakGlassWeeklyReport)
@@ -117,7 +148,10 @@ export async function generateBreakGlassReports(
         .values({
           recipientTenantUserId: recipient,
           kind: "people.break_glass_report",
-          severity: report.flagged.length > 0 ? "warning" : "info",
+          severity:
+            report.flagged.length > 0 || report.searches.byUser.some((u) => u.flags.length > 0)
+              ? "warning"
+              : "info",
           title: "The weekly break-glass report is ready",
           body: "Open the report to review last week's break-glass access.",
           link: "/break-glass/weekly-report",
@@ -138,6 +172,7 @@ export async function generateBreakGlassReports(
         locationId,
         weekStart: week.start.toISOString(),
         totalEvents: report.totalEvents,
+        searches: report.searches.total,
         flagged: report.flagged.length,
       },
     });

@@ -815,6 +815,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       person_id: {
         description: "The person whose record was opened (person.id); empty for a search.",
       },
+      shown_location_ids: {
+        description:
+          "For a search, the homes whose people were shown (location.id), for the weekly report.",
+      },
       justification: {
         description: "The typed justification for opening or finding a record outside scope.",
       },

@@ -355,6 +355,11 @@ export const breakGlassEvent = pgTable(
     kind: text("kind").notNull().default("open"),
     /** The person opened; null for a search, whose people shown are in its audit event. */
     personId: uuid("person_id"),
+    /**
+     * For a search, the homes whose people were shown (location ids, for the weekly report);
+     * empty for an opening, whose home is the person's.
+     */
+    shownLocationIds: uuid("shown_location_ids").array().notNull().default(sql`'{}'::uuid[]`),
     justification: text("justification").notNull(),
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

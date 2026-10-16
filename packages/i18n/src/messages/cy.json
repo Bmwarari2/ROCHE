@@ -1782,5 +1782,6 @@
   "platform.breakGlassSearch.stepUp": "Searching outside your access needs your passkey or authenticator code. Sign in again, then search again; what you typed is not kept.",
   "platform.breakGlassSearch.limit": "You have made the most break-glass searches allowed in 24 hours. The data protection lead has been told.",
   "platform.breakGlassSearch.readOnly": "For identifying the person only. To read their record, open it and use break-glass there.",
-  "platform.breakGlassSearch.none": "No one matches. Check the full name or the NHS number."
+  "platform.breakGlassSearch.none": "No one matches. Check the full name or the NHS number.",
+  "platform.breakGlassSearch.more": "More than {count, number} people match. Only the first {count, number} are shown: add another word of the name, or use the NHS number."
 }
