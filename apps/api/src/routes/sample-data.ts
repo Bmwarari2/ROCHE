@@ -1,5 +1,5 @@
 import { SampleDataBatch } from "@harbour/contracts";
-import { location, person, sampleBatch, type Transaction } from "@harbour/db";
+import { location, person, sampleBatch } from "@harbour/db";
 import {
   checkSampleDataLoad,
   SAMPLE_PEOPLE,
@@ -11,8 +11,15 @@ import { createRoute } from "@hono/zod-openapi";
 import { asc, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx, writeAudit } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requirePermission,
+  stepUpRefusal,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem } from "../http/problem";
+import { sampleDataState } from "../services/onboarding";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /**
@@ -33,7 +40,7 @@ const DB_PROBLEMS: readonly SampleDataProblem[] = [
   "remove_sample_data_first",
   "nothing_to_remove",
   "held",
-  "referenced_by_real_records",
+  "referenced_by_other_records",
 ];
 
 /** The database's refusal in the domain's words, or null for any other error. */
@@ -62,14 +69,6 @@ async function refuse(
     requestId: c.get("requestId"),
   });
   throw new HttpProblem(409, check.problem, "Sample data was not changed.", check.message);
-}
-
-/** How many sample and real people the whole organisation has (app.sample_people). */
-async function samplePeople(tx: Transaction): Promise<{ sample: number; real: number }> {
-  const { rows } = await tx.execute<{ sample_count: string; real_count: string }>(
-    sql`SELECT sample_count, real_count FROM app.sample_people()`,
-  );
-  return { sample: Number(rows[0]?.sample_count ?? 0), real: Number(rows[0]?.real_count ?? 0) };
 }
 
 /** Runs `work`, turning the database's sample refusals into audited 409s. */
@@ -110,11 +109,11 @@ export const sampleDataRouter = createRouter()
       const access = await requirePermission(c, "platform.onboarding.manage");
       const body = await guarded(c, access, LOADED, () =>
         withTenant(c, async (tx) => {
-          const counts = await samplePeople(tx);
+          const state = await sampleDataState(tx);
           const check = checkSampleDataLoad({
             access: access.effective,
-            realPeople: counts.real,
-            samplePresent: counts.sample > 0,
+            realPeople: state.hasReal ? 1 : 0,
+            samplePresent: state.hasSample,
           });
           if (!check.ok) return refuse(c, access, LOADED, check);
           const [home] = await tx
@@ -171,12 +170,22 @@ export const sampleDataRouter = createRouter()
       tags: ["platform"],
       summary: "Remove the sample data",
       description:
-        "platform.onboarding.manage. Removes the loaded batch in one step through app.remove_sample_batch: every person in it or none (409 nothing_to_remove, held, referenced_by_real_records). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id and count), refusals here.",
+        "platform.onboarding.manage with a fresh step-up (403 step_up_required). Removes the loaded batch in one step through app.remove_sample_batch: its people and every record made about them while practising, or nothing (409 nothing_to_remove; held while a legal hold is in place; referenced_by_other_records when an outage or downtime pack still refers to them). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id, people and records per table), refusals here.",
       security,
       responses: sampleResponses,
     }),
     async (c) => {
       const access = await requirePermission(c, "platform.onboarding.manage");
+      // Removal deletes every record about the sample people: a fresh second factor first.
+      if (!access.stepUpFresh) {
+        await writeAudit(c.get("services").appPool, access, {
+          action: REMOVED,
+          outcome: "denied",
+          reason: "step_up_required",
+          requestId: c.get("requestId"),
+        });
+        throw stepUpRefusal(access);
+      }
       const body = await guarded(c, access, REMOVED, () =>
         withTenant(c, async (tx) => {
           const [open] = await tx

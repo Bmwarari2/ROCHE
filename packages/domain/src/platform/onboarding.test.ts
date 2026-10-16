@@ -858,17 +858,17 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
   it.each<[string, Parameters<typeof checkSampleDataRemoval>[0], string | null]>([
     [
       "the whole batch, by the owner",
-      { access: accessFor("owner"), rows, realReferences: 0 },
+      { access: accessFor("owner"), rows, otherReferences: 0 },
       null,
     ],
     [
       "by a Registered Manager",
-      { access: accessFor("registered_manager"), rows, realReferences: 0 },
+      { access: accessFor("registered_manager"), rows, otherReferences: 0 },
       "missing_permission",
     ],
     [
       "an empty batch",
-      { access: accessFor("owner"), rows: [], realReferences: 0 },
+      { access: accessFor("owner"), rows: [], otherReferences: 0 },
       "nothing_to_remove",
     ],
     [
@@ -876,19 +876,19 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
       {
         access: accessFor("owner"),
         rows: [...rows, { sample: false, legalHold: false }],
-        realReferences: 0,
+        otherReferences: 0,
       },
       "not_sample",
     ],
     [
       "a held row",
-      { access: accessFor("owner"), rows: [{ sample: true, legalHold: true }], realReferences: 0 },
+      { access: accessFor("owner"), rows: [{ sample: true, legalHold: true }], otherReferences: 0 },
       "held",
     ],
     [
-      "rows real records refer to",
-      { access: accessFor("owner"), rows, realReferences: 2 },
-      "referenced_by_real_records",
+      "rows another record outside the batch refers to",
+      { access: accessFor("owner"), rows, otherReferences: 2 },
+      "referenced_by_other_records",
     ],
   ])("removing %s", (_label, input, problem) => {
     const result = checkSampleDataRemoval(input);

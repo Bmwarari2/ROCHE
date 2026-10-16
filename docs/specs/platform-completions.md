@@ -302,13 +302,17 @@ the second step (TOTP or a passkey) within the step-up window.
     the downtime pack and bulk prints; a single record's print is watermarked; screens show the
     badge. The central outbound guard in the integrations adapter wrapper calls
     `checkOutboundForSample` before any email, SMS, push, webhook or partner message.
-32. **Removed in one step.** Removal deletes the whole batch or nothing: every row must be sample,
-    none under a legal hold, none referred to by a real record (`checkSampleDataRemoval`). The
-    deletion is done by a narrow security-definer function, `app.remove_sample_batch(batch uuid)`,
-    owned by a dedicated no-login role, which deletes only rows
-    `WHERE tenant_id = app.current_tenant_id() AND is_sample AND sample_batch_id = $1`, in the same
-    transaction as the check; `harbour_app` is never granted DELETE. Audit events about sample
-    records stay (opaque ids only) and the removal is audited.
+32. **Removed in one step.** Removal deletes the whole batch or nothing, with a fresh step-up: every
+    person must be sample and none under an active legal hold (`checkSampleDataRemoval`). What staff
+    recorded about the sample people while practising goes with them, hard deleted (they are
+    invented): an allow-list of the tables of records about a person, children before parents, each
+    limited to the organisation and the batch's people; a released legal hold goes too. A record
+    outside that list that still refers to them (an outage, a downtime pack, an escalation policy
+    link) stops the removal (`referenced_by_other_records`). The deletion is done by a narrow
+    security-definer function, `app.remove_sample_batch(batch uuid, request_id text)`, owned by a
+    dedicated no-login role, in the same transaction as the check; `harbour_app` is never granted
+    DELETE, and the append-only triggers allow a delete only inside that function. Audit events
+    about sample records stay (opaque ids only) and the removal is audited with counts per table.
 
 ## 3. Permissions
 

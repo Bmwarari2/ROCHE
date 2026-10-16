@@ -142,13 +142,15 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
     // Every creation path writes a person row, whichever role writes it.
     await expect(asOwner(addRealPerson)).rejects.toThrow(/remove_sample_data_first/);
     await expect(ownerDb(addRealPerson)).rejects.toThrow(/remove_sample_data_first/);
+    // Soft-deleting a sample person does not let a real one in: the open batch decides.
+    await ownerDb((c) =>
+      c.query("UPDATE person SET deleted_at = now() WHERE sample_batch_id = $1", [batch]),
+    );
+    await expect(ownerDb(addRealPerson)).rejects.toThrow(/remove_sample_data_first/);
     await asOwner(remove(batch));
-    await ownerDb(addRealPerson);
-    await expect(asOwner((c) => loadBatch(c))).rejects.toThrow(/real_people_exist/);
-    await ownerDb((c) => c.query("UPDATE person SET deleted_at = now()"));
   });
 
-  it("never turns a person between real and sample", async () => {
+  it("never turns a person between real and sample, nor adds one to a removed batch", async () => {
     const batch = await asOwner((c) => loadBatch(c, 1));
     await expect(
       ownerDb((c) =>
@@ -158,16 +160,26 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
         ),
       ),
     ).rejects.toThrow(/sample_flag_fixed/);
+    await asOwner(remove(batch));
     await expect(
-      ownerDb((c) => c.query("UPDATE person SET is_sample = true WHERE sample_batch_id IS NULL")),
-    ).rejects.toThrow(/sample_flag_fixed|person_sample/);
+      asOwner((c) =>
+        c.query(
+          `INSERT INTO person (location_id, status, nhs_number, given_name, family_name,
+                               date_of_birth, allergy_status, is_sample, sample_batch_id)
+           VALUES ($1, 'active', $2, 'Sam', 'Example', '1940-01-01', 'unknown', true, $3)`,
+          [C.location, nextNhs(), batch],
+        ),
+      ),
+    ).rejects.toThrow(/nothing_to_remove/);
+  });
+
+  it("keeps one batch at a time", async () => {
+    const batch = await asOwner((c) => loadBatch(c, 1));
+    await expect(asOwner((c) => loadBatch(c, 1))).rejects.toThrow(/sample_batch_one_open_key/);
     await asOwner(remove(batch));
   });
 
-  it("removes a whole batch through the function only, audited, and leaves every real row", async () => {
-    const before = await ownerDb((c) =>
-      c.query<{ n: number }>("SELECT count(*)::int AS n FROM person WHERE NOT is_sample"),
-    );
+  it("removes a whole batch through the function only, audited, and leaves every other organisation's rows", async () => {
     const otherBefore = await ownerDb(
       (c) => c.query<{ n: number }>("SELECT count(*)::int AS n FROM person"),
       TENANT_A,
@@ -186,13 +198,12 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
     const { rows } = await asOwner(remove(batch));
     expect(rows).toEqual([{ removed: 3 }]);
     await expect(asOwner(remove(batch))).rejects.toThrow(/nothing_to_remove/);
-    const after = await ownerDb((c) =>
-      c.query<{ sample: number; real: number }>(
-        `SELECT count(*) FILTER (WHERE is_sample)::int AS sample,
-                count(*) FILTER (WHERE NOT is_sample)::int AS real FROM person`,
-      ),
+    const left = await ownerDb((c) =>
+      c.query<{ n: number }>("SELECT count(*)::int AS n FROM person WHERE sample_batch_id = $1", [
+        batch,
+      ]),
     );
-    expect(after.rows).toEqual([{ sample: 0, real: before.rows[0]?.n }]);
+    expect(left.rows).toEqual([{ n: 0 }]);
     const other = await ownerDb(
       (c) => c.query<{ n: number }>("SELECT count(*)::int AS n FROM person"),
       TENANT_A,
@@ -205,60 +216,157 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
         [batch],
       ),
     );
-    expect(audit.rows).toEqual([{ actor: C.owner, scope: { people: 3 } }]);
+    expect(audit.rows).toEqual([{ actor: C.owner, scope: { people: 3, records: {} } }]);
   });
 
-  it("removes nothing while a person in the batch is under a legal hold", async () => {
+  it("removes what staff recorded while practising, and waits only for an active legal hold", async () => {
     const batch = await asOwner((c) => loadBatch(c, 2));
-    const holdId = await ownerDb(async (c) => {
-      const { rows } = await c.query<{ id: string }>(
-        `INSERT INTO legal_hold (person_id, reason)
-         SELECT id, 'Practice hold' FROM person WHERE sample_batch_id = $1 LIMIT 1 RETURNING id`,
-        [batch],
-      );
-      return rows[0]?.id;
-    });
-    await expect(asOwner(remove(batch))).rejects.toThrow(/held/);
-    const left = await ownerDb((c) =>
-      c.query<{ n: number }>("SELECT count(*)::int AS n FROM person WHERE sample_batch_id = $1", [
+    const people = await ownerDb((c) =>
+      c.query<{ id: string }>("SELECT id FROM person WHERE sample_batch_id = $1 ORDER BY id", [
         batch,
       ]),
     );
-    expect(left.rows).toEqual([{ n: 2 }]);
-    // A released hold is still a record about the person, so the batch stays until it goes too.
-    await ownerDb((c) =>
-      c.query("UPDATE legal_hold SET released_at = now() WHERE id = $1", [holdId]),
+    const [ada, ben] = people.rows.map((r) => r.id);
+    await ownerDb(async (c) => {
+      await c.query(
+        "INSERT INTO allergy (person_id, substance, severity) VALUES ($1, 'Practice substance', 'mild')",
+        [ada],
+      );
+      await c.query(
+        `INSERT INTO contact (person_id, role, given_name, family_name, is_next_of_kin)
+         VALUES ($1, 'next_of_kin', 'Eve', 'Example', true)`,
+        [ada],
+      );
+      await c.query(
+        `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+         VALUES ($1, $2, now() - interval '3 hours', 'other', 'Practice note.')`,
+        [ben, C.location],
+      );
+      await c.query(
+        `INSERT INTO observation (person_id, location_id, chart, values, occurred_at)
+         VALUES ($1, $2, 'fluid_intake', '{"ml":200}', now() - interval '3 hours')`,
+        [ben, C.location],
+      );
+    });
+    const hold = await ownerDb((c) =>
+      c.query<{ id: string }>(
+        "INSERT INTO legal_hold (person_id, reason) VALUES ($1, 'Practice hold') RETURNING id",
+        [ada],
+      ),
     );
-    await expect(asOwner(remove(batch))).rejects.toThrow(/referenced_by_real_records/);
-  });
-
-  it("keeps one batch at a time, and removes nothing while another record refers to it", async () => {
-    // The batch from the legal hold case is still in place.
-    const { rows } = await ownerDb((c) =>
-      c.query<{ id: string }>("SELECT id FROM sample_batch WHERE removed_at IS NULL"),
+    await expect(asOwner(remove(batch))).rejects.toThrow(/held/);
+    const kept = await ownerDb((c) =>
+      c.query<{ n: number }>("SELECT count(*)::int AS n FROM care_note WHERE person_id = $1", [
+        ben,
+      ]),
     );
-    const batch = rows[0]?.id ?? "";
-    await expect(asOwner((c) => loadBatch(c, 1))).rejects.toThrow(/sample_batch_one_open_key/);
+    expect(kept.rows).toEqual([{ n: 1 }]);
     await ownerDb((c) =>
+      c.query("UPDATE legal_hold SET released_at = now() WHERE id = $1", [hold.rows[0]?.id]),
+    );
+    const { rows } = await asOwner(remove(batch));
+    expect(rows).toEqual([{ removed: 2 }]);
+    for (const table of ["allergy", "contact", "care_note", "observation", "legal_hold"]) {
+      const left = await ownerDb((c) =>
+        c.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM ${table} WHERE person_id = ANY ($1)`,
+          [[ada, ben]],
+        ),
+      );
+      expect(left.rows, table).toEqual([{ n: 0 }]);
+    }
+    const audit = await ownerDb((c) =>
       c.query(
-        `INSERT INTO allergy (person_id, substance, severity)
-         SELECT id, 'Practice substance', 'mild' FROM person WHERE sample_batch_id = $1`,
+        `SELECT scope FROM audit_event
+          WHERE action = 'platform.onboarding.sample_removed' AND resource_id = $1`,
         [batch],
       ),
     );
-    await expect(asOwner(remove(batch))).rejects.toThrow(/referenced_by_real_records/);
+    expect(audit.rows).toEqual([
+      {
+        scope: {
+          people: 2,
+          records: { allergy: 1, contact: 1, care_note: 1, observation: 1, legal_hold: 1 },
+        },
+      },
+    ]);
+    // The append-only tables still refuse a delete everywhere else, even with the removal's mark.
+    await expect(
+      ownerDb(
+        (c) =>
+          c.query(
+            `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+           SELECT id, location_id, now(), 'other', 'Real note' FROM person
+            WHERE tenant_id = $1 LIMIT 1`,
+            [TENANT_A],
+          ),
+        TENANT_A,
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      ownerDb(async (c) => {
+        await c.query("SELECT set_config('app.sample_removal', 'on', true)");
+        return c.query("DELETE FROM care_note");
+      }, TENANT_A),
+    ).rejects.toThrow(/append-only/);
+  });
+
+  it("removes nothing while a record outside the people's own still refers to them", async () => {
+    const batch = await asOwner((c) => loadBatch(c, 1));
+    await ownerDb(async (c) => {
+      const doc = await c.query<{ id: string }>(
+        `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+                               size_bytes, sha256, person_id)
+         SELECT 'person_document', 'Practice letter', 'care_record', 'k-sample',
+                'application/pdf', 10, repeat('a', 64), id
+           FROM person WHERE sample_batch_id = $1 RETURNING id`,
+        [batch],
+      );
+      await c.query(
+        `INSERT INTO escalation_policy_link (tool_key, band, title, document_id)
+         VALUES ('news2', 'high', 'Practice policy', $1)`,
+        [doc.rows[0]?.id],
+      );
+    });
+    await expect(asOwner(remove(batch))).rejects.toThrow(/referenced_by_other_records/);
     const left = await ownerDb((c) =>
       c.query<{ removed_at: Date | null }>("SELECT removed_at FROM sample_batch WHERE id = $1", [
         batch,
       ]),
     );
     expect(left.rows).toEqual([{ removed_at: null }]);
+    await ownerDb((c) => c.query("DELETE FROM escalation_policy_link"));
+    await expect(asOwner(remove(batch))).resolves.toBeDefined();
   });
 
-  it("counts the whole organisation's sample and real people whatever the caller's scope", async () => {
-    const counts = await inContext(app(), ctx(TENANT_C, C.carer, "none"), (c) =>
-      c.query<{ sample_count: string; real_count: string }>("SELECT * FROM app.sample_people()"),
-    );
-    expect(counts.rows).toEqual([{ sample_count: "2", real_count: "0" }]);
+  it("tells the guards only yes or no, for the whole organisation whatever the caller's scope", async () => {
+    const read = () =>
+      inContext(app(), ctx(TENANT_C, C.carer, "none"), (c) =>
+        c.query<{ has_sample: boolean; has_real: boolean }>("SELECT * FROM app.sample_people()"),
+      );
+    expect((await read()).rows).toEqual([{ has_sample: false, has_real: false }]);
+    const batch = await asOwner((c) => loadBatch(c, 1));
+    expect((await read()).rows).toEqual([{ has_sample: true, has_real: false }]);
+    await asOwner(remove(batch));
+  });
+
+  it("counts a soft-deleted real person, and refuses to guess under REPEATABLE READ", async () => {
+    const client = await db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [TENANT_C],
+      );
+      await expect(addRealPerson(client as unknown as pg.PoolClient)).rejects.toThrow(
+        /READ COMMITTED or SERIALIZABLE/,
+      );
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+    await ownerDb(addRealPerson);
+    await ownerDb((c) => c.query("UPDATE person SET deleted_at = now() WHERE NOT is_sample"));
+    await expect(asOwner((c) => loadBatch(c))).rejects.toThrow(/real_people_exist/);
   });
 });

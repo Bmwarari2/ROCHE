@@ -54,12 +54,17 @@ type TenantRow = typeof tenant.$inferSelect;
 
 const PERSON_STATUSES_READ: readonly PersonStatus[] = ["active", "on_leave", "in_hospital"];
 
-/** Whether the organisation has any sample people (not removed), read as app.sample_people. */
-export async function samplePeoplePresent(tx: Transaction): Promise<boolean> {
-  const rows = await tx.execute<{ sample_count: string }>(
-    sql`SELECT sample_count FROM app.sample_people()`,
+/**
+ * Whether the whole organisation has sample data in place and whether it has any real person
+ * (soft-deleted too), read as app.sample_people: yes or no only, whatever the reader's scope.
+ */
+export async function sampleDataState(
+  tx: Transaction,
+): Promise<{ hasSample: boolean; hasReal: boolean }> {
+  const { rows } = await tx.execute<{ has_sample: boolean; has_real: boolean }>(
+    sql`SELECT has_sample, has_real FROM app.sample_people()`,
   );
-  return Number(rows.rows[0]?.sample_count ?? 0) > 0;
+  return { hasSample: rows[0]?.has_sample === true, hasReal: rows[0]?.has_real === true };
 }
 
 /** Whether each member has a second factor: an authenticator app or a passkey. */
@@ -289,7 +294,7 @@ export async function onboardingStateFor(
       peopleNotChecked: people.filter((p) => !p.isSample).length,
     },
     // The whole organisation, whatever the reader's scope (rule 30; app.sample_people).
-    sampleDataPresent: await samplePeoplePresent(tx),
+    sampleDataPresent: (await sampleDataState(tx)).hasSample,
     // Not recorded yet: unknown, so this go-live item stays open (fail closed).
     devices: null,
     escalationChains: chains.map((c) => ({ key: c.key, steps: c.steps as EscalationStep[] })),

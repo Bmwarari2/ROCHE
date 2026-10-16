@@ -217,7 +217,7 @@ export type SampleDataProblem =
   | "nothing_to_remove"
   | "not_sample"
   | "held"
-  | "referenced_by_real_records";
+  | "referenced_by_other_records";
 
 export type SampleDataCheck =
   | { readonly ok: true }
@@ -230,8 +230,9 @@ const MESSAGES: Record<SampleDataProblem, string> = {
   remove_sample_data_first: "Remove the sample data before adding real records.",
   nothing_to_remove: "There is no sample data to remove.",
   not_sample: "Something in this batch is not sample data, so nothing was removed.",
-  held: "A legal hold covers part of this batch, so nothing was removed.",
-  referenced_by_real_records: "Real records refer to this sample data, so nothing was removed.",
+  held: "A legal hold is in place on a sample person. Release the hold, then remove the sample data.",
+  referenced_by_other_records:
+    "Another record, such as an outage or a downtime pack, still refers to this sample data, so nothing was removed.",
 };
 /** A refusal in plain English, for a problem found here or reported by the database (rule 32). */
 export function sampleDataRefusal(
@@ -265,22 +266,24 @@ export function checkRealRecordCreation(input: {
 }
 
 /**
- * Removing sample data is one step that removes every row of the batch or none: every row must be
- * flagged sample, none under legal hold and none referred to by a real record. The database does
- * the deletion through a narrow security-definer function owned by a dedicated no-login role, never
- * by a DELETE grant to the application (platform-completions.md rule 32). Audit events about sample
- * records stay (they hold opaque ids only) and the removal is audited.
+ * Removing sample data is one step that removes every row of the batch or none: every person must
+ * be flagged sample and none under an active legal hold. The records staff made while practising on
+ * sample people go with them (they are about invented people); a record outside the people's own
+ * records that still refers to one (`otherReferences`: an outage, a downtime pack) stops it. The
+ * database does the deletion through a narrow security-definer function owned by a dedicated
+ * no-login role, never by a DELETE grant to the application (platform-completions.md rule 32).
+ * Audit events about sample records stay (they hold opaque ids only) and the removal is audited.
  */
 export function checkSampleDataRemoval(input: {
   readonly access: EffectiveAccess;
   readonly rows: readonly { readonly sample: boolean; readonly legalHold: boolean }[];
-  readonly realReferences: number;
+  readonly otherReferences: number;
 }): SampleDataCheck {
   if (!can(input.access, "platform.onboarding.manage")) return fail("missing_permission");
   if (input.rows.length === 0) return fail("nothing_to_remove");
   if (input.rows.some((r) => !r.sample)) return fail("not_sample");
   if (input.rows.some((r) => r.legalHold)) return fail("held");
-  if (input.realReferences > 0) return fail("referenced_by_real_records");
+  if (input.otherReferences > 0) return fail("referenced_by_other_records");
   return { ok: true };
 }
 
