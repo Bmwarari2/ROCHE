@@ -2244,3 +2244,16 @@ manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-s
 **Tests**: `packages/db/test/family-feed.test.ts` (28: 22 table-driven parity cases between the SQL
 and the domain rule, isolation, writes, withdrawals, assignments, constraints); the RLS coverage
 list.
+
+## 2026-10-17: Slice 11 web part 1, letter and email templates (COMMS-007)
+
+- `/letters`: the templates with the version in use and any draft; a "Letters" side bar link for
+  holders of the template or letter permissions.
+- `/letters/new` and `/letters/{id}`: drafts saved with each problem the API found at its field,
+  the merge fields listed, approval only by someone who did not write or edit the draft (the author
+  is told why), a new draft from the version in use, discard and retire with a reason, earlier
+  versions; each write sends the version the page showed and the page says what was done.
+- Docs: comms.md section 11, the register, HZ-051, STATUS.
+
+**Tests**: `apps/web/src/lib/letters.test.ts` (11); `apps/web/e2e/letter-templates.spec.ts` (2, axe
+on every state).
