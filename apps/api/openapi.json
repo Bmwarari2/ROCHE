@@ -21696,6 +21696,447 @@
         "required": [
           "items"
         ]
+      },
+      "DpiaOverview": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "draft",
+              "prepared",
+              "signed",
+              "review_due"
+            ]
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DataProtectionSettings"
+          },
+          "missingConfig": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "open": {
+            "$ref": "#/components/schemas/DpiaVersion"
+          },
+          "signed": {
+            "$ref": "#/components/schemas/DpiaVersion"
+          },
+          "reviewDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "state",
+          "triggers",
+          "settings",
+          "missingConfig",
+          "open",
+          "signed",
+          "reviewDueAt"
+        ]
+      },
+      "DataProtectionSettings": {
+        "type": "object",
+        "properties": {
+          "leadId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dpoName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "dpoEmail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 254,
+            "format": "email"
+          },
+          "sector": {
+            "type": "string",
+            "enum": [
+              "independent",
+              "public"
+            ]
+          },
+          "privacyNoticeUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "dpaSignedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "usesDataBeyondDirectCare": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "marketingEnabled": {
+            "type": "boolean"
+          },
+          "aiFreeTextEnabled": {
+            "type": "boolean"
+          },
+          "aiProvider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "bedrock_london",
+              "bedrock_eu",
+              "anthropic",
+              "tenant_own",
+              null
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leadId",
+          "dpoName",
+          "dpoEmail",
+          "sector",
+          "privacyNoticeUrl",
+          "dpaSignedOn",
+          "usesDataBeyondDirectCare",
+          "marketingEnabled",
+          "aiFreeTextEnabled",
+          "aiProvider",
+          "version"
+        ]
+      },
+      "DpiaVersion": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dpiaVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "prepared",
+              "signed",
+              "superseded"
+            ]
+          },
+          "prefill": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "residualRisk": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RiskLevel"
+            }
+          },
+          "icoReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preparedBy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
+          "versionSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preparedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "signedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "signedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "typedName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "dpiaVersion",
+          "status",
+          "prefill",
+          "answers",
+          "residualRisk",
+          "icoReference",
+          "preparedBy",
+          "versionSha256",
+          "preparedAt",
+          "signedBy",
+          "signedAt",
+          "typedName",
+          "statement",
+          "version"
+        ]
+      },
+      "RiskLevel": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          null
+        ]
+      },
+      "SaveDpia": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 10000
+              }
+            }
+          },
+          "residualRisk": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RiskLevel"
+            }
+          },
+          "icoReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "answers",
+          "residualRisk",
+          "icoReference"
+        ]
+      },
+      "PrepareDpia": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "SignDpia": {
+        "type": "object",
+        "properties": {
+          "typedName": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "statement": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "sha256Seen": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "typedName",
+          "sha256Seen"
+        ]
+      },
+      "SaveDataProtectionSettings": {
+        "type": "object",
+        "properties": {
+          "leadId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "dpoName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "dpoEmail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 254,
+            "format": "email"
+          },
+          "sector": {
+            "type": "string",
+            "enum": [
+              "independent",
+              "public"
+            ]
+          },
+          "privacyNoticeUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "dpaSignedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "usesDataBeyondDirectCare": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "marketingEnabled": {
+            "type": "boolean"
+          },
+          "aiFreeTextEnabled": {
+            "type": "boolean"
+          },
+          "aiProvider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "bedrock_london",
+              "bedrock_eu",
+              "anthropic",
+              "tenant_own",
+              null
+            ]
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "leadId",
+          "dpoName",
+          "dpoEmail",
+          "sector",
+          "privacyNoticeUrl",
+          "dpaSignedOn",
+          "usesDataBeyondDirectCare",
+          "marketingEnabled",
+          "aiFreeTextEnabled",
+          "aiProvider",
+          "expectedVersion"
+        ]
       }
     },
     "parameters": {}
@@ -43657,6 +44098,408 @@
           },
           "410": {
             "description": "Expired, cancelled or already downloaded"
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dpia": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's DPIA: where it stands, the version being prepared and the one signed",
+        "description": "platform.dpia.read, .prepare or .sign. The state (not started, draft, prepared, signed, review due) with what triggers a review, the governance settings and any missing configuration.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The DPIA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DpiaOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dpia/draft": {
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Save the DPIA being prepared (starting a new version if none is)",
+        "description": "platform.dpia.prepare. Refreshes Harbour's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDpia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DpiaVersion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dpia/draft/prepare": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Mark the DPIA ready for sign-off",
+        "description": "platform.dpia.prepare. Refreshes the prefill once more, then freezes the version and records its SHA-256, which the signature binds to. Audited (platform.dpia.prepared).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareDpia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prepared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DpiaVersion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dpia/{id}/sign": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Sign the prepared DPIA",
+        "description": "platform.dpia.sign with step-up, by the member named as data protection officer or lead, who prepared none of this version, with a typed name bound to the version's SHA-256 as read (checkDpiaSignOff: every problem at once, 422 dpia_not_signable). The version signed before is superseded. Audited (platform.dpia.signed), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignDpia"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DpiaVersion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/settings/data-protection": {
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's data protection governance",
+        "description": "platform.tenant.manage. Names the data protection officer or lead (an active member holding platform.dpia.sign, who signs the DPIA; naming a different lead needs a fresh step-up and tells the one replaced), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Send the `version` read (409 when stale). Audited with what changed and the old and new lead ids, never the values of names or addresses.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDataProtectionSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataProtectionSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "422": {
             "description": "The request did not validate",

@@ -45,6 +45,7 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
 export type ExportRetention =
   | "care_record"
   | "audit_event"
+  | "dpia"
   | "serious_incident"
   | "downtime_pack"
   | "downtime_record"
@@ -1540,6 +1541,48 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           "When it stopped being offered (instant, UTC); a device that used it before may still send it.",
       },
       retired_by: { description: "Who retired it (tenant_user.id)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.dpia": {
+    context: "platform",
+    description:
+      "The organisation's DPIA, one row per version (platform-completions.md rules 17 to 22): Harbour's prefill, the organisation's answers and residual risk ratings, who prepared it, and its signature by the data protection lead. A signed version never changes.",
+    treatment: "tenant_rows",
+    retention: "dpia",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      dpia_version: { description: "The DPIA's version number, from 1.", unit: "version number" },
+      status: {
+        description: "Where the version stands.",
+        codes: {
+          draft: "Being prepared.",
+          prepared: "Ready to sign.",
+          signed: "Signed by the data protection lead.",
+          superseded: "Signed, then replaced by a later version.",
+        },
+      },
+      prefill: { description: "What Harbour filled in from the configuration (JSON)." },
+      answers: { description: "The organisation's answers, by section and field (JSON)." },
+      residual_risk: { description: "The residual risk rated for each risk (JSON)." },
+      ico_reference: { description: "ICO prior consultation reference (Article 36), if any." },
+      prepared_by: { description: "Everyone who wrote part of this version (tenant_user ids)." },
+      version_sha256: {
+        description: "SHA-256 of the version as prepared, which the signature binds.",
+      },
+      prepared_at: "exported",
+      signed_by: "exported",
+      signed_at: "exported",
+      typed_name: { description: "The name the signer typed." },
+      statement: { description: "What the signer agreed to." },
+      basis: { description: "What the signed version covered, for re-review (JSON)." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -4446,6 +4489,22 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       dpo_email: { description: "Their email address." },
       caldicott_guardian: { description: "Caldicott Guardian." },
       siro: { description: "Senior information risk owner." },
+      data_protection_lead_id: {
+        description: "The member named as data protection officer or lead, who signs the DPIA.",
+      },
+      sector: {
+        description: "Whether the organisation is a public authority (its lawful bases differ).",
+        codes: { independent: "An independent provider.", public: "A public authority." },
+      },
+      privacy_notice_url: { description: "Where its privacy notice is published (https)." },
+      dpa_signed_on: { description: "The UK date it signed the data processing agreement." },
+      uses_data_beyond_direct_care: {
+        description:
+          "Whether it uses care data beyond direct care (national data opt-out); empty until it says.",
+      },
+      marketing_enabled: { description: "True when it uses Harbour for marketing (consent)." },
+      ai_free_text_enabled: { description: "True when AI may read free text (consent)." },
+      ai_provider: { description: "The AI provider it chose, when the AI module is planned." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

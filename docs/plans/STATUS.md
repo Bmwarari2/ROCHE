@@ -152,6 +152,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
 
+   - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
+     platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
+     the named lead who prepared none of it, never changed after), the tenant's data protection
+     governance, and the prepare, save, sign and settings routes. Next: the onboarding checklist
+     (with its decision records), sub-processor notices, then the web screens.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and

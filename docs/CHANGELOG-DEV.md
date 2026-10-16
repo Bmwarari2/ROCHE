@@ -2343,6 +2343,25 @@ fetch untaken, another holder, another organisation's id); `packages/db/test/ten
 **Tests**: `apps/web/src/lib/exports.test.ts`; `apps/web/e2e/export.spec.ts` (3, axe on every
 state).
 
+## 2026-10-17: Slice 13, the DPIA in-app (PLAT-023)
+
+- Migration 0063: `dpia` versions (forced RLS, one open and one signed at a time, a guard that
+  lets only the named data protection lead sign a prepared version they did not prepare, and
+  never changes a signed one) and the tenant's data protection governance columns.
+- API: the DPIA overview, saving and preparing a version, signing it with step-up
+  (`checkDpiaSignOff`), and the governance settings; audited with ids only.
+- Docs: platform-completions.md section 10d, records of processing, data standards, feature
+  register, STATUS.
+
+- Security review: naming a different lead needs step-up and a lead who may sign, audits both
+  ids and tells the lead replaced; settings saves carry `expectedVersion`; the database guards the
+  governance columns (`platform.tenant.manage`); signing locks the row and rolls back if nothing
+  was signed; a signed version is superseded only by signing a later one in the same transaction;
+  the `dpia` retention class (interim period, H-115).
+
+**Tests**: `apps/api/test/dpia.test.ts` (15).
+
+
 ## 2026-10-17: Slice 11 web part 1, letter and email templates (COMMS-007)
 
 - `/letters`: the templates with the version in use and any draft; a "Letters" side bar link for
