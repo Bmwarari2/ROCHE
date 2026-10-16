@@ -98,6 +98,7 @@ export function NoteList({
                 category: current.category,
                 body: current.body,
                 occurredAt: current.occurredAt,
+                backEntry: current.backEntry,
               }}
             />
           ) : null}

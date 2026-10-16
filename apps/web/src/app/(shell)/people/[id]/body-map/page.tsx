@@ -11,7 +11,7 @@ import { can, recordCareAccess, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
-import { getPerson, readOrFail } from "@/lib/person-record";
+import { getEntryOutages, getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
@@ -50,6 +50,7 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
   const names = personNames(person);
   // The recorder only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
   const { canRecord, readOnlyNotice } = recordCareAccess(person, me.permissions);
+  const outages = canRecord ? await getEntryOutages(person.locationId) : [];
   const drawn = (view: "front" | "back") =>
     list.items
       .filter((mark) => mark.view === view)
@@ -65,7 +66,11 @@ async function BodyMapTab({ params }: { readonly params: Params }) {
       </div>
       {canRecord ? (
         <Card as="section" title={t("care.bodyMap.form.title")} headingLevel={3}>
-          <BodyMapRecorder personId={id} marks={{ front: drawn("front"), back: drawn("back") }} />
+          <BodyMapRecorder
+            personId={id}
+            outages={outages}
+            marks={{ front: drawn("front"), back: drawn("back") }}
+          />
         </Card>
       ) : readOnlyNotice ? (
         <ReadOnlyNotice text={t(readOnlyNotice)} />

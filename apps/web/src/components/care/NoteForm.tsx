@@ -1,21 +1,29 @@
 "use client";
 
-import type { CreateCareNote } from "@harbour/contracts";
+import type { CreateCareNote, OutageItem } from "@harbour/contracts";
 import { Button, SelectField, TextArea } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordNote } from "@/app/actions/care-record";
+import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import { NOTE_CATEGORIES, NOTE_MAX_LENGTH } from "@/lib/care-record";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
-import { readWhen } from "@/lib/uk-time";
+import { type ActionResult, collectedRefusal, errorFor, partsFor, refused } from "@/lib/outcome";
+
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
 
-const FIELDS = ["category", "body", "occurredAt"] as const;
+const FIELDS = ["category", "body", "occurredAt", ...PAPER_FIELDS] as const;
 
 /** Write a daily note (append-only, care.md rule 4). */
-export function NoteForm({ personId }: { readonly personId: string }) {
+export function NoteForm({
+  personId,
+  outages = [],
+}: {
+  readonly personId: string;
+  /** Outages a paper record can be entered against at the person's location. */
+  readonly outages?: readonly OutageItem[];
+}) {
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
   const [pending, startTransition] = useTransition();
@@ -30,9 +38,9 @@ export function NoteForm({ personId }: { readonly personId: string }) {
       setResult(refused(t("care.notes.bodyRequired"), "invalid", ["body"]));
       return;
     }
-    const when = readWhen(form, "occurredAt", t);
+    const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) {
-      setResult(partsRefusal("occurredAt", when));
+      setResult(collectedRefusal(when.problems));
       return;
     }
     startTransition(async () => {
@@ -41,6 +49,7 @@ export function NoteForm({ personId }: { readonly personId: string }) {
         category: String(form.get("category")) as CreateCareNote["category"],
         body,
         occurredAt: when.instant,
+        downtime: when.downtime,
         sentAt: new Date().toISOString(),
       });
       setResult(outcome);
@@ -82,6 +91,7 @@ export function NoteForm({ personId }: { readonly personId: string }) {
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
+          paper={{ outages, ids, result }}
         />
         <div>
           <Button type="submit" disabled={pending}>

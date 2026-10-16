@@ -1,13 +1,20 @@
 "use client";
 
-import type { CreateActivityRecord } from "@harbour/contracts";
+import type { CreateActivityRecord, OutageItem } from "@harbour/contracts";
 import { Button, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordActivity } from "@/app/actions/care-records";
 import { readWholeNumber } from "@/lib/assessments";
+import { PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, fieldErrors, partsFor, partsRefusal } from "@/lib/outcome";
-import { readWhen } from "@/lib/uk-time";
+import {
+  type ActionResult,
+  collectedRefusal,
+  errorFor,
+  fieldErrors,
+  partsFor,
+} from "@/lib/outcome";
+
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
@@ -36,14 +43,18 @@ const FIELDS = [
   "durationMinutes",
   "notes",
   "occurredAt",
+  ...PAPER_FIELDS,
 ] as const;
 
 /** Record an activity: what, group or one to one, whether the person took part and how (CARE-014). */
 export function ActivityForm({
   personId,
+  outages = [],
   name,
 }: {
   readonly personId: string;
+  /** Outages a paper record can be entered against at the person's location. */
+  readonly outages?: readonly OutageItem[];
   readonly name: string;
 }) {
   const [attendance, setAttendance] = useState<Attendance | null>(null);
@@ -70,15 +81,16 @@ export function ActivityForm({
     }
     const engagement = String(form.get("engagement") ?? "");
     const minutes = readWholeNumber(form.get("durationMinutes"));
-    const when = readWhen(form, "occurredAt", t);
+    const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) {
-      setResult(partsRefusal("occurredAt", when));
+      setResult(collectedRefusal(when.problems));
       return;
     }
     startTransition(async () => {
       const outcome = await recordActivity(personId, {
         id: entry.id,
         occurredAt: when.instant,
+        downtime: when.downtime,
         sentAt: new Date().toISOString(),
         activity,
         format,
@@ -165,6 +177,7 @@ export function ActivityForm({
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
+          paper={{ outages, ids, result }}
         />
         <div>
           <Button type="submit" disabled={pending}>

@@ -62,6 +62,7 @@ export async function recordNote(
         body,
         tags: [],
         attachmentDocumentIds: [],
+        ...when.downtime,
         ...(input.supersedesId
           ? {
               supersedesId: input.supersedesId,
@@ -83,7 +84,12 @@ export async function recordObservation(
     api.POST("/v1/people/{id}/observations", {
       params: { path: { id: personId } },
       headers: when.headers,
-      body: { id: when.id, occurredAt: when.occurredAt, values: input.values },
+      body: {
+        id: when.id,
+        occurredAt: when.occurredAt,
+        values: input.values,
+        ...when.downtime,
+      },
     }),
   );
 }
@@ -97,7 +103,14 @@ export async function recordBodyMark(
 ): Promise<ActionResult<BodyMapMarkItem>> {
   const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { id: _id, occurredAt: _when, sentAt: _sent, description, ...mark } = input;
+  const {
+    id: _id,
+    occurredAt: _when,
+    sentAt: _sent,
+    downtime: _downtime,
+    description,
+    ...mark
+  } = input;
   const text = optionalText(description);
   // The API decides whether the side drawn and the side stated agree (HZ-019).
   return sendForPerson(personId, (api) =>
@@ -107,6 +120,7 @@ export async function recordBodyMark(
       body: {
         ...mark,
         ...(text ? { description: text } : {}),
+        ...when.downtime,
         id: when.id,
         occurredAt: when.occurredAt,
       },

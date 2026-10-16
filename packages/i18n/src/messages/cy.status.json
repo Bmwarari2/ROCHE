@@ -1309,6 +1309,25 @@
     "operations.outage.cancel.keep",
     "operations.pack.printedFreshness",
     "operations.pack.countsHint",
-    "operations.pack.limitedUntil"
+    "operations.pack.limitedUntil",
+    "care.paper.option",
+    "care.paper.optionHint",
+    "care.paper.outage",
+    "care.paper.outageRequired",
+    "care.paper.time",
+    "care.paper.timeHint",
+    "care.paper.subject",
+    "care.paper.reference",
+    "care.paper.referenceHint",
+    "care.paper.referenceTooLong",
+    "care.paper.outsideReason",
+    "care.paper.outsideReasonHint",
+    "care.paper.outsideReasonRequired",
+    "care.paper.outsideReasonAgain",
+    "care.paper.notFromPaper",
+    "care.paper.notFromPaperHint",
+    "care.paper.detailsRequired",
+    "care.paper.alreadyCorrected",
+    "care.paper.correctOutsideReason"
   ]
 }
