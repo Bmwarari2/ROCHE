@@ -239,6 +239,13 @@ function fill(
 /** Longest free text accepted in one update (a structural limit, not a writing target). */
 export const FEED_TEXT_MAX_LENGTH = 1000;
 
+/**
+ * How old a note or activity may be to become an update (a product rule, not a statutory
+ * figure): the feed is about what happened recently, and an old record published now would read
+ * as news (HZ-061). The API refuses older ones; the web offers only these.
+ */
+export const FEED_SOURCE_MAX_AGE_DAYS = 14;
+
 export type FeedTextProblem =
   | { readonly problem: "text_required"; readonly message: string }
   | { readonly problem: "text_too_long"; readonly message: string }
