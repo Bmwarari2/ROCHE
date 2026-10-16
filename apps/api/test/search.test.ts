@@ -203,3 +203,67 @@ describe("hazard HZ-011 search follows permission and scope through the API", ()
     expect((await search("manager", { query: "a" })).status).toBe(422);
   });
 });
+
+describe("hazard HZ-011 the queries and the plan agree, so routine searches raise no alarm", () => {
+  const alarms = async () =>
+    (await sql("SELECT id FROM audit_event WHERE action = 'platform.search.dropped_by_plan'"))
+      .length;
+
+  it("a search that meets a corrected note, or a colleague at another home, drops nothing", async () => {
+    // A colleague who works only at Harbour Lodge, outside the Registered Manager's location.
+    const [lodgeWorker] = await sql<{ id: string }>(
+      `INSERT INTO tenant_user (display_name, email, status)
+       VALUES ('Lola Lodgeworker', 'lola@example.invalid', 'active') RETURNING id`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'care_worker'`,
+      [lodgeWorker?.id, LODGE.locationId],
+    );
+    const before = await alarms();
+    await results("manager", { query: "conservatory" });
+    const staff = await results("manager", { query: "Lola", types: ["staff"] });
+    expect(staff.items).toEqual([]);
+    // The owner, across the organisation, finds her.
+    expect(
+      (await results("owner", { query: "Lola", types: ["staff"] })).items.map((i) => i.id),
+    ).toEqual([lodgeWorker?.id]);
+    expect(await alarms()).toBe(before);
+  });
+
+  it("never finds the notes or documents of a person deleted from the record", async () => {
+    const [loc] = await sql<{ id: string }>("SELECT location_id AS id FROM person WHERE id = $1", [
+      resident(6),
+    ]);
+    await sql(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+       VALUES ($1, $2, now() - interval '1 hour', 'activity', 'Watched the snooker final')`,
+      [resident(6), loc?.id],
+    );
+    expect(
+      ids(await results("manager", { query: "snooker", types: ["note"] }), "note"),
+    ).toHaveLength(1);
+    await sql("UPDATE person SET deleted_at = now() WHERE id = $1", [resident(6)]);
+    try {
+      expect(ids(await results("manager", { query: "snooker", types: ["note"] }), "note")).toEqual(
+        [],
+      );
+    } finally {
+      await sql("UPDATE person SET deleted_at = NULL WHERE id = $1", [resident(6)]);
+    }
+  });
+
+  it("limits each member's searches a minute, from the rate table", async () => {
+    const [rate] = await sql<{ value: string }>(
+      "SELECT value FROM rate_table WHERE key = 'search.requests_per_minute' AND tenant_id IS NULL",
+    );
+    const limit = Number(rate?.value);
+    expect(limit).toBeGreaterThan(0);
+    const statuses: number[] = [];
+    for (let n = 0; n <= limit; n += 1) {
+      statuses.push((await search("nurse", { query: "Ada" })).status);
+    }
+    expect(statuses.slice(0, limit).every((s) => s === 200)).toBe(true);
+    expect(statuses[limit]).toBe(429);
+  });
+});

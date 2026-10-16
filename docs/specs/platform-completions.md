@@ -601,7 +601,34 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   newest report in `docs/clinical-safety/safety-case/`), and a test checks the default names a
   report there.
 
-## 10f. As built (slice 13, the search index)
+## 10h. As built (slice 13, sub-processor notices, organisation side)
+
+- Migration 0065: `sub_processor_notice` (global, Thapsus's; everyone reads, only the operator
+  role announces; never changes) and `sub_processor_response` (append-only, forced RLS; read
+  with a DPIA or onboarding permission; written by the application only as the named data
+  protection lead holding `platform.dpia.sign` through a role, in their own name, acknowledging
+  or objecting; the operator role records a resolution).
+- Domain: `noticeResponseFrom` (the latest acknowledgement, the latest objection and the first
+  resolution after it) and `subProcessorAcknowledgementsFrom` (the checklist's acknowledgements),
+  table-driven.
+- Routes (`apps/api/src/routes/sub-processors.ts`): `GET /v1/sub-processors` (the sub-processors
+  in use, each acknowledged or not since its latest notice, and every notice with its state and
+  when the organisation's window ends); `POST /v1/sub-processors/{key}/acknowledge` (the register
+  entry, or a notice with `noticeId`); `POST /v1/sub-processor-notices/{id}/object` (grounds of 20
+  characters or more, within the window). Both answers need `platform.dpia.sign` with step-up by
+  the named lead (`checkNoticeResponse`), refusals as 422 `notice_response_refused`, audited with
+  ids and keys only, never the grounds. The onboarding checklist's `sub_processors_acknowledged`
+  now reads the responses and notices. Review of #92: responses are read through roles only
+  (`app.holds_role_permission_somewhere`), and the grounds are returned only to DPIA permission
+  holders; the register entry is not acknowledged while a notice about it has an open objection;
+  each notice's window uses the organisation's notice period in force on the UK date it was
+  announced.
+- Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
+  organisations, telling their leads, and recording a resolution), then the web screens.
+
+## 10s. As built (slice 13, search)
+
+### Part 1, the index
 
 Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
 
@@ -613,21 +640,21 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 | Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
 | Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
 
-## 10g. As built (slice 13, the search route)
+### Part 2, the route
 
 `POST /v1/search` (`feat/platform-search-api`, stacked on the index): `apps/api/src/routes/search.ts`,
 `apps/api/src/services/search.ts`, contracts in `packages/contracts/src/search.ts`.
 
 | Piece | Built as |
 | --- | --- |
-| Request | `platform.search.use`. The words in the JSON body (never the address, so no access log holds them), the kinds asked for, and whether to include people who have left |
-| Plan | `buildSearchPlan` with the session's MFA (care record kinds need MFA on this session, ADR-0072), the end of the roles that give search, and the agency flag; rotas arrive in Phase 2, so an agency worker has no shift recorded and is refused (`no_shift_recorded`). `access.agency.post_shift_hours` from the rate table |
-| Reading | One query per kind (per document category), each in the scope of the permission it rests on (`inScopeOf`, ADR-0071) with break-glass left out, so a person opened by break-glass is found only by break-glass search (rule 9). The tenant first, then the bound prefix query; whole-word matches marked `exact`. People's own fields, colleagues' names, roles and locations (never contact details, and never a member whose roles are all portal roles), documents' titles (never contents) and notes' excerpts (160 characters) with their author; a note a correction replaced is read and dropped by the plan |
-| Results | `filterSearchResults`: the plan applied again to every row, people first, same-name warnings, counts only of what may be seen; rows the plan drops raise `security.search.dropped_by_plan` in the log with opaque counts. Names-and-rooms roles see the age, never the date of birth or NHS number. `Cache-Control: no-store` |
+| Request | `platform.search.use`. The words in the JSON body (never the address, so no access log holds them), the kinds asked for, and whether to include people who have left. At most `search.requests_per_minute` searches a member a minute (rate table; 429 with Retry-After after), and `statement_timeout` of 5 seconds on the search's transaction |
+| Plan | `buildSearchPlan` with the session's MFA (care record kinds need MFA on this session, ADR-0072), the end of the roles that give search, and the agency flag (a member whose row cannot be read is refused); rotas arrive in Phase 2, so an agency worker has no shift recorded and is refused (`no_shift_recorded`). `access.agency.post_shift_hours` from the rate table |
+| Reading | One query per kind (per document category), each in the scope of the permission it rests on (`inScopeOf`, ADR-0071) with break-glass left out, so a person opened by break-glass is found only by break-glass search (rule 9). The tenant first, then the bound prefix query; whole-word matches marked `exact`. Every query in SQL keeps to what the plan allows, so the second filter drops nothing in routine use: colleagues in the plan's staff scope (working across the organisation or at one of the user's locations), never a deleted person's notes or documents, and never a note a correction replaced. Each query orders best matches first (whole-word, then rank, then id) before its limit of 100 rows; a kind that reaches it marks the results `capped`, and the screen asks for another word. People's own fields with their communication needs, colleagues' names, roles and locations (never contact details, and never a member whose roles are all portal roles), documents' titles (never contents) and notes' excerpts (160 characters) with their author |
+| Results | `filterSearchResults`: the plan applied again to every row, people first, same-name warnings, counts only of what may be seen; rows the plan still drops mean the queries and the plan disagree: `security.search.dropped_by_plan` in the log and a `platform.search.dropped_by_plan` audit event, with opaque counts only. Names-and-rooms roles see the age, never the date of birth or NHS number. `Cache-Control: no-store` |
 | Audit | `platform.search.run` with `searchAuditEvent` (the ids shown, people shown as care-record views); refusals `platform.search.refused` with the problem; never the words typed |
 | Refusals | Query problems 422 (`invalid` with the message); no permission, nothing to search, people who have left without the permission, access ended and no shift 403 with the problem as the code; MFA 403 asking to confirm or set up a second step |
 
-## 10h. As built (slice 13, the search page)
+### Part 3, the page
 
 `/search` (`feat/web-search`, stacked on the route), "Search" in the side bar for
 `platform.search.use`: `apps/web/src/app/(shell)/search/page.tsx`,
@@ -635,8 +662,8 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 
 | Piece | Built as |
 | --- | --- |
-| The box | A `search` landmark with a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
-| Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word; a same-name warning with an icon and words (HZ-001). Each result links to the person, the document or the person's notes |
+| The box | A `search` landmark with a form that posts (so pressing Enter before the scripts load never puts the words in the address), a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
+| Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word, and their communication needs; a same-name warning in the warning style, saying to check the photo and the date of birth or age, whichever is shown (HZ-001). "Searching" is announced; a capped search asks for another word. Each result links to the person, the document or the person's notes |
 | Refusals | In words at the box: nothing typed, a mistyped NHS number, no shift recorded, access ended, people who have left without the permission, MFA |
 | Follow-ups | Break-glass search and its dialog; offline search on mobile labelled "This device only" |
 

@@ -65,6 +65,7 @@ import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
+import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { SyncTokenSigner } from "./sync/token";
@@ -260,6 +261,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membersRouter);
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
+  app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", operatorInvitationsRouter);
 

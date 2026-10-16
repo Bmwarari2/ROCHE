@@ -18,8 +18,14 @@ import { inScopeOf } from "../http/context";
  * parameters. The API then applies the plan again to every row (`filterSearchResults`).
  */
 
-/** Rows read per kind before the plan's second filter; the page shows at most `pageSize`. */
-const READ_LIMIT = 100;
+/**
+ * Rows read per kind before the plan's second filter, best matches first; the page shows at most
+ * `pageSize`. A kind that reaches it is said to be capped, so the screen asks for another word.
+ */
+export const READ_LIMIT = 100;
+
+/** Best matches first in every query, so the limit keeps the best and the order is stable. */
+const BEST_FIRST = sql`ORDER BY exact DESC, rank DESC, id`;
 
 /** What a search shows beyond the hit itself: names, excerpts and the like, by result id. */
 export interface SearchDetail {
@@ -31,6 +37,8 @@ export interface SearchDetail {
     readonly locationName: string | null;
     readonly roomLabel: string | null;
     readonly hasPhoto: boolean;
+    /** Accessible Information Standard needs, by their display words. */
+    readonly communicationNeeds: string[];
   };
   readonly staff?: {
     readonly name: string;
@@ -55,6 +63,8 @@ export interface SearchDetail {
 export interface SearchRows {
   readonly hits: SearchHit[];
   readonly details: Map<string, SearchDetail>;
+  /** Some kind returned `READ_LIMIT` rows: there may be more than were read. */
+  readonly capped: boolean;
 }
 
 type Row = Record<string, unknown>;
@@ -71,6 +81,14 @@ function excerptOf(body: string): string {
   const cut = flat.slice(0, 160);
   const space = cut.lastIndexOf(" ");
   return `${(space > 80 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/** The display words of a person's communication needs (`[{ code, display, ... }]`). */
+function needsOf(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((n) => (typeof n === "object" && n !== null ? (n as { display?: unknown }).display : null))
+    .filter((d): d is string => typeof d === "string" && d.length > 0);
 }
 
 /** Whether the searching member holds an unexpired assignment to the person. */
@@ -105,7 +123,12 @@ export async function searchRows(
   // exactly the scope the plan holds every row to.
   const scoped = <T>(permission: SearchPlanEntity["permission"], run: () => Promise<T>) =>
     inScopeOf(tx, { ...scopeFor(access, permission), includesBreakGlass: false }, run);
-  const rows = async (q: SQL) => (await tx.execute<Row>(q)).rows;
+  let capped = false;
+  const rows = async (q: SQL) => {
+    const found = (await tx.execute<Row>(q)).rows;
+    if (found.length >= READ_LIMIT) capped = true;
+    return found;
+  };
 
   for (const entity of plan.entities) {
     if (entity.type === "person") {
@@ -121,13 +144,15 @@ export async function searchRows(
         rows(sql`
           SELECT p.id, p.given_name, p.family_name, p.preferred_name, p.date_of_birth::text AS dob,
                  p.nhs_number, p.status, p.location_id, l.name AS location_name, p.room_label,
-                 p.photo_document_id IS NOT NULL AS has_photo, ${isExact} AS exact,
+                 p.photo_document_id IS NOT NULL AS has_photo, p.communication_needs,
+                 ${isExact} AS exact,
                  ${query.kind === "text" ? rank(sql`p.search_names`) : sql`1`} AS rank,
                  ${assignedTo(actor, sql`p.id`)} AS assigned
           FROM person p
           LEFT JOIN location l ON l.tenant_id = p.tenant_id AND l.id = p.location_id
           WHERE p.tenant_id = ${tenantId} AND p.deleted_at IS NULL AND ${statusIn(sql`p.status`)}
             AND ${where}
+          ${BEST_FIRST}
           LIMIT ${READ_LIMIT}`),
       );
       for (const r of found) {
@@ -153,6 +178,7 @@ export async function searchRows(
             locationName: text(r.location_name),
             roomLabel: text(r.room_label),
             hasPhoto: Boolean(r.has_photo),
+            communicationNeeds: needsOf(r.communication_needs),
           },
         });
       }
@@ -160,6 +186,14 @@ export async function searchRows(
 
     if (entity.type === "staff" && query.kind === "text") {
       // Colleagues only: members whose roles are all portal roles (families) are never listed.
+      // In the plan's staff scope, in SQL as every other kind is, so colleagues elsewhere neither
+      // use up the limit nor reach the second filter: someone working across the organisation, or
+      // at one of the user's locations.
+      const staffScope = plan.staffScope;
+      const inStaffScope =
+        staffScope?.kind === "locations"
+          ? sql`HAVING bool_or(ra.location_id IS NULL OR ra.location_id::text = ANY(string_to_array(${staffScope.locationIds.join(",")}, ',')))`
+          : sql``;
       const found = await rows(sql`
         SELECT u.id, u.display_name,
                ${matches(sql`u.search_name`, exact)} AS exact, ${rank(sql`u.search_name`)} AS rank,
@@ -177,6 +211,8 @@ export async function searchRows(
         WHERE u.tenant_id = ${tenantId} AND u.deleted_at IS NULL AND u.status = 'active'
           AND ${matches(sql`u.search_name`, prefix)}
         GROUP BY u.id, u.display_name, u.search_name
+        ${inStaffScope}
+        ${BEST_FIRST}
         LIMIT ${READ_LIMIT}`);
       for (const r of found) {
         const id = String(r.id);
@@ -216,8 +252,9 @@ export async function searchRows(
             LEFT JOIN person p ON p.tenant_id = d.tenant_id AND p.id = d.person_id
             WHERE d.tenant_id = ${tenantId} AND d.deleted_at IS NULL AND d.status = 'available'
               AND d.category = ${category}
-              AND ${rule.personScoped ? sql`d.person_id IS NOT NULL AND ${statusIn(sql`p.status`)}` : sql`d.person_id IS NULL`}
+              AND ${rule.personScoped ? sql`d.person_id IS NOT NULL AND p.deleted_at IS NULL AND ${statusIn(sql`p.status`)}` : sql`d.person_id IS NULL`}
               AND ${matches(sql`d.search_title`, prefix)}
+            ${BEST_FIRST}
             LIMIT ${READ_LIMIT}`),
         );
         for (const r of found) {
@@ -254,15 +291,16 @@ export async function searchRows(
           SELECT n.id, n.person_id, n.body, n.occurred_at, p.given_name, p.family_name, p.status,
                  p.location_id, a.display_name AS author,
                  ${matches(sql`n.search_body`, exact)} AS exact, ${rank(sql`n.search_body`)} AS rank,
-                 ${assignedTo(actor, sql`n.person_id`)} AS assigned,
-                 EXISTS (SELECT 1 FROM care_note later
-                         WHERE later.tenant_id = n.tenant_id AND later.supersedes_id = n.id) AS superseded
+                 ${assignedTo(actor, sql`n.person_id`)} AS assigned
           FROM care_note n
           JOIN person p ON p.tenant_id = n.tenant_id AND p.id = n.person_id
           LEFT JOIN tenant_user a ON a.tenant_id = n.tenant_id AND a.id = n.created_by
-          WHERE n.tenant_id = ${tenantId} AND ${statusIn(sql`p.status`)}
+          WHERE n.tenant_id = ${tenantId} AND p.deleted_at IS NULL AND ${statusIn(sql`p.status`)}
             AND ${matches(sql`n.search_body`, prefix)}
-          ORDER BY n.occurred_at DESC
+            -- A note a correction replaced is never read: the correction is (rule 1).
+            AND NOT EXISTS (SELECT 1 FROM care_note later
+                            WHERE later.tenant_id = n.tenant_id AND later.supersedes_id = n.id)
+          ${BEST_FIRST}
           LIMIT ${READ_LIMIT}`),
       );
       for (const r of found) {
@@ -277,7 +315,7 @@ export async function searchRows(
           personStatus: r.status as PersonStatus,
           personLocationId: text(r.location_id),
           assignedToActor: Boolean(r.assigned),
-          superseded: Boolean(r.superseded),
+          superseded: false,
         });
         details.set(id, {
           note: {
@@ -290,5 +328,5 @@ export async function searchRows(
       }
     }
   }
-  return { hits, details };
+  return { hits, details, capped };
 }

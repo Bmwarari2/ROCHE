@@ -55,6 +55,8 @@ describe("search on the web (PLAT-013, HZ-011)", () => {
       counts: {},
       total: 0,
       hasMore: false,
+      capped: false,
+      readLimit: 100,
       omitted: [
         { type: "note", reason: "mfa_required" },
         { type: "staff", reason: "not_applicable" },

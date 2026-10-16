@@ -62,7 +62,9 @@ export function SearchBox({ mayIncludeArchived }: { readonly mayIncludeArchived:
   return (
     <div className="flex flex-col gap-6">
       <search>
-        <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+        {/* POST, so that pressing Enter before the page's scripts have loaded never puts the
+            words in the address: they stay in the request body (#94 review). */}
+        <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
           <TextField
             id={ids.query}
             name="query"
@@ -104,6 +106,9 @@ export function SearchBox({ mayIncludeArchived }: { readonly mayIncludeArchived:
               {t("platform.search.submit")}
             </Button>
           </div>
+          <p role="status" className="m-0 min-h-6 text-body-dense">
+            {pending ? t("platform.search.searching") : ""}
+          </p>
           <FormFeedback result={result} success="" fieldIds={ids} />
         </form>
       </search>
@@ -143,7 +148,11 @@ function ResultList({
         {results.ignoredTerms > 0 ? (
           <p className="m-0">{t("platform.search.ignored", { count: results.ignoredTerms })}</p>
         ) : null}
-        {results.hasMore ? <p className="m-0">{t("platform.search.more")}</p> : null}
+        {results.capped ? (
+          <p className="m-0">{t("platform.search.capped", { limit: results.readLimit })}</p>
+        ) : results.hasMore ? (
+          <p className="m-0">{t("platform.search.more")}</p>
+        ) : null}
       </div>
       {results.items.length === 0 ? (
         <p className="m-0">{t("platform.search.none")}</p>
@@ -208,13 +217,23 @@ function ResultRow({ item }: { readonly item: SearchResultItem }) {
               status="neutral"
               label={t("platform.search.status", { status: p.status })}
             />
-            {item.sameName ? (
-              <span className="inline-flex items-center gap-1 font-semibold">
-                <CircleAlert size={20} strokeWidth={1.5} aria-hidden="true" />
-                {t("platform.search.sameName")}
-              </span>
-            ) : null}
           </div>
+          {p.communicationNeeds.length > 0 ? (
+            <p className="m-0 text-body-dense">
+              {t("platform.search.communication", { needs: p.communicationNeeds.join("; ") })}
+            </p>
+          ) : null}
+          {item.sameName ? (
+            <p className="m-0 flex items-start gap-2 rounded-input border-s-4 border-warning bg-bg-secondary p-2 font-semibold">
+              <CircleAlert
+                size={20}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+              />
+              {t("platform.search.sameName", { check: p.dateOfBirth ? "dob" : "age" })}
+            </p>
+          ) : null}
         </div>
       </div>
     );

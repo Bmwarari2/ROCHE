@@ -39,6 +39,8 @@ export const SearchPersonResult = z
     locationName: z.string().nullable(),
     roomLabel: z.string().nullable(),
     hasPhoto: z.boolean(),
+    /** Accessible Information Standard needs, by their display words (shown before opening). */
+    communicationNeeds: z.array(z.string()),
   })
   .meta({ id: "SearchPersonResult" });
 
@@ -90,6 +92,9 @@ export const SearchResults = z
     counts: z.record(z.string(), z.number().int()),
     total: z.number().int(),
     hasMore: z.boolean(),
+    /** Some kind matched more rows than are read (`readLimit`): ask for another word. */
+    capped: z.boolean(),
+    readLimit: z.number().int(),
     /** Kinds asked for and not searched, with why (never anything about a record). */
     omitted: z.array(SearchOmission),
     /** Whom people, documents and notes were searched among, for the screen to say. */

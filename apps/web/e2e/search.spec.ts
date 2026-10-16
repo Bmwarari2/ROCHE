@@ -70,4 +70,57 @@ test("hazard HZ-011 a care worker's search says it looked only among the people 
   await expect(results(page)).toContainText("searched among the people assigned to you only");
   await expect(page.getByLabel("Include people who have left the service")).toHaveCount(0);
   await expectAccessible(page, "care worker, no match");
+
+  // Colleagues are not something a care worker searches: refused in words.
+  await page.getByLabel("Look in").selectOption({ label: "Colleagues" });
+  await searchFor(page, "Mo Manager");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Your role cannot search the kind of record you chose.",
+  );
+  await expectAccessible(page, "care worker, refused");
+});
+
+test("hazard HZ-001 the owner is warned when two people share a name, and may include people who have left", async ({
+  page,
+}) => {
+  await signIn(page, "owner@example.invalid");
+  await page.goto("/search");
+  await page.getByLabel("Include people who have left the service").check();
+  await expectAccessible(page, "people who have left, asked for");
+  await searchFor(page, "Sam Twin");
+  await expect(results(page)).toContainText("People who have left the service are included.");
+  const warnings = results(page).getByText(
+    "Same name as another result: check the photo and date of birth before opening",
+  );
+  await expect(warnings).toHaveCount(2);
+  await expect(results(page)).toContainText("Born 04/03/1940");
+  await expect(results(page)).toContainText("Born 12/09/1946");
+  await expectAccessible(page, "same name");
+
+  // Communication needs show before the record opens.
+  await page.getByLabel("Include people who have left the service").uncheck();
+  await searchFor(page, "Ada Example");
+  await expect(results(page)).toContainText(
+    "Communication needs: Needs information in large print",
+  );
+});
+
+test("the words never reach the address, even before the page's scripts run", async ({
+  browser,
+}) => {
+  // Signed in with scripts on, then the same session with scripts off.
+  const signedIn = await browser.newContext();
+  await signIn(await signedIn.newPage(), "manager@example.invalid");
+  const state = await signedIn.storageState();
+  await signedIn.close();
+  const context = await browser.newContext({ storageState: state, javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto("/search");
+  const box = page.getByRole("searchbox", { name: "Search for" });
+  await box.fill("Ada Example");
+  await box.press("Enter");
+  await page.waitForLoadState();
+  expect(page.url()).not.toContain("Ada");
+  expect(page.url()).not.toContain("query");
+  await context.close();
 });

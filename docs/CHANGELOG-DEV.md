@@ -1,5 +1,9 @@
 # Development log
 
+> **Frozen on 2026-10-16.** New entries are one file per pull request in
+> [docs/changelog-dev/](changelog-dev/README.md) ([ADR-0073](decisions/0073-changelog-fragments.md)).
+> Do not append here; this file is the history before that date.
+
 One entry per working session (section 20 rule 9): what changed, what is next, human actions
 logged, test status.
 
@@ -2463,43 +2467,44 @@ CSO. Tests: `feed-publish.test.ts` 14.
 `apps/api/test/onboarding.test.ts` (fail closed, invited members, another organisation's
 decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 
-## 2026-10-17: Slice 13 search part 1, the search index (PLAT-013)
+## 2026-10-17: Slice 12 part 2a, the staff family updates screen (COMMS-001)
 
-- Migration 0066: `app.search_terms` (equal to the domain's `searchTerms`), `app.search_vector`, the
-  `app.harbour_search` configuration, generated vectors on `person` (names, room), `tenant_user`
-  (display name), `document` (title and file name) and `care_note` (text). No GIN index: the app role could not use one under forced RLS (ADR-0070
-  as built).
-- Docs: platform-completions.md section 10f, ADR-0070, HZ-011, the register, data standards, STATUS.
+- API: `POST /v1/people/{id}/feed/preview`, the compose rule with nothing stored: the family's
+  words, or each problem with its code; audited with codes only.
+- Web: a "Family updates" tab on the record for `comms.feed.publish`: choose a recent note, activity
+  or a photo added for the family feed, write the family's words, preview with each problem at its
+  field (a hold first), publish once with the form's id, the list published, and taking one down
+  with a reason (`comms.feed.withdraw`). Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
 
-**Tests**: `packages/db/test/search-index.test.ts` (23).
+**Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
+`apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
 
-Review round 1 of #91: a lock note and `lock_timeout` in the migration, and a search-index runbook
-(maintenance window for live tenants, the batched alternative, rebuilding the vectors after a
-Postgres upgrade); the vectors recorded as plain-text copies beyond crypto-shredding (ADR-0070,
-retention-and-deletion.md, H-380 for the DPO) and in records of processing; the redundant NHS
-number index removed; document title tests across tenants and scopes. Tests: `search-index.test.ts`
-24.
+Review round 1 of #87: publishing sends exactly the request previewed, with a new id for each
+preview, and an update already published with other words is a problem, never "published"; the API
+refuses notes and activities older than 14 days (`source_too_old`, audited); records that could not
+be read are said so; tests for a record corrected between preview and publishing, an out-of-scope
+preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
+a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
 
-## 2026-10-17: Slice 13 search part 2, the search route (PLAT-013)
+## 2026-10-17: Slice 13, sub-processor notices, organisation side (PLAT-023, rules 24 and 25)
 
-- API: `POST /v1/search`: the words in the body only; `buildSearchPlan` with the session's MFA,
-  the role end and the agency flag (no shift recorded until rotas: refused); each kind read in its
-  own permission's scope (ADR-0071) with break-glass left out; `filterSearchResults` again, people
-  first with same-name warnings; a log alarm with counts only if the plan drops a row; audited with
-  the ids shown, refusals with the problem, never the words.
-- Docs: platform-completions.md section 10g, HZ-011, the register, STATUS.
+- Migration 0065: `sub_processor_notice` (Thapsus's, read by all, announced only by the operator
+  role, never changed) and `sub_processor_response` (append-only; only the named data protection
+  lead holding `platform.dpia.sign` acknowledges or objects; Thapsus records resolutions).
+- Domain: `noticeResponseFrom` and `subProcessorAcknowledgementsFrom`, table-driven.
+- API: the sub-processors in use with their notices and states; acknowledge (register or notice)
+  and object within the window, step-up, audited without the grounds. The onboarding checklist
+  reads the acknowledgements, and a later notice reopens one.
+- Docs: platform-completions.md section 10h, records of processing, data standards, retention,
+  feature register, STATUS.
 
-**Tests**: `apps/api/test/search.test.ts` (11).
+**Tests**: `apps/api/test/sub-processors.test.ts` (6), `sub-processors.test.ts` stored responses (5).
 
-## 2026-10-17: Slice 13 search part 3, the search page (PLAT-013)
+## 2026-10-17: Sub-processor notices, review of #92
 
-- Web: `/search` and "Search" in the side bar for `platform.search.use`: the box (with "Look in"
-  and, for those who may, people who have left), results that take focus and say where the search
-  looked and what it left out, people with photo, date of birth or age, NHS number and status as a
-  word, same-name warnings, and refusals in words. The words never reach the address. Strings in
-  en-GB; Welsh copied and listed as untranslated.
-- Docs: platform-completions.md section 10h, HZ-001, the register, STATUS.
-
-**Tests**: `apps/web/src/lib/search.test.ts` (7); `apps/web/e2e/search.spec.ts` (2, axe on every
-state).
-
+- Responses are read through roles only; objection grounds go to DPIA permission holders only.
+- No register acknowledgement while a notice about the sub-processor has an open objection.
+- Each notice's window uses the notice period in force on the UK date it was announced.
+- Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
+  database), and the operator role refused anything but a resolution.

@@ -147,14 +147,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`feat/comms-feed-publish`): in review, `POST /v1/people/{id}/feed` for notes, activities and
      photos (consent to photos required), the feed reading the photo basis. Follow-ups: visits and
      care plan updates as sources; the exposure route; the next-of-kin step from safety in place of
-     "family not recorded as told"; the staff-name tenant setting (H-107); then part 2, the web feed and staff screens; then channels, notifications and visit
-     booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     "family not recorded as told"; the staff-name tenant setting (H-107). Part 2a
+     (`feat/web-family-feed`, stacked on part 1b): the preview route and the staff "Family updates"
+     tab (choose a record, words for the family, problems at each field, preview, publish once,
+     take down with a reason), with a Playwright journey. Next, part 2b, the family's portal page;
+     then channels, notifications and visit booking. Open: the portal feed names no person (a family session cannot read `person`), so
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
 
    - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
-     platform-completions.md section 10f; PLAT-013, ADR-0070): `app.search_terms` equal to the
+     platform-completions.md section 10s; PLAT-013, ADR-0070): `app.search_terms` equal to the
      domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Part 2, the route
      (`feat/platform-search-api`, stacked): `POST /v1/search` with the plan, each kind in its own
      permission's scope without break-glass, the second filter, ranking and audit without the words.
@@ -165,6 +168,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
      platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
      the named lead who prepared none of it, never changed after), the tenant's data protection
      governance, and the prepare, save, sign and settings routes.
+   - Slice 13, sub-processor notices, organisation side (`feat/platform-sub-processor-notices`,
+     migration 0065; platform-completions.md section 10h): notices and append-only responses with
+     forced RLS; the named lead acknowledges or objects within the window; the checklist reads
+     the acknowledgements. Next: the operator side, then sample data mode.
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.
