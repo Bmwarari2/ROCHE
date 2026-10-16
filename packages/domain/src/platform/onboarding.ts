@@ -663,3 +663,129 @@ export function tenantDefaultRateKeys(
     .map((r) => r.key);
   return [...new Set(keys)].sort();
 }
+
+// ------------------------------------------------------------------------------------------------
+// Onboarding decisions (rule 27): a person decides, and the decision is a record with who and when
+// ------------------------------------------------------------------------------------------------
+
+export type SettingDecisionKind = "accepted" | "set";
+
+export type DecisionProblem =
+  | "not_a_tenant_default"
+  | "no_own_setting"
+  | "not_a_retention_class"
+  | "staff_file_is_an_option"
+  | "kind_not_for_class"
+  | "no_own_period"
+  | "not_longer"
+  | "safety_case_not_current";
+
+export interface DecisionIssue {
+  readonly problem: DecisionProblem;
+  readonly message: string;
+}
+
+/**
+ * A decision on a tenant-default setting: accepting Harbour's default, or saying the organisation
+ * has set its own, which needs its own figure in the rate table first. Never a tick on its own.
+ */
+export function checkSettingDecision(input: {
+  readonly kind: SettingDecisionKind;
+  readonly isTenantDefault: boolean;
+  readonly hasOwnSetting: boolean;
+}): DecisionIssue | null {
+  if (!input.isTenantDefault) {
+    return {
+      problem: "not_a_tenant_default",
+      message: "This is not a setting Harbour chose for you.",
+    };
+  }
+  if (input.kind === "set" && !input.hasOwnSetting) {
+    return {
+      problem: "no_own_setting",
+      message: "Set your own figure first, then record the decision.",
+    };
+  }
+  return null;
+}
+
+/** Months in a retention period, to compare periods given in years or months. */
+const monthsOf = (p: { readonly period: number; readonly unit: string }) =>
+  p.unit === "years" ? p.period * 12 : p.period;
+
+/**
+ * A decision on a retention class (rule 26): a class with a default is accepted, or lengthened to
+ * the organisation's own longer period; a class the organisation's policy sets has its period set,
+ * or is marked not used. Lengthening or setting needs the organisation's own period first, and a
+ * lengthened period must be longer than the default. The staff file option is chosen on its own.
+ */
+export function checkRetentionDecision(input: {
+  readonly recordClass: string;
+  readonly kind: RetentionDecisionKind;
+  /** The schedule's row for the class, or null when there is none. */
+  readonly schedule: {
+    readonly trigger: string;
+    readonly period: number;
+    readonly unit: string;
+  } | null;
+  /** The organisation's own period for the class, if it has one. */
+  readonly own: { readonly period: number; readonly unit: string } | null;
+}): DecisionIssue | null {
+  const { schedule, own, kind } = input;
+  if (schedule === null) {
+    return { problem: "not_a_retention_class", message: "There is no such kind of record." };
+  }
+  if (input.recordClass.startsWith(STAFF_FILE_PREFIX)) {
+    return {
+      problem: "staff_file_is_an_option",
+      message: "Choose how long staff files are kept with the staff file option.",
+    };
+  }
+  const byPolicy = schedule.trigger === "tenant_policy";
+  const allowed: readonly RetentionDecisionKind[] = byPolicy
+    ? ["period_set", "not_used"]
+    : ["accepted", "lengthened"];
+  if (!allowed.includes(kind)) {
+    return {
+      problem: "kind_not_for_class",
+      message: byPolicy
+        ? "Your policy sets this period: set it, or mark this kind of record not used."
+        : "Accept Harbour's period for this kind of record, or lengthen it.",
+    };
+  }
+  if ((kind === "lengthened" || kind === "period_set") && own === null) {
+    return {
+      problem: "no_own_period",
+      message: "Set your own period first, then record the decision.",
+    };
+  }
+  if (kind === "lengthened" && own !== null && monthsOf(own) <= monthsOf(schedule)) {
+    return {
+      problem: "not_longer",
+      message: "Your period must be longer than Harbour's; otherwise accept it.",
+    };
+  }
+  return null;
+}
+
+/**
+ * A DCB0160 assessment is recorded against Harbour's safety case for the release the organisation
+ * runs, as the recorder read it: an assessment of an earlier one does not cover this release.
+ */
+export function checkDcb0160Recording(input: {
+  readonly safetyCaseVersion: string;
+  readonly currentSafetyCaseVersion: string;
+}): DecisionIssue | null {
+  return input.safetyCaseVersion.trim() === input.currentSafetyCaseVersion
+    ? null
+    : {
+        problem: "safety_case_not_current",
+        message: `Assess the deployment against the current safety case, ${input.currentSafetyCaseVersion}.`,
+      };
+}
+
+export const STAFF_FILE_OPTIONS = [
+  "staff_file.after_leaving",
+  "staff_file.to_75th_birthday",
+] as const;
+export type StaffFileOption = (typeof STAFF_FILE_OPTIONS)[number];

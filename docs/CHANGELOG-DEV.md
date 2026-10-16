@@ -2381,6 +2381,20 @@ draft"; every counted problem is listed with a link to its field (a channel prob
 channel) and shown read-only too; `done` and `at` come off the address once said; axe after both
 refusals and a new draft. Tests: the journey's third test (stale form, stale save, stale approval).
 
+## 2026-10-17: Slice 13, the onboarding checklist part 1, decision records (PLAT-018)
+
+- Migration 0064 (after #81's 0063): append-only `tenant_setting_decision`, `retention_decision`
+  and `dcb0160_record` (forced RLS; written only by a holder of `platform.onboarding.manage` in
+  their own name), and `tenant.staff_file_option`, guarded at the database; export catalogue
+  entries.
+- Domain: `checkSettingDecision`, `checkRetentionDecision` and `checkDcb0160Recording`,
+  table-driven, so a decision is never a tick with nothing behind it.
+- Docs: platform-completions.md section 10e, records of processing, data standards, feature
+  register, STATUS.
+
+**Tests**: `packages/db/test/onboarding-decisions.test.ts` (10); decision tables in
+`onboarding.test.ts` (19).
+
 ## 2026-10-17: Slice 11 web part 2, the letters tab (COMMS-007)
 
 - `/people/{id}/letters`: choose an approved template, type only the admission or fee details it
