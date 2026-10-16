@@ -112,7 +112,7 @@ async function change<T>(
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
 /** The domain's view of a stored version. */
-const domainVersion = (template: TemplateRow, row: VersionRow): TemplateVersion => ({
+export const domainVersion = (template: TemplateRow, row: VersionRow): TemplateVersion => ({
   id: row.id,
   templateId: row.templateId,
   version: row.versionNumber,

@@ -15712,6 +15712,250 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/letters/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Preview a letter or email (nothing is stored)
+     * @description comms.letter.manage in the person's scope, with MFA; safety.incident.manage too for an incident letter. Renders the template's version in use with the person's details and shows who it is about (name, room, photo) and the personal-data fields, for the check before sending (rule 25). Returns the version and a hash of the text, which the send must repeat. Refusals say what is missing. Audited with field keys only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["LetterRequest"];
+        };
+      };
+      responses: {
+        /** @description The letter as it would be sent */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LetterPreview"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/letters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The letters sent about a person
+     * @description comms.letter.manage in the person's scope, with MFA (#69 review: reading letters needs a comms permission, not only the person in scope). Template version, recipient, channel and the field keys used; never the content (a letter's PDF is its document). The incident is shown only to holders of safety.incident.manage. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Letters, newest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LetterList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Send a letter
+     * @description As the preview, with the preview's version and text hash: a letter that would differ from what was confirmed is refused (409). A letter is rendered to PDF through the pack PDF writer (values as text, never markup) and stored as a document about the person. Email is refused (422, email_sending_not_available) until the worker-based send exists. The letter row holds the template version, recipient and field keys, never the content. Audited; outbox comms.letter.sent.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SendLetter"];
+        };
+      };
+      responses: {
+        /** @description Sent */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              id: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/rates/{key}": {
     parameters: {
       query?: never;
@@ -23008,6 +23252,85 @@ export interface components {
     EndTemplateVersion: {
       reason: string;
       version: number;
+    };
+    LetterPreview: {
+      /** Format: uuid */
+      templateVersionId: string;
+      textHash: string;
+      person: {
+        /** Format: uuid */
+        id: string;
+        fullName: string;
+        preferredName: string | null;
+        roomLabel: string | null;
+        photoUrl: string | null;
+      };
+      channel: components["schemas"]["TemplateChannel"];
+      subject: string | null;
+      text: string;
+      recipientName: string;
+      personalDataFields: string[];
+      containsSpecialCategory: boolean;
+    };
+    LetterRequest: {
+      /** Format: uuid */
+      templateId: string;
+      recipient: components["schemas"]["LetterRecipient"];
+      /** Format: uuid */
+      incidentId?: string;
+      values?: {
+        [key: string]: string | number;
+      };
+    };
+    LetterRecipient:
+      | {
+          /** @enum {string} */
+          kind: "person";
+        }
+      | {
+          /** @enum {string} */
+          kind: "contact";
+          /** Format: uuid */
+          contactId: string;
+        };
+    SendLetter: {
+      /** Format: uuid */
+      templateId: string;
+      recipient: components["schemas"]["LetterRecipient"];
+      /** Format: uuid */
+      incidentId?: string;
+      values?: {
+        [key: string]: string | number;
+      };
+      /** @enum {boolean} */
+      confirmed: true;
+      /** Format: uuid */
+      templateVersionId: string;
+      textHash: string;
+    };
+    LetterList: {
+      items: components["schemas"]["LetterItem"][];
+    };
+    LetterItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateVersionId: string;
+      channel: components["schemas"]["TemplateChannel"];
+      /** @enum {string} */
+      recipientKind: "person" | "contact";
+      /** Format: uuid */
+      contactId: string | null;
+      personalFields: string[];
+      specialCategory: boolean;
+      /** Format: uuid */
+      incidentId: string | null;
+      /** Format: uuid */
+      documentId: string | null;
+      /** Format: uuid */
+      sentBy: string;
+      /** Format: date-time */
+      sentAt: string;
     };
     RateValue: {
       key: string;
