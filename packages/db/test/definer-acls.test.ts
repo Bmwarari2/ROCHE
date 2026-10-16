@@ -10,30 +10,37 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  * can only run as triggers, never be called.
  */
 
+/** Keyed by full signature (argument types as `oidvectortypes` prints them), so an overload is
+ * listed and decided on its own. */
 const EXECUTE: Readonly<Record<string, readonly string[]>> = {
-  "app.accept_invitation": ["harbour_app"],
-  "app.admit_handed_over_entry": ["harbour_app"],
-  "app.auth_user_has_membership": ["harbour_invitation_owner"],
-  "app.claim_invitation": ["harbour_app"],
-  "app.evidence_pack_link_for_token": ["harbour_app"],
-  "app.family_can_see": ["harbour_app", "harbour_owner"],
-  "app.family_item_shown": ["harbour_app", "harbour_owner"],
-  "app.invitation_for_token": ["harbour_app"],
-  "app.invite_first_owner": ["harbour_operator"],
-  "app.memberships_for_auth_user": ["harbour_app"],
-  "app.provision_tenant": ["harbour_operator"],
-  "app.record_invitation_sign_in": ["harbour_app"],
-  "app.seed_discard_reasons": [],
-  "app.seed_tenant_discard_reasons": [],
-  "app.sweep_expired_invitations": ["harbour_worker"],
-  "app.unlinked_invitation_sign_ins": ["harbour_worker"],
+  "app.accept_invitation(text, text)": ["harbour_app"],
+  "app.admit_handed_over_entry(uuid, uuid, uuid, uuid, text, uuid, timestamp with time zone, integer)":
+    ["harbour_app"],
+  "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
+  "app.claim_invitation(text)": ["harbour_app"],
+  "app.evidence_pack_link_for_token(text)": ["harbour_app"],
+  "app.family_can_see(uuid, text, text, timestamp with time zone)": [
+    "harbour_app",
+    "harbour_owner",
+  ],
+  "app.family_item_shown(uuid)": ["harbour_app", "harbour_owner"],
+  "app.invitation_for_token(text)": ["harbour_app"],
+  "app.invite_first_owner(uuid, text)": ["harbour_operator"],
+  "app.memberships_for_auth_user(text)": ["harbour_app"],
+  "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],
+  "app.record_invitation_sign_in(text, text)": ["harbour_app"],
+  "app.seed_discard_reasons(uuid)": [],
+  "app.sweep_expired_invitations()": ["harbour_worker"],
+  "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).
-  "app.announce_sub_processor_notice": ["harbour_operator"],
-  "app.sub_processor_objections": ["harbour_operator"],
-  "app.resolve_sub_processor_objection": ["harbour_operator"],
-  // Sample data mode (migration 0069).
-  "app.sample_people": ["harbour_app"],
-  "app.remove_sample_batch": ["harbour_app"],
+  "app.announce_sub_processor_notice(text, text, jsonb, timestamp with time zone, uuid[], text)": [
+    "harbour_operator",
+  ],
+  "app.sub_processor_objections(uuid, text)": ["harbour_operator"],
+  "app.resolve_sub_processor_objection(uuid, uuid, text, text)": ["harbour_operator"],
+  // Sample data mode (#98, migration 0069).
+  "app.sample_people()": ["harbour_app"],
+  "app.remove_sample_batch(uuid, text)": ["harbour_app"],
 };
 
 let db: TestDatabase;
@@ -50,7 +57,7 @@ type Definer = { name: string; owner: string; public: boolean; grantees: string[
 
 async function definers(): Promise<Definer[]> {
   const { rows } = await db.pool("harbour_owner").query<Definer>(
-    `SELECT n.nspname || '.' || p.proname AS name,
+    `SELECT n.nspname || '.' || p.proname || '(' || oidvectortypes(p.proargtypes) || ')' AS name,
             pg_get_userbyid(p.proowner) AS owner,
             EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                      WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE') AS public,
@@ -72,6 +79,11 @@ describe("hazard HZ-011 definer functions run only for the roles meant to call t
     const found = await definers();
     expect(found.length).toBeGreaterThan(10);
     expect(found.map((f) => f.name).filter((name) => !(name in EXECUTE))).toEqual([]);
+  });
+
+  it("lists only functions that exist and are SECURITY DEFINER, by full signature", async () => {
+    const found = new Set((await definers()).map((f) => f.name));
+    expect(Object.keys(EXECUTE).filter((name) => !found.has(name))).toEqual([]);
   });
 
   it("lets PUBLIC execute none of them", async () => {

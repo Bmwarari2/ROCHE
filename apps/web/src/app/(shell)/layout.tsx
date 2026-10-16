@@ -13,6 +13,7 @@ import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { onboardingShown } from "@/lib/onboarding";
 import { roundShown } from "@/lib/round";
+import { searchShown } from "@/lib/search";
 import { teamShown } from "@/lib/team";
 
 /** "CQC location 1-000000001", for the location switcher. */
@@ -57,6 +58,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         people: me.permissions.includes("people.person.read")
           ? peopleLabel(me.tenant.terminology)
           : undefined,
+        search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),

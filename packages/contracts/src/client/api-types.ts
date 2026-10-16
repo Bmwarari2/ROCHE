@@ -159,6 +159,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Search what you can already see
+     * @description People, colleagues, documents and notes, each on the permission that lets you read it and in that permission's scope (ADR-0071). The words are sent in the body and never stored; the audit event holds the opaque ids shown. People who have left need platform.search.archived. Out-of-scope matches look exactly like no match.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RunSearch"];
+        };
+      };
+      responses: {
+        /** @description Results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SearchResults"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/me/sessions": {
     parameters: {
       query?: never;
@@ -20396,6 +20466,98 @@ export interface components {
     };
     /** @enum {string} */
     DataScope: "tenant" | "locations" | "assigned" | "none";
+    SearchResults: {
+      items: components["schemas"]["SearchResultItem"][];
+      counts: {
+        [key: string]: number;
+      };
+      total: number;
+      hasMore: boolean;
+      capped: boolean;
+      readLimit: number;
+      omitted: components["schemas"]["SearchOmission"][];
+      /** @enum {string|null} */
+      personScope: "tenant" | "locations" | "assigned" | null;
+      /** @enum {string|null} */
+      staffScope: "tenant" | "locations" | null;
+      includeArchived: boolean;
+      /** @enum {string} */
+      queryKind: "text" | "nhs_number";
+      ignoredTerms: number;
+    };
+    SearchResultItem: {
+      type: components["schemas"]["SearchEntityType"];
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      match: "exact" | "prefix";
+      sameName: boolean;
+      person: components["schemas"]["SearchPersonResult"];
+      staff: {
+        name: string;
+        roles: string[];
+        locations: string[];
+      } | null;
+      document: {
+        title: string;
+        category: string;
+        fileName: string | null;
+        /** Format: date-time */
+        createdAt: string;
+        /** Format: uuid */
+        personId: string | null;
+        personName: string | null;
+      } | null;
+      note: {
+        /** Format: uuid */
+        personId: string;
+        personName: string;
+        excerpt: string;
+        /** Format: date-time */
+        occurredAt: string;
+        author: string | null;
+      } | null;
+    };
+    /** @enum {string} */
+    SearchEntityType: "person" | "staff" | "document" | "note";
+    SearchPersonResult: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      preferredName: string | null;
+      dateOfBirth: string | null;
+      age: number | null;
+      nhsNumber: string | null;
+      status: components["schemas"]["PersonStatus"];
+      locationName: string | null;
+      roomLabel: string | null;
+      hasPhoto: boolean;
+      communicationNeeds: string[];
+    } | null;
+    /**
+     * @description The person lifecycle (people.md rule 1)
+     * @enum {string}
+     */
+    PersonStatus:
+      | "enquiry"
+      | "pre_admission"
+      | "active"
+      | "on_leave"
+      | "in_hospital"
+      | "discharged"
+      | "deceased"
+      | "archived"
+      | "not_admitted";
+    SearchOmission: {
+      type: components["schemas"]["SearchEntityType"];
+      /** @enum {string} */
+      reason: "not_permitted" | "no_scope" | "mfa_required" | "not_applicable";
+    };
+    RunSearch: {
+      query: string;
+      types?: components["schemas"]["SearchEntityType"][];
+      includeArchived?: boolean;
+    };
     DeviceSessionList: {
       items: components["schemas"]["DeviceSession"][];
     };
@@ -20474,20 +20636,6 @@ export interface components {
         readOnlyReason: "break_glass" | "scope" | null;
       };
     };
-    /**
-     * @description The person lifecycle (people.md rule 1)
-     * @enum {string}
-     */
-    PersonStatus:
-      | "enquiry"
-      | "pre_admission"
-      | "active"
-      | "on_leave"
-      | "in_hospital"
-      | "discharged"
-      | "deceased"
-      | "archived"
-      | "not_admitted";
     /** @enum {string} */
     AllergyStatus: "unknown" | "no_known_allergies" | "has_allergies";
     CommunicationNeed: {

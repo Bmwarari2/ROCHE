@@ -255,6 +255,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
 | export.link_expiry_hours_max | 168 | hours | 2000-01-01 | - | all | Harbour ceiling on the tenant's export.link_expiry_hours setting, so no tenant can keep a full export downloadable for more than 7 days (platform-completions.md rule 12; security review); policy value, not statutory | to-verify |
 | break_glass.search_max_per_day | 5 | count | 2000-01-01 | - | all | Harbour default: break-glass searches one user may run in any 24 hours before further searches are refused and the data protection lead is told (platform-completions.md rule 9; security review); policy value, not statutory; tenant default | to-verify |
+| search.requests_per_minute | 30 | count | 2000-01-01 | - | all | Harbour default: searches one member may run in a minute before further searches are refused for a moment (platform-completions.md section 10s, part 2; #93 security review), so search cannot sweep the records a name at a time; policy value, not statutory; tenant default | to-verify |
 | dpia.review_interval_months | 12 | months | 2000-01-01 | - | all | DPIA template section 8 ("at least annually"); UK GDPR Art 35(11) requires a review at least when the risk changes but sets no interval, https://www.legislation.gov.uk/eur/2016/679/article/35 (platform-completions.md rule 22); tenant default | to-verify |
 | sub_processor.notice_days | 30 | days | 2000-01-01 | - | all | DPA template clause 6.2 (bracketed default, solicitor to confirm, H-32): notice before a new or replacement sub-processor, and the window for objecting (platform-completions.md rule 24); contractual, not statutory; tenant setting from the tenant's DPA | to-verify |
 | benchmark.occupancy_percentage.low | 86 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
@@ -404,6 +405,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
   24 hours. Break-glass search exists to find one person in an emergency; more than a handful a
   day looks like browsing, so further searches are refused and the data protection lead is told.
   Tenant default, confirmed by the tenant's data protection lead (H-118).
+- `search.requests_per_minute` (30): how many searches one member may run in a minute. A person
+  looking for someone runs a few searches; dozens a minute looks like sweeping the records a name at
+  a time, so further searches wait (429 with Retry-After). Tenant default, confirmed by the tenant's
+  data protection lead (H-118).
 - `dpia.review_interval_months` (12): the yearly re-review of a signed DPIA (platform-completions.md
   rule 22). UK GDPR Art 35(11) requires a review "at least when there is a change of the risk"
   and sets no interval; the yearly review comes from Harbour's DPIA template (section 8, "at least

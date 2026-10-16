@@ -36,3 +36,9 @@ Branch `fix/db-definer-function-acls`.
   files exist; 0068's entry given idx 68); a STATUS security note; an HZ-011 control and test row;
   H-372. After #95 lands: a check that every listed function exists and is SECURITY DEFINER, by
   full signature.
+
+After #95 landed: main merged in and 0068's journal entry regenerated after 0067. The ACL test is
+now keyed by full signature (argument types), so an overload is decided on its own, and a new
+check fails when a listed function does not exist or is not SECURITY DEFINER. That check dropped
+`app.seed_tenant_discard_reasons` from the list: it is a trigger function, which the test leaves
+out. `app.notice_resolver_admin` was never listed (it is not a definer function).
