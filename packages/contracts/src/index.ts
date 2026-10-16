@@ -486,7 +486,7 @@ export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";
 export * from "./devices";
-export { DeviceDeletionFlag } from "./entries";
+export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
 export * from "./handover";
 export * from "./invitations";

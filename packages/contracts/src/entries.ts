@@ -88,3 +88,67 @@ export const entryOutput = {
   /** Set when the entry's device recorded deleting it (`DeviceDeletionFlag`); null otherwise. */
   deviceDeletion: DeviceDeletionFlag.nullable(),
 };
+
+/**
+ * A record entered from a paper downtime form (operations.md rules 11 and 12; HZ-009, HZ-017): the
+ * outage it belongs to and the date and time as written on the form, in UK time. The entry's
+ * `occurredAt` must be the instant they give. In the hour the clocks go back, say which of the two
+ * times it was (`occurrence`); a time in the hour they go forward is refused. A paper time outside
+ * the outage needs `outsideOutageReason`. A correction of a back-entry may leave this out: the
+ * paper details are carried from the entry it corrects.
+ */
+export const BackEntryInput = z
+  .object({
+    outageId: uuid,
+    /** The date written on the form (yyyy-mm-dd). */
+    paperDate: z.iso.date(),
+    /** The 24-hour time written on the form (hh:mm). */
+    paperTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    occurrence: z.enum(["earlier", "later"]).optional(),
+    /** Why the paper time is outside the outage, when it is. */
+    outsideOutageReason: z.string().trim().min(1).max(500).optional(),
+    /** The form's own reference, when it has one. */
+    paperReference: z.string().trim().min(1).max(80).optional(),
+  })
+  .strict()
+  .meta({ id: "BackEntryInput" });
+export type BackEntryInput = z.infer<typeof BackEntryInput>;
+
+/**
+ * The back-entry fields of the five entries a device or the web writes (notes, observations,
+ * body-map marks, activities and visits). `notFromPaperReason`: an entry written later for a time
+ * inside a declared outage that was not copied from a paper form says why (rule 13).
+ */
+export const entryDowntimeInput = {
+  backEntry: BackEntryInput.optional(),
+  notFromPaperReason: z.string().trim().min(1).max(500).optional(),
+};
+
+export const EntryBackEntry = z
+  .object({
+    outageId: uuid,
+    paperDate: z.string(),
+    paperTime: z.string(),
+    occurrence: z.enum(["only", "earlier", "later"]),
+    outsideOutageReason: z.string().nullable(),
+    paperReference: z.string().nullable(),
+    /**
+     * Show wherever the entry appears, so it never reads as written at the time (rule 12;
+     * HZ-017): the paper time, the outage, and when it was entered and received. Null when the
+     * outage cannot be read.
+     */
+    label: z.string().nullable(),
+  })
+  .meta({ id: "EntryBackEntry" });
+export type EntryBackEntry = z.infer<typeof EntryBackEntry>;
+
+export const EntryNotFromPaper = z
+  .object({ outageId: uuid, reason: z.string() })
+  .meta({ id: "EntryNotFromPaper" });
+export type EntryNotFromPaper = z.infer<typeof EntryNotFromPaper>;
+
+/** Returned with the five entries: entered from paper, or written later and not from paper. */
+export const entryDowntimeOutput = {
+  backEntry: EntryBackEntry.nullable(),
+  notFromPaper: EntryNotFromPaper.nullable(),
+};
