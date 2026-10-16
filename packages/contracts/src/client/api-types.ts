@@ -17569,6 +17569,321 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/exports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's exports, newest first
+     * @description platform.export.create with step-up, as for asking and downloading. Never the archive's place in storage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exports */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExportList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask for the organisation's free full export
+     * @description platform.export.create with step-up (an MFA sign-in within the window). Free at any time. One export at a time: while one is queued or running, asking again answers 200 with it. With sinceExportId, only the changes since that export's snapshot. Audited (platform.export.requested).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RequestExport"];
+        };
+      };
+      responses: {
+        /** @description The export already being prepared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExportItem"];
+          };
+        };
+        /** @description Queued */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ExportItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/exports/{id}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel an export, deleting its archive
+     * @description platform.export.create with step-up. A queued, running or ready export; its archive is deleted at once. Audited (platform.export.revoked).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Cancelled */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/exports/{id}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Download the export archive, once
+     * @description platform.export.create with step-up, by the person who asked only, while it is ready and unexpired (checkExportDownload). One fetch: the download is recorded (who and when) before the bytes leave, and the archive is then deleted; a second fetch is 410 export_already_downloaded. Audited (platform.export.downloaded).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The archive */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/zip": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Expired, cancelled or already downloaded */
+        410: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -23407,6 +23722,42 @@ export interface components {
       token: components["schemas"]["InvitationToken"];
       password?: string;
       name?: string;
+    };
+    ExportItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      kind: "full" | "changes_since";
+      /** Format: date-time */
+      since: string | null;
+      status: components["schemas"]["ExportStatus"];
+      requestedBy: components["schemas"]["StaffName"];
+      /** Format: date-time */
+      requestedAt: string;
+      /** Format: date-time */
+      snapshotAt: string | null;
+      /** Format: date-time */
+      readyAt: string | null;
+      /** Format: date-time */
+      expiresAt: string | null;
+      bytes: number | null;
+      manifestSha256: string | null;
+      warnings: {
+        [key: string]: unknown;
+      }[];
+      /** Format: date-time */
+      downloadedAt: string | null;
+      mayDownload: boolean;
+    };
+    /** @enum {string} */
+    ExportStatus: "queued" | "running" | "ready" | "failed" | "expired" | "revoked";
+    /** @description Ask for a full export, or the changes since one */
+    RequestExport: {
+      /** Format: uuid */
+      sinceExportId?: string;
+    };
+    ExportList: {
+      items: components["schemas"]["ExportItem"][];
     };
   };
   responses: never;

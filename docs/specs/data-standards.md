@@ -586,6 +586,7 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | Export column classification | Harbour (`EXPORT_TABLES`) | `exported`, `internal`, `secret` | Only `exported` columns are written; only the `public` schema is read. Internal and secret columns (`document.storage_key`, `tenant_user.auth_user_id`, `integration_connection.secret_ref`) never leave (HZ-070). |
 | `destroyed.csv` | Harbour | `table`, `id`, `destroyed_at` (UTC), `certificate_id` | Records destroyed past retention; their rows are not in the table files. |
 | `tenant_export.status` | Harbour | `queued`, `running`, `ready`, `failed`, `expired`, `revoked` | A ready export past its expiry reads as `expired`. |
+| `tenant_export.kind`, `downloaded_at`, `downloaded_by` | Harbour | `full`, `changes_since` (with `since`, UTC); the single download's instant (UTC) and member (`tenant_user.id`, always the requester) | Migration 0062. The archive is fetched once and then deleted. |
 | `dpia.status` | Harbour | `draft`, `prepared`, `signed`, `superseded` | The onboarding state adds `not_started` and `review_due`. |
 | DPIA risk ratings | ICO DPIA template terms | Likelihood `remote`, `possible`, `probable`; severity `minimal`, `significant`, `severe`; overall and residual `low`, `medium`, `high` | Risk ids R1 to R12 as the DPIA template. |
 | DPIA review triggers | Harbour | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |

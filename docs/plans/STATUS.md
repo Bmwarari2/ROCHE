@@ -137,6 +137,15 @@ only when they link spec, code, tests and user documentation; no user guides exi
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
+   - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
+     migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
+     with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
+     the single download; the `platform.data.export` rename in role copies and grants; request,
+     list, cancel and the one-time download, step-up and audited. Next, part 2: the worker job that
+     builds the archive in one snapshot (tables, documents, current summary, schema and manifest),
+     the expiry sweep and the notification; then the web export page. Interim: the archive lives
+     in the documents bucket under the export prefix until infra adds the export bucket; the
+     tenant has no `data_purged_at` yet, so `checkExportRequest` is given none.
    - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
      migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,

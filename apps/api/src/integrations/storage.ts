@@ -23,7 +23,9 @@ import type {
  * in AWS; a mock scanner that recognises the EICAR test file for tests.
  */
 
-const KEY_PATTERN = /^tenants\/[0-9a-f-]{36}\/documents\/[0-9a-f-]{36}$/;
+/** A document's bytes, or an export's archive (`exportStoragePrefix` plus `export.zip`). */
+const KEY_PATTERN =
+  /^tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip)$/;
 
 function assertKey(key: string): void {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
