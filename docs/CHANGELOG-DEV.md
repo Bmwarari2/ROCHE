@@ -2107,4 +2107,7 @@ append-only.
   `role_assignment` for the application role.
 - Docs: platform.md (As built, members), hazard log HZ-011 row, records of processing, STATUS.
 
-**Tests**: `apps/api/test/members.test.ts` (13).
+- #71 security review: giving a role counts only the giver's own roles, never an access grant
+  (M1); a retry with another name is 409; follow-ups logged in STATUS.
+
+**Tests**: `apps/api/test/members.test.ts` (16); `packages/db/test/members.test.ts` (4).

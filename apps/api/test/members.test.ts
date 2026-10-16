@@ -156,6 +156,9 @@ describe("hazard HZ-011 adding an invited member", () => {
     const changed = await create({ ...body, email: "someone.else@example.invalid" });
     expect(changed.status).toBe(409);
     expect(await codeOf(changed)).toBe("member_id_conflict");
+    const renamed = await create({ ...body, displayName: "Someone Else" });
+    expect(renamed.status).toBe(409);
+    expect(await codeOf(renamed)).toBe("member_id_conflict");
     // Another manager's retry of the same id is not theirs to replay.
     expect((await create(body, "manager")).status).toBe(409);
   });
@@ -191,6 +194,34 @@ describe("hazard HZ-011 adding an invited member", () => {
     const body = newMember(await roleId("care_worker"), DEMO.locationId);
     expect((await create(body, "carer")).status).toBe(403);
     expect((await create(body, "rae")).status).toBe(403);
+  });
+
+  it("adds an address another organisation uses, as its own member", async () => {
+    const body = newMember(await roleId("care_worker"), DEMO.locationId);
+    expect((await create({ ...body, email: "rae@example.invalid" })).status).toBe(201);
+  });
+
+  it("refuses another organisation's member id without saying whose", async () => {
+    const body = newMember(await roleId("care_worker"), DEMO.locationId);
+    const response = await create({ ...body, id: OTHER.managerId });
+    expect(response.status).toBe(409);
+    expect(await codeOf(response)).toBe("member_id_conflict");
+  });
+
+  it("needs a fresh sign-in", async () => {
+    const auth = h.db.pool("harbour_auth");
+    const age = (when: string) =>
+      auth.query(`UPDATE auth.session SET created_at = ${when} WHERE user_id = $1`, [
+        h.authIds.owner,
+      ]);
+    await age("now() - interval '1 hour'");
+    try {
+      const response = await create(newMember(await roleId("care_worker"), DEMO.locationId));
+      expect(response.status).toBe(403);
+      expect(await codeOf(response)).toBe("step_up_required");
+    } finally {
+      await age("now()");
+    }
   });
 
   it("refuses an invalid address", async () => {

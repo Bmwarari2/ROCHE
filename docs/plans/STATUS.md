@@ -691,9 +691,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
       `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
       (row-level security on adding members and role assignments; numbered after #69's 0059, so
       it merges after #69). Next: the managers' invitation screens in apps/web
-      (`feat/web-invitation-screens`, stacked). Follow-up: no restrictive policy yet on
-      updating a `role_assignment` (no route changes one); add one, with `app.may_assign_role`,
-      when the role editing screens come.
+      (`feat/web-invitation-screens`, stacked). #71 security review: (M1, fixed) giving a role
+      counts only the giver's own roles, never an access grant (`app.holds_role_permission_at`),
+      so acting up never becomes a lasting role. Follow-ups: (1) the members list is narrowed in
+      the application only (`membersReached`), as the invitation routes are; the database lets
+      any `tenant_user` row be read in the organisation's view; (2) within one organisation, 409
+      `email_in_use` tells a manager an address belongs to someone they cannot see (an
+      organisation-wide probe; accepted, as the address must be unique, but logged); (3) no
+      restrictive UPDATE policy yet on `tenant_user` or `role_assignment` for the application
+      role (no route changes either); add them, with `app.may_assign_role`, before any role or
+      member editing route; (4) a giver whose own role assignment ends (`valid_to`) can still give
+      a role with no end; decide whether a given role may outlive the giver's.
     - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
       members `platform.user.manage` reaches, with tests), lookup and accept with no session
       (token only as a bound parameter, throttled per address and per token), the operator's

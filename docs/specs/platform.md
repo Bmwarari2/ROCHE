@@ -389,15 +389,17 @@ migration 0060), the routes the managers' invitation screens use:
   second factor, with a name, a work address (stored in lower case) and one role at a location or
   across the organisation (a location role across the organisation is marked organisation-wide).
   Refused with 403 `beyond_inviter` unless `app.may_assign_role` (the manager holds
-  `platform.user.manage` and every permission of the role where it would apply; never the portal
-  role of a person receiving care), then checked again with `app.may_invite` on the new member;
+  `platform.user.manage` and every permission of the role where it would apply through their own
+  roles, never an access grant, so acting up never becomes a lasting role; never the portal role
+  of a person receiving care), then checked again with `app.may_invite` on the new member;
   409 `email_in_use` for an address already in the organisation, in any case. Idempotent on the
-  client's id: the same manager's retry with the same details answers 200; anything else with that
+  client's id: the same manager's retry with the same name, address and role answers 200; anything else with that
   id is 409 `member_id_conflict`. Audited as `platform.member.created` with the role and location
   ids, refusals too; never the address. The manager then invites them with `POST /v1/invitations`.
 - Migration 0060 (after 0059, letter templates, #69) enforces the same in row-level security: the
   application role may insert a `tenant_user` only as invited, with no sign-in and a second factor
-  required, by a holder of `platform.user.manage` somewhere (`app.holds_permission_somewhere`),
+  required, by a member whose own roles carry `platform.user.manage` somewhere
+  (`app.holds_role_permission_somewhere`),
   and a `role_assignment` only where `app.may_assign_role` allows. Changing an existing role
   assignment is not covered yet (no route does it): logged in STATUS.
 

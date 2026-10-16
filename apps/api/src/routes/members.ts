@@ -213,7 +213,11 @@ export const membersRouter = createRouter()
       try {
         outcome = await inSystemView(services.db, access, async (tx) => {
           const [existing] = await tx
-            .select({ email: tenantUser.email, createdBy: tenantUser.createdBy })
+            .select({
+              email: tenantUser.email,
+              displayName: tenantUser.displayName,
+              createdBy: tenantUser.createdBy,
+            })
             .from(tenantUser)
             .where(eq(tenantUser.id, input.id));
           if (existing) {
@@ -230,7 +234,10 @@ export const membersRouter = createRouter()
                 ),
               );
             const replay =
-              existing.email === email && existing.createdBy === access.tenantUserId && same;
+              existing.email === email &&
+              existing.displayName === input.displayName.trim() &&
+              existing.createdBy === access.tenantUserId &&
+              same;
             if (!replay) throw new Refused("member_id_conflict");
             return "replayed";
           }
