@@ -8,6 +8,7 @@ import { exportShown } from "@/lib/exports";
 import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
+import { templatesNavShown } from "@/lib/letters";
 import { roundShown } from "@/lib/round";
 import { teamShown } from "@/lib/team";
 
@@ -54,6 +55,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         notifications: t("shell.nav.notifications"),

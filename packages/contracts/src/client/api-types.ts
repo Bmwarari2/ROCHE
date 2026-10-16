@@ -18813,6 +18813,408 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/dpia": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's DPIA: where it stands, the version being prepared and the one signed
+     * @description platform.dpia.read, .prepare or .sign. The state (not started, draft, prepared, signed, review due) with what triggers a review, the governance settings and any missing configuration.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The DPIA */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DpiaOverview"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dpia/draft": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Save the DPIA being prepared (starting a new version if none is)
+     * @description platform.dpia.prepare. Refreshes Harbour's prefill and stores the organisation's answers, residual risk ratings and any ICO reference; the saver joins the version's preparers, who may not sign it. Saving a prepared version returns it to draft. Send the open version's `version` (409 when stale). Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveDpia"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DpiaVersion"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dpia/draft/prepare": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark the DPIA ready for sign-off
+     * @description platform.dpia.prepare. Refreshes the prefill once more, then freezes the version and records its SHA-256, which the signature binds to. Audited (platform.dpia.prepared).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PrepareDpia"];
+        };
+      };
+      responses: {
+        /** @description Prepared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DpiaVersion"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dpia/{id}/sign": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Sign the prepared DPIA
+     * @description platform.dpia.sign with step-up, by the member named as data protection officer or lead, who prepared none of this version, with a typed name bound to the version's SHA-256 as read (checkDpiaSignOff: every problem at once, 422 dpia_not_signable). The version signed before is superseded. Audited (platform.dpia.signed), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SignDpia"];
+        };
+      };
+      responses: {
+        /** @description Signed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DpiaVersion"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/settings/data-protection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * The organisation's data protection governance
+     * @description platform.tenant.manage. Names the data protection officer or lead (an active member holding platform.dpia.sign, who signs the DPIA; naming a different lead needs a fresh step-up and tells the one replaced), the sector, privacy notice, DPA date, use of data beyond direct care and the optional processing. Send the `version` read (409 when stale). Audited with what changed and the old and new lead ids, never the values of names or addresses.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveDataProtectionSettings"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DataProtectionSettings"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -24935,6 +25337,111 @@ export interface components {
     };
     ExportList: {
       items: components["schemas"]["ExportItem"][];
+    };
+    DpiaOverview: {
+      /** @enum {string} */
+      state: "not_started" | "draft" | "prepared" | "signed" | "review_due";
+      triggers: {
+        kind: string;
+        items?: string[];
+        /** Format: date-time */
+        dueAt?: string;
+      }[];
+      settings: components["schemas"]["DataProtectionSettings"];
+      missingConfig: string[];
+      open: components["schemas"]["DpiaVersion"];
+      signed: components["schemas"]["DpiaVersion"];
+      /** Format: date-time */
+      reviewDueAt: string | null;
+    };
+    DataProtectionSettings: {
+      /** Format: uuid */
+      leadId: string | null;
+      dpoName: string | null;
+      /** Format: email */
+      dpoEmail: string | null;
+      /** @enum {string} */
+      sector: "independent" | "public";
+      /** Format: uri */
+      privacyNoticeUrl: string | null;
+      /** Format: date */
+      dpaSignedOn: string | null;
+      usesDataBeyondDirectCare: boolean | null;
+      marketingEnabled: boolean;
+      aiFreeTextEnabled: boolean;
+      /** @enum {string|null} */
+      aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
+      version: number;
+    };
+    DpiaVersion: {
+      /** Format: uuid */
+      id: string;
+      dpiaVersion: number;
+      /** @enum {string} */
+      status: "draft" | "prepared" | "signed" | "superseded";
+      prefill: {
+        [key: string]: unknown;
+      };
+      answers: {
+        [key: string]: {
+          [key: string]: string;
+        };
+      };
+      residualRisk: {
+        [key: string]: components["schemas"]["RiskLevel"];
+      };
+      icoReference: string | null;
+      preparedBy: components["schemas"]["StaffName"][];
+      versionSha256: string | null;
+      /** Format: date-time */
+      preparedAt: string | null;
+      signedBy: components["schemas"]["StaffName"];
+      /** Format: date-time */
+      signedAt: string | null;
+      typedName: string | null;
+      statement: string | null;
+      version: number;
+    } | null;
+    /** @enum {string|null} */
+    RiskLevel: "low" | "medium" | "high" | null;
+    SaveDpia: {
+      expectedVersion?: number;
+      answers: {
+        [key: string]: {
+          [key: string]: string;
+        };
+      };
+      residualRisk: {
+        [key: string]: components["schemas"]["RiskLevel"];
+      };
+      icoReference: string | null;
+    };
+    PrepareDpia: {
+      expectedVersion: number;
+    };
+    SignDpia: {
+      typedName: string;
+      statement?: string;
+      sha256Seen: string;
+    };
+    SaveDataProtectionSettings: {
+      /** Format: uuid */
+      leadId: string | null;
+      dpoName: string | null;
+      /** Format: email */
+      dpoEmail: string | null;
+      /** @enum {string} */
+      sector: "independent" | "public";
+      /** Format: uri */
+      privacyNoticeUrl: string | null;
+      /** Format: date */
+      dpaSignedOn: string | null;
+      usesDataBeyondDirectCare: boolean | null;
+      marketingEnabled: boolean;
+      aiFreeTextEnabled: boolean;
+      /** @enum {string|null} */
+      aiProvider: "bedrock_london" | "bedrock_eu" | "anthropic" | "tenant_own" | null;
+      expectedVersion: number;
     };
   };
   responses: never;

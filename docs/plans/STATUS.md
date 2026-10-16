@@ -153,6 +153,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.
 
+   - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
+     platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
+     the named lead who prepared none of it, never changed after), the tenant's data protection
+     governance, and the prepare, save, sign and settings routes. Next: the onboarding checklist
+     (with its decision records), sub-processor notices, then the web screens.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
@@ -426,6 +431,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - a family-facing incident summary, written for the family and approved, so incidents
        involving several people can be written about without the internal account;
      - letters after a death (to the next of kin or the estate), with the template kinds they need.
+   - Slice 11, letters web part 1, template management (`feat/web-letters`; COMMS-007, HZ-051):
+     in review. `/letters` (list), `/letters/new`, `/letters/{id}` (draft with each problem at its
+     field, approval by someone else with the reason shown to the author or an editor, a new draft,
+     discard and retire with a reason, earlier versions). Next, part 2 stacked on it: the person's
+     letters tab (preview showing name, room and photo; send with the preview's version and hash;
+     409 `letter_changed` shows the new preview; the list).
+   - Slice 11, letters web part 2, the letters tab (`feat/web-letters-send`, stacked on part 1;
+     COMMS-007, HZ-051, HZ-001): in review. Follow-ups: letters to a contact need the contacts on
+     the record (the API has no contacts list for the web yet); an incident follow-up offers the
+     person's incidents only to holders of `safety.incident.manage`.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
