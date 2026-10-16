@@ -220,6 +220,23 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 11 part 3b, nightly packs, rebuilds after moves and the places route
      (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0055; operations.md section
      13): built, PR to follow part 3a-2.
+   - Slice 11 part 3c, the outages API (`feat/operations-outages-api`, stacked on part 3b;
+     operations.md section 13): built, PR open. Carries the #32 round 1 requirement that part 3
+     emits the `operations.outage.*` audit and outbox events of section 5 (plus
+     `.reconciliation_viewed` and `.corrected` audits). Next, part 3d: back-entry on the care
+     routes and the sync upload, with rule 13, the refusal after reconciliation, a second offline
+     correction of a back-entry going to the refused-entry review (HZ-006), and the #38 round 2
+     outside-the-outage reason when correcting a reviewed back-entry after the true end (H-208),
+     which belongs to the care correction routes. Follow-ups: the late flag still reads the
+     rate in the database without saying when `care_note.late_entry_hours` is missing (#32
+     round 2); the back-entry task's title is English only.
+   - Follow-ups from #51 review round 1:
+     - a declared outage left open has no SLA or reminder (CSO to decide, H-215);
+     - prove by a test that the reconciliation's output about people outside the reconciler's
+       scope is ids and counts only (it is by construction: `outageEntries` selects ids, people,
+       kinds and times);
+     - an outage declared after it ended is closed at once, so it can no longer be cancelled,
+       only corrected.
    - Follow-ups from #47 review round 1:
      - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
        keep a slow home's rebuild from delaying other events;
@@ -463,6 +480,36 @@ only when they link spec, code, tests and user documentation; no user guides exi
       notification has nothing to match in the people section; there is no cue at the top of the
       page for the "not checked yet" and "outside England" notices; the reviewers' optional copy
       points go to H-258.
+    - Built on `feat/web-statutory-notifications` (read only): `/notifications/statutory` (still
+      to do, then submitted or not required, each with its clock, status, who it is about, due
+      time, location, recipient and warnings) and `/notifications/statutory/{id}` (clock, status,
+      warnings, every deadline, the record it was drafted on named and linked with its status,
+      reasons, required content, sources and how it ended), for `safety.incident.manage` as the
+      API requires; the sidebar keeps Incidents current there. Done from the #49 follow-ups on
+      these pages: an "as of" line on every clock list (and the incident page), a hidden person
+      unnumbered on their own page and numbered consistently across the list with a line saying
+      so, and the source record named and linked with its status; the incident page links each
+      notification to its page for managers. Still open: the forms (next PR); the outbreak line on
+      the incident page still neither names nor links its record (the API gives no link from an
+      output to a draft on another incident); the list's limit of 1,000 repeats the API's; a
+      holder of `safety.notification.submit` without `safety.incident.manage` (no built-in role,
+      but a custom one) reaches the overdue alert's page and is told it is not for them (the API
+      reads need `manage`; H-260); the prepared form (`content`), the DoLS 18(4B) statement and
+      `noLongerIndicatedReason` are not shown, and reasons, required content and sources are the
+      API's English (marked `lang="en-GB"`); RIDDOR's threshold is read for the label only on a
+      notification's page (from its incident's date), so the list says "the reporting
+      threshold".
+    - Review round 1 of #52 (fixed): the list reads draft, ready, submitted and not-required
+      notifications separately, so a recent overdue draft is never pushed off by old finished
+      ones, and warns when an unfinished read is cut; communication needs beside who a
+      notification is about; an unreadable due time sorts first; deadlines on a finished
+      notification are headed as history; the page title names the kind. H-260: a holder of
+      `safety.notification.submit` without `safety.incident.manage` (whom the overdue alert sends
+      to the notification's page) now sees who can act (the Registered Manager or whoever manages
+      incidents there) on the forbidden page; letting them read it needs the API to accept
+      `submit` on the reads. For the CSO (with H-257 and H-258): accept the deadlines on a
+      finished notification shown as "Deadlines it had to meet", and "Clocks worked out at ...
+      Reload the page to bring them up to date." with no automatic refresh.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the

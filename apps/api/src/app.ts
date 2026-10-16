@@ -34,6 +34,7 @@ import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
+import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
@@ -218,6 +219,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);
   app.route("/", operationsRouter);
+  app.route("/", outagesRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);

@@ -1,4 +1,4 @@
-import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
+import { ButtonLink, Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
 import { CircleAlert, Lock, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -54,6 +54,13 @@ export default async function IncidentsPage() {
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
         description={t("safety.incidents.description")}
+        secondaryActions={
+          can(me.permissions, "safety.incident.manage") ? (
+            <ButtonLink href="/notifications/statutory" variant="secondary">
+              {t("safety.notifications.title")}
+            </ButtonLink>
+          ) : null
+        }
       />
       {data.truncated ? (
         <Notice

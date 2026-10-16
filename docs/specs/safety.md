@@ -297,6 +297,28 @@ besides and says older incidents are not listed. Gaps logged, no API change: sta
 shown; the overdue alert links to `/notifications/statutory/{id}`, which the web does not have
 until the notification pages.
 
+Web statutory notification pages, slice 9 part 3, read only (`apps/web/src/app/(shell)/
+notifications/statutory/`, `apps/web/src/lib/statutory-notifications.ts`): for holders of
+`safety.incident.manage`, as the API's reads require (anyone else is told the page is not for
+them), and kept under Incidents in the sidebar, never the notification centre.
+`/notifications/statutory` lists the notifications for the chosen location in two sections, still
+to do (an unknown clock, then overdue, then due soonest) and submitted or not required, each with
+its kind linking to its page, its clock and status (icons and words), who it is about (people the
+reader cannot see are numbered consistently across the list, and the list says so), its due time,
+location, recipient, warnings and the person's communication needs; each status is read on its
+own, so finished ones never push an unfinished one past the API's limit of 1,000, and a cut
+unfinished read warns that unfinished notifications may be missing (#52 review).
+`/notifications/statutory/{id}`, the page the overdue alert links to, shows the clock, status,
+who it is about (unnumbered when not shown), warnings (waiting for answers read from its
+incident), every deadline in the law's terms (kept once done), the record it was drafted on (the
+incident, named and linked with its status; the person's DoLS register; or their record), why
+Harbour drafted it, what it must include and the sources (the API's English, marked as English;
+a source is linked only on https) and how it ended (when and by whom it was submitted, the
+regulator's reference, whether a document is attached, why it is not required). Both pages and the
+incident page say when the clocks were worked out; on the incident page each notification links to
+its page for a holder of `safety.incident.manage`. Not shown yet: the prepared form, the DoLS
+statement and the API's reason a draft is no longer indicated; the forms follow.
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos

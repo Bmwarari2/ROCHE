@@ -1694,6 +1694,55 @@ task the nightly job keeps open while the places are unconfirmed.
 
 **Tests**: `apps/api` `downtime.test.ts` 2 new and 2 rewritten; `packages/db` 1 new.
 
+## 2026-10-16: Slice 11 part 3c, the outages API (OPS-028)
+
+Stacked on part 3b (operations.md section 13): list and declare outages at a location, close one
+with the back-entry task, see what reconciling needs, reconcile after reviewing possible duplicates
+and back-entries past the true end, cancel one declared in error, and correct a start or end; each
+change versioned, audited and, where section 5 says so, published; the database's refusals in its
+own words. Merged with main; `openapi.json` and the client regenerated (the outage paths only).
+
+- Docs: operations.md section 13, the HZ-017 test row, H-215, STATUS (the outside-the-outage
+  reason on a back-entry correction moves to part 3d, with the care routes).
+
+**Tests**: `apps/api` `outages.test.ts`, 5 new.
+
+After #51 review round 1: an outage declared with its end closes at once with the back-entry task;
+`downtime.max_outage_hours` (168, rates.md) bounds an outage's length; corrections stay within
+the closure plus the clock-drift allowance; outages are locked before each change; cancel and
+correct are published; another home's outage is not found and audited as denied; the reconciliation
+selects only the columns it needs; `withTenantWideScope` restores the scope in a `finally`. Tests:
+3 new, 2 extended.
+
+## 2026-10-16: Slice 9 part 3, the statutory notification pages (SAFE-002, SAFE-003)
+
+- Web, read only: `/notifications/statutory` (still to do, then submitted or not required, each
+  with its clock, status, subject, due time, location, recipient and warnings) and
+  `/notifications/statutory/{id}` (the overdue alert's page: clock, status, warnings, every
+  deadline, the record it was drafted on with its status, reasons, required content, sources and
+  how it ended), for `safety.incident.manage`; the sidebar keeps Incidents current there, and the
+  incidents list links to the pages for managers.
+- #49 follow-ups on these pages: an "as of" line on the clocks (also on the incident page), a
+  hidden person unnumbered on their own page and numbered consistently on the list, the source
+  record named and linked with its status; the incident page links each notification to its page.
+- i18n: 15 new `safety.notification(s).*` entries in English and Welsh (Welsh listed untranslated).
+- Docs: safety.md section 5, HZ-013 rows, STATUS item 19, feature register SAFE-002.
+
+**Tests**: `apps/web` `statutory-notifications.test.ts` (13) and one new axe test in
+`IncidentNotifications.test.tsx`; `e2e/statutory-notifications.spec.ts` (3 journeys, hosted CI).
+
+## 2026-10-16: Slice 9 part 3, review round 1 of #52 (SAFE-002, SAFE-003)
+
+- The list reads each status on its own (HZ-013, clinical H1) and warns when unfinished
+  notifications may be missing; communication needs beside who a notification is about (AIS);
+  the person on a notification's page is read by id; a submitter without `manage` is told who
+  can act (H-260); unreadable due times sort first; finished deadlines headed as history; page
+  title, breadcrumb `aria-current` and described links on the incident page.
+- Docs: HZ-013 rows moved into the Verification table; STATUS item 19.
+
+**Tests**: `apps/web` `statutory-notifications.test.ts` 9 new; e2e names, axe on every page and
+the needs of demo person 3 (hosted CI).
+
 ## 2026-10-16: Invitation routes, API part (PLAT-004, STATUS item 20)
 
 - `POST /v1/invitations` (step-up), `GET /v1/invitations?tenantUserId=` and

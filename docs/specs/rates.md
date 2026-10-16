@@ -173,6 +173,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | downtime_pack.requests_per_hour | 30 | count | 2000-01-01 | - | all | Harbour security policy default, not a statutory figure: a member opens, prints or builds downtime packs at most 30 times an hour, as each is a whole-home record (operations.md section 12; #45 review round 1); tenant default | to-verify |
 | downtime.places_confirm_due_days | 1 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the task to confirm where the paper MAR and PEEPs are kept is due at the end of the day this many days after it is raised, so it does not escalate the moment it appears (operations.md section 13; #47 review round 1; HZ-008); tenant default | to-verify |
 | downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| downtime.max_outage_hours | 168 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an outage may run at most this many hours from its start to its end (or to now while open), so a mistyped date cannot open a window of months over which paper records and their reconciliation are read (#51 review round 1); tenant default; CSO to confirm (H-215) | to-verify |
 | downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
 | evidence_pack.code_valid_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour security policy, not a statutory figure: a one-time code for opening an evidence pack link is valid for at most 10 minutes (ADR-0050; OWASP ASVS 5.0 out-of-band verifier lifetime) | to-verify |
@@ -370,7 +371,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (HZ-021). The CSO confirms the figure and the wording (H-101). Paper records from an outage are
   due within `downtime.back_entry_due_hours` of the outage's closure; overdue back-entry escalates
   to the Registered Manager. Entries for one person and kind within
-  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
+  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. An outage
+  runs at most `downtime.max_outage_hours` (168) from its start to its end, or to now while open;
+  a longer one is refused on declaring, closing and correcting. No statute
   sets any of these figures; the tenant's business continuity lead confirms them (H-98).
 - `downtime.places_confirm_due_days` (1): a policy default, not a statutory figure. The task asking
   the Registered Manager to confirm where the paper MAR and PEEPs are kept is due at the end of the
