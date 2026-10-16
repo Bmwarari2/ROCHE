@@ -7,6 +7,7 @@ export * from "./exports";
 export * from "./integrations";
 export * from "./invitations";
 export * from "./mca";
+export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
 export * from "./people";

@@ -104,7 +104,7 @@ function catalogueDatabase(): DatabaseTable[] {
 
 describe("hazard HZ-071 the export catalogue describes every table and column", () => {
   it("keys every table by schema and table, all in the public schema", () => {
-    for (const key of Object.keys(EXPORT_TABLES)) expect(key).toMatch(/^public\.[a-z_]+$/);
+    for (const key of Object.keys(EXPORT_TABLES)) expect(key).toMatch(/^public\.[a-z][a-z0-9_]*$/);
   });
 
   it("describes every table, with a reason and no columns for each one it leaves out", () => {

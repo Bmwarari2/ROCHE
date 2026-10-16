@@ -85,11 +85,17 @@ export const tenant = pgTable(
     marketingEnabled: boolean("marketing_enabled").notNull().default(false),
     aiFreeTextEnabled: boolean("ai_free_text_enabled").notNull().default(false),
     aiProvider: text("ai_provider"),
+    /** How long staff files are kept (retention.md): after leaving, or to the 75th birthday. */
+    staffFileOption: text("staff_file_option"),
     ...mutableColumns(),
   },
   (t) => [
     unique("tenant_cqc_provider_id_key").on(t.cqcProviderId),
     check("tenant_sector", sql`sector IN ('independent', 'public')`),
+    check(
+      "tenant_staff_file_option",
+      sql`staff_file_option IS NULL OR staff_file_option IN ('staff_file.after_leaving', 'staff_file.to_75th_birthday')`,
+    ),
     check(
       "tenant_ai_provider",
       sql`ai_provider IS NULL OR ai_provider IN ('bedrock_london', 'bedrock_eu', 'anthropic', 'tenant_own')`,
