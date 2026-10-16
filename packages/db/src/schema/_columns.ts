@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { integer, timestamp, uuid } from "drizzle-orm/pg-core";
+import { type SQL, sql } from "drizzle-orm";
+import { customType, integer, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Column helpers shared by every Harbour table (master prompt section 18).
@@ -45,3 +45,12 @@ export const eventColumns = () => ({
   deviceOffsetMinutes: integer("device_offset_minutes"),
   createdBy: uuid("created_by").default(sql`app.current_user_id()`),
 });
+
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
+
+/**
+ * A search vector generated from the row's own columns by `app.search_vector` (migration 0066;
+ * ADR-0070): the terms `searchTerms` gives, unstemmed. It goes with the row, is never written by
+ * the application, and is internal in the export catalogue.
+ */
+export const searchVector = (name: string, source: SQL) => tsvector(name).generatedAlwaysAs(source);

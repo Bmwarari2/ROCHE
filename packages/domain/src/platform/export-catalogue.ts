@@ -1027,6 +1027,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       category: { description: "Note category." },
       body: { description: "The note text." },
+      search_body: {
+        description:
+          "Search index of the note text (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       tags: { description: "Tags on the note." },
       attachment_document_ids: { description: "Attached documents (document.id list)." },
     },
@@ -1640,6 +1645,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       subject_id: "exported",
       person_id: "exported",
       file_name: { description: "Display file name, made safe on upload (may name a person)." },
+      search_title: {
+        description:
+          "Search index of the title and file name (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       status: {
         description: "available, quarantined (failed or missed the malware scan) or destroyed.",
       },
@@ -3459,6 +3469,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       room_label: {
         description: "Display copy of the current room; the history is in bed occupancy records.",
       },
+      search_names: {
+        description:
+          "Search index of the names (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
+      search_room: {
+        description:
+          "Search index of the room (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       communication_needs: {
         description:
           "Accessible Information Standard needs: JSON list of {code, display, system} (SNOMED CT) with the preferred format.",
@@ -4727,6 +4747,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         class: "internal",
       },
       display_name: { description: "The user's name." },
+      search_name: {
+        description:
+          "Search index of the display name (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       email: { description: "Work email address." },
       job_title: { description: "Job title." },
       status: { description: "invited, active, suspended or left." },
