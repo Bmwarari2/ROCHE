@@ -48,6 +48,8 @@ export type ExportRetention =
   | "serious_incident"
   | "downtime_pack"
   | "downtime_record"
+  | "evidence_pack"
+  | "organisation_document"
   | "invitation"
   | "tenant_configuration"
   | "as_subject"
@@ -1824,6 +1826,168 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       owner_tenant_user_id: { description: "The entry's author (tenant_user.id)." },
       review_task_id: { description: "The Registered Manager's review task (task.id)." },
       flagged_at: { description: "When the server flagged it (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.evidence_pack": {
+    context: "quality",
+    description:
+      "Inspector evidence packs (quality.md rules 1 to 10): the request (recipient, purpose, dates, locations, statements, people in scope), who shaped it and its release, revocation or discard. The manifest is kept as proof of the disclosure.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      recipient_name: { description: "The named recipient (an inspector or commissioner)." },
+      recipient_organisation: { description: "The recipient's organisation." },
+      recipient_email: { description: "The recipient's work email address, in lower case." },
+      purpose: {
+        description: "Why the recipient asked for the evidence, in the composer's words.",
+      },
+      date_from: { description: "First UK date of the evidence asked for (inclusive)." },
+      date_to: { description: "Last UK date of the evidence asked for (inclusive)." },
+      location_ids: { description: "The locations the evidence comes from (location ids)." },
+      quality_statement_ids: {
+        description: "The quality statements asked for (statement ids); empty for every statement.",
+      },
+      person_ids: { description: "The people in scope, chosen explicitly (person ids)." },
+      staff_names: {
+        description: "Whether staff appear by role or by name.",
+        codes: { role_only: "Staff appear by their role.", include: "Staff names are shown." },
+      },
+      composed_by: "exported",
+      composed_at: "exported",
+      editor_ids: {
+        description: "Members who changed the draft after it was composed (tenant_user ids).",
+      },
+      state: { description: "draft, released, revoked or discarded." },
+      watermark: { description: "The words printed on every page of the pack." },
+      released_by: {
+        description: "Who released the pack (tenant_user.id); never anyone who shaped it.",
+      },
+      released_at: "exported",
+      revoked_by: { description: "Who revoked the pack (tenant_user.id), if anyone." },
+      revoked_at: "exported",
+      revocation_reason: { description: "Why the pack was revoked." },
+      discarded_by: { description: "Who discarded the draft (tenant_user.id), if anyone." },
+      discarded_at: "exported",
+      discard_reason: { description: "Why the draft was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.evidence_pack_bundle": {
+    context: "quality",
+    description:
+      "The shown values of an evidence pack's included fields, from which the PDF is drawn; deleted when the pack's link ends or the pack is revoked or discarded.",
+    treatment: "not_exported",
+    retention: "evidence_pack",
+    personal: true,
+    reasonNotExported:
+      "A temporary copy of care records that are exported in their own tables; it is deleted when the link ends, and the manifest (evidence_pack_item) records what was disclosed.",
+    columns: {},
+  },
+  "public.evidence_pack_item": {
+    context: "quality",
+    description:
+      "Each record considered for an evidence pack (append-only): included with its field outcomes and reasons, or left out with its reason (internal manifest). A hand redaction adds a row that supersedes the item.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      pack_id: "exported",
+      supersedes_id: { description: "The item row this one replaces (a hand redaction), if any." },
+      record_type: { description: "The kind of record (incident, care_note and so on)." },
+      record_id: { description: "The record's id in its own table." },
+      record_version: { description: "The version of the record disclosed.", unit: "version" },
+      title: { description: "The generic label Harbour built for the record (never free text)." },
+      occurred_at: "exported",
+      quality_statement_ids: { description: "The quality statements it is evidence for." },
+      exclusion_reason: {
+        description: "Why it was left out; empty when included.",
+        codes: {
+          restricted_record: "A restricted record, never in a pack.",
+          outside_date_range: "Outside the dates asked for.",
+          location_not_requested: "At a location not asked for.",
+          not_tagged: "Not tagged as evidence.",
+          statement_not_requested: "Tagged only to statements not asked for.",
+          person_not_in_scope: "About nobody in the pack's scope.",
+        },
+      },
+      fields: {
+        description:
+          "Each field's key, label, kind, outcome (included, redacted or withheld), reason, who redacted it by hand and the redacted copy; never the shown values.",
+      },
+      redacted_by: { description: "Members who redacted a field by hand (tenant_user ids)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.evidence_pack_link": {
+    context: "quality",
+    description:
+      "The time-limited link an evidence pack is opened by (ADR-0050): its recipient, issue, expiry, revocation, failed code attempts and last open.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      pack_id: "exported",
+      recipient_email: { description: "The address the link and its codes go to." },
+      token_hash: {
+        description: "SHA-256 of the link's token; a credential, never exported.",
+        class: "secret",
+      },
+      issued_by: "exported",
+      issued_at: "exported",
+      replaces_link_id: { description: "The link this one replaced on a re-issue, if any." },
+      expires_at: "exported",
+      revoked_at: "exported",
+      revoked_by: { description: "Who revoked the link (tenant_user.id), if anyone." },
+      revocation_reason: {
+        description: "Why the link was revoked.",
+        codes: { pack_revoked: "The pack was revoked.", reissued: "A new link replaced it." },
+      },
+      failed_code_attempts: {
+        description: "Wrong codes entered; never goes down, and the link locks at the limit.",
+        unit: "count",
+      },
+      last_opened_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.evidence_pack_link_code": {
+    context: "quality",
+    description:
+      "One-time codes sent to an evidence pack link's recipient: when each was issued, how long it lasted and when it was used.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      link_id: "exported",
+      code_hash: {
+        description: "Hash of the one-time code; a credential, never exported.",
+        class: "secret",
+      },
+      issued_at: "exported",
+      valid_until: { description: "When the code lapses (instant, UTC)." },
+      used_at: { description: "When the code was used (instant, UTC); empty if never." },
       created_at: "exported",
       created_by: "exported",
     },
@@ -3759,6 +3923,56 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       lifted_at: { description: "When it was lifted (instant, UTC); empty while it lasts." },
       lifted_by: { description: "Who lifted it (tenant_user.id)." },
       lifted_reason: { description: "Why it was lifted." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.statement_of_purpose_version": {
+    context: "quality",
+    description:
+      "Versions of the statement of purpose (quality.md rules 11 to 15): the Schedule 3 content, who wrote and approved each version, the change summary and the CQC notification of each revision.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      version_number: { description: "The version's number in the organisation.", unit: "version" },
+      state: { description: "draft, approved, superseded or discarded." },
+      kind: {
+        description: "Whether it is the statement CQC already held or a revision.",
+        codes: { baseline: "The statement CQC already held.", revision: "A revision." },
+      },
+      content: {
+        description:
+          "The statement's Schedule 3 sections, including the provider's and registered managers' business contact details.",
+      },
+      author_id: { description: "Who wrote the version (tenant_user.id)." },
+      contributor_ids: { description: "The author and everyone who changed the draft." },
+      supersedes_id: { description: "The version this one replaced on approval, if any." },
+      change_summary: {
+        description: "What changed from the previous version, section by section.",
+      },
+      registration_prompts: {
+        description: "Registration applications the change may need (Harbour's prompts).",
+      },
+      approved_by: {
+        description:
+          "Who approved the version (tenant_user.id); never its author or a contributor.",
+      },
+      approved_at: "exported",
+      notification_due_at: {
+        description:
+          "When written details of the revision are due at CQC (approval plus cqc.statement_of_purpose.revision_notice_days, UK days).",
+      },
+      notified_at: { description: "When the revision was sent to CQC." },
+      notified_by: { description: "Who recorded that it was sent (tenant_user.id)." },
+      notification_evidence: { description: "The CQC reference, or how it was sent." },
+      discard_reason: { description: "Why the draft was discarded." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

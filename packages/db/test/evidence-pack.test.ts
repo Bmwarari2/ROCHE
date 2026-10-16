@@ -1,0 +1,584 @@
+import {
+  EVIDENCE_CODE_MAX_VALID_MINUTES,
+  EVIDENCE_EXCLUSION_REASONS,
+  EVIDENCE_LINK_MAX_CODE_ATTEMPTS,
+  EVIDENCE_PACK_WORKFLOW,
+  EVIDENCE_RECORD_TYPES,
+  MIN_EVIDENCE_PURPOSE_LENGTH,
+  STATEMENT_OF_PURPOSE_WORKFLOW,
+} from "@harbour/domain";
+import type pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  EVIDENCE_EXCLUSION_REASON_CODES,
+  EVIDENCE_PACK_STATES,
+  EVIDENCE_RECORD_TYPE_CODES,
+  STATEMENT_OF_PURPOSE_STATES,
+} from "../src/schema";
+import { createTestDatabase, type TestDatabase } from "./support/database";
+import { ctx, ids, inContext, seedTwoTenants, TENANT_A, TENANT_B } from "./support/fixtures";
+
+/**
+ * Evidence packs and the statement of purpose in the database (quality.md sections 2 to 4;
+ * ADR-0050; hazards HZ-011 and HZ-050; migration 0057): cross-tenant denial, packs only for
+ * holders of compose or release at every location who can see every person in scope, append-only
+ * items holding outcomes and never values, release and links only by someone who did not shape
+ * the pack, hashed tokens and codes, failed attempts that never go down, bundles deleted at link
+ * end, the token lookup, and statement of purpose versions fixed once approved, approved by
+ * someone who did not write them, with the regulation 12(3) clock.
+ */
+
+let db: TestDatabase;
+const a = ids.a;
+const b = ids.b;
+const app = () => db.pool("harbour_app");
+const asOwner = <T>(tenantId: string, fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(db.pool("harbour_owner"), ctx(tenantId, null, "tenant"), fn);
+const asSystem = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
+const asManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.manager, "tenant"), fn);
+const asNorth = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
+const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.carer, "assigned"), fn);
+const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_B, b.manager, "tenant"), fn);
+
+const PACK_NORTH = "0199f000-0000-7000-8000-0000000000a1";
+const PACK_BOTH = "0199f000-0000-7000-8000-0000000000a2";
+const PACK_B = "0199f000-0000-7000-8000-0000000000b1";
+const ITEM_NORTH = "0199f000-0000-7000-8000-0000000000c1";
+const hash = (text: string) => `encode(sha256(convert_to('${text}', 'UTF8')), 'hex')`;
+
+const insertPack = (
+  c: pg.PoolClient,
+  values: { id: string; locations: string[]; people: string[]; composedBy?: string },
+) =>
+  c.query(
+    `INSERT INTO evidence_pack (id, recipient_name, recipient_organisation, recipient_email,
+       purpose, date_from, date_to, location_ids, person_ids, composed_by, watermark)
+     VALUES ($1, 'Ivy Inspector', 'Care Quality Commission', 'ivy.inspector@example.invalid',
+       'Evidence of safe care for the planned inspection', '2026-09-01', '2026-09-30', $2, $3,
+       COALESCE($4, app.current_user_id()), 'Prepared for Ivy Inspector. Do not share further.')`,
+    [values.id, values.locations, values.people, values.composedBy ?? null],
+  );
+
+const field = (extra: Record<string, unknown> = {}) =>
+  JSON.stringify([
+    { key: "type", label: "Type", kind: "organisational", outcome: "included", reason: null },
+    {
+      key: "description",
+      label: "Description",
+      kind: "free_text",
+      outcome: "withheld",
+      reason: "free_text_not_reviewed",
+      ...extra,
+    },
+  ]);
+
+const insertItem = (
+  c: pg.PoolClient,
+  values: { id?: string; pack: string; fields?: string; supersedes?: string },
+) =>
+  c.query(
+    `INSERT INTO evidence_pack_item (id, pack_id, supersedes_id, record_type, record_id,
+       record_version, title, occurred_at, fields)
+     VALUES (COALESCE($1, app.uuid_v7()), $2, $3, 'incident', '0199f000-0000-7000-8000-0000000000f1',
+       1, 'Incident (fall)', '2026-09-10T10:00:00Z', $4::jsonb)`,
+    [values.id ?? null, values.pack, values.supersedes ?? null, values.fields ?? field()],
+  );
+
+const insertLink = (
+  c: pg.PoolClient,
+  values: { pack: string; token: string; email?: string; days?: number; replaces?: string },
+) =>
+  c.query(
+    `INSERT INTO evidence_pack_link (pack_id, recipient_email, token_hash, expires_at,
+       replaces_link_id)
+     VALUES ($1, $2, ${hash(values.token)}, now() + make_interval(days => $3), $4)
+     RETURNING id`,
+    [
+      values.pack,
+      values.email ?? "ivy.inspector@example.invalid",
+      values.days ?? 7,
+      values.replaces ?? null,
+    ],
+  );
+
+const count = (c: pg.PoolClient, table: string) =>
+  c.query<{ n: string }>(`SELECT count(*) AS n FROM ${table}`).then((r) => Number(r.rows[0]?.n));
+
+const content = (aims: string) =>
+  JSON.stringify({ aimsAndObjectives: aims, locations: [{ id: a.locationNorth, name: "North" }] });
+
+beforeAll(async () => {
+  db = await createTestDatabase();
+  await seedTwoTenants(db.pool("harbour_owner"));
+  await inContext(db.pool("harbour_owner"), null, (c) =>
+    c.query(
+      `INSERT INTO rate_table (key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ('evidence_pack.link_expiry_days.max', 30, 'days', 'all', '2000-01-01', 'quality.md', 'to-verify'),
+              ('evidence_pack.code_valid_minutes', 10, 'minutes', 'all', '2000-01-01', 'quality.md', 'to-verify'),
+              ('cqc.statement_of_purpose.revision_notice_days', 28, 'days', 'england', '2010-04-01',
+               'CQC (Registration) Regulations 2009 reg 12(3)', 'verified')`,
+    ),
+  );
+  const quality =
+    "{quality.evidence_pack.compose,quality.evidence_pack.release,quality.statement_of_purpose.write,quality.statement_of_purpose.approve,safety.notification.submit,people.person.read}";
+  const deputy =
+    "{quality.evidence_pack.compose,quality.evidence_pack.release,quality.statement_of_purpose.write,people.person.read}";
+  await asOwner(TENANT_A, async (c) => {
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+         ('0199f000-0000-7000-8000-000000000501', 'owner', 'Owner', 'tenant', $1),
+         ('0199f000-0000-7000-8000-000000000502', 'deputy_manager', 'Deputy', 'location', $2)`,
+      [quality, deputy],
+    );
+    await c.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
+         ($1, '0199f000-0000-7000-8000-000000000501', NULL),
+         ($2, '0199f000-0000-7000-8000-000000000502', $3),
+         ($4, $5, $3)`,
+      [a.manager, a.northManager, a.locationNorth, a.carer, a.roleCarer],
+    );
+  });
+  await asOwner(TENANT_B, async (c) => {
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ('0199f000-0000-7000-8000-000000000503', 'owner', 'Owner', 'tenant', $1)`,
+      [quality],
+    );
+    await c.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id)
+       VALUES ($1, '0199f000-0000-7000-8000-000000000503')`,
+      [b.manager],
+    );
+  });
+  await asNorth((c) =>
+    insertPack(c, { id: PACK_NORTH, locations: [a.locationNorth], people: [a.personAda] }),
+  );
+  await asManager(async (c) => {
+    await insertPack(c, {
+      id: PACK_BOTH,
+      locations: [a.locationNorth, a.locationSouth],
+      people: [a.personAda, a.personCara],
+    });
+  });
+  await asNorth((c) => insertItem(c, { id: ITEM_NORTH, pack: PACK_NORTH }));
+  await asOtherTenant((c) =>
+    insertPack(c, { id: PACK_B, locations: [b.location], people: [b.personDev] }),
+  );
+});
+
+afterAll(async () => {
+  await db?.drop();
+});
+
+describe("evidence pack and statement of purpose codes match the domain", () => {
+  it("keeps the code lists and limits in step", () => {
+    expect([...EVIDENCE_PACK_STATES]).toEqual([...EVIDENCE_PACK_WORKFLOW.states]);
+    expect([...EVIDENCE_RECORD_TYPE_CODES]).toEqual([...EVIDENCE_RECORD_TYPES]);
+    expect([...EVIDENCE_EXCLUSION_REASON_CODES]).toEqual([...EVIDENCE_EXCLUSION_REASONS]);
+    expect([...STATEMENT_OF_PURPOSE_STATES]).toEqual([...STATEMENT_OF_PURPOSE_WORKFLOW.states]);
+    // The figures migration 0057 writes into its CHECKs and guards.
+    expect(MIN_EVIDENCE_PURPOSE_LENGTH).toBe(15);
+    expect(EVIDENCE_CODE_MAX_VALID_MINUTES).toBe(10);
+    expect(EVIDENCE_LINK_MAX_CODE_ATTEMPTS).toBe(5);
+  });
+});
+
+describe("hazard HZ-011 evidence pack isolation and scope", () => {
+  it("never shows another organisation's packs or statements", async () => {
+    const seen = await asOtherTenant((c) =>
+      c.query<{ id: string }>("SELECT id FROM evidence_pack ORDER BY id"),
+    );
+    expect(seen.rows.map((r) => r.id)).toEqual([PACK_B]);
+    expect(await asOtherTenant((c) => count(c, "evidence_pack_item"))).toBe(0);
+    await expect(
+      asOtherTenant((c) =>
+        c.query(
+          `INSERT INTO evidence_pack_item (tenant_id, pack_id, record_type, record_id,
+          record_version, title, occurred_at) VALUES ($1, $2, 'incident', app.uuid_v7(), 1, 'x', now())`,
+          [TENANT_A, PACK_NORTH],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security|only to a draft/);
+  });
+
+  it("shows a pack only to holders at every one of its locations who can see everyone in it", async () => {
+    const ids = (c: pg.PoolClient) =>
+      c
+        .query<{ id: string }>("SELECT id FROM evidence_pack ORDER BY id")
+        .then((r) => r.rows.map((x) => x.id));
+    expect(await asManager(ids)).toEqual([PACK_NORTH, PACK_BOTH]);
+    expect(await asNorth(ids)).toEqual([PACK_NORTH]);
+    expect(await asCarer(ids)).toEqual([]);
+    expect(await asCarer((c) => count(c, "evidence_pack_item"))).toBe(0);
+  });
+
+  it("composes in the composer's own name, at locations where they hold compose", async () => {
+    await expect(
+      asNorth((c) =>
+        insertPack(c, {
+          id: "0199f000-0000-7000-8000-0000000000a9",
+          locations: [a.locationNorth],
+          people: [a.personAda],
+          composedBy: a.manager,
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      inContext(app(), ctx(TENANT_A, a.northManager, "tenant"), (c) =>
+        insertPack(c, {
+          id: "0199f000-0000-7000-8000-0000000000aa",
+          locations: [a.locationSouth],
+          people: [a.personCara],
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("keeps the request fixed once composed", async () => {
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE evidence_pack SET person_ids = $2 WHERE id = $1", [
+          PACK_BOTH,
+          [a.personAda, a.personBen, a.personCara],
+        ]),
+      ),
+    ).rejects.toThrow(/request is fixed/);
+  });
+});
+
+describe("hazard HZ-050 evidence pack items, release and links in the database", () => {
+  it("holds outcomes from the domain's lists and never a value", async () => {
+    await expect(
+      asNorth((c) => insertItem(c, { pack: PACK_NORTH, fields: field({ value: "Ada fell" }) })),
+    ).rejects.toThrow(/no values/);
+    await expect(
+      asNorth((c) => insertItem(c, { pack: PACK_NORTH, fields: field({ kind: "gossip" }) })),
+    ).rejects.toThrow(/no values/);
+  });
+
+  it("keeps items append-only", async () => {
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE evidence_pack_item SET title = 'x' WHERE id = $1", [ITEM_NORTH]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("records a hand redaction in the redactor's name, and makes them an editor", async () => {
+    const redacted = field({
+      outcome: "redacted",
+      reason: "free_text_redacted_by_hand",
+      redactedBy: a.northManager,
+      redactedText: "[relative] was told.",
+    });
+    await expect(
+      asManager((c) =>
+        insertItem(c, { pack: PACK_NORTH, fields: redacted, supersedes: ITEM_NORTH }),
+      ),
+    ).rejects.toThrow(/in the name of the member redacting/);
+    const mine = field({
+      outcome: "redacted",
+      reason: "free_text_redacted_by_hand",
+      redactedBy: a.manager,
+      redactedText: "[relative] was told.",
+    });
+    await asManager((c) =>
+      insertItem(c, { pack: PACK_NORTH, fields: mine, supersedes: ITEM_NORTH }),
+    );
+    const pack = await asSystem((c) =>
+      c.query<{ editor_ids: string[] }>("SELECT editor_ids FROM evidence_pack WHERE id = $1", [
+        PACK_NORTH,
+      ]),
+    );
+    expect(pack.rows[0]?.editor_ids).toEqual([a.manager]);
+  });
+
+  it("never lets anyone who shaped the pack release it, and never an empty pack", async () => {
+    const release = (c: pg.PoolClient, id: string) =>
+      c.query(
+        "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+        [id],
+      );
+    await expect(asNorth((c) => release(c, PACK_NORTH))).rejects.toThrow(/may release it/);
+    await expect(asManager((c) => release(c, PACK_NORTH))).rejects.toThrow(/may release it/);
+    // Not a holder at every location: the pack is out of reach.
+    const outside = await inContext(app(), ctx(TENANT_A, a.northManager, "tenant"), (c) =>
+      release(c, PACK_BOTH),
+    );
+    expect(outside.rowCount).toBe(0);
+    const empty = "0199f000-0000-7000-8000-0000000000a6";
+    await asManager((c) =>
+      insertPack(c, { id: empty, locations: [a.locationNorth], people: [a.personAda] }),
+    );
+    await expect(asNorth((c) => release(c, empty))).rejects.toThrow(/no items/);
+  });
+
+  it("releases by a non-contributor, then issues hashed links to the recipient alone", async () => {
+    const pack = "0199f000-0000-7000-8000-0000000000a3";
+    await asManager(async (c) => {
+      await insertPack(c, { id: pack, locations: [a.locationNorth], people: [a.personAda] });
+      await insertItem(c, { pack });
+    });
+    await asNorth((c) =>
+      c.query(
+        "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+        [pack],
+      ),
+    );
+    await expect(asNorth((c) => insertItem(c, { pack }))).rejects.toThrow(/only to a draft/);
+    await expect(
+      asNorth((c) => insertLink(c, { pack, token: "t1", email: "someone.else@example.invalid" })),
+    ).rejects.toThrow(/recipient only/);
+    await expect(asManager((c) => insertLink(c, { pack, token: "t1" }))).rejects.toThrow(
+      /may issue its link/,
+    );
+    await expect(asNorth((c) => insertLink(c, { pack, token: "t1", days: 31 }))).rejects.toThrow(
+      /link_expiry_days.max/,
+    );
+    const first = await asNorth((c) => insertLink(c, { pack, token: "t1" }));
+    const firstId = first.rows[0]?.id as string;
+    const stored = await asSystem((c) =>
+      c.query<{ token_hash: string }>("SELECT token_hash FROM evidence_pack_link WHERE id = $1", [
+        firstId,
+      ]),
+    );
+    expect(stored.rows[0]?.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(stored.rows[0]?.token_hash).not.toContain("t1");
+
+    // The token lookup, before any organisation is chosen.
+    const found = await inContext(app(), null, (c) =>
+      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", ["t1"]),
+    );
+    expect(found.rows).toEqual([{ tenant_id: TENANT_A, link_id: firstId, pack_id: pack }]);
+    const unknown = await inContext(app(), null, (c) =>
+      c.query("SELECT * FROM app.evidence_pack_link_for_token($1)", ["nope"]),
+    );
+    expect(unknown.rows).toEqual([]);
+
+    // A new link only replaces the last, revoked as re-issued in the same transaction.
+    await expect(asNorth((c) => insertLink(c, { pack, token: "t2" }))).rejects.toThrow(
+      /link_live_key|replaces the pack's last link/,
+    );
+    await asNorth(async (c) => {
+      await c.query(
+        "UPDATE evidence_pack_link SET revoked_at = now(), revoked_by = app.current_user_id(), revocation_reason = 'reissued' WHERE id = $1",
+        [firstId],
+      );
+      await insertLink(c, { pack, token: "t2", replaces: firstId });
+    });
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link SET failed_code_attempts = 1 WHERE id = $1", [firstId]),
+      ),
+    ).rejects.toThrow(/revoked link is final/);
+  });
+
+  it("counts failed codes up only, issues codes with a worked-out lifetime, used once", async () => {
+    const pack = "0199f000-0000-7000-8000-0000000000a4";
+    await asManager(async (c) => {
+      await insertPack(c, { id: pack, locations: [a.locationNorth], people: [a.personAda] });
+      await insertItem(c, { pack });
+    });
+    const linkId = await asNorth(async (c) => {
+      await c.query(
+        "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+        [pack],
+      );
+      return (await insertLink(c, { pack, token: "t3" })).rows[0]?.id as string;
+    });
+    const code = await asSystem((c) =>
+      c.query<{ id: string; minutes: number }>(
+        `INSERT INTO evidence_pack_link_code (link_id, code_hash, valid_until)
+         VALUES ($1, ${hash("123456")}, now() + interval '1 hour')
+         RETURNING id, extract(epoch FROM valid_until - issued_at) / 60 AS minutes`,
+        [linkId],
+      ),
+    );
+    expect(Number(code.rows[0]?.minutes)).toBe(10);
+    const codeId = code.rows[0]?.id as string;
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link_code SET code_hash = $2 WHERE id = $1", [
+          codeId,
+          "0".repeat(64),
+        ]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await asSystem((c) =>
+      c.query("UPDATE evidence_pack_link_code SET used_at = now() WHERE id = $1", [codeId]),
+    );
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link_code SET used_at = now() WHERE id = $1", [codeId]),
+      ),
+    ).rejects.toThrow(/only marked used, once/);
+
+    await asSystem((c) =>
+      c.query("UPDATE evidence_pack_link SET last_opened_at = now() WHERE id = $1", [linkId]),
+    );
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link SET failed_code_attempts = 0 WHERE id = $1", [linkId]),
+      ),
+    ).resolves.toBeDefined();
+    await asSystem((c) =>
+      c.query("UPDATE evidence_pack_link SET failed_code_attempts = 5 WHERE id = $1", [linkId]),
+    );
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link SET failed_code_attempts = 4 WHERE id = $1", [linkId]),
+      ),
+    ).rejects.toThrow(/never go down/);
+    // Locked: no more codes, no more opens.
+    await expect(
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO evidence_pack_link_code (link_id, code_hash, valid_until)
+           VALUES ($1, ${hash("654321")}, now() + interval '5 minutes')`,
+          [linkId],
+        ),
+      ),
+    ).rejects.toThrow(/only for a live link/);
+    await expect(
+      asSystem((c) =>
+        c.query("UPDATE evidence_pack_link SET last_opened_at = now() WHERE id = $1", [linkId]),
+      ),
+    ).rejects.toThrow(/only while it is live/);
+  });
+
+  it("changes a bundle only in a draft, and deletes it for good when the pack ends", async () => {
+    const pack = "0199f000-0000-7000-8000-0000000000a5";
+    await asManager(async (c) => {
+      await insertPack(c, { id: pack, locations: [a.locationNorth], people: [a.personAda] });
+      await insertItem(c, { pack });
+      await c.query(
+        `INSERT INTO evidence_pack_bundle (pack_id, content) VALUES ($1, '{"i": {"type": "Fall"}}')`,
+        [pack],
+      );
+    });
+    await asNorth(async (c) => {
+      await c.query(
+        "UPDATE evidence_pack SET state = 'released', released_by = app.current_user_id(), released_at = now() WHERE id = $1",
+        [pack],
+      );
+      await insertLink(c, { pack, token: "t4" });
+    });
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE evidence_pack_bundle SET content = '{}' WHERE pack_id = $1", [pack]),
+      ),
+    ).rejects.toThrow(/only while its pack is a draft/);
+    const remove = (c: pg.PoolClient, reason: string) =>
+      c.query(
+        "UPDATE evidence_pack_bundle SET content = NULL, deleted_at = now(), deletion_reason = $2 WHERE pack_id = $1",
+        [pack, reason],
+      );
+    await expect(asManager((c) => remove(c, "link_ended"))).rejects.toThrow(/link ends/);
+    await asManager(async (c) => {
+      await c.query(
+        "UPDATE evidence_pack SET state = 'revoked', revoked_by = app.current_user_id(), revoked_at = now(), revocation_reason = 'Inspection postponed' WHERE id = $1",
+        [pack],
+      );
+      await remove(c, "pack_revoked");
+    });
+    await expect(
+      asManager((c) =>
+        c.query(
+          "UPDATE evidence_pack_bundle SET content = '{}', deleted_at = NULL, deletion_reason = NULL WHERE pack_id = $1",
+          [pack],
+        ),
+      ),
+    ).rejects.toThrow(/never restored/);
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE evidence_pack SET state = 'released' WHERE id = $1", [pack]),
+      ),
+    ).rejects.toThrow(/final/);
+  });
+});
+
+describe("statement of purpose versions in the database", () => {
+  const draft = (c: pg.PoolClient, kind: string, aims: string) =>
+    c
+      .query<{ id: string; version_number: number }>(
+        "INSERT INTO statement_of_purpose_version (kind, content) VALUES ($1, $2::jsonb) RETURNING id, version_number",
+        [kind, content(aims)],
+      )
+      .then((r) => r.rows[0] as { id: string; version_number: number });
+  const approve = (c: pg.PoolClient, id: string) =>
+    c.query(
+      "UPDATE statement_of_purpose_version SET state = 'approved', approved_by = app.current_user_id(), approved_at = now() WHERE id = $1 RETURNING notification_due_at, approved_at",
+      [id],
+    );
+
+  it("approves only by someone who did not write it, and fixes what is approved", async () => {
+    await expect(asNorth((c) => draft(c, "revision", "Aims one"))).rejects.toThrow(/baseline/);
+    const baseline = await asNorth((c) => draft(c, "baseline", "Aims one"));
+    expect(baseline.version_number).toBe(1);
+    await expect(asNorth((c) => approve(c, baseline.id))).rejects.toThrow(/did not write or edit/);
+    const done = await asManager((c) => approve(c, baseline.id));
+    expect(done.rows[0]?.notification_due_at).toBeNull();
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE statement_of_purpose_version SET content = '{}' WHERE id = $1", [
+          baseline.id,
+        ]),
+      ),
+    ).rejects.toThrow(/fixed/);
+    await expect(
+      asManager((c) =>
+        c.query("UPDATE statement_of_purpose_version SET state = 'superseded' WHERE id = $1", [
+          baseline.id,
+        ]),
+      ),
+    ).rejects.toThrow(/only by approving the next/);
+    await expect(asOtherTenant((c) => count(c, "statement_of_purpose_version"))).resolves.toBe(0);
+    await expect(asCarer((c) => count(c, "statement_of_purpose_version"))).resolves.toBe(0);
+
+    // An editor of the draft is a contributor; the same content cannot be approved again.
+    const same = await asNorth((c) => draft(c, "revision", "Aims one"));
+    await expect(asManager((c) => approve(c, same.id))).rejects.toThrow(/differs/);
+    await asManager((c) =>
+      c.query("UPDATE statement_of_purpose_version SET content = $2::jsonb WHERE id = $1", [
+        same.id,
+        content("Aims two"),
+      ]),
+    );
+    await expect(asManager((c) => approve(c, same.id))).rejects.toThrow(/did not write or edit/);
+    await asNorth((c) =>
+      c.query(
+        "UPDATE statement_of_purpose_version SET state = 'discarded', discard_reason = 'Started again' WHERE id = $1",
+        [same.id],
+      ),
+    );
+
+    // A revision supersedes the baseline and starts the regulation 12(3) clock.
+    const revision = await asNorth((c) => draft(c, "revision", "Aims three"));
+    const approved = await asManager((c) => approve(c, revision.id));
+    const row = approved.rows[0] as { notification_due_at: Date; approved_at: Date };
+    const days = (row.notification_due_at.getTime() - row.approved_at.getTime()) / 86_400_000;
+    expect(Math.round(days)).toBe(28);
+    const states = await asManager((c) =>
+      c.query<{ id: string; state: string; supersedes_id: string | null }>(
+        "SELECT id, state, supersedes_id FROM statement_of_purpose_version ORDER BY version_number",
+      ),
+    );
+    expect(states.rows.map((r) => r.state)).toEqual(["superseded", "discarded", "approved"]);
+    expect(states.rows[2]?.supersedes_id).toBe(baseline.id);
+
+    // The notification is recorded once, by a holder of safety.notification.submit.
+    const notify = (c: pg.PoolClient) =>
+      c.query(
+        "UPDATE statement_of_purpose_version SET notified_at = now(), notified_by = app.current_user_id(), notification_evidence = 'CQC portal reference 0001' WHERE id = $1",
+        [revision.id],
+      );
+    await expect(asNorth(notify)).rejects.toThrow(/safety.notification.submit/);
+    await asManager(notify);
+    await expect(asManager(notify)).rejects.toThrow(/recorded once/);
+  });
+});
