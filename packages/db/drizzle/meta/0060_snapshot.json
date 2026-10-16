@@ -1,6 +1,6 @@
 {
-  "id": "dd9fc039-06e4-4025-ad66-df0d9ccb5d52",
-  "prevId": "9592e6bc-61bc-4487-bdeb-062dc12eeb6e",
+  "id": "85e1c23a-9056-4bc0-a123-b8154e858c91",
+  "prevId": "4200e70c-7a21-449a-8193-98dca50bf5dd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5436,6 +5436,709 @@
         "visit_log_times": {
           "name": "visit_log_times",
           "value": "ended_at IS NULL OR ended_at >= occurred_at"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.letter": {
+      "name": "letter",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "template_version_id": {
+          "name": "template_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient_kind": {
+          "name": "recipient_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "personal_fields": {
+          "name": "personal_fields",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "special_category": {
+          "name": "special_category",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "results_to_follow": {
+          "name": "results_to_follow",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "incident_id": {
+          "name": "incident_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "incident_serious": {
+          "name": "incident_serious",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivery_reference": {
+          "name": "delivery_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sent_by": {
+          "name": "sent_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "retention_class": {
+          "name": "retention_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "letter_person_idx": {
+          "name": "letter_person_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "letter_template_version_fk": {
+          "name": "letter_template_version_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "template_version_id"
+          ],
+          "tableTo": "letter_template_version",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_person_fk": {
+          "name": "letter_person_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "tableTo": "person",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_contact_fk": {
+          "name": "letter_contact_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "contact_id"
+          ],
+          "tableTo": "contact",
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_incident_fk": {
+          "name": "letter_incident_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "incident_id"
+          ],
+          "tableTo": "incident",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_document_fk": {
+          "name": "letter_document_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "tableTo": "document",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_sent_by_fk": {
+          "name": "letter_sent_by_fk",
+          "tableFrom": "letter",
+          "columnsFrom": [
+            "tenant_id",
+            "sent_by"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "letter_tenant_id_id_key": {
+          "name": "letter_tenant_id_id_key",
+          "columns": [
+            "tenant_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "letter_channel": {
+          "name": "letter_channel",
+          "value": "channel IN ('letter', 'email')"
+        },
+        "letter_recipient": {
+          "name": "letter_recipient",
+          "value": "recipient_kind IN ('person', 'contact') AND (recipient_kind = 'contact') = (contact_id IS NOT NULL)"
+        },
+        "letter_serious": {
+          "name": "letter_serious",
+          "value": "NOT incident_serious OR incident_id IS NOT NULL"
+        },
+        "letter_retention": {
+          "name": "letter_retention",
+          "value": "retention_class = CASE WHEN incident_serious THEN 'serious_incident' ELSE 'care_record' END"
+        },
+        "letter_delivery": {
+          "name": "letter_delivery",
+          "value": "(channel = 'letter' OR document_id IS NULL) AND (channel = 'email' OR delivery_reference IS NULL)\n        AND (channel = 'letter' OR NOT special_category)"
+        },
+        "letter_fields": {
+          "name": "letter_fields",
+          "value": "array_position(personal_fields, NULL) IS NULL AND cardinality(personal_fields) <= 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.letter_template": {
+      "name": "letter_template",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_version_id": {
+          "name": "current_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "letter_template_tenant_id_id_key": {
+          "name": "letter_template_tenant_id_id_key",
+          "columns": [
+            "tenant_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "letter_template_kind": {
+          "name": "letter_template_kind",
+          "value": "kind IN ('admission', 'fee_review', 'incident_follow_up', 'duty_of_candour', 'general')"
+        },
+        "letter_template_channel": {
+          "name": "letter_template_channel",
+          "value": "channel IN ('letter', 'email')"
+        },
+        "letter_template_letter_only": {
+          "name": "letter_template_letter_only",
+          "value": "channel = 'letter' OR kind NOT IN ('incident_follow_up', 'duty_of_candour')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.letter_template_version": {
+      "name": "letter_template_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "contributor_ids": {
+          "name": "contributor_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_by": {
+          "name": "retired_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retirement_reason": {
+          "name": "retirement_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discard_reason": {
+          "name": "discard_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "letter_template_version_one_draft_key": {
+          "name": "letter_template_version_one_draft_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "state = 'draft'",
+          "concurrently": false
+        },
+        "letter_template_version_one_approved_key": {
+          "name": "letter_template_version_one_approved_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "state = 'approved'",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "letter_template_version_template_fk": {
+          "name": "letter_template_version_template_fk",
+          "tableFrom": "letter_template_version",
+          "columnsFrom": [
+            "tenant_id",
+            "template_id"
+          ],
+          "tableTo": "letter_template",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_template_version_author_fk": {
+          "name": "letter_template_version_author_fk",
+          "tableFrom": "letter_template_version",
+          "columnsFrom": [
+            "tenant_id",
+            "author_id"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_template_version_approved_by_fk": {
+          "name": "letter_template_version_approved_by_fk",
+          "tableFrom": "letter_template_version",
+          "columnsFrom": [
+            "tenant_id",
+            "approved_by"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "letter_template_version_retired_by_fk": {
+          "name": "letter_template_version_retired_by_fk",
+          "tableFrom": "letter_template_version",
+          "columnsFrom": [
+            "tenant_id",
+            "retired_by"
+          ],
+          "tableTo": "tenant_user",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "letter_template_version_tenant_id_id_key": {
+          "name": "letter_template_version_tenant_id_id_key",
+          "columns": [
+            "tenant_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        },
+        "letter_template_version_number_key": {
+          "name": "letter_template_version_number_key",
+          "columns": [
+            "tenant_id",
+            "template_id",
+            "version_number"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "letter_template_version_state": {
+          "name": "letter_template_version_state",
+          "value": "state IN ('draft', 'approved', 'superseded', 'retired', 'discarded')"
+        },
+        "letter_template_version_number": {
+          "name": "letter_template_version_number",
+          "value": "version_number >= 1"
+        },
+        "letter_template_version_text": {
+          "name": "letter_template_version_text",
+          "value": "char_length(btrim(name)) BETWEEN 1 AND 200 AND char_length(body) BETWEEN 1 AND 20000\n        AND (subject IS NULL OR char_length(subject) BETWEEN 1 AND 80)"
+        },
+        "letter_template_version_approved": {
+          "name": "letter_template_version_approved",
+          "value": "(state IN ('approved', 'superseded', 'retired')) = (approved_by IS NOT NULL AND approved_at IS NOT NULL)"
+        },
+        "letter_template_version_retired": {
+          "name": "letter_template_version_retired",
+          "value": "(state = 'retired') = (retired_by IS NOT NULL AND retired_at IS NOT NULL\n        AND retirement_reason IS NOT NULL AND btrim(retirement_reason) <> '')"
+        },
+        "letter_template_version_discarded": {
+          "name": "letter_template_version_discarded",
+          "value": "(state = 'discarded') = (discard_reason IS NOT NULL AND btrim(discard_reason) <> '')"
         }
       },
       "isRLSEnabled": false
