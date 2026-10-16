@@ -761,9 +761,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
     reasons and version the API needs, nothing chosen by default, and the reconciliation's counts,
     blockers in the API's words, and a box to tick for each possible duplicate group and each
     back-entry outside the window (H-267). A back-entered entry shows its label wherever its badges
-    are shown. Next: PR B, the back-entry fields on the care record forms (the outage, the date and
-    time written on paper, the outside-the-outage reason, not-from-paper). API gaps logged here,
-    for Lane A:
+    are shown. PR B built (`feat/web-back-entry-forms`, stacked on #62): "From a paper downtime
+    form" on the notes, chart, body map, activity and visit forms while the person's location has
+    an open or closed outage (the outage, the date and time as written with nothing filled in, the
+    reference, the outside-the-outage reason), the not-from-paper reason when the API asks, the
+    H-208 reason on correcting a paper note, and the API's refusals in its words (H-268).
+    Follow-ups: the paper choice on corrections of chart entries, marks, activities and visits (no
+    web correction form for them yet). API gaps logged here, for Lane A:
     - No read of the MAR and PEEP places (`GET /v1/locations/{id}/downtime-places` returning
       `DowntimePlaces` with the location's `version`), so the web cannot show or confirm them: the
       `PUT` needs the version. The places form waits on it (H-201 still met by the task and the

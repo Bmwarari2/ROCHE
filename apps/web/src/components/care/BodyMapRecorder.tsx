@@ -1,6 +1,6 @@
 "use client";
 
-import type { CreateBodyMapMark } from "@harbour/contracts";
+import type { CreateBodyMapMark, OutageItem } from "@harbour/contracts";
 import {
   Button,
   RadioGroup,
@@ -12,6 +12,7 @@ import {
 import { type FormEvent, useState, useTransition } from "react";
 import { recordBodyMark } from "@/app/actions/care-record";
 import { readNumber, readYesNo } from "@/lib/assessments";
+import { keptForReview, PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import {
   BODY_REGIONS,
   type BodySide,
@@ -22,8 +23,8 @@ import {
   regionValue,
 } from "@/lib/body-map";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
-import { readWhen } from "@/lib/uk-time";
+import { type ActionResult, collectedRefusal, errorFor, partsFor, refused } from "@/lib/outcome";
+
 import { BodyDrawing, type DrawnMark } from "./BodyDrawing";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
@@ -62,6 +63,7 @@ const FIELDS = [
   "deviceRelated",
   "bruiseExplained",
   "occurredAt",
+  ...PAPER_FIELDS,
 ] as const;
 
 function placeLabel(view: BodyView, value: string): string | null {
@@ -82,9 +84,12 @@ function placeLabel(view: BodyView, value: string): string | null {
  */
 export function BodyMapRecorder({
   personId,
+  outages = [],
   marks,
 }: {
   readonly personId: string;
+  /** Outages a paper record can be entered against at the person's location. */
+  readonly outages?: readonly OutageItem[];
   /** Current marks on each view, drawn as dots. */
   readonly marks: Readonly<Record<BodyView, readonly DrawnMark[]>>;
 }) {
@@ -116,12 +121,13 @@ export function BodyMapRecorder({
     const category = String(form.get("pressureCategory") ?? "");
     const deviceRelated = readYesNo(form.get("deviceRelated"));
     const bruiseExplained = readYesNo(form.get("bruiseExplained"));
-    const when = readWhen(form, "occurredAt", t);
-    if (!when.ok) return setResult(partsRefusal("occurredAt", when));
+    const when = readEntryWhen(form, "occurredAt", t, outages);
+    if (!when.ok) return setResult(collectedRefusal(when.problems));
     startTransition(async () => {
       const outcome = await recordBodyMark(personId, {
         id: entry.id,
         occurredAt: when.instant,
+        downtime: when.downtime,
         sentAt: new Date().toISOString(),
         view,
         region: drawn.region,
@@ -142,7 +148,8 @@ export function BodyMapRecorder({
         ...size("depthMm"),
       });
       setResult(outcome);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setPlace(null);
         setSide(null);
@@ -313,6 +320,7 @@ export function BodyMapRecorder({
           id={ids.occurredAt}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
+          paper={{ outages, ids, result }}
         />
         <div>
           <Button type="submit" disabled={pending}>

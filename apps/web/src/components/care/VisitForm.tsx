@@ -1,18 +1,20 @@
 "use client";
 
-import type { CreateVisit } from "@harbour/contracts";
+import type { CreateVisit, OutageItem } from "@harbour/contracts";
 import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { type FormEvent, useState, useTransition } from "react";
 import { recordVisit } from "@/app/actions/care-records";
+import { keptForReview, PAPER_FIELDS, readEntryWhen } from "@/lib/back-entry";
 import { characterCount, t } from "@/lib/i18n";
-import { type ActionResult, errorFor, partsFor, partsRefusal, refused } from "@/lib/outcome";
 import {
-  boxesOf,
-  dateTimeLabels,
-  readDateTimeField,
-  readWhen,
-  ukRepeatedTime,
-} from "@/lib/uk-time";
+  type ActionResult,
+  collectedRefusal,
+  errorFor,
+  partsFor,
+  partsRefusal,
+  refused,
+} from "@/lib/outcome";
+import { boxesOf, dateTimeLabels, readDateTimeField, ukRepeatedTime } from "@/lib/uk-time";
 import { FormFeedback } from "./FormFeedback";
 import { useEntryId, useFieldIds } from "./form-state";
 import { WhenField } from "./WhenField";
@@ -28,6 +30,7 @@ const FIELDS = [
   "restrictionsApplied",
   "restrictionReason",
   "notes",
+  ...PAPER_FIELDS,
 ] as const;
 
 /**
@@ -37,9 +40,12 @@ const FIELDS = [
  */
 export function VisitForm({
   personId,
+  outages = [],
   name,
 }: {
   readonly personId: string;
+  /** Outages a paper record can be entered against at the person's location. */
+  readonly outages?: readonly OutageItem[];
   readonly name: string;
 }) {
   const [restricted, setRestricted] = useState<"yes" | "no">("no");
@@ -58,9 +64,11 @@ export function VisitForm({
       return;
     }
     const text = (field: string) => String(form.get(field) ?? "");
-    const started = readWhen(form, "occurredAt", t, { subject: t("care.visits.startedSubject") });
+    const started = readEntryWhen(form, "occurredAt", t, outages, {
+      subject: t("care.visits.startedSubject"),
+    });
     if (!started.ok) {
-      setResult(partsRefusal("occurredAt", started));
+      setResult(collectedRefusal(started.problems));
       return;
     }
     const ended = readDateTimeField(form, "endedAt", {
@@ -77,6 +85,7 @@ export function VisitForm({
         id: entry.id,
         kind,
         occurredAt: started.instant,
+        downtime: started.downtime,
         sentAt: new Date().toISOString(),
         endedAt: ended.instant,
         visitorName: text("visitorName"),
@@ -86,7 +95,8 @@ export function VisitForm({
         notes: text("notes"),
       });
       setResult(outcome);
-      if (outcome.ok) {
+      // Kept for review after a reconciled outage: start again, so it is not saved twice.
+      if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
         setRestricted("no");
         entry.next();
@@ -127,6 +137,7 @@ export function VisitForm({
           legend={t("care.visits.form.started")}
           error={errorFor(result, "occurredAt")}
           errorParts={partsFor(result, "occurredAt")}
+          paper={{ outages, ids, result }}
         />
         <DateTimeInput
           id={ids.endedAt}
