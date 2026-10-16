@@ -503,6 +503,7 @@ export * from "./person-summary";
 export * from "./quality";
 export * from "./records";
 export * from "./safety";
+export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";

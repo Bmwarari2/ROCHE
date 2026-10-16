@@ -21,6 +21,8 @@ import { demoTenantRefusal, testOnlySwitchRefusal, wantsTestOnlySwitch } from ".
 /** A second demo home and its one resident, outside Harbour House staff's reach. */
 const MEWS_LOCATION = "0194d000-0000-7000-8000-000000000150";
 const MEWS_PERSON = "0194d000-0000-7000-8600-000000000150";
+const MEWS_TWIN_A = "0194d000-0000-7000-8600-000000000151";
+const MEWS_TWIN_B = "0194d000-0000-7000-8600-000000000152";
 
 type PasskeyHolder = "manager" | "owner" | "family";
 
@@ -246,6 +248,16 @@ try {
          VALUES ($1, $2, 'active', 'Una', 'Example', '9990001502', 'no_known_allergies')
          ON CONFLICT (id) DO NOTHING`,
         [MEWS_PERSON, MEWS_LOCATION],
+      );
+      // Two invented residents with the same name, for the search journey's same-name warning
+      // (HZ-001); at the Mews, so only organisation-wide roles find them.
+      await client.query(
+        `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
+                             nhs_number, allergy_status)
+         VALUES ($1, $3, 'active', 'Sam', 'Twin', '1940-03-04', '9990001510', 'no_known_allergies'),
+                ($2, $3, 'active', 'Sam', 'Twin', '1946-09-12', '9990001529', 'no_known_allergies')
+         ON CONFLICT (id) DO NOTHING`,
+        [MEWS_TWIN_A, MEWS_TWIN_B, MEWS_LOCATION],
       );
       await client.query("COMMIT");
       console.log("Harbour Mews and its resident are in place for the break-glass journey");

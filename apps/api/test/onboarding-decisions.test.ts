@@ -51,6 +51,8 @@ describe("rule 27 onboarding decisions are records, never ticks", () => {
     const defaults = await read<{ key: string }>(
       `SELECT DISTINCT key FROM rate_table
         WHERE tenant_id IS NULL AND (source ILIKE '%tenant default%' OR source ILIKE '%tenant setting%')
+        AND NOT key LIKE ANY (ARRAY['mobile.auto_lock_seconds.%', 'falls.%', 'handover.%',
+              'repositioning.%', 'bowel.%', 'weight.%', 'dols.expiry_reminder_days.%'])
         ORDER BY key LIMIT 2`,
     );
     const [first, second] = defaults.map((r) => r.key);
@@ -138,22 +140,60 @@ describe("rule 27 onboarding decisions are records, never ticks", () => {
     ).toEqual([{ staff_file_option: "staff_file.to_75th_birthday" }]);
   });
 
-  it("records the DCB0160 assessment only for the current safety case", async () => {
-    const earlier = await send("POST", "/v1/onboarding/dcb0160", "owner", {
-      safetyCaseVersion: "v-earlier",
-    });
-    expect(earlier.status).toBe(422);
+  it("records the DCB0160 assessment only for the current safety case, naming its assessor", async () => {
+    const assessedBy = DEMO.users.nurse.id;
+    for (const body of [
+      { safetyCaseVersion: "v-earlier", assessedBy },
+      { safetyCaseVersion: "v0.0" },
+      { safetyCaseVersion: "v0.0", assessedBy: OTHER.managerId },
+    ]) {
+      expect((await send("POST", "/v1/onboarding/dcb0160", "owner", body)).status).toBe(422);
+    }
     const current = await send("POST", "/v1/onboarding/dcb0160", "owner", {
       safetyCaseVersion: "v0.0",
+      assessedBy,
     });
     expect(current.status).toBe(201);
     expect(await read("SELECT safety_case_version, recorded_by FROM dcb0160_record")).toEqual([
       { safety_case_version: "v0.0", recorded_by: DEMO.users.owner.id },
     ]);
-    expect((await audits("platform.dcb0160.recorded")).map((e) => e.outcome)).toEqual([
-      "denied",
-      "success",
+    const events = await audits("platform.dcb0160.recorded");
+    expect(events.map((e) => [e.outcome, e.reason])).toEqual([
+      ["denied", "safety_case_not_current"],
+      ["denied", "reviewer_required"],
+      ["denied", "reviewer_not_member"],
+      ["success", null],
     ]);
+    expect(events[3]?.scope).toEqual({ safetyCaseVersion: "v0.0", assessedBy });
+  });
+
+  it("hazard HZ-027 accepts a clinical setting only with the clinical lead or CSO who reviewed it", async () => {
+    const [clinical] = await read<{ key: string }>(
+      `SELECT DISTINCT key FROM rate_table
+        WHERE tenant_id IS NULL AND key LIKE 'falls.%'
+          AND (source ILIKE '%tenant default%' OR source ILIKE '%tenant setting%')
+        ORDER BY key LIMIT 1`,
+    );
+    const rateKey = clinical?.key ?? "";
+    expect(rateKey).not.toBe("");
+    const refused = await send("POST", "/v1/onboarding/setting-decisions", "owner", {
+      rateKey,
+      kind: "accepted",
+    });
+    expect(refused.status).toBe(422);
+    const accepted = await send("POST", "/v1/onboarding/setting-decisions", "owner", {
+      rateKey,
+      kind: "accepted",
+      reviewedBy: DEMO.users.nurse.id,
+    });
+    expect(accepted.status).toBe(201);
+    const events = await audits("platform.setting.decided");
+    expect(events.at(-2)?.reason).toBe("reviewer_required");
+    expect(events.at(-1)?.scope).toEqual({
+      rateKey,
+      kind: "accepted",
+      reviewedBy: DEMO.users.nurse.id,
+    });
   });
 
   it("refuses another organisation's owner, and anyone without the permission", async () => {

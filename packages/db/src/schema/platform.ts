@@ -17,7 +17,14 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdColumns, id, mutableColumns, optionalTenantId, tenantId } from "./_columns";
+import {
+  createdColumns,
+  id,
+  mutableColumns,
+  optionalTenantId,
+  searchVector,
+  tenantId,
+} from "./_columns";
 import {
   auditOutcome,
   legalForm,
@@ -195,6 +202,8 @@ export const tenantUser = pgTable(
     tenantId: tenantId().references(() => tenant.id),
     authUserId: text("auth_user_id"),
     displayName: text("display_name").notNull(),
+    /** Search vector of the display name only, never contact details. */
+    searchName: searchVector("search_name", sql`app.search_vector(display_name)`),
     email: text("email").notNull(),
     jobTitle: text("job_title"),
     status: tenantUserStatus("status").notNull().default("invited"),
@@ -632,6 +641,11 @@ export const document = pgTable(
     personId: uuid("person_id"),
     /** Display name only, made safe on upload; storage keys never contain it. */
     fileName: text("file_name"),
+    /** Search vector of the title and display file name, never the file's contents. */
+    searchTitle: searchVector(
+      "search_title",
+      sql`app.search_vector(title || ' ' || coalesce(file_name, ''))`,
+    ),
     /** `available`, `quarantined` (failed the malware scan) or `destroyed` (past retention). */
     status: text("status").notNull().default("available"),
     /** `clean`, `infected`, `unavailable` (scanner down: kept quarantined) or `not_scanned`. */

@@ -623,8 +623,94 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   holders; the register entry is not acknowledged while a notice about it has an open objection;
   each notice's window uses the organisation's notice period in force on the UK date it was
   announced.
-- Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
-  organisations, telling their leads, and recording a resolution), then the web screens.
+- Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0067): an admin with
+  a fresh step-up announces a notice (`POST /operator/sub-processor-notices`); the organisations
+  it affects are worked out from their configuration (`subProcessorConfigFor`, never people),
+  every organisation not closed counting, suspended ones included (their data is still
+  processed); the effective date may not come before the longest of their notice periods
+  (`checkNoticeTiming`, 422 `notice_too_short`). Announcing, reading objections (`GET
+  /operator/sub-processor-notices/{id}/objections`) and resolving one (`POST
+  /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution`) go only through definer
+  functions owned by the NOLOGIN role `harbour_notice_resolver` (`app.announce_sub_processor_notice`,
+  `app.sub_processor_objections`, `app.resolve_sub_processor_objection`): they take the admin
+  from the transaction's `app.operator_id`, need an open objection to resolve (409
+  `no_open_objection`), and write each organisation's audit event and an outbox event in the same
+  transaction; the worker then tells its lead (or owners) once, by a dedupe key, retrying until
+  it has. The operator role has no direct access to notices or responses, and the other
+  application roles cannot execute the functions.
+- Next: the web screens.
+
+## 10f. As built (slice 13 web, the DPIA page)
+
+- `/settings/data-protection` (any DPIA permission; "Data protection" in the module menu): where
+  the DPIA stands as an icon and a word, why a review is due and what Harbour still needs; the
+  governance form for `platform.tenant.manage` (the lead from the active members, the DPO, sector,
+  privacy notice, DPA date in day, month and year boxes, use beyond direct care, the optional
+  processing; the AI provider is kept as it is); the open version's answers and residual risk
+  ratings with the ICO reference, and "Mark ready to sign", for `platform.dpia.prepare`; and the
+  prepared version's signature for `platform.dpia.sign`, showing the version's SHA-256 the typed
+  name binds to. Naming a different lead and signing say how to step up (`StepUpNotice`), with
+  the way back. The demo organisation now has a CQC provider ID (`1-DEMO000000`), so its DPIA can
+  be signed in the journey.
+
+## 10g. As built (slice 13 web, the onboarding checklist page)
+
+- `/settings/onboarding` ("Getting started" in the module menu, `platform.onboarding.read` or
+  `.manage`): progress, whether anything blocks go-live, and each item done or not as an icon and
+  words ("Not done: blocks go-live" for a go-live item), with the API's reason and, for people
+  readiness, each person (a link to their record) with what they lack. A holder of
+  `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
+  keep Harbour's period for a kind of record or say the organisation does not keep it (the API
+  says which a class takes); choose the staff file option; record the DCB0160 assessment for the
+  release's safety case. A refused decision shows the API's words. Each setting shows the figure
+  being accepted (`settings` in the checklist response). Accepting a clinical setting names the
+  clinical lead or CSO who reviewed it (`reviewedBy`), and recording DCB0160 names who made the
+  assessment (`assessedBy`): an active member, refused otherwise (`reviewer_required`,
+  `reviewer_not_member`), kept as a member id in the audit event (HZ-027).
+- Gaps: the reasons come from the domain in English (not yet through the Welsh catalogue), and
+  settings and record classes show their keys until the settings and retention screens give
+  them names; setting the organisation's own figure or period waits for those screens.
+
+## 10s. As built (slice 13, search)
+
+### Part 1, the index
+
+Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
+
+| Piece | Built as |
+| --- | --- |
+| `app.search_terms(text)` | Immutable, `SECURITY INVOKER`, not leakproof: NFKD, lower case, the `unaccent` dictionary named explicitly, apostrophes joined, every other character a separator. Equal to `searchTerms` on the domain fixtures (tested) |
+| `app.search_vector(text)` and `app.harbour_search` | The terms as an unstemmed `tsvector` (a copy of the `simple` configuration), so queries use `to_tsquery('app.harbour_search', $n)` with the bound queries from `normaliseSearchQuery` |
+| Generated columns | `person.search_names` (given, family and preferred names) and `person.search_room`; `tenant_user.search_name` (display name only); `document.search_title` (title and display file name, never contents); `care_note.search_body`. Plain-text copies of their columns: purged with the row, internal in the export catalogue, and beyond crypto-shredding if their source is later encrypted (H-380). Adding them rewrites the four tables under an exclusive lock: before go-live with the release, then only in a maintenance window or by the batched alternative ([search-index runbook](../runbooks/search-index.md)) |
+| Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
+| Break-glass search | The `break_glass_event.kind` column and the break-glass search route follow with the API step for it |
+
+### Part 2, the route
+
+`POST /v1/search` (`feat/platform-search-api`, stacked on the index): `apps/api/src/routes/search.ts`,
+`apps/api/src/services/search.ts`, contracts in `packages/contracts/src/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| Request | `platform.search.use`. The words in the JSON body (never the address, so no access log holds them), the kinds asked for, and whether to include people who have left. At most `search.requests_per_minute` searches a member a minute (rate table; 429 with Retry-After after), and `statement_timeout` of 5 seconds on the search's transaction |
+| Plan | `buildSearchPlan` with the session's MFA (care record kinds need MFA on this session, ADR-0072), the end of the roles that give search, and the agency flag (a member whose row cannot be read is refused); rotas arrive in Phase 2, so an agency worker has no shift recorded and is refused (`no_shift_recorded`). `access.agency.post_shift_hours` from the rate table |
+| Reading | One query per kind (per document category), each in the scope of the permission it rests on (`inScopeOf`, ADR-0071) with break-glass left out, so a person opened by break-glass is found only by break-glass search (rule 9). The tenant first, then the bound prefix query; whole-word matches marked `exact`. Every query in SQL keeps to what the plan allows, so the second filter drops nothing in routine use: colleagues in the plan's staff scope (working across the organisation or at one of the user's locations), never a deleted person's notes or documents, and never a note a correction replaced. Each query orders best matches first (whole-word, then rank, then id) before its limit of 100 rows; a kind that reaches it marks the results `capped`, and the screen asks for another word. People's own fields with their communication needs, colleagues' names, roles and locations (never contact details, and never a member whose roles are all portal roles), documents' titles (never contents) and notes' excerpts (160 characters) with their author |
+| Results | `filterSearchResults`: the plan applied again to every row, people first, same-name warnings, counts only of what may be seen; rows the plan still drops mean the queries and the plan disagree: `security.search.dropped_by_plan` in the log and a `platform.search.dropped_by_plan` audit event, with opaque counts only. Names-and-rooms roles see the age, never the date of birth or NHS number. `Cache-Control: no-store` |
+| Audit | `platform.search.run` with `searchAuditEvent` (the ids shown, people shown as care-record views); refusals `platform.search.refused` with the problem; never the words typed |
+| Refusals | Query problems 422 (`invalid` with the message); no permission, nothing to search, people who have left without the permission, access ended and no shift 403 with the problem as the code; MFA 403 asking to confirm or set up a second step |
+
+### Part 3, the page
+
+`/search` (`feat/web-search`, stacked on the route), "Search" in the side bar for
+`platform.search.use`: `apps/web/src/app/(shell)/search/page.tsx`,
+`apps/web/src/components/search/SearchBox.tsx`, `apps/web/src/lib/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| The box | A `search` landmark with a form that posts (so pressing Enter before the scripts load never puts the words in the address), a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
+| Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word, and their communication needs; a same-name warning in the warning style, saying to check the photo and the date of birth or age, whichever is shown (HZ-001). "Searching" is announced; a capped search asks for another word. Each result links to the person, the document or the person's notes |
+| Refusals | In words at the box: nothing typed, a mistyped NHS number, no shift recorded, access ended, people who have left without the permission, MFA |
+| Follow-ups | Break-glass search and its dialog; offline search on mobile labelled "This device only" |
 
 ## 11. Open questions
 

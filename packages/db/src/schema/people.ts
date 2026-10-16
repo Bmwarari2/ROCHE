@@ -15,7 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
-import { id, mutableColumns, tenantId } from "./_columns";
+import { id, mutableColumns, searchVector, tenantId } from "./_columns";
 import { allergyStatus, contactRole, personStatus, placementType } from "./enums";
 import { admissionDecision } from "./people-lifecycle";
 import { document, location, service, tenant, tenantUser } from "./platform";
@@ -110,6 +110,12 @@ export const person = pgTable(
     photoDocumentId: uuid("photo_document_id"),
     /** Display cache of the current room, maintained by the admission workflow; synced to devices. */
     roomLabel: text("room_label"),
+    /** Search vectors: the names (break-glass search matches these alone) and the room. */
+    searchNames: searchVector(
+      "search_names",
+      sql`app.search_vector(given_name || ' ' || family_name || ' ' || coalesce(preferred_name, ''))`,
+    ),
+    searchRoom: searchVector("search_room", sql`app.search_vector(room_label)`),
     /** Accessible Information Standard needs: [{ code (SNOMED CT), display, preferredFormat }]. */
     communicationNeeds: jsonb("communication_needs").notNull().default(sql`'[]'::jsonb`),
     /**

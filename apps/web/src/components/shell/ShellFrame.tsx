@@ -14,11 +14,14 @@ import {
   Bell,
   ClipboardList,
   CloudOff,
+  FileLock,
   House,
   ListChecks,
+  ListTodo,
   LogOut,
   Mail,
   Newspaper,
+  Search,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -57,12 +60,16 @@ export interface ShellFrameLabels {
   readonly downtime?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
   readonly updates?: string | undefined;
+  /** Shown only to people who may search (platform.search.use). */
+  readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly dataProtection?: string | undefined;
+  readonly onboarding?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -99,9 +106,12 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/data-protection")) return "data-protection";
+  if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -183,6 +193,9 @@ export function ShellFrame({
     ...(labels.people
       ? [{ id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> }]
       : []),
+    ...(labels.search
+      ? [{ id: "search", label: labels.search, href: "/search", icon: <Search {...icon} /> }]
+      : []),
     ...(labels.round
       ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
       : []),
@@ -239,6 +252,26 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.onboarding
+      ? [
+          {
+            id: "onboarding",
+            label: labels.onboarding,
+            href: "/settings/onboarding",
+            icon: <ListTodo {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataProtection
+      ? [
+          {
+            id: "data-protection",
+            label: labels.dataProtection,
+            href: "/settings/data-protection",
+            icon: <FileLock {...icon} />,
           },
         ]
       : []),
