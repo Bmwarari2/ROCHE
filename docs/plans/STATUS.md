@@ -160,7 +160,10 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.
-     Next: the decision routes, `GET /v1/onboarding`, sub-processor notices, then the web screens.
+     Open: the policies use `app.holds_permission_anywhere`, so a holder of
+     `platform.onboarding.read` or `.manage` limited to one location reads and records the
+     organisation-wide decisions too (the onboarding roles are organisation-wide today); revisit if
+     a location role ever carries them. Next: the decision routes, `GET /v1/onboarding`, sub-processor notices, then the web screens.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
