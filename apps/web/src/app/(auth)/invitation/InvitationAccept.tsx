@@ -155,6 +155,12 @@ export function InvitationAccept() {
         });
         return;
       case "refused":
+        // Joining with a sign-in that has since ended reads as a bad request: ask again, so the
+        // page offers the right path instead of "this link does not work".
+        if (result.refusal === "not_found" && view.kind === "found" && token) {
+          void look(token);
+          return;
+        }
         show(result);
         return;
       default:

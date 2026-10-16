@@ -156,8 +156,9 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 
 Status: the rules are built (`packages/domain/src/platform/invitations.ts`, table-driven tests),
 the store (migration 0054, the schema below; `packages/db/test/invitations.test.ts`) and the
-routes and the sweep (As built, below; `apps/api/test/invitations.test.ts`); the accept page
-follows. Built already
+routes and the sweep (As built, below; `apps/api/test/invitations.test.ts`) and the accept page
+(`apps/web/src/app/(auth)/invitation`, As built below); the managers' list and invite form
+follow. Built already
 and relied on: NCSC password rules at sign-up (`passwordProblem`: 12 to 128 characters, a
 deny-list, no expiry, throttling not lockout), passkeys and authenticator apps (TOTP) with the
 set-up screen (`/settings/security`), `mfa_enrolment_required` on every permission that touches
@@ -371,6 +372,24 @@ As built, the routes (`apps/api/src/routes/invitations.ts`, `operator-invitation
   `platform.invitation.sign_in_removed`. Known gap, logged in STATUS: a sign-in linked between the
   listing and the deletion would be deleted; the window is milliseconds once a night, and only for
   a sign-in already 24 hours unlinked.
+
+As built, the accept page (`apps/web/src/app/(auth)/invitation`, `app/actions/invitations.ts`,
+`lib/invitations.ts`):
+
+- The page reads the token from the fragment, keeps it in the tab's session storage (so it
+  survives signing in first; cleared once accepted or once the link can never work), replaces the
+  address with `/invitation`, and sends it to the API only in server-action and request bodies.
+  `Referrer-Policy: no-referrer` and `noindex` on the page.
+- It shows the organisation's name, the masked address and the expiry (UK time). The lookup does
+  not name the inviter, so neither does the page. Then, by `path`: a form for a name and a
+  password (the NCSC rules shown before typing; `passwordRuleBroken` in @harbour/domain, which the
+  API's `passwordProblem` now words, so both say the same; show or hide that announces itself;
+  errors at each field and in a summary that takes focus); or "sign in first" (`sign_in_first`,
+  from the lookup or the accept's 409), returning to the page after signing in; or "accept" with
+  the current sign-in. A new sign-in then signs in and lands on `/settings/security?reason=mfa`;
+  an existing one goes to `/settings/security`. The organisation joined becomes the active one.
+- Expired, withdrawn, used, already a member, another address, unknown, incomplete and throttled
+  (429, the wait from Retry-After in minutes) links are each said in plain words with what to do.
 
 ## Audit trail and history (PLAT-007)
 

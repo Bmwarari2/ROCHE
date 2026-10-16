@@ -1782,3 +1782,21 @@ the refused-entry review from every route (with a hand-over's admission; failure
 ids; one shared copy limit); alerts and tasks from a back-entered observation say they come from
 paper, with the paper time, and the outbox event carries it; the label falls back to the paper
 time; the correction index's conflict maps to the 409; H-216 extended. Tests: 5 new, 3 extended.
+
+## 2026-10-16: Invitation accept page, web part (PLAT-004, STATUS item 20)
+
+- `/invitation#<token>`: the token from the fragment, kept in the tab's session storage while the
+  person signs in first, stripped from the address bar, sent only in server-action bodies;
+  `Referrer-Policy: no-referrer` on the page.
+- Shows the organisation, the masked address and the expiry; creates a sign-in (name, password
+  with the NCSC rules up front and an accessible show or hide), asks the person to sign in first,
+  or joins with the current sign-in; then sign-in and MFA enrolment at `/settings/security`.
+- Expired, withdrawn, used, unknown, incomplete and throttled links in plain words; the error
+  summary takes focus and links to each field.
+- The NCSC rules move to `passwordRuleBroken` in @harbour/domain; the API's `passwordProblem`
+  keeps its words (and adds "Use 128 characters or fewer.").
+- Strings in en-GB and cy (Welsh copies English, listed as untranslated).
+- Not in this PR: the managers' list and invite form (no members list route or team page yet).
+
+**Tests**: `apps/web` `lib/invitations.test.ts` and `PasswordField.test.tsx` (axe), e2e
+`invitation.spec.ts` (axe); `packages/domain` `passwords.test.ts`.
