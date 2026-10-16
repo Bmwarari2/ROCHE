@@ -324,6 +324,25 @@ only when they link spec, code, tests and user documentation; no user guides exi
      Logged, not blocking this merge: the code email's subject and body need an email port with a
      body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
      external recipient.
+   - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
+     migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
+     tables with forced RLS, the version workflow and separation of duties in the database, and
+     letters only from approved versions to the person or their own contacts. Next, part 2, the
+     API: template and version routes, merge fields, preview and sending with the PDF writer, the
+     email port's body (H-225; the evidence pack code email moves its guidance into the body),
+     audit and outbox events.
+   - #69 security review round 1 (no High or blocking Medium); fixed in #69: the incident and its
+     grade come from the incident (about the letter's own person, on incident and candour letters
+     only) and set the retention class; link sessions reach none of the template and letter tables.
+     For part 2 and the retention slice:
+     - letters are readable by anyone with the person in scope: gate reads on a comms permission
+       in the API (or the SELECT policy);
+     - no crypto-shred path for `letter` yet (the retention slice);
+     - audit events come from the API (the tables have no audit triggers of their own);
+     - part 2 must: require `comms.letter.manage` (and `safety.incident.manage` for the
+       `incident.*` and `candour.*` fields), MFA on reads, store `delivery_reference` as the
+       provider's opaque id only, `personal_fields` as keys only, never an email's content, and
+       log no personal data.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
