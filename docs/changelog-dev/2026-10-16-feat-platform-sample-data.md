@@ -1,6 +1,6 @@
 # Sample data mode for people (PLAT-018)
 
-Branch `feat/platform-sample-data`, PR #NN. Migration 0069, after #95 (0067) and #97 (0068).
+Branch `feat/platform-sample-data`, PR #98. Migration 0069, after #95 (0067) and #97 (0068).
 
 ## What changed
 
