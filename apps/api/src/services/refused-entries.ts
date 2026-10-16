@@ -77,9 +77,11 @@ const DAY_MS = 86_400_000;
 /** Copies each person may send in a rolling day: far above real refusals, a bound on a script. */
 const COPIES_PER_DAY = 200;
 
-/** The daily limit on each author's copies, shared by every route that keeps one. */
+const COPY_QUOTA = new PerUserQuota("sync.refused_copies", COPIES_PER_DAY, DAY_MS);
+
+/** The daily limit on each author's copies: one instance, shared by every route that keeps one. */
 export function refusedCopyQuota(): PerUserQuota {
-  return new PerUserQuota("sync.refused_copies", COPIES_PER_DAY, DAY_MS);
+  return COPY_QUOTA;
 }
 
 /** Marks that may be harm to the person, read on the copy's own request (HZ-019, HZ-006). */

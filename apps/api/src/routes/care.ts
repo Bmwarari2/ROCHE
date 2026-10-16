@@ -52,6 +52,7 @@ import {
   downtimeRefusal,
   entryDowntime,
   onDowntimeError,
+  paperSource,
 } from "../services/back-entry";
 import {
   careProfile,
@@ -207,6 +208,7 @@ export const careRouter = createRouter()
           occurredAt: body.occurredAt,
           recordedBy: author,
           payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -278,9 +280,9 @@ export const careRouter = createRouter()
                 correctionReason: body.correctionReason ?? null,
                 ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: careNote.id })
               .returning()
-              .catch(onDowntimeError);
+              .catch(onDowntimeError(personId));
             const row =
               inserted ??
               (
@@ -317,7 +319,7 @@ export const careRouter = createRouter()
                 resourceType: "care_note",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: downtimeAudit(downtime),
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {
@@ -445,6 +447,7 @@ export const careRouter = createRouter()
           occurredAt: body.occurredAt,
           recordedBy: author,
           payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -535,9 +538,9 @@ export const careRouter = createRouter()
                 correctionReason: body.correctionReason ?? null,
                 ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: observation.id })
               .returning()
-              .catch(onDowntimeError);
+              .catch(onDowntimeError(personId));
             const row =
               inserted ??
               (
@@ -560,6 +563,7 @@ export const careRouter = createRouter()
               });
               // A result recorded before a move to hospital or on leave still alerts the nurse in
               // charge; after a discharge or death only the safety prompts are raised (rule 3).
+              const paper = await paperSource(tx, row);
               await raiseCareTriggers(
                 tx,
                 {
@@ -567,6 +571,7 @@ export const careRouter = createRouter()
                   locationId: person.locationId,
                   sourceType: "observation",
                   sourceId: row.id,
+                  paper,
                 },
                 raising,
                 now,
@@ -602,6 +607,7 @@ export const careRouter = createRouter()
                     sourceType: "observation",
                     sourceId: row.id,
                     occurredOn: ukIsoDate(times.occurredAt),
+                    paper,
                   },
                   [
                     {
@@ -617,7 +623,7 @@ export const careRouter = createRouter()
                 resourceType: "observation",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: downtimeAudit(downtime),
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {
@@ -630,7 +636,14 @@ export const careRouter = createRouter()
                 aggregateType: "person",
                 aggregateId: personId,
                 type: "care.observation.recorded",
-                payload: { observationId: row.id, chart: row.chart },
+                payload: {
+                  observationId: row.id,
+                  chart: row.chart,
+                  // Entered from paper: the outage and the time written on the form (HZ-017).
+                  ...(row.lateEntryReason === "downtime"
+                    ? { outageId: row.outageId, paperAt: row.occurredAt.toISOString() }
+                    : {}),
+                },
               });
             }
             return observationItem(
@@ -878,6 +891,7 @@ export const careRouter = createRouter()
           occurredAt: body.occurredAt,
           recordedBy: author,
           payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -968,10 +982,10 @@ export const careRouter = createRouter()
                 correctionReason: body.correctionReason ?? null,
                 ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: bodyMapMark.id })
               .returning()
               .catch((error: unknown) => {
-                const refused = downtimeRefusal(error);
+                const refused = downtimeRefusal(error, personId);
                 if (refused) throw refused;
                 const code =
                   (error as { code?: string }).code ??
@@ -998,6 +1012,7 @@ export const careRouter = createRouter()
                   locationId: person.locationId,
                   sourceType: "body_map_mark",
                   sourceId: row.id,
+                  paper: await paperSource(tx, row),
                 },
                 triggersAfterChange(
                   markTriggers({
@@ -1038,7 +1053,7 @@ export const careRouter = createRouter()
                 resourceType: "body_map_mark",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: downtimeAudit(downtime),
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {

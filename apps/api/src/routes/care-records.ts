@@ -596,6 +596,7 @@ export const careRecordsRouter = createRouter()
           occurredAt: body.occurredAt,
           recordedBy: author,
           payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -684,9 +685,9 @@ export const careRecordsRouter = createRouter()
                 correctionReason: body.correctionReason ?? null,
                 ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: activityRecord.id })
               .returning()
-              .catch(onDowntimeError);
+              .catch(onDowntimeError(personId));
             const row = replayed(
               inserted ??
                 (
@@ -723,7 +724,7 @@ export const careRecordsRouter = createRouter()
                 resourceType: "activity_record",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: downtimeAudit(downtime),
+                scopeExtra: downtimeAudit(downtime),
               });
               await auditHandedOver(tx, access, handover, {
                 resourceType: "activity_record",
@@ -841,6 +842,7 @@ export const careRecordsRouter = createRouter()
           occurredAt: body.occurredAt,
           recordedBy: author,
           payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -939,9 +941,9 @@ export const careRecordsRouter = createRouter()
                 correctionReason: body.correctionReason ?? null,
                 ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: visitLog.id })
               .returning()
-              .catch(onDowntimeError);
+              .catch(onDowntimeError(personId));
             const row = replayed(
               inserted ??
                 (
@@ -978,7 +980,7 @@ export const careRecordsRouter = createRouter()
                 resourceType: "visit_log",
                 resourceId: row.id,
                 reason: body.correctionReason,
-                scope: {
+                scopeExtra: {
                   kind: row.kind,
                   restrictionsApplied: row.restrictionsApplied,
                   ...downtimeAudit(downtime),

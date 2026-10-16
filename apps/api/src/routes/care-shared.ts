@@ -19,15 +19,16 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import {
-  ALREADY_CORRECTED_REVIEW,
-  BackEntryAlreadyCorrected,
-  entryOutages,
-} from "../services/back-entry";
+import { BackEntryForReview, entryOutages } from "../services/back-entry";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
 import { refuseRevokedDevice } from "../services/devices";
-import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
+import {
+  type HandedOverAdmission,
+  type HeldHandover,
+  handedOverByOf,
+  heldHandoverOf,
+} from "../services/held-handover";
 import type { OutageRow } from "../services/outages";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
 import { copyRefusedEntry, refusedCopyQuota } from "../services/refused-entries";
@@ -400,11 +401,11 @@ export interface RefusedEntry {
   readonly occurredAt?: string | null | undefined;
   /** Who wrote it, when not the caller (a handed-over entry's owner). */
   readonly recordedBy?: string | undefined;
-  /** The request as sent, kept on the server when a device's correction is refused. */
+  /** The request as sent, kept on the server when a back-entry is refused for review. */
   readonly payload?: unknown;
+  /** A hand-over's plan for the entry, admitted with the copy instead (Device integrity part 6). */
+  readonly admission?: HandedOverAdmission | null | undefined;
 }
-
-const copyQuota = refusedCopyQuota();
 
 /**
  * Runs a care write. A care event timed after the person left, died or went away (beyond the
@@ -420,8 +421,8 @@ export async function withLateEntryReview<T>(
   try {
     return await write();
   } catch (error) {
-    if (error instanceof BackEntryAlreadyCorrected) {
-      throw await keepRefusedCorrection(c, entry, error);
+    if (error instanceof BackEntryForReview) {
+      throw await keepForReview(c, entry, error);
     }
     if (error instanceof CareEventAfterExit) {
       const access = c.get("access");
@@ -450,30 +451,33 @@ export async function withLateEntryReview<T>(
 }
 
 /**
- * A device's second correction of the same paper record, refused because each paper record has
- * one current version (operations.md section 12, #38 review round 2): the server keeps the entry
- * as sent, with a review task for the nurse in charge (`copyRefusedEntry`; HZ-006), as the device
- * would on its own, so it is never only on one phone. The web is told to correct the current
- * version. A copy that cannot be kept leaves the refusal as it was (the device sends it again).
+ * A back-entry refused for review (operations.md section 14; HZ-006, HZ-017): a device's second
+ * correction of the same paper record, or a paper record (or an entry not from paper) for an
+ * outage already reconciled. The server keeps the entry as sent with the person's refused-entry
+ * review task for the nurse in charge (`copyRefusedEntry`, with a hand-over's admission), so its
+ * content is never lost or only on one phone, and the refusal says so. A second correction from
+ * the web is not kept: the form corrects the current version. A copy that cannot be kept leaves
+ * the refusal as it was (the device sends it again), logged by opaque ids.
  */
-async function keepRefusedCorrection(
+async function keepForReview(
   c: Context<AppEnv>,
   entry: RefusedEntry,
-  error: BackEntryAlreadyCorrected,
+  error: BackEntryForReview,
 ): Promise<HttpProblem> {
   const access = c.get("access");
-  if (!access.deviceId || !entry.clientId || entry.payload === undefined) return error;
+  if (entry.payload === undefined) return error;
+  if (!error.fromWebToo && (!access.deviceId || !entry.clientId)) return error;
   try {
     await copyRefusedEntry(
       c.get("services").db,
       access,
       {
         table: entry.kind,
-        entryId: entry.clientId,
+        entryId: entry.clientId ?? crypto.randomUUID(),
         personId: error.personId,
         httpStatus: error.status,
         code: error.code,
-        message: ALREADY_CORRECTED_REVIEW,
+        message: error.keptDetail,
         refusedAt: new Date().toISOString(),
         payload: entry.payload,
       } as SyncRefusedEntry,
@@ -482,13 +486,24 @@ async function keepRefusedCorrection(
         deviceId: access.deviceId,
         now: new Date(),
         requestId: c.get("requestId"),
-        quota: copyQuota,
+        admission: entry.admission ?? null,
+        quota: refusedCopyQuota(),
       },
     );
-  } catch {
+  } catch (failure) {
+    c.get("services").logger.warn(
+      {
+        requestId: c.get("requestId"),
+        personId: error.personId,
+        entryId: entry.clientId ?? null,
+        code: error.code,
+        failure: failure instanceof HttpProblem ? failure.code : "error",
+      },
+      "refused back-entry not kept for review",
+    );
     return error;
   }
-  return new HttpProblem(error.status, error.code, error.title, ALREADY_CORRECTED_REVIEW);
+  return new HttpProblem(error.status, error.code, error.title, error.keptDetail);
 }
 
 /** Follow-ups that stay relevant whoever is left to act: the incident and safeguarding prompts. */

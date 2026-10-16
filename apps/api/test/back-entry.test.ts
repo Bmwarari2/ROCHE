@@ -1,7 +1,7 @@
 import { DEVICE_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Back-entry through the care write routes (operations.md rules 11 to 13 and section 12; OPS-028;
@@ -155,10 +155,36 @@ interface Entry {
 
 /** An outage from 5 to 3 hours ago, declared after it ended. */
 let past: Outage;
+/** Outages the carer cannot cite: at another home, and in another organisation. */
+let lodgeOutage: string;
+let otherTenantOutage: string;
+
+/** An outage declared directly in the database (the owner role), in any organisation. */
+async function outageIn(tenant: string, locationId: string, declaredBy: string): Promise<string> {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [tenant],
+    );
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO outage (location_id, kind, description, started_at, ended_at, declared_by)
+       VALUES ($1, 'network', 'Internet down, whole site', $2, $3, $4) RETURNING id`,
+      [locationId, ago(7 * HOUR), ago(5 * HOUR + 30 * MINUTE), declaredBy],
+    );
+    await client.query("COMMIT");
+    return rows[0]?.id as string;
+  } finally {
+    client.release();
+  }
+}
 
 beforeAll(async () => {
   h = await createHarness();
   past = await declare(ago(5 * HOUR), ago(3 * HOUR));
+  lodgeOutage = await outageIn(DEMO.tenantId, LODGE.locationId, DEMO.users.owner.id);
+  otherTenantOutage = await outageIn(OTHER.tenantId, OTHER.locationId, OTHER.managerId);
 }, 120_000);
 
 afterAll(async () => {
@@ -192,7 +218,11 @@ describe("hazard HZ-017 back-entry through each care route", () => {
         "SELECT scope FROM audit_event WHERE resource_id = $1",
         [saved.id],
       );
+      // The outage beside the scope and places that authorised the write (#54 round 1, S-M).
       expect(audited?.scope).toMatchObject({ outageId: past.id, backEntry: true });
+      expect(Object.keys(audited?.scope ?? {})).toEqual(
+        expect.arrayContaining(["scope", "locations"]),
+      );
     },
   );
 
@@ -220,7 +250,16 @@ describe("hazard HZ-017 back-entry through each care route", () => {
         deviceTime: ago(4 * HOUR + 5 * MINUTE).toISOString(),
       });
       expect(offline.status).toBe(201);
-      expect(await offline.json()).toMatchObject({ backEntry: null, notFromPaper: null });
+      const ordinary = (await offline.json()) as Entry;
+      expect(ordinary).toMatchObject({ backEntry: null, notFromPaper: null });
+      const [audited] = await sql<{ scope: Record<string, unknown> }>(
+        "SELECT scope FROM audit_event WHERE resource_id = $1",
+        [ordinary.id],
+      );
+      expect(Object.keys(audited?.scope ?? {})).toEqual(
+        expect.arrayContaining(["scope", "locations"]),
+      );
+      expect(audited?.scope).not.toHaveProperty("outageId");
     },
   );
 });
@@ -245,7 +284,7 @@ describe("hazard HZ-017 back-entry refusals in words", () => {
       "an entry time that is not the paper time",
       { occurredAt: ago(4 * HOUR), backEntry: { outageId: "PAST", ...paperOf(at) } },
       "back_entry_refused",
-      /date and time written on the form/,
+      /Use the time written on the paper form/,
     ],
     [
       "a paper time in the hour the clocks went forward",
@@ -281,7 +320,7 @@ describe("hazard HZ-017 back-entry refusals in words", () => {
     expect(problem.detail).toMatch(words);
   });
 
-  it("hazard HZ-017 a reconciled outage takes no new paper records, and says to give the form to the Registered Manager (H-204)", async () => {
+  it("hazard HZ-017 a reconciled outage takes no new paper records; the record is kept for the nurse in charge's review (H-204, H-216)", async () => {
     const earlier = await declare(ago(30 * HOUR), ago(29 * HOUR));
     // Declared after it ended, it is closed at once.
     const reconciled = await as("owner", `/v1/outages/${earlier.id}/reconcile`, {
@@ -303,7 +342,77 @@ describe("hazard HZ-017 back-entry refusals in words", () => {
     expect(await response.json()).toMatchObject({
       code: "outage_reconciled",
       detail:
-        "This outage has been reconciled, so this paper record cannot be added to it. Give the paper form to the Registered Manager.",
+        "This outage has been reconciled, so this paper record cannot be added to it. It has been kept for the nurse in charge to review: give the paper form to the Registered Manager.",
+    });
+    // Sent from the web, with no id: the server keeps it with the person's review task.
+    const kept = await sql<{
+      record_table: string;
+      review_task_id: string | null;
+      payload: unknown;
+    }>(
+      "SELECT record_table, review_task_id, payload FROM refused_entry WHERE person_id = $1 AND refusal_code = 'outage_reconciled'",
+      [PERSON],
+    );
+    expect(kept).toEqual([
+      {
+        record_table: "care_note",
+        review_task_id: expect.any(String),
+        payload: expect.objectContaining({
+          backEntry: expect.objectContaining({ outageId: earlier.id }),
+        }),
+      },
+    ]);
+  });
+
+  it("hazard HZ-017 resolves a paper time in the hour the clocks went back to the time chosen", async () => {
+    // 26/10/2025: 01:30 happened twice, first in BST (00:30Z), then in GMT (01:30Z).
+    const written = { paperDate: "2025-10-26", paperTime: "01:30" };
+    const ambiguous = await write("notes", {
+      ...note,
+      occurredAt: "2025-10-26T00:30:00Z",
+      backEntry: { outageId: past.id, ...written },
+    });
+    expect(ambiguous.status).toBe(422);
+    expect(((await ambiguous.json()) as { detail: string }).detail).toMatch(/clocks went back/);
+    // Its paper time is outside this outage, so it says why.
+    const backEntry = {
+      outageId: past.id,
+      ...written,
+      outsideOutageReason: "Form found in the night folder",
+    };
+    const mismatched = await write("notes", {
+      ...note,
+      occurredAt: "2025-10-26T00:30:00Z",
+      backEntry: { ...backEntry, occurrence: "later" },
+    });
+    expect(mismatched.status).toBe(422);
+    const later = await write("notes", {
+      ...note,
+      occurredAt: "2025-10-26T01:30:00Z",
+      backEntry: { ...backEntry, occurrence: "later" },
+    });
+    expect(later.status).toBe(201);
+    expect(await later.json()).toMatchObject({
+      occurredAt: "2025-10-26T01:30:00.000Z",
+      backEntry: { paperDate: "2025-10-26", paperTime: "01:30", occurrence: "later" },
+    });
+  });
+
+  it.each([
+    ["another organisation's", "other_tenant"],
+    ["another home's, out of the writer's reach,", "other_location"],
+  ] as const)("hazard HZ-011 hazard HZ-017 refuses %s outage as unknown", async (_case, which) => {
+    const at = ago(6 * HOUR);
+    const id = which === "other_tenant" ? otherTenantOutage : lodgeOutage;
+    const response = await write("notes", {
+      ...note,
+      occurredAt: at.toISOString(),
+      backEntry: { outageId: id, ...paperOf(at) },
+    });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      code: "back_entry_refused",
+      detail: "That outage was not found.",
     });
   });
 });
@@ -438,5 +547,48 @@ describe("hazard HZ-017 correcting a closed outage (#51 review round 2)", () => 
     // Within the clock tolerance of the closure, a slightly fast clock's end is taken.
     const within = await correct(closed + drift - MINUTE);
     expect(within.status).toBe(200);
+  });
+});
+
+describe("hazard HZ-017 alerts from a back-entered observation", () => {
+  it("hazard HZ-017 says an alert and its tasks come from a paper record, with the time written on it", async () => {
+    const at = ago(3 * HOUR + 20 * MINUTE);
+    const response = await write("observations", {
+      occurredAt: at.toISOString(),
+      values: {
+        chart: "vitals",
+        respirationRate: 26,
+        spo2: 90,
+        onOxygen: false,
+        systolic: 88,
+        pulse: 135,
+        consciousness: "new_confusion",
+        temperature: 39.5,
+      },
+      backEntry: { outageId: past.id, ...paperOf(at) },
+    });
+    expect(response.status).toBe(201);
+    const saved = (await response.json()) as Entry;
+    const alerts = await sql<{ title: string; body: string }>(
+      "SELECT title, body FROM notification WHERE source_id = $1",
+      [saved.id],
+    );
+    expect(alerts.length).toBeGreaterThan(0);
+    for (const alert of alerts) {
+      expect(alert.title).toMatch(/^An observation from a paper record/);
+      expect(alert.body).toContain(saved.backEntry?.label ?? "-");
+    }
+    const tasks = await sql<{ title: string }>(
+      "SELECT title FROM task WHERE source_id = $1 AND kind IN ('care.news2_response', 'care.repeat_observations')",
+      [saved.id],
+    );
+    expect(tasks.length).toBeGreaterThan(0);
+    const written = `${paperOf(at).paperDate.split("-").reverse().join("/")} ${paperOf(at).paperTime}`;
+    for (const t of tasks) expect(t.title).toContain(`(from a paper record written ${written})`);
+    const [event] = await sql<{ payload: Record<string, unknown> }>(
+      "SELECT payload FROM outbox_event WHERE event_type = 'care.observation.recorded' AND payload->>'observationId' = $1",
+      [saved.id],
+    );
+    expect(event?.payload).toMatchObject({ outageId: past.id, paperAt: at.toISOString() });
   });
 });

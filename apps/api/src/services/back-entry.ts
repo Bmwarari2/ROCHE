@@ -80,39 +80,76 @@ export const NO_DOWNTIME: DowntimeColumns = {
   notFromPaperReason: null,
 };
 
-/** Said when a back-entry is sent for an outage already reconciled (H-204). */
+/** Said when a back-entry is sent for an outage already reconciled (H-204, H-216). */
 export const OUTAGE_RECONCILED_BACK_ENTRY =
   "This outage has been reconciled, so this paper record cannot be added to it. Give the paper form to the Registered Manager.";
+/** Said once the server has kept that paper record for the nurse in charge's review (H-216). */
+export const OUTAGE_RECONCILED_KEPT =
+  "This outage has been reconciled, so this paper record cannot be added to it. It has been kept for the nurse in charge to review: give the paper form to the Registered Manager.";
 /** Said when an entry not from paper is sent for a time inside a reconciled outage. */
 export const OUTAGE_RECONCILED_ENTRY =
   "This time falls in an outage that has been reconciled, so this cannot be added to it. Give the details to the Registered Manager.";
+const OUTAGE_RECONCILED_ENTRY_KEPT =
+  "This time falls in an outage that has been reconciled, so this cannot be added to it. It has been kept for the nurse in charge to review.";
 const STAYS_PAPER = "A correction of a paper record stays a paper record of the same outage.";
 const STAYS_ORDINARY =
   "A correction of an entry not entered from paper cannot make it a paper record.";
-const TIME_IS_PAPER_TIME =
-  "The time of a paper record is the date and time written on the form. Send that time as the entry's time.";
+const TIME_IS_PAPER_TIME = "Use the time written on the paper form as the time of this entry.";
 const NOT_PAPER_REASON = "A paper record does not need a reason it was not written on paper.";
 
 /**
- * A second correction of the same paper record (the database keeps one current version of each;
- * #38 review round 2). From a device, the entry is kept on the server for the nurse in charge to
- * review (`withLateEntryReview`; HZ-006); the web reloads and corrects the current version.
+ * A refusal whose entry the server keeps with the person's refused-entry review
+ * (`withLateEntryReview`; HZ-006, HZ-017), saying so in `keptDetail` once kept. `fromWebToo`: kept
+ * from the web as well as from a device.
  */
-export class BackEntryAlreadyCorrected extends HttpProblem {
-  constructor(readonly personId: string) {
-    super(
-      409,
-      "back_entry_already_corrected",
-      "This paper record has been corrected already.",
-      "Reload it and correct the current version.",
-    );
-    this.name = "BackEntryAlreadyCorrected";
+export class BackEntryForReview extends HttpProblem {
+  constructor(
+    status: 409 | 422,
+    code: string,
+    title: string,
+    detail: string,
+    readonly personId: string,
+    readonly keptDetail: string,
+    readonly fromWebToo: boolean,
+  ) {
+    super(status, code, title, detail);
+    this.name = "BackEntryForReview";
   }
 }
 
 /** The words for a device whose refused correction is now with the nurse in charge. */
 export const ALREADY_CORRECTED_REVIEW =
   "This correction was not saved because the paper record has been corrected already. The nurse in charge has a task to review it.";
+
+/**
+ * A second correction of the same paper record (the database keeps one current version of each;
+ * #38 review round 2). From a device, the entry is kept for review; the web reloads and corrects
+ * the current version.
+ */
+export function alreadyCorrected(personId: string): BackEntryForReview {
+  return new BackEntryForReview(
+    409,
+    "back_entry_already_corrected",
+    "This paper record has been corrected already.",
+    "Reload it and correct the current version.",
+    personId,
+    ALREADY_CORRECTED_REVIEW,
+    false,
+  );
+}
+
+/** A record for an outage already reconciled, kept for review from every route (H-204, H-216). */
+function reconciledRefusal(personId: string, fromPaper: boolean): BackEntryForReview {
+  return new BackEntryForReview(
+    422,
+    "outage_reconciled",
+    "Some details need checking.",
+    fromPaper ? OUTAGE_RECONCILED_BACK_ENTRY : OUTAGE_RECONCILED_ENTRY,
+    personId,
+    fromPaper ? OUTAGE_RECONCILED_KEPT : OUTAGE_RECONCILED_ENTRY_KEPT,
+    true,
+  );
+}
 
 const reasonOf = (text: string | undefined | null) =>
   text && text.trim().length >= MIN_BACK_ENTRY_REASON_LENGTH ? text.trim() : null;
@@ -194,7 +231,7 @@ export async function entryDowntime(
       .from(t)
       .where(and(eq(t.supersedesId, body.supersedesId), eq(t.lateEntryReason, "downtime")))
       .limit(1);
-    if (corrected) throw new BackEntryAlreadyCorrected(ctx.personId);
+    if (corrected) throw alreadyCorrected(ctx.personId);
     const [row] = original.outageId
       ? await tx.select().from(outage).where(eq(outage.id, original.outageId))
       : [];
@@ -225,12 +262,12 @@ export async function entryDowntime(
     const rows = await outagesAt(tx, ctx.locationId);
     const row = rows.find((o) => o.id === body.backEntry?.outageId);
     if (!row) refuseProblems(["unknown_outage"]);
-    if (row.state === "reconciled") refuse("outage_reconciled", OUTAGE_RECONCILED_BACK_ENTRY);
+    if (row.state === "reconciled") throw reconciledRefusal(ctx.personId, true);
     const { at, ...stored } = paperColumns(body.backEntry, row, ctx);
+    if (at.getTime() !== ctx.occurredAt.getTime()) refuse("back_entry_refused", TIME_IS_PAPER_TIME);
     if (!stored.outsideOutageReason && !inWindow(row, at, ctx.now, ctx.rates.clockDriftMinutes)) {
       refuseProblems(["outside_outage_window"]);
     }
-    if (at.getTime() !== ctx.occurredAt.getTime()) refuse("back_entry_refused", TIME_IS_PAPER_TIME);
     return stored;
   }
   // A correction of an entry not from paper keeps its reason unless it gives another; one that
@@ -325,7 +362,7 @@ async function normalRoute(
     return NO_DOWNTIME;
   }
   if (row.state === "reconciled" && corrected?.outageId !== row.id) {
-    refuse("outage_reconciled", OUTAGE_RECONCILED_ENTRY);
+    throw reconciledRefusal(ctx.personId, false);
   }
   return { ...NO_DOWNTIME, outageId: row.id, notFromPaperReason: reason };
 }
@@ -354,7 +391,7 @@ const GUARD_WORDS: readonly (readonly [string, string])[] = [
  * The database's refusal of a back-entry in words (422), or null when the error is not one: the
  * guard's refusals, the back-entry CHECK, and the one-correction index.
  */
-export function downtimeRefusal(error: unknown): HttpProblem | null {
+export function downtimeRefusal(error: unknown, personId: string): HttpProblem | null {
   const e = error as {
     code?: string;
     message?: string;
@@ -376,12 +413,18 @@ export function downtimeRefusal(error: unknown): HttpProblem | null {
       "A paper record needs its outage, the date and time written on the form and which time it was in the hour the clocks go back; any other entry has none of these.",
     );
   }
+  // Two corrections of one paper record at the same moment: the index keeps one (as above).
+  if (pg.code === "23505" && (pg.constraint ?? message).includes("_back_entry_correction_key")) {
+    return alreadyCorrected(personId);
+  }
   return null;
 }
 
 /** Rethrows a care insert's error, in words when the database refused a back-entry. */
-export function onDowntimeError(error: unknown): never {
-  throw downtimeRefusal(error) ?? error;
+export function onDowntimeError(personId: string): (error: unknown) => never {
+  return (error) => {
+    throw downtimeRefusal(error, personId) ?? error;
+  };
 }
 
 /** The outages the entries name, for their labels (read in the reader's view). */
@@ -393,6 +436,48 @@ export async function entryOutages(
   if (ids.length === 0) return new Map();
   const found = await tx.select().from(outage).where(inArray(outage.id, ids));
   return new Map(found.map((o) => [o.id, o]));
+}
+
+/**
+ * The words shown with a back-entry (rule 12; HZ-017), from its outage; when the reader cannot see
+ * the outage, from the paper time and the entry's own times, so it never reads as contemporaneous.
+ */
+export function paperLabel(
+  row: {
+    occurredAt: Date;
+    recordedAt: Date;
+    deviceTime: Date | null;
+    outsideOutageReason: string | null;
+  },
+  found: Pick<OutageRow, "kind" | "startedAt" | "endedAt"> | null,
+): string {
+  const recordedAt = row.deviceTime ?? row.recordedAt;
+  if (!found) {
+    return `Written on paper ${formatUkDateTime(row.occurredAt)} during an outage. Entered in Harbour ${formatUkDateTime(recordedAt)} on the device, received ${formatUkDateTime(row.recordedAt)}.`;
+  }
+  return backEntryLabel({
+    eventAt: row.occurredAt,
+    recordedAt,
+    receivedAt: row.recordedAt,
+    outage: { kind: found.kind as OutageKind, startedAt: found.startedAt },
+    withinOutage:
+      row.occurredAt.getTime() >= found.startedAt.getTime() &&
+      (found.endedAt === null || row.occurredAt.getTime() < found.endedAt.getTime()),
+    outsideReason: row.outsideOutageReason,
+  });
+}
+
+/**
+ * What alerts and tasks raised from a back-entered entry say (rule 12; HZ-017): its label and the
+ * time written on the paper. Undefined for any other entry.
+ */
+export async function paperSource(
+  tx: Transaction,
+  row: Parameters<typeof downtimeOut>[0],
+): Promise<{ label: string; paperAt: Date } | undefined> {
+  if (row.lateEntryReason !== "downtime") return undefined;
+  const label = downtimeOut(row, await entryOutages(tx, [row])).backEntry?.label;
+  return label ? { label, paperAt: row.occurredAt } : undefined;
 }
 
 /** An entry's back-entry output, with its label (rule 12; HZ-017). */
@@ -422,18 +507,7 @@ export function downtimeOut(
         occurrence: (row.paperOccurrence ?? "only") as EntryBackEntry["occurrence"],
         outsideOutageReason: row.outsideOutageReason,
         paperReference: row.paperReference,
-        label: found
-          ? backEntryLabel({
-              eventAt: row.occurredAt,
-              recordedAt: row.deviceTime ?? row.recordedAt,
-              receivedAt: row.recordedAt,
-              outage: { kind: found.kind as OutageKind, startedAt: found.startedAt },
-              withinOutage:
-                row.occurredAt.getTime() >= found.startedAt.getTime() &&
-                (found.endedAt === null || row.occurredAt.getTime() < found.endedAt.getTime()),
-              outsideReason: row.outsideOutageReason,
-            })
-          : null,
+        label: paperLabel(row, found ?? null),
       },
       notFromPaper: null,
     };

@@ -239,8 +239,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
      closure plus `sync.clock_drift_flag_minutes` (#51 round 2). Follow-ups:
      - back-entry fields in the sync streams and on the phone (mobile step, Lane C), and the web
        forms (rule 12 label on the record);
-     - an entry not from paper for a time inside a reconciled outage is refused (H-216); a
-       device's copy reaches the review only through the device;
+     - paper found after reconciliation, and an entry not from paper inside a reconciled outage,
+       are refused and kept for the refused-entry review (#54 round 1); the final path waits for
+       the CSO (H-216), as does whether old readings from paper should alert at all;
      - the paper time must equal `occurredAt`: a client sending a different instant is refused,
        never moved;
      - a correction of a back-entry about someone who has since moved is refused by the database

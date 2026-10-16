@@ -550,4 +550,17 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
 - The database's refusals (`app.entry_outage_guard`, the back-entry CHECK) come back as 422
   `back_entry_refused` in words. Every write's audit event carries `outageId` with `backEntry` or
   `notFromPaper`.
+- After #54 review round 1:
+  - A write's audit event keeps the scope and places that authorised it, with the outage beside
+    them (`scopeExtra` in `auditInTx`).
+  - A paper record (or an entry not from paper) for a reconciled outage is kept by the server as
+    sent, with the person's refused-entry review task, from the web and a device alike, and the
+    refusal says so (H-216); a hand-over's copy is admitted against the device's hold.
+  - An alert raised by a back-entered observation, and its response tasks, say they come from a
+    paper record with the time written on it, and `care.observation.recorded` carries the outage
+    and the paper time (whether old readings should alert at all: H-216).
+  - The label falls back to the paper time and the entry's own times when the reader cannot see
+    the outage; the entry's time is checked against the paper time first; two corrections of one
+    paper record at the same moment get the same 409; an outage in another organisation or out of
+    reach reads as not found.
 - Not yet: back-entry fields in the sync streams and on the phone (mobile step); the web forms.
