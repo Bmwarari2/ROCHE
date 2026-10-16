@@ -22706,6 +22706,182 @@
         "required": [
           "safetyCaseVersion"
         ]
+      },
+      "SubProcessorNoticeAnnounced": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "affectedOrganisations": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "affectedOrganisations"
+        ]
+      },
+      "AnnounceSubProcessorNotice": {
+        "type": "object",
+        "properties": {
+          "subProcessorKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,59}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "new",
+              "replacement"
+            ]
+          },
+          "use": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "always"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "capability"
+                    ]
+                  },
+                  "capability": {
+                    "type": "string",
+                    "enum": [
+                      "mobile_push",
+                      "sms"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "capability"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ai_provider"
+                    ]
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "bedrock_london",
+                      "bedrock_eu",
+                      "anthropic",
+                      "tenant_own"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "provider"
+                ]
+              }
+            ]
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "subProcessorKey",
+          "kind",
+          "use",
+          "effectiveFrom"
+        ]
+      },
+      "ResolveSubProcessorObjection": {
+        "type": "object",
+        "properties": {
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "objection_withdrawn",
+              "not_used_for_tenant",
+              "services_ended"
+            ]
+          }
+        },
+        "required": [
+          "resolution"
+        ]
+      },
+      "SubProcessorObjections": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "objectedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "grounds": {
+                  "type": "string"
+                },
+                "resolvedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "resolution": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "objection_withdrawn",
+                    "not_used_for_tenant",
+                    "services_ended",
+                    null
+                  ]
+                }
+              },
+              "required": [
+                "tenantId",
+                "objectedAt",
+                "grounds",
+                "resolvedAt",
+                "resolution"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
       }
     },
     "parameters": {}
@@ -45858,6 +46034,271 @@
           },
           "503": {
             "description": "Not available just now; the problem says what to use instead",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/sub-processor-notices": {
+      "post": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "Announce a new or replacement sub-processor (admins, fresh sign-in)",
+        "description": "Works out which organisations the change affects from their configuration, refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), stores the notice and tells each affected organisation's data protection lead (or its owners), recording the announcement in its audit trail.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnounceSubProcessorNotice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Announced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubProcessorNoticeAnnounced"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution": {
+      "post": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "Record how an organisation's objection to a notice was resolved (admins, fresh sign-in)",
+        "description": "Only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's lead is told and its audit trail records it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSubProcessorObjection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/sub-processor-notices/{id}/objections": {
+      "get": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "The organisations' objections to a notice (admins, fresh sign-in)",
+        "description": "Through app.sub_processor_objections: each organisation's objection with the grounds it gave Thapsus and how it was resolved; every read is recorded in that organisation's audit trail.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Objections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubProcessorObjections"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
             "content": {
               "application/problem+json": {
                 "schema": {

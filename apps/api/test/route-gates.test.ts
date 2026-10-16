@@ -39,6 +39,10 @@ const UNGATED: Readonly<Record<string, string>> = {
   "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
+  "POST /operator/sub-processor-notices":
+    "an operator route (announcing a notice; each organisation read in its own context)",
+  "POST /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution":
+    "an operator route (the resolution through app.resolve_sub_processor_objection)",
   "POST /operator/tenants/{tenantId}/owner-invitation":
     "an operator route (the first owner's invitation, through app.invite_first_owner)",
 };

@@ -623,8 +623,19 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   holders; the register entry is not acknowledged while a notice about it has an open objection;
   each notice's window uses the organisation's notice period in force on the UK date it was
   announced.
-- Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
-  organisations, telling their leads, and recording a resolution), then the web screens.
+- Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0066): an admin with
+  a fresh step-up announces a notice (`POST /operator/sub-processor-notices`); the organisations
+  it affects are worked out from their configuration (`subProcessorConfigFor`, never people),
+  the effective date may not come before the longest of their notice periods
+  (`checkNoticeTiming`, 422 `notice_too_short`), and each is told (its lead, or its owners) with
+  the announcement in its audit trail. Objections are read (`GET
+  /operator/sub-processor-notices/{id}/objections`) and resolved (`POST
+  /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution`) only through the definer
+  functions `app.sub_processor_objections` and `app.resolve_sub_processor_objection`, owned by
+  the NOLOGIN role `harbour_notice_resolver`: they check an active admin, need an open objection
+  (409 `no_open_objection`), and write the organisation's audit trail (ids only); the operator
+  role has no direct access to responses.
+- Next: the web screens.
 
 ## 11. Open questions
 

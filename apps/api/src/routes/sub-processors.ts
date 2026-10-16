@@ -16,7 +16,6 @@ import {
   type RateNation,
   type StoredNoticeResponse,
   SUB_PROCESSORS,
-  type SubProcessorConfig,
   type SubProcessorKey,
   type SubProcessorNotice,
   type SubProcessorUse,
@@ -37,8 +36,8 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { dpiaConfigFor, tenantFlags } from "../services/dpia";
 import { rateNumber } from "../services/rates";
+import { subProcessorConfigFor } from "../services/sub-processors";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
 /**
@@ -73,12 +72,7 @@ const asNotice = (row: NoticeRow): SubProcessorNotice => ({
 async function contextOf(c: Context<AppEnv>, tx: Tx, access: TenantAccess) {
   const [t] = await tx.select().from(tenant).where(eq(tenant.id, access.tenantId));
   if (!t) throw problems.notFound();
-  const config = await dpiaConfigFor(tx, t, await tenantFlags(c.get("services").flags, tx, t.id));
-  const subConfig: SubProcessorConfig = {
-    features: config.features,
-    capabilities: config.capabilities,
-    aiProvider: config.aiProvider,
-  };
+  const subConfig = await subProcessorConfigFor(tx, c.get("services").flags, t);
   const nation = t.nation as Exclude<RateNation, "uk" | "all">;
   /** The organisation's notice period in force on the UK date a notice was announced. */
   const ratesAt = async (announcedAt: Date) => ({

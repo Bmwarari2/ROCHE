@@ -238,7 +238,7 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
       await as(OTHER.managerId, OTHER.tenantId);
       expect((await client.query("SELECT id FROM sub_processor_response")).rowCount).toBe(0);
       await client.query("ROLLBACK");
-      // The operator role may record a resolution only, never an answer.
+      // The operator role has no direct access: it resolves only through its definer function.
       const operator = await h.db.pool("harbour_operator").connect();
       try {
         await operator.query("BEGIN");
@@ -249,7 +249,7 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
              VALUES ($1, 'sentry', 'acknowledged', $2)`,
             [DEMO.tenantId, DEMO.users.owner.id],
           ),
-        ).rejects.toThrow(/row-level security/);
+        ).rejects.toThrow(/permission denied/);
       } finally {
         await operator.query("ROLLBACK");
         operator.release();

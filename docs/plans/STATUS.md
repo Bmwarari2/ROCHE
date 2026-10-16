@@ -160,7 +160,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
    - Slice 13, sub-processor notices, organisation side (`feat/platform-sub-processor-notices`,
      migration 0065; platform-completions.md section 10h): notices and append-only responses with
      forced RLS; the named lead acknowledges or objects within the window; the checklist reads
-     the acknowledgements. Next: the operator side, then sample data mode.
+     the acknowledgements.
+   - The operator side (`feat/platform-sub-processor-operator`, migration 0066): announce with
+     the timing check and tell each affected organisation; read and resolve objections only
+     through definer functions owned by the new NOLOGIN role `harbour_notice_resolver` (run
+     `pnpm db:bootstrap` before migrating). Next: sample data mode, then the web screens.
    - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
      0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
      and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.

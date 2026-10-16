@@ -2484,3 +2484,16 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
 - Each notice's window uses the notice period in force on the UK date it was announced.
 - Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
   database), and the operator role refused anything but a resolution.
+
+## 2026-10-17: Slice 13, sub-processor notices, Thapsus's side (PLAT-023, rules 24 and 25)
+
+- API: an admin with a fresh step-up announces a notice; the affected organisations come from
+  their configuration, the effective date respects the longest notice period
+  (`checkNoticeTiming`), and each organisation's lead (or owners) is told, with its audit trail.
+- Migration 0066: objections are read and resolved only through definer functions owned by the
+  NOLOGIN role `harbour_notice_resolver` (bootstrap adds it), which check the admin, need an open
+  objection and write the organisation's audit trail; the operator role's direct access to
+  responses is revoked.
+- Docs: platform-completions.md section 10h, feature register, STATUS.
+
+**Tests**: `apps/api/test/operator-sub-processors.test.ts` (4).
