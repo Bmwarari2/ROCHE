@@ -4,9 +4,12 @@ import {
   CONTENT_KEY_MAX,
   CONTENT_NOTES,
   contentFields,
+  doneToShow,
   incidentManageView,
+  judgedNeeded,
   manageDone,
   manageResult,
+  NEEDED_REASON_MIN,
   notificationManageView,
   readPrepareForm,
   readReason,
@@ -71,7 +74,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     expect(incidentManageView(incident({ status: "under_review" }), manager)?.review).toBe("open");
   });
 
-  it("hazard HZ-013 never offers close to the manager who raised it", () => {
+  it("hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it", () => {
     const view = incidentManageView(incident(), { tenantUserId: RAISER, permissions: MANAGE });
     expect(view).toEqual({ review: "under_review", close: { kind: "raisedByYou" } });
   });
@@ -191,6 +194,53 @@ describe("readReason", () => {
   });
 });
 
+describe("not required on a notification Harbour found needed", () => {
+  it("hazard HZ-013 is judged needed only when neither provisional nor no longer indicated", () => {
+    expect(judgedNeeded({ provisional: false, noLongerIndicated: false })).toBe(true);
+    expect(judgedNeeded({ provisional: true, noLongerIndicated: false })).toBe(false);
+    expect(judgedNeeded({ provisional: false, noLongerIndicated: true })).toBe(false);
+  });
+
+  it("hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked", () => {
+    const options = { min: NEEDED_REASON_MIN, confirm: true };
+    expect(readReason(form({ reason: "Not needed." }), t, "notRequiredNeeded", options)).toEqual({
+      ok: false,
+      errors: {
+        reason:
+          "Harbour found this notification is needed: say which facts mean the law does not need it, in at least 20 characters and at most 1,000",
+        confirm: t("safety.manage.confirmError"),
+      },
+    });
+    const reason = "The police attended for a visitor, not the person.";
+    expect(readReason(form({ reason }), t, "notRequiredNeeded", options)).toMatchObject({
+      ok: false,
+      errors: { confirm: t("safety.manage.confirmError") },
+    });
+    expect(readReason(form({ reason, confirm: "yes" }), t, "notRequiredNeeded", options)).toEqual({
+      ok: true,
+      reason,
+    });
+  });
+
+  it("keeps the short reason for a provisional draft", () => {
+    expect(readReason(form({ reason: "Not needed." }), t, "notRequired")).toEqual({
+      ok: true,
+      reason: "Not needed.",
+    });
+  });
+});
+
+describe("doneToShow", () => {
+  it("hazard HZ-091 announces what was done only while the status still matches", () => {
+    expect(doneToShow("closed", "closed")).toBe("closed");
+    expect(doneToShow("closed", "open")).toBeNull();
+    expect(doneToShow("submitted", "submitted")).toBe("submitted");
+    expect(doneToShow("submitted", "ready")).toBeNull();
+    expect(doneToShow("saved", "ready")).toBe("saved");
+    expect(doneToShow(null, "open")).toBeNull();
+  });
+});
+
 describe("the prepared form", () => {
   const lines = [
     "A description of the circumstances of the death (reg 16(3))",
@@ -235,7 +285,7 @@ describe("the prepared form", () => {
   });
 });
 
-describe("readSubmitForm (HZ-090: no time assumed)", () => {
+describe("hazard HZ-091 readSubmitForm (HZ-090: no time assumed)", () => {
   it("asks when it was submitted and the reference, with nothing chosen", () => {
     expect(readSubmitForm(form({}), NOW, t)).toEqual({
       ok: false,
@@ -273,6 +323,43 @@ describe("readSubmitForm (HZ-090: no time assumed)", () => {
     });
   });
 
+  const at = (day: string, month: string, hour: string, minute: string, extra = {}) =>
+    form({
+      "submittedAt-mode": "earlier",
+      "submittedAt-day": day,
+      "submittedAt-month": month,
+      "submittedAt-year": "2026",
+      "submittedAt-hour": hour,
+      "submittedAt-minute": minute,
+      externalReference: "CQC-123",
+      ...extra,
+    });
+
+  it("hazard HZ-091 allows no time after now, as the API allows none", () => {
+    // 10:31 UK time is one minute after NOW (09:30Z is 10:30 BST).
+    expect(readSubmitForm(at("16", "10", "10", "31"), NOW, t).ok).toBe(false);
+    expect(readSubmitForm(at("16", "10", "10", "30"), NOW, t).ok).toBe(true);
+  });
+
+  it("hazard HZ-091 refuses a time skipped when the clocks went forward in March", () => {
+    const read = readSubmitForm(at("29", "03", "01", "30"), NOW, t);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.parts?.submittedAt).toEqual(["hour", "minute"]);
+  });
+
+  it("hazard HZ-091 asks which time in the hour the clocks went back in October", () => {
+    const later = new Date("2026-11-01T12:00:00Z");
+    const read = readSubmitForm(at("25", "10", "01", "30"), later, t);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.parts?.submittedAt).toEqual(["fold"]);
+    expect(
+      readSubmitForm(at("25", "10", "01", "30", { "submittedAt-fold": "first" }), later, t),
+    ).toMatchObject({ ok: true, submittedAt: "2026-10-25T00:30:00.000Z" });
+    expect(
+      readSubmitForm(at("25", "10", "01", "30", { "submittedAt-fold": "second" }), later, t),
+    ).toMatchObject({ ok: true, submittedAt: "2026-10-25T01:30:00.000Z" });
+  });
+
   it("refuses a time in the future, at its boxes", () => {
     const read = readSubmitForm(
       form({
@@ -303,7 +390,7 @@ describe("manageDone and manageResult", () => {
     expect(manageDone(undefined)).toBeNull();
   });
 
-  it("never says someone else changed it after a conflict, which may be your own retry", () => {
+  it("hazard HZ-091 never says someone else changed it after a conflict, which may be your own retry", () => {
     const result = manageResult(
       { ok: false, code: "version_conflict", message: t("care.errors.conflict") },
       t,

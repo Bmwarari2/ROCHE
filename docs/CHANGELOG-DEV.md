@@ -1846,3 +1846,16 @@ every state, hosted CI).
 
 **Next**: the follow-ups in STATUS item 19 (an `access` block on `IncidentDetail`, uploads for the
 submitted form, a stable key for required content).
+
+## 2026-10-16: Slice 9 part 4b, review round 1 of #58
+
+- "Not required" on a notification Harbour found needed says so, needs a reason of at least 20
+  characters and a ticked confirmation, and names the consequence; provisional drafts keep the
+  short reason (H-265).
+- The forms say nothing on success; the page announces only a status that matches, refocuses on
+  each action and drops `?done=`. The step-up notice takes focus again on a repeat. No future
+  tolerance on the submission time. The API's English labels carry `lang` (`labelLang` on
+  `TextArea`). "Questions above" links to them.
+- Tests: HZ-091 in the test names and the hazard log; clock-change, future and "needed" cases;
+  component tests with axe for the step-up and separation-of-duties refusals; the journey scopes
+  alerts to `main` and scans the "what to do first" state with its linked draft.

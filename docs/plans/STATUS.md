@@ -565,6 +565,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
       reworded line leaves an earlier answer under the old words (shown only in the API's
       content; a `requiredContent` key in the contract would fix it); "Who submitted" names
       the member only as "you" or "another member" (H-73).
+    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+      so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
+      the page, which announces only a matching status and drops `?done=`; no future tolerance
+      on the submission time. Left: "just now" still sends the server's time, since
+      `SubmitNotification.submittedAt` is required (an API change would let the API stamp it);
+      the step-up notice and the separation-of-duties refusal are checked with axe in component
+      tests only, since the journey cannot force a stale sign-in (needs a test hook) and close is
+      never offered to the person who raised the incident.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the

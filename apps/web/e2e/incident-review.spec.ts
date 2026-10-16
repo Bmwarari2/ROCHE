@@ -67,7 +67,9 @@ test.describe.configure({ mode: "serial" });
 
 let incidentPath = "";
 
-test("hazard HZ-013 the nurse who raised an incident is never offered close", async ({ page }) => {
+test("hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close", async ({
+  page,
+}) => {
   await signIn(page, "nurse@example.invalid");
   const incident = await call(page.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
@@ -95,7 +97,7 @@ test("hazard HZ-013 the nurse who raised an incident is never offered close", as
   await expectAccessible(page, "review started");
 });
 
-test("hazard HZ-013 the manager sees what to do first, is refused in words, then closes it", async ({
+test("hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it", async ({
   page,
 }) => {
   test.skip(!incidentPath, "The incident was not recorded");
@@ -120,7 +122,7 @@ test("hazard HZ-013 the manager sees what to do first, is refused in words, then
   await expectAccessible(page, "close, empty");
 
   await close.getByRole("button", { name: "Close the incident" }).click();
-  const summary = page.getByRole("alert");
+  const summary = page.getByRole("main").getByRole("alert");
   await expect(summary).toBeFocused();
   const words = "Say why the incident can close, in at least 3 characters and at most 1,000";
   await expect(summary.getByRole("link", { name: words })).toBeVisible();
@@ -136,10 +138,10 @@ test("hazard HZ-013 the manager sees what to do first, is refused in words, then
   );
   await close.getByLabel("Why can it close?").fill(`The roof was repaired (${RUN}).`);
   await close.getByRole("button", { name: "Close the incident" }).click();
-  await expect(page.getByRole("alert")).toContainText(
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "This changed since the page opened, perhaps because your last attempt was saved.",
   );
-  await expect(page.getByRole("alert")).toBeFocused();
+  await expect(page.getByRole("main").getByRole("alert")).toBeFocused();
   await expectAccessible(page, "close, refused");
 
   await page.reload();
@@ -153,7 +155,7 @@ test("hazard HZ-013 the manager sees what to do first, is refused in words, then
   await expectAccessible(page, "closed");
 });
 
-test("hazard HZ-013 the manager prepares a death notification and records it as submitted", async ({
+test("hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted", async ({
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
@@ -178,7 +180,7 @@ test("hazard HZ-013 the manager prepares a death notification and records it as 
   await expectAccessible(page, "prepare, empty");
 
   await prepare.getByRole("button", { name: "Save and mark ready to submit" }).click();
-  const summary = page.getByRole("alert");
+  const summary = page.getByRole("main").getByRole("alert");
   await expect(summary).toBeFocused();
   await expect(
     summary.getByRole("link", {
@@ -199,7 +201,7 @@ test("hazard HZ-013 the manager prepares a death notification and records it as 
   await expect(submit).toBeVisible();
   await expectAccessible(page, "submit, empty");
   await submit.getByRole("button", { name: "Record as submitted" }).click();
-  const errors = page.getByRole("alert");
+  const errors = page.getByRole("main").getByRole("alert");
   await expect(errors).toBeFocused();
   for (const words of [
     "Say when it was submitted: just now, or earlier with the date and time",
@@ -221,11 +223,15 @@ test("hazard HZ-013 the manager prepares a death notification and records it as 
   await expectAccessible(page, "submitted");
 });
 
-test("hazard HZ-013 deciding not required on a notification changed meanwhile is refused", async ({
+test("hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused", async ({
   page,
-}) => {
-  await signIn(page, "manager@example.invalid");
-  const incident = await call(page.request, "/v1/incidents", {
+  browser,
+}, testInfo) => {
+  // The nurse raises it, so the manager may close it once the notification is decided.
+  const nurse = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  const nursePage = await nurse.newPage();
+  await signIn(nursePage, "nurse@example.invalid");
+  const incident = await call(nursePage.request, "/v1/incidents", {
     locationId: DEMO_LOCATION,
     type: "behaviour",
     occurredAt: new Date(Date.now() - 20 * 60_000).toISOString(),
@@ -235,9 +241,20 @@ test("hazard HZ-013 deciding not required on a notification changed meanwhile is
     people: [{ kind: "service_user", role: "affected", personId: demoPerson(3) }],
     answers: [{ key: "police.involved", value: "unsure" }],
   });
+  await nurse.close();
   const police = incident.classifier?.notifications.find((n) => n.kind === "cqc_reg18_police");
   expect(police, "a police notification draft").toBeDefined();
   const path = `/v1/notifications/statutory/${police?.id}`;
+
+  // The incident page lists what to do first, the draft linked, and offers no close form.
+  await signIn(page, "manager@example.invalid");
+  await page.goto(`/incidents/${incident.id}`);
+  const manage = card(page, "Review and close");
+  await expect(manage.getByText("Before it can close")).toBeVisible();
+  await expect(manage.getByRole("button", { name: "Close the incident" })).toHaveCount(0);
+  const draftLink = manage.getByRole("link", { name: /^Submit, or decide not required: / });
+  await expect(draftLink.first()).toBeVisible();
+  await expectAccessible(page, "close, what to do first");
   await page.goto(`/notifications/statutory/${police?.id}`);
   const form = page.getByRole("form", { name: "Decide it is not required" });
   await expect(form).toBeVisible();
@@ -248,7 +265,7 @@ test("hazard HZ-013 deciding not required on a notification changed meanwhile is
 
   await form.getByLabel("Why is it not required?").fill("The police were not involved.");
   await form.getByRole("button", { name: "Record as not required" }).click();
-  const alert = page.getByRole("alert");
+  const alert = page.getByRole("main").getByRole("alert");
   await expect(alert).toBeFocused();
   await expect(alert).toContainText("This changed since the page opened");
   await expectAccessible(page, "not required, refused");
@@ -260,4 +277,44 @@ test("hazard HZ-013 deciding not required on a notification changed meanwhile is
   await expect(page.getByRole("status").getByText("Recorded as not required")).toBeVisible();
   await expect(page.getByText("The police were not involved.")).toBeVisible();
   await expectAccessible(page, "not required, done");
+});
+
+test("hazard HZ-013 not required on a notification Harbour found needed asks for more", async ({
+  page,
+}) => {
+  await signIn(page, "manager@example.invalid");
+  const incident = await call(page.request, "/v1/incidents", {
+    locationId: DEMO_LOCATION,
+    type: "fall",
+    occurredAt: new Date(Date.now() - 25 * 60_000).toISOString(),
+    description: `Found on the floor of the bathroom, not breathing (${RUN}).`,
+    emergencyServicesCalled: true,
+    gpContacted: true,
+    people: [{ kind: "service_user", role: "affected", personId: demoPerson(3), died: true }],
+  });
+  const death = incident.classifier?.notifications.find((n) => n.kind === "cqc_reg16_death");
+  expect(death, "a death notification draft").toBeDefined();
+  await page.goto(`/notifications/statutory/${death?.id}`);
+  const form = page.getByRole("form", { name: "Decide it is not required" });
+  await expect(form.getByText("Harbour found this notification is needed")).toBeVisible();
+  await form.getByLabel("Why is it not required?").fill("Recorded twice.");
+  await form.getByRole("button", { name: "Record as not required" }).click();
+  const summary = page.getByRole("main").getByRole("alert");
+  await expect(summary).toBeFocused();
+  await expect(
+    summary.getByRole("link", {
+      name: "Tick the box to confirm you have checked the facts and the law does not need this notification",
+    }),
+  ).toBeVisible();
+  await expectAccessible(page, "not required on a needed notification, with errors");
+
+  await form
+    .getByLabel("Why is it not required?")
+    .fill(`Recorded twice: the same death is notified from its own incident (${RUN}).`);
+  await form
+    .getByLabel("I have checked the facts, and the law does not need this notification")
+    .check();
+  await form.getByRole("button", { name: "Record as not required" }).click();
+  await expect(page.getByRole("status").getByText("Recorded as not required")).toBeVisible();
+  await expectAccessible(page, "not required on a needed notification, done");
 });
