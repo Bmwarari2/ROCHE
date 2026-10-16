@@ -31,6 +31,9 @@ async function sql<T = Record<string, unknown>>(
     const { rows } = await client.query(text, params);
     await client.query("COMMIT");
     return rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
@@ -53,8 +56,14 @@ interface OutageBody {
 const declare = async (who: string, body: Record<string, unknown>, locationId?: string) =>
   as(who, outagesUrl(locationId), { method: "POST", body });
 
-/** A care note about `personId` at the demo home, written by `createdBy`; a back-entry with `outageId`. */
-async function note(personId: string, at: Date, createdBy: string, outageId?: string) {
+/** A care note about `personId` at a home, written by `createdBy`; a back-entry with `outageId`. */
+async function note(
+  personId: string,
+  at: Date,
+  createdBy: string,
+  outageId?: string,
+  locationId: string = DEMO.locationId,
+) {
   const [row] = await sql<{ id: string }>(
     `INSERT INTO care_note (person_id, location_id, occurred_at, category, body, created_by,
        late_entry_reason, outage_id, paper_date, paper_time, paper_occurrence, paper_reference)
@@ -65,12 +74,28 @@ async function note(personId: string, at: Date, createdBy: string, outageId?: st
        CASE WHEN $5::uuid IS NULL THEN NULL ELSE 'only' END,
        CASE WHEN $5::uuid IS NULL THEN NULL ELSE 'DT-001' END)
      RETURNING id`,
-    [personId, DEMO.locationId, at, createdBy, outageId ?? null],
+    [personId, locationId, at, createdBy, outageId ?? null],
   );
   return row?.id as string;
 }
 
 let personId: string;
+
+const backEntryTasks = (outageId: string) =>
+  sql<{ due_at: Date; status: string; assignee_role_key: string; required_permission: string }>(
+    `SELECT due_at, status, assignee_role_key, required_permission FROM task
+     WHERE kind = 'operations.outage_back_entry' AND source_id = $1`,
+    [outageId],
+  );
+const outboxTypes = async (outageId: string) =>
+  (
+    await sql<{ event_type: string }>(
+      "SELECT event_type FROM outbox_event WHERE aggregate_id = $1",
+      [outageId],
+    )
+  )
+    .map((e) => e.event_type)
+    .sort();
 
 beforeAll(async () => {
   h = await createHarness();
@@ -160,11 +185,14 @@ describe("hazard HZ-017 outages at a location", () => {
     expect(closed.status).toBe(200);
     const after = (await closed.json()) as OutageBody;
     expect(after.state).toBe("closed");
-    const tasks = await sql<{ due_at: Date; status: string }>(
-      "SELECT due_at, status FROM task WHERE kind = 'operations.outage_back_entry' AND source_id = $1",
-      [open.id],
-    );
-    expect(tasks).toEqual([{ due_at: new Date(after.backEntryDueAt ?? ""), status: "open" }]);
+    expect(await backEntryTasks(open.id)).toEqual([
+      {
+        due_at: new Date(after.backEntryDueAt ?? ""),
+        status: "open",
+        assignee_role_key: "registered_manager",
+        required_permission: "operations.downtime.manage",
+      },
+    ]);
 
     const view = await as("manager", `/v1/outages/${open.id}/reconciliation`);
     expect(view.status).toBe(200);
@@ -208,6 +236,9 @@ describe("hazard HZ-017 outages at a location", () => {
       [open.id],
     );
     expect(task?.status).toBe("done");
+    const again = await reconcile("owner", [paper, digital, late]);
+    expect(again.status).toBe(422);
+    expect(JSON.stringify(await again.json())).toMatch(/already reconciled/);
     const audited = await sql<{ action: string }>(
       "SELECT action FROM audit_event WHERE resource_id = $1 ORDER BY occurred_at",
       [open.id],
@@ -222,7 +253,7 @@ describe("hazard HZ-017 outages at a location", () => {
     );
   });
 
-  it("corrects a start with a reason, and cancels an outage declared in error unless a paper record cites it", async () => {
+  it("hazard HZ-017 closes an outage declared after it ended at once, raising the back-entry task, and corrects it with a reason", async () => {
     const declared = await declare("manager", {
       kind: "network",
       description: "Internet down, whole site",
@@ -230,39 +261,123 @@ describe("hazard HZ-017 outages at a location", () => {
       endedAt: ago(9 * HOUR).toISOString(),
     });
     expect(declared.status).toBe(201);
-    const cited = (await declared.json()) as OutageBody;
-    const corrected = await as("manager", `/v1/outages/${cited.id}/correct`, {
+    const ended = (await declared.json()) as OutageBody;
+    expect(ended.state).toBe("closed");
+    expect(ended.backEntryDueAt).not.toBeNull();
+    expect(await backEntryTasks(ended.id)).toEqual([
+      {
+        due_at: new Date(ended.backEntryDueAt ?? ""),
+        status: "open",
+        assignee_role_key: "registered_manager",
+        required_permission: "operations.downtime.manage",
+      },
+    ]);
+    const corrected = await as("manager", `/v1/outages/${ended.id}/correct`, {
       method: "POST",
       body: {
         startedAt: ago(10 * HOUR + 30 * MINUTE).toISOString(),
         endedAt: ago(9 * HOUR).toISOString(),
         reason: "The router failed half an hour earlier",
-        version: cited.version,
+        version: ended.version,
       },
     });
     expect(corrected.status).toBe(200);
-    const version = ((await corrected.json()) as OutageBody).version;
-    await note(personId, ago(9 * HOUR + 30 * MINUTE), DEMO.users.carer.id, cited.id);
-    const refused = await as("manager", `/v1/outages/${cited.id}/cancel`, {
+    expect(await outboxTypes(ended.id)).toEqual([
+      "operations.outage.closed",
+      "operations.outage.corrected",
+      "operations.outage.declared",
+    ]);
+  });
+
+  it("refuses an outage longer than downtime.max_outage_hours, so a mistyped date cannot open a long window", async () => {
+    const [rate] = await sql<{ value: string }>(
+      "SELECT value FROM rate_table WHERE key = 'downtime.max_outage_hours' AND tenant_id IS NULL",
+    );
+    const hours = Number(rate?.value);
+    const long = await declare("manager", {
+      kind: "power",
+      description: "Power cut, whole building",
+      startedAt: ago((hours + 12) * HOUR).toISOString(),
+      endedAt: ago(11 * HOUR).toISOString(),
+    });
+    expect(long.status).toBe(422);
+    expect(JSON.stringify(await long.json())).toMatch(new RegExp(`at most ${hours} hours`));
+  });
+
+  it("cancels an open outage declared in error unless a paper record cites it, and is not found from another home", async () => {
+    const declared = await declare(
+      "owner",
+      {
+        kind: "power",
+        description: "Power cut, whole building",
+        startedAt: ago(3 * HOUR).toISOString(),
+      },
+      LODGE.locationId,
+    );
+    expect(declared.status).toBe(201);
+    const cited = (await declared.json()) as OutageBody;
+    await note(LODGE.personId, ago(2 * HOUR), DEMO.users.owner.id, cited.id, LODGE.locationId);
+    const refused = await as("owner", `/v1/outages/${cited.id}/cancel`, {
       method: "POST",
-      body: { reason: "Declared in error", version },
+      body: { reason: "Declared in error", version: cited.version },
     });
     expect(refused.status).toBe(422);
     expect(JSON.stringify(await refused.json())).toMatch(/cannot be cancelled once a paper record/);
 
-    const wrong = await declare("manager", {
-      kind: "other",
-      description: "Declared at the wrong home",
-      startedAt: ago(20 * HOUR).toISOString(),
-      endedAt: ago(19 * HOUR).toISOString(),
+    // A manager whose permission reaches only the demo home (ADR-0071).
+    const elsewhere: [string, string, Record<string, unknown> | undefined][] = [
+      ["operations.outage.closed", "close", { endedAt: ago(HOUR).toISOString(), version: 1 }],
+      [
+        "operations.outage.reconciled",
+        "reconcile",
+        { statement: "Checked", reviewedEntryIds: [], version: 1 },
+      ],
+      ["operations.outage.cancelled", "cancel", { reason: "Declared in error", version: 1 }],
+      [
+        "operations.outage.corrected",
+        "correct",
+        { startedAt: ago(3 * HOUR).toISOString(), endedAt: null, reason: "Typo", version: 1 },
+      ],
+      ["operations.outage.reconciliation_viewed", "reconciliation", undefined],
+    ];
+    for (const [action, path, body] of elsewhere) {
+      const response = await as("manager", `/v1/outages/${cited.id}/${path}`, {
+        method: body ? "POST" : "GET",
+        body,
+      });
+      expect(response.status, path).toBe(404);
+      const denied = await sql(
+        "SELECT 1 FROM audit_event WHERE action = $1 AND outcome = 'denied' AND resource_id = $2",
+        [action, LODGE.locationId],
+      );
+      expect(denied.length, action).toBeGreaterThan(0);
+    }
+
+    const closed = await as("owner", `/v1/outages/${cited.id}/close`, {
+      method: "POST",
+      body: { endedAt: ago(HOUR).toISOString(), version: cited.version },
     });
+    expect(closed.status).toBe(200);
+    const wrong = await declare(
+      "owner",
+      {
+        kind: "other",
+        description: "Declared at the wrong home",
+        startedAt: ago(30 * MINUTE).toISOString(),
+      },
+      LODGE.locationId,
+    );
     const wrongBody = (await wrong.json()) as OutageBody;
-    const cancelled = await as("manager", `/v1/outages/${wrongBody.id}/cancel`, {
+    const cancelled = await as("owner", `/v1/outages/${wrongBody.id}/cancel`, {
       method: "POST",
       body: { reason: "Declared at the wrong home", version: wrongBody.version },
     });
     expect(cancelled.status).toBe(200);
     expect(((await cancelled.json()) as OutageBody).state).toBe("cancelled");
+    expect(await outboxTypes(wrongBody.id)).toEqual([
+      "operations.outage.cancelled",
+      "operations.outage.declared",
+    ]);
   });
 
   it("refuses a correction that ends an open outage, one to a reconciled outage, a stale version and a cancel once closed", async () => {

@@ -1706,3 +1706,10 @@ own words. Merged with main; `openapi.json` and the client regenerated (the outa
   reason on a back-entry correction moves to part 3d, with the care routes).
 
 **Tests**: `apps/api` `outages.test.ts`, 5 new.
+
+After #51 review round 1: an outage declared with its end closes at once with the back-entry task;
+`downtime.max_outage_hours` (168, rates.md) bounds an outage's length; corrections stay within
+the closure plus the clock-drift allowance; outages are locked before each change; cancel and
+correct are published; another home's outage is not found and audited as denied; the reconciliation
+selects only the columns it needs; `withTenantWideScope` restores the scope in a `finally`. Tests:
+3 new, 2 extended.

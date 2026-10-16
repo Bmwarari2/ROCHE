@@ -230,6 +230,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
      which belongs to the care correction routes. Follow-ups: the late flag still reads the
      rate in the database without saying when `care_note.late_entry_hours` is missing (#32
      round 2); the back-entry task's title is English only.
+   - Follow-ups from #51 review round 1:
+     - a declared outage left open has no SLA or reminder (CSO to decide, H-215);
+     - prove by a test that the reconciliation's output about people outside the reconciler's
+       scope is ids and counts only (it is by construction: `outageEntries` selects ids, people,
+       kinds and times);
+     - an outage declared after it ended is closed at once, so it can no longer be cancelled,
+       only corrected.
    - Follow-ups from #47 review round 1:
      - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
        keep a slow home's rebuild from delaying other events;

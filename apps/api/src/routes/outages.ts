@@ -14,6 +14,7 @@ import {
   checkOutageClosure,
   checkOutageDeclaration,
   checkOutageReconciliation,
+  type OperationsRates,
   OUTAGE_CLOSURE_MESSAGES,
   OUTAGE_DECLARATION_MESSAGES,
   OUTAGE_RECONCILIATION_MESSAGES,
@@ -38,9 +39,11 @@ import {
   outageEntries,
   outageItem,
   outagesAt,
+  outageTooLong,
   outageWindow,
   raiseBackEntryTask,
 } from "../services/outages";
+import { withTenantWideScope } from "../services/safety";
 import { startWorkflow } from "../services/workflow";
 import {
   conflictResponse,
@@ -70,6 +73,11 @@ type Nation = Exclude<RateNation, "uk" | "all">;
 const LocationParams = z.object({ id: z.uuid() });
 const OutageParams = z.object({ id: z.uuid() });
 
+const ALREADY_RECONCILED = "This outage is already reconciled.";
+const CANCELLED = "This outage was cancelled, so there is nothing to reconcile.";
+const tooLong = (hours: number) =>
+  `An outage can last at most ${hours} hours. Check the start and end dates.`;
+
 const OUTSIDE_UNREVIEWED =
   "Review each paper record entered against the outage with a time outside it before confirming the outage reconciled.";
 
@@ -89,7 +97,7 @@ function onOutageError(error: unknown): never {
     throw new HttpProblem(
       409,
       "outage_overlap",
-      "Some details need checking.",
+      "This outage overlaps another at the location.",
       OUTAGE_DECLARATION_MESSAGES.overlaps_another_outage,
     );
   }
@@ -97,18 +105,80 @@ function onOutageError(error: unknown): never {
   throw error;
 }
 
-/** The outage, where the caller's manage permission reaches its location. */
+/**
+ * The outage, where the caller's manage permission reaches its location, locked for a change.
+ * One the caller cannot see is not found; when it exists elsewhere in the organisation, the
+ * attempt is audited as denied first (only its location id is read in the organisation's view).
+ */
 async function managedOutage(
   c: Context<AppEnv>,
   tx: Transaction,
   access: TenantAccess,
   id: string,
   action: string,
+  lock = true,
 ): Promise<OutageRow> {
-  const [row] = await tx.select().from(outage).where(eq(outage.id, id));
-  if (!row) throw problems.notFound();
+  const query = tx.select().from(outage).where(eq(outage.id, id));
+  const [row] = lock ? await query.for("update") : await query;
+  if (!row) {
+    const [elsewhere] = await withTenantWideScope(tx, () =>
+      tx.select({ locationId: outage.locationId }).from(outage).where(eq(outage.id, id)),
+    );
+    if (elsewhere) await requireReach(c, access, MANAGE, elsewhere.locationId, action);
+    throw problems.notFound();
+  }
   await requireReach(c, access, MANAGE, row.locationId, action);
   return row;
+}
+
+/**
+ * Closes the outage at its true end (rule 10): the back-entry deadline, the workflow, the task for
+ * the Registered Manager, the audit and the `operations.outage.closed` event.
+ */
+async function closeOutage(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  row: OutageRow,
+  version: number,
+  endedAt: Date,
+  rates: OperationsRates,
+  now: Date,
+): Promise<OutageRow> {
+  if (outageTooLong(row.startedAt, endedAt, now, rates)) {
+    throw problems.invalid(tooLong(rates.maxOutageHours));
+  }
+  const check = checkOutageClosure(outageWindow(row), { endedAt, closedAt: now }, rates);
+  if (!check.ok) {
+    throw problems.invalid(check.problems.map((p) => OUTAGE_CLOSURE_MESSAGES[p]).join(" "));
+  }
+  const closed = await changeOutage(tx, row, version, {
+    state: "closed",
+    endedAt,
+    closedAt: now,
+    closedBy: access.tenantUserId,
+    backEntryDueAt: check.backEntryDueAt,
+  });
+  await moveWorkflow(c, tx, row, "closed", null, now);
+  await raiseBackEntryTask(tx, closed);
+  await audit(c, tx, access, {
+    action: "operations.outage.closed",
+    resourceType: "outage",
+    resourceId: row.id,
+    scope: { locationId: closed.locationId },
+  });
+  await publish(tx, {
+    context: "operations",
+    aggregateType: "outage",
+    aggregateId: row.id,
+    type: "operations.outage.closed",
+    payload: {
+      locationId: closed.locationId,
+      outageId: row.id,
+      backEntryDueAt: check.backEntryDueAt.toISOString(),
+    },
+  });
+  return closed;
 }
 
 async function ratesAt(tx: Transaction, access: TenantAccess, locationId: string, now: Date) {
@@ -164,7 +234,9 @@ function blockers(
   reviewed: ReadonlySet<string>,
 ): string[] {
   const out: string[] = [];
-  if (row.state !== "closed") out.push(OUTAGE_RECONCILIATION_MESSAGES.not_closed);
+  if (row.state === "reconciled") out.push(ALREADY_RECONCILED);
+  else if (row.state === "cancelled") out.push(CANCELLED);
+  else if (row.state !== "closed") out.push(OUTAGE_RECONCILIATION_MESSAGES.not_closed);
   if (summary.duplicateGroups.some((group) => group.some((id) => !reviewed.has(id)))) {
     out.push(OUTAGE_RECONCILIATION_MESSAGES.duplicates_unreviewed);
   }
@@ -287,6 +359,11 @@ export const outagesRouter = createRouter()
             check.problems.map((p) => OUTAGE_DECLARATION_MESSAGES[p]).join(" "),
           );
         }
+        const startedAt = new Date(body.startedAt);
+        const endedAt = body.endedAt ? new Date(body.endedAt) : null;
+        if (outageTooLong(startedAt, endedAt, now, rates)) {
+          throw problems.invalid(tooLong(rates.maxOutageHours));
+        }
         const { rows } = await tx.execute<{ id: string }>(sql`SELECT app.uuid_v7() AS id`);
         const outageId = rows[0]?.id as string;
         const instance = await startWorkflow(
@@ -303,8 +380,8 @@ export const outagesRouter = createRouter()
             locationId: id,
             kind: body.kind,
             description: body.description,
-            startedAt: new Date(body.startedAt),
-            endedAt: body.endedAt ? new Date(body.endedAt) : null,
+            startedAt,
+            endedAt,
             declaredBy: access.tenantUserId,
             workflowInstanceId: instance.id,
           })
@@ -324,7 +401,9 @@ export const outagesRouter = createRouter()
           type: "operations.outage.declared",
           payload: { locationId: id, outageId: row.id, declaredLate: row.declaredLate },
         });
-        return outageItem(row);
+        // Declared after it ended: closed at once, so the back-entry task is raised (HZ-017).
+        if (endedAt === null) return outageItem(row);
+        return outageItem(await closeOutage(c, tx, access, row, row.version, endedAt, rates, now));
       });
       return c.json(item, 201);
     },
@@ -344,37 +423,16 @@ export const outagesRouter = createRouter()
       const item = await withTenant(c, async (tx) => {
         const row = await managedOutage(c, tx, access, id, "operations.outage.closed");
         const rates = await ratesAt(tx, access, row.locationId, now);
-        const endedAt = new Date(body.endedAt);
-        const check = checkOutageClosure(outageWindow(row), { endedAt, closedAt: now }, rates);
-        if (!check.ok) {
-          throw problems.invalid(check.problems.map((p) => OUTAGE_CLOSURE_MESSAGES[p]).join(" "));
-        }
-        const closed = await changeOutage(tx, row, body.version, {
-          state: "closed",
-          endedAt,
-          closedAt: now,
-          closedBy: access.tenantUserId,
-          backEntryDueAt: check.backEntryDueAt,
-        });
-        await moveWorkflow(c, tx, row, "closed", null, now);
-        await raiseBackEntryTask(tx, closed);
-        await audit(c, tx, access, {
-          action: "operations.outage.closed",
-          resourceType: "outage",
-          resourceId: id,
-          scope: { locationId: closed.locationId },
-        });
-        await publish(tx, {
-          context: "operations",
-          aggregateType: "outage",
-          aggregateId: id,
-          type: "operations.outage.closed",
-          payload: {
-            locationId: closed.locationId,
-            outageId: id,
-            backEntryDueAt: check.backEntryDueAt.toISOString(),
-          },
-        });
+        const closed = await closeOutage(
+          c,
+          tx,
+          access,
+          row,
+          body.version,
+          new Date(body.endedAt),
+          rates,
+          now,
+        );
         return outageItem(closed);
       });
       return c.json(item, 200);
@@ -407,6 +465,7 @@ export const outagesRouter = createRouter()
           access,
           id,
           "operations.outage.reconciliation_viewed",
+          false,
         );
         const r = await reconciliation(
           tx,
@@ -516,6 +575,13 @@ export const outagesRouter = createRouter()
           resourceId: id,
           scope: { locationId: row.locationId },
         });
+        await publish(tx, {
+          context: "operations",
+          aggregateType: "outage",
+          aggregateId: id,
+          type: "operations.outage.cancelled",
+          payload: { locationId: row.locationId, outageId: id },
+        });
         return outageItem(cancelled);
       });
       return c.json(item, 200);
@@ -563,9 +629,17 @@ export const outagesRouter = createRouter()
           others,
           rates,
         );
-        const stops = check.ok ? [] : check.problems.filter((p) => p !== "description_required");
+        const stops: string[] = (
+          check.ok ? [] : check.problems.filter((p) => p !== "description_required")
+        ).map((p) => OUTAGE_DECLARATION_MESSAGES[p]);
+        if (outageTooLong(startedAt, endedAt, now, rates))
+          stops.push(tooLong(rates.maxOutageHours));
+        const drift = rates.clockDriftMinutes * 60_000;
+        if (row.closedAt && endedAt && endedAt.getTime() > row.closedAt.getTime() + drift) {
+          stops.push("The outage cannot end after it was closed. Check the end time.");
+        }
         if (stops.length > 0) {
-          throw problems.invalid(stops.map((p) => OUTAGE_DECLARATION_MESSAGES[p]).join(" "));
+          throw problems.invalid(stops.join(" "));
         }
         const corrected = await changeOutage(tx, row, body.version, {
           startedAt,
@@ -577,6 +651,18 @@ export const outagesRouter = createRouter()
           resourceType: "outage",
           resourceId: id,
           scope: { locationId: row.locationId },
+        });
+        await publish(tx, {
+          context: "operations",
+          aggregateType: "outage",
+          aggregateId: id,
+          type: "operations.outage.corrected",
+          payload: {
+            locationId: row.locationId,
+            outageId: id,
+            startedAt: startedAt.toISOString(),
+            endedAt: endedAt ? endedAt.toISOString() : null,
+          },
         });
         return outageItem(corrected);
       });

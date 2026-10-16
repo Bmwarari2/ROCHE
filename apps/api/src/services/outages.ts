@@ -83,6 +83,19 @@ export function inOutageWindow(row: Pick<OutageRow, "startedAt" | "endedAt">, at
   );
 }
 
+/**
+ * Whether the outage would run longer than `downtime.max_outage_hours` from its start to its end,
+ * or to now while open, so a mistyped date cannot open a window of months (#51 review round 1).
+ */
+export function outageTooLong(
+  startedAt: Date,
+  endedAt: Date | null,
+  now: Date,
+  rates: Pick<OperationsRates, "maxOutageHours">,
+): boolean {
+  return (endedAt ?? now).getTime() - startedAt.getTime() > rates.maxOutageHours * 3_600_000;
+}
+
 const ENTRY_TABLES = [
   ["care_note", careNote],
   ["observation", observation],
@@ -118,8 +131,20 @@ export async function outageEntries(
     const records: OutageEntryRecord[] = [];
     const outsideUnexplained: string[] = [];
     for (const [kind, table] of ENTRY_TABLES) {
+      // Only the columns the reconciliation needs: never the entry's text or values.
       const rows = await tx
-        .select()
+        .select({
+          id: table.id,
+          locationId: table.locationId,
+          personId: table.personId,
+          occurredAt: table.occurredAt,
+          lateEntryReason: table.lateEntryReason,
+          outageId: table.outageId,
+          paperReference: table.paperReference,
+          outsideOutageReason: table.outsideOutageReason,
+          createdBy: table.createdBy,
+          chart: "chart" in table ? table.chart : sql<string | null>`NULL`,
+        })
         .from(table)
         .where(
           and(
@@ -143,7 +168,7 @@ export async function outageEntries(
           id: r.id,
           locationId: r.locationId,
           personId: r.personId,
-          entryKind: "chart" in r ? `${kind}.${r.chart}` : kind,
+          entryKind: r.chart ? `${kind}.${r.chart}` : kind,
           eventAt: r.occurredAt,
           source: backEntry ? "back_entry" : "digital",
           outageId: r.outageId,

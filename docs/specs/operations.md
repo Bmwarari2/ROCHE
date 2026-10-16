@@ -503,7 +503,15 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
 - A stale `version` is 409, as is an overlap found by the exclusion constraint at the same moment;
   the database's other refusals come back as 422 in its words. A location out of reach is not
   found, and audited as denied.
-- The blockers' words and the task's assignee wait for the CSO (H-215).
+- After #51 review round 1: an outage declared with its end is closed in the same transaction
+  (the back-entry task raised, `.closed` audited and published); an outage may run at most
+  `downtime.max_outage_hours` (168) to its end or to now, checked on declaring, closing and
+  correcting; a correction may not move the end past the closure plus
+  `sync.clock_drift_flag_minutes`; the outage is locked `FOR UPDATE` before each change;
+  `operations.outage.cancelled` and `.corrected` are published too; an outage at a location the
+  caller's permission does not reach is not found, and audited as denied; the reconciliation reads
+  only the columns it needs.
+- The blockers' words, the task's assignee and the longest outage wait for the CSO (H-215).
 - Not yet: back-entry on the care routes and the sync upload (part 3d), with the outside-the-outage
   reason when a reviewed back-entry after the true end is corrected (H-208); the notification
   centre's handling of `operations.outage.declared` (the comms step).
