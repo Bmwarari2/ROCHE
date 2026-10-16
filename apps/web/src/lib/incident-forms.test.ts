@@ -42,7 +42,7 @@ const filled = {
 };
 
 describe("the classifier's questions in the catalogue's words (HZ-013)", () => {
-  it("has catalogue words for every question, its guidance and every option", () => {
+  it("hazard HZ-090 has catalogue words for every question, its guidance and every option", () => {
     for (const key of CLASSIFIER_QUESTION_KEYS) {
       const question = CLASSIFIER_QUESTIONS[key];
       const words = questionWords(question, t);
@@ -63,7 +63,7 @@ describe("the classifier's questions in the catalogue's words (HZ-013)", () => {
     }
   });
 
-  it("shows a question or option the catalogue does not know in the API's English, marked", () => {
+  it("hazard HZ-090 shows a question or option the catalogue does not know in the API's English, marked", () => {
     const words = questionWords(
       {
         key: "new.question",
@@ -89,7 +89,7 @@ describe("the classifier's questions in the catalogue's words (HZ-013)", () => {
   });
 });
 
-describe("who may answer which questions (ADR-0071)", () => {
+describe("hazard HZ-013 who may answer which questions (ADR-0071)", () => {
   const open = CLASSIFIER_QUESTION_KEYS.map((key) => ({ key }));
   const base = {
     canReport: true,
@@ -113,7 +113,7 @@ describe("who may answer which questions (ADR-0071)", () => {
     [2, "Answer them below."],
     [1, "Answer the ones below."],
     [0, "Tell the nurse in charge"],
-  ])("with %i of 2 answerable, the notice says who answers", (answerable, words) => {
+  ])("hazard HZ-013 with %i of 2 answerable, the notice says who answers", (answerable, words) => {
     const view = notificationsView(
       {
         nationSupported: true,
@@ -130,7 +130,7 @@ describe("who may answer which questions (ADR-0071)", () => {
   });
 });
 
-describe("reading an answer: not sure is an answer, blank is not", () => {
+describe("hazard HZ-090 reading an answer: not sure is an answer, blank is not", () => {
   const q = (key: keyof typeof CLASSIFIER_QUESTIONS) => CLASSIFIER_QUESTIONS[key];
   const field = (key: string) => questionField(key);
   it.each([
@@ -203,7 +203,7 @@ describe("reading an answer: not sure is an answer, blank is not", () => {
 describe("reading the record an incident form (#42 review; HZ-027)", () => {
   const context = { personId: null, locationIds: [HOME, MEWS], fallQuestions: FALLS, now: NOW };
 
-  it("never assumes no: emergency services and the GP are asked every time", () => {
+  it("hazard HZ-090 never assumes no: emergency services and the GP are asked every time", () => {
     const read = readIncidentForm(
       form({ ...filled, location: HOME, emergencyServicesCalled: "", gpContacted: "" }),
       context,
@@ -218,7 +218,7 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
     });
   });
 
-  it("asks whether the person died when it is about someone, and adds them as affected", () => {
+  it("hazard HZ-090 asks whether the person died when it is about someone, and adds them as affected", () => {
     const about = { ...context, personId: PERSON, locationIds: [HOME] };
     expect(readIncidentForm(form(filled), about, t)).toEqual({
       ok: false,

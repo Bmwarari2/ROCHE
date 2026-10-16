@@ -510,6 +510,20 @@ only when they link spec, code, tests and user documentation; no user guides exi
       `submit` on the reads. For the CSO (with H-257 and H-258): accept the deadlines on a
       finished notification shown as "Deadlines it had to meet", and "Clocks worked out at ...
       Reload the page to bring them up to date." with no automatic refresh.
+    - Built on `feat/web-incident-forms` (part 4a): `/incidents/new` records an incident
+      (`safety.incident.report`) from the incidents list (the reporter's locations) or from a
+      person's record (offered only where `access.reaching` lists it; about them at their home),
+      with emergency services, GP and death asked every time, never assumed no (the #42
+      follow-up, HZ-090), the falls questions on a fall (HZ-027) and a UUIDv7 kept across retries;
+      the incident page offers its open questions in the catalogue's words (every one to a
+      manager, the falls questions to whoever raised it). Still to do: part 4b (review and close,
+      prepare, submit or mark not required with step-up). Gaps logged, no API change: `/v1/me`
+      gives no per-permission locations, and `IncidentDetail` has no `access` block, so the
+      location choice lists where the member works and the questions form follows the held
+      permissions (the API refuses where the scope does not reach, ADR-0071); classifier answers
+      carry no client id (a retry stores the same answer again, harmlessly); the form does not
+      yet ask when the person was found (H-262), nor add other people, staff or visitors,
+      body-map marks, infection details, the family told or LeDeR facts.
 20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
     in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
     `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the
