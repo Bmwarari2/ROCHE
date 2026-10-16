@@ -2483,3 +2483,24 @@ be read are said so; tests for a record corrected between preview and publishing
 preview, and Playwright states for words to confirm, a photo without consent, a refused publish and
 a hold, each with axe. Tests: `feed-publish.test.ts` 18; `family-updates.spec.ts` 3.
 
+## 2026-10-17: Slice 13, sub-processor notices, organisation side (PLAT-023, rules 24 and 25)
+
+- Migration 0065: `sub_processor_notice` (Thapsus's, read by all, announced only by the operator
+  role, never changed) and `sub_processor_response` (append-only; only the named data protection
+  lead holding `platform.dpia.sign` acknowledges or objects; Thapsus records resolutions).
+- Domain: `noticeResponseFrom` and `subProcessorAcknowledgementsFrom`, table-driven.
+- API: the sub-processors in use with their notices and states; acknowledge (register or notice)
+  and object within the window, step-up, audited without the grounds. The onboarding checklist
+  reads the acknowledgements, and a later notice reopens one.
+- Docs: platform-completions.md section 10h, records of processing, data standards, retention,
+  feature register, STATUS.
+
+**Tests**: `apps/api/test/sub-processors.test.ts` (6), `sub-processors.test.ts` stored responses (5).
+
+## 2026-10-17: Sub-processor notices, review of #92
+
+- Responses are read through roles only; objection grounds go to DPIA permission holders only.
+- No register acknowledgement while a notice about the sub-processor has an open objection.
+- Each notice's window uses the notice period in force on the UK date it was announced.
+- Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
+  database), and the operator role refused anything but a resolution.
