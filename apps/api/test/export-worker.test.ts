@@ -1,5 +1,9 @@
 import { DEMO } from "@harbour/db/seed";
-import { EXPORT_SCHEMA_VERSION, type ExportManifest } from "@harbour/domain";
+import {
+  type DocumentStoragePort,
+  EXPORT_SCHEMA_VERSION,
+  type ExportManifest,
+} from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ExportJobDeps, runQueuedExports, sweepExports } from "../src/jobs/exports";
 import { createLogger } from "../src/logger";
@@ -45,6 +49,9 @@ async function asOwnerDb(sql: string, params: unknown[] = []) {
     const { rows } = await client.query(sql, params);
     await client.query("COMMIT");
     return rows;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
@@ -53,7 +60,10 @@ async function asOwnerDb(sql: string, params: unknown[] = []) {
 describe("table-driven: which rows a legal hold keeps in the export (rule 11)", () => {
   const P = "0194d000-0000-7000-8600-000000000001";
   const N = "0194d000-0000-7000-8600-0000000000aa";
-  const holds = { people: new Set([P]), subjects: new Set([`care_note:${N}`]) };
+  const holds = [
+    { personId: P, subjectType: null, subjectId: null, releasedAt: null },
+    { personId: null, subjectType: "care_note", subjectId: N, releasedAt: null },
+  ];
   it.each([
     ["a row flagged on hold", "document", { id: "x", legal_hold: true }, true],
     ["a row about a person on hold", "care_note", { id: "y", person_id: P }, true],
@@ -178,4 +188,87 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
       { action: "platform.export.expired", scope: { archiveDeleted: true } },
     ]);
   });
+});
+
+describe("hazard HZ-071 a failed source or upload never leaves the worker hanging", () => {
+  async function asked(): Promise<string> {
+    await asOwnerDb(
+      "UPDATE tenant_export SET status = 'failed', failed_at = now() WHERE status IN ('queued', 'running')",
+    );
+    const response = await h.request("/v1/exports", {
+      method: "POST",
+      body: {},
+      token: h.tokens.owner,
+      tenant: DEMO.tenantId,
+    });
+    return ((await response.json()) as { id: string }).id;
+  }
+  const idle = () => deps.appPool.totalCount - deps.appPool.idleCount;
+  /** The exports bucket with another way of writing a stream. */
+  const withPut = (putStream: DocumentStoragePort["putStream"]): DocumentStoragePort => {
+    const real = deps.exportStorage;
+    return {
+      provider: real.provider,
+      put: (key, bytes, type) => real.put(key, bytes, type),
+      get: (key) => real.get(key),
+      destroy: (key) => real.destroy(key),
+      health: () => real.health(),
+      getStream: (key) => real.getStream(key),
+      putStream,
+    };
+  };
+
+  it.each([
+    [
+      "the upload fails partway",
+      () =>
+        withPut(async (_key, source) => {
+          let read = 0;
+          for await (const chunk of source) {
+            read += chunk.length;
+            if (read > 1_000) throw new Error("upload failed");
+          }
+        }),
+    ],
+    [
+      "the upload never starts reading",
+      () => withPut(() => Promise.reject(new Error("bucket unreachable"))),
+    ],
+  ])(
+    "fails the export when %s, releasing the snapshot",
+    async (_, broken) => {
+      const id = await asked();
+      const before = idle();
+      await runQueuedExports({ ...deps, exportStorage: broken() });
+      expect(idle()).toBe(before);
+      const [row] = await asOwnerDb("SELECT status, problems FROM tenant_export WHERE id = $1", [
+        id,
+      ]);
+      expect(row).toMatchObject({ status: "failed", problems: [{ kind: "build_error" }] });
+      const notes = await asOwnerDb("SELECT kind FROM notification WHERE source_id = $1", [id]);
+      expect(notes).toEqual([{ kind: "platform.export.failed" }]);
+      const key = `tenants/${DEMO.tenantId}/exports/${id}/export.zip`;
+      expect(await deps.exportStorage.get(key)).toBeNull();
+    },
+    30_000,
+  );
+
+  it("deletes the archive, and tells no one, when the export was cancelled while it was built", async () => {
+    const id = await asked();
+    const cancelling = withPut(async (key, source, type) => {
+      await deps.exportStorage.putStream(key, source, type);
+      // Cancelled in the requester's name, as the route does.
+      await asOwnerDb(
+        `WITH me AS (SELECT set_config('app.user_id', requested_by::text, true)
+                       FROM tenant_export WHERE id = $1)
+         UPDATE tenant_export SET status = 'revoked', revoked_at = now(),
+           revoked_by = requested_by FROM me WHERE id = $1`,
+        [id],
+      );
+    });
+    await runQueuedExports({ ...deps, exportStorage: cancelling });
+    const key = `tenants/${DEMO.tenantId}/exports/${id}/export.zip`;
+    expect(await deps.exportStorage.get(key)).toBeNull();
+    expect(await asOwnerDb("SELECT kind FROM notification WHERE source_id = $1", [id])).toEqual([]);
+  }, 30_000);
 });

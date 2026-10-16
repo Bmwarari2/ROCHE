@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { advanceCareRecord, allergy, person, personCareProfile } from "@harbour/db";
+import {
+  advanceCareRecord,
+  allergy,
+  applyRequestContext,
+  type Database,
+  person,
+  personCareProfile,
+} from "@harbour/db";
 import {
   type AdvanceCareRecordState,
   buildExportManifest,
@@ -21,6 +28,8 @@ import {
   exportDocumentDecision,
   exportRowChangedSince,
   exportRowDecision,
+  isUnderLegalHold,
+  type LegalHoldView,
   type PlannedExportTable,
   planExport,
   ukDateOfInstant,
@@ -44,6 +53,9 @@ import { ZipWriter } from "./zip-writer";
  */
 
 const BATCH = 1_000;
+/** Backstops on the snapshot transaction (technical limits, not policy). */
+const IDLE_TIMEOUT = "15min";
+const STATEMENT_TIMEOUT = "30min";
 
 export interface BuiltExport {
   readonly manifest: ExportManifest;
@@ -115,18 +127,26 @@ async function* cursorRows(
   }
 }
 
-interface Holds {
-  readonly people: ReadonlySet<string>;
-  readonly subjects: ReadonlySet<string>;
-}
-
-/** Whether a row is under a legal hold: its own flag, a hold on it, or on its person. */
-export function held(table: string, row: Record<string, unknown>, holds: Holds): boolean {
+/**
+ * Whether a row is under a legal hold: its own flag, or a hold on it or on its person
+ * (`isUnderLegalHold`, as retention reads holds).
+ */
+export function held(
+  table: string,
+  row: Record<string, unknown>,
+  holds: readonly LegalHoldView[],
+): boolean {
   if (row.legal_hold === true) return true;
   const id = String(row.id ?? "");
-  if (holds.subjects.has(`${table}:${id}`)) return true;
   const personId = table === "person" ? id : row.person_id;
-  return typeof personId === "string" && holds.people.has(personId);
+  return isUnderLegalHold(
+    {
+      personId: typeof personId === "string" ? personId : null,
+      subjectType: table,
+      subjectId: id,
+    },
+    holds,
+  );
 }
 
 const cell = (value: unknown) => (value instanceof Date ? value.toISOString() : value);
@@ -137,12 +157,15 @@ async function writeTable(
   zip: ZipWriter,
   table: PlannedExportTable,
   plan: ExportPlan,
-  holds: Holds,
+  holds: readonly LegalHoldView[],
   people: Set<string>,
+  certificates: ReadonlyMap<string, string>,
+  destroyed: DestroyedRecord[],
 ): Promise<WrittenTable> {
   const stored = table.columns.filter((c) => c.derivedFrom === null).map((c) => c.name);
   const present = new Set(stored);
   const state = [
+    "status",
     "id",
     "tenant_id",
     "person_id",
@@ -189,12 +212,27 @@ async function writeTable(
         )
       )
         continue;
+      // A destroyed document keeps a tombstone row: it is listed as destroyed, not exported.
+      const tombstone = table.name === "document" && row.status === "destroyed";
       const decision = exportRowDecision({
         deletedAt: (row.deleted_at as Date | null) ?? null,
         legalHold: held(table.name, row, holds),
-        destroyed: null,
+        destroyed: tombstone
+          ? {
+              at: (row.deleted_at as Date | null) ?? new Date(0),
+              certificateId: certificates.get(String(row.id)) ?? null,
+            }
+          : null,
         sample: false,
       });
+      if (format === "csv" && decision.action === "list_as_destroyed") {
+        destroyed.push({
+          table: table.name,
+          id: String(row.id),
+          destroyedAt: (row.deleted_at as Date | null) ?? new Date(0),
+          certificateId: decision.certificateId,
+        });
+      }
       if (format === "csv") {
         if (decision.action !== "include") {
           if (decision.action === "exclude" && decision.reason === "soft_deleted")
@@ -303,36 +341,64 @@ export async function buildExport(
   },
 ): Promise<BuiltExport> {
   const client = await deps.appPool.connect();
+  let released = false;
   const zip = new ZipWriter();
   const upload = deps.exportStorage.putStream(job.archiveKey, zip.output, "application/zip");
-  upload.catch(() => undefined);
+  // An upload that fails stops the archive, so no write waits on a reader that has gone.
+  upload.catch((error: unknown) =>
+    zip.abort(error instanceof Error ? error : new Error("The upload failed.")),
+  );
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    // Backstops: a stalled build never holds the snapshot open for long.
     await client.query(
-      `SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', '', true),
-              set_config('app.scope', 'tenant', true), set_config('app.location_ids', '', true)`,
-      [job.tenantId],
+      `SET LOCAL idle_in_transaction_session_timeout = '${IDLE_TIMEOUT}';
+       SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT}'`,
     );
+    await applyRequestContext(drizzle(client) as unknown as Database, {
+      tenantId: job.tenantId,
+      userId: null,
+      scope: "tenant",
+      locationIds: [],
+    });
     const s: Snapshot = { client, tenantId: job.tenantId };
     const snapshotAt =
       (await client.query<{ at: Date }>("SELECT now() AS at")).rows[0]?.at ?? new Date();
     const plan = planExport(await databaseTables(client), { since: job.since });
 
-    const holdRows = await client.query<{
-      person_id: string | null;
-      subject_type: string | null;
-      subject_id: string | null;
-    }>(
-      "SELECT person_id, subject_type, subject_id FROM legal_hold WHERE released_at IS NULL AND deleted_at IS NULL",
-    );
-    const holds: Holds = {
-      people: new Set(holdRows.rows.flatMap((h) => (h.person_id ? [h.person_id] : []))),
-      subjects: new Set(
-        holdRows.rows.flatMap((h) =>
-          h.subject_type && h.subject_id ? [`${h.subject_type}:${h.subject_id}`] : [],
-        ),
-      ),
-    };
+    const holds: LegalHoldView[] = (
+      await client.query<{
+        person_id: string | null;
+        subject_type: string | null;
+        subject_id: string | null;
+      }>(
+        "SELECT person_id, subject_type, subject_id FROM legal_hold WHERE released_at IS NULL AND deleted_at IS NULL",
+      )
+    ).rows.map((h) => ({
+      personId: h.person_id,
+      subjectType: h.subject_type,
+      subjectId: h.subject_id,
+      releasedAt: null,
+    }));
+    // Destruction certificates first: they name the tombstones the tables list as destroyed.
+    const destroyed: DestroyedRecord[] = [];
+    const certificates = new Map<string, string>();
+    for await (const c of cursorRows(
+      s,
+      "SELECT id, subject_type, subject_ids, executed_at FROM destruction_certificate ORDER BY executed_at",
+    )) {
+      for (const id of c.subject_ids as string[]) {
+        certificates.set(id, String(c.id));
+        if (job.since && (c.executed_at as Date) < job.since) continue;
+        if (c.subject_type === "document") continue; // listed from its tombstone row
+        destroyed.push({
+          table: String(c.subject_type),
+          id,
+          destroyedAt: c.executed_at as Date,
+          certificateId: String(c.id),
+        });
+      }
+    }
 
     const schemaFile = await zip.add(
       EXPORT_SCHEMA_FILE,
@@ -341,7 +407,7 @@ export async function buildExport(
     const people = new Set<string>();
     const tables: WrittenTable[] = [];
     for (const table of plan.tables)
-      tables.push(await writeTable(s, zip, table, plan, holds, people));
+      tables.push(await writeTable(s, zip, table, plan, holds, people, certificates, destroyed));
 
     const documents: WrittenDocument[] = [];
     for await (const d of cursorRows(
@@ -368,29 +434,14 @@ export async function buildExport(
       documents.push({ id: String(d.id), decision, writtenSha256 });
     }
 
-    const destroyed: DestroyedRecord[] = [];
-    for await (const c of cursorRows(
-      s,
-      "SELECT id, subject_type, subject_ids, executed_at FROM destruction_certificate ORDER BY executed_at",
-    )) {
-      if (job.since && (c.executed_at as Date) < job.since) continue;
-      for (const id of c.subject_ids as string[]) {
-        destroyed.push({
-          table: String(c.subject_type),
-          id,
-          destroyedAt: c.executed_at as Date,
-          certificateId: String(c.id),
-        });
-      }
-    }
     await zip.add(
       EXPORT_DESTROYED_FILE,
-      [
-        `${csvRow(["table", "id", "destroyed_at", "certificate_id"])}\n`,
-        ...destroyed.map(
-          (r) => `${csvRow([r.table, r.id, r.destroyedAt.toISOString(), r.certificateId])}\n`,
-        ),
-      ].join(""),
+      (function* () {
+        yield `${csvRow(["table", "id", "destroyed_at", "certificate_id"])}\n`;
+        for (const r of destroyed) {
+          yield `${csvRow([r.table, r.id, r.destroyedAt.toISOString(), r.certificateId])}\n`;
+        }
+      })(),
     );
 
     let summaryCount = 0;
@@ -438,12 +489,19 @@ export async function buildExport(
     await client.query("COMMIT");
     return { manifest, manifestSha256: written.sha256, bytes: zip.size, snapshotAt };
   } catch (error) {
-    zip.output.destroy(error instanceof Error ? error : new Error("export failed"));
+    // Every failure: the snapshot is rolled back first, the archive stopped and deleted, and a
+    // connection that cannot roll back is discarded rather than returned to the pool.
+    const rolledBack = await client.query("ROLLBACK").then(
+      () => true,
+      () => false,
+    );
+    zip.abort(error instanceof Error ? error : new Error("The export failed."));
     await upload.catch(() => undefined);
     await deps.exportStorage.destroy(job.archiveKey).catch(() => undefined);
-    await client.query("ROLLBACK").catch(() => undefined);
+    released = true;
+    client.release(rolledBack ? undefined : true);
     throw error;
   } finally {
-    client.release();
+    if (!released) client.release();
   }
 }

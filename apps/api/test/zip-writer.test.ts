@@ -62,4 +62,31 @@ describe("the streaming ZIP writer", () => {
     expect(files.size).toBe(65_536);
     expect(files.get("f/65535")?.length).toBe(0);
   }, 60_000);
+
+  it("rejects promptly when the source fails partway, and stops the archive", async () => {
+    const writer = new ZipWriter();
+    const reading = (async () => {
+      for await (const _ of writer.output) {
+        // drain
+      }
+    })().catch((error: Error) => error);
+    async function* failing(): AsyncGenerator<Uint8Array> {
+      yield randomBytes(200_000);
+      throw new Error("source failed");
+    }
+    await expect(writer.add("big.bin", failing())).rejects.toThrow("source failed");
+    writer.abort(new Error("source failed"));
+    expect(await reading).toBeInstanceOf(Error);
+  });
+
+  it("rejects promptly when the reader stops partway (a failed upload)", async () => {
+    const writer = new ZipWriter();
+    let read = 0;
+    writer.output.on("data", (chunk: Buffer) => {
+      read += chunk.length;
+      if (read > 100_000) writer.output.destroy(new Error("upload failed"));
+    });
+    writer.output.on("error", () => undefined);
+    await expect(writer.add("big.bin", inParts(randomBytes(4_000_000), 16_384))).rejects.toThrow();
+  });
 });

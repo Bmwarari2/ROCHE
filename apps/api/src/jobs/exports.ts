@@ -83,11 +83,21 @@ export async function runQueuedExports(deps: ExportJobDeps): Promise<number> {
         archiveKey,
       });
       if (!built.manifest.complete) {
+        deps.logger.error(
+          {
+            event: WORKER_JOB_FAILED_EVENT,
+            queue: "full-exports",
+            tenantId,
+            exportId: claimed.id,
+            code: "export_incomplete",
+          },
+          WORKER_JOB_FAILED_EVENT,
+        );
         await deps.exportStorage.destroy(archiveKey).catch(() => undefined);
         await fail(deps, tenantId, claimed.id, built.manifest.problems);
         continue;
       }
-      await asJob(deps, tenantId, async (tx) => {
+      const marked = await asJob(deps, tenantId, async (tx) => {
         const readyAt = new Date();
         const expiresAt = exportExpiresAt(readyAt, {
           exportLinkExpiryHours: await rateNumber(
@@ -101,7 +111,7 @@ export async function runQueuedExports(deps: ExportJobDeps): Promise<number> {
             PLATFORM_RATE_KEYS.exportLinkExpiryHoursMax,
           ),
         });
-        await tx
+        const [updated] = await tx
           .update(tenantExport)
           .set({
             status: "ready",
@@ -114,7 +124,10 @@ export async function runQueuedExports(deps: ExportJobDeps): Promise<number> {
             schemaVersion: EXPORT_SCHEMA_VERSION,
             warnings: built.manifest.warnings,
           })
-          .where(eq(tenantExport.id, claimed.id));
+          .where(and(eq(tenantExport.id, claimed.id), eq(tenantExport.status, "running")))
+          .returning({ id: tenantExport.id });
+        // Cancelled (or swept) while it was being built: no ready export, no notice.
+        if (!updated) return false;
         await tx.insert(auditEvent).values({
           tenantId,
           action: "platform.export.ready",
@@ -147,8 +160,10 @@ export async function runQueuedExports(deps: ExportJobDeps): Promise<number> {
             dedupeKey: `export_ready:${claimed.id}`,
           })
           .onConflictDoNothing();
+        return true;
       });
-      ready += 1;
+      if (marked) ready += 1;
+      else await deps.exportStorage.destroy(archiveKey);
     } catch (error) {
       const code = errorCode(error) ?? (error instanceof Error ? error.name : "unknown");
       deps.logger.error(
@@ -161,13 +176,17 @@ export async function runQueuedExports(deps: ExportJobDeps): Promise<number> {
         },
         WORKER_JOB_FAILED_EVENT,
       );
+      await deps.exportStorage.destroy(archiveKey).catch(() => undefined);
       await fail(deps, tenantId, claimed.id, [{ kind: "build_error", code }]);
     }
   }
   return ready;
 }
 
-/** Marks an export failed, audited; another organisation's row in it raises a security alarm. */
+/**
+ * Marks an export failed, audited and the requester told, when it was still queued or running;
+ * another organisation's row in it raises a security alarm.
+ */
 async function fail(
   deps: ExportJobDeps,
   tenantId: string,
@@ -181,12 +200,31 @@ async function fail(
     );
   }
   await asJob(deps, tenantId, async (tx) => {
-    await tx
+    const [failed] = await tx
       .update(tenantExport)
       .set({ status: "failed", failedAt: new Date(), problems })
       .where(
         and(eq(tenantExport.id, exportId), inArray(tenantExport.status, ["queued", "running"])),
-      );
+      )
+      .returning({ requestedBy: tenantExport.requestedBy });
+    // Already cancelled or ended: nothing failed, so nothing to record or tell.
+    if (!failed) return;
+    // Ids only: the requester is told it failed and can ask again.
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: failed.requestedBy,
+        kind: "platform.export.failed",
+        severity: "warning",
+        title: "Your data export could not be completed",
+        body: "Ask for a new export from the data export page.",
+        link: "/settings/export",
+        channels: ["in_app", "email"],
+        sourceType: "tenant_export",
+        sourceId: exportId,
+        dedupeKey: `export_failed:${exportId}`,
+      })
+      .onConflictDoNothing();
     await tx.insert(auditEvent).values({
       tenantId,
       action: "platform.export.failed",

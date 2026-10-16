@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { once } from "node:events";
-import { PassThrough } from "node:stream";
+import { PassThrough, type Writable } from "node:stream";
 import { crc32, createDeflateRaw } from "node:zlib";
 
 /**
@@ -35,20 +34,36 @@ export class ZipWriter {
   private readonly entries: Entry[] = [];
   private offset = 0;
 
+  constructor() {
+    // A stopped archive's error reaches the writer (`add` rejects) and the reader (the upload);
+    // an 'error' event with no listener would crash the worker instead.
+    this.output.on("error", () => undefined);
+  }
+
   /** Bytes written so far: the archive's size once finished. */
   get size(): number {
     return this.offset;
   }
 
   private async write(chunk: Buffer): Promise<void> {
+    if (this.output.destroyed) throw new Error("The archive's stream has closed.");
     this.offset += chunk.length;
-    if (!this.output.write(chunk)) await once(this.output, "drain");
+    if (!this.output.write(chunk)) await drained(this.output);
+  }
+
+  /** Stops the archive: a pending write rejects, and the reader sees the error. */
+  abort(error: Error): void {
+    this.output.destroy(error);
   }
 
   /** Adds one file, deflated; answers its size and SHA-256 (of the original bytes). */
   async add(
     path: string,
-    source: AsyncIterable<Uint8Array | string> | Uint8Array | string,
+    source:
+      | AsyncIterable<Uint8Array | string>
+      | Iterable<Uint8Array | string>
+      | Uint8Array
+      | string,
   ): Promise<WrittenEntry> {
     const name = Buffer.from(path, "utf8");
     const offset = this.offset;
@@ -66,21 +81,35 @@ export class ZipWriter {
     let size = 0;
     let compressed = 0;
     const input = typeof source === "string" || source instanceof Uint8Array ? [source] : source;
-    const feed = (async () => {
-      for await (const part of input) {
-        const chunk = typeof part === "string" ? Buffer.from(part, "utf8") : part;
-        crc = crc32(chunk, crc);
-        size += chunk.length;
-        hash.update(chunk);
-        if (!deflate.write(chunk)) await once(deflate, "drain");
+    // Read the source and drain the deflater together: if either fails, the other is stopped
+    // (`deflate.destroy`), so a failed source or a closed archive never leaves a wait hanging.
+    const feed = async () => {
+      try {
+        for await (const part of input) {
+          const chunk = typeof part === "string" ? Buffer.from(part, "utf8") : part;
+          crc = crc32(chunk, crc);
+          size += chunk.length;
+          hash.update(chunk);
+          if (!deflate.write(chunk)) await drained(deflate);
+        }
+        deflate.end();
+      } catch (error) {
+        deflate.destroy(error as Error);
+        throw error;
       }
-      deflate.end();
-    })();
-    for await (const out of deflate as AsyncIterable<Buffer>) {
-      compressed += out.length;
-      await this.write(out);
-    }
-    await feed;
+    };
+    const drain = async () => {
+      try {
+        for await (const out of deflate as AsyncIterable<Buffer>) {
+          compressed += out.length;
+          await this.write(out);
+        }
+      } catch (error) {
+        deflate.destroy(error as Error);
+        throw error;
+      }
+    };
+    await Promise.all([feed(), drain()]);
     if (size >= LIMIT || compressed >= LIMIT) {
       throw new RangeError("A single file in the export is too large for the archive.");
     }
@@ -146,4 +175,25 @@ export class ZipWriter {
     await this.write(end);
     this.output.end();
   }
+}
+
+/** Waits for a stream to drain, or rejects when it closes or fails first. */
+function drained(stream: Writable): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      stream.off("close", closed);
+      stream.off("error", failed);
+      resolve();
+    };
+    const failed = (error: Error) => {
+      stream.off("drain", done);
+      stream.off("close", closed);
+      stream.off("error", failed);
+      reject(error);
+    };
+    const closed = () => failed(new Error("The stream closed before it drained."));
+    stream.once("drain", done);
+    stream.once("close", closed);
+    stream.once("error", failed);
+  });
 }

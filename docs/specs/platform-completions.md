@@ -492,8 +492,17 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   that the exports bucket receives as a multipart upload. Complete: `ready` with the expiry from
   `export.link_expiry_hours` (capped by the maximum), audited `platform.export.ready` with counts,
   and the requester told in the app and by email, ids only ("Your data export is ready", a link to
-  the export page). Incomplete or an error: `failed` with its problems, audited, the archive
-  deleted; another organisation's row raises `security.export.foreign_rows`.
+  the export page). Incomplete or an error: `failed` with its problems, audited (only when it was still queued or
+  running), the requester told by ids only, the archive deleted, `worker.job.failed` logged; another
+  organisation's row raises `security.export.foreign_rows` (CloudWatch alarm
+  `<prefix>-export-foreign-rows`). Cancelled while it was built: the archive is deleted and no one
+  is told it is ready. #78 review: the ZIP writer reads its source and drains the deflater together
+  and stops both on a failure; a write waits on the archive's reader only until it drains, closes
+  or fails, and a failed upload stops the archive; the snapshot transaction is rolled back and its
+  connection released (or discarded) on every failure, with `idle_in_transaction_session_timeout`
+  and `statement_timeout` as backstops; the request context is set with `applyRequestContext`,
+  holds read with `isUnderLegalHold`, and a destroyed document's tombstone is listed in
+  `destroyed.csv` with its certificate rather than exported.
 - `sweepExports` (queue `export-expiry`, every 15 minutes): deletes each archive past its expiry,
   then marks the export expired and records `platform.export.expired` (archive deleted), so a
   failed delete is tried again; an export running more than `EXPORT_RUNNING_LIMIT_HOURS` (12, a
