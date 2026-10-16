@@ -26800,7 +26800,24 @@
           "default": "app.current_user_id()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "sample_batch_one_open_key": {
+          "name": "sample_batch_one_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "removed_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "sample_batch_tenant_id_tenant_id_fk": {
           "name": "sample_batch_tenant_id_tenant_id_fk",

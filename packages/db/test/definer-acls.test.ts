@@ -32,7 +32,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.sub_processor_objections": ["harbour_operator"],
   "app.resolve_sub_processor_objection": ["harbour_operator"],
   // Sample data mode (migration 0069).
-  "app.sample_people": ["harbour_app", "harbour_owner"],
+  "app.sample_people": ["harbour_app"],
   "app.remove_sample_batch": ["harbour_app"],
 };
 

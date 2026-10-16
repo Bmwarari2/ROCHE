@@ -76,15 +76,17 @@ describe("rule 26 the onboarding checklist, worked out from state", () => {
     expect((await h.request("/v1/onboarding", as("owner", OTHER.tenantId))).status).toBe(403);
   });
 
-  it("keeps open the go-live items Harbour cannot check yet (fail closed)", async () => {
-    for (const key of ["shared_devices_enrolled", "sample_data_removed"]) {
-      const open = await item(key);
-      expect(open.done).toBe(false);
-      expect(open.reason).toContain("does not record this yet");
-    }
+  it("keeps open the go-live item Harbour cannot check yet (fail closed)", async () => {
+    const open = await item("shared_devices_enrolled");
+    expect(open.done).toBe(false);
+    expect(open.reason).toContain("does not record this yet");
     expect((await checklist()).blockers).toEqual(
-      expect.arrayContaining(["shared_devices_enrolled", "sample_data_removed"]),
+      expect.arrayContaining(["shared_devices_enrolled"]),
     );
+  });
+
+  it("reads the sample data item from the records: none loaded, so done", async () => {
+    expect(await item("sample_data_removed")).toMatchObject({ done: true });
   });
 
   it("counts only members who have joined: an invited member is not staff yet", async () => {

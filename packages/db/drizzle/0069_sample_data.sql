@@ -18,6 +18,7 @@ ALTER TABLE "sample_batch" ADD CONSTRAINT "sample_batch_loaded_by_fk" FOREIGN KE
 ALTER TABLE "sample_batch" ADD CONSTRAINT "sample_batch_removed_by_fk" FOREIGN KEY ("tenant_id","removed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "person" ADD CONSTRAINT "person_sample_batch_fk" FOREIGN KEY ("tenant_id","sample_batch_id") REFERENCES "public"."sample_batch"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "person" ADD CONSTRAINT "person_sample" CHECK (is_sample = (sample_batch_id IS NOT NULL));--> statement-breakpoint
+CREATE UNIQUE INDEX "sample_batch_one_open_key" ON "sample_batch" USING btree ("tenant_id") WHERE removed_at IS NULL;--> statement-breakpoint
 
 -- Sample data mode (platform-completions.md rules 29 to 32; HZ-072). A batch is loaded by a
 -- holder of platform.onboarding.manage, in their own name, and removed only by
@@ -50,9 +51,10 @@ $$;
 
 -- Real and sample people never share a list (rule 30): a real person waits until the sample data
 -- has gone, by every creation path; a sample person is loaded only while no real person exists;
--- and a person never changes between the two.
+-- and a person never changes between the two. It runs as harbour_sample_owner so that every role
+-- that writes people (the API, the seed, the worker) is guarded alike; no role may call it directly.
 CREATE OR REPLACE FUNCTION app.person_sample_guard() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE v_sample bigint; v_real bigint;
 BEGIN
   IF TG_OP = 'UPDATE' THEN
@@ -61,6 +63,8 @@ BEGIN
     END IF;
     RETURN NEW;
   END IF;
+  -- One writer at a time per organisation, so a load and a real admission never pass each other.
+  PERFORM pg_advisory_xact_lock(hashtext('harbour.sample_people'), hashtext(NEW.tenant_id::text));
   SELECT s.sample_count, s.real_count INTO v_sample, v_real FROM app.sample_people() s;
   IF NEW.is_sample AND v_real > 0 THEN
     RAISE EXCEPTION 'real_people_exist' USING ERRCODE = 'check_violation';
@@ -135,15 +139,21 @@ GRANT SELECT ON public.role_assignment, public.role, public.location TO harbour_
 --> statement-breakpoint
 GRANT INSERT ON public.audit_event TO harbour_sample_owner;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.sample_people(), app.remove_sample_batch(uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app.holds_role_permission_somewhere(text),
+  app.holds_role_permission_at(text, uuid) TO harbour_sample_owner;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.sample_people() TO harbour_app, harbour_owner;
+REVOKE ALL ON FUNCTION app.sample_people(), app.person_sample_guard(),
+  app.remove_sample_batch(uuid, text) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.sample_people() TO harbour_app;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.remove_sample_batch(uuid, text) TO harbour_app;
 --> statement-breakpoint
 GRANT CREATE ON SCHEMA app TO harbour_sample_owner;
 --> statement-breakpoint
 ALTER FUNCTION app.sample_people() OWNER TO harbour_sample_owner;
+--> statement-breakpoint
+ALTER FUNCTION app.person_sample_guard() OWNER TO harbour_sample_owner;
 --> statement-breakpoint
 ALTER FUNCTION app.remove_sample_batch(uuid, text) OWNER TO harbour_sample_owner;
 --> statement-breakpoint

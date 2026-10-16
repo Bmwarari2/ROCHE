@@ -80,6 +80,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   );
   await client.query("GRANT harbour_family_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_notice_resolver TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {

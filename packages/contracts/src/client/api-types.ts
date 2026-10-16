@@ -19879,6 +19879,122 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/onboarding/sample-data": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Load sample data
+     * @description platform.onboarding.manage. Loads one batch of plainly invented people (family name Example, 999-range NHS numbers) at the organisation's first location, only while no real person exists and no batch is loaded (409 real_people_exist, already_loaded). Every real person then waits until the batch is removed. Audited (platform.onboarding.sample_loaded, batch id and count), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Done */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SampleDataBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Remove the sample data
+     * @description platform.onboarding.manage. Removes the loaded batch in one step through app.remove_sample_batch: every person in it or none (409 nothing_to_remove, held, referenced_by_real_records). Audit events about the sample people stay. Audited by the database (platform.onboarding.sample_removed, batch id and count), refusals here.
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Done */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SampleDataBatch"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/operator/tenants/{tenantId}/owner-invitation": {
     parameters: {
       query?: never;
@@ -19982,7 +20098,7 @@ export interface paths {
     put?: never;
     /**
      * Announce a new or replacement sub-processor (admins, fresh sign-in)
-     * @description Works out which organisations the change affects from their configuration, refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), stores the notice and tells each affected organisation's data protection lead (or its owners), recording the announcement in its audit trail.
+     * @description Works out which organisations the change affects from their configuration (every organisation not closed, suspended ones included), refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), then through app.announce_sub_processor_notice stores the notice and, for each affected organisation, its audit event and an outbox event the worker turns into a notification to its lead (or owners).
      */
     post: {
       parameters: {
@@ -20052,7 +20168,7 @@ export interface paths {
     put?: never;
     /**
      * Record how an organisation's objection to a notice was resolved (admins, fresh sign-in)
-     * @description Only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's lead is told and its audit trail records it.
+     * @description Through app.resolve_sub_processor_objection, only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's audit trail records it and the worker tells its lead.
      */
     post: {
       parameters: {
@@ -26480,6 +26596,11 @@ export interface components {
     };
     Dcb0160Recording: {
       safetyCaseVersion: string;
+    };
+    SampleDataBatch: {
+      /** Format: uuid */
+      batchId: string;
+      people: number;
     };
     SubProcessorNoticeAnnounced: {
       /** Format: uuid */

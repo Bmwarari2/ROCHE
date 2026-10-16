@@ -233,11 +233,13 @@ const MESSAGES: Record<SampleDataProblem, string> = {
   held: "A legal hold covers part of this batch, so nothing was removed.",
   referenced_by_real_records: "Real records refer to this sample data, so nothing was removed.",
 };
-const fail = (problem: SampleDataProblem): SampleDataCheck => ({
-  ok: false,
-  problem,
-  message: MESSAGES[problem],
-});
+/** A refusal in plain English, for a problem found here or reported by the database (rule 32). */
+export function sampleDataRefusal(
+  problem: SampleDataProblem,
+): Extract<SampleDataCheck, { ok: false }> {
+  return { ok: false, problem, message: MESSAGES[problem] };
+}
+const fail = (problem: SampleDataProblem): SampleDataCheck => sampleDataRefusal(problem);
 
 /** Loading sample data: the owner, once, before any real person exists. */
 export function checkSampleDataLoad(input: {

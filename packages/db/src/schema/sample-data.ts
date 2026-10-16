@@ -1,5 +1,13 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, integer, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  foreignKey,
+  integer,
+  pgTable,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { createdColumns, id, tenantId } from "./_columns";
 import { tenant, tenantUser } from "./platform";
 
@@ -23,6 +31,8 @@ export const sampleBatch = pgTable(
   },
   (t) => [
     unique("sample_batch_tenant_id_id_key").on(t.tenantId, t.id),
+    // One batch at a time: loading again while one is in place is refused (already_loaded).
+    uniqueIndex("sample_batch_one_open_key").on(t.tenantId).where(sql`removed_at IS NULL`),
     foreignKey({
       name: "sample_batch_loaded_by_fk",
       columns: [t.tenantId, t.loadedBy],
