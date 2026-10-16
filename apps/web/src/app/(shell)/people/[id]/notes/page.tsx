@@ -11,7 +11,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { can, readingWindow, recordCareAccess, tabHref, windowStart } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
 import { personNames } from "@/lib/people";
-import { getPerson, readOrFail } from "@/lib/person-record";
+import { getEntryOutages, getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
@@ -49,13 +49,14 @@ async function NotesTab({
   const names = personNames(person);
   // The form only where the viewer's care.note.write reaches the person (review round 2, C2-M2).
   const { canRecord: canWrite, readOnlyNotice } = recordCareAccess(person, me.permissions);
+  const outages = canWrite ? await getEntryOutages(person.locationId) : [];
 
   return (
     <>
       <h2 className="m-0 text-eyebrow">{t("care.notes.title")}</h2>
       {canWrite ? (
         <Card as="section" title={t("care.notes.form.title")} headingLevel={3}>
-          <NoteForm personId={id} />
+          <NoteForm personId={id} outages={outages} />
         </Card>
       ) : readOnlyNotice ? (
         <ReadOnlyNotice text={t(readOnlyNotice)} />

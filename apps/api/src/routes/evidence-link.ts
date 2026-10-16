@@ -28,7 +28,9 @@ import { throttleAddress } from "../http/throttle";
 import {
   auditLink,
   codeMatches,
+  EVIDENCE_CODE_EMAIL_TITLE,
   EVIDENCE_SESSION_COOKIE,
+  evidenceCodeEmailBody,
   evidenceCodeHash,
   type FoundLink,
   findLinkByToken,
@@ -228,12 +230,14 @@ export const evidenceLinkRouter = createRouter()
       if ("refused" in outcome) throw outcome.refused;
       const sent = await inLinkSession(services.db, found, async (tx) => {
         const adapter = await services.adapterFor(found.tenantId, "email", tx);
-        // The code is the whole message: no link, no name, nothing about the pack.
+        // A generic subject; the code and what to do with it in the body; no link, nothing about
+        // the pack (H-225).
         return adapter.send({
           idempotencyKey: outcome.ok.id,
-          title: `Your Harbour evidence pack code is ${code}. It works once, for a few minutes.`,
+          title: EVIDENCE_CODE_EMAIL_TITLE,
           link: null,
           to: outcome.ok.to,
+          body: evidenceCodeEmailBody(code),
         });
       });
       if (!sent.ok) {

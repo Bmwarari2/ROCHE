@@ -2094,6 +2094,45 @@ the retention class tied to the incident grade.
 **Tests**: `packages/db/test/letter-templates.test.ts` (8); RLS coverage lists `letter` as
 append-only.
 
+## 2026-10-17: Slice 11 web part B, paper records on the care record forms (OPS-028)
+
+- "When" on the notes, chart, body map, activity and visit forms offers "From a paper downtime
+  form" while the person's location has an open or closed outage: the outage, the date and time
+  written on the form with nothing filled in, the reference, and why when it is outside the
+  outage (HZ-017, H-268).
+- The API's refusals at their fields: why an entry in an outage is not from paper, the H-208
+  reason on correcting a paper note, a reconciled outage's record kept for review (HZ-006), and
+  one correction only.
+- Review round 1 of #64: a NEWS2 reading from paper says it is from the paper's time, before
+  saving and on its result; a record kept for review starts the form again; a recent reconciled
+  or cancelled outage is said; a malformed outage id is refused; spring-gap and autumn tests; the
+  journey scans the chart, body map, activity and visit forms and a correction outside the
+  outage; the journeys lay their outages after any already there, so a retry never overlaps.
+
+## 2026-10-16: Slice 11, letter and email template routes and the email body (COMMS-007, part 2a)
+
+- API: `GET /v1/merge-fields`; `GET`/`POST /v1/letter-templates`; `GET`/`POST
+  .../{id}/versions`; `PUT .../versions/{versionId}`; `.../approve`, `.../retire`, `.../discard`
+  (comms.md section 11), each draft checked as it is saved with its problems listed, approval never
+  by the author or an editor, audited with ids and codes only.
+- The email port gains a plain-text `body` (H-225); the evidence pack code email moves the code into
+  the body under a generic subject.
+- Docs: comms.md section 11, H-225, HZ-051 row, STATUS.
+
+**Tests**: `apps/api/test/letter-templates.test.ts` (5); `adapters.test.ts` 2 new;
+`evidence-link.test.ts` extended.
+
+## 2026-10-16: Letter template routes, review round 1 of #70 (HZ-051)
+
+- Every template version write (edit, approve, retire, discard) matches the version the caller
+  loaded, so an edit landing between the read and the write is refused (409, audited) and the edited
+  text is never approved unseen.
+- The refusal of a letter-only kind as email is audited.
+- Docs: HZ-051 row, STATUS (the email body check and the rendered-body ADR-0051 check for part 2b).
+
+**Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
+email, cross-tenant).
+
 ## 2026-10-17: Slice 5 web part 2, the round view (CARE-013)
 
 - Round in the navigation for those who read care plans; the location's open tasks for the shift

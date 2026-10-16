@@ -100,7 +100,14 @@ export async function recordActivity(
 ): Promise<ActionResult<ActivityRecordItem>> {
   const when = entryTime(input);
   if (isRefusal(when)) return when;
-  const { id: _id, occurredAt: _when, sentAt: _sent, notes, ...activity } = input;
+  const {
+    id: _id,
+    occurredAt: _when,
+    sentAt: _sent,
+    downtime: _downtime,
+    notes,
+    ...activity
+  } = input;
   const text = optionalText(notes);
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/activities", {
@@ -112,6 +119,7 @@ export async function recordActivity(
         // A group session recorded from one person's record is a session of its own; recording
         // a whole group at once is a follow-up.
         ...(activity.format === "group" ? { groupSessionId: crypto.randomUUID() } : {}),
+        ...when.downtime,
         id: when.id,
         occurredAt: when.occurredAt,
       },
@@ -133,7 +141,14 @@ export async function recordVisit(
     return refused(t("care.errors.whenRequired"), "invalid", ["endedAt"]);
   }
   const endedAt = input.endedAt ?? undefined;
-  const { id: _id, occurredAt: _when, sentAt: _sent, endedAt: _end, ...visit } = input;
+  const {
+    id: _id,
+    occurredAt: _when,
+    sentAt: _sent,
+    endedAt: _end,
+    downtime: _downtime,
+    ...visit
+  } = input;
   const visitorName = optionalText(visit.visitorName);
   const visitorRelationship = optionalText(visit.visitorRelationship);
   const restrictionReason = optionalText(visit.restrictionReason);
@@ -152,6 +167,7 @@ export async function recordVisit(
         ...(visitorRelationship ? { visitorRelationship } : {}),
         ...(restrictionReason ? { restrictionReason } : {}),
         ...(notes ? { notes } : {}),
+        ...when.downtime,
       },
     }),
   );

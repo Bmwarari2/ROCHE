@@ -311,8 +311,8 @@ only when they link spec, code, tests and user documentation; no user guides exi
      session with `app.link_id`, codes as an HMAC under `EVIDENCE_LINK_SECRET`, the failed count
      in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
      page that reads the token from the link's fragment and posts it (web step); throttles are per
-     API instance (a shared table, as for invitations); the code goes in the email's title until
-     the email port carries a body (H-225); an inspector with a Harbour account
+     API instance (a shared table, as for invitations); the code email has a generic subject and the code in its body
+     (built in part 2a of the letter templates, H-225); an inspector with a Harbour account
      (`quality.evidence.read`) still needs its own route.
    - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
      composed and released (GMT or BST) and that it shows the records as they stood at release
@@ -343,6 +343,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
        `incident.*` and `candour.*` fields), MFA on reads, store `delivery_reference` as the
        provider's opaque id only, `personal_fields` as keys only, never an email's content, and
        log no personal data.
+   - Slice 11, letter and email templates part 2a, the template routes and the email body
+     (`feat/comms-letter-templates-api`, stacked on #69; comms.md section 11): merge fields,
+     templates and versions with approval, retirement and discarding; the email port's body,
+     which closes the item 5 note on the evidence pack code email (generic subject, the code and
+     guidance in the body, H-225). Next, part 2b: preview, sending and the letters list with the
+     PDF writer and the part 2 must-dos above.
+   - #70 review round 1 (security and clinical), fixed in #70: every version write matches the
+     version the caller loaded (an edit landing between the read and an approval is refused with
+     409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
+     it leaves (no link, and no personal field beyond the approved, rendered template), as
+     `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -729,9 +740,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
     reasons and version the API needs, nothing chosen by default, and the reconciliation's counts,
     blockers in the API's words, and a box to tick for each possible duplicate group and each
     back-entry outside the window (H-267). A back-entered entry shows its label wherever its badges
-    are shown. Next: PR B, the back-entry fields on the care record forms (the outage, the date and
-    time written on paper, the outside-the-outage reason, not-from-paper). API gaps logged here,
-    for Lane A:
+    are shown. PR B built (`feat/web-back-entry-forms`, stacked on #62): "From a paper downtime
+    form" on the notes, chart, body map, activity and visit forms while the person's location has
+    an open or closed outage (the outage, the date and time as written with nothing filled in, the
+    reference, the outside-the-outage reason), the not-from-paper reason when the API asks, the
+    H-208 reason on correcting a paper note, and the API's refusals in its words (H-268).
+    Follow-ups: the paper choice on corrections of chart entries, marks, activities and visits (no
+    web correction form for them yet). API gaps logged here, for Lane A:
     - No read of the MAR and PEEP places (`GET /v1/locations/{id}/downtime-places` returning
       `DowntimePlaces` with the location's `version`), so the web cannot show or confirm them: the
       `PUT` needs the version. The places form waits on it (H-201 still met by the task and the

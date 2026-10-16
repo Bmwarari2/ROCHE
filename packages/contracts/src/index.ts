@@ -490,6 +490,7 @@ export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper }
 export * from "./escalation-policy";
 export * from "./handover";
 export * from "./invitations";
+export * from "./letters";
 export * from "./mca";
 export * from "./operations";
 export * from "./people";
