@@ -4,7 +4,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
+import {
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  OTHER,
+  PASSWORD,
+} from "./support/harness";
 
 /**
  * PLAT-003 and PLAT-004 follow-ups: `/v1/me` evaluates flags through the OpenFeature provider;
@@ -64,6 +71,7 @@ async function browserSignIn(who: Member): Promise<{ cookie: string; token: stri
     return { cookie: `harbour.session_token=${value}`, token: decodeURIComponent(value) };
   } finally {
     await auth().query("UPDATE auth.user SET two_factor_enabled = true WHERE email = $1", [email]);
+    await markSessionsVerified(auth());
   }
 }
 

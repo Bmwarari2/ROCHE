@@ -25,6 +25,11 @@ export interface TextAreaProps
   extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "children" | "maxLength"> {
   /** Visible label. Always shown: placeholders are not labels. */
   label: string;
+  /**
+   * The language of the label when it differs from the page's, such as a line a service gives in
+   * English only on a page in Welsh (WCAG 3.1.2).
+   */
+  labelLang?: string;
   /** Help shown under the label, for example "At least 20 characters". */
   hint?: string;
   /** Error message. Say what to do, never blame: "Explain why you need this record". */
@@ -51,6 +56,7 @@ export interface TextAreaProps
  */
 export function TextArea({
   label,
+  labelLang,
   hint,
   error,
   maxLength,
@@ -97,7 +103,7 @@ export function TextArea({
 
   return (
     <div className={cx("hb-field", error && "hb-field--invalid", className)}>
-      <label htmlFor={fieldId} className="hb-field__label">
+      <label htmlFor={fieldId} className="hb-field__label" lang={labelLang}>
         {label}
       </label>
       {hint ? (

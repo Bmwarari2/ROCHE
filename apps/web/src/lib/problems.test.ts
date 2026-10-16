@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redirectForProblem, safeNextPath } from "./problems";
+import { factorChangeRedirect, redirectForProblem, safeNextPath } from "./problems";
 
 describe("redirectForProblem", () => {
   it.each([
@@ -11,6 +11,8 @@ describe("redirectForProblem", () => {
     ["tenant_required", undefined, "/choose-organisation"],
     ["not_a_member", "/people", "/choose-organisation?next=%2Fpeople"],
     ["mfa_enrolment_required", "/people", "/settings/security?reason=mfa"],
+    ["mfa_verification_required", "/people/123", "/sign-in?reason=mfa&next=%2Fpeople%2F123"],
+    ["mfa_verification_required", undefined, "/sign-in?reason=mfa"],
     ["missing_permission", "/people", null],
     ["not_found", "/people/123", null],
     ["internal", undefined, null],
@@ -22,6 +24,19 @@ describe("redirectForProblem", () => {
   it("never carries an off-site next address", () => {
     expect(redirectForProblem("unauthenticated", "https://example.invalid/")).toBe("/sign-in");
     expect(redirectForProblem("unauthenticated", "//example.invalid")).toBe("/sign-in");
+  });
+});
+
+describe("factorChangeRedirect", () => {
+  it("sends a session that has not used its second factor to sign in with it (HZ-112)", () => {
+    expect(factorChangeRedirect({ code: "MFA_VERIFICATION_REQUIRED" }, "/settings/security")).toBe(
+      "/sign-in?reason=mfa&next=%2Fsettings%2Fsecurity",
+    );
+  });
+
+  it("leaves any other error to the form", () => {
+    expect(factorChangeRedirect({ code: "INVALID_PASSWORD" }, "/settings/security")).toBeNull();
+    expect(factorChangeRedirect(null, "/settings/security")).toBeNull();
   });
 });
 

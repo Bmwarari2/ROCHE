@@ -49,7 +49,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  mfaRefusal,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { careRates, entryTimes, personContext } from "../services/care";
@@ -200,7 +206,7 @@ function personValues(p: IncidentPersonInput) {
 
 /** An incident about a person is part of their care record: MFA applies (section 5.3). */
 function requireMfaForPeople(access: TenantAccess, people: number) {
-  if (people > 0 && !access.mfaSatisfied) throw problems.mfaRequired();
+  if (people > 0 && !access.mfaSatisfied) throw mfaRefusal(access);
 }
 
 async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: string) {

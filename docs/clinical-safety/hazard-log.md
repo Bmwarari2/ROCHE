@@ -61,8 +61,11 @@
 | [HZ-071](#hz-071-full-tenant-export-incomplete-or-misread-when-a-provider-changes-system) | Full tenant export incomplete or misread when a provider changes system | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 (4 until the CSO accepts, H-119) | Open | None (Phase 1) | Phase 1, Phase 2 |
 | [HZ-072](#hz-072-sample-data-mistaken-for-or-mixed-with-real-records) | Sample data mistaken for, or mixed with, real records | Considerable / Medium / 3 | Considerable / Low / 2 | Open | None (Phase 1) | Phase 1 |
 | [HZ-073](#hz-073-safety-work-or-essential-information-hidden-from-the-person-who-must-act-because-of-their-access-scope) | Safety work or essential information hidden from the person who must act because of their access scope | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-169) | Open | None (Phase 1) | Phase 1 |
+| [HZ-090](#hz-090-an-incident-form-records-an-assumed-answer-or-asks-a-notification-question-in-other-words) | An incident form records an assumed answer, or asks a notification question in other words | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-261) | Open | None (Phase 1) | Phase 1 |
+| [HZ-091](#hz-091-an-incident-is-closed-or-a-notification-recorded-as-submitted-or-not-required-on-a-wrong-or-stale-page) | An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-265) | Open | None (Phase 1) | Phase 1 |
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
+| [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 
 Twelve hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -1071,6 +1074,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | The web incidents list shows each incident's status as an icon and a word (one the web does not know warns) and how many questions about statutory notifications are still to answer; when the API's limit of 500 is reached it fetches the open and under-review incidents besides and says older incidents are not listed. The incident page shows the same count as a warning chip. A reader who cannot see everyone on an incident is told part of it is hidden, and sees no questions or notifications (`apps/web/src/lib/incidents.ts`). | Phase 1 (slice 9, part 1 built) |
 | Design | The web incident page shows each statutory notification on the incident, before the people on it, with an overdue chip at the top that links to them: its clock as an icon and a word (overdue for how long, due, submitted, or not required in the not-applicable style; an unknown clock or ending warns), its status (draft, ready to submit) as its own chip, its deadlines in the law's terms from the classifier's outputs ("Without delay: the clock started ...", RIDDOR's second deadline; "Due time not known" warns), who it is about for one person (named, or a numbered person not shown), its recipient, and on a draft still open its warnings with a next step (provisional: confirm or mark not required, if in doubt notify; waiting for answers, without inviting a not-required decision; no longer indicated; a Harbour target, made as soon as possible all the same for a safeguarding concern or a missing person). Questions still to answer (worded for who can answer them, `safety.incident.manage`), kinds waiting for them, checks that decide whether one is needed (RIDDOR's absence check, the safeguarding decision guide, an outbreak's links, the candour decision) with when (left out once the incident is closed, and "Check whether this was done: ..." once their date has passed, since the stored tasks never clear), outputs drafted on another record, "not checked yet" and "not checked outside England" all warn; "no notification found" is said only when none of these is there. Kinds, recipients and statuses come from the catalogue, checked against the domain's `NOTIFICATION_KINDS`; RIDDOR's threshold comes from the rate table (`apps/web/src/lib/incidents.ts`, `apps/web/src/components/safety/IncidentNotifications.tsx`; #49 review round 1; wording for the CSO, H-257 to H-259) | Phase 1 (slice 9, part 2 built) |
 | Design | The web statutory notification pages (`/notifications/statutory` and `/notifications/statutory/{id}`, the page the overdue alert links to), for holders of `safety.incident.manage` as the API allows (anyone else is told in words that the page is not for them): the list puts what is still to do first (an unknown clock, then overdue, then due soonest) above those submitted or not required, each with its clock and status as icons and words, who it is about (people the reader cannot see numbered consistently across the list, and the list says so), its due time, location, recipient and warnings, and reads the unfinished (draft, ready) and finished (submitted, not required) notifications separately, so old finished ones never push an unfinished one off the list; when an unfinished read reaches the API's limit of 1,000 it says unfinished notifications may be missing and never says there is nothing to do (#52 review). Who a notification is about shows their communication needs (AIS). A holder of `safety.notification.submit` without `safety.incident.manage`, whom the overdue alert sends here, is told who can act (H-260). The notification's page shows its clock, status and warnings, every deadline in the law's terms (kept once done), the record it was drafted on named and linked with that record's status (#49 review round 2), why Harbour drafted it, what it must include and its sources (the API's English, marked as such; a source is linked only on https) and how it ended. Both pages, and the incident page, say when the clocks were worked out and to reload for an update (#49 review round 1); on the incident page each notification links to its own page for a holder of `safety.incident.manage` (`apps/web/src/lib/statutory-notifications.ts`, `apps/web/src/app/(shell)/notifications/statutory/`). Read only; the forms follow | Phase 1 (slice 9, part 3 built) |
+| Design | The web records an incident (`/incidents/new`, from the incidents list or a person's record where `access.reaching` lists `safety.incident.report`, ADR-0071) and offers an incident's open questions on its page: every one to a holder of `safety.incident.manage`, the falls questions to the person who raised it; a blank question stays open, "not sure yet" is always an answer, and saving classifies the incident again (HZ-090) | Phase 1 (slice 9) |
+| Design | The web closes the loop (slice 9, part 4b; HZ-091): the incident page offers a holder of `safety.incident.manage` "start the review", "send it back to open" with a reason and "close" with a reason, never "close" to the person who raised it, and while a notification is a draft or ready or a question is open it lists what to do first (each notification linked) instead of a form the API would refuse. The notification page prepares it (one answer per line of required content, ready only when every line is answered), records it as submitted only once ready (the time chosen every time, the regulator's reference) and decides "not required" with a reason, each only where its permission reaches the person it is about (`access.reaching`, ADR-0071), with step-up for the last two; a refusal is said in words a manager can act on (`apps/web/src/lib/incident-review.ts`, `apps/web/src/components/safety/`) | Phase 1 (slice 9, part 4b) |
 | Design | Safeguarding log and outbreak register feed the same clocks | Phase 2 |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guide states that the classifier supports, and never replaces, the Registered Manager's judgement. Deployer control: tenant notifications policy and acting-up arrangements for absences | Phase 1 |
@@ -1116,6 +1121,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/src/lib/incidents.test.ts`: `hazard HZ-013 shows a ... clock on a ... notification due ... as an icon and a word`, `hazard HZ-013 shows a ... notification still open as its own chip, never run on into the clock`, `hazard HZ-013 puts overdue first, then the soonest due, then those done`, `hazard HZ-013 says a without-delay notification's legal wording and when its clock started`, `hazard HZ-013 says candour's spoken step is as soon as reasonably practicable from when the clock started`, `hazard HZ-013 says a check whose date has passed may not have been done, and drops the checks once closed`, `hazard HZ-013 names every kind and its recipient in the catalogue, as the domain names them`, `hazard HZ-013 shows RIDDOR's second deadline, and no deadline once a notification is done`, `hazard HZ-013 says Due by when the classifier gave no deadline, and warns when the time is unreadable`, `hazard HZ-013 gives each warning on a draft still open its next step`, `hazard HZ-013 says a draft waiting for answers is waiting, without inviting a not-required decision`, `hazard HZ-013 puts no warnings on a notification that is finished`, `hazard HZ-013 never says none are needed while anything is open or waiting: ...` (questions, a waiting kind, RIDDOR's absence check, the safeguarding decision guide, an outbreak drafted on its first incident, drafts, a care task only, nothing), `hazard HZ-013 words the hints for who can act: submitters check, managers answer, others tell` and `hazard HZ-013 counts overdue notifications and unknown clocks for the chip at the top of the page`; `apps/web/src/components/safety/IncidentNotifications.test.tsx` (every state drawn and checked with axe-core: not checked yet, outside England, may be needed once answered, none found, the checks that decide a notification with their times and one drafted on another record, and due, ready, a Harbour target, a person named and one not shown, submitted, not required, an unknown clock); `apps/web/e2e/incidents.spec.ts`: `hazard HZ-013 the nurse finds an incident and reads its notifications, every warning in words` (the overdue provisional draft with its clock start and `datetime`, the questions not on the page yet, the overdue link opened by keyboard with focus landing on the notifications' heading, the draft no longer indicated, the closed incident's "none found", axe in both themes) and `hazard HZ-013 a safeguarding concern: a Harbour target, made as soon as possible, ready to submit` | Passing (slice 9, part 2, #49 review round 1) |
 | `apps/web/src/lib/statutory-notifications.test.ts`: `hazard HZ-013 puts what is still to do first: unknown clocks, overdue, due soonest, then done`, `hazard HZ-013 keeps every deadline in the law's terms, done or not, with a machine-readable time`, `hazard HZ-013 falls back to the due time, and warns when a time cannot be read`, `hazard HZ-013 keeps a recent overdue draft listed however many finished notifications there are`, `hazard HZ-013 says unfinished notifications may be missing when a read of ... hits the limit`, `hazard HZ-013 tells a submitter sent by the overdue alert who can act`, `hazard HZ-013 puts a due time that cannot be read first, never lost in the order`; `apps/web/src/components/safety/IncidentNotifications.test.tsx`: `hazard HZ-013 says when the clocks were worked out, and links each notification for a manager, with no axe violations` | Passing (slice 9, part 3) |
 | `apps/web/e2e/statutory-notifications.spec.ts`: `hazard HZ-013 the nurse finds an overdue notification and reads its deadlines, sources and record` (with communication needs beside who it is about, and axe in light and dark), `hazard HZ-013 a carer without safety.incident.manage is told the notification pages are not for them` and `hazard HZ-013 the statutory notification pages reflow at 320 px` (axe on every page) | Hosted CI (slice 9, part 3) |
+| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-013 who may answer which questions` (ADR-0071) and `hazard HZ-013 with N of 2 answerable, the notice says who answers`; `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-013 the nurse answers a question on the incident's page` (axe) | Passing (unit); e2e in hosted CI |
+| `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-013 says what to do first while a notification is open or a question unanswered`, `hazard HZ-013 needs every line before it is marked ready, not to save a draft`, `hazard HZ-013 is judged needed only when neither provisional nor no longer indicated`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked` and the `notificationManageView (ADR-0071)` table; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-013 knows every reason closing is refused, joined as the API joins them`; `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted`, `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` and `hazard HZ-013 not required on a notification Harbour found needed asks for more` (axe on every state) | Passing (unit); e2e in hosted CI (slice 9, part 4b) |
 
 ---
 
@@ -1875,6 +1882,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Observation intervals and the monitoring period come from the rate table (`falls.*`), defaulting to NICE NG232 1.9.11, to be confirmed by the CSO (human action H-66); observation times are elapsed time, so a clock change does not move them | Phase 1 (domain rules built) |
 | Design | The API creates the checklist through the task engine whenever a fall is recorded or synced, in every nation, with one task per timed observation counted from when the person was found; an answer that rules out both risks cancels the timed observations and starts general monitoring; overdue tasks escalate (HZ-008) | Phase 1 (built) |
 | Design | The tasks are created on the device when a fall is recorded offline, before it syncs | Phase 1 (offline slice) |
+| Design | The web form asks the falls questions (head injury, anticoagulant or antiplatelet treatment) when a fall is recorded, each needing an answer, "not sure yet" included, so the checklist starts from an answer, never a default. The form has no "when found" time yet, so observations count from when it happened (H-262) | Phase 1 (slice 9) |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: the tenant's post-fall policy and escalation route linked from the task; staff trained in post-fall observations | Phase 1 |
 
@@ -1893,6 +1901,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain` (safety): `hazard HZ-027 counts post-fall observations from when the person was found` (`classifier.test.ts`; the found time was dropped before slice 7 stored it) | Passing |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 | `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-027 a post-fall chain with no steps`, `hazard HZ-027 post-fall observation figures not reviewed by the clinical lead` | Passing (Phase 1) |
+| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-027 a fall asks the point-of-care questions, not sure yet included`; `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (axe) | Passing (unit); e2e in hosted CI |
 
 ---
 
@@ -2494,6 +2503,90 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 
 ---
 
+## HZ-090 An incident form records an assumed answer, or asks a notification question in other words
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-090 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `web` (lead engineer) |
+| Source | Master prompt 11.1; safety.md sections 4 and 5; #42 review round 1 (`emergencyServicesCalled` and `gpContacted` default to false in the API) |
+
+**Description**: the web incident forms send an answer nobody gave (whether the emergency services were called, whether the GP was contacted, whether the person died, a falls question), or show a classifier question in words that differ from the rule it feeds, so the answer is given to a different question.
+
+**Causes**: a yes or no question pre-set to "no", or the API's default used when the form leaves a field out; the catalogue's wording drifting from the domain's question set (which quotes the regulations); an option or question the catalogue does not know left out of the form.
+
+**Effects**: a notification not drafted (HZ-013) or a post-fall checklist started on a wrong answer (HZ-027); a record that says nobody was called when nobody was asked.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The emergency services, GP and (for an incident about a person) death questions are yes or no with nothing chosen; the form refuses until each is answered, tied to the field, and its hint says Harbour never assumes no | Phase 1 (slice 9) |
+| Design | When it happened is chosen every time, with nothing chosen at first: "just now" (taken on the server when the form arrives, never from the browser's clock) or "earlier" with the date and time, so post-fall observations and statutory clocks start at the time someone gave (#55 review round 1) | Phase 1 (slice 9) |
+| Design | The falls questions on a fall need an answer each, "not sure yet" included; the incident page's questions are sent only when answered (a blank one stays open, never sent as no) | Phase 1 (slice 9) |
+| Design | The catalogue's words for every question, its guidance and every option repeat the domain's question set word for word (a unit test compares them); a question or option the catalogue does not know is shown in the API's English, marked as English, never left out | Phase 1 (slice 9) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | The CSO reviews the wording of the questions and the yes or no prompts (H-261) | Before first real tenant |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (engineering proposal; the CSO rates it, H-261).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/web/src/lib/incident-forms.test.ts`: `hazard HZ-090 has catalogue words for every question, its guidance and every option`, `hazard HZ-090 shows a question or option the catalogue does not know in the API's English, marked`, `hazard HZ-090 never assumes the time: just now or earlier is chosen every time`, `hazard HZ-090 never assumes no: emergency services and the GP are asked every time`, `hazard HZ-090 asks whether the person died when it is about someone`, `hazard HZ-090 reading an answer: not sure is an answer, blank is not` | Passing |
+| `apps/web/e2e/incident-forms.spec.ts`: `hazard HZ-027 the carer records a fall from a resident's record, never assumed no` (the refusal summary names each unanswered question) | Hosted CI |
+
+---
+
+## HZ-091 An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-091 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `web` (lead engineer) |
+| Source | Master prompt 11.1 and 11.2; safety.md sections 3 and 5 (rule 11); STATUS item 19 (part 4b, `feat/web-incident-review-submit`); related to HZ-013 and HZ-090 |
+
+**Description**: a manager's web form ends the tracking of a statutory duty wrongly: an incident closed by the person who raised it or with a notification still open, a notification recorded as submitted when it was not (or with a time nobody gave), "not required" decided on a page that no longer shows the notification as it is, or a prepared form marked ready with required content missing.
+
+**Causes**: a form offered to someone the API would refuse, so they believe it is done; a page drawn before another manager's change (or before the person's own earlier attempt, saved after a lost connection) sent again; a submission time pre-set to now; the required content keyed so an answer lands under the wrong line; a refusal shown in codes or blaming someone else, so it is ignored; the step-up sign-in losing what was typed, so it is entered again in haste.
+
+**Effects**: the overdue alerts stop for a notification the regulator never received (HZ-013); an incident closed without independent review (rule 11); an audit trail that records a decision nobody made.
+
+**Initial risk**: severity Major, likelihood Low, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Each form only where the API would take it: review and close only for `safety.incident.manage` on an incident seen whole and not closed, close never to the person who raised it (`availableTransitions` with the domain's `INCIDENT_WORKFLOW`); prepare, submit and "not required" only where the permission reaches the person it is about (`access.reaching`, ADR-0071); "record as submitted" only on a ready notification | Phase 1 (slice 9, part 4b) |
+| Design | While a notification is a draft or ready or a question is open, the incident page lists what to do first, each notification linked, instead of a close form; the API's refusals (open notifications, questions, the candour record, a step the workflow does not allow, a finished notification, the submission evidence) are recognised and said in the catalogue's words, tied to their fields | Phase 1 (slice 9, part 4b) |
+| Design | Every write carries the version the page was drawn from, so a stale page is refused; the refusal says the record changed since the page opened, perhaps through the person's own earlier attempt, never that someone else changed it, and to reload | Phase 1 (slice 9, part 4b) |
+| Design | "Not required" on a notification Harbour found needed (neither provisional nor no longer indicated) says so beside the form, takes a reason of at least 20 characters and a ticked confirmation; a provisional draft keeps the short reason (#58 review round 1; the CSO confirms, H-265) | Phase 1 (slice 9, part 4b) |
+| Design | When it was submitted is chosen every time ("just now" taken on the server, or earlier with the date and time, never in the future) and the regulator's reference is required; "not required" needs a reason of at least 3 characters, kept and audited; both need a fresh sign-in, and the step-up notice says what was typed is not kept | Phase 1 (slice 9, part 4b) |
+| Design | Each answer in the prepared form is stored under the line of required content it answers, so it is found again; a notification is marked ready only with every line answered | Phase 1 (slice 9, part 4b) |
+| Design | After each form the page opens again with focus on its heading and says what was done, with an icon and words | Phase 1 (slice 9, part 4b) |
+| Test | See Verification | Phase 1 |
+| Training and user documentation | The CSO reviews the forms' wording and whether a submission may be recorded without the regulator's reference (H-265, H-266) | Before first real tenant |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (engineering proposal; the CSO rates it, H-265).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-091 never says someone else changed it after a conflict, which may be your own retry`, `hazard HZ-091 announces what was done only while the status still matches`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked`, and `hazard HZ-091 readSubmitForm (HZ-090: no time assumed)` (nothing chosen; `hazard HZ-091 allows no time after now, as the API allows none`; `hazard HZ-091 refuses a time skipped when the clocks went forward in March`; `hazard HZ-091 asks which time in the hour the clocks went back in October`); the `notificationManageView (ADR-0071)` table | Passing |
+| `apps/web/src/lib/refusals.test.ts`: `closing an incident and the notifications (HZ-013)` (every refusal run in the domain and recognised); `apps/web/src/components/safety/ManageForms.test.tsx`: `hazard HZ-091 says to sign in again and links back to the page, accessibly`, `hazard HZ-091 says the separation of duties refusal in words a manager can act on, accessibly` and `hazard HZ-091 shows the step-up notice for a step-up refusal, and nothing on success` (axe; the journey cannot reach these two states) | Passing |
+| `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted` and `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` (what to do first with the draft linked, empty, error, refused and done, each checked with axe) | Hosted CI |
+
+---
+
 ## HZ-110 A server-side sign-out clears a carer's offline records during a shift
 
 | Field | Value |
@@ -2572,6 +2665,47 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | --- | --- |
 | `apps/api/test/flags-and-sessions.test.ts`: `hazard HZ-111 the idle timeout is off unless the environment turns it on` (`never signs out an idle browser session with the default configuration`); `apps/api/test/config.test.ts`: `refuses the browser idle timeout (HZ-111) in production` | Passing (Phase 1) |
 | Playwright: a form half-filled, the warning shown before expiry, "Stay signed in" keeps the session; after expiry, signing in again in place keeps the typed text and stores none in the browser | Planned |
+
+---
+
+## HZ-112 Care records opened without a second factor, or staff shut out of them when the rule tightens
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-112 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `platform` module (lead engineer) |
+| Source | #43 review M5; `fix/platform-mfa-session-factor` (`apps/api/src/auth/session-factor.ts`, `apps/api/src/auth/better-auth.ts`, `apps/api/src/http/context.ts`, `apps/web/src/lib/problems.ts`); ADR-0072; related to HZ-006 (offline records), HZ-110 and HZ-111 |
+
+**Description**: MFA counted when a member merely had a passkey or authenticator app enrolled, so a stolen or guessed password alone opened care records for a passkey holder. Fixing it changes who can open records: every session from before the deploy is refused care records until the person signs in again with their passkey or authenticator code, and a nurse refused mid-shift who is sent to a page that cannot help (the enrolment page for a factor they already have) cannot reach a care plan, medicines information or an escalation note when they need it.
+
+**Causes**: MFA judged from the account's enrolment rather than the session; a deploy that tightens the rule while staff are signed in; a refusal that sends people to the wrong next step; the mobile app not yet knowing the new refusal code.
+
+**Effects**: personal and clinical information disclosed to someone holding only a password; or care delayed while staff cannot open the record (HZ-006, HZ-014).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Once a member has a factor, adding, showing or removing one (`/two-factor/enable`, `disable`, `get-totp-uri`, backup codes, passkey registration and deletion) needs a session that used one, so a password alone cannot enrol the attacker's own factor; only a first enrolment goes ahead. Wrong codes on an existing session are limited to five (#57 security review round 1) | Built in Phase 1 (`apps/api/src/auth/better-auth.ts`) |
+| Design | MFA counts for care records (and the operator console) only when the session signed in, or confirmed a code on the session, with a passkey, an authenticator code or a backup code; a password-only or trusted-device session does not count, and a session with no record fails closed (ADR-0072) | Built in Phase 1 (`fix/platform-mfa-session-factor`) |
+| Design | A person with a factor enrolled is told `mfa_verification_required` and the web sends them straight to sign in with it (`/sign-in?reason=mfa`, keeping where they were going), not to the enrolment page; anything that is not a care record keeps working | Built in Phase 1 (`apps/web/src/lib/problems.ts`, sign-in page) |
+| Process | The release note says every signed-in person will be asked to sign in again with their passkey or code before opening care records; deploy outside shift handover and tell staff beforehand (H-358) | Before the first real tenant |
+| Design | The mobile app reads `mfa_verification_required` as a session code (signs in again, keeping unsent entries under the hold rules) rather than as withdrawn access | Planned (mobile lane, STATUS item 20 follow-up) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the mobile control is built, then Very low, **risk 2** (an engineering proposal; the CSO decides, H-358).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `apps/api/test/mfa-session-factor.test.ts`: `hazard HZ-112` cases (a passkey holder's password-only session is refused with `mfa_verification_required`; a passkey session is allowed; removing the passkey refuses again; a wrong code records nothing; a code confirmed when enrolling, on an existing session and at a new sign-in is allowed; a session with no record is refused) | Passing (Phase 1) |
+| `apps/web/src/lib/problems.test.ts` (`mfa_verification_required` goes to `/sign-in?reason=mfa` with the next path) and `apps/web/src/lib/outcome.test.ts` | Passing (Phase 1) |
+| `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
+| Mobile: a 403 `mfa_verification_required` on the sync token is treated as a session code | Planned |
 
 ---
 
