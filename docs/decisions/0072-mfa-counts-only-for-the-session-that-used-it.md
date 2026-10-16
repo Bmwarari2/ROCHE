@@ -51,6 +51,14 @@ Chosen option 2, because it needs no migration and fails closed.
 - The tenant middleware and the operator console both use it. The web sends
   `mfa_verification_required` to `/sign-in?reason=mfa` with a message to use the passkey or the
   authenticator code; `mfa_enrolment_required` still goes to the security settings.
+- Once a member has a factor, the routes that add, show or remove one (`/two-factor/enable`,
+  `/two-factor/disable`, `/two-factor/get-totp-uri`, `/two-factor/generate-backup-codes`,
+  `/passkey/generate-register-options`, `/passkey/verify-registration`,
+  `/passkey/delete-passkey`) need a session that used one (`MFA_VERIFICATION_REQUIRED`
+  otherwise); a first enrolment goes ahead on a password session. Without this, a password alone
+  could enrol the attacker's own factor and pass the check (#57 security review round 1). A
+  session gets five wrong codes on `/two-factor/verify-totp` and `/verify-backup-code`, since
+  Better Auth limits them only at sign-in.
 - A session signed in on a trusted device (Better Auth's `trustDevice`, which Harbour does not
   offer) or with a password alone does not count.
 

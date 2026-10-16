@@ -61,3 +61,16 @@ export function redirectForProblem(code: string | undefined, nextPath?: string):
       return null;
   }
 }
+
+/**
+ * Where to send someone whose session may not change their second factors: once one is enrolled,
+ * adding, showing or removing one needs a session that used it (ADR-0072, HZ-112). Better Auth
+ * answers `MFA_VERIFICATION_REQUIRED`; anything else is the form's own error.
+ */
+export function factorChangeRedirect(error: unknown, nextPath: string): string | null {
+  const code =
+    typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  return code === "MFA_VERIFICATION_REQUIRED"
+    ? redirectForProblem("mfa_verification_required", nextPath)
+    : null;
+}

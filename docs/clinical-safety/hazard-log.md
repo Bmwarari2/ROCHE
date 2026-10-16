@@ -2591,6 +2591,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 
 | Type | Control | When |
 | --- | --- | --- |
+| Design | Once a member has a factor, adding, showing or removing one (`/two-factor/enable`, `disable`, `get-totp-uri`, backup codes, passkey registration and deletion) needs a session that used one, so a password alone cannot enrol the attacker's own factor; only a first enrolment goes ahead. Wrong codes on an existing session are limited to five (#57 security review round 1) | Built in Phase 1 (`apps/api/src/auth/better-auth.ts`) |
 | Design | MFA counts for care records (and the operator console) only when the session signed in, or confirmed a code on the session, with a passkey, an authenticator code or a backup code; a password-only or trusted-device session does not count, and a session with no record fails closed (ADR-0072) | Built in Phase 1 (`fix/platform-mfa-session-factor`) |
 | Design | A person with a factor enrolled is told `mfa_verification_required` and the web sends them straight to sign in with it (`/sign-in?reason=mfa`, keeping where they were going), not to the enrolment page; anything that is not a care record keeps working | Built in Phase 1 (`apps/web/src/lib/problems.ts`, sign-in page) |
 | Process | The release note says every signed-in person will be asked to sign in again with their passkey or code before opening care records; deploy outside shift handover and tell staff beforehand (H-358) | Before the first real tenant |
@@ -2604,6 +2605,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | --- | --- |
 | `apps/api/test/mfa-session-factor.test.ts`: `hazard HZ-112` cases (a passkey holder's password-only session is refused with `mfa_verification_required`; a passkey session is allowed; removing the passkey refuses again; a wrong code records nothing; a code confirmed when enrolling, on an existing session and at a new sign-in is allowed; a session with no record is refused) | Passing (Phase 1) |
 | `apps/web/src/lib/problems.test.ts` (`mfa_verification_required` goes to `/sign-in?reason=mfa` with the next path) and `apps/web/src/lib/outcome.test.ts` | Passing (Phase 1) |
+| `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | Mobile: a 403 `mfa_verification_required` on the sync token is treated as a session code | Planned |
 
 ---

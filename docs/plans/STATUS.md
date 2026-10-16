@@ -553,6 +553,13 @@ only when they link spec, code, tests and user documentation; no user guides exi
       permissions outside care records still need only a fresh sign-in, not a second factor;
       Lane A may move the record to an `auth.session` column. Still open for Lane A (a migration):
       `harbour_membership_reader` granted to `harbour_owner` `WITH INHERIT TRUE`; make it `SET` only.
+    - #57 security review round 1: a password-only session could enrol its own factor or remove the
+      member's; adding, showing or removing a factor now needs a session that used one once one is
+      enrolled (a first enrolment goes ahead), and a session gets five wrong codes. Next PR: step-up
+      outside care records (controlled drugs, residents' money, export, break-glass, notifications)
+      should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
+      password sign-in. When mobile resumes: add `mfa_verification_required` to
+      `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
 
 ## Human actions outstanding
 

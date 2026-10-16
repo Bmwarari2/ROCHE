@@ -1777,3 +1777,14 @@ the new code (follow-up).
 
 **Tests**: `apps/api/test/mfa-session-factor.test.ts` (6); harness and three test files mark their
 password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outcome.test.ts` (1).
+
+## 2026-10-16: MFA session factor, security review round 1 of #57
+
+- A password-only session can no longer enrol its own authenticator app or passkey, or remove
+  the member's, once one is enrolled (a first enrolment still goes ahead); the web security page
+  sends such a session to sign in with its factor. Five wrong codes per session, then sign in
+  again. The factor record matches on its value too.
+- Docs: ADR-0072, HZ-112 rows, STATUS item 20 follow-ups (step-up factor, mobile code).
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 2 new (8 in all); `apps/web`
+`problems.test.ts` 2 new.
