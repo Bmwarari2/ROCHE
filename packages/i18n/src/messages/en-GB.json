@@ -1307,5 +1307,6 @@
   "care.round.skipSubmit": "Mark not done",
   "care.round.moved": "Task updated",
   "care.round.arrived": "{moved, select, in_progress {Task started.} done {Task done.} skipped {Task marked not done.} other {Task updated.}}",
-  "care.round.dueLine": "Due {dateTime}{when, select, none {} other {, {when}}}{who, select, none {} other {, for {who}}}"
+  "care.round.dueLine": "Due {dateTime}{when, select, none {} other {, {when}}}{who, select, none {} other {, for {who}}}",
+  "care.round.changedWhileTyping": "This task changed while you were typing. Check it before saving."
 }

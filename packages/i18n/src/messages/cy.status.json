@@ -1308,6 +1308,7 @@
     "care.round.skipSubmit",
     "care.round.moved",
     "care.round.arrived",
-    "care.round.dueLine"
+    "care.round.dueLine",
+    "care.round.changedWhileTyping"
   ]
 }

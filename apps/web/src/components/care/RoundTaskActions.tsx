@@ -4,11 +4,12 @@ import { Button, buttonClassName, TextField } from "@harbour/ui";
 import { Check, CircleX, Play } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useState, useTransition } from "react";
 import { moveRoundTask } from "@/app/actions/round";
 import { t } from "@/lib/i18n";
 import { type ActionResult, errorFor, refused } from "@/lib/outcome";
 import type { RoundTaskActions as Actions } from "@/lib/round";
+import { startEditing, stopEditing } from "@/lib/round-editing";
 import { FormFeedback } from "./FormFeedback";
 import { useFieldIds, useInlineForm } from "./form-state";
 
@@ -49,12 +50,21 @@ export function RoundTaskActions({
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
+  // The version the carer saw when they opened "Not done": the reason is sent against it, never
+  // against one a re-read swapped in while they typed (HZ-003, expected_version).
+  const [seenVersion, setSeenVersion] = useState(version);
+  // While the reason form is open, the round is not read again (see RoundRefresh).
+  useEffect(() => {
+    if (!inline.open) return;
+    startEditing(taskId);
+    return () => stopEditing(taskId);
+  }, [inline.open, taskId]);
 
-  const move = (to: "in_progress" | "done" | "skipped", reason?: string) =>
+  const move = (to: "in_progress" | "done" | "skipped", reason?: string, sent = version) =>
     startTransition(async () => {
       const outcome = await moveRoundTask(locationId, taskId, {
         to,
-        version,
+        version: sent,
         ...(reason ? { reason } : {}),
       });
       // On success the round opens again and its notice takes focus: nothing to say here.
@@ -73,7 +83,13 @@ export function RoundTaskActions({
       setResult(refused(t("care.round.reasonRequired"), "invalid", ["reason"]));
       return;
     }
-    move("skipped", reason);
+    if (version !== seenVersion) {
+      // Said, never sent silently against the new version: the carer checks the task, then saves.
+      setSeenVersion(version);
+      setResult(refused(t("care.round.changedWhileTyping"), "version_changed", ["reason"]));
+      return;
+    }
+    move("skipped", reason, seenVersion);
   };
 
   return (
@@ -145,6 +161,7 @@ export function RoundTaskActions({
               aria-label={t("care.round.skipNamed", { title, name: who })}
               onClick={() => {
                 setResult(null);
+                setSeenVersion(version);
                 inline.show();
               }}
             >
