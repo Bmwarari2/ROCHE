@@ -44,18 +44,35 @@ interface DecisionCase {
   readonly withdrawn?: number;
   readonly suspended?: number;
   readonly period?: [number, number | null];
+  /** Rests on a recorded best-interests decision (made in the case). */
+  readonly bestInterests?: boolean;
 }
 
-const insertDecision = (c: pg.PoolClient, person: string, d: DecisionCase, now: number) =>
+/** The update, and the person's state now. */
+interface ItemCase {
+  readonly domain?: string;
+  readonly at?: number;
+  readonly status?: "discharged" | "deceased" | "archived";
+  /** The latest assessment of the sharing decision finds a lack of capacity now. */
+  readonly lacksCapacity?: boolean;
+}
+
+const insertDecision = (
+  c: pg.PoolClient,
+  person: string,
+  d: DecisionCase,
+  now: number,
+  bestInterestsId: string | null = null,
+) =>
   rows(
     c,
     `INSERT INTO sharing_decision (person_id, recipient_kind, recipient_contact_id, sections,
        care_plan_domains, basis, consent_given_by, capacity, authority_role, authority_contact_id,
        authority_reference, authority_valid_until, valid_from, valid_to, withdrawn_at,
-       withdrawn_reason, suspended_at, suspended_reason)
+       withdrawn_reason, suspended_at, suspended_reason, best_interests_decision_id)
      VALUES ($1, 'family', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
        CASE WHEN $14::timestamptz IS NULL THEN NULL ELSE 'Withdrawn' END, $15,
-       CASE WHEN $15::timestamptz IS NULL THEN NULL ELSE 'Suspended' END) RETURNING id`,
+       CASE WHEN $15::timestamptz IS NULL THEN NULL ELSE 'Suspended' END, $16) RETURNING id`,
     [
       person,
       (d.contact ?? (() => eve))(),
@@ -72,8 +89,52 @@ const insertDecision = (c: pg.PoolClient, person: string, d: DecisionCase, now: 
       new Date(now + (d.to ?? 30 * DAY)),
       d.withdrawn === undefined ? null : new Date(now + d.withdrawn),
       d.suspended === undefined ? null : new Date(now + d.suspended),
+      bestInterestsId,
     ],
   );
+
+const CHECKLIST = JSON.stringify(
+  Object.fromEntries(
+    [
+      "no_unjustified_assumptions",
+      "relevant_circumstances",
+      "regaining_capacity",
+      "participation",
+      "life_sustaining_treatment",
+      "wishes_and_feelings",
+      "beliefs_and_values",
+      "other_factors",
+      "views_of_others",
+      "less_restrictive_option",
+    ].map((k) => [k, { answer: "considered", note: "Talked it through." }]),
+  ),
+);
+
+/** An assessment of the sharing decision finding a lack of capacity, and optionally a best-interests decision. */
+async function lackOfCapacity(c: pg.PoolClient, person: string, bestInterests: boolean) {
+  const [assessment] = await rows(
+    c,
+    `INSERT INTO capacity_assessment (person_id, decision, decision_kind, assessed_at,
+       assessor_tenant_user_id, practicable_steps, stage1_impairment, stage1_description, stage2,
+       inability_because_of_impairment, outcome, unable_to, reason)
+     VALUES ($1, 'whether to share updates with family', 'sharing', now() - interval '2 days', $2,
+       '[{"step":"simple_language","detail":"Short sentences"}]', true, 'Dementia',
+       '{"understand":{"able":false,"evidence":"Could not repeat it back"}}', true,
+       'lacks_capacity', '{understand}', 'Lacks capacity for this decision') RETURNING id`,
+    [person, a.manager],
+  );
+  if (!bestInterests) return null;
+  const [decision] = await rows(
+    c,
+    `INSERT INTO best_interests_decision (person_id, capacity_assessment_id, decision, decided_at,
+       checklist, consultations, review_on)
+     VALUES ($1, $2, 'Share everyday updates with family', now() - interval '1 day', $3,
+       '[{"consultee":"family_or_friend","views":"Agrees","consultedAt":"2026-10-10T10:00:00Z"}]',
+       '2099-01-10') RETURNING id`,
+    [person, assessment?.id, CHECKLIST],
+  );
+  return decision?.id as string;
+}
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -121,7 +182,7 @@ afterAll(async () => {
 });
 
 describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility", () => {
-  const cases: readonly [string, DecisionCase | null, { domain?: string; at?: number }?][] = [
+  const cases: readonly [string, DecisionCase | null, ItemCase?][] = [
     ["a decision in force", {}],
     ["no decision", null],
     ["a section not named", { sections: ["photos"] }],
@@ -133,6 +194,30 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
     ["an expired decision", { to: -3_600_000 }],
     ["a decision not yet in force", { from: DAY, to: 10 * DAY }],
     ["another contact's decision", { contact: () => finn }],
+    ["a discharged person", {}, { status: "discharged" }],
+    ["a person who has died", {}, { status: "deceased" }],
+    ["an archived record", {}, { status: "archived" }],
+    [
+      "a welfare attorney while the person lacks capacity now",
+      {
+        contact: () => gus,
+        basis: "legal_authority",
+        consentGivenBy: null,
+        capacity: "assessed_lacks_capacity",
+        authority: { role: "lpa_health_welfare", reference: "LPA-5", validUntil: null },
+      },
+      { lacksCapacity: true },
+    ],
+    [
+      "a best-interests decision while the person lacks capacity now",
+      {
+        basis: "best_interests",
+        consentGivenBy: null,
+        capacity: "assessed_lacks_capacity",
+        bestInterests: true,
+      },
+      { lacksCapacity: true },
+    ],
     [
       "a care plan domain named",
       { sections: ["care_plan"], carePlanDomains: ["mobility"] },
@@ -184,7 +269,17 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
     ],
   ];
 
-  it.each(cases)("%s", async (_name, decision, item = {}) => {
+  /** Cases the rule opens, so the agreement is never only on "closed". */
+  const OPEN = new Set([
+    "a decision in force",
+    "a suspension lifted before the update",
+    "a care plan domain named",
+    "a finance attorney shown finance",
+    "a welfare attorney while the person lacks capacity now",
+    "a best-interests decision while the person lacks capacity now",
+  ]);
+
+  it.each(cases)("%s", async (name, decision, item = {}) => {
     await inContext(db.pool("harbour_owner"), ctx(TENANT_A, a.manager, "tenant"), async (c) => {
       await c.query("SAVEPOINT parity");
       const now = new Date((await rows(c, "SELECT now() AS now"))[0]?.now).getTime();
@@ -203,8 +298,15 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
       }[kind];
       const occurredAt = new Date(now + (item.at ?? -DAY));
       const stored: SharingDecision[] = [];
+      const lacks = item.lacksCapacity === true;
+      const bestInterestsId = lacks
+        ? await lackOfCapacity(c, person, decision?.bestInterests === true)
+        : null;
+      if (item.status) {
+        await c.query("UPDATE person SET status = $2 WHERE id = $1", [person, item.status]);
+      }
       if (decision) {
-        const [row] = await insertDecision(c, person, decision, now);
+        const [row] = await insertDecision(c, person, decision, now, bestInterestsId);
         if (decision.period) {
           await c.query(
             `INSERT INTO sharing_decision_suspension (person_id, sharing_decision_id, suspended_at,
@@ -230,6 +332,7 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
             ? "person"
             : decision.consentGivenBy) as SharingDecision["consentGivenBy"],
           capacity: (decision.capacity ?? "presumed") as SharingDecision["capacity"],
+          bestInterestsDecisionId: bestInterestsId,
           authority: decision.authority
             ? {
                 role: decision.authority.role as "appointee",
@@ -280,15 +383,16 @@ describe("hazard HZ-022 app.family_can_see agrees with checkFeedItemVisibility",
       const domain = [eve, gus].some(
         (contactId) =>
           checkFeedItemVisibility(feedItem, {
-            person: { id: person, status: "active" },
+            person: { id: person, status: item.status ?? "active" },
             contactId,
             decisions: stored,
-            capacityForSharingNow: "presumed",
+            capacityForSharingNow: lacks ? "assessed_lacks_capacity" : "presumed",
             photoBasis: null,
             now: new Date(now),
           }).visible,
       );
       expect(sql?.sees).toBe(domain);
+      expect(domain).toBe(OPEN.has(name));
       await c.query("ROLLBACK TO SAVEPOINT parity");
     });
   });

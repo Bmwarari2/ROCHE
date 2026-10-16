@@ -458,3 +458,7 @@ REVOKE CREATE ON SCHEMA app FROM harbour_family_reader;
 REVOKE ALL ON FUNCTION app.family_can_see(uuid, text, text, timestamptz) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.family_can_see(uuid, text, text, timestamptz) TO harbour_app, harbour_owner;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.family_item_shown(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.family_item_shown(uuid) TO harbour_app, harbour_owner;
