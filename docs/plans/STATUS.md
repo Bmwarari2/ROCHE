@@ -191,8 +191,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
      is checked for length and bound to the version's SHA-256, never against the signer's account
      name (the API records the session's member as signer); decide whether it must match before a
      pilot. `db:seed` now refuses to seed the demo tenant in production unless
-     `HARBOUR_SEED_DEMO=0` (reference data only). Next:
-     the onboarding checklist page, then sub-processor notices and sample data mode.
+     `HARBOUR_SEED_DEMO=0` (reference data only).
+   - Web, the onboarding checklist page (`feat/web-onboarding-checklist`, section 10g): every
+     item from the records, with the decisions recorded on the page; a clinical setting and the
+     DCB0160 assessment name the clinical lead or CSO who reviewed or made it, kept as a member id
+     in the audit event (the decision tables do not store it yet: add a column when the schema is
+     next touched). Open before Welsh or a pilot: the checklist shows settings and record classes
+     by their keys, and the domain's reasons in English. Next: sub-processor notices (rules 24
+     and 25), then sample data mode.
    - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
      migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
      with forced RLS (owner and the worker only), one at a time, a forward-only status guard and

@@ -639,6 +639,24 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   the way back. The demo organisation now has a CQC provider ID (`1-DEMO000000`), so its DPIA can
   be signed in the journey.
 
+## 10g. As built (slice 13 web, the onboarding checklist page)
+
+- `/settings/onboarding` ("Getting started" in the module menu, `platform.onboarding.read` or
+  `.manage`): progress, whether anything blocks go-live, and each item done or not as an icon and
+  words ("Not done: blocks go-live" for a go-live item), with the API's reason and, for people
+  readiness, each person (a link to their record) with what they lack. A holder of
+  `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
+  keep Harbour's period for a kind of record or say the organisation does not keep it (the API
+  says which a class takes); choose the staff file option; record the DCB0160 assessment for the
+  release's safety case. A refused decision shows the API's words. Each setting shows the figure
+  being accepted (`settings` in the checklist response). Accepting a clinical setting names the
+  clinical lead or CSO who reviewed it (`reviewedBy`), and recording DCB0160 names who made the
+  assessment (`assessedBy`): an active member, refused otherwise (`reviewer_required`,
+  `reviewer_not_member`), kept as a member id in the audit event (HZ-027).
+- Gaps: the reasons come from the domain in English (not yet through the Welsh catalogue), and
+  settings and record classes show their keys until the settings and retention screens give
+  them names; setting the organisation's own figure or period waits for those screens.
+
 ## 10s. As built (slice 13, search)
 
 ### Part 1, the index
