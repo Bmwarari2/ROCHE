@@ -1357,6 +1357,25 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.dcb0160_record": {
+    context: "platform",
+    description:
+      "The organisation's DCB0160 clinical safety assessments as recorded for onboarding (platform-completions.md rules 26 and 27; append-only): which Harbour safety case each covers, who recorded it and when.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      safety_case_version: {
+        description: "The Harbour safety case version the assessment covers.",
+      },
+      recorded_by: "exported",
+      recorded_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.destruction_certificate": {
     context: "platform",
     description: "Certificates for records destroyed past retention (ids, class, rule, method).",
@@ -3862,6 +3881,32 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.retention_decision": {
+    context: "platform",
+    description:
+      "The organisation's decisions on each kind of record's retention period, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_class: { description: "The kind of record (retention.md record_class)." },
+      kind: {
+        description: "What was decided.",
+        codes: {
+          accepted: "Harbour's period accepted.",
+          lengthened: "The organisation keeps it longer, with its own period.",
+          period_set: "The organisation's policy sets the period, now set.",
+          not_used: "The organisation does not keep this kind of record.",
+        },
+      },
+      decided_by: "exported",
+      decided_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.review_record": {
     context: "people",
     description:
@@ -4506,6 +4551,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       marketing_enabled: { description: "True when it uses Harbour for marketing (consent)." },
       ai_free_text_enabled: { description: "True when AI may read free text (consent)." },
       ai_provider: { description: "The AI provider it chose, when the AI module is planned." },
+      staff_file_option: {
+        description: "How long staff files are kept, as the organisation chose (retention.md).",
+        codes: {
+          "staff_file.after_leaving": "For the period in retention.md after employment ends.",
+          "staff_file.to_75th_birthday": "Until the person's 75th birthday.",
+        },
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -4590,6 +4642,30 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.tenant_setting_decision": {
+    context: "platform",
+    description:
+      "The organisation's decisions on the settings Harbour chose for it, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      rate_key: { description: "The setting's rate table key." },
+      kind: {
+        description: "What was decided.",
+        codes: {
+          accepted: "Harbour's default accepted.",
+          set: "The organisation set its own figure.",
+        },
+      },
+      decided_by: "exported",
+      decided_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.tenant_user": {

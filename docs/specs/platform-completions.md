@@ -562,6 +562,20 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   records it needs (settings, retention, DCB0160); sub-processor notices (rules 24 and 25); the
   web screens.
 
+## 10e. As built (slice 13, the onboarding checklist)
+
+- Migration 0064 (after 0063): `tenant_setting_decision`, `retention_decision` and
+  `dcb0160_record`, append-only (forced RLS; read with `platform.onboarding.read` or `.manage`;
+  written only by a holder of `platform.onboarding.manage` in their own name; no UPDATE, DELETE or
+  TRUNCATE), and `tenant.staff_file_option`, which only that holder changes
+  (`tenant_staff_file_guard`).
+- Domain: `checkSettingDecision` (setting its own figure needs a rate table row of its own),
+  `checkRetentionDecision` (rule 26's kinds per class; lengthening or setting needs the
+  organisation's own period, a lengthened one longer than the default; the staff file option on
+  its own) and `checkDcb0160Recording` (the current safety case only), table-driven.
+- Next: the decision routes, then `GET /v1/onboarding`, which works the checklist out from these
+  records and the rest of the organisation's state.
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim

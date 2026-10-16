@@ -592,7 +592,10 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | `tenant` data protection governance | Harbour | `data_protection_lead_id` (tenant_user id), `sector` (`independent`, `public`), `privacy_notice_url` (https), `dpa_signed_on` (UK date), `uses_data_beyond_direct_care` (boolean or empty: not answered), `marketing_enabled`, `ai_free_text_enabled`, `ai_provider` (`bedrock_london`, `bedrock_eu`, `anthropic`, `tenant_own`) | Migration 0063. |
 | DPIA risk ratings | ICO DPIA template terms | Likelihood `remote`, `possible`, `probable`; severity `minimal`, `significant`, `severe`; overall and residual `low`, `medium`, `high` | Risk ids R1 to R12 as the DPIA template. |
 | DPIA review triggers | Harbour | `new_purpose`, `new_sub_processor`, `new_data_category`, `feature_enabled`, `yearly_review` | |
-| `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | The last two only for classes set by tenant policy. |
+| `tenant_setting_decision.kind` | Harbour | `accepted`, `set` | `set` needs the organisation's own rate table row for the key (`checkSettingDecision`). Migration 0064. |
+| `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | `accepted` and `lengthened` for classes with a default; `period_set` and `not_used` for classes the tenant policy sets; lengthening or setting needs the organisation's own period, a lengthened one longer than the default (`checkRetentionDecision`). Migration 0064. |
+| `tenant.staff_file_option` | retention.md | `staff_file.after_leaving`, `staff_file.to_75th_birthday`, or null until chosen | One option for all staff files. Migration 0064. |
+| `dcb0160_record.safety_case_version` | Harbour safety case | Free text, 1 to 40 characters, the release's safety case (for example `v0.0`) | Must equal the API's `SAFETY_CASE_VERSION` when recorded (`checkDcb0160Recording`). |
 | `sub_processor_notice.kind` | Harbour | `new`, `replacement` | |
 | Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
 | Sample flag | Harbour | `is_sample` (boolean), `sample_batch_id` (UUID) | Sample people: family name `Example`, 999-range NHS numbers that pass the check digit, `example.invalid` emails, Ofcom drama telephone numbers (to verify, H-123), invented addresses (an "Example" street, no postcode or `ZZ99`). Shown with a "Sample" badge; prints carry the watermark "SAMPLE DATA: NOT A REAL PERSON" (HZ-072). |
@@ -611,6 +614,7 @@ map to no national data standard: `audit_event` (hash-chained), `record_version`
 organisation; ADR-0071 review round 1), and from
 Phase 1 `break_glass_weekly_report`, `about_me_share_link`, `welcome_checklist_template`,
 `tenant_export`, `dpia`, `sub_processor_response`, `tenant_setting_decision`, `retention_decision`,
+`dcb0160_record`,
 `family_notification`, `visit_booking_setting` and `family_portal_user`, and from the device
 integrity work ([care.md](care.md) section 6) `device_binding` (which member of staff used which
 device, by its opaque id, when the server first and last saw them together, and a revocation with

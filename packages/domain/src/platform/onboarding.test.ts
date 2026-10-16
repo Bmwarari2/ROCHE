@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { type EffectiveAccess, resolveAccess } from "./access";
 import {
+  checkDcb0160Recording,
+  checkRetentionDecision,
+  checkSettingDecision,
   isCqcLocationId,
   isOdsCode,
   ONBOARDING_ITEMS,
@@ -856,5 +859,87 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
     const result = checkSampleDataRemoval(input);
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
+  });
+});
+
+describe("rule 27 onboarding decisions are records, never ticks", () => {
+  it.each([
+    ["accepting a tenant default", "accepted", true, false, null],
+    ["setting its own figure", "set", true, true, null],
+    ["saying it set its own with no figure", "set", true, false, "no_own_setting"],
+    ["a setting Harbour did not choose", "accepted", false, false, "not_a_tenant_default"],
+  ] as const)("setting: %s", (_, kind, isTenantDefault, hasOwnSetting, expected) => {
+    expect(checkSettingDecision({ kind, isTenantDefault, hasOwnSetting })?.problem ?? null).toBe(
+      expected,
+    );
+  });
+
+  const DEFAULT = { trigger: "care_ended", period: 8, unit: "years" };
+  const POLICY = { trigger: "tenant_policy", period: 0, unit: "years" };
+  it.each([
+    ["accepting a default", "care_record", "accepted", DEFAULT, null, null],
+    [
+      "lengthening to 10 years",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 10, unit: "years" },
+      null,
+    ],
+    [
+      "lengthening by months",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 97, unit: "months" },
+      null,
+    ],
+    [
+      "lengthening to the same",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 96, unit: "months" },
+      "not_longer",
+    ],
+    ["lengthening with no period", "care_record", "lengthened", DEFAULT, null, "no_own_period"],
+    [
+      "marking a default class not used",
+      "care_record",
+      "not_used",
+      DEFAULT,
+      null,
+      "kind_not_for_class",
+    ],
+    ["setting a policy period", "cctv", "period_set", POLICY, { period: 1, unit: "months" }, null],
+    ["setting a policy period with none", "cctv", "period_set", POLICY, null, "no_own_period"],
+    ["marking a policy class not used", "cctv", "not_used", POLICY, null, null],
+    ["accepting a policy class", "cctv", "accepted", POLICY, null, "kind_not_for_class"],
+    [
+      "a staff file option",
+      "staff_file.after_leaving",
+      "accepted",
+      DEFAULT,
+      null,
+      "staff_file_is_an_option",
+    ],
+    ["an unknown class", "made_up", "accepted", null, null, "not_a_retention_class"],
+  ] as const)("retention: %s", (_, recordClass, kind, schedule, own, expected) => {
+    expect(checkRetentionDecision({ recordClass, kind, schedule, own })?.problem ?? null).toBe(
+      expected,
+    );
+  });
+});
+
+describe("rule 26 the DCB0160 assessment covers this release", () => {
+  it.each([
+    ["the current safety case", "v0.1", null],
+    ["the current one, with spaces", " v0.1 ", null],
+    ["an earlier safety case", "v0.0", "safety_case_not_current"],
+  ] as const)("%s", (_, safetyCaseVersion, expected) => {
+    expect(
+      checkDcb0160Recording({ safetyCaseVersion, currentSafetyCaseVersion: "v0.1" })?.problem ??
+        null,
+    ).toBe(expected);
   });
 });
