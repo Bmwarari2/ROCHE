@@ -1567,6 +1567,7 @@
   "comms.letters.makeTitle": "Make a letter",
   "comms.letters.sentTitle": "Letters sent",
   "comms.letters.none": "No letters have been sent about this person.",
+  "comms.letters.listUnavailable": "We could not load the letters already sent about this person. Check their documents before sending another.",
   "comms.letters.noTemplates": "No approved templates can be used here yet. Ask someone who manages templates to approve one.",
   "comms.letters.template": "Template",
   "comms.letters.recipient": "The letter is addressed to the person. Letters to a contact follow when contacts are on the record.",

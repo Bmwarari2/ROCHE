@@ -95,7 +95,10 @@ async function LettersTab({
         )}
       </Card>
       <Card as="section" title={t("comms.letters.sentTitle")} headingLevel={3}>
-        {sent.length === 0 ? (
+        {lettersRefused ? (
+          // Never "none sent" when the list could not be read: that could lead to a second letter.
+          <p className="m-0">{t("comms.letters.listUnavailable")}</p>
+        ) : sent.length === 0 ? (
           <p className="m-0">{t("comms.letters.none")}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-3 p-0">

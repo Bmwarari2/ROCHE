@@ -1567,6 +1567,7 @@
     "comms.letters.intro",
     "comms.letters.makeTitle",
     "comms.letters.sentTitle",
+    "comms.letters.listUnavailable",
     "comms.letters.none",
     "comms.letters.noTemplates",
     "comms.letters.template",
