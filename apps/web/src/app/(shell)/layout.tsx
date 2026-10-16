@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 
@@ -45,6 +46,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         navigation: t("shell.nav.label"),
         home: t("shell.nav.home"),
         people: peopleLabel(me.tenant.terminology),
+        handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
