@@ -2411,3 +2411,16 @@ corrected note or activity is refused; a photo leaves the family feed when conse
 `care_note_share` removed from the spec (publishing is the marking, H-370); H-370 and H-371 for the
 CSO. Tests: `feed-publish.test.ts` 14.
 
+## 2026-10-17: Slice 12 part 2a, the staff family updates screen (COMMS-001)
+
+- API: `POST /v1/people/{id}/feed/preview`, the compose rule with nothing stored: the family's
+  words, or each problem with its code; audited with codes only.
+- Web: a "Family updates" tab on the record for `comms.feed.publish`: choose a recent note, activity
+  or a photo added for the family feed, write the family's words, preview with each problem at its
+  field (a hold first), publish once with the form's id, the list published, and taking one down
+  with a reason (`comms.feed.withdraw`). Strings in en-GB; Welsh copied and listed as untranslated.
+- Docs: comms.md section 11, HZ-022, the register, STATUS.
+
+**Tests**: `apps/api/test/feed-publish.test.ts` (16); `apps/web/src/lib/family-feed.test.ts`;
+`apps/web/e2e/family-updates.spec.ts` (2, axe on every state).
+

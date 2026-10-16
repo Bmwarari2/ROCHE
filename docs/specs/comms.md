@@ -739,3 +739,11 @@ Slice 12 (the family feed, part 1b, publishing; `feat/comms-feed-publish`):
 Who sees an update is still decided by the sharing decisions (`app.family_can_see`, then
 `buildFamilyFeed`). Next: `GET /v1/people/{id}/feed/exposure`, visits and care plan updates as
 sources, then part 2, the web feed and staff screens.
+
+Slice 12 part 2a, the staff screen (`feat/web-family-feed`, stacked on part 1b):
+`apps/web/src/app/(shell)/people/[id]/family-updates/page.tsx`, `apps/web/src/lib/family-feed.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/feed/preview` | `comms.feed.publish`. The same compose rule as publishing, with nothing stored: the words the family would read and the reading-age suggestions, or each problem with its code (a corrected record and a photo not chosen for the feed included, so the form can say them at the record). Another person's record is 404. Audited `comms.feed.previewed` with the source kind and problem codes only |
+| The "Family updates" tab | `comms.feed.publish` (MFA). Choose a note, an activity or a photo; notes and activities from the last 14 days that no correction has replaced, and only `feed_photo` documents (HZ-022). Words for the family for a note, a caption and the "nobody else can be recognised" check for a photo. Preview: each problem at its field (words, record, photo check, confirmation reason); a hold or a closed record leads the summary (HZ-061); a reason field appears only when the words need a manager's confirmation (rule 12). Any change after the preview asks for a new one. Publishing sends the previewed request with the form's UUIDv7, kept for a retry whose outcome is unknown and renewed when the record changes. The list of updates published (newest first, when it happened and was published, by you or a colleague; a taken-down update struck through with "Taken down" and its reason as an icon and words) and, for `comms.feed.withdraw`, taking one down with a reason. Never "none published" when the list could not be read |
