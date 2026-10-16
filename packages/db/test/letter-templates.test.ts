@@ -332,15 +332,83 @@ describe("hazard HZ-051 letters in the database", () => {
     await expect(asManager((c) => c.query("DELETE FROM letter"))).rejects.toThrow(
       /permission denied/,
     );
-    await expect(
+    // The caller cannot choose the retention: with no incident it is care_record.
+    const stored = await asManager((c) =>
+      c.query<{ retention_class: string; incident_serious: boolean }>(
+        `INSERT INTO letter (template_version_id, person_id, recipient_kind, channel,
+           special_category, incident_serious, retention_class)
+         VALUES ($1, $2, 'person', 'letter', true, false, 'serious_incident')
+         RETURNING retention_class, incident_serious`,
+        [approved, a.personAda],
+      ),
+    );
+    expect(stored.rows[0]).toEqual({ retention_class: "care_record", incident_serious: false });
+  });
+
+  it("takes the incident and its grade from the incident, about this person, on incident letters only", async () => {
+    const candour = await asWriter((c) => newTemplate(c, "duty_of_candour"));
+    const version = await asWriter((c) =>
+      draft(c, candour, "Dear {{recipient.name}}, we are sorry."),
+    );
+    await asManager((c) => approve(c, version));
+    const incidentFor = (person: string, harm: string) =>
+      asOwner(TENANT_A, async (c) => {
+        const { rows } = await c.query<{ id: string }>(
+          `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids, harm_grade)
+           VALUES ($1, 'fall', now() - interval '1 hour', 'Fixture incident', $2, $3, $4) RETURNING id`,
+          [a.locationNorth, a.manager, [person], harm],
+        );
+        return rows[0]?.id as string;
+      });
+    const severe = await incidentFor(a.personAda, "severe");
+    const minor = await incidentFor(a.personAda, "low");
+    const caras = await incidentFor(a.personCara, "low");
+    const sendAbout = (incidentId: string, template = version) =>
       asManager((c) =>
-        c.query(
+        c.query<{ incident_serious: boolean; retention_class: string }>(
           `INSERT INTO letter (template_version_id, person_id, recipient_kind, channel,
-             special_category, incident_serious, retention_class)
-           VALUES ($1, $2, 'person', 'letter', true, false, 'serious_incident')`,
-          [approved, a.personAda],
+             special_category, incident_id, incident_serious, retention_class)
+           VALUES ($1, $2, 'person', 'letter', true, $3, false, 'care_record')
+           RETURNING incident_serious, retention_class`,
+          [template, a.personAda, incidentId],
+        ),
+      );
+    // The caller said "not serious"; the incident says otherwise.
+    expect((await sendAbout(severe)).rows[0]).toEqual({
+      incident_serious: true,
+      retention_class: "serious_incident",
+    });
+    expect((await sendAbout(minor)).rows[0]).toEqual({
+      incident_serious: false,
+      retention_class: "care_record",
+    });
+    await expect(sendAbout(caras)).rejects.toThrow(/about its own person/);
+    await expect(sendAbout(minor, approved)).rejects.toThrow(/names an incident/);
+  });
+
+  it("is refused to another organisation, which cannot write into this one", async () => {
+    await expect(
+      asOtherTenant((c) =>
+        c.query(
+          `INSERT INTO letter (tenant_id, template_version_id, person_id, recipient_kind, channel,
+             special_category, retention_class)
+           VALUES ($1, $2, $3, 'person', 'letter', false, 'care_record')`,
+          [TENANT_A, approved, a.personAda],
         ),
       ),
-    ).rejects.toThrow(/letter_retention/);
+    ).rejects.toThrow(/row-level security|approved template version/);
+  });
+
+  it("is out of reach of an evidence pack link session", async () => {
+    const link = {
+      linkId: "0199e000-0000-7000-8000-0000000000e1",
+      packId: "0199e000-0000-7000-8000-0000000000e2",
+    };
+    await inContext(app(), { ...ctx(TENANT_A, null, "tenant"), evidenceLink: link }, async (c) => {
+      for (const table of ["letter_template", "letter_template_version", "letter"]) {
+        const { rows } = await c.query(`SELECT count(*)::int AS n FROM ${table}`);
+        expect(rows[0]?.n).toBe(0);
+      }
+    });
   });
 });

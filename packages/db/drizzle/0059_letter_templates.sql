@@ -359,8 +359,9 @@ CREATE OR REPLACE FUNCTION app.letter_send() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
   v_version record;
+  v_incident record;
 BEGIN
-  SELECT v.state, t.channel INTO v_version FROM public.letter_template_version v
+  SELECT v.state, t.channel, t.kind INTO v_version FROM public.letter_template_version v
     JOIN public.letter_template t ON t.id = v.template_id
     WHERE v.id = NEW.template_version_id FOR SHARE OF v;
   IF NOT FOUND OR v_version.state IS DISTINCT FROM 'approved' THEN
@@ -371,6 +372,27 @@ BEGIN
     RAISE EXCEPTION 'A letter goes on its template''s channel'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
+  -- The incident and its grade come from the incident itself, never the caller (#69 review L1):
+  -- only an incident follow-up or candour letter names one, and only an incident about this
+  -- person; it is serious when the incident's own retention is serious_incident or its harm was
+  -- graded severe or fatal, and the letter's retention follows (`letterRetentionClass`).
+  IF NEW.incident_id IS NULL THEN
+    NEW.incident_serious := false;
+  ELSE
+    IF v_version.kind NOT IN ('incident_follow_up', 'duty_of_candour') THEN
+      RAISE EXCEPTION 'Only an incident follow-up or duty of candour letter names an incident'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    SELECT i.retention_class, i.harm_grade INTO v_incident FROM public.incident i
+      WHERE i.id = NEW.incident_id AND NEW.person_id = ANY (i.person_ids) AND i.deleted_at IS NULL;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'A letter names an incident about its own person'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    NEW.incident_serious := v_incident.retention_class = 'serious_incident'
+      OR v_incident.harm_grade IN ('severe', 'fatal');
+  END IF;
+  NEW.retention_class := CASE WHEN NEW.incident_serious THEN 'serious_incident' ELSE 'care_record' END;
   IF NEW.document_id IS NOT NULL AND NOT EXISTS (
        SELECT 1 FROM public.document d WHERE d.id = NEW.document_id AND d.person_id = NEW.person_id) THEN
     RAISE EXCEPTION 'A letter''s document is one of the person''s own'
@@ -404,3 +426,18 @@ GRANT SELECT, INSERT ON public.letter TO harbour_app;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.letter FROM harbour_app;
 --> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.letter_template, public.letter_template_version FROM harbour_app;
+--> statement-breakpoint
+
+-- A request opened by an evidence pack link (migration 0058) reaches none of these (#69 review
+-- L2).
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['letter_template', 'letter_template_version', 'letter'] LOOP
+    EXECUTE format(
+      'CREATE POLICY link_session_none ON public.%I AS RESTRICTIVE FOR ALL '
+      'TO harbour_app, harbour_owner USING (NOT app.is_link_session()) '
+      'WITH CHECK (NOT app.is_link_session())', t);
+  END LOOP;
+END
+$$;
