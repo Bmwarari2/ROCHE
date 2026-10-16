@@ -2117,3 +2117,15 @@ append-only.
 
 **Tests**: `apps/api/test/letter-templates.test.ts` 3 new (the race, an incident follow-up as
 email, cross-tenant).
+
+## 2026-10-16: Slice 11, letters: preview, sending and the list (COMMS-007, part 2b)
+
+- API: `POST /v1/people/{id}/letters/preview`, `POST /v1/people/{id}/letters`, `GET
+  /v1/people/{id}/letters` (comms.md section 11): comms.letter.manage with MFA, safety.incident.manage
+  for incident letters, values from the record except typed admission and fee details, ADR-0051 on
+  the rendered output, letters as PDF documents about the person, emails through the port with a
+  body, field keys and the provider's message id only.
+- Domain: `outboundBodyProblem`; the email port's guard checks bodies (no link, no NHS number).
+- Docs: comms.md section 11, HZ-051 rows, H-228, records of processing, feature register, STATUS.
+
+**Tests**: `apps/api/test/letters.test.ts` (7); domain `ports.test.ts` 6 new.

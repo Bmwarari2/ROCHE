@@ -354,6 +354,16 @@ only when they link spec, code, tests and user documentation; no user guides exi
      409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
      it leaves (no link, and no personal field beyond the approved, rendered template), as
      `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
+   - Slice 11, letters part 2b, preview, sending and the list (`feat/comms-letters-api`, stacked
+     on #70; comms.md section 11): built, PR open, with the part 2 must-dos (comms.letter.manage
+     with MFA on every route including reads, safety.incident.manage for incident letters, values
+     from the record except typed admission and fee details, the provider's message id only, field
+     keys only, no email content stored), the body guard and ADR-0051 on the rendered output.
+     Follow-ups: duty of candour letters need the relevant person on the candour record; send an
+     email from an outbox job after the letter row commits (as built it is sent inside the render
+     transaction and recorded after); a letter's PDF document keeps `care_record` retention even
+     when the letter is `serious_incident` (the retention slice); letter PDFs carry no letterhead
+     or address block layout yet (H-228).
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature

@@ -657,3 +657,17 @@ Audit rows hold ids and codes only, never typed reasons (H-223). The email port 
 has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
 body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
 Next, part 2b: preview, sending and the letters list, with the PDF writer.
+
+Slice 11 (letters, API part 2b; `feat/comms-letters-api`): `apps/api/src/routes/letters.ts`,
+`apps/api/src/services/letters.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/letters/preview` | `comms.letter.manage` in the person's scope with MFA, plus `safety.incident.manage` when an incident is named. The template's version in use rendered with `renderTemplate`: every value from the record (person, recipient, location, provider, sender, today's date, `fee.notice_days` from `cma.fee_review_notice_days`, the incident's date and description) except the admission and fee details the sender types (`SENDER_TYPED_FIELDS`; anything else typed is refused). The recipient is the person or one of their own contacts; an incident must be about the person (otherwise `wrong_person`). Stores nothing; `comms.letter.previewed` with field keys |
+| `POST /v1/people/{id}/letters` | As the preview, with `confirmed`. ADR-0051 checked again on what was rendered (an email carries no special category field and no identifier). A letter: rendered to PDF by the pack PDF writer (ADR-0040; values as text, never markup), stored as a `person_document` about the person. An email: sent to the contact's address through the email port with the rendered text as its body (the port's guard refuses a link or an NHS number in a body, `outboundBodyProblem`); only the provider's message id is kept. The `letter` row keeps the field keys, never the content; `comms.letter.sent` and the outbox `comms.letter.sent` |
+| `GET /v1/people/{id}/letters` | `comms.letter.manage` with MFA (a comms permission, not only the person in scope): template version, recipient, channel, field keys, document; never content; `comms.letter.listed` |
+
+Not yet: duty of candour letters (refused until the candour record names the relevant person,
+rule 21); an email is sent inside the transaction that renders it and recorded in the next, so a
+failure between the two leaves a sent email unrecorded (logged in STATUS). Tests:
+`apps/api/test/letters.test.ts`.

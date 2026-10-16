@@ -93,6 +93,25 @@ export function outboundTitleProblem(title: string): string | null {
   return null;
 }
 
+/** Why: a letter by email is a letter, not a book (`MAX_TEMPLATE_BODY_LENGTH` plus values). */
+export const MAX_OUTBOUND_BODY_LENGTH = 40_000;
+
+/**
+ * Last-line check on an email body (#70 review): no link of any kind (a body carries what the
+ * approved template says, and a link goes in `link` alone), and nothing shaped like an NHS number.
+ */
+export function outboundBodyProblem(body: string): string | null {
+  if (body.length > MAX_OUTBOUND_BODY_LENGTH) return "Body is too long.";
+  const lower = body.toLowerCase();
+  if (lower.includes("http://") || lower.includes("https://") || lower.includes("www.")) {
+    return "Body contains a link.";
+  }
+  // The NHS number's own grouping (3, 3, 4 digits), as the title check reads it; a telephone
+  // number, which a letter may carry, is not refused.
+  if (/\b\d{3}\s?\d{3}\s?\d{4}\b/.test(body)) return "Body looks like it contains an NHS number.";
+  return null;
+}
+
 export type DeliveryOutcome =
   | { readonly status: "sent"; readonly providerMessageId: string }
   | { readonly status: "pending"; readonly retryInSeconds: number; readonly error: string }
