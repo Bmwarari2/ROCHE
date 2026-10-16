@@ -596,7 +596,6 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | `retention_decision.kind` | Harbour | `accepted`, `lengthened`, `period_set`, `not_used` | `accepted` and `lengthened` for classes with a default; `period_set` and `not_used` for classes the tenant policy sets; lengthening or setting needs the organisation's own period, a lengthened one longer than the default (`checkRetentionDecision`). Migration 0064. |
 | `tenant.staff_file_option` | retention.md | `staff_file.after_leaving`, `staff_file.to_75th_birthday`, or null until chosen | One option for all staff files. Migration 0064. |
 | `dcb0160_record.safety_case_version` | Harbour safety case | Free text, 1 to 40 characters, the release's safety case (for example `v0.0`) | Must equal the API's `SAFETY_CASE_VERSION` when recorded (`checkDcb0160Recording`). |
-| `sub_processor_notice.kind` | Harbour | `new`, `replacement` | |
 | Sub-processor objection resolution | Harbour (DPA clause 6.2) | `objection_withdrawn`, `not_used_for_tenant`, `services_ended` | |
 | `sub_processor_response.kind` | Harbour | `acknowledged`, `objected`, `objection_resolved` | An objection has a notice and grounds of 20 to 4,000 characters; a resolution has a notice and one of the resolutions above; an acknowledgement with no notice acknowledges the register entry. Migration 0065. |
 | `sub_processor_notice.kind` | Harbour | `new`, `replacement` | `use` is the `SubProcessorUse` JSON (`always`, `capability`, `ai_provider`). |

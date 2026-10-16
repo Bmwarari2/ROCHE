@@ -22403,7 +22403,10 @@
             "format": "date-time"
           },
           "grounds": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "resolvedAt": {
             "type": [

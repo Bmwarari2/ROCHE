@@ -76,11 +76,11 @@ CREATE POLICY tenant_isolation ON public.sub_processor_response AS PERMISSIVE FO
 --> statement-breakpoint
 CREATE POLICY response_read ON public.sub_processor_response AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (app.holds_permission_anywhere('platform.dpia.read')
-    OR app.holds_permission_anywhere('platform.dpia.prepare')
-    OR app.holds_permission_anywhere('platform.dpia.sign')
-    OR app.holds_permission_anywhere('platform.onboarding.read')
-    OR app.holds_permission_anywhere('platform.onboarding.manage'));
+  USING (app.holds_role_permission_somewhere('platform.dpia.read')
+    OR app.holds_role_permission_somewhere('platform.dpia.prepare')
+    OR app.holds_role_permission_somewhere('platform.dpia.sign')
+    OR app.holds_role_permission_somewhere('platform.onboarding.read')
+    OR app.holds_role_permission_somewhere('platform.onboarding.manage'));
 --> statement-breakpoint
 CREATE POLICY response_write ON public.sub_processor_response AS RESTRICTIVE FOR INSERT
   TO harbour_app

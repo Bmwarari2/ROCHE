@@ -2476,3 +2476,11 @@ decisions); `config.test.ts` (`SAFETY_CASE_VERSION`).
   feature register, STATUS.
 
 **Tests**: `apps/api/test/sub-processors.test.ts` (6), `sub-processors.test.ts` stored responses (5).
+
+## 2026-10-17: Sub-processor notices, review of #92
+
+- Responses are read through roles only; objection grounds go to DPIA permission holders only.
+- No register acknowledgement while a notice about the sub-processor has an open objection.
+- Each notice's window uses the notice period in force on the UK date it was announced.
+- Tests: step-up, a non-lead holding `platform.dpia.sign`, another organisation's lead (API and
+  database), and the operator role refused anything but a resolution.

@@ -618,7 +618,11 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   characters or more, within the window). Both answers need `platform.dpia.sign` with step-up by
   the named lead (`checkNoticeResponse`), refusals as 422 `notice_response_refused`, audited with
   ids and keys only, never the grounds. The onboarding checklist's `sub_processors_acknowledged`
-  now reads the responses and notices.
+  now reads the responses and notices. Review of #92: responses are read through roles only
+  (`app.holds_role_permission_somewhere`), and the grounds are returned only to DPIA permission
+  holders; the register entry is not acknowledged while a notice about it has an open objection;
+  each notice's window uses the organisation's notice period in force on the UK date it was
+  announced.
 - Next: the operator side (announcing a notice with `checkNoticeTiming` across the affected
   organisations, telling their leads, and recording a resolution), then the web screens.
 

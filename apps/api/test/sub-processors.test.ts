@@ -1,6 +1,6 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * Sub-processors and change notices (UK GDPR Art 28; DPA clause 6; platform-completions.md rules
@@ -96,6 +96,21 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
       (await send("POST", "/v1/sub-processors/not_a_sub_processor/acknowledge", "owner", {}))
         .status,
     ).toBe(404);
+    // The quality lead holds platform.dpia.sign but is not the named lead.
+    const notLead = await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "quality", {});
+    expect(notLead.status).toBe(422);
+    expect((await codeOf(notLead)).detail).toContain("named as the organisation's data protection");
+    // Answering needs a fresh step-up.
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.owner?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      const stale = await send("POST", "/v1/sub-processors/aws_hosting/acknowledge", "owner", {});
+      expect(stale.status).toBe(403);
+      expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
+    } finally {
+      await ageSession(auth, session, 0);
+    }
     const acknowledged = await send(
       "POST",
       "/v1/sub-processors/aws_hosting/acknowledge",
@@ -139,6 +154,31 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
       expect(again.status).toBe(422);
       expect((await codeOf(again)).detail).toContain("already objected");
     }
+    // Nor is the register entry acknowledged while the objection is open.
+    const register = await send("POST", "/v1/sub-processors/sentry/acknowledge", "owner", {});
+    expect(register.status).toBe(422);
+    expect((await codeOf(register)).detail).toContain("already objected");
+    // The grounds are shown to DPIA permission holders.
+    const ownerView = (await overview()) as unknown as {
+      notices: { id: string; objection: { grounds: string | null } | null }[];
+    };
+    expect(ownerView.notices.find((n) => n.id === id)?.objection?.grounds).toBe(grounds);
+    // Another organisation's manager, given the DPIA permissions there, sees the notice and
+    // never this organisation's objection.
+    await ownerIn(
+      `UPDATE role SET permissions = permissions || '{platform.dpia.read,platform.dpia.sign}'
+        WHERE key = 'registered_manager'`,
+      [],
+      OTHER.tenantId,
+    );
+    const other = (await (
+      await h.request("/v1/sub-processors", as("rae", OTHER.tenantId))
+    ).json()) as {
+      notices: { id: string; state: string; objection: unknown }[];
+    };
+    const theirs = other.notices.find((n) => n.id === id);
+    expect(theirs?.state).toBe("awaiting_response");
+    expect(theirs?.objection).toBeNull();
     const events = await ownerIn(
       "SELECT outcome, scope::text AS scope FROM audit_event WHERE action = 'platform.sub_processor.objected' ORDER BY seq",
     );
@@ -187,9 +227,34 @@ describe("rules 23 to 25 sub-processors and their notices", () => {
         client.query("UPDATE sub_processor_response SET grounds = NULL"),
       ).rejects.toThrow(/permission denied/);
       await client.query("ROLLBACK");
+      // The other organisation's own named lead, who reads their organisation's responses, sees
+      // none of this one's.
+      await ownerIn(
+        "UPDATE tenant SET data_protection_lead_id = $1 WHERE id = $2",
+        [OTHER.managerId, OTHER.tenantId],
+        OTHER.tenantId,
+      );
       await client.query("BEGIN");
       await as(OTHER.managerId, OTHER.tenantId);
       expect((await client.query("SELECT id FROM sub_processor_response")).rowCount).toBe(0);
+      await client.query("ROLLBACK");
+      // The operator role may record a resolution only, never an answer.
+      const operator = await h.db.pool("harbour_operator").connect();
+      try {
+        await operator.query("BEGIN");
+        await operator.query("SELECT set_config('app.tenant_id', $1, true)", [DEMO.tenantId]);
+        await expect(
+          operator.query(
+            `INSERT INTO sub_processor_response (tenant_id, sub_processor_key, kind, responded_by)
+             VALUES ($1, 'sentry', 'acknowledged', $2)`,
+            [DEMO.tenantId, DEMO.users.owner.id],
+          ),
+        ).rejects.toThrow(/row-level security/);
+      } finally {
+        await operator.query("ROLLBACK");
+        operator.release();
+      }
+      await client.query("BEGIN");
     } finally {
       await client.query("ROLLBACK");
       client.release();

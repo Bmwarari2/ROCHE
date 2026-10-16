@@ -13,6 +13,7 @@ import {
   noticeStateFor,
   objectionWindowEndsAt,
   PLATFORM_RATE_KEYS,
+  type RateNation,
   type StoredNoticeResponse,
   SUB_PROCESSORS,
   type SubProcessorConfig,
@@ -21,6 +22,7 @@ import {
   type SubProcessorUse,
   subProcessorAcknowledgementsFrom,
   subProcessorsInUse,
+  ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { desc, eq } from "drizzle-orm";
@@ -77,9 +79,17 @@ async function contextOf(c: Context<AppEnv>, tx: Tx, access: TenantAccess) {
     capabilities: config.capabilities,
     aiProvider: config.aiProvider,
   };
-  const rates = {
-    subProcessorNoticeDays: await rateNumber(tx, t.id, PLATFORM_RATE_KEYS.subProcessorNoticeDays),
-  };
+  const nation = t.nation as Exclude<RateNation, "uk" | "all">;
+  /** The organisation's notice period in force on the UK date a notice was announced. */
+  const ratesAt = async (announcedAt: Date) => ({
+    subProcessorNoticeDays: await rateNumber(
+      tx,
+      t.id,
+      PLATFORM_RATE_KEYS.subProcessorNoticeDays,
+      nation,
+      ukIsoDate(announcedAt),
+    ),
+  });
   const responses: StoredNoticeResponse[] = (
     await tx.select().from(subProcessorResponse).orderBy(subProcessorResponse.respondedAt)
   ).map((r) => ({
@@ -90,10 +100,25 @@ async function contextOf(c: Context<AppEnv>, tx: Tx, access: TenantAccess) {
     resolution: r.resolution as StoredNoticeResponse["resolution"],
     respondedAt: r.respondedAt,
   }));
-  return { leadId: t.dataProtectionLeadId, subConfig, rates, responses };
+  return { leadId: t.dataProtectionLeadId, subConfig, ratesAt, responses };
 }
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
+
+/** A notice about this sub-processor the organisation has objected to, still unresolved. */
+function openObjection(
+  key: string,
+  responses: readonly StoredNoticeResponse[],
+): NoticeResponse | null {
+  const noticeIds = new Set(
+    responses.flatMap((r) => (r.subProcessorKey === key && r.noticeId ? [r.noticeId] : [])),
+  );
+  for (const id of noticeIds) {
+    const response = noticeResponseFrom(id, responses);
+    if (response.objection && response.objection.resolvedAt === null) return response;
+  }
+  return null;
+}
 
 /** A refused answer: audited, then 422 with the rule's words (or the step-up refusal). */
 async function refuse(
@@ -136,7 +161,12 @@ export const subProcessorsRouter = createRouter()
       const access = await requireAnyPermission(c, [...READERS]);
       const now = new Date();
       const body = await withTenant(c, async (tx) => {
-        const { leadId, subConfig, rates, responses } = await contextOf(c, tx, access);
+        const { leadId, subConfig, ratesAt, responses } = await contextOf(c, tx, access);
+        const rates = await ratesAt(now);
+        // The grounds of an objection are the controller's reasoning: DPIA permission holders only.
+        const seesGrounds = (
+          ["platform.dpia.read", "platform.dpia.prepare", "platform.dpia.sign"] as const
+        ).some((p) => can(access.effective, p));
         const notices = (
           await tx.select().from(subProcessorNotice).orderBy(desc(subProcessorNotice.announcedAt))
         ).map(asNotice);
@@ -162,27 +192,30 @@ export const subProcessorsRouter = createRouter()
               acknowledged: at !== null && (changed === null || at >= changed),
             };
           }),
-          notices: notices.map((notice) => {
-            const response: NoticeResponse = noticeResponseFrom(notice.id, responses);
-            return {
-              id: notice.id,
-              subProcessorKey: notice.subProcessorKey,
-              kind: notice.kind,
-              announcedAt: notice.announcedAt.toISOString(),
-              effectiveFrom: notice.effectiveFrom.toISOString(),
-              windowEndsAt: objectionWindowEndsAt(notice, rates).toISOString(),
-              state: noticeStateFor(notice, response, subConfig, now, rates),
-              acknowledgedAt: iso(response.acknowledgedAt),
-              objection: response.objection
-                ? {
-                    at: response.objection.at.toISOString(),
-                    grounds: response.objection.grounds,
-                    resolvedAt: iso(response.objection.resolvedAt),
-                    resolution: response.objection.resolution,
-                  }
-                : null,
-            };
-          }),
+          notices: await Promise.all(
+            notices.map(async (notice) => {
+              const response: NoticeResponse = noticeResponseFrom(notice.id, responses);
+              const noticeRates = await ratesAt(notice.announcedAt);
+              return {
+                id: notice.id,
+                subProcessorKey: notice.subProcessorKey,
+                kind: notice.kind,
+                announcedAt: notice.announcedAt.toISOString(),
+                effectiveFrom: notice.effectiveFrom.toISOString(),
+                windowEndsAt: objectionWindowEndsAt(notice, noticeRates).toISOString(),
+                state: noticeStateFor(notice, response, subConfig, now, noticeRates),
+                acknowledgedAt: iso(response.acknowledgedAt),
+                objection: response.objection
+                  ? {
+                      at: response.objection.at.toISOString(),
+                      grounds: seesGrounds ? response.objection.grounds : null,
+                      resolvedAt: iso(response.objection.resolvedAt),
+                      resolution: response.objection.resolution,
+                    }
+                  : null,
+              };
+            }),
+          ),
         };
       });
       return c.json(body, 200);
@@ -214,25 +247,30 @@ export const subProcessorsRouter = createRouter()
           ? await tx.select().from(subProcessorNotice).where(eq(subProcessorNotice.id, noticeId))
           : [];
         if (noticeId && (!row || row.subProcessorKey !== key)) throw problems.notFound();
-        const entry = SUB_PROCESSORS[key as SubProcessorKey];
-        if (!row && !entry) throw problems.notFound();
-        const notice: SubProcessorNotice = row
-          ? asNotice(row)
-          : {
-              id: key,
-              subProcessorKey: key,
-              kind: "new",
-              use: entry.use,
-              announcedAt: now,
-              effectiveFrom: now,
-            };
-        const { leadId, subConfig, rates, responses } = await contextOf(c, tx, access);
+        const entry = Object.hasOwn(SUB_PROCESSORS, key)
+          ? SUB_PROCESSORS[key as SubProcessorKey]
+          : undefined;
+        let notice: SubProcessorNotice;
+        if (row) notice = asNotice(row);
+        else if (entry) {
+          notice = {
+            id: key,
+            subProcessorKey: key,
+            kind: "new",
+            use: entry.use,
+            announcedAt: now,
+            effectiveFrom: now,
+          };
+        } else throw problems.notFound();
+        const { leadId, subConfig, ratesAt, responses } = await contextOf(c, tx, access);
+        const rates = await ratesAt(row?.announcedAt ?? now);
         const check = checkNoticeResponse({
           kind: "acknowledge",
           notice,
+          // The register entry is not acknowledged while any notice about it is objected to.
           response: row
             ? noticeResponseFrom(row.id, responses)
-            : { acknowledgedAt: null, objection: null },
+            : (openObjection(key, responses) ?? { acknowledgedAt: null, objection: null }),
           config: subConfig,
           access: access.effective,
           actorTenantUserId: access.tenantUserId,
@@ -289,7 +327,8 @@ export const subProcessorsRouter = createRouter()
           .from(subProcessorNotice)
           .where(eq(subProcessorNotice.id, id));
         if (!row) throw problems.notFound();
-        const { leadId, subConfig, rates, responses } = await contextOf(c, tx, access);
+        const { leadId, subConfig, ratesAt, responses } = await contextOf(c, tx, access);
+        const rates = await ratesAt(row.announcedAt);
         const check = checkNoticeResponse({
           kind: "object",
           notice: asNotice(row),

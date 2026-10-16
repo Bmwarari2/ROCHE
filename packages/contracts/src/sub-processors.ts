@@ -11,7 +11,8 @@ const isoDateTime = z.iso.datetime({ offset: true });
 export const SubProcessorObjection = z
   .object({
     at: isoDateTime,
-    grounds: z.string(),
+    /** The grounds given: shown to DPIA permission holders only, otherwise null. */
+    grounds: z.string().nullable(),
     resolvedAt: isoDateTime.nullable(),
     resolution: z.enum(["objection_withdrawn", "not_used_for_tenant", "services_ended"]).nullable(),
   })

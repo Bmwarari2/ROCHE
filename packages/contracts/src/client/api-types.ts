@@ -26070,7 +26070,7 @@ export interface components {
     SubProcessorObjection: {
       /** Format: date-time */
       at: string;
-      grounds: string;
+      grounds: string | null;
       /** Format: date-time */
       resolvedAt: string | null;
       /** @enum {string|null} */
