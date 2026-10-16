@@ -40,7 +40,7 @@ import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
 import { problems } from "../http/problem";
-import type { PerUserQuota } from "../http/quota";
+import { PerUserQuota } from "../http/quota";
 import { appendTaskDetail, nurseInChargeSeeing } from "./care";
 import { fallbackRecipients, permissionHolders, REFUSED_REVIEW_TASK_KIND } from "./device-holds";
 import {
@@ -74,6 +74,15 @@ const AUTHOR_SOURCE = "tenant_user";
 /** The notice the nurse in charge gets when a review becomes urgent (an urgent copy joined it). */
 export const REFUSED_URGENT_NOTICE_KIND = "care.refused_entry_urgent";
 const DAY_MS = 86_400_000;
+/** Copies each person may send in a rolling day: far above real refusals, a bound on a script. */
+const COPIES_PER_DAY = 200;
+
+const COPY_QUOTA = new PerUserQuota("sync.refused_copies", COPIES_PER_DAY, DAY_MS);
+
+/** The daily limit on each author's copies: one instance, shared by every route that keeps one. */
+export function refusedCopyQuota(): PerUserQuota {
+  return COPY_QUOTA;
+}
 
 /** Marks that may be harm to the person, read on the copy's own request (HZ-019, HZ-006). */
 const INJURY_MARK_TYPES: ReadonlySet<string> = new Set([

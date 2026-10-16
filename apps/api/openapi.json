@@ -6869,6 +6869,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6909,6 +6915,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "category",
           "body",
           "tags",
@@ -6924,6 +6932,78 @@
           "uploaded_after_deletion",
           "deleted_after_upload",
           null
+        ]
+      },
+      "EntryBackEntry": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string"
+          },
+          "paperTime": {
+            "type": "string"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "only",
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paperReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime",
+          "occurrence",
+          "outsideOutageReason",
+          "paperReference",
+          "label"
+        ]
+      },
+      "EntryNotFromPaper": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "outageId",
+          "reason"
         ]
       },
       "CareNoteCategory": {
@@ -6967,6 +7047,14 @@
             "type": "string",
             "format": "uuid"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
           "category": {
             "$ref": "#/components/schemas/CareNoteCategory"
           },
@@ -6999,6 +7087,46 @@
           "category",
           "body"
         ]
+      },
+      "BackEntryInput": {
+        "type": "object",
+        "properties": {
+          "outageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paperDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "paperTime": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "occurrence": {
+            "type": "string",
+            "enum": [
+              "earlier",
+              "later"
+            ]
+          },
+          "outsideOutageReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "paperReference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "outageId",
+          "paperDate",
+          "paperTime"
+        ],
+        "additionalProperties": false
       },
       "CareNoteList": {
         "type": "object",
@@ -7113,6 +7241,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "chart": {
             "type": "string"
           },
@@ -7148,6 +7282,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "chart",
           "values",
           "flags",
@@ -7291,6 +7427,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "values": {
             "$ref": "#/components/schemas/ObservationValues"
@@ -7756,6 +7900,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "view": {
             "type": "string",
             "enum": [
@@ -7861,6 +8011,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "view",
           "region",
           "side",
@@ -7933,6 +8085,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "view": {
             "type": "string",
@@ -10608,6 +10768,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "activity": {
             "type": "string"
           },
@@ -10664,6 +10830,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "activity",
           "format",
           "groupSessionId",
@@ -10722,6 +10890,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "activity": {
             "type": "string",
@@ -10875,6 +11051,12 @@
           "deviceDeletion": {
             "$ref": "#/components/schemas/DeviceDeletionFlag"
           },
+          "backEntry": {
+            "$ref": "#/components/schemas/EntryBackEntry"
+          },
+          "notFromPaper": {
+            "$ref": "#/components/schemas/EntryNotFromPaper"
+          },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
           },
@@ -10940,6 +11122,8 @@
           "handedOverBy",
           "handedOverByStaff",
           "deviceDeletion",
+          "backEntry",
+          "notFromPaper",
           "kind",
           "contactId",
           "visitorName",
@@ -10986,6 +11170,14 @@
           "taskId": {
             "type": "string",
             "format": "uuid"
+          },
+          "backEntry": {
+            "$ref": "#/components/schemas/BackEntryInput"
+          },
+          "notFromPaperReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "kind": {
             "$ref": "#/components/schemas/VisitKind"
@@ -17677,638 +17869,703 @@
       "SyncRefusedEntry": {
         "oneOf": [
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "care_note"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "category": {
-                    "$ref": "#/components/schemas/CareNoteCategory"
-                  },
-                  "body": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 4000
-                  },
-                  "tags": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "pattern": "^[a-z_]{2,40}$"
-                    },
-                    "maxItems": 10,
-                    "default": []
-                  },
-                  "attachmentDocumentIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "uuid"
-                    },
-                    "maxItems": 10,
-                    "default": []
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "category",
-                  "body"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedCareNote"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "observation"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "values": {
-                    "$ref": "#/components/schemas/ObservationValues"
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "values"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedObservation"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "body_map_mark"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "view": {
-                    "type": "string",
-                    "enum": [
-                      "front",
-                      "back"
-                    ]
-                  },
-                  "region": {
-                    "type": "string",
-                    "pattern": "^[a-z_]{2,40}$"
-                  },
-                  "drawnAt": {
-                    "$ref": "#/components/schemas/BodyMapPoint"
-                  },
-                  "drawnZone": {
-                    "$ref": "#/components/schemas/BodyMapViewerZone"
-                  },
-                  "drawnSide": {
-                    "type": "string",
-                    "enum": [
-                      "left",
-                      "right",
-                      "midline"
-                    ]
-                  },
-                  "side": {
-                    "type": "string",
-                    "enum": [
-                      "left",
-                      "right",
-                      "midline"
-                    ]
-                  },
-                  "markType": {
-                    "$ref": "#/components/schemas/BodyMarkType"
-                  },
-                  "pressureCategory": {
-                    "$ref": "#/components/schemas/PressureUlcerCategory"
-                  },
-                  "deviceRelated": {
-                    "type": "boolean"
-                  },
-                  "bruiseExplained": {
-                    "type": "boolean"
-                  },
-                  "lengthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1000
-                  },
-                  "widthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1000
-                  },
-                  "depthMm": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 300
-                  },
-                  "description": {
-                    "type": "string",
-                    "maxLength": 1000
-                  },
-                  "photoDocumentId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "present",
-                      "healed"
-                    ],
-                    "default": "present"
-                  },
-                  "incidentId": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "view",
-                  "region",
-                  "side",
-                  "markType"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedBodyMapMark"
           },
           {
-            "type": "object",
-            "properties": {
-              "entryId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "table": {
-                "type": "string",
-                "enum": [
-                  "activity_record"
-                ]
-              },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "activity": {
-                    "type": "string",
-                    "minLength": 2,
-                    "maxLength": 120
-                  },
-                  "format": {
-                    "type": "string",
-                    "enum": [
-                      "group",
-                      "one_to_one"
-                    ]
-                  },
-                  "groupSessionId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "attendance": {
-                    "$ref": "#/components/schemas/ActivityAttendance"
-                  },
-                  "engagement": {
-                    "$ref": "#/components/schemas/ActivityEngagement"
-                  },
-                  "durationMinutes": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 720
-                  },
-                  "notes": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
-                },
-                "required": [
-                  "occurredAt",
-                  "activity",
-                  "format",
-                  "attendance"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
-            ],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/SyncRefusedActivityRecord"
           },
           {
+            "$ref": "#/components/schemas/SyncRefusedVisit"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "table",
+          "mapping": {
+            "care_note": "#/components/schemas/SyncRefusedCareNote",
+            "observation": "#/components/schemas/SyncRefusedObservation",
+            "body_map_mark": "#/components/schemas/SyncRefusedBodyMapMark",
+            "activity_record": "#/components/schemas/SyncRefusedActivityRecord",
+            "visit_log": "#/components/schemas/SyncRefusedVisit"
+          }
+        }
+      },
+      "SyncRefusedCareNote": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "care_note"
+            ]
+          },
+          "payload": {
             "type": "object",
             "properties": {
-              "entryId": {
+              "id": {
                 "type": "string",
                 "format": "uuid"
               },
-              "personId": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "httpStatus": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "minimum": 100,
-                "maximum": 599
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z0-9_]{1,80}$"
-              },
-              "message": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 500
-              },
-              "refusedAt": {
+              "occurredAt": {
                 "type": "string",
                 "format": "date-time"
               },
-              "table": {
+              "deviceTime": {
                 "type": "string",
-                "enum": [
-                  "visit_log"
-                ]
+                "format": "date-time"
               },
-              "payload": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "occurredAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "deviceTime": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "supersedesId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "correctionReason": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 500
-                  },
-                  "taskId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "kind": {
-                    "$ref": "#/components/schemas/VisitKind"
-                  },
-                  "contactId": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "visitorName": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "visitorRelationship": {
-                    "type": "string",
-                    "maxLength": 120
-                  },
-                  "endedAt": {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  "restrictionsApplied": {
-                    "type": "boolean",
-                    "default": false
-                  },
-                  "restrictionReason": {
-                    "type": "string",
-                    "maxLength": 1000
-                  },
-                  "notes": {
-                    "type": "string",
-                    "maxLength": 2000
-                  }
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "category": {
+                "$ref": "#/components/schemas/CareNoteCategory"
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z_]{2,40}$"
                 },
-                "required": [
-                  "occurredAt",
-                  "kind"
-                ],
-                "additionalProperties": false
+                "maxItems": 10,
+                "default": []
+              },
+              "attachmentDocumentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "maxItems": 10,
+                "default": []
               }
             },
             "required": [
-              "entryId",
-              "personId",
-              "httpStatus",
-              "code",
-              "message",
-              "refusedAt",
-              "table",
-              "payload"
+              "occurredAt",
+              "category",
+              "body"
             ],
             "additionalProperties": false
           }
-        ]
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedObservation": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "observation"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "values": {
+                "$ref": "#/components/schemas/ObservationValues"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "values"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedBodyMapMark": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "body_map_mark"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "view": {
+                "type": "string",
+                "enum": [
+                  "front",
+                  "back"
+                ]
+              },
+              "region": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,40}$"
+              },
+              "drawnAt": {
+                "$ref": "#/components/schemas/BodyMapPoint"
+              },
+              "drawnZone": {
+                "$ref": "#/components/schemas/BodyMapViewerZone"
+              },
+              "drawnSide": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right",
+                  "midline"
+                ]
+              },
+              "side": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "right",
+                  "midline"
+                ]
+              },
+              "markType": {
+                "$ref": "#/components/schemas/BodyMarkType"
+              },
+              "pressureCategory": {
+                "$ref": "#/components/schemas/PressureUlcerCategory"
+              },
+              "deviceRelated": {
+                "type": "boolean"
+              },
+              "bruiseExplained": {
+                "type": "boolean"
+              },
+              "lengthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "widthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "depthMm": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "photoDocumentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "present",
+                  "healed"
+                ],
+                "default": "present"
+              },
+              "incidentId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "occurredAt",
+              "view",
+              "region",
+              "side",
+              "markType"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedActivityRecord": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "activity_record"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "activity": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "group",
+                  "one_to_one"
+                ]
+              },
+              "groupSessionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attendance": {
+                "$ref": "#/components/schemas/ActivityAttendance"
+              },
+              "engagement": {
+                "$ref": "#/components/schemas/ActivityEngagement"
+              },
+              "durationMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "occurredAt",
+              "activity",
+              "format",
+              "attendance"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "SyncRefusedVisit": {
+        "type": "object",
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,80}$"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "refusedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "visit_log"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "deviceTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "supersedesId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "correctionReason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 500
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "backEntry": {
+                "$ref": "#/components/schemas/BackEntryInput"
+              },
+              "notFromPaperReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "$ref": "#/components/schemas/VisitKind"
+              },
+              "contactId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "visitorName": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "visitorRelationship": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "endedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "restrictionsApplied": {
+                "type": "boolean",
+                "default": false
+              },
+              "restrictionReason": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "occurredAt",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "entryId",
+          "personId",
+          "httpStatus",
+          "code",
+          "message",
+          "refusedAt",
+          "table",
+          "payload"
+        ],
+        "additionalProperties": false
       },
       "RefusedEntryList": {
         "type": "object",

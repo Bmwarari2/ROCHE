@@ -1760,6 +1760,29 @@ the needs of demo person 3 (hosted CI).
 
 **Tests**: `apps/api` `invitations.test.ts` 20 new.
 
+## 2026-10-16: Slice 11 part 3d, back-entry through the care routes (OPS-028)
+
+Stacked on part 3c, then merged with main after #51 (operations.md section 14): the five care write
+routes take a back-entry (outage, paper date and time as written, occurrence, outside reason,
+reference) or a reason an entry is not from paper, and return the back-entry with its label.
+
+- Rule 13 on every route; a reconciled outage refuses new paper records (H-204 words); one
+  correction per paper record, a device's second kept for the refused-entry review (HZ-006); the
+  outside-the-outage reason on a correction after the true end (H-208 words); the database's
+  refusals in words; audit events carry the outage id.
+- Contracts `BackEntryInput`, `EntryBackEntry`, `EntryNotFromPaper`; `openapi.json` and the client
+  regenerated. The refused-copy daily limit is shared (`refusedCopyQuota`).
+- Docs: operations.md section 14, HZ-017 and HZ-006 rows, H-216, STATUS.
+
+**Tests**: `apps/api` `back-entry.test.ts`, 19 new (including the #51 round 2 closure test).
+
+After #54 review round 1: `auditInTx` takes `scopeExtra`, merged into the request's scope, so care
+writes keep the scope and places that authorised them; paper for a reconciled outage is kept for
+the refused-entry review from every route (with a hand-over's admission; failures logged by opaque
+ids; one shared copy limit); alerts and tasks from a back-entered observation say they come from
+paper, with the paper time, and the outbox event carries it; the label falls back to the paper
+time; the correction index's conflict maps to the 409; H-216 extended. Tests: 5 new, 3 extended.
+
 ## 2026-10-16: MFA counts only for the session that used it (#43 review M5)
 
 - API: care records (and the operator console) need a session that signed in, or confirmed a

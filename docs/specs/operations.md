@@ -515,3 +515,52 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
 - Not yet: back-entry on the care routes and the sync upload (part 3d), with the outside-the-outage
   reason when a reviewed back-entry after the true end is corrected (H-208); the notification
   centre's handling of `operations.outage.declared` (the comms step).
+
+## 14. As built (slice 11 part 3d, back-entry through the API)
+
+`apps/api/src/services/back-entry.ts`, used by the five care write routes (`POST
+/v1/people/{id}/notes`, `/observations`, `/body-map`, `/activities`, `/visits`); contracts
+`BackEntryInput`, `EntryBackEntry`, `EntryNotFromPaper`; tests in `apps/api/test/back-entry.test.ts`.
+
+- Each route takes `backEntry` (`outageId`, `paperDate`, `paperTime` as written, `occurrence` in
+  the repeated autumn hour, `outsideOutageReason`, `paperReference`) and `notFromPaperReason`, and
+  returns `backEntry` (with the rule 12 label, worked out from the outage on every read) and
+  `notFromPaper`. The device's sync upload writes no care tables (the phone sends each entry to
+  these routes), so these checks cover it; no sync change was needed.
+- A back-entry: `resolvePaperTime` and `checkBackEntry` against its outage at the person's
+  location; the entry's `occurredAt` must be the paper instant (refused otherwise, never moved);
+  a time outside the window `[start, end)` needs a reason of at least
+  `MIN_BACK_ENTRY_REASON_LENGTH` characters, at the end itself too, as the database counts it. An
+  outage already reconciled refuses it with 422 `outage_reconciled` and the H-204 words.
+- Rule 13 on every route (`checkEntryAgainstOutages`): an entry written later for a time inside
+  an outage, with no back-entry, is refused with 422 `back_entry_details_required` unless it says
+  why it is not from paper; it then names the outage. Written at the time (device time inside the
+  window and not late), it is ordinary and names none. An entry not from paper for a time inside a
+  reconciled outage is refused in words that point to the Registered Manager (H-216).
+- Corrections: a correction of a back-entry stays one of the same outage, its paper details carried
+  when it sends none. Each paper record is corrected once (an advisory lock per record and a check
+  before the insert): a second correction is 409 `back_entry_already_corrected`; from a device the
+  server keeps the entry as sent with the person's refused-entry review task
+  (`copyRefusedEntry`, HZ-006) and says the nurse in charge will review it, and the web is told to
+  correct the current version. A correction whose time is now outside the outage's window, for
+  example after closing set the true end before it (H-207), is refused with 422
+  `outside_outage_reason_required` and the H-208 words until `backEntry` carries an
+  `outsideOutageReason`. A correction of an entry not from paper keeps its reason; one that keeps
+  the entry's time is not asked again (rule 13), one that moves it is.
+- The database's refusals (`app.entry_outage_guard`, the back-entry CHECK) come back as 422
+  `back_entry_refused` in words. Every write's audit event carries `outageId` with `backEntry` or
+  `notFromPaper`.
+- After #54 review round 1:
+  - A write's audit event keeps the scope and places that authorised it, with the outage beside
+    them (`scopeExtra` in `auditInTx`).
+  - A paper record (or an entry not from paper) for a reconciled outage is kept by the server as
+    sent, with the person's refused-entry review task, from the web and a device alike, and the
+    refusal says so (H-216); a hand-over's copy is admitted against the device's hold.
+  - An alert raised by a back-entered observation, and its response tasks, say they come from a
+    paper record with the time written on it, and `care.observation.recorded` carries the outage
+    and the paper time (whether old readings should alert at all: H-216).
+  - The label falls back to the paper time and the entry's own times when the reader cannot see
+    the outage; the entry's time is checked against the paper time first; two corrections of one
+    paper record at the same moment get the same 409; an outage in another organisation or out of
+    reach reads as not found.
+- Not yet: back-entry fields in the sync streams and on the phone (mobile step); the web forms.

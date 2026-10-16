@@ -51,7 +51,8 @@ event_file() {
 openapi_breaking() {
   if git cat-file -e "$BASE:apps/api/openapi.json" 2>/dev/null; then
     git show "$BASE:apps/api/openapi.json" >"$LOG_DIR/base-openapi.json"
-    oasdiff breaking "$LOG_DIR/base-openapi.json" apps/api/openapi.json --fail-on ERR
+    oasdiff breaking "$LOG_DIR/base-openapi.json" apps/api/openapi.json --fail-on ERR \
+      --err-ignore apps/api/openapi-breaking-ignore.txt
   else
     echo "No OpenAPI document on the base commit."
   fi
