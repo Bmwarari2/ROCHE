@@ -4,6 +4,7 @@ import pg from "pg";
 import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
+import { demoTenantRefusal, testOnlySwitchRefusal, wantsTestOnlySwitch } from "./demo-seed-guard";
 
 /**
  * Development only: creates Better Auth accounts for the demo tenant's users and links them. It
@@ -63,8 +64,36 @@ const password = process.env.HARBOUR_DEMO_PASSWORD ?? "correct horse battery sta
 const ownerUrl =
   process.env.DATABASE_OWNER_URL ??
   "postgres://harbour_owner:harbour_owner_local@localhost:5432/harbour";
+// The e2e passkey's key is public and passes MFA and step-up; MFA off opens care records with a
+// password. Neither may reach a shared database (demo-seed-guard.ts).
+const testOnly = wantsTestOnlySwitch(process.env);
+if (testOnly) {
+  const refusal = testOnlySwitchRefusal({
+    env: process.env,
+    nodeEnv: config.NODE_ENV,
+    databaseUrls: [ownerUrl, config.DATABASE_AUTH_URL, config.DATABASE_APP_URL],
+  });
+  if (refusal) throw new Error(refusal);
+}
 const owner = new pg.Pool({ connectionString: ownerUrl, max: 2 });
 const { services, close } = createApp(config, createLogger("warn"));
+
+/** The tenant the demo manager is linked in (read in the demo tenant), or null. */
+async function managerTenant(authUserId: string): Promise<string | null> {
+  const client = await owner.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [DEMO.tenantId]);
+    const { rows } = await client.query<{ tenant_id: string }>(
+      "SELECT tenant_id FROM tenant_user WHERE id = $1 AND auth_user_id = $2",
+      [DEMO.users.manager.id, authUserId],
+    );
+    await client.query("COMMIT");
+    return rows[0]?.tenant_id ?? null;
+  } finally {
+    client.release();
+  }
+}
 
 try {
   for (const key of Object.keys(DEMO.users) as DemoUserKey[]) {
@@ -88,6 +117,10 @@ try {
     }
     await linkDemoUser(owner, key, authUserId);
     console.log(`Linked demo ${key}`);
+    if (testOnly && key === "manager") {
+      const refusal = demoTenantRefusal(await managerTenant(authUserId), DEMO.tenantId);
+      if (refusal) throw new Error(refusal);
+    }
     if (key === "manager" && process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
       const passkey = e2ePasskey();
       await services.authPool.query(

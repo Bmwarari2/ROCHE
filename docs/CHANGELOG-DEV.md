@@ -2056,3 +2056,8 @@ passkey derived from a published phrase; `e2e/support.ts` loads the same key int
 virtual authenticator (`addManagerPasskey`, `signInManagerWithPasskey`). Break-glass now asserts
 that a password-only session gets "Confirm it is you", then confirms with the passkey and opens the
 record; the death notification and "not required" journeys sign the manager in with the passkey.
+
+After the security check of 13f170b (Medium): `seed-users` refuses `HARBOUR_DEMO_E2E_PASSKEY=1` and
+`HARBOUR_DEMO_MFA=off` unless `NODE_ENV` is development or test, `HARBOUR_ENV` is not dev, staging
+or pilot, every database URL is local (or the CI `postgres` service container) and the demo
+manager is linked in the demo tenant (`scripts/demo-seed-guard.ts`, `test/demo-seed-guard.test.ts`).
