@@ -19282,11 +19282,48 @@
           "reason"
         ]
       },
-      "PublishedFeedItem": {
+      "FeedPreview": {
         "type": "object",
         "properties": {
-          "item": {
-            "$ref": "#/components/schemas/StaffFeedItem"
+          "ok": {
+            "type": "boolean"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedItemKind"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "problem": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "problem",
+                "message"
+              ]
+            }
           },
           "lint": {
             "type": "array",
@@ -19296,7 +19333,10 @@
           }
         },
         "required": [
-          "item",
+          "ok",
+          "kind",
+          "text",
+          "problems",
           "lint"
         ]
       },
@@ -19395,6 +19435,24 @@
         "required": [
           "id",
           "source"
+        ]
+      },
+      "PublishedFeedItem": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/StaffFeedItem"
+          },
+          "lint": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "item",
+          "lint"
         ]
       },
       "LetterPreview": {
@@ -41737,6 +41795,95 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/feed/preview": {
+      "post": {
+        "tags": [
+          "comms"
+        ],
+        "summary": "What publishing would make, or what stops it, with nothing stored",
+        "description": "As POST /v1/people/{id}/feed, but nothing is written: the words the family would see, the plain-English suggestions, or each problem with its code, so the form can show it at its field. Audited with ids and codes only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFeedItem"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

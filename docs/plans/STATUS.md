@@ -147,8 +147,11 @@ only when they link spec, code, tests and user documentation; no user guides exi
      (`feat/comms-feed-publish`): in review, `POST /v1/people/{id}/feed` for notes, activities and
      photos (consent to photos required), the feed reading the photo basis. Follow-ups: visits and
      care plan updates as sources; the exposure route; the next-of-kin step from safety in place of
-     "family not recorded as told"; the staff-name tenant setting (H-107); then part 2, the web feed and staff screens; then channels, notifications and visit
-     booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     "family not recorded as told"; the staff-name tenant setting (H-107). Part 2a
+     (`feat/web-family-feed`, stacked on part 1b): the preview route and the staff "Family updates"
+     tab (choose a record, words for the family, problems at each field, preview, publish once,
+     take down with a reason), with a Playwright journey. Next, part 2b, the family's portal page;
+     then channels, notifications and visit booking. Open: the portal feed names no person (a family session cannot read `person`), so
      part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
      (`tenant_user`, `location`, roles) are readable by any member including a portal session,
      as for staff with scope `none`, and need a review before the portal goes live.

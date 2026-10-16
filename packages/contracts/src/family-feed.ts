@@ -137,5 +137,18 @@ export const PublishedFeedItem = z
   })
   .meta({ id: "PublishedFeedItem" });
 
+/** What publishing would make, or each problem with its code (nothing is stored). */
+export const FeedPreview = z
+  .object({
+    ok: z.boolean(),
+    kind: FeedItemKind.nullable(),
+    /** The words the family would see. */
+    text: z.string().nullable(),
+    problems: z.array(z.object({ problem: z.string(), message: z.string() })),
+    lint: z.array(z.string()),
+  })
+  .meta({ id: "FeedPreview" });
+
+export type FeedPreview = z.infer<typeof FeedPreview>;
 export type FamilyFeedList = z.infer<typeof FamilyFeedList>;
 export type StaffFeedItem = z.infer<typeof StaffFeedItem>;

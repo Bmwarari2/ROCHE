@@ -16257,6 +16257,87 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/feed/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * What publishing would make, or what stops it, with nothing stored
+     * @description As POST /v1/people/{id}/feed, but nothing is written: the words the family would see, the plain-English suggestions, or each problem with its code, so the form can show it at its field. Audited with ids and codes only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishFeedItem"];
+        };
+      };
+      responses: {
+        /** @description Preview */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FeedPreview"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people/{id}/letters/preview": {
     parameters: {
       query?: never;
@@ -24966,8 +25047,14 @@ export interface components {
     WithdrawFeedItem: {
       reason: components["schemas"]["FeedWithdrawalReason"];
     };
-    PublishedFeedItem: {
-      item: components["schemas"]["StaffFeedItem"];
+    FeedPreview: {
+      ok: boolean;
+      kind: components["schemas"]["FeedItemKind"] & (string | null);
+      text: string | null;
+      problems: {
+        problem: string;
+        message: string;
+      }[];
       lint: string[];
     };
     PublishFeedItem: {
@@ -24996,6 +25083,10 @@ export interface components {
             onlyThisPerson: boolean;
           };
       confirmationReason?: string;
+    };
+    PublishedFeedItem: {
+      item: components["schemas"]["StaffFeedItem"];
+      lint: string[];
     };
     LetterPreview: {
       /** Format: uuid */
