@@ -49,11 +49,15 @@ const arrival = (page: Page) => page.locator("[data-arrival-notice]");
 const previewButton = (page: Page) => page.getByRole("button", { name: "Preview the update" });
 
 /** Chooses the newest record of a kind: the one just made. */
-async function chooseNewest(page: Page, kind: "A note" | "An activity" | "A photo") {
+/**
+ * Chooses a source record: the one with `id` when given (other journeys record notes about the same
+ * person, and this journey's are dated hours back), otherwise the newest.
+ */
+async function chooseNewest(page: Page, kind: "A note" | "An activity" | "A photo", id?: string) {
   await page.getByRole("radio", { name: kind }).check();
   const label = kind === "A note" ? "Note" : kind === "An activity" ? "Activity" : "Photo";
   const select = page.getByLabel(label, { exact: true });
-  const option = select.locator("option").nth(1);
+  const option = id ? select.locator(`option[value="${id}"]`) : select.locator("option").nth(1);
   await select.selectOption((await option.getAttribute("value")) ?? "");
   return option;
 }
@@ -62,7 +66,10 @@ test("hazard HZ-022 hazard HZ-061 an update is written for the family, checked i
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
-  await recordNote(page.request, `Baking session ${RUN}: scones with jam, stayed for the hour.`);
+  const baking = await recordNote(
+    page.request,
+    `Baking session ${RUN}: scones with jam, stayed for the hour.`,
+  );
 
   await page.goto(PATH);
   await expect(page.getByRole("heading", { name: "Write an update" })).toBeVisible();
@@ -74,7 +81,7 @@ test("hazard HZ-022 hazard HZ-061 an update is written for the family, checked i
   await expect(alertIn(page)).toContainText("Choose the note the update is about.");
   await expectAccessible(page, "nothing chosen");
 
-  await expect(await chooseNewest(page, "A note")).toContainText("Activity");
+  await expect(await chooseNewest(page, "A note", baking.id)).toContainText("Activity");
   const words = page.getByLabel("Words for the family");
   // Another resident named: the API's problem is shown at the words.
   await words.fill(`Addie baked scones with Ben this afternoon (${RUN}).`);
@@ -131,9 +138,9 @@ test("hazard HZ-061 words to confirm, a photo without consent, a record correcte
   await signIn(page, "manager@example.invalid");
 
   // Words that say how the person is: a manager confirms them with a reason.
-  await recordNote(page.request, `Quiet afternoon ${RUN}.`);
+  const quiet = await recordNote(page.request, `Quiet afternoon ${RUN}.`);
   await page.goto(PATH);
-  await chooseNewest(page, "A note");
+  await chooseNewest(page, "A note", quiet.id);
   await page.getByLabel("Words for the family").fill(`Addie was happy in the garden (${RUN}).`);
   await previewButton(page).click();
   await expect(alertIn(page)).toBeFocused();
@@ -167,7 +174,7 @@ test("hazard HZ-061 words to confirm, a photo without consent, a record correcte
   // A note corrected between the preview and publishing is refused when published.
   const note = await recordNote(page.request, `Painting class ${RUN}.`);
   await page.goto(PATH);
-  await chooseNewest(page, "A note");
+  await chooseNewest(page, "A note", note.id);
   await page.getByLabel("Words for the family").fill(`Addie painted a picture (${RUN}).`);
   await previewButton(page).click();
   await expect(page.getByRole("heading", { name: "Check before publishing" })).toBeFocused();
@@ -193,9 +200,9 @@ test("hazard HZ-061 words to confirm, a photo without consent, a record correcte
     gpContacted: false,
     people: [{ kind: "service_user", role: "affected", personId: DEV }],
   });
-  await recordNote(page.request, `Card games ${RUN}.`, DEV);
+  const cards = await recordNote(page.request, `Card games ${RUN}.`, DEV);
   await page.goto(`/people/${DEV}/family-updates`);
-  await chooseNewest(page, "A note");
+  await chooseNewest(page, "A note", cards.id);
   await page.getByLabel("Words for the family").fill(`Dev played cards with friends (${RUN}).`);
   await previewButton(page).click();
   await expect(alertIn(page)).toBeFocused();
