@@ -369,5 +369,7 @@ The worker's `statement-of-purpose-overdue` queue (hourly) tells every active ho
 `safety.notification.submit` anywhere once, urgently, through the tenant's overdue escalation
 chain, about an approved or superseded revision past its due date with no notification recorded,
 and publishes `quality.statement_of_purpose.notification_overdue` once; with nobody to tell it
-audits `quality.statement_of_purpose.unrouted` at most daily and tries again. Tests:
+audits `quality.statement_of_purpose.unrouted` at most daily and tries again. The alert names the
+version and the due date ("Statement of purpose version 2 is overdue at CQC"; "It was due at CQC
+by 13/11/2026. ..."; H-219), hazard HZ-080 (DCB0129 scope for the CSO, H-224). Tests:
 `apps/api/test/statement-of-purpose.test.ts`.

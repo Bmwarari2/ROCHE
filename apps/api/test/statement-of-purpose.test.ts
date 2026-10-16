@@ -1,5 +1,6 @@
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
+import { addUkDays, toUkWallClock } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { escalateStatementsOfPurpose } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
@@ -64,6 +65,7 @@ const content = (aims: string) => ({
 
 interface Version {
   id: string;
+  approvedAt: string | null;
   kind: string;
   state: string;
   version: number;
@@ -142,6 +144,16 @@ describe("statement of purpose versions", () => {
     expect(approved.status).toBe(200);
     revision = (await approved.json()) as Version;
     expect(revision.notification.state).toBe("due");
+    // Regulation 12(3): 28 days in UK wall-clock time, so across a clock change the due time keeps
+    // the approval's UK time of day rather than 28 times 24 hours (the rate table's figure).
+    const approvedAt = new Date(revision.approvedAt as string);
+    const dueAt = new Date(revision.notification.dueAt as string);
+    // To the minute: the domain works in whole minutes, the database keeps the seconds.
+    expect(dueAt.toISOString().slice(0, 16)).toBe(
+      addUkDays(approvedAt, 28).toISOString().slice(0, 16),
+    );
+    const [from, to] = [toUkWallClock(approvedAt), toUkWallClock(dueAt)];
+    expect([to.hour, to.minute]).toEqual([from.hour, from.minute]);
     const [old] = await sql<{ state: string }>(
       "SELECT state FROM statement_of_purpose_version WHERE id = $1",
       [baseline.id],
@@ -154,7 +166,13 @@ describe("statement of purpose versions", () => {
     expect(events.map((e) => e.event_type)).toEqual(["quality.statement_of_purpose.approved"]);
   });
 
-  it("tells the holders of safety.notification.submit once when the revision is overdue", async () => {
+  it("pins the 28 UK days across the October clock change", () => {
+    // Approved at 10:00 BST on 16 October 2026; the clocks go back on 25 October.
+    const approved = new Date("2026-10-16T09:00:00Z");
+    expect(addUkDays(approved, 28).toISOString()).toBe("2026-11-13T10:00:00.000Z");
+  });
+
+  it("hazard HZ-080 tells the holders of safety.notification.submit once, naming the version and the due date, when the revision is overdue", async () => {
     const deps = {
       workerPool: h.db.pool("harbour_worker"),
       appDb: createDatabase(h.db.pool("harbour_app")),
@@ -168,6 +186,13 @@ describe("statement of purpose versions", () => {
       "SELECT recipient_tenant_user_id FROM notification WHERE source_id = $1 ORDER BY 1",
       [revision.id],
     );
+    const [alert] = await sql<{ title: string; body: string; severity: string }>(
+      "SELECT title, body, severity FROM notification WHERE source_id = $1 LIMIT 1",
+      [revision.id],
+    );
+    expect(alert?.title).toBe("Statement of purpose version 2 is overdue at CQC");
+    expect(alert?.body).toMatch(/^It was due at CQC by \d{2}\/\d{2}\/\d{4}\. Send CQC/);
+    expect(alert?.severity).toBe("urgent");
     expect(told.map((t) => t.recipient_tenant_user_id).sort()).toEqual(
       [DEMO.users.owner.id, DEMO.users.manager.id].sort(),
     );
@@ -185,6 +210,19 @@ describe("statement of purpose versions", () => {
     expect(
       (await as("carer", `${URL}/${revision.id}/notification`, { method: "POST", body })).status,
     ).toBe(403);
+    const auth = h.db.pool("harbour_auth");
+    const token = (h.tokens.manager ?? "").split(".")[0];
+    const update = "UPDATE auth.session SET created_at = $2 WHERE token = $1";
+    await auth.query(update, [token, new Date(Date.now() - 3_600_000)]);
+    try {
+      const stale = await as("manager", `${URL}/${revision.id}/notification`, {
+        method: "POST",
+        body,
+      });
+      expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");
+    } finally {
+      await auth.query(update, [token, new Date()]);
+    }
     const future = await as("manager", `${URL}/${revision.id}/notification`, {
       method: "POST",
       body: { ...body, sentAt: new Date(Date.now() + 3_600_000).toISOString() },

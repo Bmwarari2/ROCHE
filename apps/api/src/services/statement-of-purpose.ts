@@ -3,6 +3,7 @@ import { auditEvent, notification, statementOfPurposeVersion, type Transaction }
 import {
   checkStatementOfPurpose,
   type EscalationStep,
+  formatUkDate,
   nextEscalationAt,
   STATEMENT_OF_PURPOSE_MESSAGES,
   type StatementOfPurposeContent,
@@ -161,8 +162,10 @@ export async function escalateOverdueStatements(
           recipientTenantUserId: recipient,
           kind: NOTIFICATION_OVERDUE,
           severity: "urgent",
-          title: "The revised statement of purpose is overdue at CQC",
-          body: "Send CQC the written details of the revision, then record when it was sent.",
+          title: `Statement of purpose version ${version.versionNumber} is overdue at CQC`,
+          body: `It was due at CQC by ${
+            version.notificationDueAt ? formatUkDate(version.notificationDueAt) : "its due date"
+          }. Send CQC the written details of the revision, then record when it was sent.`,
           link: `/quality/statement-of-purpose/${version.id}`,
           channels: ["in_app", "push"],
           sourceType: STATEMENT_SOURCE,

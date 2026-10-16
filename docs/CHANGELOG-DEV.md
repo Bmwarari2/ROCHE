@@ -1972,3 +1972,12 @@ the whole organisation.
 **Tests**: `apps/api/test/evidence-packs.test.ts` 4 new and 4 extended (step-up on release and
 re-issue, `no-store`, the sweep sparing a live bundle and staying in its organisation); domain
 `time.test.ts` 6 new (the October repeated hour), `evidence-pack.test.ts` 5 new map rows.
+
+## 2026-10-16: Statement of purpose, review round 1 of #61
+
+- The overdue alert names the version and the due date in plain words.
+- Docs: HZ-080 (new: a revised statement of purpose not sent to CQC in time), H-219 updated (a
+  "due soon" reminder), H-224 (DCB0129 scope), quality.md section 14, STATUS.
+
+**Tests**: `apps/api/test/statement-of-purpose.test.ts` 1 new and 3 extended (the 28 UK days across
+the October clock change, the alert's words, step-up on recording the notification).
