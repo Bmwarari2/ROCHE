@@ -10,7 +10,7 @@ import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { createHarness, type Harness, LODGE, markSessionsVerified, OTHER } from "./support/harness";
 
 /**
  * Device integrity (care.md section 6; the follow-ups from the #15 reviews): device bindings,
@@ -72,6 +72,7 @@ async function freshSession(who: Who): Promise<{ token: string; id: string }> {
      SELECT $1, $2, user_id, now() + interval '1 day', now(), now() FROM auth.session WHERE token = $3`,
     [id, token, h.tokens[who]?.split(".")[0]],
   );
+  await markSessionsVerified(h.db.pool("harbour_auth"));
   return { token, id };
 }
 
