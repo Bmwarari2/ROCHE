@@ -1,6 +1,7 @@
 import {
   BED_RAIL_RATE_KEYS,
   type BedRailLimits,
+  type ClassifierQuestionKey,
   checkActivity,
   checkAdvanceCareRecord,
   checkEntryTime,
@@ -9,6 +10,7 @@ import {
   checkSignOff,
   checkVisit,
   checkWithdrawal,
+  classifierAnswerProblem,
   validateMark,
 } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
@@ -268,6 +270,24 @@ describe("refusals the API makes by rule", () => {
     expect(keysOf("Record the clinician who decided to use SpO2 scale 2.")).toEqual([
       "scale2Clinician",
     ]);
+  });
+
+  it("hazard HZ-013 recognises the API's incident checks and the classifier's answer rules", () => {
+    expect(keysOf("A closed incident cannot be changed.")).toEqual(["incidentClosed"]);
+    expect(keysOf("The location was not found.")).toEqual(["incidentLocation"]);
+    const answers: [ClassifierQuestionKey, unknown][] = [
+      ["police.involved", "maybe"],
+      ["harm.pain_days", -1],
+      ["service.utility_interruption_hours", 1.5],
+      ["riddor.excluded_cause", "weather"],
+      ["safeguarding.types", ["none", "physical"]],
+    ];
+    for (const [key, value] of answers) {
+      const problem = classifierAnswerProblem(key, value as never);
+      expect(problem, key).not.toBeNull();
+      // The API sends "<key>: <problem>".
+      expect(keysOf(`${key}: ${problem}`), key).toEqual(["classifierAnswer"]);
+    }
   });
 
   it("knows nothing in an unknown or empty message", () => {
