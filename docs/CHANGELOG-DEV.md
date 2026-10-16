@@ -1811,3 +1811,11 @@ password sessions as TOTP-verified; `apps/web` `problems.test.ts` (2) and `outco
 
 **Tests**: `apps/api/test/mfa-session-factor.test.ts` 2 new (8 in all); `apps/web`
 `problems.test.ts` 2 new.
+
+## 2026-10-16: MFA session factor, security review round 2 of #57
+
+- The in-session code limit takes the attempt before the code is checked, under an advisory lock
+  on the session, so parallel requests on one token get at most five checks; a right code clears
+  them.
+
+**Tests**: `apps/api/test/mfa-session-factor.test.ts` 1 new (twenty codes sent at once).

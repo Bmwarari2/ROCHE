@@ -9,13 +9,12 @@ import type pg from "pg";
 import type { Config } from "../config";
 import { passwordProblem } from "./password-policy";
 import {
-  codeFailures,
+  clearCodeAttempts,
   FACTOR_CHANGE_ROUTES,
   FACTOR_ROUTES,
-  IN_SESSION_CODE_ATTEMPTS,
   IN_SESSION_CODE_ROUTES,
-  recordCodeFailure,
   recordSessionFactor,
+  reserveCodeAttempt,
   sessionMfa,
 } from "./session-factor";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
@@ -118,8 +117,11 @@ export function createAuth(config: Config, authPool: pg.Pool) {
               code: "MFA_VERIFICATION_REQUIRED",
             });
           }
-        } else if ((await codeFailures(authPool, found.session.id)) >= IN_SESSION_CODE_ATTEMPTS) {
+        } else if (
+          !(await reserveCodeAttempt(authPool, found.session.id, new Date(found.session.expiresAt)))
+        ) {
           // Better Auth limits wrong codes only at sign-in; a session gets a few, then signs in again.
+          // The attempt is taken before the code is checked, so parallel requests cannot pass it.
           throw new APIError("TOO_MANY_REQUESTS", {
             message: "Too many wrong codes. Sign in again to try more.",
             code: "TOO_MANY_ATTEMPTS",
@@ -131,13 +133,11 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       after: createAuthMiddleware(async (ctx) => {
         const factor = FACTOR_ROUTES.get(ctx.path);
         if (!factor) return;
-        if (isAPIError(ctx.context.returned)) {
-          // A wrong code on an existing session counts towards its limit (not at sign-in).
-          const existing = ctx.context.session?.session;
-          if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
-            await recordCodeFailure(authPool, existing.id, new Date(existing.expiresAt));
-          }
-          return;
+        if (isAPIError(ctx.context.returned)) return;
+        // A right code on an existing session gives it its attempts back.
+        const existing = ctx.context.session?.session;
+        if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
+          await clearCodeAttempts(authPool, existing.id);
         }
         const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
         if (!session) return;

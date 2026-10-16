@@ -247,4 +247,35 @@ describe("an authenticator app holder", () => {
     expect(blocked.status).toBe(429);
     expect(await code(await get(signedIn, notes))).toBe("mfa_verification_required");
   });
+
+  it("hazard HZ-112 checks at most five codes from twenty sent at once on one session", async () => {
+    const signIn = await passwordSignIn();
+    const cookie = signIn.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const verify = await h.request("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      origin: MOBILE_APP_ORIGIN,
+      headers: { cookie },
+      body: { code: totpFrom(totpUri) },
+    });
+    const token = verify.headers.get("set-auth-token") ?? "";
+    expect(token).not.toBe("");
+    await auth().query("DELETE FROM auth.verification WHERE identifier = $1", [
+      factorIdentifier(await sessionIdOf(token)),
+    ]);
+    const right = totpFrom(totpUri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    const statuses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        authCall(token, "/api/auth/two-factor/verify-totp", { code: wrong }).then((r) => r.status),
+      ),
+    );
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(5);
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(15);
+    expect(
+      (await authCall(token, "/api/auth/two-factor/verify-totp", { code: right })).status,
+    ).toBe(429);
+  });
 });

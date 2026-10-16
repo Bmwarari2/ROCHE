@@ -97,30 +97,55 @@ export const IN_SESSION_CODE_ROUTES: ReadonlySet<string> = new Set([
   "/two-factor/verify-backup-code",
 ]);
 
-/** Wrong codes one session may send before it is refused (it signs in again to try more). */
+/** Codes one session may send before it is refused (it signs in again to try more). */
 export const IN_SESSION_CODE_ATTEMPTS = 5;
 
-function failureIdentifier(sessionId: string): string {
-  return `session-factor-failure:${sessionId}`;
+function attemptIdentifier(sessionId: string): string {
+  return `session-factor-attempt:${sessionId}`;
 }
 
-/** Counts a wrong code sent on an existing session; the count lapses with the session. */
-export async function recordCodeFailure(
+/**
+ * Takes one of the session's code attempts before the code is checked, or returns false when
+ * none are left (#57 security review round 2). The count and the insert run under an advisory lock
+ * on the session, so parallel requests on one token cannot all see the same count. A right code
+ * clears them (`clearCodeAttempts`); they otherwise lapse with the session.
+ */
+export async function reserveCodeAttempt(
   authPool: pg.Pool,
   sessionId: string,
   expiresAt: Date,
-): Promise<void> {
-  await authPool.query(
-    `INSERT INTO auth.verification (id, identifier, value, expires_at) VALUES ($1, $2, 'failure', $3)`,
-    [randomUUID(), failureIdentifier(sessionId), expiresAt],
-  );
+): Promise<boolean> {
+  const client = await authPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      attemptIdentifier(sessionId),
+    ]);
+    const { rows } = await client.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
+      [attemptIdentifier(sessionId)],
+    );
+    const allowed = (rows[0]?.n ?? 0) < IN_SESSION_CODE_ATTEMPTS;
+    if (allowed) {
+      await client.query(
+        `INSERT INTO auth.verification (id, identifier, value, expires_at)
+         VALUES ($1, $2, 'attempt', $3)`,
+        [randomUUID(), attemptIdentifier(sessionId), expiresAt],
+      );
+    }
+    await client.query("COMMIT");
+    return allowed;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-/** How many wrong codes this session has sent. */
-export async function codeFailures(authPool: pg.Pool, sessionId: string): Promise<number> {
-  const { rows } = await authPool.query<{ n: number }>(
-    "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
-    [failureIdentifier(sessionId)],
-  );
-  return rows[0]?.n ?? 0;
+/** Clears the session's code attempts once a code is accepted. */
+export async function clearCodeAttempts(authPool: pg.Pool, sessionId: string): Promise<void> {
+  await authPool.query("DELETE FROM auth.verification WHERE identifier = $1", [
+    attemptIdentifier(sessionId),
+  ]);
 }
