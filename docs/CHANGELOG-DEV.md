@@ -2069,3 +2069,10 @@ the October clock change, the alert's words, step-up on recording the notificati
 
 **Tests**: `apps/api/test/evidence-link.test.ts` 2 new and 3 extended (the multi-page pack, the
 deleted bundle, the cookie); `packages/db/test/evidence-pack.test.ts` 2 new.
+## 2026-10-17: Slice 5 web part 1, the shift handover screens (CARE-013, COMMS-006)
+
+- Handover in the navigation; a location's page with this shift's handover (or compile it) and
+  the last week's; one handover's items by person with communication needs beside each name,
+  each a reference in words with an icon and a link to its record; notes on items and on the
+  whole handover (UUIDv7 per note); who has read it; acknowledging it as shown, with the page
+  reloading when items were added since (HZ-018, H-269).

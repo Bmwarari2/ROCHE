@@ -9,7 +9,16 @@ import {
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, CloudOff, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
+import {
+  Bell,
+  ClipboardList,
+  CloudOff,
+  House,
+  LogOut,
+  ShieldCheck,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
@@ -32,6 +41,8 @@ export interface ShellFrameLabels {
   readonly navigation: string;
   readonly home: string;
   readonly people: string;
+  /** Shown only to people who take part in the shift handover (care.handover.manage). */
+  readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
@@ -63,6 +74,7 @@ export interface ShellFrameProps {
 
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
+  if (pathname.startsWith("/handover")) return "handover";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
@@ -148,6 +160,16 @@ export function ShellFrame({
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
     { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.handover
+      ? [
+          {
+            id: "handover",
+            label: labels.handover,
+            href: "/handover",
+            icon: <ClipboardList {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.incidents
       ? [
           {
