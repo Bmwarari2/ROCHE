@@ -1,0 +1,85 @@
+---
+status: "accepted"
+date: 2026-10-16
+decision-makers: Claude Code (lead engineer), on #43 review finding M5; Brian may supersede
+consulted: master prompt section 5.3 (MFA for every role reading care records); ADR-0009 (Better Auth); ADR-0030 (session cookies); HZ-112
+informed: everyone working in this repository, the data protection lead, the CSO
+---
+
+# MFA counts only for the session that used it
+
+## Context and problem statement
+
+The API treated MFA as satisfied for care records (`careRecord: true` permissions) whenever the
+member had an authenticator app (TOTP) or a passkey enrolled. Better Auth asks for the TOTP code at
+a password sign-in when TOTP is on, but a member with only a passkey could sign in with their
+password alone and open care records: the passkey proved nothing about that session. The operator
+console had the same check. How should the API know that a session used a second factor, without
+a schema change to Better Auth's `auth.session` table (only Lane A adds migrations)?
+
+## Decision drivers
+
+- Section 5.3: MFA for every role reading care records means the session, not the account.
+- Fail closed: a session with no record of a factor is refused, including every session issued
+  before this change.
+- No migration in this change; keep the record inside the `auth` schema that only `harbour_auth`
+  reaches.
+- Do not send someone who already has a second factor to an enrolment page (a dead end).
+
+## Considered options
+
+1. A `second_factor` column on `auth.session` through Better Auth `session.additionalFields`.
+2. **A record per session in Better Auth's own `auth.verification` table, written by an `after`
+   hook on the routes that prove a factor.**
+3. Infer it: TOTP holders cannot finish a password sign-in without the code, so count TOTP and
+   refuse passkey-only members unless they hold TOTP too.
+
+## Decision outcome
+
+Chosen option 2, because it needs no migration and fails closed.
+
+- `apps/api/src/auth/better-auth.ts`: an `after` hook on `/passkey/verify-authentication`,
+  `/two-factor/verify-totp` and `/two-factor/verify-backup-code`, only when Better Auth accepted
+  the request, writes `session-factor:<session id>` with the factor (`passkey`, `totp` or
+  `backup_code`) and the session's expiry. It marks the new session a sign-in created, or the
+  current session when a code is confirmed on it (a step-up in place). A backup code counts: it is
+  the recovery code issued with the authenticator app.
+- `apps/api/src/auth/session-factor.ts` `sessionMfa`: `enrol` when nothing is enrolled
+  (`mfa_enrolment_required`, as before), `verify` when a factor is enrolled but this session has
+  no record (`mfa_verification_required`, new), `satisfied` otherwise. One query; the record's
+  expiry follows the session's as the API moves it on.
+- The tenant middleware and the operator console both use it. The web sends
+  `mfa_verification_required` to `/sign-in?reason=mfa` with a message to use the passkey or the
+  authenticator code; `mfa_enrolment_required` still goes to the security settings.
+- Once a member has a factor, the routes that add, show or remove one (`/two-factor/enable`,
+  `/two-factor/disable`, `/two-factor/get-totp-uri`, `/two-factor/generate-backup-codes`,
+  `/passkey/generate-register-options`, `/passkey/verify-registration`,
+  `/passkey/delete-passkey`) need a session that used one (`MFA_VERIFICATION_REQUIRED`
+  otherwise); a first enrolment goes ahead on a password session. Without this, a password alone
+  could enrol the attacker's own factor and pass the check (#57 security review round 1). A
+  session gets five wrong codes on `/two-factor/verify-totp` and `/verify-backup-code`, since
+  Better Auth limits them only at sign-in.
+- A session signed in on a trusted device (Better Auth's `trustDevice`, which Harbour does not
+  offer) or with a password alone does not count.
+
+### Consequences
+
+- Good: a password alone never opens a care record; the same rule covers the operator console.
+- Good: no migration; the record lives and is swept with Better Auth's own verification rows.
+- Bad: every session from before the deploy is refused care records until the person signs in
+  again with a passkey or code (or confirms a code on the session). The release note says so;
+  H-358 plans the deploy outside a shift handover.
+- Bad: the mobile app does not yet know `mfa_verification_required` (mobile is paused); until it
+  does, a refused sync token is read as withdrawn access rather than an ended session (STATUS
+  follow-up, HZ-112).
+- Neutral: a record Better Auth sweeps before the API moves its expiry on fails closed.
+- Option 1 remains the cleaner store; Lane A may move the record to a column later without
+  changing the rule.
+
+### Confirmation
+
+`apps/api/test/mfa-session-factor.test.ts` (HZ-112): a passkey holder's password-only session is
+refused; a passkey session is allowed; removing the passkey refuses again; a wrong code records
+nothing; a code confirmed when enrolling, on an existing session, or at a new sign-in is allowed;
+a session with no record is refused. `apps/web/src/lib/problems.test.ts` and `outcome.test.ts`
+cover the web's handling.

@@ -1123,6 +1123,9 @@
     "care.refusal.classifierAnswer",
     "safety.record.whenHint",
     "safety.record.when",
-    "safety.record.whenDescription"
+    "safety.record.whenDescription",
+    "auth.mfaVerify.title",
+    "auth.mfaVerify.body",
+    "errors.mfaVerifyRequired"
   ]
 }

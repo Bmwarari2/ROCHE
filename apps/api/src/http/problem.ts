@@ -38,6 +38,13 @@ export const problems = {
       "mfa_enrolment_required",
       "Set up an authenticator app or a passkey before you open care records.",
     ),
+  // MFA is enrolled but this session did not use it (#43 review M5, ADR-0072).
+  mfaVerify: () =>
+    new HttpProblem(
+      403,
+      "mfa_verification_required",
+      "Sign in again with your passkey or authenticator app before you open care records.",
+    ),
   featureDisabled: (detail?: string) =>
     new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),
   notFound: () => new HttpProblem(404, "not_found", "We could not find that."),

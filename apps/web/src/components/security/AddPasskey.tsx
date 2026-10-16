@@ -8,6 +8,7 @@ import { refreshSecurity } from "@/app/actions/security";
 import { authClient } from "@/lib/auth-client";
 import { authMessages } from "@/lib/auth-messages";
 import { t } from "@/lib/i18n";
+import { factorChangeRedirect } from "@/lib/problems";
 
 /** Registers a passkey (FIDO2) on this device or a security key, for sign-in without a password. */
 export function AddPasskey() {
@@ -26,6 +27,11 @@ export function AddPasskey() {
     setBusy(true);
     try {
       const result = await authClient().passkey.addPasskey(name ? { name } : {});
+      const redirect = factorChangeRedirect(result?.error, "/settings/security");
+      if (redirect) {
+        router.push(redirect);
+        return;
+      }
       if (result?.error) {
         setMessage({ kind: "error", text: authMessages.passkeyNotAdded });
         return;

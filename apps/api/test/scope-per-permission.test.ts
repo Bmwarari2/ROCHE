@@ -17,7 +17,13 @@ import { accessRowsOf } from "../src/services/access-rows";
 import { fallbackRecipients } from "../src/services/device-holds";
 import { ENTRY_PERMISSION, personReachedBy } from "../src/services/devices";
 import { materialiseSeries } from "../src/services/tasks";
-import { createHarness, type Harness, LODGE, PASSWORD } from "./support/harness";
+import {
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  PASSWORD,
+} from "./support/harness";
 
 /**
  * Data scope is per permission (ADR-0071; hazard HZ-011). Two members of staff at Harbour House
@@ -86,6 +92,7 @@ async function member(id: string, name: string, email: string): Promise<string> 
   await h.db
     .pool("harbour_auth")
     .query("UPDATE auth.user SET two_factor_enabled = true WHERE id = $1", [authId]);
+  await markSessionsVerified(h.db.pool("harbour_auth"));
   return token;
 }
 
