@@ -167,3 +167,32 @@ export function errorFor(result: ActionResult<unknown> | null, field: string): s
 export function outcomeUnknown(result: ActionResult<unknown>): boolean {
   return !result.ok && result.code === "unavailable";
 }
+
+/** One problem a form found at a field, with the boxes of a date or time it is about. */
+export interface FieldProblem {
+  readonly field: string;
+  readonly message: string;
+  readonly parts?: readonly string[];
+}
+
+/**
+ * Every problem a form found before sending, in the order of its fields, so the error summary
+ * lists them all at once (WCAG 3.3.1); null when there are none.
+ */
+export function collectedRefusal(problems: readonly FieldProblem[]): ActionResult<never> | null {
+  const [first] = problems;
+  if (!first) return null;
+  const fields: Record<string, string> = {};
+  const parts: Record<string, readonly string[]> = {};
+  for (const problem of problems) {
+    fields[problem.field] ??= problem.message;
+    if (problem.parts) parts[problem.field] ??= problem.parts;
+  }
+  return {
+    ok: false,
+    code: "invalid",
+    message: first.message,
+    fields,
+    ...(Object.keys(parts).length > 0 ? { parts } : {}),
+  };
+}

@@ -6,6 +6,8 @@ import {
   type MouseEvent,
   type ReactNode,
   useCallback,
+  useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -118,6 +120,23 @@ export function DataTable<Row>({
   const [uncontrolledDensity, setUncontrolledDensity] = useState<TableDensity>(defaultDensity);
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const captionId = useId();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // The scroll area takes focus only while it overflows, so keyboard users can scroll a wide table
+  // without a useless tab stop before every table that fits.
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const measure = () =>
+      setOverflows(
+        element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight,
+      );
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   const sort = sortProp === undefined ? uncontrolledSort : sortProp;
   const density = densityProp ?? uncontrolledDensity;
@@ -226,9 +245,23 @@ export function DataTable<Row>({
           ) : null}
         </div>
       ) : null}
-      <div className="hb-table__scroll" style={{ maxHeight }}>
+      {/* A wide table scrolls inside its own area, never the page (WCAG 1.4.10 allows two-way
+          scrolling for data tables): a group named by the caption, not a landmark, focusable only
+          while it overflows. */}
+      {/* biome-ignore lint/a11y/useSemanticElements: a fieldset is for form controls; this groups a table's scroll area. */}
+      <div
+        ref={scrollRef}
+        className="hb-table__scroll"
+        style={{ maxHeight }}
+        role="group"
+        aria-labelledby={captionId}
+        tabIndex={overflows ? 0 : undefined}
+      >
         <table className="hb-table__table">
-          <caption className={hideCaption ? "hb-visually-hidden" : "hb-table__caption"}>
+          <caption
+            id={captionId}
+            className={hideCaption ? "hb-visually-hidden" : "hb-table__caption"}
+          >
             {caption}
           </caption>
           <thead>

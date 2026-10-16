@@ -9,7 +9,7 @@ import {
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
+import { Bell, CloudOff, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
@@ -34,6 +34,8 @@ export interface ShellFrameLabels {
   readonly people: string;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to people who open the downtime pack or manage outages. */
+  readonly downtime?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -66,6 +68,7 @@ function currentSection(pathname: string): string {
     return "incidents";
   }
   if (pathname.startsWith("/notifications")) return "notifications";
+  if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -87,7 +90,9 @@ export function ShellFrame({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [collapsed, setCollapsed] = useState(false);
+  // Null until the browser has said whether this is a phone: the sidebar then collapses by CSS on a
+  // narrow screen, so the first paint never lays out the full-width sidebar there.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
@@ -150,6 +155,16 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.downtime
+      ? [
+          {
+            id: "downtime",
+            label: labels.downtime,
+            href: "/downtime",
+            icon: <CloudOff {...icon} />,
           },
         ]
       : []),
@@ -218,8 +233,9 @@ export function ShellFrame({
             items={items}
             currentId={currentSection(pathname)}
             label={labels.navigation}
-            collapsed={collapsed}
+            collapsed={collapsed ?? false}
             onCollapsedChange={setCollapsed}
+            {...(collapsed === null ? { className: "hb-sidebar--narrow-auto" } : {})}
             linkComponent={Link}
           />
         </div>

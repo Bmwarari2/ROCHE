@@ -40,6 +40,11 @@ describe("loadConfig", () => {
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
     ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
     [
+      "more than 10 sign-ins a minute",
+      { AUTH_SIGN_IN_PER_MINUTE: "11" },
+      "AUTH_SIGN_IN_PER_MINUTE",
+    ],
+    [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },
       "FLAGSMITH_API_URL",
@@ -84,6 +89,7 @@ describe("loadConfig", () => {
     const config = loadConfig({ NODE_ENV: "development" });
     expect(config.DATABASE_OPERATOR_URL).toContain("localhost");
     expect(config.trustedProxies).toEqual([]);
+    expect(config.AUTH_SIGN_IN_PER_MINUTE).toBe(10);
   });
 
   it("splits comma-separated origins and proxy ranges", () => {
