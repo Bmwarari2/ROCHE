@@ -1,10 +1,4 @@
-import {
-  auditEvent,
-  notification,
-  subProcessorNotice,
-  tenant,
-  withRequestContext,
-} from "@harbour/db";
+import { tenant, withRequestContext } from "@harbour/db";
 import {
   checkNoticeTiming,
   OBJECTION_RESOLUTIONS,
@@ -16,10 +10,10 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context } from "hono";
+import type pg from "pg";
 import type { AppEnv } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { rateNumber } from "../services/rates";
-import { roleHolders } from "../services/role-holders";
 import { subProcessorConfigFor } from "../services/sub-processors";
 import {
   conflictResponse,
@@ -33,10 +27,12 @@ import {
 /**
  * Thapsus's side of sub-processor notices (platform-completions.md rules 24 and 25; DPA clause 6).
  * An admin operator, with a fresh step-up, announces a new or replacement sub-processor: it may
- * not take effect before the longest notice period among the organisations it affects
- * (`checkNoticeTiming`), and each affected organisation's data protection lead (its owners when
- * none is named) is told, with the announcement in its own audit trail. An admin records how an
- * organisation's open objection was resolved. Ids and keys only, never the grounds.
+ * not take effect before the longest notice period among the organisations it affects, suspended
+ * ones included (their data is still processed; only closed ones are left out), checked with
+ * `checkNoticeTiming`. Announcing, reading objections and resolving one go through definer
+ * functions (migration 0067) that identify the admin from the transaction's `app.operator_id`
+ * and write each organisation's audit trail and an outbox event in one transaction; the worker
+ * then tells its lead (or owners), durably and once. Ids and keys only, never the grounds.
  */
 
 const Use = z.discriminatedUnion("kind", [
@@ -105,61 +101,29 @@ function freshAdmin(c: Context<AppEnv>) {
   return operator;
 }
 
-/**
- * In the organisation's own context: the operator's action in its audit trail, and its data
- * protection lead (or, with none named, its owners) told, with a generic title.
- */
-async function tellOrganisation(
+/** Runs `fn` in one operator transaction with `app.operator_id` set, as the functions require. */
+async function asOperator<T>(
   c: Context<AppEnv>,
-  tenantId: string,
-  input: {
-    /** The operator's action for the organisation's audit trail; null when already written. */
-    readonly audit: { readonly action: string; readonly scope: Record<string, unknown> } | null;
-    readonly resourceId: string;
-    readonly kind: string;
-    readonly title: string;
-  },
-) {
-  const operator = c.get("operator");
-  await withRequestContext(
-    c.get("services").db,
-    { tenantId, userId: null, scope: "tenant", locationIds: [] },
-    async (tx) => {
-      if (input.audit) {
-        await tx.insert(auditEvent).values({
-          tenantId,
-          actorAuthUserId: operator.authUserId,
-          actorRoleKeys: [`thapsus_${operator.role}`],
-          action: input.audit.action,
-          resourceType: "sub_processor_notice",
-          resourceId: input.resourceId,
-          scope: { operatorId: operator.id, ...input.audit.scope },
-          requestId: c.get("requestId"),
-        });
-      }
-      const [t] = await tx
-        .select({ leadId: tenant.dataProtectionLeadId })
-        .from(tenant)
-        .where(eq(tenant.id, tenantId));
-      const recipients = t?.leadId
-        ? [t.leadId]
-        : await roleHolders(tx, ["owner"], null, new Date());
-      for (const recipient of recipients) {
-        await tx.insert(notification).values({
-          recipientTenantUserId: recipient,
-          kind: input.kind,
-          severity: "warning",
-          title: input.title,
-          link: "/settings/data-protection",
-          channels: ["in_app", "email"],
-          sourceType: "sub_processor_notice",
-          sourceId: input.resourceId,
-          dedupeKey: `${input.kind}:${input.resourceId}:${recipient}`,
-        });
-      }
-    },
-  );
+  operatorId: string,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await c.get("services").operatorPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.operator_id', $1, true)", [operatorId]);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw refusalOf(error);
+  } finally {
+    client.release();
+  }
 }
+
+/** Organisations whose data is still processed: every one not closed. */
+const PROCESSED = new Set(["onboarding", "active", "suspended"]);
 
 export const operatorSubProcessorsRouter = createRouter()
   .openapi(
@@ -169,24 +133,23 @@ export const operatorSubProcessorsRouter = createRouter()
       tags: ["operator"],
       summary: "Announce a new or replacement sub-processor (admins, fresh sign-in)",
       description:
-        "Works out which organisations the change affects from their configuration, refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), stores the notice and tells each affected organisation's data protection lead (or its owners), recording the announcement in its audit trail.",
+        "Works out which organisations the change affects from their configuration (every organisation not closed, suspended ones included), refuses an effective date before the longest of their notice periods (422 notice_too_short, with the earliest date), then through app.announce_sub_processor_notice stores the notice and, for each affected organisation, its audit event and an outbox event the worker turns into a notification to its lead (or owners).",
       security,
       request: { body: { content: { "application/json": { schema: Announce } } } },
       responses: { 201: jsonBody(Announced, "Announced"), ...errorResponses },
     }),
     async (c) => {
-      freshAdmin(c);
+      const operator = freshAdmin(c);
       const body = c.req.valid("json");
       const services = c.get("services");
-      const now = new Date();
       const use = body.use as SubProcessorUse;
-      const notice = { announcedAt: now, effectiveFrom: new Date(body.effectiveFrom) };
+      const effectiveFrom = new Date(body.effectiveFrom);
       const tenants = await drizzle(services.operatorPool)
         .select({ id: tenant.id, status: tenant.status })
         .from(tenant);
       const affected: { readonly id: string; readonly days: number }[] = [];
       for (const { id, status } of tenants) {
-        if (status !== "onboarding" && status !== "active") continue;
+        if (!PROCESSED.has(status)) continue;
         const days = await withRequestContext(
           services.db,
           { tenantId: id, userId: null, scope: "tenant", locationIds: [] },
@@ -201,7 +164,7 @@ export const operatorSubProcessorsRouter = createRouter()
         if (days !== null) affected.push({ id, days });
       }
       const timing = checkNoticeTiming(
-        notice,
+        { announcedAt: new Date(), effectiveFrom },
         affected.map((a) => a.days),
       );
       if (!timing.ok) {
@@ -212,29 +175,21 @@ export const operatorSubProcessorsRouter = createRouter()
           `The affected organisations need notice until ${timing.earliestEffectiveFrom.toISOString()}.`,
         );
       }
-      const [saved] = await drizzle(services.operatorPool)
-        .insert(subProcessorNotice)
-        .values({
-          subProcessorKey: body.subProcessorKey,
-          kind: body.kind,
-          use,
-          announcedAt: now,
-          effectiveFrom: notice.effectiveFrom,
-        })
-        .returning({ id: subProcessorNotice.id });
-      if (!saved) throw problems.conflict();
-      for (const { id } of affected) {
-        await tellOrganisation(c, id, {
-          audit: {
-            action: "platform.sub_processor.announced",
-            scope: { subProcessorKey: body.subProcessorKey, kind: body.kind },
-          },
-          resourceId: saved.id,
-          kind: "platform.sub_processor.notice",
-          title: "A sub-processor change needs your answer",
-        });
-      }
-      return c.json({ id: saved.id, affectedOrganisations: affected.length }, 201);
+      const id = await asOperator(c, operator.id, async (client) => {
+        const { rows } = await client.query<{ id: string }>(
+          "SELECT app.announce_sub_processor_notice($1, $2, $3, $4, $5, $6) AS id",
+          [
+            body.subProcessorKey,
+            body.kind,
+            JSON.stringify(use),
+            effectiveFrom,
+            affected.map((a) => a.id),
+            c.get("requestId") ?? null,
+          ],
+        );
+        return rows[0]?.id as string;
+      });
+      return c.json({ id, affectedOrganisations: affected.length }, 201);
     },
   )
   .openapi(
@@ -245,7 +200,7 @@ export const operatorSubProcessorsRouter = createRouter()
       summary:
         "Record how an organisation's objection to a notice was resolved (admins, fresh sign-in)",
       description:
-        "Only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's lead is told and its audit trail records it.",
+        "Through app.resolve_sub_processor_objection, only while the organisation has an open objection to the notice (409 no_open_objection otherwise). Withdrawn lets the sub-processor process its data; not used for it, or services ended, never does (mayProcessTenantData). Append-only; the organisation's audit trail records it and the worker tells its lead.",
       security,
       request: {
         params: z.object({ tenantId: z.uuid(), id: z.uuid() }),
@@ -262,24 +217,12 @@ export const operatorSubProcessorsRouter = createRouter()
       const operator = freshAdmin(c);
       const { tenantId, id } = c.req.valid("param");
       const { resolution } = c.req.valid("json");
-      let saved: string;
-      try {
-        const { rows } = await c
-          .get("services")
-          .operatorPool.query<{ id: string }>(
-            "SELECT app.resolve_sub_processor_objection($1, $2, $3, $4, $5) AS id",
-            [tenantId, id, resolution, operator.authUserId, c.get("requestId") ?? null],
-          );
-        saved = rows[0]?.id as string;
-      } catch (error) {
-        throw refusalOf(error);
-      }
-      // The function wrote the organisation's audit event; its lead (or owners) is told.
-      await tellOrganisation(c, tenantId, {
-        audit: null,
-        resourceId: id,
-        kind: "platform.sub_processor.objection_resolved",
-        title: "Your objection to a sub-processor change has been resolved",
+      const saved = await asOperator(c, operator.id, async (client) => {
+        const { rows } = await client.query<{ id: string }>(
+          "SELECT app.resolve_sub_processor_objection($1, $2, $3, $4) AS id",
+          [tenantId, id, resolution, c.get("requestId") ?? null],
+        );
+        return rows[0]?.id as string;
       });
       return c.json({ id: saved }, 201);
     },
@@ -303,32 +246,27 @@ export const operatorSubProcessorsRouter = createRouter()
     async (c) => {
       const operator = freshAdmin(c);
       const { id } = c.req.valid("param");
-      try {
-        const { rows } = await c.get("services").operatorPool.query<{
+      const rows = await asOperator(c, operator.id, async (client) => {
+        const result = await client.query<{
           tenant_id: string;
           objected_at: Date;
           grounds: string;
           resolved_at: Date | null;
           resolution: string | null;
-        }>("SELECT * FROM app.sub_processor_objections($1, $2, $3)", [
-          id,
-          operator.authUserId,
-          c.get("requestId") ?? null,
-        ]);
-        return c.json(
-          {
-            items: rows.map((r) => ({
-              tenantId: r.tenant_id,
-              objectedAt: r.objected_at.toISOString(),
-              grounds: r.grounds,
-              resolvedAt: r.resolved_at ? r.resolved_at.toISOString() : null,
-              resolution: r.resolution as (typeof OBJECTION_RESOLUTIONS)[number] | null,
-            })),
-          },
-          200,
-        );
-      } catch (error) {
-        throw refusalOf(error);
-      }
+        }>("SELECT * FROM app.sub_processor_objections($1, $2)", [id, c.get("requestId") ?? null]);
+        return result.rows;
+      });
+      return c.json(
+        {
+          items: rows.map((r) => ({
+            tenantId: r.tenant_id,
+            objectedAt: r.objected_at.toISOString(),
+            grounds: r.grounds,
+            resolvedAt: r.resolved_at ? r.resolved_at.toISOString() : null,
+            resolution: r.resolution as (typeof OBJECTION_RESOLUTIONS)[number] | null,
+          })),
+        },
+        200,
+      );
     },
   );

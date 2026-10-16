@@ -626,15 +626,18 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
 - Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0067): an admin with
   a fresh step-up announces a notice (`POST /operator/sub-processor-notices`); the organisations
   it affects are worked out from their configuration (`subProcessorConfigFor`, never people),
-  the effective date may not come before the longest of their notice periods
-  (`checkNoticeTiming`, 422 `notice_too_short`), and each is told (its lead, or its owners) with
-  the announcement in its audit trail. Objections are read (`GET
-  /operator/sub-processor-notices/{id}/objections`) and resolved (`POST
-  /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution`) only through the definer
-  functions `app.sub_processor_objections` and `app.resolve_sub_processor_objection`, owned by
-  the NOLOGIN role `harbour_notice_resolver`: they check an active admin, need an open objection
-  (409 `no_open_objection`), and write the organisation's audit trail (ids only); the operator
-  role has no direct access to responses.
+  every organisation not closed counting, suspended ones included (their data is still
+  processed); the effective date may not come before the longest of their notice periods
+  (`checkNoticeTiming`, 422 `notice_too_short`). Announcing, reading objections (`GET
+  /operator/sub-processor-notices/{id}/objections`) and resolving one (`POST
+  /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution`) go only through definer
+  functions owned by the NOLOGIN role `harbour_notice_resolver` (`app.announce_sub_processor_notice`,
+  `app.sub_processor_objections`, `app.resolve_sub_processor_objection`): they take the admin
+  from the transaction's `app.operator_id`, need an open objection to resolve (409
+  `no_open_objection`), and write each organisation's audit event and an outbox event in the same
+  transaction; the worker then tells its lead (or owners) once, by a dedupe key, retrying until
+  it has. The operator role has no direct access to notices or responses, and the other
+  application roles cannot execute the functions.
 - Next: the web screens.
 
 ## 11. Open questions

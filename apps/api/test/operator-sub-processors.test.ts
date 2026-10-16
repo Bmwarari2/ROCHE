@@ -1,5 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
 import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
@@ -44,6 +46,16 @@ async function ownerIn(text: string, values: unknown[] = [], tenant: string = DE
   }
 }
 
+/** Runs the worker's outbox relay once, as the worker would. */
+async function relay() {
+  const deps = {
+    workerPool: h.db.pool("harbour_worker"),
+    appDb: h.handle.services.db,
+    logger: createLogger("silent"),
+  };
+  await relayOutbox(deps, outboxHandlers(deps));
+}
+
 const announce = (who: string, body: Record<string, unknown>) =>
   op(who, "/operator/sub-processor-notices", { method: "POST", body });
 const SENTRY = {
@@ -69,6 +81,12 @@ describe("rules 24 and 25, Thapsus's side", () => {
     } finally {
       await ageSession(auth, session, 0);
     }
+    // A suspended organisation's data is still processed, so it is counted and told.
+    await ownerIn(
+      "UPDATE tenant SET status = 'suspended' WHERE id = $1",
+      [OTHER.tenantId],
+      OTHER.tenantId,
+    );
     const soon = await announce("opsAdmin", { ...SENTRY, effectiveFrom: inDays(5) });
     expect(soon.status).toBe(422);
     expect(await codeOf(soon)).toBe("notice_too_short");
@@ -77,17 +95,36 @@ describe("rules 24 and 25, Thapsus's side", () => {
     const body = (await announced.json()) as { id: string; affectedOrganisations: number };
     noticeId = body.id;
     expect(body.affectedOrganisations).toBeGreaterThanOrEqual(2);
-    // The demo organisation's owners (no lead is named yet) are told, and its trail records it.
+    // Each organisation's trail records it in the same transaction; the worker tells its owners
+    // (no lead is named yet), once however often the event is delivered.
+    for (const tenant of [DEMO.tenantId, OTHER.tenantId]) {
+      const trail = await ownerIn(
+        "SELECT action FROM audit_event WHERE action = 'platform.sub_processor.announced' AND resource_id = $1",
+        [noticeId],
+        tenant,
+      );
+      expect(trail).toHaveLength(1);
+    }
+    await relay();
+    await ownerIn("UPDATE outbox_event SET published_at = NULL WHERE aggregate_id = $1", [
+      noticeId,
+    ]);
+    await relay();
     const told = await ownerIn(
-      "SELECT count(*)::int AS n FROM notification WHERE kind = 'platform.sub_processor.notice' AND source_id = $1",
+      "SELECT count(*)::int AS n FROM notification WHERE kind = 'platform.sub_processor.notice_announced' AND source_id = $1",
       [noticeId],
     );
-    expect(told[0]?.n).toBeGreaterThan(0);
-    const audited = await ownerIn(
-      "SELECT action FROM audit_event WHERE action = 'platform.sub_processor.announced' AND resource_id = $1",
-      [noticeId],
+    const owners = await ownerIn(
+      `SELECT count(DISTINCT ra.tenant_user_id)::int AS n FROM role_assignment ra
+         JOIN role r ON r.id = ra.role_id
+        WHERE r.key = 'owner' AND ra.deleted_at IS NULL`,
     );
-    expect(audited).toHaveLength(1);
+    expect(told[0]?.n).toBe(owners[0]?.n);
+    await ownerIn(
+      "UPDATE tenant SET status = 'active' WHERE id = $1",
+      [OTHER.tenantId],
+      OTHER.tenantId,
+    );
   });
 
   it("affects only organisations whose configuration uses the sub-processor", async () => {
@@ -117,9 +154,20 @@ describe("rules 24 and 25, Thapsus's side", () => {
     });
     expect(objected.status).toBe(201);
 
-    expect(
-      (await op("opsSupport", `/operator/sub-processor-notices/${noticeId}/objections`)).status,
-    ).toBe(403);
+    const objections = `/operator/sub-processor-notices/${noticeId}/objections`;
+    const resolution = `/operator/tenants/${DEMO.tenantId}/sub-processor-notices/${noticeId}/resolution`;
+    const ended = { method: "POST", body: { resolution: "services_ended" } };
+    expect((await op("opsSupport", objections)).status).toBe(403);
+    expect((await op("opsSupport", resolution, ended)).status).toBe(403);
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.opsAdmin?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      expect(await codeOf(await op("opsAdmin", objections))).toBe("step_up_required");
+      expect(await codeOf(await op("opsAdmin", resolution, ended))).toBe("step_up_required");
+    } finally {
+      await ageSession(auth, session, 0);
+    }
     const read = await op("opsAdmin", `/operator/sub-processor-notices/${noticeId}/objections`);
     expect(read.status).toBe(200);
     const { items } = (await read.json()) as {
@@ -137,6 +185,12 @@ describe("rules 24 and 25, Thapsus's side", () => {
     expect((await resolve(OTHER.tenantId)).status).toBe(409);
     expect((await resolve(DEMO.tenantId)).status).toBe(201);
     expect((await resolve(DEMO.tenantId)).status).toBe(409);
+    await relay();
+    const resolvedTold = await ownerIn(
+      "SELECT recipient_tenant_user_id AS who FROM notification WHERE kind = 'platform.sub_processor.objection_resolved' AND source_id = $1",
+      [noticeId],
+    );
+    expect(resolvedTold.map((r) => r.who)).toEqual([DEMO.users.owner.id]);
     const state = (await (
       await h.request("/v1/sub-processors", { token: h.tokens.owner, tenant: DEMO.tenantId })
     ).json()) as { notices: { id: string; state: string }[] };
@@ -169,16 +223,26 @@ describe("rules 24 and 25, Thapsus's side", () => {
         /permission denied/,
       );
       await client.query("ROLLBACK TO SAVEPOINT s");
-      // The functions check the caller is an active admin, whatever the role.
+      // The functions take the caller from app.operator_id: none set, no admin.
       await expect(
-        client.query("SELECT * FROM app.sub_processor_objections($1, $2, NULL)", [
-          noticeId,
-          "not-an-operator",
-        ]),
+        client.query("SELECT * FROM app.sub_processor_objections($1, NULL)", [noticeId]),
       ).rejects.toThrow(/operator_not_admin/);
     } finally {
       await client.query("ROLLBACK");
       client.release();
+    }
+    // The application role cannot run any of them.
+    const app = await h.db.pool("harbour_app").connect();
+    try {
+      for (const call of [
+        `SELECT app.announce_sub_processor_notice('x_y', 'new', '{"kind":"always"}', now(), ARRAY[]::uuid[], NULL)`,
+        `SELECT * FROM app.sub_processor_objections('${noticeId}', NULL)`,
+        `SELECT app.resolve_sub_processor_objection('${DEMO.tenantId}', '${noticeId}', 'services_ended', NULL)`,
+      ]) {
+        await expect(app.query(call)).rejects.toThrow(/permission denied/);
+      }
+    } finally {
+      app.release();
     }
   });
 });
