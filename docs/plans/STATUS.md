@@ -18,7 +18,7 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
-## Paused on 16/10/2026: where to pick up
+## Where to pick up (paused 16/10/2026, resumed 31/10/2026)
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
@@ -33,23 +33,50 @@ notices (organisation and operator sides), search and break-glass search, sample
 for definer functions left executable by PUBLIC (#97), the Phase 1 gate gap report (#100) and
 ADR-0073 (one development-log file per pull request).
 
-**Mobile** stays paused by the owner: do not work on `apps/mobile`, the phone sync streams or the
-screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
+**Mobile** was paused by the owner on 16/10/2026 and **unpaused on 31/10/2026**: `apps/mobile`, the
+phone sync streams, the screens gate, draft PR #50 and `feat/mobile-round-screen` are open for work
+again. The Phase 1 safety case (v0.1) still excludes the mobile app until its journeys run in CI.
+
+**Resumed on 31/10/2026.** Six branches pushed, none merged yet; merge them in this order (each
+touches `phase-1-gate.md`, so expect small conflicts there; take both sides):
+
+1. `feat/web-history-journey`: the history tab journey with axe (closes the WCAG gap but
+   choose-organisation), this status update, and turbo's `agentGuidance` off.
+2. `fix/care-history-latest-change` (stacked on 1): the history API sends the current record, so the
+   newest earlier version marks what the latest review changed; answers and statuses in words (HZ-024).
+3. `chore/gate-hazard-status-and-pack-render`: the last stale hazard statuses marked Passing from CI
+   run 38938760784; two more evidence pack PDF render tests; gate small items 1 and 2 closed.
+4. `docs/clinical-safety-case-v0-1`: safety case v0.1 drafted; CSO sign-off is H-381.
+5. `docs/dpia-phase-1`: DPIA risks R13 to R19 (template section 7A and the in-app prefill in
+   `packages/domain/src/platform/dpia.ts`), eight data-standards tables; sign-off is H-382.
+6. `feat/web-break-glass-report`: the weekly break-glass report screens (PLAT-006) and `staff`
+   names on the report API.
+
+Reviewer agents (security, accessibility, clinical) were run on 2, 4 and 6 before the pull requests.
 
 **Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
 
-1. Small gate gaps still open: the axe journey for `/people/[id]/history`.
-2. Clinical safety case v0.1 (only v0.0 exists).
-3. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
-   013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`); the
-   weekly break-glass report (PLAT-006); candour, medical examiner and investigations (SAFE-007,
-   008, 010); evidence pack composing and statement of purpose (QUAL-003, QUAL-009).
+1. Open items from 31/10/2026:
+   - Break-glass report: each opening's time and typed reason are not shown (RLS lets only
+     tenant-wide readers or the opener read `break_glass_event`); needs a security decision and a
+     report-scoped read. Nothing sets `break_glass_event.reviewed_at`. Step-up on review is H-80.
+   - DPIA: a signed DPIA is not flagged for re-review when new standard risks (R13 to R19) are
+     added (`dpiaReviewTriggers` compares purposes, sub-processors, categories and features only).
+   - History: consent and DoLS review statuses still show as keys; likelihood and severity as numbers.
+   - Hazard verification rows still saying "runs in CI" though run 38938760784 shows them passing:
+     HZ-027, HZ-003, HZ-008, HZ-021.
+   - `phase-1.md` cites an `mca.md` spec that does not exist (the rules are in `care.md`).
+   - Next.js 16.4.0 reports a known security advisory on `next dev`: upgrade on its own branch.
+2. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
+   013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`);
+   candour, medical examiner and investigations (SAFE-007, 008, 010); evidence pack composing and
+   statement of purpose (QUAL-003, QUAL-009).
+3. CSO and DPO sign-offs (H-381, H-382): human actions; build continues meanwhile.
 4. White-label branding (PLAT-002) and role dashboards (INSI-001).
-5. The DPIA template's Phase 1 risks and measures.
-6. User guides per role and `docs/demo/` with the Phase 1 walkthrough (every register row needs
+5. User guides per role and `docs/demo/` with the Phase 1 walkthrough (every register row needs
    its user guide before it can be `done`).
-7. A second demo tenant with a shared user, for the choose-organisation journey; Lighthouse CI.
-8. When Phase 1 is complete: run the Cloudflare security-audit skill read-only, then fix what it
+6. A second demo tenant with a shared user, for the choose-organisation journey; Lighthouse CI.
+7. When Phase 1 is complete: run the Cloudflare security-audit skill read-only, then fix what it
    finds; then Phase 2 (non-mobile).
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:

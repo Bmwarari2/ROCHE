@@ -225,6 +225,64 @@ const CONDITIONAL_RISKS: readonly {
   },
 ];
 
+/**
+ * The Phase 1 residential processing's risks (dpia-template.md sections 6, 7 and 7A): evidence
+ * packs, bulk copies, search and break-glass, letters, statutory notifications, capacity and DoLS,
+ * and sample data. Every tenant has this processing, so they always apply; they follow the
+ * conditional risks so the ids stay in order.
+ */
+const PHASE_1_RISKS: readonly DpiaRisk[] = [
+  {
+    id: "R13",
+    risk: "Disclosure to an inspector or commissioner beyond what the request needs, or after the link should have ended",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R14",
+    risk: "A bulk copy of many people's records (full export, downtime pack, printed transfer pack) lost, kept too long or reaching the wrong person",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R15",
+    risk: "Search or break-glass showing a person outside the searcher's scope, or break-glass used without a real need",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R16",
+    risk: "A letter or email sent to the wrong recipient, or special category data sent by email",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R17",
+    risk: "A statutory notification to a regulator that is wrong, late or holds more personal data than the form needs",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R18",
+    risk: "Consent, capacity or DoLS records wrong or out of date, so a person is restricted or decided for without valid authority",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R19",
+    risk: "Sample data mixed with real records, or a real person's data entered as sample data",
+    likelihood: "remote",
+    severity: "significant",
+    overall: "low",
+  },
+];
+
 export interface DpiaDraft {
   readonly generatedAt: string;
   readonly basis: DpiaBasis;
@@ -389,7 +447,11 @@ export function prefillDpia(config: DpiaConfig, generatedAt: Date): DpiaDraft {
     basis,
     sections,
     purposes,
-    risks: [...BASE_RISKS, ...CONDITIONAL_RISKS.filter((r) => r.when(config)).map((r) => r.risk)],
+    risks: [
+      ...BASE_RISKS,
+      ...CONDITIONAL_RISKS.filter((r) => r.when(config)).map((r) => r.risk),
+      ...PHASE_1_RISKS,
+    ],
     missingConfig: missingConfig(config),
   };
 }
