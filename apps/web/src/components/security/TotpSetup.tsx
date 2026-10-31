@@ -126,7 +126,7 @@ export function TotpSetup() {
             </ul>
           </li>
           <li>
-            <form className="flex flex-col gap-4" onSubmit={verify} noValidate>
+            <form method="post" className="flex flex-col gap-4" onSubmit={verify} noValidate>
               <TextField
                 name="code"
                 label={t("security.totp.code")}
@@ -148,7 +148,7 @@ export function TotpSetup() {
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={start} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={start} noValidate>
       <TextField
         name="password"
         type="password"

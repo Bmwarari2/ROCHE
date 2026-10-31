@@ -25,11 +25,18 @@ import { useRecordScreenProtection } from "../../../../security/use-record-prote
 export default function NoteScreen() {
   useRecordScreenProtection("note");
   const theme = useTheme();
-  const { personId, correct } = useLocalSearchParams<{ personId: string; correct?: string }>();
+  const { personId, correct, task } = useLocalSearchParams<{
+    personId: string;
+    correct?: string;
+    task?: string;
+  }>();
   const id = typeof personId === "string" ? personId : "";
   const correctId = typeof correct === "string" && correct ? correct : null;
   const tenantId = useTenantId();
-  const context = useEntryContext(id);
+  // The round's task this entry answers, when the carer came from the round (gate item (f)).
+  // A note never answers a round task: a note that says it was not done is "Not done" with a
+  // reason on the round (#123 clinical review, M3).
+  const context = useEntryContext(id, !correct && typeof task === "string" ? task : null, null);
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const originalParams = useMemo(() => [tenantId, id, correctId ?? ""], [tenantId, id, correctId]);

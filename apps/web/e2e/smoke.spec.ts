@@ -57,13 +57,13 @@ async function signOut(page: Page) {
   await page.waitForURL((url) => url.pathname === "/sign-in");
 }
 
-test("a manager signs in, sees the empty home, opens people and a person, and signs out", async ({
+test("a manager signs in, sees the dashboard, opens people and a person, and signs out", async ({
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
 
   await expect(page.getByRole("heading", { level: 1, name: "Welcome, Mo Manager" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Today" })).toBeVisible();
   await expect(page.getByRole("banner").getByText("Mo Manager")).toBeVisible();
   await expectAccessible(page, "home");
 
@@ -73,7 +73,10 @@ test("a manager signs in, sees the empty home, opens people and a person, and si
   await expect(page.getByRole("heading", { level: 1, name: "Residents" })).toBeVisible();
   const table = page.getByRole("table", { name: "Residents" });
   await expect(table.getByRole("row", { name: /Addie/ })).toBeVisible();
-  await expect(table.getByText("Allergies not recorded")).toBeVisible();
+  // Cara is the seeded resident whose allergies are not recorded; other journeys may add people.
+  await expect(
+    table.getByRole("row", { name: /Cara Placeholder/ }).getByText("Allergies not recorded"),
+  ).toBeVisible();
   await expect(table.getByText("No known allergies").first()).toBeVisible();
   await expectAccessible(page, "people");
 

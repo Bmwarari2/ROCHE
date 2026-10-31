@@ -3,8 +3,10 @@ import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
-import { getShellContext, tenantApi } from "@/lib/api";
+import { getShellContext } from "@/lib/api";
+import { approvalsShown } from "@/lib/approvals";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
+import { readNotifications } from "@/lib/dashboard-data";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { evidencePacksShown } from "@/lib/evidence-packs";
@@ -15,6 +17,7 @@ import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
 import { statementShown } from "@/lib/statement-of-purpose";
@@ -33,10 +36,10 @@ function locationDescription(location: LocationSummary): string | undefined {
 /** The signed-in product shell. Every page under it has a session and an active organisation. */
 export default async function ShellLayout({ children }: { readonly children: ReactNode }) {
   const { me, locationId } = await getShellContext();
-  const api = await tenantApi();
-  // The unread count is a convenience; the shell still renders if it cannot be fetched.
-  const notifications = await api.GET("/v1/notifications").catch(() => null);
-  const unread = notifications?.data?.unread ?? 0;
+  // The unread count is a convenience; the shell still renders if it cannot be fetched. Read once
+  // per request, shared with the home page's alerts tile.
+  const notifications = await readNotifications();
+  const unread = notifications.kind === "ok" ? notifications.data.unread : 0;
 
   return (
     <ShellFrame
@@ -66,8 +69,11 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
+        approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
+        tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
+        documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
         evidencePacks: evidencePacksShown(me.permissions)
           ? t("shell.nav.evidencePacks")
@@ -76,6 +82,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
           ? t("shell.nav.statementOfPurpose")
           : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
+        retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
         breakGlassReport: breakGlassReportShown(me.permissions)

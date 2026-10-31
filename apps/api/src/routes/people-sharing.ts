@@ -15,9 +15,12 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  AUTHORITY_CONTACT_ROLES,
   type AuthorityRole,
+  authorityHeldNow,
   checkSectionVisibility,
   checkSharingDecision,
+  DEPUTY_SCOPES,
   FINANCE_SECTIONS,
   type PersonStatus,
   SHARING_SECTIONS,
@@ -29,6 +32,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
@@ -89,21 +93,6 @@ const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   link_only_about_me: "A share link carries About Me only.",
   link_not_direct_care: "A share link cannot rest on direct care.",
   suspension_ends_before_start: "A suspension must end after it starts.",
-};
-
-/** The contact role that holds each authority (people.md rule 13). */
-const AUTHORITY_CONTACT_ROLES: Record<AuthorityRole, string> = {
-  lpa_health_welfare: "lpa_health_welfare",
-  lpa_property_finance: "lpa_property_finance",
-  deputy_personal_welfare: "deputy",
-  deputy_property_affairs: "deputy",
-  appointee: "appointee",
-};
-
-/** The deputyships (`contact.authority_scope`) that allow each deputy role. */
-const DEPUTY_SCOPES: Partial<Record<AuthorityRole, readonly string[]>> = {
-  deputy_personal_welfare: ["personal_welfare", "both"],
-  deputy_property_affairs: ["property_affairs", "both"],
 };
 
 /**
@@ -291,6 +280,8 @@ export const peopleSharingRouter = createRouter()
           id,
           authority?.evidenceDocumentId,
           "evidence of the authority",
+          // A document about the person, never a photo or a care attachment (#119 review L2).
+          ["person_document"],
         );
         const [row] = await tx
           .insert(sharingDecision)
@@ -410,7 +401,7 @@ export const peopleSharingRouter = createRouter()
       summary:
         "Lift a suspension: the sections reopen, but what happened while suspended stays closed",
       description:
-        "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).",
+        "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2). A decision that rests on an authority is lifted only while the contact still holds it as the decision recorded (authorityHeldNow: the same kind of authority, a deputy's order of that kind, no earlier end); otherwise it is refused and the refusal audited with the reason `authority_changed` (HZ-022).",
       security,
       request: {
         params: DecisionParams,
@@ -425,12 +416,8 @@ export const peopleSharingRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, "people.sharing.manage");
-      const out = await closeDecision(
-        c,
-        access,
-        c.req.valid("param"),
-        c.req.valid("json"),
-        "lift_suspension",
+      const out = await withAuditedRefusal(c, access, () =>
+        closeDecision(c, access, c.req.valid("param"), c.req.valid("json"), "lift_suspension"),
       );
       return c.json(out, 200);
     },
@@ -518,6 +505,67 @@ export const peopleSharingRouter = createRouter()
     },
   );
 
+/** The message for a suspension that cannot be lifted because its authority has gone. */
+const AUTHORITY_GONE =
+  "The authority this decision rests on has changed or ended since it was recorded. Withdraw the decision and record a new one if sharing should go on.";
+
+/**
+ * Before a suspension is lifted: the contact the decision's authority rests on must still hold it
+ * as recorded (HZ-022; #119 review round 2). A decision suspended for a safeguarding enquiry, whose
+ * attorney was then changed or removed, stays closed; the refusal is audited after the
+ * transaction (`withAuditedRefusal`), never on a second connection while this one is held.
+ */
+async function requireAuthorityHeld(
+  tx: Transaction,
+  row: typeof sharingDecision.$inferSelect,
+): Promise<void> {
+  if (!row.authorityRole || !row.authorityContactId) return;
+  const [holder] = await tx
+    .select()
+    .from(contact)
+    .where(and(eq(contact.id, row.authorityContactId), eq(contact.personId, row.personId)));
+  const changes = authorityHeldNow(
+    {
+      basis: row.basis as SharingDecision["basis"],
+      consentGivenBy: row.consentGivenBy as SharingDecision["consentGivenBy"],
+      authority: {
+        role: row.authorityRole as AuthorityRole,
+        contactId: row.authorityContactId,
+        reference: row.authorityReference,
+        evidenceDocumentId: row.authorityEvidenceDocumentId,
+        validUntil: row.authorityValidUntil,
+      },
+    },
+    row.authorityContactId,
+    holder
+      ? {
+          role: holder.role,
+          authorityScope: holder.authorityScope,
+          reference: holder.authorityReference,
+          documentId: holder.authorityDocumentId,
+          validUntil: holder.validUntil,
+          removed: holder.deletedAt !== null,
+        }
+      : {
+          role: "",
+          authorityScope: null,
+          reference: null,
+          documentId: null,
+          validUntil: null,
+          removed: true,
+        },
+  );
+  if (changes.length === 0) return;
+  throw new AuditedRefusal(problems.invalid(AUTHORITY_GONE), {
+    action: "people.sharing.lift_suspension",
+    outcome: "denied",
+    reason: "authority_changed",
+    resourceType: "sharing_decision",
+    resourceId: row.id,
+    scope: { changes },
+  });
+}
+
 async function closeDecision(
   c: Context<AppEnv>,
   access: TenantAccess,
@@ -541,6 +589,7 @@ async function closeDecision(
     if (how === "lift_suspension" && !row.suspendedAt) {
       throw problems.invalid("This decision is not suspended.");
     }
+    if (how === "lift_suspension") await requireAuthorityHeld(tx, row);
     const [updated] = await tx
       .update(sharingDecision)
       .set(
