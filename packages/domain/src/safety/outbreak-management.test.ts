@@ -101,6 +101,57 @@ describe("currentCases", () => {
   });
 });
 
+describe("hazard HZ-013 unnamed staff cases (H-782)", () => {
+  const location = { name: "Example House", postcode: "ZZ99 9ZZ", cqcLocationId: "1-000000001" };
+  const outbreak = {
+    syndrome: "acute_respiratory" as const,
+    organism: null,
+    declaredOn: "2026-10-29",
+  };
+  const unnamed = (over: Partial<OutbreakCase>) =>
+    kase({ caseType: "staff_unnamed", personId: null, tenantUserId: null, ...over });
+
+  it.each([
+    [
+      "an unnamed staff case naming nobody",
+      { caseType: "staff_unnamed", personId: null, tenantUserId: null },
+      [],
+    ],
+    [
+      "an unnamed staff case naming a member",
+      { caseType: "staff_unnamed", personId: null, tenantUserId: "u1" },
+      ["subject_mismatch"],
+    ],
+    [
+      "an unnamed staff case naming a resident",
+      { caseType: "staff_unnamed", personId: "p1", tenantUserId: null },
+      ["subject_mismatch"],
+    ],
+  ] as const)("%s", (_label, subject, problems) => {
+    const { id: _id, createdAt: _c, supersedesId: _s, ...value } = kase(subject);
+    expect(checkOutbreakCase(value, { state: "declared" }, "2026-10-31")).toEqual(problems);
+  });
+
+  it("counts each unnamed case once, through its updates, in the staff figures", () => {
+    const report = ukhsaReportFields(outbreak, location, [
+      unnamed({ id: "x", testResult: "positive" }),
+      unnamed({
+        id: "x2",
+        supersedesId: "x",
+        testResult: "negative",
+        outcome: "recovered",
+        outcomeOn: "2026-10-30",
+      }),
+      unnamed({ id: "y", testResult: "positive" }),
+      kase({ id: "c", caseType: "staff", personId: null, tenantUserId: "u1" }),
+    ]);
+    expect(report.staffCases).toBe(3);
+    expect(report.unnamedStaffCases).toBe(2);
+    // x was positive once and y is positive: two people, never merged into one.
+    expect(report.positive).toBe(3);
+  });
+});
+
 describe("hazard HZ-013 ukhsaReportFields: the report from the whole line list", () => {
   const location: { name: string; postcode: string | null; cqcLocationId: string | null } = {
     name: "Example House",

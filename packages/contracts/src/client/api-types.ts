@@ -8517,6 +8517,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/speak-up/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export the speak-up silo (the Freedom to Speak Up lead only, H-721)
+     * @description safety.speak_up.manage (the lead alone; case members cannot), with a fresh step-up. Every concern with its messages and case members. An anonymous concern carries nothing about who raised it, and no reply code or its hash is exported. The organisation's full export leaves the silo out and its manifest says so. Audited (safety.speak_up.exported) with counts only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The silo */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SpeakUpExport"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/speak-up/lead": {
     parameters: {
       query?: never;
@@ -22140,7 +22206,7 @@ export interface paths {
     put?: never;
     /**
      * Add a case to the line list, or update one
-     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
+     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Harbour (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
      */
     post: {
       parameters: {
@@ -36618,7 +36684,7 @@ export interface paths {
     put?: never;
     /**
      * Log a disclosure request about a person
-     * @description safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the person's latest care note). Audited (safety.disclosure.logged) with the type, never who asked or why.
+     * @description safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the latest record of any kind added to the person's record; the shorter time when none is found). Audited (safety.disclosure.logged) with the type, never who asked or why.
      */
     post: {
       parameters: {
@@ -44406,6 +44472,43 @@ export interface components {
     SetSpeakUpMembers: {
       memberIds: string[];
     };
+    SpeakUpExport: {
+      /** Format: date-time */
+      exportedAt: string;
+      concerns: {
+        /** Format: uuid */
+        id: string;
+        /** @enum {string} */
+        identity: "named" | "confidential" | "anonymous";
+        category: string;
+        summary: string;
+        /** Format: date */
+        receivedOn: string;
+        state: string;
+        /** Format: date-time */
+        acknowledgedAt: string | null;
+        outcome: string | null;
+        /** Format: date-time */
+        outcomeSharedAt: string | null;
+        closedReason: string | null;
+        /** Format: date-time */
+        closedAt: string | null;
+        retentionClass: string;
+        /** Format: uuid */
+        reporterTenantUserId: string | null;
+        memberTenantUserIds: string[];
+        messages: {
+          /** Format: uuid */
+          id: string;
+          fromReporter: boolean;
+          /** Format: uuid */
+          authorTenantUserId: string | null;
+          body: string;
+          /** Format: date-time */
+          createdAt: string;
+        }[];
+      }[];
+    };
     SpeakUpLeadChanged: {
       changed: boolean;
     };
@@ -48908,7 +49011,7 @@ export interface components {
     };
     OutbreakCaseItem: {
       /** @enum {string} */
-      caseType: "resident" | "staff";
+      caseType: "resident" | "staff" | "staff_unnamed";
       /** Format: uuid */
       personId: string | null;
       /** Format: uuid */
@@ -48962,6 +49065,7 @@ export interface components {
       declaredOn: string;
       residentCases: number;
       staffCases: number;
+      unnamedStaffCases: number;
       /** Format: date */
       firstOnsetOn: string | null;
       /** Format: date */
@@ -49003,7 +49107,7 @@ export interface components {
     };
     RecordOutbreakCase: {
       /** @enum {string} */
-      caseType: "resident" | "staff";
+      caseType: "resident" | "staff" | "staff_unnamed";
       /** Format: uuid */
       personId: string | null;
       /** Format: uuid */

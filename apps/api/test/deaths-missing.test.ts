@@ -414,6 +414,48 @@ describe("hazard HZ-127 the missing person episode (slice 37)", () => {
   });
 });
 
+describe("hazard HZ-127 an episode at immediate risk tells those on site at once (H-771)", () => {
+  it("hazard HZ-127 notifies every clinical lead and team leader on site when it opens, without waiting", async () => {
+    const created = await as("carer", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "missing_person",
+        occurredAt: ago(5 * MIN),
+        description: "Not in the lounge after lunch.",
+        people: [{ kind: "service_user", role: "affected", personId: resident(2) }],
+      },
+    });
+    expect(created.status, await created.clone().text()).toBe(201);
+    const episodeId = newId();
+    const opened = await as("carer", "/v1/missing-episodes", {
+      method: "POST",
+      body: {
+        id: episodeId,
+        incidentId: (await json<IncidentDetail>(created)).id,
+        personId: resident(2),
+        immediateRisk: true,
+        noticedMissingAt: ago(5 * MIN),
+        lastSeenAt: ago(20 * MIN),
+      },
+    });
+    expect(opened.status, await opened.clone().text()).toBe(201);
+    const told = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ recipient: string; severity: string; title: string }>(
+        `SELECT recipient_tenant_user_id AS recipient, severity, title FROM notification
+          WHERE kind = 'safety.missing.immediate_risk' AND source_id = $1`,
+        [episodeId],
+      );
+      return rows;
+    });
+    // The nurse is the clinical lead at this home.
+    expect(told.map((r) => r.recipient)).toContain(DEMO.users.nurse.id);
+    expect(told.every((r) => r.severity === "urgent")).toBe(true);
+    // Generic words only: no name in a push.
+    expect(told.every((r) => !/Ada|Ben|Example/.test(r.title))).toBe(true);
+  });
+});
+
 describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
   const path = `/v1/people/${resident(2)}/herbert-profile`;
   const fields = {
@@ -490,5 +532,58 @@ describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
       body: { ...fields, reviewedOn: future, version: 2 },
     });
     expect(ahead.status).toBe(422);
+  });
+});
+describe("hazard HZ-127 a profile is prompted for anyone at risk of going missing (H-773)", () => {
+  it("hazard HZ-127 raises one prompt per risk assessment, and the profile settles it", async () => {
+    const who = resident(3);
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO risk_assessment (person_id, template_key, template_version, hazard, who_at_risk,
+           assessed_on, review_due_on)
+         VALUES ($1, 'absconding', '1', 'Leaving without staff knowing', 'The person',
+           current_date, current_date + 90)`,
+        [who],
+      ),
+    );
+    const prompts = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ status: string; assignee_role_key: string }>(
+          "SELECT status, assignee_role_key FROM task WHERE kind = 'safety.herbert_profile_prepare' AND person_id = $1",
+          [who],
+        );
+        return rows;
+      });
+    // The daily job prompts once, however often it runs; never forced.
+    await raiseHerbertProfileReviews(deps);
+    await raiseHerbertProfileReviews(deps);
+    expect(await prompts()).toEqual([{ status: "open", assignee_role_key: "clinical_lead" }]);
+    // Preparing the profile settles the prompt.
+    const saved = await as("manager", `/v1/people/${who}/herbert-profile`, {
+      method: "PUT",
+      body: {
+        photoDocumentId: null,
+        physicalDescription: "Tall, grey beard, walks with a stick",
+        distinguishingFeatures: null,
+        usualClothing: null,
+        medicalNeeds: null,
+        mobility: null,
+        communication: null,
+        placesLikely: "The station and the park",
+        peopleLikely: null,
+        routines: null,
+        phoneOrTracker: null,
+        previousEpisodes: null,
+        approach: null,
+        reviewedWith: "Her daughter, in person",
+        reviewedOn: new Date().toISOString().slice(0, 10),
+        version: 0,
+      },
+    });
+    expect(saved.status, await saved.clone().text()).toBe(200);
+    expect((await prompts()).map((t) => t.status)).toEqual(["done"]);
+    // A person with a profile is never prompted again.
+    await raiseHerbertProfileReviews(deps);
+    expect(await prompts()).toHaveLength(1);
   });
 });

@@ -11,6 +11,7 @@ import {
   type SpeakUpCase,
   SpeakUpCaseDetail,
   SpeakUpCaseList,
+  SpeakUpExport,
   SpeakUpLeadChanged,
   type SpeakUpMessage,
   SpeakUpStaffList,
@@ -50,6 +51,7 @@ import {
   type AppEnv,
   mfaRefusal,
   requirePermission,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -883,6 +885,99 @@ export const speakUpRouter = createRouter()
         return { ...(item as SpeakUpCase), messages: await messagesOf(tx, id, false) };
       });
       return c.json(detail, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/speak-up/export",
+      tags: ["safety"],
+      summary: "Export the speak-up silo (the Freedom to Speak Up lead only, H-721)",
+      description:
+        "safety.speak_up.manage (the lead alone; case members cannot), with a fresh step-up. Every concern with its messages and case members. An anonymous concern carries nothing about who raised it, and no reply code or its hash is exported. The organisation's full export leaves the silo out and its manifest says so. Audited (safety.speak_up.exported) with counts only.",
+      security,
+      responses: { 200: jsonBody(SpeakUpExport, "The silo"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, LEAD);
+      if (!access.stepUpFresh) throw stepUpRefusal(access);
+      const out = await withTenant(c, async (tx) => {
+        const concerns = await tx
+          .select()
+          .from(speakUpConcern)
+          .where(isNull(speakUpConcern.deletedAt))
+          .orderBy(asc(speakUpConcern.receivedOn), asc(speakUpConcern.id));
+        const ids = concerns.map((r) => r.id);
+        const reporters =
+          ids.length === 0
+            ? []
+            : await tx
+                .select()
+                .from(speakUpReporter)
+                .where(inArray(speakUpReporter.concernId, ids));
+        const members =
+          ids.length === 0
+            ? []
+            : await tx
+                .select()
+                .from(speakUpCaseMember)
+                .where(
+                  and(
+                    inArray(speakUpCaseMember.concernId, ids),
+                    isNull(speakUpCaseMember.removedAt),
+                  ),
+                );
+        const messages =
+          ids.length === 0
+            ? []
+            : await tx
+                .select()
+                .from(speakUpMessage)
+                .where(inArray(speakUpMessage.concernId, ids))
+                .orderBy(asc(speakUpMessage.createdAt));
+        await auditInTx(tx, access, {
+          action: "safety.speak_up.exported",
+          resourceType: "speak_up_concern",
+          scope: { concerns: concerns.length, messages: messages.length },
+          requestId: c.get("requestId"),
+        });
+        const iso = (d: Date | null) => (d ? d.toISOString() : null);
+        return {
+          exportedAt: new Date().toISOString(),
+          concerns: concerns.map((r) => ({
+            id: r.id,
+            identity: r.identity as "named" | "confidential" | "anonymous",
+            category: r.category,
+            summary: r.summary,
+            receivedOn: r.receivedOn,
+            state: r.state,
+            acknowledgedAt: iso(r.acknowledgedAt),
+            outcome: r.outcome,
+            outcomeSharedAt: iso(r.outcomeSharedAt),
+            closedReason: r.closedReason,
+            closedAt: iso(r.closedAt),
+            retentionClass: r.retentionClass,
+            reporterTenantUserId:
+              r.identity === "anonymous"
+                ? null
+                : (reporters.find((p) => p.concernId === r.id)?.tenantUserId ?? null),
+            memberTenantUserIds: members
+              .filter((m) => m.concernId === r.id)
+              .map((m) => m.tenantUserId),
+            messages: messages
+              .filter((m) => m.concernId === r.id)
+              .map((m) => ({
+                id: m.id,
+                fromReporter: m.fromReporter,
+                authorTenantUserId: m.authorTenantUserId,
+                body: m.body,
+                createdAt: m.createdAt.toISOString(),
+              })),
+          })),
+        };
+      });
+      c.header("cache-control", "private, no-store");
+      return c.json(out, 200);
     },
   )
   .openapi(

@@ -8605,6 +8605,155 @@
           "memberIds"
         ]
       },
+      "SpeakUpExport": {
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "concerns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "identity": {
+                  "type": "string",
+                  "enum": [
+                    "named",
+                    "confidential",
+                    "anonymous"
+                  ]
+                },
+                "category": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "receivedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "acknowledgedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "outcomeSharedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "closedReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "closedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "retentionClass": {
+                  "type": "string"
+                },
+                "reporterTenantUserId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "memberTenantUserIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "messages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "fromReporter": {
+                        "type": "boolean"
+                      },
+                      "authorTenantUserId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "uuid"
+                      },
+                      "body": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "fromReporter",
+                      "authorTenantUserId",
+                      "body",
+                      "createdAt"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "identity",
+                "category",
+                "summary",
+                "receivedOn",
+                "state",
+                "acknowledgedAt",
+                "outcome",
+                "outcomeSharedAt",
+                "closedReason",
+                "closedAt",
+                "retentionClass",
+                "reporterTenantUserId",
+                "memberTenantUserIds",
+                "messages"
+              ]
+            }
+          }
+        },
+        "required": [
+          "exportedAt",
+          "concerns"
+        ]
+      },
       "SpeakUpLeadChanged": {
         "type": "object",
         "properties": {
@@ -25314,7 +25463,8 @@
             "type": "string",
             "enum": [
               "resident",
-              "staff"
+              "staff",
+              "staff_unnamed"
             ]
           },
           "personId": {
@@ -25514,6 +25664,9 @@
           "staffCases": {
             "type": "integer"
           },
+          "unnamedStaffCases": {
+            "type": "integer"
+          },
           "firstOnsetOn": {
             "type": [
               "string",
@@ -25616,6 +25769,7 @@
           "declaredOn",
           "residentCases",
           "staffCases",
+          "unnamedStaffCases",
           "firstOnsetOn",
           "latestOnsetOn",
           "tested",
@@ -25699,7 +25853,8 @@
             "type": "string",
             "enum": [
               "resident",
-              "staff"
+              "staff",
+              "staff_unnamed"
             ]
           },
           "personId": {
@@ -52587,6 +52742,65 @@
         }
       }
     },
+    "/v1/speak-up/export": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Export the speak-up silo (the Freedom to Speak Up lead only, H-721)",
+        "description": "safety.speak_up.manage (the lead alone; case members cannot), with a fresh step-up. Every concern with its messages and case members. An anonymous concern carries nothing about who raised it, and no reply code or its hash is exported. The organisation's full export leaves the silo out and its manifest says so. Audited (safety.speak_up.exported) with counts only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The silo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/speak-up/lead": {
       "put": {
         "tags": [
@@ -68607,7 +68821,7 @@
           "safety"
         ],
         "summary": "Add a case to the line list, or update one",
-        "description": "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
+        "description": "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see), an active member of staff working there (a current role at the location or across the organisation), once per outbreak, or an unnamed staff case for an agency or bank worker not in Harbour (no person or member, nothing identifying; H-782): a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
         "security": [
           {
             "bearerAuth": []
@@ -84502,7 +84716,7 @@
           "safety"
         ],
         "summary": "Log a disclosure request about a person",
-        "description": "safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the person's latest care note). Audited (safety.disclosure.logged) with the type, never who asked or why.",
+        "description": "safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the latest record of any kind added to the person's record; the shorter time when none is found). Audited (safety.disclosure.logged) with the type, never who asked or why.",
         "security": [
           {
             "bearerAuth": []

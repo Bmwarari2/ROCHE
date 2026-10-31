@@ -58,6 +58,7 @@ export type ExportRetention =
   | "staff_file"
   | "applicant.unsuccessful"
   | "data_rights_case"
+  | "speak_up_concern"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -1237,40 +1238,40 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Speak-up concerns: named, confidential or anonymous, with their state and outcome.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_reporter": {
     context: "safety",
     description: "Who raised a named or confidential speak-up concern.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_case_member": {
     context: "safety",
     description: "Members the Freedom to Speak Up lead named on a speak-up case.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_message": {
     context: "safety",
     description: "Messages between the reporter and the Freedom to Speak Up lead or case members.",
     treatment: "not_exported",
-    retention: "complaint",
+    retention: "speak_up_concern",
     personal: true,
     reasonNotExported:
-      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns. The Freedom to Speak Up lead alone exports it, with a fresh step-up and audited, through GET /v1/speak-up/export; anonymous concerns carry nothing about the reporter (H-721).",
     columns: {},
   },
   "public.speak_up_intake": {
@@ -5210,15 +5211,23 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.outbreak_case": {
     context: "safety",
     description:
-      "An outbreak's case line list (safety.md section 11): residents and staff with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row.",
+      "An outbreak's case line list (safety.md section 11): residents, staff and unnamed agency or bank workers with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row. Retention: residents' rows care_record, staff rows outbreak_staff_case (H-767).",
     treatment: "tenant_rows",
-    retention: "care_record",
+    retention: "by_category",
     personal: true,
     columns: {
       id: "exported",
       tenant_id: "exported",
       outbreak_id: { description: "The outbreak (outbreak.id)." },
-      case_type: { description: "Resident or staff." },
+      case_type: {
+        description: "Whose case it is.",
+        codes: {
+          resident: "A person receiving care at the location.",
+          staff: "A member of staff in Harbour.",
+          staff_unnamed:
+            "An agency or bank worker not in Harbour, with nothing identifying (H-782).",
+        },
+      },
       person_id: "exported",
       tenant_user_id: { description: "The member of staff, for a staff case (tenant_user.id)." },
       onset_on: { description: "When symptoms started (UK calendar date)." },

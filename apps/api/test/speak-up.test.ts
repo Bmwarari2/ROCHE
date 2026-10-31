@@ -3,6 +3,7 @@ import type {
   AnonymousSpeakUpRaised,
   SpeakUpCaseDetail,
   SpeakUpCaseList,
+  SpeakUpExport,
   SpeakUpThread,
   SpeakUpThreadList,
 } from "@harbour/contracts";
@@ -11,6 +12,7 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import {
+  ageSession,
   createHarness,
   type Harness,
   LODGE,
@@ -439,6 +441,60 @@ describe("SAFE-012 named and confidential concerns (ADR-0089)", () => {
       expect(
         (await json<SpeakUpThreadList>(await asUser(user, "/v1/speak-up/mine"))).items,
       ).toEqual([]);
+    }
+  });
+});
+
+describe("SAFE-012 the lead exports the silo alone, with step-up (H-721)", () => {
+  it("exports every concern with nothing about an anonymous reporter, audited by count", async () => {
+    await raiseNamed("confidential");
+    const anonymous = await publicRequest(
+      `/p/speak-up/${DEMO.tenantId}`,
+      {
+        category: "other",
+        summary: "Medicines left on the trolley overnight.",
+        wantsReplies: true,
+      },
+      { "x-forwarded-for": "198.51.100.77" },
+    );
+    expect(anonymous.status, await anonymous.clone().text()).toBe(201);
+    for (const who of ["owner", "manager", "carer"] as const) {
+      expect((await asUser(who, "/v1/speak-up/export")).status, who).toBe(403);
+    }
+    const response = await asLead("/v1/speak-up/export");
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(response.headers.get("cache-control")).toMatch(/no-store/);
+    const out = await json<SpeakUpExport>(response);
+    expect(out.concerns.length).toBeGreaterThan(1);
+    for (const concern of out.concerns) {
+      // Its own retention class, 6 years after closing, never the complaints' 10.
+      expect(concern.retentionClass).toBe("speak_up_concern");
+      if (concern.identity === "anonymous") expect(concern.reporterTenantUserId).toBeNull();
+    }
+    expect(out.concerns.some((c) => c.identity === "confidential" && c.reporterTenantUserId)).toBe(
+      true,
+    );
+    expect(JSON.stringify(out)).not.toMatch(/token|hash/i);
+    const audit = await asLeadDb(
+      async (c) =>
+        (
+          await c.query<{ scope: Record<string, number> }>(
+            "SELECT scope FROM audit_event WHERE action = 'safety.speak_up.exported'",
+          )
+        ).rows,
+    );
+    expect(audit).toHaveLength(1);
+    expect(Object.keys(audit[0]?.scope ?? {}).sort()).toEqual(["concerns", "messages"]);
+  });
+
+  it("needs a fresh step-up", async () => {
+    const auth = h.db.pool("harbour_auth");
+    const session = guardian.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      expect((await asLead("/v1/speak-up/export")).status).toBe(403);
+    } finally {
+      await ageSession(auth, session, 0);
     }
   });
 });

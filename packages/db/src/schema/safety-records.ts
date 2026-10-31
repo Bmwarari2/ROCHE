@@ -225,7 +225,8 @@ export const speakUpConcern = pgTable(
     replyTokenHash: text("reply_token_hash"),
     /** When the reply token stops opening the concern (`speak_up.reply_token_days` from receipt). */
     replyTokenExpiresAt: timestamp("reply_token_expires_at", { withTimezone: true }),
-    retentionClass: text("retention_class").notNull().default("complaint"),
+    /** Its own class, 6 years after the concern closes (H-721; retention.md). */
+    retentionClass: text("retention_class").notNull().default("speak_up_concern"),
     ...mutableColumns(),
   },
   (t) => [
@@ -244,7 +245,7 @@ export const speakUpConcern = pgTable(
       "speak_up_concern_token_expiry",
       sql`(reply_token_hash IS NULL) = (reply_token_expires_at IS NULL)`,
     ),
-    check("speak_up_concern_retention_class", sql`retention_class = 'complaint'`),
+    check("speak_up_concern_retention_class", sql`retention_class = 'speak_up_concern'`),
     check(
       "speak_up_concern_closed",
       sql`(state = 'closed') = (closed_at IS NOT NULL AND closed_reason IS NOT NULL)`,

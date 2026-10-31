@@ -243,6 +243,7 @@ Every basis here is a proposal until the DPO confirms it (H-526, H-790).
 | Policy read-and-sign (B3 and B6; slice 25) | Art 6(1)(b) or (c) (staff compliance records) | None |
 | Import of records from a previous system (slice 26) | The basis of the records imported (B1 for people; B2 and B3 as those imports land); no new purpose | As the records imported |
 | Single sign-on links (B3 and B5; slice 33) | Art 6(1)(b) and (f) (authenticating staff for employment and security) | None |
+| Outbreak line list (B1 for residents, B3 for staff; slice 22) | Residents: as care records (B1). Staff cases: Art 6(1)(c), Regulation 12(2)(h) of the 2014 Regulations (infection control) | Art 9(2)(i) with Sch 1 para 3 (public health), and Art 9(2)(b) with Sch 1 para 1 for the employer's health and safety duties. Staff cases are kept 3 years from the outbreak's closure (`outbreak_staff_case`); agency workers not in Harbour are counted unnamed, with nothing identifying; staff see their own row through a subject access request, not in the app (H-767, H-782, recommended answers applied 31/10/2026) |
 
 ### 7B.2 Which risks apply to which processing
 
@@ -387,7 +388,7 @@ From the plan's list (H-525), for the built slices: DBS certificate details (11;
 decision for the DPO to confirm, H-575), safeguarding (13; `serious_incident`, H-596), DSAR cases
 (15; `data_rights_case`, 3 years, H-613), the breach register and data protection complaints (20;
 interim `audit_event`, H-670), unsuccessful applicants and the talent pool (23; H-732),
-whistleblowing (24; as `complaint` until set, H-721), read-and-sign records (25; H-742) and import
+whistleblowing (24; `speak_up_concern`, 6 years after the concern closes, H-721 recommended answer applied 31/10/2026), staff outbreak cases (22; `outbreak_staff_case`, 3 years after the outbreak closes, H-767), read-and-sign records (25; H-742) and import
 batches (26; staged rows at most 7 days, batch and commit records as audit, H-681).
 
 ### 7B.6 Before this section is signed

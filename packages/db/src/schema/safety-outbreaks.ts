@@ -37,7 +37,8 @@ export const OUTBREAK_SYNDROME_CODES = [
   "other",
 ] as const;
 export const OUTBREAK_STATE_CODES = ["declared", "closed"] as const;
-export const OUTBREAK_CASE_TYPE_CODES = ["resident", "staff"] as const;
+/** `staff_unnamed`: an agency or bank worker not in Harbour, with nothing identifying (H-782). */
+export const OUTBREAK_CASE_TYPE_CODES = ["resident", "staff", "staff_unnamed"] as const;
 export const OUTBREAK_SYMPTOM_CODES = [
   "fever",
   "cough",
@@ -191,7 +192,8 @@ export const outbreakCase = pgTable(
     check(
       "outbreak_case_subject",
       sql`(case_type = 'resident' AND person_id IS NOT NULL AND tenant_user_id IS NULL)
-        OR (case_type = 'staff' AND tenant_user_id IS NOT NULL AND person_id IS NULL)`,
+        OR (case_type = 'staff' AND tenant_user_id IS NOT NULL AND person_id IS NULL)
+        OR (case_type = 'staff_unnamed' AND tenant_user_id IS NULL AND person_id IS NULL)`,
     ),
     check(
       "outbreak_case_symptoms",

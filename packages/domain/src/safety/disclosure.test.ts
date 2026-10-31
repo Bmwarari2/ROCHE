@@ -24,6 +24,23 @@ describe("disclosure requests (safety.md Phase 2 rule 6)", () => {
     expect(legalBasis("police")).toContain("Schedule 2");
   });
 
+  it.each([
+    ["coroner", "Article 6(1)(c)", "Article 9(2)(g)"],
+    ["safeguarding_adults_review", "Article 6(1)(c)", "Article 9(2)(g)"],
+    ["domestic_homicide_review", "Article 6(1)(c)", "Article 9(2)(g)"],
+    ["police", "Article 6(1)(f)", "Schedule 1 paragraph 10"],
+    ["solicitor", "Article 6(1)(f)", "Article 9(2)(f)"],
+  ] as const)(
+    "H-821 names the Article 6 basis and Article 9 condition for %s, never an exemption alone",
+    (type, article6, article9) => {
+      const words = legalBasis(type);
+      expect(words).toContain(article6);
+      expect(words).toContain(article9);
+      // The column holds at most 500 characters (disclosure_request_text).
+      expect(words.length).toBeLessThanOrEqual(500);
+    },
+  );
+
   it("is approved only by someone other than the requester", () => {
     const approve = (actorId: string) =>
       checkWorkflowTransition(
@@ -106,6 +123,14 @@ describe("disclosure requests (safety.md Phase 2 rule 6)", () => {
     });
     const old = ahraDueAt(received, addUkDays(received, -(rates.ahraRecentRecordDays + 1)), rates);
     expect(old).toEqual({ dueAt: addUkDays(received, rates.ahraResponseDays - 1), recent: false });
+  });
+
+  it("H-827 takes the shorter time when the latest record cannot be established", () => {
+    const received = new Date("2026-10-26T10:00:00Z");
+    expect(ahraDueAt(received, null, rates)).toEqual({
+      dueAt: addUkDays(received, rates.ahraRecentRecordResponseDays - 1),
+      recent: true,
+    });
   });
 });
 

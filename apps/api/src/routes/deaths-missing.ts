@@ -50,6 +50,7 @@ import { problems } from "../http/problem";
 import {
   deathItem,
   episodeItem,
+  finishHerbertPrepareTasks,
   finishHerbertReviewTasks,
   herbertPrefillFor,
   openDeathRecord,
@@ -970,6 +971,7 @@ export const deathsMissingRouter = createRouter()
               .returning();
         if (!saved) throw problems.conflict();
         await finishHerbertReviewTasks(tx, saved.id, now);
+        await finishHerbertPrepareTasks(tx, saved.personId, now);
         await audit(c, tx, access, {
           action: "safety.herbert.save",
           resourceType: "herbert_profile",

@@ -430,7 +430,10 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    police needs their reference, ends the task, and answers the incident's `police.involved`
    question, so the classifier drafts the CQC notification (regulation 18(2)(f)) with its clock in
    the notification centre (HZ-013); found also ends the task. The episode shows the incident's
-   Herbert Protocol and CQC police notifications as the notification centre has them.
+   Herbert Protocol and CQC police notifications as the notification centre has them. An episode
+   opened with immediate risk also tells every clinical lead and team leader on site at once, an
+   urgent notification that does not wait for the task's escalation (H-771, recommended answer
+   applied 31/10/2026).
 6. **The Herbert Protocol profile**: one per person, read by `safety.incident.read`, written by
    `safety.incident.manage`, for someone living here. A new profile is **prefilled from the record**
    (the home address before moving here, communication needs and first language, allergies, and
@@ -441,7 +444,12 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    own name. The profile is out of date `herbert_protocol.review_months` after its last review (the
    slice 7 rule): a daily job gives each out-of-date profile of someone living here one review task
    for the nurse in charge, escalated by the task engine, and saving the profile finishes it. An
-   episode records the profile's version when it opened and says whether it was current.
+   episode records the profile's version when it opened and says whether it was current. A profile
+   is expected, prompted but never forced, for anyone at risk of going missing: the same daily job
+   gives a person living here with an active risk assessment for leaving without staff knowing, and
+   no profile, one task for the nurse in charge to prepare it with them or their representative,
+   again only when that risk assessment changes; saving a profile finishes it. Dementia prompts too
+   once the record holds diagnoses (H-773, recommended answer applied 31/10/2026).
 
 Permissions: `safety.incident.read` (read), `safety.incident.report` (open an episode, add to its
 timeline), `safety.incident.manage` (the death record, the welfare check, the debrief, closing, the
@@ -883,12 +891,18 @@ learning disability and autism question on the form).
   and members' cases are at `/speak-up/cases`, a page at a time, with "possible flood" in words for
   the lead. The case view has the steps, messages and, for the lead, the people on the case (from
   `GET /v1/speak-up/staff`, the lead only).
+- **The lead's export** (`GET /v1/speak-up/export`, H-721, recommended answer applied 31/10/2026):
+  the Freedom to Speak Up lead alone, with a fresh step-up, exports the silo (concerns, messages,
+  case members); an anonymous concern carries nothing about who raised it and no reply code or its
+  hash leaves; audited by count. The organisation's full export leaves the silo out and its
+  manifest names this route. Concerns are kept 6 years after closing (`speak_up_concern`).
 - **The anonymous page** (`/speak-up-anonymously/{organisation}`, no sign-in): it says first what
   anonymous means here. Nothing about the person is kept: no name, IP address, device or cookie,
   and nothing in the browser's storage. What they write may still identify them. The reply code is
-  shown once and expires. The page names the National Guardian's Office and prescribed persons as
-  other routes. The page's server calls pass on only the client address, for the per-network
-  limit. The code travels only in request bodies, never an address.
+  shown once and expires. The page names the Care Quality Commission as the prescribed person and
+  Protect for free, confidential advice as other routes; the National Guardian's Office does not take
+  individual workers' concerns (H-860, recommended answer applied 31/10/2026). The page's server
+  calls pass on only the client address, for the per-network limit. The code travels only in request bodies, never an address.
 
 ## 6. Offline behaviour
 
@@ -976,6 +990,12 @@ code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-mana
    append-only: an update or correction is a new row superseding the person's current row (a
    correction gives a reason), and follows that row wherever the person is now, so an outcome
    after a discharge, move or leaving can still be recorded.
+3a. **Unnamed staff cases (H-782, recommended answer applied 31/10/2026).** Named staff on a line
+   list are the organisation's own members, agency workers registered in Harbour included. An agency
+   or bank worker who is not in Harbour is added as an unnamed staff case: onset, test and outcome
+   only, no person or member id and nothing identifying, counted once (an update supersedes that
+   same case) and included in the UKHSA report's staff figures (`unnamedStaffCases` says how many).
+   Staff rows are kept 3 years from the outbreak's closure (`outbreak_staff_case`; H-767).
 4. **Report fields** (`ukhsaReportFields`, HZ-013): the setting's name, postcode and CQC location
    ID, the illness and organism, residents and staff affected, first and latest onset, tested,
    positive and pending, in hospital, deaths, and vaccination tallies. They are counted from every
@@ -1084,10 +1104,19 @@ the whole organisation) reads them for the full export, never writes.
     location is stored with the request). The API checks this and row-level security again
     (`app.holds_role_permission_at(..., location_id)` or across the organisation).
 39. **Legal basis.** Every request records its type and the legal basis from `DISCLOSURE_TYPES`,
-    copied when logged so a later wording change never rewrites what was relied on. Police and
+    copied when logged so a later wording change never rewrites what was relied on. Each wording
+    names the UK GDPR Article 6 basis and the Article 9 condition beside the statute or exemption,
+    since a DPA 2018 Schedule 2 exemption is not a lawful basis in itself: police requests rest on
+    Article 6(1)(f) (or 6(1)(c) under a court order or warrant) with Article 9(2)(g) and Schedule 1
+    paragraph 10, relying on Schedule 2 paragraph 2 for the stated purpose; solicitors' requests on
+    Article 6(1)(f) or (c) with Article 9(2)(f), relying on Schedule 2 paragraph 5; statutory
+    requests name Article 6(1)(c) (H-821, recommended answer applied 31/10/2026). Police and
     solicitor requests also record what the request says the information is for
     (`disclosurePrepareProblems`). Access to Health Records Act requests get their due time from
-    `ahraDueAt` (`ahra.*` rates) and need the person to have died.
+    `ahraDueAt` (`ahra.*` rates), counted from the latest record of any kind added to the person's
+    record (care notes, observations, assessments, activities, visits, risk assessments, incidents
+    and documents), with the shorter period whenever that date cannot be established (H-827,
+    recommended answer applied 31/10/2026), and need the person to have died.
 40. **Collection and review.** Collect finds the person's records through the DSAR collector, in the
     organisation's context after the route has authorised the member, with tables not searched named
     with reasons. Every record is reviewed by a person: disclose, redact named fields, or withhold

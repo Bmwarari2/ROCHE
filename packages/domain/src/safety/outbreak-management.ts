@@ -28,7 +28,12 @@ export type OutbreakSyndrome = (typeof OUTBREAK_SYNDROMES)[number];
 export const OUTBREAK_STATES = ["declared", "closed"] as const;
 export type OutbreakState = (typeof OUTBREAK_STATES)[number];
 
-export const OUTBREAK_CASE_TYPES = ["resident", "staff"] as const;
+/**
+ * `staff_unnamed`: an agency or bank worker who is not in Harbour, added with nothing identifying
+ * (onset, test and outcome only) so the report's staff figures are not understated (H-782,
+ * recommended answer applied 31/10/2026). Named staff are the organisation's own members.
+ */
+export const OUTBREAK_CASE_TYPES = ["resident", "staff", "staff_unnamed"] as const;
 export type OutbreakCaseType = (typeof OUTBREAK_CASE_TYPES)[number];
 
 export const OUTBREAK_SYMPTOMS = [
@@ -130,7 +135,8 @@ export type OutbreakCaseProblem =
 
 export const OUTBREAK_CASE_MESSAGES: Readonly<Record<OutbreakCaseProblem, string>> = {
   outbreak_closed: "This outbreak is closed. Declare a new one if cases continue.",
-  subject_mismatch: "Name the person for a resident case, or the member of staff for a staff case.",
+  subject_mismatch:
+    "Name the person for a resident case, or the member of staff for a staff case. An unnamed staff case names nobody.",
   onset_in_future: "Symptoms cannot start in the future.",
   test_incomplete: "Give the test, the date it was taken and its result, or say it was not tested.",
   tested_before_onset: "A test for this illness cannot be taken before symptoms started.",
@@ -154,7 +160,9 @@ export function checkOutbreakCase(
   const subjectOk =
     value.caseType === "resident"
       ? value.personId !== null && value.tenantUserId === null
-      : value.tenantUserId !== null && value.personId === null;
+      : value.caseType === "staff"
+        ? value.tenantUserId !== null && value.personId === null
+        : value.tenantUserId === null && value.personId === null;
   if (!subjectOk) problems.push("subject_mismatch");
   if (value.symptoms.length === 0) problems.push("no_symptoms");
   if (value.onsetOn > today) problems.push("onset_in_future");
@@ -195,7 +203,10 @@ export interface UkhsaReportFields {
   readonly organism: string | null;
   readonly declaredOn: string;
   readonly residentCases: number;
+  /** Every staff case, named and unnamed. */
   readonly staffCases: number;
+  /** Of the staff cases, agency or bank workers not in Harbour, added unnamed (H-782). */
+  readonly unnamedStaffCases: number;
   readonly firstOnsetOn: string | null;
   readonly latestOnsetOn: string | null;
   readonly tested: number;
@@ -220,13 +231,39 @@ const tally = (cases: readonly OutbreakCase[], pick: (c: OutbreakCase) => Vaccin
     unknown: cases.filter((c) => pick(c) === "unknown").length,
   }) as const;
 
-/** A person's key on the line list: the resident or the member of staff. */
-const subjectOf = (c: Pick<OutbreakCase, "caseType" | "personId" | "tenantUserId">) =>
-  `${c.caseType}:${c.personId ?? c.tenantUserId}`;
+/**
+ * Each row's person on the line list: the resident or the member of staff, or, for an unnamed
+ * staff case, the first row of its chain of updates (each unnamed case is one person, never
+ * merged with another).
+ */
+function subjectKeys(rows: readonly OutbreakCase[]): Map<string, string> {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const rootOf = (row: OutbreakCase): string => {
+    let current = row;
+    const seen = new Set<string>();
+    while (current.supersedesId && !seen.has(current.id)) {
+      seen.add(current.id);
+      const prior = byId.get(current.supersedesId);
+      if (!prior) break;
+      current = prior;
+    }
+    return current.id;
+  };
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      r.caseType === "staff_unnamed"
+        ? `staff_unnamed:${rootOf(r)}`
+        : `${r.caseType}:${r.personId ?? r.tenantUserId}`,
+    ]),
+  );
+}
 
 /** How many people had a row matching `test` at any point, superseded rows included. */
-const everCount = (rows: readonly OutbreakCase[], test: (c: OutbreakCase) => boolean) =>
-  new Set(rows.filter(test).map(subjectOf)).size;
+const everCount = (rows: readonly OutbreakCase[], test: (c: OutbreakCase) => boolean) => {
+  const keys = subjectKeys(rows);
+  return new Set(rows.filter(test).map((r) => keys.get(r.id))).size;
+};
 
 /**
  * Hazard HZ-013: the report fields from the location and the whole line list. People are counted
@@ -267,7 +304,8 @@ export function ukhsaReportFields(
     organism: outbreak.organism,
     declaredOn: outbreak.declaredOn,
     residentCases: cases.filter((c) => c.caseType === "resident").length,
-    staffCases: cases.filter((c) => c.caseType === "staff").length,
+    staffCases: cases.filter((c) => c.caseType !== "resident").length,
+    unnamedStaffCases: cases.filter((c) => c.caseType === "staff_unnamed").length,
     firstOnsetOn: onsets[0] ?? null,
     latestOnsetOn: onsets.at(-1) ?? null,
     tested: cases.filter((c) => c.testResult !== "not_tested").length,

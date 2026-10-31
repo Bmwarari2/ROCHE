@@ -164,6 +164,30 @@ describe("SAFE-016 rule 38: every request carries its legal basis", () => {
     expect(await codeOf(r)).toBe("person_not_deceased");
   });
 
+  it("H-827 counts the Access to Health Records Act clock from the latest record of any kind", async () => {
+    // A person who has died, with no care note at all: the shorter time applies.
+    const [p] = await owner<{ id: string }>(
+      `INSERT INTO person (location_id, given_name, family_name, date_of_birth, status)
+       SELECT location_id, 'Edna', 'Example', DATE '1930-01-01', 'deceased'
+         FROM person WHERE id = $1
+       RETURNING id`,
+      [ada],
+    );
+    const received = new Date();
+    const r = await post("/v1/disclosures", {
+      personId: p?.id,
+      type: "access_to_health_records",
+      requester: { name: "Personal representative", organisation: "Example executors" },
+      receivedAt: received.toISOString(),
+    });
+    expect(r.status).toBe(201);
+    const req = (await r.json()) as Request;
+    const days = (new Date(req.dueAt ?? 0).getTime() - received.getTime()) / 86_400_000;
+    // The 21-day period (rate table), never the 40-day one, when no record date is found.
+    expect(days).toBeLessThan(25);
+    expect(req.legalBasis).toMatch(/Access to Health Records Act 1990/);
+  });
+
   it("police requests need a stated purpose before they are prepared", async () => {
     const req = await logRequest({
       type: "police",
