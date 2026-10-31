@@ -95,7 +95,7 @@ export function TemplateForm({ mode, path }: { readonly mode: Mode; readonly pat
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       {mode.kind === "edit" && mode.issues.length > 0 && !result ? (
         <SavedProblems issues={mode.issues} ids={ids} />
       ) : null}

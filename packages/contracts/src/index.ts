@@ -116,7 +116,10 @@ export const Me = z
       id: uuid,
       name: z.string(),
       terminology: z.enum(["resident", "client", "person_we_support"]),
+      /** A colour that passed `checkAccent` (PLAT-002), or null for Harbour's own. */
       brandAccent: z.string().nullable(),
+      /** The white-label logo, served by GET /v1/branding/logo; null when there is none. */
+      logoDocumentId: uuid.nullable(),
       nation: z.enum(["england", "wales", "scotland", "northern_ireland"]),
     }),
     tenantUserId: uuid,
@@ -498,6 +501,7 @@ export const TENANT_HEADER = "x-harbour-tenant";
 /** Header carrying the device id, recorded in the audit log. */
 export const DEVICE_HEADER = "x-harbour-device";
 
+export * from "./branding";
 export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";

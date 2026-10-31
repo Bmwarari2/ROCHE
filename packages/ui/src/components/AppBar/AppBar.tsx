@@ -28,6 +28,11 @@ export interface AppBarSwitcher {
 
 export interface AppBarProps extends HTMLAttributes<HTMLElement> {
   productName?: string;
+  /**
+   * The organisation's white-label logo (PLAT-002), shown 24 px high beside the product name. It
+   * is decorative (empty alternative text): the organisation's name is in the switcher beside it.
+   */
+  brandLogoSrc?: string;
   homeHref?: string;
   /** Tenant (organisation) switcher. With one option it shows the name without a menu. */
   tenant?: AppBarSwitcher;
@@ -103,6 +108,7 @@ function Switcher({ switcher, icon }: { switcher: AppBarSwitcher; icon: ReactNod
  */
 export function AppBar({
   productName = "Harbour",
+  brandLogoSrc,
   homeHref = "/",
   tenant,
   location,
@@ -123,6 +129,9 @@ export function AppBar({
       ) : null}
       <div className="hb-appbar__inner">
         <Anchor href={homeHref} className="hb-appbar__brand">
+          {brandLogoSrc ? (
+            <img className="hb-appbar__logo" src={brandLogoSrc} alt="" height={24} />
+          ) : null}
           {productName}
         </Anchor>
         {tenant || location ? (

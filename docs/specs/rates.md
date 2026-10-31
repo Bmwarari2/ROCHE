@@ -82,6 +82,23 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | wtr.young_worker.break_threshold_hours | 4.5 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | wtr.young_worker.daily_rest_hours | 12 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | wtr.young_worker.weekly_rest_hours | 48 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
+| wtr.reference_period_weeks.special_case | 26 | weeks | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/4 (reg 4(5): 26 weeks for a worker within reg 21, such as care in residential institutions) | verified |
+| wtr.reference_period_weeks.agreement_max | 52 | weeks | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/23 (reg 23(b): "a period not exceeding 52 weeks"); https://www.gov.uk/night-working-hours/hours-and-limits (night average up to 52 weeks by agreement) | verified |
+| wtr.opt_out.default_notice_days | 7 | days | 1999-12-17 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/5 (reg 5(2)(b): not less than seven days' notice in writing unless the agreement provides otherwise) | verified |
+| wtr.opt_out.max_notice_months | 3 | months | 1999-12-17 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/5 (reg 5(3): the notice period "shall not exceed three months") | verified |
+| wtr.night_time.default_start_minute | 1380 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time": in default of a relevant agreement, 11 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_time.default_end_minute | 360 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time": in default of a relevant agreement, 11 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_time.min_hours | 7 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed: "not less than seven hours") | verified |
+| wtr.night_time.core_start_minute | 0 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed must include the period between midnight and 5 a.m.) | verified |
+| wtr.night_time.core_end_minute | 300 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed must include the period between midnight and 5 a.m.) | verified |
+| wtr.night_worker.min_night_hours | 3 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night worker": at least three hours of daily working time during night time, as a normal course); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_work.hazard_max_hours | 8 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/6 (reg 6(7): special hazards or heavy physical or mental strain, not more than eight hours in any 24-hour period with night work) | verified |
+| wtr.young_worker.until_age_years | 18 | years | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("young worker": attained the age of 15 but not the age of 18) | verified |
+| wtr.young_worker.restricted_start_minute | 1320 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 10 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours/young-workers | verified |
+| wtr.young_worker.restricted_end_minute | 360 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 10 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours/young-workers | verified |
+| wtr.young_worker.restricted_late_start_minute | 1380 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
+| wtr.young_worker.restricted_late_end_minute | 420 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
+| wtr.young_worker.weekly_rest_reduced_min_hours | 36 | hours | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/11 (reg 11(8)(b): reduced for technical or organisation reasons "but not to less than 36 consecutive hours") | verified |
 | awr.qualifying_weeks | 12 | weeks | 2011-10-01 | - | uk | master prompt 12.3 (AWR 2010) | master-prompt |
 | auto_enrolment.earnings_trigger | 10000.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627; master prompt 12.3 | verified |
 | auto_enrolment.qualifying_earnings.lower | 6240.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
@@ -90,6 +107,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.salary_floor.care_worker_hourly | 12.82 | GBP_per_hour | 2025-07-22 | - | uk | https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | to-verify |
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
+| sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -111,6 +129,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dsar.response_months | 1 | months | 2018-05-25 | - | uk | master prompt 5.1 (UK GDPR Art 12) | master-prompt |
 | dsar.extension_months | 2 | months | 2018-05-25 | - | uk | master prompt 5.1 (extendable to three months in total) | master-prompt |
 | dp_complaint.acknowledge_days | 30 | days | 2026-06-19 | - | uk | master prompt 5.1 (Data (Use and Access) Act 2025 complaints duty) | master-prompt |
+| dp_complaint.acknowledge_target_working_days | 3 | working_days | 2026-06-19 | - | uk | docs/compliance/data-protection-complaints.md section 2 (tenant default target: aim for 3 working days; no statutory figure) | to-verify |
+| dp_complaint.update_interval_months | 1 | months | 2026-06-19 | - | uk | docs/compliance/data-protection-complaints.md section 2 (keep the complainant informed at least monthly; tenant default, the Act says only "keep informed") | to-verify |
+| dsar.due_soon_days | 7 | days | 2018-05-25 | - | uk | Harbour default for the "due soon" warning on the DSAR register (no statutory figure) | to-verify |
+| import.undo_window_days | 7 | days | 2026-10-31 | - | all | Harbour default for undoing an import batch (phase-2.md slice 9, ADR-0092; no statutory figure) | to-verify |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
 | cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -123,6 +145,17 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| safeguarding.referral_hours | 24 | hours | 2000-01-01 | - | all | Tenant target: Care Act 2014 s.42 sets no time; the local authority's procedures usually say the same day (phase-2.md slice 7; H-590) | to-verify |
+| complaint.acknowledge_working_days | 3 | working_days | 2000-01-01 | - | all | Tenant target: Regulation 16 sets none for independent providers (phase-2.md decisions; H-590) | to-verify |
+| complaint.response_working_days | 20 | working_days | 2000-01-01 | - | all | Tenant target, as above | to-verify |
+| lgsco.time_limit_months | 12 | months | 2010-10-01 | - | england | Local Government Act 1974 s.34D(4) (a complaint to the Ombudsman within 12 months of the person knowing of the matter, unless the Ombudsman decides otherwise) | to-verify |
+| whistleblowing.acknowledge_working_days | 5 | working_days | 2000-01-01 | - | all | Tenant target: no statutory figure (H-590) | to-verify |
+| mortality_review.due_days | 28 | days | 2000-01-01 | - | all | Tenant target: no statutory figure for care providers (H-590) | to-verify |
+| missing_person.police_call_minutes | 30 | minutes | 2000-01-01 | - | all | Tenant target: the tenant's missing person policy and risk assessment; call at once when they say so (H-591) | to-verify |
+| herbert_protocol.review_months | 6 | months | 2000-01-01 | - | all | Tenant target: the Herbert Protocol forms ask for regular updates but set no interval (H-591) | to-verify |
+| ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
+| ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
+| ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -166,6 +199,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ico.registration.renewal_months | 12 | months | 2000-01-01 | - | uk | https://ico.org.uk/for-organisations/data-protection-fee/ (the data protection fee is paid every year, Data Protection (Charges and Information) Regulations 2018) | to-verify |
 | nmc.revalidation.practice_hours | 450 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
 | nmc.revalidation.cpd_hours | 35 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
+| nmc.revalidation.cycle_years | 3 | years | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (https://www.nmc.org.uk/revalidation/) | to-verify |
+| nmc.revalidation.participatory_cpd_hours | 20 | hours | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (of the CPD hours) | to-verify |
+| nmc.revalidation.feedback_count | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (practice-related feedback) | to-verify |
+| nmc.revalidation.reflective_accounts | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (written reflective accounts) | to-verify |
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
@@ -174,6 +211,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.second | 30 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.third | 7 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
+| dbs.update_service.check_interval_months | 12 | months | 2000-01-01 | - | all | Tenant default: no statutory interval for Update Service status checks (phase-2.md decisions, slice 4; H-570) | to-verify |
 | access.agency.post_shift_hours | 2 | hours | 2000-01-01 | - | all | master prompt 4 (agency access expires at shift end plus 2 hours) | master-prompt |
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
@@ -277,6 +315,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
 
 ## Notes on to-verify items
 
+- `dp_complaint.acknowledge_target_working_days` (3), `dp_complaint.update_interval_months` (1),
+  `dsar.due_soon_days` (7) and `import.undo_window_days` (7): Harbour defaults with no statutory
+  figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the
+  DSAR warning and the import undo window are product choices. A tenant may override each; the DPO
+  confirms the defaults (H-610).
 - `sponsor.salary_floor.care_worker_hourly` (12.82): the gov.uk going-rates page lists £25,000 a year
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
@@ -504,4 +547,19 @@ literals, and tests assert against the table, not a literal (section 7, section 
   regulations' commencement for the clock's purposes (1 April 2010, as the other `cqc.*` rows).
   England only; Wales, Scotland and Northern Ireland have their own regulators and rules (Phase 7
   nation packs).
+- Working time rows added by Phase 2 slice 5 (`wtr.reference_period_weeks.special_case`,
+  `.agreement_max`, `wtr.opt_out.*`, `wtr.night_time.*`, `wtr.night_worker.min_night_hours`,
+  `wtr.night_work.hazard_max_hours`, `wtr.young_worker.until_age_years`,
+  `wtr.young_worker.restricted_*` and `wtr.young_worker.weekly_rest_reduced_min_hours`) were read
+  on legislation.gov.uk (Working Time Regulations 1998, regulations 2, 4, 5, 6, 11, 23, 27A; no
+  outstanding effects listed) and the gov.uk night working pages on 31 October 2026, not on
+  11 October. `valid_from` is the regulations' commencement (1 October 1998), the date regulation 5
+  took its present form (17 December 1999), or the date the young worker rules were inserted
+  (6 April 2003). The young-worker age was planned for slice 6; slice 5 adds it because the
+  under-18 rules need it first. Northern Ireland has parallel figures in the Working Time
+  Regulations (Northern Ireland) 2016, so the rows are `uk` like the earlier `wtr.*` rows. The
+  figures are statutory, so `resolveWorkingTimeRates` ignores tenant overrides; what an employer
+  may agree (night time, reference periods) is the tenant's working-time setting
+  ([scheduling.md](scheduling.md) section 4). How the rules are read is for the employment law
+  adviser to confirm (H-580).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.

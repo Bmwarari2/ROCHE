@@ -22,6 +22,81 @@ forms, statutory figures, feature flags, integrations framework and the Thapsus 
 Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 `apps/api/test/api.test.ts` (hazard HZ-011 groups).
 
+## White-label branding (PLAT-002)
+
+Master prompt 9.1: a tenant's name, logo and accent colour, with the accent auto-adjusted to at
+least 4.5:1 contrast on white and on black. The columns are already on `tenant` (`brand_name`,
+`brand_accent` with its hex check, `logo_document_id`); no new table or migration.
+
+**Rules**
+
+1. The accent is a six-digit hex colour, stored lower case. `checkAccent`
+   (`packages/domain/src/platform/branding.ts`) measures it against every surface it meets in both
+   themes (`BRAND_THEMES`, mirroring the `@harbour/ui` tokens): white words on the accent and the
+   accent on the page (`#ffffff` light, `#000000` dark) at 4.5:1, and the accent on the secondary
+   background and card of each theme at 3:1 (WCAG 1.4.11, non-text). Only a colour that passes
+   every check is stored or shown. One that fails is refused (422 `brand_accent_contrast`) saying
+   why in plain English: too light (white words on buttons would be hard to read) or too dark (hard
+   to see on the dark theme's black). The refusal names the nearest colour of the same hue that
+   passes (`adjustAccentForContrast`), and the settings screen offers it in one step and shows the
+   ratios. Auto-adjusting is offered, never done silently, so the owner sees the colour their staff
+   will see. No accent: Harbour's own. The focus ring keeps Harbour's own colour in both themes,
+   so an accent never weakens it; status colours are fixed tokens and never take the accent.
+2. The display name (`checkBrandName`: NFC-normalised, trimmed, spaces collapsed, at most 80
+   characters, no control, bidirectional-override or zero-width characters, so one organisation's
+   name cannot be made to look like another's; blank means none) replaces the registered name in the shell (`Me.tenant.name`
+   and every page's eyebrow). The registered name stays on statutory documents, letters (the
+   `tenant.name` merge field) and the audit trail.
+3. The logo is a PNG or JPEG of at most 512 KB (never SVG, which can carry script), refused above
+   that size before it is read (its own body limit). It is shown to every member, so EXIF, XMP,
+   IPTC, comments and PNG text chunks are removed before storing (`stripImageMetadata`), and it is
+   stored through the document store in its own category, `organisation_logo` (content sniffed,
+   malware scanned, encrypted; retention `organisation_document`). Refusals are audited. The web
+   tier caches it privately for an hour under an address bound to the current logo document
+   (`/branding/logo?v=<id>`; any other id is not found), so a switch of organisation in another
+   tab never leaves another organisation's logo in the cache. The general document routes neither
+   accept nor serve it. It is shown at 24 px high beside the product name in the app bar's home
+   link, with empty alternative text: the organisation's name is already in the organisation
+   switcher beside it. Removing it asks first, saying it stops showing for all staff, then clears the reference; the document stays in the
+   store under its retention class. A quarantined file is kept but never shown.
+4. Every member of the organisation may read the branding and the logo (they are shown in the
+   shell); only `platform.tenant.manage` changes them, with the version read (409 when stale). Each
+   change is audited (`platform.branding.updated` with the fields changed and the old and new
+   accent, refusals too; `platform.branding.logo` with the document id), never the logo's bytes.
+5. Sign-in: the organisation is not known before sign-in (one address can belong to several), so
+   the sign-in page stays Harbour's; the "choose an organisation" page shows each one's name.
+   Printed packs and letters keep the registered name as they do now; adding the logo to them is
+   a later slice (the PDF writer, ADR-0040, would need the image path the transfer pack uses).
+6. Not clinical: no hazard is affected. No personal data: a logo and a display name are about the
+   organisation.
+
+**API** (additive): `GET /v1/branding` (any member: registered and display name, accent, logo
+id and type, version), `PUT /v1/branding` (`platform.tenant.manage`; name and accent with
+`expectedVersion`), `GET /v1/branding/logo` (any member; the bytes, `nosniff`, sandboxing CSP, not
+audited as a view), `PUT /v1/branding/logo` (the body is the image) and `DELETE /v1/branding/logo`
+(`platform.tenant.manage`); `Me.tenant.logoDocumentId`. No step-up: branding is not one of the
+step-up actions (section 5.3).
+
+**Web**: `/settings/branding` (`platform.tenant.manage`, the owner by default), in the sidebar;
+the shell sets `--accent` and `--accent-hover` in both themes from a colour that passes
+`checkAccent` again in the web tier, and shows the logo through the `/branding/logo` route.
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| See the branding in the shell, fetch the logo, read `GET /v1/branding` | Any member of the organisation |
+| Change the display name, accent or logo | `platform.tenant.manage` |
+
+**Tests (written first)**: `packages/domain/src/platform/branding.test.ts` (table-driven: passing
+colours normalised, failing colours refused as too light or too dark with a suggestion that passes,
+every check in both themes, invalid hex, display names); `apps/api/test/branding.test.ts`
+(refusal with the suggestion and nothing stored, version conflict, permission, logo type, size and
+malware scan, the general document routes refusing logos, audit); `apps/web/src/lib/branding.test.ts`
+(the theme surfaces match `@harbour/ui` tokens, the shell's accent style, form reading);
+`apps/web/e2e/branding.spec.ts` (a failing colour refused with why, take the suggestion, the shell
+shows it; upload and remove a logo; axe in light and dark).
+
 ## Identity, roles and scope (PLAT-004, PLAT-006)
 
 - Identity: Better Auth in the `auth` schema (email and NCSC-compliant password, TOTP, passkeys,
@@ -209,7 +284,7 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   sign in again and that unsent entries stay on it until then; HZ-006, HZ-110); for `staff_left`
   or `suspended`, the holds on those devices fall due at once and the manager is told, as after a
   device revocation (`hurryRevokedHold`).
-- Later: SSO (PLAT-005, Phase 2). Invitations and MFA enrolment: the next section.
+- Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
 
@@ -579,9 +654,85 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
   `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check
   the rules, record every move and set the next deadline (fixed hours or a rate-table figure).
+- Approvals across modules (31/10/2026): `GET /v1/workflows` lists open workflow records in the
+  reader's scope, soonest deadline first. `view=approvals` (the default) lists those waiting for the
+  reader's approval and those the reader raised that wait for someone else's. `view=all` lists every
+  open record the reader has a part in. Each item gives the state and the deadline state
+  (`workflowSlaState`: overdue once the deadline has come, due today when later on the same UK day,
+  on track, or none). It also gives who started it, the steps open to the reader
+  (`workflowActorView`), the approval step marked (one the record's creator may not take), and
+  whether the reader raised it so someone else must approve. The list is read only. Every step is
+  still taken on the record's own route, which checks the module's rules and separation of duties
+  again.
+  - The listed workflows are in `LISTED_WORKFLOWS` (`packages/domain`): incident, candour,
+    statutory notification, DoLS legal-change review, outage, discharge, transfer and death. The
+    person lifecycle is a record's status, not work, so it is not listed.
+  - An instance about nobody is listed only when its record is visible under row-level security, and
+    an unknown subject type never is.
+  - Any holder of a listed step's permission may read the list (MFA as for care records). Each
+    permission counts for a record only when its own scope, without break-glass, both shows the
+    record and reaches the record's home (`scopeReachesLocation`, as `managesAt` and
+    `app.holds_permission_at` decide; ADR-0071). Visibility alone never decides, because an
+    incident shows to its raiser anywhere. Managing an incident, or its candour record, also needs
+    the incident seen whole (`managesIncident`). Each item returns the permissions that reach it,
+    and the page offers steps from those alone. The incident review and close routes
+    (`requireManagesIncident`) and the notification submit and not-required routes
+    (`requireHeldAtLocation`) apply the same rule, and each refusal is audited.
+  - Deadlines: a workflow may keep its deadline on the record, naming the states that carry one
+    (`deadlineOnRecord`: a notification's draft and ready; candour's threshold, verbal due and
+    written due). The module writes it onto the instance (`setWorkflowDeadline`,
+    `syncCandourDeadline`) and the engine keeps it across moves. An instance in such a state
+    without one reads `on_record`, a warning sorted first; any other state reads `none` (HZ-013).
+    `pnpm --filter @harbour/api workflow-deadlines:backfill` fills instances started before the
+    module wrote them. It is idempotent and is run once per environment after release.
+  - The list filters by workflow and view state in SQL, reads instances in the union of the held
+    permissions' scopes, and pages by keyset (missing deadline, deadline, id) until 300 visible
+    records. `truncated` means only that more visible records were open, and the empty states say
+    so. It leaves out removed records and is audited by view and count only. Each incident item
+    carries what the page needs to offer closing (version, status, whether closing is held back),
+    so the page reads no incident except the one just acted on.
+  - Open (#130 review): L2, each module should own a resolver for "which of these subjects can the
+    reader see", instead of this route querying module tables. L5, a holder of
+    `safety.notification.submit` alone may be asked for a fresh sign-in just to read the list,
+    because that permission needs step-up.
+  - The web page `/approvals` ("Approvals" in the side bar for the same readers) groups the records:
+    waiting for your approval, raised by you (said in words), and other open work. Each shows its
+    state and deadline as an icon and words and links to its own page. An incident waiting for the
+    reader can be closed or sent back to open there with the incident page's own forms, carrying the
+    version the page read (HZ-013, HZ-091).
 - API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
   `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
   `POST /v1/task-series/{id}/end`. Every list and change is audited.
+- `GET /v1/tasks?earlier=yes` with open tasks returns the window's own tasks first, then open tasks
+  due before `from`, however old, the most recent first, in the room left of 1,000; `truncated`
+  says the window itself held more than 1,000 and `earlierOmitted` counts the older open tasks
+  left out. `earlier` is recorded in the `platform.task.list` audit (HZ-003).
+- Web (`/tasks`, Phase 1 slice 9): "Team tasks" (`view=all`, every task the session's scope
+  reaches; shown first, because reviews go to a role rather than a person) and "My tasks"
+  (`view=mine`) as two tabs, each by status (open or finished) and window (yesterday to tomorrow,
+  or the last and next 7 days). The window's tasks and "Open from earlier" (open tasks due before
+  the window, with how many older ones are not listed) are listed apart, so old open tasks never
+  hide today's (HZ-003, HZ-008); each renders 20 at a time with "Show more" (its own address), so
+  the page stays quick however many tasks are open; the list says when it was read. Each task shows its title, the person it is
+  about by name (linked to their record, when the viewer may open people's records), the location,
+  who it is assigned to, when it is due (dd/mm/yyyy, 24-hour, UK time) and where it stands as an
+  icon and a word (upcoming, due, overdue, escalated, done, skipped, cancelled), with "Urgent" and
+  "Review" flags in words, and the person's communication needs. A review task (one raised by the engine: a stale write, a late entry, an
+  entry that did not complete its round; kind ending `_review`) shows its details with
+  `TaskDetails` (missed rounds in UK time, medicines first; entries by kind, time and outcome) and
+  late evidence, a catch-up or a restored round with `TaskEvidenceBadge` (HZ-003, HZ-004, HZ-006).
+  "Reviews only" narrows either tab to them. Actions follow the API: Start, Mark as done, Not done
+  (skip, with a reason) and Cancel (with a reason) for an open task; a task that needs evidence
+  says to record it on the person's record (the API refuses completion without it). Holders of
+  `platform.task.manage` also take or unassign a task and create one: a title, a due date and time
+  (UK, 24-hour), urgent or routine, optionally assigned to themselves, once or repeating every day
+  or every week (a task series). A stale version (`409`) says someone else changed the task and
+  shows it again; no change is retried silently. Family portal sessions are not offered the page.
+  Permission matrix: list, everyone in the organisation (row-level security narrows); move, the
+  task's permission holder or assignee (API decides, refusals said in words); create, assign and
+  schedule, `platform.task.manage`. Tests: `apps/web/src/lib/tasks.test.ts` (states, flags,
+  windows, form reading), `apps/web/e2e/tasks.spec.ts` (HZ-006 review task details and late
+  evidence; create, start, complete and skip with a reason; axe in light and dark).
 
 ## Document store (PLAT-009)
 
@@ -607,6 +758,27 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   other than the author and fixed approved versions are specified in [comms.md](comms.md)
   (COMMS-007, rules in `packages/domain/src/comms/templates.ts`); a rendered letter is stored here
   as a document about the person.
+- Web (Phase 1 slice 9): `/documents` lists the organisation's documents (policies, procedures;
+  any member reads them) with the version, when stored, the file size, the status as an icon and a
+  word (available, quarantined) and a legal hold flag; holders of `platform.document.manage`
+  upload one (PDF, up to the category limit) through its own route handler,
+  `/api/documents/upload` (the title and file name in percent-encoded headers, never the
+  address, which reaches access logs), not a server action, so server actions keep Next's default body limit
+  (ASVS L2 input limits): it takes posts from this site only (the origin configuration names, as
+  the invitation routes check, never request headers), PDFs only, refuses a length over the API's
+  document limit before reading and counts bytes again as it streams the body to the API with the
+  person's session, and answers with the refusals the form already says and add a new version on its page. `/documents/{id}/details` (organisation documents only; any other category is
+  not found there, and the tab title is a document's own only for an organisation document) shows
+  the document's details, retention class, versions and signatures, and a signing form (typed full
+  name, the statement, bound to the SHA-256 of the version shown, so a changed document is refused
+  and the page says to read the new version). Downloads use `/documents/{id}` (audited by the
+  API, never cached). Merge-field letter templates are linked from the page (`/letters`,
+  COMMS-007). Documents about a person stay on the person's record. Permission matrix: read,
+  everyone in the organisation (organisation documents); upload and new version,
+  `platform.document.manage`; sign, anyone who may read it (the API decides). Tests:
+  `apps/web/src/lib/documents.test.ts`, `apps/web/e2e/documents.spec.ts` (upload, sign, a new
+  version starts unsigned and the earlier one is no longer offered for signing; axe in light and
+  dark).
 
 ## Retention and legal hold (PLAT-012)
 
@@ -618,8 +790,32 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
   row without the title, and writes an append-only `destruction_certificate` per record class
   (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
-- Later: retention of structured care records (not only documents), crypto-shredding with
-  per-tenant data keys, and the destruction review screen (Phase 1 web slice).
+- `GET /v1/destruction-certificates` (`platform.retention.manage`, step-up): every certificate,
+  newest first (audited as `platform.destruction_certificate.list`). Candidates also carry when the
+  document was stored, and its title where the caller may read that category of document (a
+  person's record needs its own read permissions; otherwise the page says the category alone);
+  the listed ids are recorded in the audit.
+- Web (`/settings/retention`, "Records retention", Phase 1 slice 9), for holders of
+  `platform.retention.manage` (the data protection lead's tenant-wide roles). Every retention
+  route needs a fresh step-up, so the page sends the person to confirm it is them first and comes
+  back. Legal holds in force (who or what, why, since when) each with a release form (a reason of
+  10 or more characters); placing a hold on a person (chosen by name) or on one record (type and
+  id) with a reason; released holds with their reasons. Documents due for destruction (title,
+  category, retention class, stored, due since): only what the API offers, which never includes
+  anything under a legal hold or about someone still receiving care. Destroying is irreversible:
+  the reviewer ticks each document, gives a reason, ticks a box saying they understand the files
+  cannot be recovered, and confirms in a dialog that says so again in plain words; the page then
+  says how many were destroyed, how many were skipped (a hold placed meanwhile, no longer due) and
+  which certificates were issued. Destruction certificates list record class, count, reason,
+  method and when. Permission matrix: every action, `platform.retention.manage` with step-up;
+  everyone else is told they do not have access. Tests: `apps/web/src/lib/retention.test.ts`,
+  `apps/web/e2e/retention.spec.ts` (a hold keeps a document off the list; release; destroy after
+  confirming; the certificate is listed; refused for the manager; axe in light and dark).
+- Later: retention of structured care records (not only documents) and crypto-shredding with
+  per-tenant data keys.
+- Later: the API's upload routes take the title and file name in the query string
+  (`POST /v1/documents?title=`, ADR-0031), which reaches the API's access logs; move them to
+  headers or a metadata part, as the web route already does.
 
 ## Statutory figures (PLAT-021)
 
@@ -718,6 +914,112 @@ break-glass search and query-free audit ([ADR-0070](../decisions/0070-search-on-
 the free full tenant export with its manifest and documented schema, the onboarding checklist and
 sample data mode, and the DPIA prefill and sign-off with the records-of-processing and
 sub-processor registers. Domain rules are built; schema and API follow.
+
+## Phase 2: data rights, imports and single sign-on (PLAT-022, PLAT-014, PLAT-005)
+
+Phase 2 slice 9 ([phase-2.md](../plans/phase-2.md)): the rules only, as pure functions with
+table-driven tests. Schema, API and screens follow in slices 15 (DSAR workbench, ADR-0090), 26
+(import wizard, ADR-0092) and 33 (single sign-on, ADR-0091). Procedures:
+[dsar-procedure.md](../compliance/dsar-procedure.md),
+[breach-response.md](../compliance/breach-response.md),
+[data-protection-complaints.md](../compliance/data-protection-complaints.md). Every period is a
+rate-table row read through `resolveDataRightsRates` (`dsar.*`, `ico.breach.report_hours`,
+`dp_complaint.*`, `import.undo_window_days`), never a literal. Code:
+`packages/domain/src/platform/data-rights.ts`, `imports.ts`, `sso.ts`.
+
+### Rules that are easy to get wrong
+
+**Subject access requests** (`dsarClock`; UK GDPR Art 12 as amended by the Data (Use and Access)
+Act 2025; ICO guidance on time limits):
+
+1. The clock starts on the day the request is received (UK date), or, when identity information is
+   needed, on the day it arrives: until then the request is `awaiting_identity` and has no due date.
+   Received on a weekend or a bank holiday, it still starts that day.
+2. The due date is the corresponding calendar date `dsar.response_months` later. A date that does
+   not exist in that month (31 January plus one month) becomes the last day of the month (28 or 29
+   February). Due on a Saturday, Sunday or bank holiday of the location's nation, it moves to the
+   next working day.
+3. While the controller waits for clarification the clock is paused: each whole UK day paused is
+   added to the due date before the working-day roll in rule 2. A pause still open has no due date
+   (`paused`); the request is never shown overdue while paused. Pauses may not overlap or start
+   before the clock starts.
+4. An extension of up to `dsar.extension_months` more (three months in total) is allowed only when
+   the request is complex or the requester made several, with a reason, decided and told to the
+   requester before the original due date (pauses included). A later extension is refused. The
+   extended due date is the corresponding date counted from the clock's start, then pauses, then
+   the working-day roll.
+5. States: `awaiting_identity`, `running`, `paused`, `due_soon` (within `dsar.due_soon_days`,
+   tenant default), `overdue`, `closed`. A response sent ends the clock; sent after the due date it
+   is recorded as late, never rewritten as on time.
+
+**Personal data breaches** (`breachClock`, `assessBreach`, `checkBreachDecision`; UK GDPR Arts
+33 and 34):
+
+6. The ICO clock runs `ico.breach.report_hours` from the moment the controller became aware (an
+   instant, not a working-day count: weekends and nights count). A breach reported late must give
+   the reasons for the delay (Art 33(1)).
+7. Every breach is recorded, reportable or not (Art 33(5)). The assessment is decision support only:
+   it suggests a severity from the factors in breach-response.md section 4 (special category or
+   safeguarding data, the location of a person at risk, how many people, whether they can be
+   identified, consequences, vulnerability, containment) and says what to consider. It never
+   decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
+   written reasoning of at least `BREACH_REASONING_MIN` characters; deciding not to report a breach
+   suggested as medium or above, or not to tell individuals when the risk is suggested high, needs
+   an explicit acknowledgement that the suggestion was considered.
+8. A processor (Thapsus) notice to the controller is a separate record; the controller's clock
+   starts from its own awareness, which may be the notice.
+
+**Data protection complaints** (`complaintClock`; DPA 2018 as amended by DUAA 2025):
+
+9. Acknowledgement is due `dp_complaint.acknowledge_days` calendar days after the day of receipt
+   (the duty from 19 June 2026; complaints before that have no statutory clock). The tenant's target
+   (`dp_complaint.acknowledge_target_working_days`, a working-day figure) is shown alongside, never
+   instead.
+10. While open, the complainant is updated at least every `dp_complaint.update_interval_months`
+    (tenant default) from the last contact; the outcome letter always names the right to complain
+    to the ICO.
+
+**Imports** (`validateImportRows`, `dryRunReport`, `importUndoEligibility`; ADR-0092 in slice 26):
+
+11. Every value is checked against [data-standards.md](data-standards.md): NHS numbers pass the
+    modulus 11 check (spaces allowed, stored without); dates are dd/mm/yyyy, real, and a date of
+    birth is not in the future; coded fields (sex, gender, allergy status, allergy severity) take
+    only their listed codes; required fields are present; text fits its length. Errors are per row
+    and column with a code and plain words, never the value itself (it may be personal data).
+12. Two rows with the same NHS number in one file are both errors. `allergy_status` is never
+    inferred: a blank status imports as `unknown` (HZ-007).
+13. The dry run commits nothing and reports rows, valid rows and errors by code. A batch commits only
+    when every row is valid (no partial import).
+14. A batch may be undone only within `import.undo_window_days` of its commit, once, and only while
+    none of its records has been changed or had records made about it since; otherwise undo is
+    refused with the reason, and corrections are made record by record.
+
+**Single sign-on** (`ssoSignInDecision`; ADR-0091 in slice 33):
+
+15. SSO signs in only an existing, invited or active member of the tenant whose email domain the
+    tenant has verified; it never creates a member, never links a different email, and never signs
+    in a family member or an operator.
+16. The tenant chooses which roles may use SSO; a member holding a role not on the list signs in
+    with Harbour's own methods.
+17. SSO is a first factor only: a session from SSO that reaches care records still needs Harbour's
+    own second factor (passkey or authenticator), and step-up always needs it (section 5.3).
+
+### Tests (written before the code)
+
+- `packages/domain/src/platform/data-rights.test.ts`: `PLAT-022 the DSAR clock` (table: received on
+  a weekday, a weekend, 31 January in a leap and a common year, due on a bank holiday, identity
+  awaited, pauses open and closed, overlapping pauses refused, extension before and after the due
+  date, without grounds, beyond three months, responded late); `PLAT-022 the breach clock and
+  decision support` (72 hours across a weekend and the clock change; severity table; decisions
+  without reasoning or acknowledgement refused; late report needs reasons); `PLAT-022 complaint
+  clocks` (before and after 19 June 2026, the update interval, the outcome wording);
+  `resolveDataRightsRates` (every key read from the table, missing ones fail loudly).
+- `packages/domain/src/platform/imports.test.ts`: `PLAT-014 import validation` (table per field
+  rule, duplicate NHS numbers, no value echoed in an error, blank allergy status as unknown, dry run
+  counts, commit refused with errors, undo window, undo after changes refused).
+- `packages/domain/src/platform/sso.test.ts`: `PLAT-005 SSO sign-in policy` (table: unverified
+  domain, different email, not invited, family member, operator, role not allowed, allowed;
+  second factor still required for care records and step-up).
 
 ## Permission matrix
 

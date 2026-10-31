@@ -58,7 +58,12 @@ export function ApproveStatement({
   };
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-3" onSubmit={onSubmit} aria-labelledby="approve-title">
+      <form
+        method="post"
+        className="flex flex-col gap-3"
+        onSubmit={onSubmit}
+        aria-labelledby="approve-title"
+      >
         <h3 id="approve-title" className="m-0 text-body font-semibold">
           {t("quality.sop.approve.title")}
         </h3>
@@ -131,6 +136,7 @@ export function NotifyStatement({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate

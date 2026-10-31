@@ -3,7 +3,11 @@
  * encrypted database so the People list can be exercised without the API. Every value is invented:
  * names from the Example family, NHS numbers from the 999 test range, no SNOMED codes.
  */
+
+import { offlineWindowDays } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
+import { OFFLINE_DAYS_META_ID, OFFLINE_DAYS_META_KEY } from "../sync/offline-days";
+import type { WriteScope } from "../sync/write-scope";
 
 export const DEMO_TENANT_ID = "00000000-0000-4000-8000-00000000d001";
 export const DEMO_LOCATION_ID = "00000000-0000-4000-8000-00000000d101";
@@ -14,7 +18,8 @@ export const demoMe: Me = {
   tenant: { id: DEMO_TENANT_ID, name: "Example Care (demo)" },
   tenantUserId: "00000000-0000-4000-8000-00000000d202",
   locations: [{ id: DEMO_LOCATION_ID, name: "Example House" }],
-  permissions: ["people.person.read"],
+  // care.handover.manage shows the handover tab with the demo handover.
+  permissions: ["people.person.read", "care.handover.manage"],
 };
 
 interface DemoPerson {
@@ -157,6 +162,16 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
     sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: ["00000000-0000-4000-8000-00000000d501", DEMO_SEEDED_AT_KEY, now],
   });
+  // The window's days as a token would give them, so the round says what the demo holds: the day
+  // of seeding, the day before and tomorrow (UTC), a demo choice, not a tenant figure.
+  statements.push({
+    sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
+    params: [
+      OFFLINE_DAYS_META_ID,
+      OFFLINE_DAYS_META_KEY,
+      JSON.stringify(offlineWindowDays(seededAt, 2).sort()),
+    ],
+  });
   return statements;
 }
 
@@ -167,8 +182,9 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
 // header reads "not recorded".
 // ------------------------------------------------------------------------------------------------
 
-const [ADA, BEA] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? ""];
+const [ADA, BEA, CAL] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? "", demoPeople[2]?.id ?? ""];
 const DEMO_PLAN_ID = "00000000-0000-4000-8000-00000000d601";
+const DEMO_HANDOVER_ID = "00000000-0000-4000-8000-00000000dd01";
 
 function insert(table: string, row: Record<string, string | number | null>): SqlStatement {
   const columns = Object.keys(row);
@@ -178,12 +194,46 @@ function insert(table: string, row: Record<string, string | number | null>): Sql
   };
 }
 
+/**
+ * What the demo member may record: everyone at the demo home, as a token's write scope would say,
+ * so the round can be marked in demo mode (the demo has no sync token).
+ */
+export const demoWriteScope: WriteScope = {
+  locationIds: [DEMO_LOCATION_ID],
+  assigned: false,
+  personIds: null,
+  peopleLocationIds: [DEMO_LOCATION_ID],
+};
+
 /** Care records for the demo people; entries are timed relative to when the demo was seeded. */
 export function demoCareStatements(seededAt: Date): SqlStatement[] {
   const now = seededAt.toISOString();
   const hoursAgo = (hours: number) =>
     new Date(seededAt.getTime() - hours * 3_600_000).toISOString();
   const tenant = { tenant_id: DEMO_TENANT_ID };
+  // An open round task due `hours` after seeding, with a 30-minute window each side.
+  const demoTask = (
+    id: string,
+    person: string,
+    hours: number,
+    fields: Record<string, string | number>,
+  ): Record<string, string | number | null> => ({
+    id,
+    ...tenant,
+    location_id: DEMO_LOCATION_ID,
+    person_id: person,
+    required_permission: "care.note.write",
+    status: "open",
+    priority: "routine",
+    evidence_required: 0,
+    from_earlier_plan: 0,
+    due_at: hoursAgo(-hours),
+    window_start: hoursAgo(-hours + 0.5),
+    window_end: hoursAgo(-hours - 0.5),
+    updated_at: now,
+    version: 1,
+    ...fields,
+  });
   const entry = (id: string, person: string, hours: number) => ({
     id,
     ...tenant,
@@ -379,6 +429,78 @@ export function demoCareStatements(seededAt: Date): SqlStatement[] {
       supersedes_id: null,
       correction_reason: null,
       late_entry: 0,
+    }),
+    // The round (care.md section 6): one task of each state the screen words. Times follow the
+    // seeding, so the first is overdue, the second due now and the third later; the second needs
+    // its entry recorded and the third is from an earlier plan (HZ-024).
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc01", ADA, -1.5, {
+        kind: "care.reposition",
+        title: "Reposition",
+      }),
+    ),
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc02", BEA, 0, {
+        kind: "care.fluids",
+        title: "Offer a drink and record it",
+        evidence_required: 1,
+      }),
+    ),
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc03", CAL, 3, {
+        kind: "care.personal_care",
+        title: "Evening personal care",
+        from_earlier_plan: 1,
+      }),
+    ),
+    // A handover for the demo home, compiled and locked. The demo has no sync token, so no shift
+    // pattern: the screen says it cannot tell which handover to expect and shows this one as the
+    // latest on the phone, as a real phone would without the pattern.
+    insert("handover", {
+      id: DEMO_HANDOVER_ID,
+      ...tenant,
+      location_id: DEMO_LOCATION_ID,
+      shift_name: "night",
+      shift_start: hoursAgo(14),
+      shift_end: hoursAgo(2),
+      compiled_at: hoursAgo(2.5),
+      locked_at: hoursAgo(2),
+    }),
+    insert("handover_item", {
+      id: "00000000-0000-4000-8000-00000000dd02",
+      ...tenant,
+      handover_id: DEMO_HANDOVER_ID,
+      item_key: "fall:00000000-0000-4000-8000-00000000dd12",
+      position: 1,
+      kind: "fall",
+      person_id: ADA,
+      source_type: "care_note",
+      source_id: "00000000-0000-4000-8000-00000000dd12",
+      at: hoursAgo(8),
+      late_addition: 0,
+      added_at: hoursAgo(2.5),
+      summary: JSON.stringify({ key: "handover.summary.fall", params: { source: "care_note" } }),
+    }),
+    insert("handover_item", {
+      id: "00000000-0000-4000-8000-00000000dd03",
+      ...tenant,
+      handover_id: DEMO_HANDOVER_ID,
+      item_key: "unfinished_task:00000000-0000-4000-8000-00000000dd13",
+      position: 2,
+      kind: "unfinished_task",
+      person_id: CAL,
+      source_type: "task",
+      source_id: "00000000-0000-4000-8000-00000000dd13",
+      at: hoursAgo(3),
+      late_addition: 0,
+      added_at: hoursAgo(2.5),
+      summary: JSON.stringify({
+        key: "handover.summary.unfinishedTask",
+        params: { title: "Evening personal care" },
+      }),
     }),
     insert("care_note", {
       ...entry("00000000-0000-4000-8000-00000000db01", ADA, 20),

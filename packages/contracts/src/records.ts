@@ -13,6 +13,7 @@ export const DocumentCategoryKey = z
     "care_attachment",
     "person_document",
     "organisation_document",
+    "organisation_logo",
   ])
   .meta({ id: "DocumentCategoryKey" });
 export type DocumentCategoryKey = z.infer<typeof DocumentCategoryKey>;
@@ -124,8 +125,12 @@ export const RetentionCandidate = z
     category: DocumentCategoryKey,
     retentionClass: z.string(),
     eligibleSince: isoDateTime,
+    /** The document's title and when it was stored, so the reviewer knows what is to go. */
+    title: z.string().optional(),
+    createdAt: isoDateTime.optional(),
   })
   .meta({ id: "RetentionCandidate", description: "A document past retention with no legal hold" });
+export type RetentionCandidate = z.infer<typeof RetentionCandidate>;
 
 export const RetentionCandidateList = z
   .object({ items: z.array(RetentionCandidate) })
@@ -152,6 +157,11 @@ export const DestructionCertificateItem = z
   })
   .meta({ id: "DestructionCertificateItem" });
 export type DestructionCertificateItem = z.infer<typeof DestructionCertificateItem>;
+
+export const DestructionCertificateList = z
+  .object({ items: z.array(DestructionCertificateItem) })
+  .meta({ id: "DestructionCertificateList" });
+export type DestructionCertificateList = z.infer<typeof DestructionCertificateList>;
 
 export const DestructionResult = z
   .object({ certificates: z.array(DestructionCertificateItem), skipped: z.array(uuid) })

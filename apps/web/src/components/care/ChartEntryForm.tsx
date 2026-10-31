@@ -195,7 +195,13 @@ export function ChartEntryForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={`${chart}-${round}`} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form
+        method="post"
+        key={`${chart}-${round}`}
+        className="flex flex-col gap-4"
+        onSubmit={submit}
+        noValidate
+      >
         {chart === "fluid_intake" ? (
           <>
             <TextField

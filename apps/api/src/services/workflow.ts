@@ -5,7 +5,7 @@ import {
   type WorkflowDefinition,
   type WorkflowTransitionProblem,
 } from "@harbour/domain";
-import { and, eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import { bankHolidays, rateNumber } from "./rates";
 
 /**
@@ -37,6 +37,8 @@ export async function startWorkflow<S extends string>(
   definition: WorkflowDefinition<S>,
   subject: WorkflowSubject,
   now = new Date(),
+  /** For a workflow whose deadline is kept on the record: the record's deadline now. */
+  recordDeadline: Date | null = null,
 ) {
   const [row] = await tx
     .insert(workflowInstance)
@@ -48,7 +50,9 @@ export async function startWorkflow<S extends string>(
       personId: subject.personId ?? null,
       state: definition.initial,
       enteredStateAt: now,
-      slaDueAt: await rateDue(tx, tenantId, definition, definition.initial, now),
+      slaDueAt: definition.deadlineOnRecord
+        ? recordDeadline
+        : await rateDue(tx, tenantId, definition, definition.initial, now),
     })
     .returning();
   if (!row) throw new Error("workflow instance was not created");
@@ -101,7 +105,12 @@ export async function moveWorkflow<S extends string>(
     .set({
       state: move.to,
       enteredStateAt: now,
-      slaDueAt: await rateDue(tx, tenantId, definition, move.to, now),
+      // A deadline kept on the record stays until the module changes it, and ends with the work.
+      slaDueAt: definition.deadlineOnRecord
+        ? definition.terminal.includes(move.to)
+          ? null
+          : instance.slaDueAt
+        : await rateDue(tx, tenantId, definition, move.to, now),
     })
     .where(eq(workflowInstance.id, instance.id))
     .returning();
@@ -115,6 +124,34 @@ export async function moveWorkflow<S extends string>(
     occurredAt: now,
   });
   return updated ?? instance;
+}
+
+/**
+ * Writes the record's deadline onto its workflow instance, for a workflow whose deadline is kept
+ * on the record (`deadlineOnRecord`): the module calls this whenever it starts or changes that
+ * clock, in its own transaction, so the approvals list reads it without joining the module's
+ * tables. A finished instance keeps no deadline.
+ */
+export async function setWorkflowDeadline<S extends string>(
+  tx: Transaction,
+  definition: WorkflowDefinition<S>,
+  subject: WorkflowSubject,
+  deadline: Date | null,
+): Promise<void> {
+  if (!definition.deadlineOnRecord) {
+    throw new Error(`${definition.key} works out its own deadline; it is not kept on the record`);
+  }
+  await tx
+    .update(workflowInstance)
+    .set({ slaDueAt: deadline })
+    .where(
+      and(
+        eq(workflowInstance.subjectType, subject.subjectType),
+        eq(workflowInstance.subjectId, subject.subjectId),
+        eq(workflowInstance.definitionKey, definition.key),
+        notInArray(workflowInstance.state, [...definition.terminal]),
+      ),
+    );
 }
 
 /** The SLA deadline for entering `state` now: fixed hours, or a rate-table figure by key. */

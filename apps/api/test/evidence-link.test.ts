@@ -1,6 +1,8 @@
 import { createHash, createHmac } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PUBLIC_MAX_BODY_BYTES } from "../src/app";
+import { auditRowsFor, postSized } from "./support/body-size";
 import { createHarness, type Harness } from "./support/harness";
 import { pdfPages, pdfText } from "./support/pdf-text";
 
@@ -448,5 +450,67 @@ describe("hazard HZ-050 the printed pack", () => {
       /Written on paper at .+ during a network outage from .+ (GMT|BST), and entered in Harbour later/,
     );
     expect(text).not.toContain("Misread the scale");
+  });
+});
+
+describe("public bodies are capped before they are read (security review, 31 October 2026)", () => {
+  it("refuses a code request or a code just over 4 KiB with 413, sending and using nothing", async () => {
+    const pack = await releasedPack();
+    const code = await codeFor(pack.token);
+    const sent = h.handle.services.mockEmail.sent.length;
+    const over = PUBLIC_MAX_BODY_BYTES + 1;
+    const refused = [
+      await postSized(h, "/p/evidence/code", { token: pack.token }, over, "cap-code-streamed"),
+      await postSized(
+        h,
+        "/p/evidence/code",
+        { token: pack.token },
+        over,
+        "cap-code-declared",
+        true,
+      ),
+      await postSized(h, "/p/evidence/verify", { token: pack.token, code }, over, "cap-verify-a"),
+      await postSized(
+        h,
+        "/p/evidence/verify",
+        { token: pack.token, code },
+        over,
+        "cap-verify-b",
+        true,
+      ),
+    ];
+    for (const response of refused) {
+      expect(response.status).toBe(413);
+      expect(response.headers.get("content-type")).toContain("application/problem+json");
+      expect(await response.json()).toMatchObject({ status: 413, code: "too_large" });
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
+    // No code was sent, no attempt counted and nothing audited.
+    expect(h.handle.services.mockEmail.sent.length).toBe(sent);
+    expect(
+      await auditRowsFor(h, [
+        "cap-code-streamed",
+        "cap-code-declared",
+        "cap-verify-a",
+        "cap-verify-b",
+      ]),
+    ).toBe(0);
+    const [link] = await sql<{ failed_code_attempts: number }>(
+      "SELECT failed_code_attempts FROM evidence_pack_link WHERE id = $1",
+      [pack.linkId],
+    );
+    expect(link?.failed_code_attempts).toBe(0);
+    // The code was not used: a body exactly at the cap is read and opens the link with it.
+    const atCap = await postSized(
+      h,
+      "/p/evidence/verify",
+      { token: pack.token, code },
+      PUBLIC_MAX_BODY_BYTES,
+      "cap-verify-at",
+    );
+    expect(atCap.status).toBe(204);
+    // A normal body works too: the next code is asked for and taken.
+    const next = await codeFor(pack.token);
+    expect((await post("/p/evidence/verify", { token: pack.token, code: next })).status).toBe(204);
   });
 });
