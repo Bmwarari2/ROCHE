@@ -209,3 +209,19 @@ describe("hazard HZ-005 medicines come from dm+d, never typed", () => {
     expect(dmdProductDifference(brandA, brandA)).toBeNull();
   });
 });
+
+describe("dose unit names stay quick to read whatever the name", () => {
+  it.each([
+    ["5ml spoonful", true, "5 ml spoonful"],
+    ["5 ml spoonful", false, "5 ml spoonfuls"],
+  ])("names %s (one: %s) as %s", (name, one, expected) => {
+    expect(doseUnitName(unit(name), one)).toBe(expected);
+  });
+
+  it("handles a long run of spaces after a size without slowing down", () => {
+    const started = performance.now();
+    const name = doseUnitName(unit(`0. ${" ".repeat(100_000)}!`), false);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(name.length).toBeGreaterThan(0);
+  });
+});
