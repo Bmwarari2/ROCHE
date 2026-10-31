@@ -37,6 +37,7 @@ const APPEND_ONLY_TABLES = [
   "entry_device_deletion_flag",
   "downtime_pack",
   "evidence_pack_item",
+  "framework_mapping",
   "letter",
   "feed_item",
   "feed_item_withdrawal",
