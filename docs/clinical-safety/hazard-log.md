@@ -69,6 +69,7 @@
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
+| [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -2952,6 +2953,47 @@ person receiving care.
 | `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
 | `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
 | Rota tests (planning and on the day) | Planned, slices 21 and 27 |
+
+---
+
+## HZ-128 Staff follow a superseded policy or procedure
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-128 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lane E) |
+| Source | [phase-2.md](../plans/phase-2.md) hazards table (slices 25, 65); [quality.md](../specs/quality.md) sections 17.3 (rules 25 to 28) and 18; Regulation 17 (good governance) |
+
+**Description**: a member of staff follows an out-of-date version of a policy or procedure (for example an earlier medicines, safeguarding, infection control or escalation procedure), or does not know a policy changed, because the old version is still shown or printed as current, two versions appear to be in force, a major change was not read, or a policy passed its review date unnoticed.
+
+**Causes**: two versions published at once; a superseded version opened from a link, a download or a printed copy with nothing saying it is out of date; a signature on an old version counted after a major change; a signature recorded on a draft or a superseded version; reminders that never reach the people who must read; new starters never asked to sign; review dates missed; a policy retired but still listed.
+
+**Effects**: care given against a withdrawn procedure (wrong escalation route, out-of-date medicines or infection control practice), with harm to the person; staff unaware of a safeguarding or whistleblowing route; regulatory breach (Regulation 17).
+
+**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | At most one published version per policy, enforced by the database; publishing a new version supersedes the one before it in the same transaction, and only the state of a published version can change afterwards | Built in Phase 2 slice 25 (migration 0087) |
+| Design | A superseded or retired version is always served with its state and the version that replaced it; the policy list shows only the version in force | Built in Phase 2 slice 25 (API); shown on every page and print in slice 65 |
+| Design | Read-and-sign by role: everyone holding a listed role signs the version in force; a major change needs everyone to sign again, a minor one keeps the earlier signatures; new starters are due from the day their role starts; a signature is only ever on the version in force, in the signer's own name | Built in Phase 2 slices 8 (rules) and 25 (database and API) |
+| Design | Reminders through the task engine to each outstanding member every `policy.read_and_sign.reminder_days`, completed by signing and cancelled when a newer version replaces the one they were for; review tasks when a policy is due soon or overdue for review | Built in Phase 2 slice 25 |
+| Training and user documentation | Staff are told to open policies in Harbour, not printed copies, and that a printed copy says when it was printed and which version it is | Slice 65 |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/quality/policies.test.ts` (rules 25 to 28: publication checks, minor and major changes against signatures, reminders, review status) | Passing (Phase 2 slice 8, domain) |
+| `packages/db/test/policies.test.ts`: `hazard HZ-128 ...` (one published version per policy; publishing supersedes the last; a published version fixed but for its state; signatures only on the version in force, in one's own name, never changed) | Passing (Phase 2 slice 25) |
+| `apps/api/test/policies.test.ts`: `hazard HZ-128 ...` (a superseded version served with its state and replacement; the list shows only the version in force; a major change asks everyone again, a minor one does not; signing a superseded version refused; reminders once per interval, completed by signing and cancelled by a newer version; review tasks) | Passing (Phase 2 slice 25) |
+| Screens and print (state and version on every page) | Planned, slice 65 |
 
 ---
 
