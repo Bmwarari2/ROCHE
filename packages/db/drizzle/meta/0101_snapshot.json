@@ -1,6 +1,6 @@
 {
-  "id": "a2b3710d-166b-4cc7-ab3b-b43441652a09",
-  "prevId": "4bfbb41c-6615-48c3-8e25-cc5d6c39b94e",
+  "id": "bd53d440-bdb8-4ff5-84c3-c6f576a034dc",
+  "prevId": "b30635ea-53dd-4cbf-b22b-3c64ba2d5ceb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -22491,6 +22491,585 @@
         "evidence_pack_link_code_used": {
           "name": "evidence_pack_link_code_used",
           "value": "used_at IS NULL OR used_at >= issued_at"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.policy": {
+      "name": "policy",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_key": {
+          "name": "policy_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "require_second_reviewer": {
+          "name": "require_second_reviewer",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_reason": {
+          "name": "retired_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_tenant_id_id_key": {
+          "name": "policy_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_key_key": {
+          "name": "policy_key_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "policy_key_format": {
+          "name": "policy_key_format",
+          "value": "policy_key ~ '^[a-z][a-z0-9_]{1,63}$'"
+        },
+        "policy_title": {
+          "name": "policy_title",
+          "value": "length(btrim(title)) BETWEEN 2 AND 160"
+        },
+        "policy_retired": {
+          "name": "policy_retired",
+          "value": "(retired_at IS NULL) = (retired_reason IS NULL)\n        AND (retired_reason IS NULL OR length(btrim(retired_reason)) >= 10)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.policy_signature": {
+      "name": "policy_signature",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_version_id": {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signer_id": {
+          "name": "signer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "signed_at": {
+          "name": "signed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "policy_signature_signer_idx": {
+          "name": "policy_signature_signer_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "signer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "policy_signature_version_fk": {
+          "name": "policy_signature_version_fk",
+          "tableFrom": "policy_signature",
+          "tableTo": "policy_version",
+          "columnsFrom": [
+            "tenant_id",
+            "policy_version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_signature_signer_fk": {
+          "name": "policy_signature_signer_fk",
+          "tableFrom": "policy_signature",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "signer_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_signature_tenant_id_id_key": {
+          "name": "policy_signature_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_signature_once_key": {
+          "name": "policy_signature_once_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_version_id",
+            "signer_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.policy_version": {
+      "name": "policy_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "change": {
+          "name": "change",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "change_summary": {
+          "name": "change_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "roles": {
+          "name": "roles",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "review_due_on": {
+          "name": "review_due_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "author_id": {
+          "name": "author_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "published_by": {
+          "name": "published_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_on": {
+          "name": "published_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_at": {
+          "name": "superseded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_reason": {
+          "name": "retired_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "policy_version_one_draft_key": {
+          "name": "policy_version_one_draft_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "state = 'draft'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "policy_version_one_published_key": {
+          "name": "policy_version_one_published_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "policy_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "state = 'published'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "policy_version_policy_fk": {
+          "name": "policy_version_policy_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "policy",
+          "columnsFrom": [
+            "tenant_id",
+            "policy_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_document_fk": {
+          "name": "policy_version_document_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_author_fk": {
+          "name": "policy_version_author_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "author_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "policy_version_published_by_fk": {
+          "name": "policy_version_published_by_fk",
+          "tableFrom": "policy_version",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "published_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "policy_version_tenant_id_id_key": {
+          "name": "policy_version_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "policy_version_number_key": {
+          "name": "policy_version_number_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "policy_id",
+            "version_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "policy_version_state": {
+          "name": "policy_version_state",
+          "value": "state IN ('draft', 'published', 'superseded', 'retired')"
+        },
+        "policy_version_change": {
+          "name": "policy_version_change",
+          "value": "change IN ('minor', 'major')"
+        },
+        "policy_version_number": {
+          "name": "policy_version_number",
+          "value": "version_number >= 1"
+        },
+        "policy_version_summary": {
+          "name": "policy_version_summary",
+          "value": "length(btrim(change_summary)) BETWEEN 2 AND 2000"
+        },
+        "policy_version_content": {
+          "name": "policy_version_content",
+          "value": "(body IS NOT NULL OR document_id IS NOT NULL) AND (body IS NULL OR length(body) <= 100000)"
+        },
+        "policy_version_roles": {
+          "name": "policy_version_roles",
+          "value": "array_position(roles, NULL) IS NULL AND cardinality(roles) <= 40"
+        },
+        "policy_version_published": {
+          "name": "policy_version_published",
+          "value": "(state IN ('published', 'superseded', 'retired') AND published_by IS NOT NULL\n             AND published_on IS NOT NULL AND published_at IS NOT NULL)\n        OR (state = 'draft' AND published_by IS NULL AND published_on IS NULL AND published_at IS NULL)"
+        },
+        "policy_version_review_date": {
+          "name": "policy_version_review_date",
+          "value": "state = 'draft' OR published_on IS NULL OR review_due_on > published_on"
         }
       },
       "isRLSEnabled": false

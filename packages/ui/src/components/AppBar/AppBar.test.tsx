@@ -22,6 +22,22 @@ describe("AppBar", () => {
     );
   });
 
+  it("shows the organisation's logo beside the product name, without changing the link's name", () => {
+    const { container } = render(
+      <AppBar brandLogoSrc="/branding/logo?v=1" tenant={{ ...tenant, onValueChange: vi.fn() }} />,
+    );
+    const home = screen.getByRole("link", { name: "Harbour" });
+    const logo = container.querySelector("img.hb-appbar__logo");
+    expect(home).toContainElement(logo as HTMLElement);
+    expect(logo).toHaveAttribute("alt", "");
+    expect(logo).toHaveAttribute("src", "/branding/logo?v=1");
+  });
+
+  it("shows no image without a logo", () => {
+    const { container } = render(<AppBar />);
+    expect(container.querySelector("img")).toBeNull();
+  });
+
   it("switches organisation from an accessible menu", async () => {
     const user = userEvent.setup();
     const onValueChange = vi.fn();

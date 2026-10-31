@@ -105,6 +105,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
+| `policy`, `policy_version` ([quality.md](quality.md) section 18) | organisation_document |
+| `policy_signature` (read-and-sign records) | training_record (from signing; H-742) |
+| `task` of kind `quality.policy_read_and_sign` or `quality.policy_review` | as the policy version it concerns |
 | `letter` | care_record; serious_incident only for an incident follow-up or duty of candour letter about an incident graded serious (`letterRetentionClass`) |
 | `feed_item`, `feed_item_withdrawal`, `visit_booking` ([comms.md](comms.md)) | care_record; photo updates and their photo documents stay care_record after photo consent is withdrawn (taken down from the feed, kept as the history of what was shared) |
 | `feed_view` (what a family member saw, under which decision) | audit_event.care_record |

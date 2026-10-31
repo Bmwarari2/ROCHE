@@ -50,6 +50,7 @@ const APPEND_ONLY_TABLES = [
   "application_event",
   "interview",
   "equality_monitoring",
+  "policy_signature",
 ];
 /**
  * Restricted silo tables (ADR-0089): never copied into record_version, which every member of the

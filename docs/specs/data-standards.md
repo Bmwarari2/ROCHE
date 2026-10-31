@@ -718,6 +718,25 @@ and left out of the organisation-wide export (H-805).
 | `employee_case_hearing.postponed_reason` | Harbour | `companion_unavailable`, `employee_unwell`, `employer_request`, `other` | |
 | `employee_case_event.kind` | Harbour | `opened`, `stage_changed`, `member_added`, `member_removed`, `hearing_arranged`, `hearing_updated`, `suspension_started`, `suspension_reviewed`, `suspension_ended`, `referral_recorded`, `safeguarding_linked`, `appeal_grounds`, `note` | Append-only; text only on `note` and `appeal_grounds` |
 
+## Quality: policy library and read-and-sign (Phase 2, slice 25)
+
+Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
+these fields; exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `policy.policy_key` | Harbour | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
+| `policy.title` | Harbour | Plain text, 2 to 160 characters | |
+| `policy.require_second_reviewer` | Harbour | Boolean | Someone other than the author publishes |
+| `policy_version.state` | Harbour | `draft`, `published`, `superseded`, `retired` | At most one `published` per policy |
+| `policy_version.change` | Harbour | `minor`, `major` | A minor change keeps earlier signatures |
+| `policy_version.change_summary` | Harbour | Plain text, 2 to 2,000 characters | The change log |
+| `policy_version.body`, `document_id` | Harbour | Plain text or Markdown up to 100,000 characters; an organisation document (PDF) | At least one |
+| `policy_version.roles` | Harbour | Role keys (`^[a-z][a-z0-9_]{1,63}$`), up to 40 | Matched against a role's key or the built-in key it is based on |
+| `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
+| `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
+| Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

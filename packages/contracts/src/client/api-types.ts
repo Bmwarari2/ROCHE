@@ -234,6 +234,329 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/branding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's white-label name, accent and logo
+     * @description Any member: the shell shows them. Holds no personal data, so it is not audited as a view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Branding */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the display name and accent colour
+     * @description platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveBranding"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/branding/logo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's logo (any member; the shell shows it)
+     * @description Not audited as a view: a logo is about no one and is shown on every page. 404 when there is none.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The logo */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the organisation's logo (the body is the image)
+     * @description platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+        };
+      };
+      responses: {
+        /** @description Logo stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DocumentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    /**
+     * Stop showing the organisation's logo
+     * @description platform.tenant.manage. The shell shows the product name again; the file stays in the document store until its retention ends. Audited (platform.branding.logo, removed).
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/search": {
     parameters: {
       query?: never;
@@ -7237,7 +7560,7 @@ export interface paths {
     put?: never;
     /**
      * Destroy documents past retention and issue destruction certificates
-     * @description Each id is checked again: anything held, not yet due or not found is skipped. Stored bytes (every version) are deleted; the metadata row is kept as a tombstone with the title removed.
+     * @description Each id is checked again under the organisation's retention lock, with the documents locked: anything held (including a hold placed while this ran), not yet due or not found is skipped. The tombstone (title removed) and the destruction certificate are committed first; the stored bytes (every version) are deleted after, and a deletion that fails is retried from the outbox (platform.document.destroyed) until it succeeds.
      */
     post: {
       parameters: {
@@ -18405,6 +18728,895 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/policies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The policy library
+     * @description Any member. Each policy with its version in force only (HZ-128), its review status, and whether the caller must sign it and has.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Policies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Create a policy with its first draft
+     * @description quality.policy.manage. The first version is a major change. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreatePolicy"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A policy and its versions
+     * @description Any member. The version in force and every version with the change log, newest first; a superseded version names the version in force (HZ-128). Drafts only for holders of quality.policy.manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a new draft
+     * @description quality.policy.manage. A minor or major change, from the version in force unless content is given. One draft at a time. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewPolicyVersion"];
+        };
+      };
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions/{versionId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a draft
+     * @description quality.policy.manage, drafts only, against the version you loaded. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdatePolicyVersion"];
+        };
+      };
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions/{versionId}/publish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Publish a draft
+     * @description quality.policy.manage, in the caller's own name; never the author where the policy needs a second reviewer. Needs at least one role and a review date after today and within policy.review_interval_months.max. Supersedes the version in force and ends its read-and-sign reminders (HZ-128). Audited; outbox quality.policy.published.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishPolicyVersion"];
+        };
+      };
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/retire": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retire a policy
+     * @description quality.policy.manage, with a reason. The version in force becomes retired and its reminders end; the policy leaves the library list. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RetirePolicy"];
+        };
+      };
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions/{versionId}/signatures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Read and sign the version in force
+     * @description Any member, in their own name, on the version in force only (HZ-128): a draft, superseded or retired version is refused. Completes the member's reminder. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The policy */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PolicyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions/{versionId}/read-and-sign": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who has read and signed a version
+     * @description quality.policy.manage. Who must sign the version in force, who has and who is outstanding since when (rule 26). Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Read-and-sign status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReadAndSignView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/policies/{id}/versions/{versionId}/document": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A policy version's PDF
+     * @description Any member for a published, superseded or retired version; drafts only for holders of quality.policy.manage. The response says the version's state and, when superseded, the version in force (x-harbour-policy-state, x-harbour-policy-in-force; HZ-128). Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The file */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/policies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Policies I must read and sign
+     * @description Any member. The versions in force the caller must sign and has not.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Your policies to sign */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MyPolicies"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -24394,6 +25606,8 @@ export interface components {
         /** @enum {string} */
         terminology: "resident" | "client" | "person_we_support";
         brandAccent: string | null;
+        /** Format: uuid */
+        logoDocumentId: string | null;
         /** @enum {string} */
         nation: "england" | "wales" | "scotland" | "northern_ireland";
       };
@@ -24430,6 +25644,68 @@ export interface components {
       respondBy: string;
       routedToManager: boolean;
     };
+    Branding: {
+      registeredName: string;
+      displayName: string | null;
+      accent: string | null;
+      logo: {
+        /** Format: uuid */
+        documentId: string;
+        /** @enum {string} */
+        contentType: "image/jpeg" | "image/png" | "image/webp";
+      } | null;
+      version: number;
+    };
+    SaveBranding: {
+      displayName: string | null;
+      accent: string | null;
+      expectedVersion: number;
+    };
+    /** @description Document metadata; the bytes are at /content */
+    DocumentItem: {
+      /** Format: uuid */
+      id: string;
+      category: components["schemas"]["DocumentCategoryKey"];
+      title: string;
+      fileName: string | null;
+      contentType: string;
+      sizeBytes: number;
+      sha256: string;
+      documentVersion: number;
+      /** Format: uuid */
+      previousVersionId: string | null;
+      /** Format: uuid */
+      personId: string | null;
+      subjectType: string | null;
+      /** Format: uuid */
+      subjectId: string | null;
+      /** @enum {string} */
+      status: "available" | "quarantined" | "destroyed";
+      /** @enum {string} */
+      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
+      retentionClass: string;
+      legalHold: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      signatures: {
+        signerName: string;
+        /** @enum {string} */
+        signerCapacity: "staff" | "person" | "representative";
+        statement: string;
+        /** Format: date-time */
+        signedAt: string;
+        documentSha256: string;
+      }[];
+    };
+    /** @enum {string} */
+    DocumentCategoryKey:
+      | "person_photo"
+      | "feed_photo"
+      | "care_attachment"
+      | "person_document"
+      | "organisation_document"
+      | "staff_hr_document"
+      | "organisation_logo";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -26164,6 +27440,11 @@ export interface components {
       /** Format: date */
       reminderDueOn?: string;
       reminderDays?: number;
+      /** Format: uuid */
+      policyId?: string;
+      reviewStatus?: string;
+      /** Format: date */
+      remindedOn?: string;
     } | null;
     CreateTask: {
       title: string;
@@ -26317,50 +27598,6 @@ export interface components {
      * @enum {string}
      */
     WorkflowListView: "approvals" | "all";
-    /** @description Document metadata; the bytes are at /content */
-    DocumentItem: {
-      /** Format: uuid */
-      id: string;
-      category: components["schemas"]["DocumentCategoryKey"];
-      title: string;
-      fileName: string | null;
-      contentType: string;
-      sizeBytes: number;
-      sha256: string;
-      documentVersion: number;
-      /** Format: uuid */
-      previousVersionId: string | null;
-      /** Format: uuid */
-      personId: string | null;
-      subjectType: string | null;
-      /** Format: uuid */
-      subjectId: string | null;
-      /** @enum {string} */
-      status: "available" | "quarantined" | "destroyed";
-      /** @enum {string} */
-      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
-      retentionClass: string;
-      legalHold: boolean;
-      /** Format: date-time */
-      createdAt: string;
-      signatures: {
-        signerName: string;
-        /** @enum {string} */
-        signerCapacity: "staff" | "person" | "representative";
-        statement: string;
-        /** Format: date-time */
-        signedAt: string;
-        documentSha256: string;
-      }[];
-    };
-    /** @enum {string} */
-    DocumentCategoryKey:
-      | "person_photo"
-      | "feed_photo"
-      | "care_attachment"
-      | "person_document"
-      | "organisation_document"
-      | "staff_hr_document";
     DocumentList: {
       items: components["schemas"]["DocumentItem"][];
     };
@@ -30545,6 +31782,146 @@ export interface components {
       body: string;
       /** Format: date */
       occurredOn: string;
+    };
+    PolicyList: {
+      items: components["schemas"]["PolicySummary"][];
+    };
+    PolicySummary: {
+      /** Format: uuid */
+      id: string;
+      policyKey: string;
+      title: string;
+      inForce: {
+        /** Format: uuid */
+        id: string;
+        versionNumber: number;
+        change: components["schemas"]["PolicyChange"];
+        /** Format: date */
+        publishedOn: string | null;
+        /** Format: date */
+        reviewDueOn: string | null;
+        reviewStatus: components["schemas"]["PolicyReviewStatus"];
+      } | null;
+      mustSign: boolean;
+      signed: boolean;
+    };
+    /** @enum {string} */
+    PolicyChange: "minor" | "major";
+    /** @enum {string} */
+    PolicyReviewStatus: "current" | "due_soon" | "overdue" | "no_review_date";
+    PolicyItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      policyKey: string;
+      title: string;
+      requireSecondReviewer: boolean;
+      /** Format: date-time */
+      retiredAt: string | null;
+      inForce: components["schemas"]["PolicyVersionItem"];
+      versions: components["schemas"]["PolicyVersionItem"][];
+      mustSign: boolean;
+      signed: boolean;
+    };
+    PolicyVersionItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      versionNumber: number;
+      state: components["schemas"]["PolicyVersionState"];
+      change: components["schemas"]["PolicyChange"];
+      changeSummary: string;
+      body: string | null;
+      /** Format: uuid */
+      documentId: string | null;
+      roles: string[];
+      /** Format: date */
+      reviewDueOn: string | null;
+      reviewStatus: components["schemas"]["PolicyReviewStatus"] & (string | null);
+      /** Format: uuid */
+      authorId: string;
+      /** Format: uuid */
+      publishedBy: string | null;
+      /** Format: date */
+      publishedOn: string | null;
+      /** Format: date-time */
+      supersededAt: string | null;
+      /** Format: uuid */
+      supersededBy: string | null;
+      retiredReason: string | null;
+    } | null;
+    /** @enum {string} */
+    PolicyVersionState: "draft" | "published" | "superseded" | "retired";
+    CreatePolicy: {
+      policyKey: string;
+      title: string;
+      requireSecondReviewer: boolean;
+      firstVersion: {
+        changeSummary: string;
+        body: string | null;
+        /** Format: uuid */
+        documentId: string | null;
+        roles: string[];
+        /** Format: date */
+        reviewDueOn: string | null;
+      };
+    };
+    NewPolicyVersion: {
+      change: components["schemas"]["PolicyChange"];
+      changeSummary: string;
+      body?: string | null;
+      /** Format: uuid */
+      documentId?: string | null;
+      roles?: string[];
+      /** Format: date */
+      reviewDueOn?: string | null;
+    };
+    UpdatePolicyVersion: {
+      expectedVersion: number;
+      change: components["schemas"]["PolicyChange"];
+      changeSummary: string;
+      body: string | null;
+      /** Format: uuid */
+      documentId: string | null;
+      roles: string[];
+      /** Format: date */
+      reviewDueOn: string | null;
+    };
+    PublishPolicyVersion: {
+      expectedVersion: number;
+    };
+    RetirePolicy: {
+      expectedVersion: number;
+      reason: string;
+    };
+    ReadAndSignView: {
+      /** Format: uuid */
+      versionId: string;
+      required: number;
+      signed: {
+        /** Format: uuid */
+        memberId: string;
+        displayName: string;
+      }[];
+      outstanding: {
+        /** Format: uuid */
+        memberId: string;
+        displayName: string;
+        /** Format: date */
+        dueFrom: string;
+      }[];
+    };
+    MyPolicies: {
+      items: {
+        /** Format: uuid */
+        policyId: string;
+        /** Format: uuid */
+        versionId: string;
+        title: string;
+        versionNumber: number;
+        /** Format: date */
+        dueFrom: string;
+      }[];
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {

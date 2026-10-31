@@ -377,7 +377,10 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
  * batch itself. A new table that refers to a person must be added to app.sample_removal_tables()
  * or here, deliberately.
  */
-const BLOCKS_REMOVAL = ["downtime_pack", "escalation_policy_link", "outage"];
+// A policy version that uses an organisation document (slice 25) is the organisation's own record:
+// a sample document it points to is not removed (the foreign key stops it), like an escalation
+// policy link.
+const BLOCKS_REMOVAL = ["downtime_pack", "escalation_policy_link", "outage", "policy_version"];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
   const owner = () => db.pool("harbour_owner");

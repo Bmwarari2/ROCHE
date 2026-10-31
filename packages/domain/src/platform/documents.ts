@@ -88,6 +88,20 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "staff_file",
     inline: false,
   },
+  /**
+   * The organisation's white-label logo (PLAT-002): shown in the shell's app bar to every member,
+   * so small, PNG or JPEG only (never SVG, which can carry script) and stripped of metadata.
+   * About no one.
+   */
+  organisation_logo: {
+    label: "Organisation logo",
+    // PNG or JPEG only: the API strips their metadata before storing (`stripImageMetadata`).
+    contentTypes: ["image/jpeg", "image/png"],
+    maxBytes: 512 * 1024,
+    personRequired: false,
+    retentionClass: "organisation_document",
+    inline: true,
+  },
 } as const satisfies Record<string, DocumentCategory>;
 
 /** The categories the general document routes serve: everything but HR-only staff documents. */

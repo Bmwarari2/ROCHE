@@ -22,6 +22,81 @@ forms, statutory figures, feature flags, integrations framework and the Thapsus 
 Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 `apps/api/test/api.test.ts` (hazard HZ-011 groups).
 
+## White-label branding (PLAT-002)
+
+Master prompt 9.1: a tenant's name, logo and accent colour, with the accent auto-adjusted to at
+least 4.5:1 contrast on white and on black. The columns are already on `tenant` (`brand_name`,
+`brand_accent` with its hex check, `logo_document_id`); no new table or migration.
+
+**Rules**
+
+1. The accent is a six-digit hex colour, stored lower case. `checkAccent`
+   (`packages/domain/src/platform/branding.ts`) measures it against every surface it meets in both
+   themes (`BRAND_THEMES`, mirroring the `@harbour/ui` tokens): white words on the accent and the
+   accent on the page (`#ffffff` light, `#000000` dark) at 4.5:1, and the accent on the secondary
+   background and card of each theme at 3:1 (WCAG 1.4.11, non-text). Only a colour that passes
+   every check is stored or shown. One that fails is refused (422 `brand_accent_contrast`) saying
+   why in plain English: too light (white words on buttons would be hard to read) or too dark (hard
+   to see on the dark theme's black). The refusal names the nearest colour of the same hue that
+   passes (`adjustAccentForContrast`), and the settings screen offers it in one step and shows the
+   ratios. Auto-adjusting is offered, never done silently, so the owner sees the colour their staff
+   will see. No accent: Harbour's own. The focus ring keeps Harbour's own colour in both themes,
+   so an accent never weakens it; status colours are fixed tokens and never take the accent.
+2. The display name (`checkBrandName`: NFC-normalised, trimmed, spaces collapsed, at most 80
+   characters, no control, bidirectional-override or zero-width characters, so one organisation's
+   name cannot be made to look like another's; blank means none) replaces the registered name in the shell (`Me.tenant.name`
+   and every page's eyebrow). The registered name stays on statutory documents, letters (the
+   `tenant.name` merge field) and the audit trail.
+3. The logo is a PNG or JPEG of at most 512 KB (never SVG, which can carry script), refused above
+   that size before it is read (its own body limit). It is shown to every member, so EXIF, XMP,
+   IPTC, comments and PNG text chunks are removed before storing (`stripImageMetadata`), and it is
+   stored through the document store in its own category, `organisation_logo` (content sniffed,
+   malware scanned, encrypted; retention `organisation_document`). Refusals are audited. The web
+   tier caches it privately for an hour under an address bound to the current logo document
+   (`/branding/logo?v=<id>`; any other id is not found), so a switch of organisation in another
+   tab never leaves another organisation's logo in the cache. The general document routes neither
+   accept nor serve it. It is shown at 24 px high beside the product name in the app bar's home
+   link, with empty alternative text: the organisation's name is already in the organisation
+   switcher beside it. Removing it asks first, saying it stops showing for all staff, then clears the reference; the document stays in the
+   store under its retention class. A quarantined file is kept but never shown.
+4. Every member of the organisation may read the branding and the logo (they are shown in the
+   shell); only `platform.tenant.manage` changes them, with the version read (409 when stale). Each
+   change is audited (`platform.branding.updated` with the fields changed and the old and new
+   accent, refusals too; `platform.branding.logo` with the document id), never the logo's bytes.
+5. Sign-in: the organisation is not known before sign-in (one address can belong to several), so
+   the sign-in page stays Harbour's; the "choose an organisation" page shows each one's name.
+   Printed packs and letters keep the registered name as they do now; adding the logo to them is
+   a later slice (the PDF writer, ADR-0040, would need the image path the transfer pack uses).
+6. Not clinical: no hazard is affected. No personal data: a logo and a display name are about the
+   organisation.
+
+**API** (additive): `GET /v1/branding` (any member: registered and display name, accent, logo
+id and type, version), `PUT /v1/branding` (`platform.tenant.manage`; name and accent with
+`expectedVersion`), `GET /v1/branding/logo` (any member; the bytes, `nosniff`, sandboxing CSP, not
+audited as a view), `PUT /v1/branding/logo` (the body is the image) and `DELETE /v1/branding/logo`
+(`platform.tenant.manage`); `Me.tenant.logoDocumentId`. No step-up: branding is not one of the
+step-up actions (section 5.3).
+
+**Web**: `/settings/branding` (`platform.tenant.manage`, the owner by default), in the sidebar;
+the shell sets `--accent` and `--accent-hover` in both themes from a colour that passes
+`checkAccent` again in the web tier, and shows the logo through the `/branding/logo` route.
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| See the branding in the shell, fetch the logo, read `GET /v1/branding` | Any member of the organisation |
+| Change the display name, accent or logo | `platform.tenant.manage` |
+
+**Tests (written first)**: `packages/domain/src/platform/branding.test.ts` (table-driven: passing
+colours normalised, failing colours refused as too light or too dark with a suggestion that passes,
+every check in both themes, invalid hex, display names); `apps/api/test/branding.test.ts`
+(refusal with the suggestion and nothing stored, version conflict, permission, logo type, size and
+malware scan, the general document routes refusing logos, audit); `apps/web/src/lib/branding.test.ts`
+(the theme surfaces match `@harbour/ui` tokens, the shell's accent style, form reading);
+`apps/web/e2e/branding.spec.ts` (a failing colour refused with why, take the suggestion, the shell
+shows it; upload and remove a logo; axe in light and dark).
+
 ## Identity, roles and scope (PLAT-004, PLAT-006)
 
 - Identity: Better Auth in the `auth` schema (email and NCSC-compliant password, TOTP, passkeys,
@@ -496,6 +571,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
   SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
+- `request_id`: always a UUID the API makes for the request, never anything the caller sent, so
+  no caller text (personal data included) enters the hash chain and no caller can reuse another
+  request's id there; the response's `x-request-id` gives it. A caller's `x-request-id` is kept
+  only in the API's log, in one `caller request id` line beside the API's id, and only when it is a
+  canonical lower-case UUID (`apps/api/src/http/request-id.ts`); the web passes on only such an id
+  (`apps/web/src/lib/request-id.ts`) (security reviews, 31 October 2026 and of #134, M4).
 - Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
   not a member); notification acknowledgement; sync token issue and uploads; integration settings
   and quarantine decisions; operator requests and tenant decisions.
@@ -712,9 +793,34 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (owner, quality lead); RLS enforces the same.
 - `GET /v1/retention/candidates`: documents past their class's period (care-record documents
   count from discharge or death; people still receiving care are never eligible) with no hold.
-- `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
-  row without the title, and writes an append-only `destruction_certificate` per record class
-  (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
+  Audited as `platform.retention_candidate.list` with the listed ids; `GET /v1/legal-holds` is
+  audited by count (`platform.legal_hold.list`).
+- `POST /v1/retention/destroy`: re-checks each id, keeps a tombstone row without the title, writes
+  an append-only `destruction_certificate` per record class (ids, rule, reason, method), then
+  deletes every stored version. Held, current or unknown ids are returned as skipped.
+  - What a hold covers (`isDocumentUnderLegalHold`): a document is held when any version of it
+    (its whole chain through `previous_version_id`) is flagged `legal_hold`, is held itself, is
+    about a held person, or belongs to a held record (its `subject_type` and `subject_id`); a
+    hold on any version holds them all (security review of #134, M1). A chain that cannot be
+    read back to its first version (`previous_version_id` has no foreign key) counts as held, and
+    the document view's `legalHold` uses the same judgement (`documentHeld`; L3 and L4).
+  - Holds: placing a hold and destroying both take the organisation's retention lock (a
+    transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
+    reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
+    is always seen and a hold placed meanwhile waits for it to commit (security review, 31
+    October 2026).
+  - Order: the tombstones, the certificate, the audit event and one `platform.document.destroyed`
+    outbox event per document commit together, before any bytes are touched; the bytes are
+    deleted after the commit, so a failed transaction never leaves bytes gone without a
+    certificate. The worker deletes them again from the outbox event (idempotent, only for a
+    document recorded as destroyed, the key made from the tenant and document ids, never read
+    from the row) until the storage accepts it, backing off up to an hour. On S3 a deletion counts
+    only when the batch delete reports no per-object error and a fresh listing finds no version
+    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6).
+  - A failed deletion is detected by the worker's `worker.job.failed` line (queue
+    `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
+    (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
+    `platform.document.destroyed` outbox event with its attempts and error kind.
 - `GET /v1/destruction-certificates` (`platform.retention.manage`, step-up): every certificate,
   newest first (audited as `platform.destruction_certificate.list`). Candidates also carry when the
   document was stored, and its title where the caller may read that category of document (a
