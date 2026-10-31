@@ -9,6 +9,8 @@ Master prompt section 5 makes data protection, clinical safety, security, access
 | [medical-device-boundary.md](medical-device-boundary.md) | What Harbour does and must never do to stay outside the medical-device definition; the question every clinical PR answers | MHRA software as a medical device guidance |
 | [gdpr-checklist.md](gdpr-checklist.md) | UK GDPR and DPA 2018 (as amended by the Data (Use and Access) Act 2025) requirements and how Harbour meets them | UK GDPR, DPA 2018, DUAA 2025 |
 | [security-checklist.md](security-checklist.md) | OWASP ASVS 5.0 Level 2 chapter by chapter, OWASP MASVS L2 for mobile, NCSC MFA, password and logging guidance | OWASP, NCSC |
+| [cyber-essentials.md](cyber-essentials.md) | Cyber Essentials and Cyber Essentials Plus: the five control themes with evidence, status and gap owners (draft; no certificate held) | NCSC Cyber Essentials requirements |
+| [iso27001-controls.md](iso27001-controls.md) | ISO/IEC 27001:2022 Annex A, all 93 controls with evidence, status and gap owners: the draft for the statement of applicability (not certified) | ISO/IEC 27001:2022 |
 | [accessibility-checklist.md](accessibility-checklist.md) | WCAG 2.2 AA criteria relevant to Harbour and how each is verified | W3C WCAG 2.2 |
 | [kiosk.md](kiosk.md) | Shared and kiosk device sign-in, auto-lock, compensating controls and residual risks | Master prompt 5.3, 17.2 |
 | [records-of-processing.md](records-of-processing.md) | Article 30 register: Thapsus as processor, and the template for tenants as controllers | UK GDPR Art 30 |
