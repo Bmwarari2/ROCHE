@@ -42,8 +42,21 @@ Branch `feat/mobile-store-compliance`.
 
 - H-560 to H-569.
 
+## Review rounds
+
+- Round 1 (security and accessibility reviewers): one request at a time per member (an advisory
+  lock, so a double tap raises one task; a partial unique index would need a migration and is left
+  for the lead); at most `ACCOUNT_DELETION_REQUESTS_PER_DAY` (3) requests a member a day, so
+  managers cannot be flooded; the task no longer claims a Registered Manager when the fallback is
+  someone else; the privacy page says which requests carry the device id. Each alert's title now
+  matches what happened (sent, already asked, kept but not yet seen, demo mode not sent, not sent);
+  a busy server is no longer called "no connection"; "your organisation" when the name is not
+  known; the section is headed "Account deletion" and says the manager decides. A Maestro flow
+  (`account-deletion-request.yaml`) covers the path in demo mode; it was not run here (no
+  emulator), so CI's run is its first.
+
 ## Tests
 
-- `apps/api/test/account-deletion.test.ts` (4), `apps/api/test/route-gates.test.ts` (the new route
-  listed as reviewed), `apps/mobile/src/platform/account-deletion.test.ts` (14),
+- `apps/api/test/account-deletion.test.ts` (6), `apps/api/test/route-gates.test.ts` (the new route
+  listed as reviewed), `apps/mobile/src/platform/account-deletion.test.ts` (18), `apps/mobile/.maestro/account-deletion-request.yaml` (not run locally),
   `apps/mobile/src/config/store-compliance.test.ts` (5).

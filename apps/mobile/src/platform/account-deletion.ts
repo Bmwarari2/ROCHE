@@ -21,6 +21,7 @@ export type DeletionOutcome =
       readonly routedToManager: boolean;
     }
   | { readonly kind: "offline" }
+  | { readonly kind: "server" }
   | { readonly kind: "session" }
   | { readonly kind: "refused"; readonly reason: string | null }
   | { readonly kind: "demo" };
@@ -65,7 +66,8 @@ export async function requestAccountDeletion(deps: DeletionRequestDeps): Promise
     return { kind: body.status, respondBy: body.respondBy, routedToManager: body.routedToManager };
   }
   if (response.status === 401) return { kind: "session" };
-  if (isRetryableStatus(response.status)) return { kind: "offline" };
+  // A busy or failing server is not "no connection": the words must say which (CONTENT.md).
+  if (isRetryableStatus(response.status)) return { kind: "server" };
   return { kind: "refused", reason: (await readProblemBody(response)).reason };
 }
 
@@ -76,44 +78,64 @@ export interface DeletionMessage {
   readonly sent: boolean;
 }
 
+/** The organisation's name for the words, or "your organisation" when it is not known. */
+export function organisationWords(name: string | null | undefined): {
+  readonly named: "yes" | "no";
+  readonly organisation: string;
+} {
+  const trimmed = name?.trim() ?? "";
+  return trimmed ? { named: "yes", organisation: trimmed } : { named: "no", organisation: "" };
+}
+
 export function deletionMessage(
   outcome: DeletionOutcome,
-  organisation: string,
+  organisationName: string | null | undefined,
   t: Translator,
 ): DeletionMessage {
+  const org = organisationWords(organisationName);
+  const notSent = (body: string): DeletionMessage => ({
+    title: t("mobile.account.notSentTitle"),
+    body,
+    sent: false,
+  });
   switch (outcome.kind) {
     case "requested":
     case "already_requested": {
       const instant = parseInstant(outcome.respondBy);
       const date = instant ? ukDateTimeParts(instant).date : outcome.respondBy;
-      const body = !outcome.routedToManager
-        ? t("mobile.account.noManager", { organisation })
-        : outcome.kind === "requested"
-          ? t("mobile.account.requested", { organisation, date })
-          : t("mobile.account.alreadyRequested", { organisation, date });
-      return { title: t("mobile.account.sentTitle"), body, sent: true };
+      // Each title says what happened: kept but not yet seen, asked before, or sent now.
+      if (!outcome.routedToManager) {
+        return {
+          title: t("mobile.account.keptTitle"),
+          body: t("mobile.account.noManager", org),
+          sent: true,
+        };
+      }
+      return outcome.kind === "requested"
+        ? {
+            title: t("mobile.account.sentTitle"),
+            body: t("mobile.account.requested", { ...org, date }),
+            sent: true,
+          }
+        : {
+            title: t("mobile.account.alreadyTitle"),
+            body: t("mobile.account.alreadyRequested", { ...org, date }),
+            sent: true,
+          };
     }
     case "demo":
-      return { title: t("mobile.account.sentTitle"), body: t("mobile.account.demo"), sent: false };
+      return { title: t("mobile.account.demoTitle"), body: t("mobile.account.demo"), sent: false };
     case "offline":
-      return {
-        title: t("mobile.account.notSentTitle"),
-        body: t("mobile.account.offline"),
-        sent: false,
-      };
+      return notSent(t("mobile.account.offline"));
+    case "server":
+      return notSent(t("mobile.account.server"));
     case "session":
-      return {
-        title: t("mobile.account.notSentTitle"),
-        body: t("mobile.account.session"),
-        sent: false,
-      };
+      return notSent(t("mobile.account.session"));
     case "refused":
-      return {
-        title: t("mobile.account.notSentTitle"),
-        body: outcome.reason
+      return notSent(
+        outcome.reason
           ? t("mobile.account.refused", { reason: outcome.reason })
           : t("mobile.account.refusedNoReason"),
-        sent: false,
-      };
+      );
   }
 }

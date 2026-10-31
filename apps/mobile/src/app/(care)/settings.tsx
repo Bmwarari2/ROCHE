@@ -12,7 +12,11 @@ import { Screen } from "../../components/Screen";
 import { SignOutControl } from "../../components/SignOutControl";
 import { appEnv } from "../../config/app-env";
 import { t } from "../../i18n/t";
-import { deletionMessage, requestAccountDeletion } from "../../platform/account-deletion";
+import {
+  deletionMessage,
+  organisationWords,
+  requestAccountDeletion,
+} from "../../platform/account-deletion";
 import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../security/auto-lock";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -97,14 +101,14 @@ export default function SettingsScreen() {
   const { preferences, update } = usePreferences();
   const [resyncing, setResyncing] = useState(false);
   const [asking, setAsking] = useState(false);
-  const organisation = session.me?.tenant.name ?? "";
+  const organisation = session.me?.tenant.name ?? null;
 
   // MOB-011: the stores' in-app deletion path. The account belongs to the care provider, so this
   // asks them; nothing is deleted on the device or the server by asking.
   const confirmDeletionRequest = () => {
     Alert.alert(
       t("mobile.account.confirmTitle"),
-      t("mobile.account.confirmBody", { organisation }),
+      t("mobile.account.confirmBody", organisationWords(organisation)),
       [
         { text: t("mobile.account.cancel"), style: "cancel" },
         {
@@ -174,7 +178,9 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title={t("mobile.account.deleteTitle")}>
-          <Text tone="secondary">{t("mobile.account.deleteExplain", { organisation })}</Text>
+          <Text tone="secondary">
+            {t("mobile.account.deleteExplain", organisationWords(organisation))}
+          </Text>
           <Button
             label={t("mobile.account.deleteButton")}
             variant="secondary"

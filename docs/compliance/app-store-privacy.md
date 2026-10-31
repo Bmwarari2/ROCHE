@@ -24,9 +24,9 @@ The app talks to two services only, both Harbour's own and in the UK (AWS eu-wes
 | Harbour API | Sign-in (email, password, TOTP code; Better Auth), `/v1/me`, care entries the member records (notes, chart readings, body map marks, activities, visits, task moves, handover acknowledgements), the device report (counts only), the account deletion request | `src/auth/`, `src/sync/connector.ts`, `src/sync/care-upload.ts`, `src/sync/round-upload.ts`, `src/sync/device-report.ts`, `src/platform/account-deletion.ts` |
 | Harbour's self-hosted PowerSync service | Downloads of the people the member is assigned to and their records; uploads go through the API above | `src/sync/connector.ts` |
 
-Every request carries the member's session token, the organisation id (`x-harbour-tenant`) and the
-app's own per-install device id (`x-harbour-device`), a random id made by the app and kept in the
-keychain or keystore. It is not the advertising identifier, the vendor identifier or a hardware id.
+Requests carry the member's session token and the organisation id (`x-harbour-tenant`). Sync,
+upload and device-report requests also carry the app's own per-install device id
+(`x-harbour-device`), a random id made by the app and kept in the keychain or keystore. It is not the advertising identifier, the vendor identifier or a hardware id.
 
 **Not in the app** (checked against `apps/mobile/package.json` on 31/10/2026): no analytics or
 advertising SDK, no crash reporter (Sentry is server-side only, H-12), no push service (notifications

@@ -5,6 +5,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
 import { problems } from "../http/problem";
+import { requireWithinLimit } from "../http/rate-limit";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { requestAccountDeletion } from "../services/account-deletion";
 import { sampleDataState } from "../services/onboarding";
@@ -133,6 +134,12 @@ export const meRouter = createRouter()
     }),
     async (c) => {
       const access = c.get("access");
+      // Each request can email a manager: a few a day per member (security review round 1).
+      await requireWithinLimit(
+        c.get("services").db,
+        access,
+        c.get("services").accountDeletionLimiter,
+      );
       const out = await requestAccountDeletion(c.get("services").db, access, c.get("requestId"));
       return out.status === "requested" ? c.json(out, 201) : c.json(out, 200);
     },

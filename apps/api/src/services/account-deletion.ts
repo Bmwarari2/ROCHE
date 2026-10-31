@@ -1,6 +1,6 @@
 import type { AccountDeletionRequest } from "@harbour/contracts";
 import { notification, task, withRequestContext } from "@harbour/db";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
 import type { TenantAccess } from "../http/context";
 import { fallbackRecipients } from "./device-holds";
@@ -38,6 +38,11 @@ export async function requestAccountDeletion(
     locationIds: [] as string[],
   };
   return withRequestContext(db, system, async (tx) => {
+    // One request at a time per member: a double tap or a retry never raises two tasks (security
+    // review round 1). No unique index (that needs a migration); the lock is held to commit.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`${access.tenantId}:account_deletion:${access.tenantUserId}`}))`,
+    );
     const days = await rateNumber(tx, access.tenantId, CONFIRMATION_DAYS_KEY);
     const [open] = await tx
       .select({
@@ -80,7 +85,9 @@ export async function requestAccountDeletion(
         sourceType: "tenant_user",
         sourceId: access.tenantUserId,
         assigneeTenantUserId: assignee,
-        assigneeRoleKey: "registered_manager",
+        // Who it is for is the assignee; no role is claimed, since the fallback may not be a
+        // Registered Manager (security review round 1).
+        assigneeRoleKey: null,
         dueAt,
         priority: "routine",
       })
@@ -98,7 +105,7 @@ export async function requestAccountDeletion(
         channels: ["in_app", "email"],
         sourceType: "task",
         sourceId: created.id,
-        dedupeKey: `account_deletion:${access.tenantUserId}:${created.id}`,
+        dedupeKey: `account_deletion:${created.id}`,
       });
     }
     await auditInTx(tx, access, {

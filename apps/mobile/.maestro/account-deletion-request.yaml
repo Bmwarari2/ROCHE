@@ -1,0 +1,38 @@
+# MOB-011 (App Store guideline 5.1.1(v), Google Play account deletion policy): Settings offers a way
+# to ask for the account to be deleted, says the care provider decides and that nothing is deleted
+# by asking, asks for confirmation (Cancel leaves everything as it was), and says the outcome with a
+# title that matches it. CI runs in demo mode, where nothing is sent and the alert says so.
+appId: uk.co.thapsus.harbour
+name: Ask to delete my account from Settings
+tags:
+  - store-compliance
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-settings"
+- scrollUntilVisible:
+    element:
+      id: "settings-delete-account"
+    direction: DOWN
+- assertVisible:
+    text: "Account deletion"
+- assertVisible:
+    text: ".*Nothing is deleted when you ask.*"
+- tapOn:
+    id: "settings-delete-account"
+- assertVisible:
+    text: "Ask to delete your account?"
+- tapOn:
+    text: "Cancel"
+- assertNotVisible:
+    text: "Ask to delete your account?"
+- tapOn:
+    id: "settings-delete-account"
+- tapOn:
+    text: "Send request"
+- extendedWaitUntil:
+    visible:
+      text: "Demo mode: not sent"
+    timeout: 10000
+- assertVisible:
+    text: "Demo mode: nothing is sent.*"

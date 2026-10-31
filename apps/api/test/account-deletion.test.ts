@@ -118,6 +118,28 @@ describe("account deletion request (MOB-011)", () => {
     expect(row?.assignee_tenant_user_id).not.toBe(DEMO.users.manager.id);
   });
 
+  it("raises one task for two requests sent at once (a double tap)", async () => {
+    const [a, b] = await Promise.all([
+      as("nurse", "/v1/me/account-deletion-request", "POST"),
+      as("nurse", "/v1/me/account-deletion-request", "POST"),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 201]);
+    const open = await rows<{ n: number }>(
+      `SELECT count(*)::int AS n FROM task
+        WHERE kind = 'platform.account_deletion_request' AND source_id = $1`,
+      [DEMO.users.nurse.id],
+    );
+    expect(open[0]?.n).toBe(1);
+  });
+
+  it("lets a member ask only a few times a day, so managers cannot be flooded", async () => {
+    // The nurse has asked twice above; the limit is ACCOUNT_DELETION_REQUESTS_PER_DAY (3).
+    expect((await as("nurse", "/v1/me/account-deletion-request", "POST")).status).toBe(200);
+    const fourth = await as("nurse", "/v1/me/account-deletion-request", "POST");
+    expect(fourth.status).toBe(429);
+    expect(fourth.headers.get("retry-after")).not.toBeNull();
+  });
+
   it("needs a signed-in member", async () => {
     const anonymous = await h.request("/v1/me/account-deletion-request", {
       method: "POST",
