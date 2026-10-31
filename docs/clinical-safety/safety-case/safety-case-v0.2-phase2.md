@@ -268,14 +268,18 @@ justification, and the CSO accepts or rejects each (section 10).
   check); duplicates within the file and against existing people reported, and an import never
   merges with or attaches to an existing person; a dry run before any commit; imported people carry
   their batch and undo removes exactly them, once, within the window, and is refused once a phone may
-  hold them; only an organisation-wide importer, so matching never discloses a person at another
-  home; allergy statuses imported as not recorded.
+  hold them (the batch then shows no undo, and where phones are in use the importer accepts before
+  committing that it cannot be relied on to be undone); possible duplicates bounded so each can be
+  read; only an organisation-wide importer who can read people, so matching never discloses a person
+  they cannot see; allergy statuses imported as not recorded, with a task carrying what the file
+  said for each person whose status it stated.
 - **Evidence**: `packages/domain/src/platform/imports.test.ts`, `packages/db/test/imports.test.ts` and
   `apps/api/test/imports.test.ts` (the `hazard HZ-130` cases). Passing on #150.
 - **Open**: the wizard showing the mapping beside the file's first rows (slice 67); contacts,
   allergies and staff matched by identifier only (later part of slice 26; slice 51); imported
-  medicines "not yet checked" (slice 51); the tenant's checks of the source export and of a sample
-  after committing (H-682).
+  medicines "not yet checked" (slice 51); a "created in error" status for a person imported by
+  mistake once undo is gone (a follow-up; the CSO decides, H-680); the tenant's checks of the source
+  export and of a sample before and after committing (H-682).
 - **Justification for level 3**: a file whose dates are consistently month-first with every day 12
   or under, or whose names are consistently swapped, passes every automated check.
 - **CSO decision**: accept or reject level 3, and the clinical decisions in ADR-0092 (H-680, H-841).
@@ -333,7 +337,7 @@ For the tenant's [DCB0160 assessment](../dcb0160-deployment-template.md), from t
   H-712).
 - The organisation's safeguarding policy and the local authority's procedures (HZ-126).
 - Policies opened in Harbour, not from printed copies (HZ-128).
-- Checking the source export before importing and a sample after (HZ-130, H-682).
+- Checking the source export and a sample before committing, and a sample after (HZ-130, H-682).
 
 ## 10. Decisions for the CSO
 
