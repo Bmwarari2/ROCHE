@@ -3,7 +3,10 @@
  * encrypted database so the People list can be exercised without the API. Every value is invented:
  * names from the Example family, NHS numbers from the 999 test range, no SNOMED codes.
  */
+
+import { offlineWindowDays } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
+import { OFFLINE_DAYS_META_ID, OFFLINE_DAYS_META_KEY } from "../sync/offline-days";
 import type { WriteScope } from "../sync/write-scope";
 
 export const DEMO_TENANT_ID = "00000000-0000-4000-8000-00000000d001";
@@ -157,6 +160,16 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
   statements.push({
     sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: ["00000000-0000-4000-8000-00000000d501", DEMO_SEEDED_AT_KEY, now],
+  });
+  // The window's days as a token would give them, so the round says what the demo holds: the day
+  // of seeding, the day before and tomorrow (UTC), a demo choice, not a tenant figure.
+  statements.push({
+    sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
+    params: [
+      OFFLINE_DAYS_META_ID,
+      OFFLINE_DAYS_META_KEY,
+      JSON.stringify(offlineWindowDays(seededAt, 2).sort()),
+    ],
   });
   return statements;
 }

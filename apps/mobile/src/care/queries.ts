@@ -307,3 +307,6 @@ export const TASK_EVIDENCE_SQL = `SELECT
 export const ROUND_TASK_FOR_PERSON_SQL = `SELECT id, title FROM task
 WHERE tenant_id = ? AND id = ? AND person_id = ?
   AND status IN ('open', 'in_progress') AND queued_transition IS NULL`;
+
+/** One bookkeeping value kept on the device (`sync_meta`), by its id. */
+export const META_VALUE_SQL = "SELECT value FROM sync_meta WHERE id = ?";

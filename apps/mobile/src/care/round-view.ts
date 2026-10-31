@@ -15,9 +15,10 @@
 import { knownAsName } from "@harbour/ui-native/logic";
 import { type MessageKey, t } from "../i18n/t";
 import { parseCommunicationNeeds } from "../people/person-view";
+import { offlineWindowBounds } from "../sync/offline-days";
 import type { FieldError } from "./entries";
 import { parseQueuedMove, type TaskToMove } from "./round-actions";
-import { parseInstant, ukDateLabel, ukDateTimeParts } from "./time";
+import { parseInstant, ukDateTimeParts } from "./time";
 
 /** A synced open task with its person's names and whether evidence for it waits to upload. */
 export interface RoundTaskRow extends TaskToMove {
@@ -231,25 +232,33 @@ export interface RoundHeader {
 
 export interface RoundHeaderInput {
   readonly now: Date;
-  /** The offline window in days, from the last token; null while unknown. */
-  readonly windowDays: number | null;
+  /**
+   * The offline window's days exactly as the last token gave them (UTC days; `sync/offline-days`),
+   * or null while none is kept. Never a day count with the clock (#123 clinical review, M4).
+   */
+  readonly offlineDays: readonly string[] | null;
   readonly lastSyncedAt: Date | null;
   readonly demo: boolean;
 }
 
-/** Gate item (d) and HZ-028: what the phone holds and from when, said before any task. */
+/** An instant in UK time, "30/10/2026 at 01:00". */
+function ukWhen(instant: Date): string {
+  return t("mobile.common.dateTime", ukDateTimeParts(instant));
+}
+
+/**
+ * Gate item (d) and HZ-028: what the phone holds and from when, said before any task. The window is
+ * whole UTC days, so its bounds are said as UK times: in British Summer Time it runs from 01:00 to
+ * 00:59, and a sync late in the evening never claims a day the phone does not hold (M4; HZ-009).
+ */
 export function roundHeader(input: RoundHeaderInput): RoundHeader {
-  const days = input.windowDays ?? 1;
-  // The window was fixed by the token the last sync used, so its days count from then, never from
-  // now: offline past midnight the phone holds nothing new for the next day (clinical review M2).
-  const anchor = input.lastSyncedAt ?? input.now;
-  const holds =
-    input.windowDays === null
-      ? t("mobile.round.holdsUnknown")
-      : t("mobile.round.holds", {
-          from: ukDateLabel(anchor, days - 1),
-          to: ukDateLabel(anchor, -1),
-        });
+  const bounds = input.offlineDays ? offlineWindowBounds(input.offlineDays) : null;
+  const holds = bounds
+    ? t("mobile.round.holds", {
+        from: ukWhen(bounds.start),
+        to: ukWhen(new Date(bounds.end.getTime() - 60_000)),
+      })
+    : t("mobile.round.holdsUnknown");
   let synced: string;
   if (input.demo) synced = t("mobile.sync.demo");
   else if (input.lastSyncedAt) {

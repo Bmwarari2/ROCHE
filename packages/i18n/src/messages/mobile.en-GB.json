@@ -369,7 +369,7 @@
   "mobile.round.whoToTell": "{manager, select, yes {You can check and change the task in Harbour on the web.} other {Tell the person in charge of this shift.}}",
   "mobile.round.title": "Round",
   "mobile.round.onThisPhone": "The round on this phone",
-  "mobile.round.holds": "This phone holds the open tasks due from {from} to the end of {to}.",
+  "mobile.round.holds": "This phone holds the open tasks due from {from} to {to}.",
   "mobile.round.holdsUnknown": "This phone does not know yet which days of tasks it holds. Sync to find out.",
   "mobile.round.incomplete": "Tasks due before then, and changes made since the last sync, are not shown here. The whole round is in Harbour on the web.",
   "mobile.round.noneOnPhone": "No tasks on this phone",

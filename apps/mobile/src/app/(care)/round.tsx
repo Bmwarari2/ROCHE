@@ -6,7 +6,7 @@ import { FlatList, View } from "react-native";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
 import { useMoveTask, useTaskRefusal, useTenantId } from "../../care/hooks";
-import { ROUND_TASKS_SQL } from "../../care/queries";
+import { META_VALUE_SQL, ROUND_TASKS_SQL } from "../../care/queries";
 import {
   managesTasks,
   type RoundItem,
@@ -22,6 +22,7 @@ import { UploadIssues } from "../../components/UploadIssues";
 import { appEnv } from "../../config/app-env";
 import { t } from "../../i18n/t";
 import { useRecordScreenProtection } from "../../security/use-record-protection";
+import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../sync/offline-days";
 import { lastSyncedAtOf } from "../../sync/sync-state";
 
 /** The time, again each minute, so a task becomes due or overdue on the screen as it does. */
@@ -54,6 +55,9 @@ export default function RoundScreen() {
   const params = useMemo(() => [tenantId], [tenantId]);
   const { data: rows, isLoading } = useQuery<RoundTaskRow>(ROUND_TASKS_SQL, params);
   const taskRefusal = useTaskRefusal();
+  const daysParams = useMemo(() => [OFFLINE_DAYS_META_ID], []);
+  const { data: daysRows } = useQuery<{ value: string }>(META_VALUE_SQL, daysParams);
+  const offlineDays = useMemo(() => parseCachedOfflineDays(daysRows[0]?.value), [daysRows]);
   // Until the tenant and the first read are known the round is loading, never "no tasks on this
   // phone" (#123 clinical review, L9).
   const loading = !tenantId || isLoading;
@@ -62,7 +66,7 @@ export default function RoundScreen() {
   const lastSyncedAt = appEnv.demoMode ? vault.demoSeededAt : lastSyncedAtOf(status);
   const header = roundHeader({
     now,
-    windowDays: vault.offlineWindowDays,
+    offlineDays,
     lastSyncedAt,
     demo: appEnv.demoMode,
   });

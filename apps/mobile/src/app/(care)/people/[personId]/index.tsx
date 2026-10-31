@@ -53,11 +53,16 @@ export default function PersonScreen() {
   // Only a task this device holds for this person, still open: never one named by a link alone,
   // and never its words from the route (#123 security review, M2).
   const tenantId = useTenantId();
-  const roundTask = useRoundTaskFor(id, typeof task === "string" && task ? task : null);
+  const roundTask = useRoundTaskFor(id, typeof task === "string" && task ? task : null, {
+    includeAnswered: true,
+  });
   const askedTask = roundTask?.id ?? null;
   const evidenceParams = useMemo(() => [tenantId, askedTask ?? ""], [tenantId, askedTask]);
   const { data: evidence } = useQuery<{ count: number }>(TASK_EVIDENCE_SQL, evidenceParams);
-  const taskAnswered = askedTask !== null && Number(evidence[0]?.count ?? 0) > 0;
+  // Answered once an entry for it is saved here, and still after that entry uploads and its
+  // synced copy no longer names the task (#123 clinical review, M1).
+  const taskAnswered =
+    askedTask !== null && (Number(evidence[0]?.count ?? 0) > 0 || roundTask?.answered === true);
   const forTask = taskAnswered ? null : askedTask;
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync

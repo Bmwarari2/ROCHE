@@ -17,6 +17,7 @@ import { demoWriteScope } from "../demo/demo-data";
 import { sha256Base64 } from "../platform/digest";
 import { newEntryId } from "../platform/ids";
 import { useWriteScope } from "../sync/write-scope-store";
+import { isAnswered, rememberAnswered } from "./answered-tasks";
 import { type EntryContext, type EntryRow, type FieldError, insertStatement } from "./entries";
 import {
   CARE_PROFILE_SQL,
@@ -96,14 +97,20 @@ export function useCareProfile(personId: string): CareProfileRow | null {
 export function useRoundTaskFor(
   personId: string,
   taskId: string | null,
-): { readonly id: string; readonly title: string | null } | null {
+  options: { readonly includeAnswered?: boolean } = {},
+): { readonly id: string; readonly title: string | null; readonly answered: boolean } | null {
   const tenantId = useTenantId();
   const params = useMemo(() => [tenantId, taskId ?? "", personId], [tenantId, taskId, personId]);
   const { data } = useQuery<{ id: string; title: string | null }>(
     ROUND_TASK_FOR_PERSON_SQL,
     params,
   );
-  return taskId ? (data[0] ?? null) : null;
+  const found = taskId ? data[0] : undefined;
+  if (!taskId || !found) return null;
+  // Answered by an entry saved here already: never tag a second one (#123 clinical review, M1).
+  const answered = isAnswered(taskId);
+  if (answered && !options.includeAnswered) return null;
+  return { id: found.id, title: found.title, answered };
 }
 
 /**
@@ -150,6 +157,10 @@ export function useSaveEntry(): (table: OfflineWindowTable, row: EntryRow) => Pr
       await db.writeTransaction(async (tx) => {
         await tx.execute(statement.sql, statement.params);
       });
+      // The task this entry answers is answered from this device, even once the entry uploads
+      // and its synced copy no longer names it (#123 clinical review, M1).
+      const taskId = (row as { task_id?: unknown }).task_id;
+      if (typeof taskId === "string" && taskId) rememberAnswered(taskId);
     },
     [db],
   );

@@ -198,7 +198,12 @@ describe("a task on the round, rendered", () => {
 
 describe("hazard HZ-028 the round's header, rendered (gate item (d))", () => {
   it("says what the phone holds and from when, and in place of an empty list never says nothing is due", async () => {
-    const header = roundHeader({ now: NOW, windowDays: 3, lastSyncedAt: NOW, demo: false });
+    const header = roundHeader({
+      now: NOW,
+      offlineDays: ["2026-10-10", "2026-10-11", "2026-10-12"],
+      lastSyncedAt: NOW,
+      demo: false,
+    });
     const view = await render(
       createElement(RoundHeaderCard, {
         header,
