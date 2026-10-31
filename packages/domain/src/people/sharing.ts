@@ -485,6 +485,32 @@ export function authorityChangeEffects(
   before: AuthorityHolder,
   holder: AuthorityHolder,
 ): AuthorityChange[] {
+  return holderProblems(decision, holderId, holder, before);
+}
+
+/**
+ * Whether the contact a decision's authority rests on still holds it as the decision recorded
+ * (HZ-022; #119 review round 2): checked when a suspension is lifted, so a decision suspended for
+ * another reason (a safeguarding enquiry) never reopens on an authority that has since been taken
+ * away. The decision carries its own evidence, so only the holder, their kind of authority, a
+ * deputy's order and the end date are compared. Empty when it still holds, or when the decision
+ * rests on no authority.
+ */
+export function authorityHeldNow(
+  decision: Pick<SharingDecision, "basis" | "consentGivenBy" | "authority">,
+  holderId: string,
+  holder: AuthorityHolder,
+): AuthorityChange[] {
+  return holderProblems(decision, holderId, holder, null);
+}
+
+function holderProblems(
+  decision: Pick<SharingDecision, "basis" | "consentGivenBy" | "authority">,
+  holderId: string,
+  holder: AuthorityHolder,
+  /** The contact before a change, to tell evidence removed from evidence never there. */
+  before: AuthorityHolder | null,
+): AuthorityChange[] {
   const authority = decision.authority;
   const usesAuthority =
     decision.basis === "legal_authority" ||
@@ -497,7 +523,7 @@ export function authorityChangeEffects(
   if (scopes && (!holder.authorityScope || !scopes.includes(holder.authorityScope))) {
     changes.push("order_scope_changed");
   }
-  const hadEvidence = Boolean(before.reference || before.documentId);
+  const hadEvidence = before !== null && Boolean(before.reference || before.documentId);
   if (hadEvidence && !holder.reference && !holder.documentId) changes.push("evidence_removed");
   if (
     holder.validUntil !== null &&

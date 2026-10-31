@@ -3,6 +3,7 @@ import {
   type AuthorityChange,
   type AuthorityHolder,
   authorityChangeEffects,
+  authorityHeldNow,
   type SharingAuthority,
   type SharingDecision,
 } from "./sharing";
@@ -144,5 +145,44 @@ describe("hazard HZ-022 a change to the authority's holder closes what it took a
     ],
   ])("%s", (_name, decision, holderId, before, after, expected) => {
     expect(authorityChangeEffects(decision, holderId, before, after)).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-022 lifting a suspension checks the authority is still held", () => {
+  it.each<[string, Decision, string, AuthorityHolder, AuthorityChange[]]>([
+    ["still an attorney, as recorded", onAuthority, BEN, ben, []],
+    [
+      "still an attorney, evidence never on the contact",
+      onAuthority,
+      BEN,
+      { ...ben, reference: null },
+      [],
+    ],
+    [
+      "changed to a friend while suspended",
+      onAuthority,
+      BEN,
+      { ...ben, role: "other" },
+      ["role_changed"],
+    ],
+    ["removed while suspended", onAuthority, BEN, { ...ben, removed: true }, ["holder_removed"]],
+    ["now ends earlier", onAuthority, BEN, { ...ben, validUntil: "2026-12-01" }, ["ends_earlier"]],
+    [
+      "a deputy's order now of another kind",
+      deputy,
+      DEE,
+      { ...dee, authorityScope: "property_affairs" },
+      ["order_scope_changed"],
+    ],
+    ["another contact", onAuthority, DEE, { ...dee, removed: true }, []],
+    [
+      "the person's own consent",
+      { basis: "consent", consentGivenBy: "person", authority: null },
+      BEN,
+      { ...ben, removed: true },
+      [],
+    ],
+  ])("%s", (_name, decision, holderId, holder, expected) => {
+    expect(authorityHeldNow(decision, holderId, holder)).toEqual(expected);
   });
 });

@@ -30143,7 +30143,7 @@
           "people"
         ],
         "summary": "Lift a suspension: the sections reopen, but what happened while suspended stays closed",
-        "description": "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).",
+        "description": "Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2). A decision that rests on an authority is lifted only while the contact still holds it as the decision recorded (authorityHeldNow: the same kind of authority, a deputy's order of that kind, no earlier end); otherwise it is refused and the refusal audited with the reason `authority_changed` (HZ-022).",
         "security": [
           {
             "bearerAuth": []

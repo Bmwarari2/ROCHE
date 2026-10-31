@@ -780,3 +780,173 @@ describe("hazard HZ-001 hazard HZ-011 an NHS number on a record the caller canno
     expect((await attempt("9990000085", "owner")).status).toBe(200);
   });
 });
+
+describe("hazard HZ-001 hazard HZ-011 the NHS number limit holds under parallel requests (#119 review round 2)", () => {
+  const LODGE_NHS = "9990000077";
+  const resetLimit = () =>
+    asDemoTenant((c) =>
+      c.query(
+        "UPDATE request_quota SET hits = '[]'::jsonb WHERE quota = 'people.nhs_number_in_use'",
+      ),
+    );
+  const change = async (nhsNumber: string) => {
+    const { version } = await details(5);
+    return as("manager", `/v1/people/${resident(5)}/details`, {
+      method: "PATCH",
+      body: { nhsNumber, version },
+    });
+  };
+
+  it("gives the count back for anything but a refusal on a record the caller cannot see", async () => {
+    await resetLimit();
+    // Five refusals on a record the manager can see (Ada's number) count for nothing.
+    for (let n = 0; n < 5; n += 1) expect((await change("9990000018")).status).toBe(422);
+    const neutral = await change(LODGE_NHS);
+    expect(neutral.status).toBe(422);
+    expect((await problem(neutral)).detail).toContain("could not be saved for this person");
+  });
+
+  it("answers at most three of ten parallel attempts, and refuses the rest before looking", async () => {
+    await resetLimit();
+    const { version } = await details(5);
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        as("manager", `/v1/people/${resident(5)}/details`, {
+          method: "PATCH",
+          body: { nhsNumber: LODGE_NHS, version },
+        }),
+      ),
+    );
+    const statuses = responses.map((r) => r.status);
+    const answered = statuses.filter((s) => s === 422).length;
+    expect(answered).toBeGreaterThan(0);
+    expect(answered).toBeLessThanOrEqual(3);
+    expect(statuses.filter((s) => s === 429)).toHaveLength(10 - answered);
+    expect((await details(5)).version).toBe(version);
+    await resetLimit();
+  });
+});
+
+describe("hazard HZ-022 a suspension never lifts onto an authority that has gone (#119 review round 2)", () => {
+  it("keeps a decision suspended for a safeguarding enquiry closed once its attorney is no longer one", async () => {
+    const who = resident(2);
+    const attorney = await json<ContactOut>(
+      await as("manager", `/v1/people/${who}/contacts`, {
+        method: "POST",
+        body: {
+          role: "lpa_property_finance",
+          givenName: "Sal",
+          familyName: "Safeguard",
+          authorityReference: "OPG-EXAMPLE-5",
+        },
+      }),
+    );
+    const recorded = await json<SharingDecisionOut>(
+      await as("manager", `/v1/people/${who}/sharing-decisions`, {
+        method: "POST",
+        body: {
+          recipient: { kind: "family", contactId: attorney.id },
+          sections: ["finance"],
+          basis: "legal_authority",
+          authority: { role: "lpa_property_finance", contactId: attorney.id },
+          validTo: new Date(Date.now() + 30 * DAY).toISOString(),
+        },
+      }),
+    );
+    const suspend = await as(
+      "manager",
+      `/v1/people/${who}/sharing-decisions/${recorded.id}/suspend`,
+      { method: "POST", body: { reason: "Safeguarding enquiry open", version: recorded.version } },
+    );
+    expect(suspend.status).toBe(200);
+    const suspended = await json<SharingDecisionOut>(suspend);
+
+    // The attorney is changed to someone with no authority while the enquiry runs.
+    const changed = await json<ContactSaved>(
+      await as("manager", `/v1/people/${who}/contacts/${attorney.id}`, {
+        method: "PATCH",
+        body: { role: "other", version: attorney.version },
+      }),
+    );
+    expect(changed.suspendedDecisions).toBe(0);
+    const noted = await asDemoTenant((c) =>
+      c.query(
+        "SELECT reason FROM audit_event WHERE action = 'people.sharing.authority_changed' AND resource_id = $1",
+        [recorded.id],
+      ),
+    );
+    expect(noted.rows).toEqual([{ reason: "authority_changed" }]);
+
+    // The enquiry closes: lifting is refused, in words, and audited.
+    const lift = await as(
+      "manager",
+      `/v1/people/${who}/sharing-decisions/${recorded.id}/lift-suspension`,
+      { method: "POST", body: { reason: "Enquiry closed", version: suspended.version } },
+    );
+    expect(lift.status).toBe(422);
+    expect((await problem(lift)).detail).toBe(
+      "The authority this decision rests on has changed or ended since it was recorded. Withdraw the decision and record a new one if sharing should go on.",
+    );
+    const refused = await asDemoTenant((c) =>
+      c.query(
+        `SELECT reason FROM audit_event
+          WHERE action = 'people.sharing.lift_suspension' AND outcome = 'denied' AND resource_id = $1`,
+        [recorded.id],
+      ),
+    );
+    expect(refused.rows).toEqual([{ reason: "authority_changed" }]);
+    const items = (
+      await json<SharingDecisionList>(await as("manager", `/v1/people/${who}/sharing-decisions`))
+    ).items;
+    const still = items.find((d) => d.id === recorded.id);
+    expect(still).toMatchObject({ inForce: false });
+    expect(still?.suspendedAt).not.toBeNull();
+    const seen = await json<SharingVisibility>(
+      await as(
+        "manager",
+        `/v1/people/${who}/sharing-decisions/visibility?contactId=${attorney.id}`,
+      ),
+    );
+    expect(seen.sections.find((s) => s.section === "finance")?.visible).toBe(false);
+  });
+
+  it("lifts a suspension whose authority still holds", async () => {
+    const who = resident(2);
+    const attorney = await json<ContactOut>(
+      await as("manager", `/v1/people/${who}/contacts`, {
+        method: "POST",
+        body: {
+          role: "lpa_property_finance",
+          givenName: "Hal",
+          familyName: "Holds",
+          authorityReference: "OPG-EXAMPLE-6",
+        },
+      }),
+    );
+    const recorded = await json<SharingDecisionOut>(
+      await as("manager", `/v1/people/${who}/sharing-decisions`, {
+        method: "POST",
+        body: {
+          recipient: { kind: "family", contactId: attorney.id },
+          sections: ["finance"],
+          basis: "legal_authority",
+          authority: { role: "lpa_property_finance", contactId: attorney.id },
+          validTo: new Date(Date.now() + 30 * DAY).toISOString(),
+        },
+      }),
+    );
+    const suspended = await json<SharingDecisionOut>(
+      await as("manager", `/v1/people/${who}/sharing-decisions/${recorded.id}/suspend`, {
+        method: "POST",
+        body: { reason: "Safeguarding enquiry open", version: recorded.version },
+      }),
+    );
+    const lift = await as(
+      "manager",
+      `/v1/people/${who}/sharing-decisions/${recorded.id}/lift-suspension`,
+      { method: "POST", body: { reason: "Enquiry closed", version: suspended.version } },
+    );
+    expect(lift.status).toBe(200);
+    expect((await json<SharingDecisionOut>(lift)).inForce).toBe(true);
+  });
+});
