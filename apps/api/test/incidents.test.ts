@@ -26,6 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   detectOutbreaks,
   escalateStatutoryNotifications,
+  escalateTasks,
   raiseCandourBlocked,
   reportUnroutedDaily,
   runEscalations,
@@ -234,6 +235,7 @@ describe("permissions on every incident route", () => {
     ["POST", "/v1/incidents/{id}/close"],
     ["POST", "/v1/incidents/{id}/review"],
     ["PUT", "/v1/incidents/{id}/candour"],
+    ["POST", "/v1/incidents/{id}/candour/reopen"],
     ["PUT", "/v1/incidents/{id}/investigation"],
   ])("refuses a care worker %s %s", async (method, path) => {
     const incident = await created("carer", { people: [affected(2)] });
@@ -1030,6 +1032,28 @@ describe("duty of candour and investigations", () => {
       { enquiryResultsSharedAt: later },
       "The time the results were shared cannot be in the future.",
     );
+    // Nor earlier than the incident (#120 round 2, L5).
+    const before = ago(3 * HOUR);
+    await refused(
+      { verbal: verbal(before, null) },
+      "The time they were told cannot be before the incident happened.",
+    );
+    await refused(
+      {
+        written: {
+          sentAt: before,
+          documentId: null,
+          includesAccount: true,
+          includesEnquiries: true,
+          includesApology: true,
+        },
+      },
+      "The time the written notification was sent cannot be before the incident happened.",
+    );
+    await refused(
+      { contactAttempts: [{ at: before, note: "Phoned, no answer." }] },
+      "The time of an attempt to contact them cannot be before the incident happened.",
+    );
     const someoneElses = await documentAbout(5);
     await refused(
       { verbal: verbal(ago(MIN), someoneElses) },
@@ -1224,6 +1248,270 @@ describe("duty of candour and investigations", () => {
     // Raised once, however often the job runs.
     await raiseCandourBlocked(deps);
     expect(await tasks()).toHaveLength(1);
+  });
+
+  const notificationsOf = async (incidentId: string) =>
+    (
+      await json<StatutoryNotificationList>(
+        await as("manager", `/v1/notifications/statutory?incidentId=${incidentId}`),
+      )
+    ).items;
+  const markNotRequired = async (notification: { id: string; version: number }) => {
+    await setSessionAge("manager", 0);
+    const response = await as(
+      "manager",
+      `/v1/notifications/statutory/${notification.id}/not-required`,
+      {
+        method: "POST",
+        body: { reason: "Checked with the GP: not needed.", version: notification.version },
+      },
+    );
+    expect(response.status, await response.clone().text()).toBe(200);
+  };
+  const reopen = (incidentId: string, body: Record<string, unknown>) =>
+    as("manager", `/v1/incidents/${incidentId}/candour/reopen`, { method: "POST", body });
+
+  it("hazard HZ-013 a finished record keeps its decision until reopened with a reason, which blocks closing again (round 3 H1)", async () => {
+    const incident = await harmed([affected(4)]);
+    // A is recorded as not notifiable, and the candour draft is marked not required.
+    let view = await json<CandourView>(
+      await candour(incident.id, {
+        personId: resident(4),
+        threshold: { notifiable: false, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+        thresholdReason: reason,
+        thresholdConfirmed: true,
+        version: 0,
+      }),
+    );
+    view = await json<CandourView>(
+      await candour(
+        incident.id,
+        { to: "not_notifiable", reason, confirmed: true, version: view.record?.version },
+        "POST",
+      ),
+    );
+    expect(view.record?.state).toBe("not_notifiable");
+    const draft = (await notificationsOf(incident.id)).find((n) => n.kind === "candour");
+    expect(draft).toBeDefined();
+    if (draft) await markNotRequired(draft);
+    // Later a fracture is confirmed: a new decision on the finished record is refused.
+    const notifiable = {
+      threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+      thresholdReason: "An X-ray has now confirmed a fracture.",
+      thresholdConfirmed: true,
+    };
+    const refused = await candour(incident.id, { ...notifiable, version: view.record?.version });
+    expect(refused.status).toBe(422);
+    expect((await json<ProblemDetails>(refused)).code).toBe("candour_finished");
+    // Reopening needs a reason of at least 20 characters.
+    const short = await reopen(incident.id, { reason: "Fracture.", version: view.record?.version });
+    expect(short.status).toBe(422);
+    expect((await json<ProblemDetails>(short)).detail).toBe(
+      "Say why the record is reopened, in at least 20 characters.",
+    );
+    const reopened = await reopen(incident.id, {
+      reason: "An X-ray has now confirmed a fracture.",
+      version: view.record?.version,
+    });
+    expect(reopened.status, await reopened.clone().text()).toBe(200);
+    view = await json<CandourView>(reopened);
+    expect(view.record?.state).toBe("threshold_assessment");
+    // The candour draft is a draft again, and closing waits for the record.
+    expect((await notificationsOf(incident.id)).find((n) => n.kind === "candour")?.status).toBe(
+      "draft",
+    );
+    expect(await closeDetail(incident.id)).toContain(
+      "Complete the duty of candour record before closing.",
+    );
+    const audited = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ action: string; reason: string | null }>(
+        "SELECT action, reason FROM audit_event WHERE action IN ('safety.candour.reopened', 'safety.notification.reopened') AND scope->>'incidentId' = $1 ORDER BY seq",
+        [incident.id],
+      );
+      return rows;
+    });
+    expect(audited).toEqual([
+      { action: "safety.notification.reopened", reason: "An X-ray has now confirmed a fracture." },
+      { action: "safety.candour.reopened", reason: "An X-ray has now confirmed a fracture." },
+    ]);
+    // The new decision is now taken, with its reason, and the record moves on.
+    const decided = await candour(incident.id, { ...notifiable, version: view.record?.version });
+    expect(decided.status, await decided.clone().text()).toBe(200);
+    // A second reopen of a record no longer finished is refused.
+    const again = await reopen(incident.id, {
+      reason: "Trying to reopen it a second time.",
+      version: (await json<CandourView>(decided)).record?.version,
+    });
+    expect(again.status).toBe(422);
+  });
+
+  it("hazard HZ-013 a closed incident's candour record is never changed (round 3 H1)", async () => {
+    const incident = await created("manager", { type: "environmental", people: [] });
+    await answerEverything(incident.id);
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const closed = await as("owner", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: { reason: "Supply restored and checked.", version: current.version },
+    });
+    expect(closed.status, await closed.clone().text()).toBe(200);
+    const detail = "The duty of candour record of a closed incident cannot be changed.";
+    const put = await candour(incident.id, {
+      threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+      version: 0,
+    });
+    expect(put.status).toBe(422);
+    expect((await json<ProblemDetails>(put)).detail).toBe(detail);
+    const step = await candour(incident.id, { to: "verbal_due", version: 1 }, "POST");
+    expect((await json<ProblemDetails>(step)).detail).toBe(detail);
+    const again = await reopen(incident.id, {
+      reason: "A fracture was confirmed later on.",
+      version: 1,
+    });
+    expect((await json<ProblemDetails>(again)).detail).toBe(detail);
+  });
+
+  it("hazard HZ-013 a finished record keeps the person it names (round 3 low)", async () => {
+    const incident = await harmed([affected(4), affected(5)]);
+    await finishWithoutContact(incident.id, resident(4));
+    const record = await json<CandourView>(
+      await as("manager", `/v1/incidents/${incident.id}/candour`),
+    );
+    expect(record.record?.state).toBe("no_contact");
+    const moved = await candour(incident.id, {
+      personId: resident(5),
+      version: record.record?.version,
+    });
+    expect(moved.status).toBe(422);
+    expect((await json<ProblemDetails>(moved)).detail).toBe(
+      "The relevant person cannot change once the record is finished.",
+    );
+  });
+
+  it("hazard HZ-013 taking someone out of those affected needs a manager and a reason, before any decision (round 3 M1)", async () => {
+    const incident = await created("carer", { type: "medication", people: [affected(1)] });
+    const change = async (user: "carer" | "manager", candourReason?: string) => {
+      const current = await json<IncidentDetail>(await as(user, `/v1/incidents/${incident.id}`));
+      const row = current.people.find((p) => p.personId === resident(1));
+      return as(user, `/v1/incidents/${incident.id}`, {
+        method: "PUT",
+        body: {
+          people: [
+            {
+              id: row?.id,
+              kind: "service_user",
+              role: "involved",
+              personId: resident(1),
+              died: false,
+              bodyMapMarkIds: [],
+            },
+          ],
+          ...(candourReason ? { candourReason } : {}),
+          version: current.version,
+        },
+      });
+    };
+    const raiser = await change("carer", reason);
+    expect(raiser.status).toBe(422);
+    expect((await json<ProblemDetails>(raiser)).detail).toBe(
+      "Only someone who manages incidents can take a person out of those affected.",
+    );
+    const bare = await change("manager");
+    expect(bare.status).toBe(422);
+    expect((await json<ProblemDetails>(bare)).detail).toBe(
+      "Someone affected would leave the duty of candour check: say why in at least 20 characters.",
+    );
+    expect((await change("manager", reason)).status).toBe(200);
+    const audited = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ resource_id: string; reason: string | null }>(
+        "SELECT resource_id, reason FROM audit_event WHERE action = 'safety.incident.candour_person_dropped' AND scope->>'incidentId' = $1",
+        [incident.id],
+      );
+      return rows;
+    });
+    expect(audited).toEqual([{ resource_id: resident(1), reason }]);
+  });
+
+  it("hazard HZ-013 a stuck incident goes to Registered Managers, then owners, daily, and closing finishes it (round 3 M2)", async () => {
+    const incident = await harmed([affected(6)], ago(30 * 24 * HOUR));
+    const start = new Date();
+    const told = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ recipient: string; kind: string }>(
+          `SELECT n.recipient_tenant_user_id AS recipient, n.kind FROM notification n
+             JOIN task t ON t.id::text = n.source_id
+            WHERE t.kind = 'safety.candour_close_blocked' AND t.source_id = $1
+            ORDER BY n.created_at, n.recipient_tenant_user_id`,
+          [incident.id],
+        );
+        return rows;
+      });
+    const audits = (action: string) =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ scope: Record<string, unknown> }>(
+          "SELECT scope FROM audit_event WHERE action = $1 AND scope->>'incidentId' = $2 ORDER BY seq",
+          [action, incident.id],
+        );
+        return rows.map((r) => r.scope);
+      });
+    // Day 0: the Registered Manager, who manages incidents there; no one else.
+    await raiseCandourBlocked(deps, start);
+    expect(await told()).toEqual([
+      { recipient: DEMO.users.manager.id, kind: "safety.candour.close_blocked" },
+    ]);
+    expect(await audits("safety.candour.close_blocked_raised")).toHaveLength(1);
+    // Run again the same day: no one is told twice.
+    await raiseCandourBlocked(deps, new Date(start.getTime() + HOUR));
+    expect(await told()).toHaveLength(1);
+    // The task engine leaves it alone: it never goes to clinical leads or team leaders.
+    await escalateTasks(deps, new Date(start.getTime() + 2 * HOUR));
+    expect((await told()).every((n) => n.kind === "safety.candour.close_blocked")).toBe(true);
+    // Day 1: the Registered Manager again, and the owner.
+    await raiseCandourBlocked(deps, new Date(start.getTime() + 25 * HOUR));
+    const dayOne = (await told())
+      .slice(1)
+      .map((n) => n.recipient)
+      .sort();
+    expect(dayOne).toEqual([DEMO.users.manager.id, DEMO.users.owner.id].sort());
+    // Day 2: both again, every day until resolved.
+    await raiseCandourBlocked(deps, new Date(start.getTime() + 49 * HOUR));
+    expect(await told()).toHaveLength(5);
+    expect(
+      (await audits("safety.candour.close_blocked_escalated")).map((s) => [s.day, s.tier]),
+    ).toEqual([
+      [0, "registered_manager"],
+      [1, "registered_manager_and_owner"],
+      [2, "registered_manager_and_owner"],
+    ]);
+    // Nobody without safety.incident.manage, and no clinical lead or team leader, was told.
+    expect(
+      (await told()).filter(
+        (n) => n.recipient !== DEMO.users.manager.id && n.recipient !== DEMO.users.owner.id,
+      ),
+    ).toEqual([]);
+
+    // Closing finishes it: everything answered and decided, the candour record finished.
+    await answerEverything(incident.id);
+    await finishWithoutContact(incident.id, resident(6));
+    for (const n of await notificationsOf(incident.id)) {
+      if (n.status === "draft" || n.status === "ready") await markNotRequired(n);
+    }
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const closed = await as("owner", `/v1/incidents/${incident.id}/close`, {
+      method: "POST",
+      body: { reason: "Everything is done and recorded.", version: current.version },
+    });
+    expect(closed.status, await closed.clone().text()).toBe(200);
+    const status = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ status: string }>(
+        "SELECT status FROM task WHERE kind = 'safety.candour_close_blocked' AND source_id = $1",
+        [incident.id],
+      );
+      return rows.map((r) => r.status);
+    });
+    expect(status).toEqual(["done"]);
+    expect(await audits("safety.candour.close_blocked_finished")).toEqual([
+      { incidentId: incident.id, why: "closed" },
+    ]);
   });
 
   it("hazard HZ-091 gives a reopened action a new task (review L1)", async () => {

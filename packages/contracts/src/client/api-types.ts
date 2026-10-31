@@ -12337,7 +12337,7 @@ export interface paths {
     };
     /**
      * Add to or correct an incident (the classifier runs again)
-     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. Once a candour threshold decision is recorded, a change that takes someone affected out of the candour check (removed, or no longer affected) needs candourReason of at least 20 characters, audited with the person (#120 round 2).
+     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. A change that takes someone affected out of the duty of candour check (removed, or no longer affected), whether or not a threshold decision is recorded, needs safety.incident.manage and candourReason of at least 20 characters, and is audited with the person (#120 review rounds 2 and 3).
      */
     put: {
       parameters: {
@@ -12910,6 +12910,96 @@ export interface paths {
       };
       responses: {
         /** @description Moved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CandourView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/incidents/{id}/candour/reopen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reopen a duty of candour record finished as not notifiable or no contact
+     * @description With a reason of at least 20 characters, audited (candourReopenProblems; #120 review round 3, H1). Not notifiable goes back to the threshold decision and no contact to telling the person; a candour notification decided not required becomes a draft again, so its clock and the close block return. Refused on a closed incident.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ReopenCandour"];
+        };
+      };
+      responses: {
+        /** @description Reopened */
         200: {
           headers: {
             [name: string]: unknown;
@@ -26372,6 +26462,10 @@ export interface components {
       to: components["schemas"]["CandourState"];
       reason?: string;
       confirmed?: boolean;
+      version: number;
+    };
+    ReopenCandour: {
+      reason: string;
       version: number;
     };
     InvestigationView: {

@@ -19,7 +19,6 @@ import {
   workflowInstance,
 } from "@harbour/db";
 import {
-  addUkDays,
   CANDOUR_WORKFLOW,
   type CandourCloseFacts,
   type CandourState,
@@ -29,7 +28,6 @@ import {
   type ClassifierResult,
   type ClassifierTaskKind,
   candourClocks,
-  candourCloseBlock,
   candourStateDeadline,
   classifierAnswerProblem,
   classifyIncident,
@@ -66,12 +64,12 @@ import {
   ukIsoDate,
   type YesNoUnsure,
 } from "@harbour/domain";
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
-import { setWorkflowDeadline, startWorkflow } from "./workflow";
+import { reopenWorkflow, setWorkflowDeadline, startWorkflow } from "./workflow";
 
 /**
  * Safety rules wired to the database (docs/specs/safety.md; hazards HZ-013 and HZ-027). The
@@ -1435,105 +1433,47 @@ export async function incidentCloseView(
   return view;
 }
 
-/** The task that says an incident is held open by the duty of candour (#120 round 2, M4). */
-export const CANDOUR_BLOCKED_TASK_KIND = "safety.candour_close_blocked";
-/** How long an incident may wait on the duty of candour before the task is raised (rates.md). */
-export const CANDOUR_BLOCKED_RATE_KEY = "candour.close_blocked_days";
-const CANDOUR_BLOCKED_SOURCE = "incident_candour";
-
-/** Marks the stuck-candour task of an incident done: it closed, or nothing holds it any more. */
-export async function finishCandourBlockedTasks(
+/**
+ * Reopening a finished duty of candour record (#120 review round 3, H1): the incident's candour
+ * notification decided not required is a draft again, with its clock on the workflow, so the
+ * notification centre shows it due and a holder of `safety.notification.submit` decides it again.
+ * Read with tenant-wide scope. Returns the notifications reopened, for the caller's audit.
+ */
+export async function reopenCandourNotifications(
   tx: Transaction,
   incidentId: string,
+  reason: string,
   now: Date,
-): Promise<void> {
-  await tx
-    .update(task)
-    .set({
-      status: "done",
-      completedAt: now,
-      statusReason: "The duty of candour no longer holds it",
-    })
-    .where(
-      and(
-        eq(task.kind, CANDOUR_BLOCKED_TASK_KIND),
-        eq(task.sourceType, CANDOUR_BLOCKED_SOURCE),
-        eq(task.sourceId, incidentId),
-        inArray(task.status, ["open", "in_progress"]),
-      ),
-    );
-}
-
-/**
- * An incident that cannot close because of the duty of candour (no record where Harbour found it
- * may apply, the record open, or someone affected not told) for longer than the organisation's
- * period (`candour.close_blocked_days`, rate table) gets one urgent task for its Registered
- * Manager, which the task engine escalates when overdue (#120 round 2, M4). The task is marked done
- * once nothing holds the incident. Returns the tasks raised; with no figure in the rate table it
- * raises none and says so (`missingRate`).
- */
-export async function raiseCandourBlockedTasks(
-  tx: Transaction,
-  tenantId: string,
-  now: Date,
-  missingRate: () => void = () => {},
-): Promise<number> {
-  let days: number;
-  try {
-    days = await rateNumber(tx, tenantId, CANDOUR_BLOCKED_RATE_KEY);
-  } catch {
-    missingRate();
-    return 0;
-  }
+): Promise<string[]> {
   return withTenantWideScope(tx, async () => {
-    const waiting = await tx
-      .select()
-      .from(incident)
+    const decided = await tx
+      .select({ id: statutoryNotification.id, dueAt: statutoryNotification.dueAt })
+      .from(statutoryNotification)
       .where(
         and(
-          isNull(incident.deletedAt),
-          ne(incident.status, "closed"),
-          lt(incident.occurredAt, addUkDays(now, -days)),
+          eq(statutoryNotification.incidentId, incidentId),
+          eq(statutoryNotification.kind, "candour"),
+          eq(statutoryNotification.status, "not_required"),
+          isNull(statutoryNotification.deletedAt),
         ),
+      )
+      .for("update");
+    for (const n of decided) {
+      await tx
+        .update(statutoryNotification)
+        .set({ status: "draft", notRequiredReason: null })
+        .where(eq(statutoryNotification.id, n.id));
+      await reopenWorkflow(
+        tx,
+        STATUTORY_NOTIFICATION_WORKFLOW,
+        { subjectType: "statutory_notification", subjectId: n.id },
+        "draft",
+        reason,
+        now,
+        n.dueAt,
       );
-    let raised = 0;
-    const views = await incidentCloseViews(tx, waiting);
-    for (const row of waiting) {
-      const view = views.get(row.id);
-      if (!view) continue;
-      const block = candourCloseBlock(view.candourState, view.candour);
-      if (!block.noRecord && !block.open && block.stillToTell.length === 0) {
-        await finishCandourBlockedTasks(tx, row.id, now);
-        continue;
-      }
-      const [open] = await tx
-        .select({ id: task.id })
-        .from(task)
-        .where(
-          and(
-            eq(task.kind, CANDOUR_BLOCKED_TASK_KIND),
-            eq(task.sourceType, CANDOUR_BLOCKED_SOURCE),
-            eq(task.sourceId, row.id),
-            inArray(task.status, ["open", "in_progress"]),
-            isNull(task.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (open) continue;
-      await tx.insert(task).values({
-        kind: CANDOUR_BLOCKED_TASK_KIND,
-        title: "Finish the duty of candour so the incident can close",
-        requiredPermission: "safety.incident.manage",
-        locationId: row.locationId,
-        sourceType: CANDOUR_BLOCKED_SOURCE,
-        sourceId: row.id,
-        assigneeRoleKey: "registered_manager",
-        dueAt: now,
-        priority: "urgent",
-      });
-      raised++;
     }
-    return raised;
+    return decided.map((n) => n.id);
   });
 }
 

@@ -212,8 +212,9 @@ export const UpdateIncident = z
     /** Rows with an id are changed (or removed); rows without are added. */
     people: z.array(IncidentPersonInput).max(50).optional(),
     /**
-     * Why someone affected is no longer affected (removed, or their role changed) once a duty of
-     * candour decision is recorded: at least 20 characters, audited with the person (HZ-013).
+     * Why someone affected is no longer affected (removed, or their kind or role changed),
+     * whether or not a duty of candour decision is recorded: at least 20 characters, from a holder
+     * of safety.incident.manage, audited with the person (HZ-013; #120 review round 3, M1).
      */
     candourReason: text(1000).optional(),
     version,
@@ -540,6 +541,18 @@ export const CandourStep = z
   })
   .meta({ id: "CandourStep" });
 export type CandourStep = z.infer<typeof CandourStep>;
+
+/**
+ * Reopens a record finished as not notifiable or no contact (#120 review round 3, H1): a reason
+ * of at least 20 characters, audited (`candourReopenProblems`).
+ */
+export const ReopenCandour = z
+  .object({
+    reason: text(1000),
+    version,
+  })
+  .meta({ id: "ReopenCandour" });
+export type ReopenCandour = z.infer<typeof ReopenCandour>;
 
 export const CandourItem = z
   .object({

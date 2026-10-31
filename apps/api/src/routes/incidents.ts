@@ -13,6 +13,7 @@ import {
   IncidentType,
   type InvestigationItem,
   InvestigationView,
+  ReopenCandour,
   ReviewIncident,
   UpdateCandour,
   UpdateIncident,
@@ -34,6 +35,7 @@ import {
 import {
   CANDOUR_FINISHED_STATES,
   CANDOUR_REASON_MIN,
+  CANDOUR_REOPEN_TO,
   CANDOUR_WORKFLOW,
   type CandourRecordView,
   type CandourState,
@@ -42,6 +44,7 @@ import {
   candourDecisionNeedsReason,
   candourFindingOf,
   candourReasonProblems,
+  candourReopenProblems,
   candourStepProblems,
   classifierAnswerProblem,
   INCIDENT_WORKFLOW,
@@ -51,7 +54,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -61,23 +64,24 @@ import {
   type TenantAccess,
   withTenant,
 } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { finishCandourBlockedTasks } from "../services/candour-blocked";
 import { careRates, entryTimes, personContext } from "../services/care";
 import { CLOCK_DRIFT_RATE_KEY, loadPerson, requireWrite } from "../services/people";
 import { bankHolidays, rateNumber } from "../services/rates";
 import {
   affectedServiceUsers,
   classifyAndStore,
-  finishCandourBlockedTasks,
   incidentCloseView,
+  reopenCandourNotifications,
   safetyRates,
   syncCandourDeadline,
   toClassifierAnswers,
   withTenantWideScope,
 } from "../services/safety";
 import { mayBeGiven } from "../services/tasks";
-import { startWorkflow } from "../services/workflow";
+import { reopenWorkflow, startWorkflow } from "../services/workflow";
 import { iso, range, SENT_AT_HEADER, withLateEntryReview } from "./care-shared";
 import {
   conflictResponse,
@@ -226,21 +230,13 @@ function requireMfaForPeople(access: TenantAccess, people: number) {
 
 /**
  * The people we support who were affected and would no longer be after these changes (removed, or
- * their role or kind changed), once the candour record holds a threshold decision; none before.
+ * their role or kind changed), whether or not a duty of candour decision is recorded (#120 review
+ * round 3, M1).
  */
-async function candourDropped(
-  tx: Transaction,
-  incidentId: string,
+function affectedDropped(
   people: readonly (typeof incidentPerson.$inferSelect)[],
   changes: readonly IncidentPersonInput[],
-): Promise<string[]> {
-  const [decided] = await tx
-    .select({ id: candourRecord.id })
-    .from(candourRecord)
-    .where(
-      and(eq(candourRecord.incidentId, incidentId), isNotNull(candourRecord.thresholdDecidedAt)),
-    );
-  if (!decided) return [];
+): string[] {
   const affected = (p: {
     readonly kind: string;
     readonly role: string;
@@ -258,6 +254,23 @@ async function candourDropped(
       .flatMap((p) => affected({ ...p, personId: p.personId ?? null })),
   ]);
   return [...before].filter((personId) => !after.has(personId));
+}
+
+/** The duty of candour record of a closed incident is read as it is, never changed (H1). */
+function refuseClosedCandour(row: { readonly status: string }) {
+  if (row.status === "closed") {
+    throw problems.invalid("The duty of candour record of a closed incident cannot be changed.");
+  }
+}
+
+/** A finished record's decision changed without reopening it first (#120 review round 3, H1). */
+function candourFinished() {
+  return new HttpProblem(
+    422,
+    "candour_finished",
+    "This duty of candour record is finished.",
+    "The decision cannot change once the record is finished: reopen it first, with a reason.",
+  );
 }
 
 async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: string) {
@@ -670,7 +683,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Add to or correct an incident (the classifier runs again)",
       description:
-        "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. Once a candour threshold decision is recorded, a change that takes someone affected out of the candour check (removed, or no longer affected) needs candourReason of at least 20 characters, audited with the person (#120 round 2).",
+        "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. A change that takes someone affected out of the duty of candour check (removed, or no longer affected), whether or not a threshold decision is recorded, needs safety.incident.manage and candourReason of at least 20 characters, and is audited with the person (#120 review rounds 2 and 3).",
       security,
       request: {
         params: IncidentParam,
@@ -704,14 +717,22 @@ export const incidentsRouter = createRouter()
           }
           const removed = new Set(changes.filter((p) => p.removed && p.id).map((p) => p.id));
           const kept = people.filter((p) => !removed.has(p.id));
-          // Once a duty of candour decision is recorded, someone affected leaves the candour
-          // check (removed, or no longer "affected") only with a reason, audited with the person
-          // (#120 round 2, M4): otherwise a change of role would let the incident close untold.
-          const dropped = await candourDropped(tx, id, people, changes);
-          if (dropped.length > 0 && (body.candourReason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
-            throw problems.invalid(
-              `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
-            );
+          // Someone affected leaves the duty of candour check (removed, or no longer "affected")
+          // only by a holder of safety.incident.manage, with a reason, audited with the person,
+          // whether or not a threshold decision is recorded (#120 round 2 M4, round 3 M1): before
+          // the decision, a change of role would drop the duty from the classifier unseen.
+          const dropped = affectedDropped(people, changes);
+          if (dropped.length > 0) {
+            if (!(await managesIncident(tx, access, id))) {
+              throw problems.invalid(
+                "Only someone who manages incidents can take a person out of those affected.",
+              );
+            }
+            if ((body.candourReason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
+              throw problems.invalid(
+                `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
+              );
+            }
           }
           const personIds = [
             ...new Set([
@@ -910,7 +931,7 @@ export const incidentsRouter = createRouter()
           .where(and(eq(incident.id, id), eq(incident.version, body.version)))
           .returning();
         if (!updated) throw problems.conflict();
-        await finishCandourBlockedTasks(tx, id, now);
+        await finishCandourBlockedTasks(tx, id, now, "closed", access.tenantUserId);
         await audit(c, tx, access, {
           action: "safety.incident.close",
           resourceType: "incident",
@@ -1113,6 +1134,7 @@ export const incidentsRouter = createRouter()
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
+        refuseClosedCandour(row);
         // The relevant person is one of the people affected (#120 round 2, M2).
         const affected = await withTenantWideScope(tx, () => affectedServiceUsers(tx, id));
         if (body.personId && !affected.includes(body.personId)) {
@@ -1141,6 +1163,11 @@ export const incidentsRouter = createRouter()
             { subjectType: "candour_record", subjectId: record.id, personId: null },
             now,
           );
+        }
+        // A finished record keeps its decision: a new one while it still reads as finished would
+        // let the incident close untold (#120 review round 3, H1). Reopen it first, with a reason.
+        if (body.threshold !== undefined && CANDOUR_FINISHED_STATES.includes(record.state)) {
+          throw candourFinished();
         }
         // A finished record keeps the person it names: changing it would leave someone untold
         // while the record reads as done (#120 round 2).
@@ -1263,6 +1290,7 @@ export const incidentsRouter = createRouter()
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
+        refuseClosedCandour(row);
         const [record] = await tx
           .select()
           .from(candourRecord)
@@ -1325,6 +1353,96 @@ export const incidentsRouter = createRouter()
           action: `safety.candour.${body.to}`,
           resourceType: "candour_record",
           resourceId: saved.id,
+        });
+        return {
+          record: await candourItem(
+            tx,
+            access.tenantId,
+            saved,
+            row.occurredAt,
+            await nationOf(tx, row.locationId),
+          ),
+        };
+      });
+      return c.json(view, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/incidents/{id}/candour/reopen",
+      tags: ["safety"],
+      summary: "Reopen a duty of candour record finished as not notifiable or no contact",
+      description:
+        "With a reason of at least 20 characters, audited (candourReopenProblems; #120 review round 3, H1). Not notifiable goes back to the threshold decision and no contact to telling the person; a candour notification decided not required becomes a draft again, so its clock and the close block return. Refused on a closed incident.",
+      security,
+      request: {
+        params: IncidentParam,
+        body: { content: { "application/json": { schema: ReopenCandour } } },
+      },
+      responses: {
+        200: jsonBody(CandourView, "Reopened"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "safety.incident.manage");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      const now = new Date();
+      const view = await withTenant(c, async (tx) => {
+        const { row } = await loadForChange(c, tx, id);
+        refuseClosedCandour(row);
+        const [record] = await tx
+          .select()
+          .from(candourRecord)
+          .where(eq(candourRecord.incidentId, id))
+          .for("update");
+        if (!record) throw problems.notFound();
+        if (record.version !== body.version) throw problems.conflict();
+        const reopenProblems = candourReopenProblems(record.state, body.reason);
+        if (reopenProblems.length > 0) throw problems.invalid(reopenProblems.join(" "));
+        const to = CANDOUR_REOPEN_TO[record.state as CandourState] as CandourState;
+        await reopenWorkflow(
+          tx,
+          CANDOUR_WORKFLOW,
+          { subjectType: "candour_record", subjectId: record.id },
+          to,
+          body.reason,
+          now,
+        );
+        const [saved] = await tx
+          .update(candourRecord)
+          .set({ state: to })
+          .where(and(eq(candourRecord.id, record.id), eq(candourRecord.version, body.version)))
+          .returning();
+        if (!saved) throw problems.conflict();
+        await syncCandourDeadline(
+          tx,
+          access.tenantId,
+          saved,
+          row.occurredAt,
+          await nationOf(tx, row.locationId),
+        );
+        // A candour notification decided not required is a draft again, with its clock.
+        const reopened = await reopenCandourNotifications(tx, id, body.reason, now);
+        for (const notificationId of reopened) {
+          await audit(c, tx, access, {
+            action: "safety.notification.reopened",
+            resourceType: "statutory_notification",
+            resourceId: notificationId,
+            reason: body.reason,
+            scope: { incidentId: id, candourRecordId: saved.id },
+          });
+        }
+        await audit(c, tx, access, {
+          action: "safety.candour.reopened",
+          resourceType: "candour_record",
+          resourceId: saved.id,
+          reason: body.reason,
+          scope: { incidentId: id, from: record.state, to },
         });
         return {
           record: await candourItem(

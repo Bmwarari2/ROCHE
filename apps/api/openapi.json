@@ -17242,6 +17242,23 @@
           "version"
         ]
       },
+      "ReopenCandour": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ]
+      },
       "InvestigationView": {
         "type": "object",
         "properties": {
@@ -39621,7 +39638,7 @@
           "safety"
         ],
         "summary": "Add to or correct an incident (the classifier runs again)",
-        "description": "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. Once a candour threshold decision is recorded, a change that takes someone affected out of the candour check (removed, or no longer affected) needs candourReason of at least 20 characters, audited with the person (#120 round 2).",
+        "description": "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. A change that takes someone affected out of the duty of candour check (removed, or no longer affected), whether or not a threshold decision is recorded, needs safety.incident.manage and candourReason of at least 20 characters, and is audited with the person (#120 review rounds 2 and 3).",
         "security": [
           {
             "bearerAuth": []
@@ -40291,6 +40308,105 @@
         "responses": {
           "200": {
             "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandourView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/incidents/{id}/candour/reopen": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Reopen a duty of candour record finished as not notifiable or no contact",
+        "description": "With a reason of at least 20 characters, audited (candourReopenProblems; #120 review round 3, H1). Not notifiable goes back to the threshold decision and no contact to telling the person; a candour notification decided not required becomes a draft again, so its clock and the close block return. Refused on a closed incident.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenCandour"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reopened",
             "content": {
               "application/json": {
                 "schema": {

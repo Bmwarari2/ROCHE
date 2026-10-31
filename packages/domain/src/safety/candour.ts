@@ -224,6 +224,34 @@ export function candourReasonProblems(
   return problems;
 }
 
+/**
+ * Where reopening a finished record takes it (#120 review round 3, H1). A record finished as not
+ * notifiable goes back to the threshold decision, so a new decision can be recorded; one finished
+ * as no contact goes back to telling the person. A record closed after the person was told and
+ * written to stays closed.
+ */
+export const CANDOUR_REOPEN_TO: Readonly<Partial<Record<CandourState, CandourState>>> = {
+  not_notifiable: "threshold_assessment",
+  no_contact: "verbal_due",
+};
+
+/**
+ * Why a finished record cannot be reopened: only one finished as not notifiable or no contact,
+ * and only with a reason of at least `CANDOUR_REASON_MIN` characters, which is audited.
+ */
+export function candourReopenProblems(state: string, reason: string | null | undefined): string[] {
+  const problems: string[] = [];
+  if (!Object.hasOwn(CANDOUR_REOPEN_TO, state)) {
+    problems.push(
+      "Only a duty of candour record finished as not notifiable or no contact can be reopened.",
+    );
+  }
+  if ((reason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
+    problems.push(`Say why the record is reopened, in at least ${CANDOUR_REASON_MIN} characters.`);
+  }
+  return problems;
+}
+
 export interface CandourClocks {
   /** "As soon as reasonably practicable": shown as due from the moment the clock starts. */
   readonly verbalDueAt: Date;

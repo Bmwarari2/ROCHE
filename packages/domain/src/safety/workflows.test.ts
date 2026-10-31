@@ -7,6 +7,7 @@ import { citationText } from "../shared/citation";
 import { workingDaysDeadline } from "../shared/working-days";
 import {
   CANDOUR_REASON_MIN,
+  CANDOUR_REOPEN_TO,
   CANDOUR_WORKFLOW,
   type CandourRecordView,
   type CandourState,
@@ -14,10 +15,16 @@ import {
   candourDecisionNeedsReason,
   candourFindingOf,
   candourReasonProblems,
+  candourReopenProblems,
   candourStateDeadline,
   candourStepProblems,
 } from "./candour";
-import { candourCloseBlock, INCIDENT_WORKFLOW, incidentCloseProblems } from "./incident";
+import {
+  CANDOUR_FINISHED_STATES,
+  candourCloseBlock,
+  INCIDENT_WORKFLOW,
+  incidentCloseProblems,
+} from "./incident";
 import { MEDICAL_EXAMINER_PACK_SECTIONS, missingPackSections } from "./medical-examiner";
 import {
   NOTIFICATION_KINDS,
@@ -334,6 +341,42 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
     ]);
     expect(candourReasonProblems("x".repeat(CANDOUR_REASON_MIN), true)).toEqual([]);
   });
+
+  it.each<[CandourState, CandourState | null]>([
+    ["not_notifiable", "threshold_assessment"],
+    ["no_contact", "verbal_due"],
+    ["closed", null],
+    ["threshold_assessment", null],
+    ["verbal_due", null],
+    ["written_due", null],
+    ["enquiries_open", null],
+  ])(
+    "hazard HZ-013 a finished record at %s reopens to %s, only with a reason (round 3 H1)",
+    (state, to) => {
+      expect(CANDOUR_REOPEN_TO[state] ?? null).toBe(to);
+      const enough = "x".repeat(CANDOUR_REASON_MIN);
+      expect(candourReopenProblems(state, enough)).toHaveLength(to ? 0 : 1);
+      expect(candourReopenProblems(state, "x".repeat(CANDOUR_REASON_MIN - 1))).toHaveLength(
+        to ? 1 : 2,
+      );
+      expect(
+        candourReopenProblems(state, `  ${"x".repeat(CANDOUR_REASON_MIN - 1)}  `),
+      ).toHaveLength(to ? 1 : 2);
+      // Reopening leaves the record unfinished, so closing waits for it again.
+      if (to) {
+        expect(CANDOUR_FINISHED_STATES).toContain(state);
+        expect(CANDOUR_FINISHED_STATES).not.toContain(to);
+        expect(
+          candourCloseBlock(to, {
+            indicated: true,
+            notifiable: false,
+            personId: "a",
+            people: ["a"],
+          }).open,
+        ).toBe(true);
+      }
+    },
+  );
 });
 
 describe("hazard HZ-013 only a holder of safety.notification.submit with step-up can submit", () => {

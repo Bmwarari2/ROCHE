@@ -25,6 +25,7 @@ import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
 } from "../services/break-glass-report";
+import { raiseCandourBlockedTasks } from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
 import {
@@ -43,7 +44,6 @@ import {
   detectLocationOutbreaks,
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
-  raiseCandourBlockedTasks,
 } from "../services/safety";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
@@ -476,8 +476,8 @@ export async function escalateStatutoryNotifications(
 
 /**
  * Incidents the duty of candour has held open for longer than the organisation's period
- * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, escalated by the
- * task engine (#120 review round 2, M4; HZ-013).
+ * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, on its own
+ * escalation ladder, every day until nothing holds it (#120 review rounds 2 and 3; HZ-013).
  */
 export async function raiseCandourBlocked(deps: TaskDeps, now = new Date()): Promise<number> {
   const raised = await eachTenant(deps, "candour-blocked", (tx, tenantId) =>
