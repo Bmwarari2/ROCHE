@@ -365,6 +365,7 @@ function ThresholdForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -496,6 +497,7 @@ function VerbalForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -592,6 +594,7 @@ function AttemptForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -660,6 +663,7 @@ function WrittenForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -751,6 +755,7 @@ function FollowUpForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate

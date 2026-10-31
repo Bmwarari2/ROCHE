@@ -87,6 +87,7 @@ export function InvestigationForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
