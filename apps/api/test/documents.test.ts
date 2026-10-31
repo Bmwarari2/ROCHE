@@ -9,8 +9,10 @@ import type {
 } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EICAR } from "../src/integrations/storage";
+import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 let h: Harness;
@@ -58,6 +60,83 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
     const result = await fn(client);
     await client.query("COMMIT");
     return result;
+  } finally {
+    client.release();
+  }
+}
+
+/** Care ended nine years ago: past the 8-year care-record period. */
+const dischargedLongAgo = (personId: string) =>
+  asDemoTenant((c) =>
+    c.query(
+      "UPDATE person SET status = 'discharged', discharged_at = now() - interval '9 years' WHERE id = $1",
+      [personId],
+    ),
+  );
+
+const storageKeyOf = async (documentId: string) =>
+  (
+    await asDemoTenant((c) =>
+      c.query<{ storage_key: string }>("SELECT storage_key FROM document WHERE id = $1", [
+        documentId,
+      ]),
+    )
+  ).rows[0]?.storage_key ?? "";
+
+/** The outbox events that delete a destroyed document's bytes. */
+const destroyedEvents = async (documentId: string) =>
+  (
+    await asDemoTenant((c) =>
+      c.query<{ published: boolean; attempts: number }>(
+        `SELECT published_at IS NOT NULL AS published, attempts FROM outbox_event
+         WHERE event_type = 'platform.document.destroyed' AND aggregate_id = $1`,
+        [documentId],
+      ),
+    )
+  ).rows;
+
+/** Waits until a request is blocked on an advisory lock (the retention lock). */
+async function waitForRetentionLockWaiter(): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const { rows } = await h.db.pool("harbour_owner").query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_locks
+       WHERE locktype = 'advisory' AND NOT granted
+         AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+    );
+    if ((rows[0]?.n ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("No request waited for the retention lock");
+}
+
+/**
+ * Holds the organisation's retention lock in a transaction, as the routes take it, runs `before`
+ * in it, then sends `send`'s request; commits once that request is waiting for the lock, and
+ * returns its response.
+ */
+async function whileRetentionLockHeld(
+  before: (client: pg.PoolClient) => Promise<unknown>,
+  send: () => Promise<Response>,
+): Promise<Response> {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `retention:${DEMO.tenantId}`,
+    ]);
+    await before(client);
+    const pending = send();
+    await waitForRetentionLockWaiter();
+    await client.query("COMMIT");
+    return await pending;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
@@ -319,6 +398,154 @@ describe("legal holds and destruction (section 5.1)", () => {
     expect((await json<DocumentItem>(await as("manager", `/v1/documents/${doc.id}`))).status).toBe(
       "destroyed",
     );
+    // The bytes went once the certificate was committed, and the retry was queued all the same.
+    expect(await h.handle.services.storage.get(await storageKeyOf(doc.id))).toBeNull();
+    expect(await destroyedEvents(doc.id)).toEqual([{ published: false, attempts: 0 }]);
+  });
+
+  it("audits who read the legal holds and the candidates for destruction", async () => {
+    const holds = await h.request("/v1/legal-holds", {
+      token: h.tokens.owner,
+      tenant: DEMO.tenantId,
+      headers: { "x-request-id": "holds-read-1" },
+    });
+    expect(holds.status).toBe(200);
+    const count = (await json<{ items: unknown[] }>(holds)).items.length;
+    expect(count).toBeGreaterThan(0);
+    const candidates = await h.request("/v1/retention/candidates", {
+      token: h.tokens.owner,
+      tenant: DEMO.tenantId,
+      headers: { "x-request-id": "candidates-read-1" },
+    });
+    expect(candidates.status).toBe(200);
+    const audited = await asDemoTenant((c) =>
+      c.query<{ action: string; actor: string; scope: { count: number } }>(
+        `SELECT action, actor_tenant_user_id AS actor, scope FROM audit_event
+         WHERE request_id IN ('holds-read-1', 'candidates-read-1') ORDER BY seq`,
+      ),
+    );
+    expect(audited.rows).toEqual([
+      { action: "platform.legal_hold.list", actor: DEMO.users.owner.id, scope: { count } },
+      {
+        action: "platform.retention_candidate.list",
+        actor: DEMO.users.owner.id,
+        scope: { count: expect.any(Number) },
+      },
+    ]);
+  });
+
+  it("sees a hold committed while the destruction waits, and a hold waits for a destruction", async () => {
+    await dischargedLongAgo(resident(5));
+    const doc = await json<DocumentItem>(
+      await upload(
+        "manager",
+        { category: "person_document", title: "Old care plan", personId: resident(5) },
+        PDF,
+        "application/pdf",
+      ),
+    );
+
+    // A hold being placed (the route's lock, then the row), committed only once the destruction
+    // is waiting for the lock.
+    const destroyed = await whileRetentionLockHeld(
+      (placing) =>
+        placing.query("INSERT INTO legal_hold (person_id, reason) VALUES ($1, $2)", [
+          resident(5),
+          "Solicitor's letter received",
+        ]),
+      () =>
+        as("owner", "/v1/retention/destroy", {
+          method: "POST",
+          body: { documentIds: [doc.id], reason: "Annual records review" },
+        }),
+    );
+    // Under READ COMMITTED the holds are read after the lock, so it is seen: nothing destroyed.
+    expect(await json<DestructionResult>(destroyed)).toEqual({
+      certificates: [],
+      skipped: [doc.id],
+    });
+    expect(await h.handle.services.storage.get(await storageKeyOf(doc.id))).not.toBeNull();
+
+    // A destruction in progress (the same lock): placing a hold waits for it to commit.
+    const hold = await whileRetentionLockHeld(
+      async () => undefined,
+      () =>
+        as("owner", "/v1/legal-holds", {
+          method: "POST",
+          body: { personId: resident(5), reason: "Second request from the solicitor" },
+        }),
+    );
+    expect(hold.status).toBe(201);
+  });
+
+  it("keeps the certificate when the bytes cannot be deleted, and retries until they are", async () => {
+    await dischargedLongAgo(resident(2));
+    const doc = await json<DocumentItem>(
+      await upload(
+        "manager",
+        { category: "person_document", title: "Old letter", personId: resident(2) },
+        PDF,
+        "application/pdf",
+      ),
+    );
+    const key = await storageKeyOf(doc.id);
+    const { storage } = h.handle.services;
+    const failing = vi.spyOn(storage, "destroy").mockRejectedValue(new Error("unreachable"));
+
+    const result = await json<DestructionResult>(
+      await as("owner", "/v1/retention/destroy", {
+        method: "POST",
+        body: { documentIds: [doc.id], reason: "Annual records review" },
+      }),
+    );
+    // Committed before the bytes were touched: the tombstone and the certificate stand.
+    expect(result.skipped).toEqual([]);
+    expect(result.certificates).toMatchObject([{ recordClass: "care_record", recordCount: 1 }]);
+    const certificate = await asDemoTenant((c) =>
+      c.query<{ subject_ids: string[] }>(
+        "SELECT subject_ids FROM destruction_certificate WHERE id = $1",
+        [result.certificates[0]?.id],
+      ),
+    );
+    expect(certificate.rows[0]?.subject_ids).toEqual([doc.id]);
+    expect((await json<DocumentItem>(await as("manager", `/v1/documents/${doc.id}`))).status).toBe(
+      "destroyed",
+    );
+    expect(await storage.get(key)).not.toBeNull();
+    expect(await destroyedEvents(doc.id)).toEqual([{ published: false, attempts: 0 }]);
+
+    // The worker tries again: still failing, it is logged for the operator's alarm and kept.
+    const logger = createLogger("silent");
+    const logged = vi.spyOn(logger, "error");
+    const deps = {
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: h.handle.services.db,
+      logger,
+      storage,
+    };
+    await relayOutbox(deps, outboxHandlers(deps));
+    expect(await destroyedEvents(doc.id)).toEqual([{ published: false, attempts: 1 }]);
+    expect(logged).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "worker.job.failed",
+        queue: "document-destruction",
+        tenantId: DEMO.tenantId,
+      }),
+      "worker.job.failed",
+    );
+    expect(JSON.stringify(logged.mock.calls)).not.toContain("Old letter");
+
+    // Storage is back: the next try deletes every version and the event is done.
+    failing.mockRestore();
+    await asDemoTenant((c) =>
+      c.query(
+        "UPDATE outbox_event SET available_at = now() WHERE aggregate_id = $1 AND event_type = 'platform.document.destroyed'",
+        [doc.id],
+      ),
+    );
+    await relayOutbox(deps, outboxHandlers(deps));
+    expect(await destroyedEvents(doc.id)).toEqual([{ published: true, attempts: 2 }]);
+    expect(await storage.get(key)).toBeNull();
   });
 
   it("keeps holds and destruction to tenant-wide records roles", async () => {

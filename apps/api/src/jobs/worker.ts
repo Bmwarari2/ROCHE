@@ -49,6 +49,8 @@ const deps = {
   appDb: createDatabase(appPool),
   logger,
   exportStorage: createExportStorage(config),
+  // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
+  storage: createDocumentServices(config).storage,
 };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
@@ -155,7 +157,7 @@ await work(QUEUES.evidenceBundles, async () => {
 const exportDeps = {
   ...deps,
   appPool,
-  storage: createDocumentServices(config).storage,
+  storage: deps.storage,
   exportStorage: deps.exportStorage,
 };
 await work(QUEUES.fullExports, async () => {
