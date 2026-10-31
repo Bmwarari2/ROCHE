@@ -154,6 +154,21 @@ describe("what each task on the round says", () => {
     );
   });
 
+  it("keeps an escalated overdue task in sight when a waiting or sent chip takes its place (#123 check, low)", () => {
+    const item = roundItem(
+      row({
+        window_end: "2026-10-11T09:00:00.000Z",
+        escalation_level: 1,
+        answered_state: "answered",
+      }),
+      NOW,
+    );
+    expect(item.chip.label).toBe("Sent, not marked done");
+    expect(item.flags).toContainEqual(
+      expect.objectContaining({ key: "overdue", label: "Overdue: escalated" }),
+    );
+  });
+
   it("says an escalated overdue task is escalated, in words (#123 clinical review, L11)", () => {
     const item = roundItem(
       row({ window_end: "2026-10-11T09:00:00.000Z", escalation_level: 1 }),

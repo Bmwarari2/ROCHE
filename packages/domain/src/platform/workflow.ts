@@ -1,4 +1,4 @@
-import { addUkDays } from "../shared/time";
+import { addUkDays, toUkWallClock } from "../shared/time";
 import { type BankHolidays, workingDaysDeadline } from "../shared/working-days";
 import { isPermission, type Permission, requiresStepUp } from "./permissions";
 
@@ -33,6 +33,13 @@ export interface WorkflowDefinition<S extends string> {
   readonly terminal: readonly S[];
   readonly transitions: readonly WorkflowTransitionRule<S>[];
   readonly sla?: Partial<Record<S, WorkflowSla>>;
+  /**
+   * The deadline is the record's own clock (a statutory notification's due time, the candour
+   * clocks), which the module writes onto the instance; the engine keeps it across moves and
+   * clears it at a terminal state, instead of working one out from `sla`. `states` are those that
+   * carry such a deadline; in any other state the record has none (#130 review round 2, M2).
+   */
+  readonly deadlineOnRecord?: { readonly states: readonly S[] };
 }
 
 export class WorkflowDefinitionError extends Error {
@@ -76,6 +83,20 @@ export function defineWorkflow<S extends string>(
       throw new WorkflowDefinitionError(
         `${definition.key}: unknown permission ${rule.permission}.`,
       );
+    }
+  }
+  if (definition.deadlineOnRecord) {
+    if (definition.sla) {
+      throw new WorkflowDefinitionError(
+        `${definition.key}: a deadline kept on the record cannot also have an SLA.`,
+      );
+    }
+    for (const state of definition.deadlineOnRecord.states) {
+      if (!states.has(state) || definition.terminal.includes(state)) {
+        throw new WorkflowDefinitionError(
+          `${definition.key}: a record deadline needs an open state, not ${state}.`,
+        );
+      }
     }
   }
   for (const [state, sla] of Object.entries(definition.sla ?? {}) as [S, WorkflowSla][]) {
@@ -191,4 +212,115 @@ export function slaDueAt<S extends string>(
   if (sla.unit === "hours") return new Date(enteredAt.getTime() + value * 3_600_000);
   if (sla.unit === "working_days") return workingDaysDeadline(enteredAt, value, holidays);
   return addUkDays(enteredAt, value);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Approval lists (PLAT-011): where a record stands against its deadline, and what the reader may do
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * A workflow state's deadline as people read it in a list: `overdue` once the deadline has come,
+ * `due_today` when it falls later on the same UK calendar day, `on_track` when it is on a later
+ * day, and `none` when the state has no deadline. Facts from the clock only: no weighting.
+ */
+export type WorkflowSlaState = "none" | "on_track" | "due_today" | "overdue" | "on_record";
+
+const ukDay = (instant: Date) => {
+  const { year, month, day } = toUkWallClock(instant);
+  return year * 10_000 + month * 100 + day;
+};
+
+export function workflowSlaState(slaDueAt: Date | null, now: Date): WorkflowSlaState {
+  if (!slaDueAt) return "none";
+  if (slaDueAt.getTime() <= now.getTime()) return "overdue";
+  return ukDay(slaDueAt) === ukDay(now) ? "due_today" : "on_track";
+}
+
+/**
+ * As `workflowSlaState`, for a listed instance: in a state that carries a deadline kept on its
+ * record, an instance with none yet (one started before the module wrote it) reads `on_record`, a
+ * warning to open the record, never "no deadline" (HZ-013). In a state that carries no deadline
+ * (candour enquiries open), it reads `none`, so the warning keeps its meaning.
+ */
+export function workflowSlaStateFor<S extends string>(
+  definition: WorkflowDefinition<S>,
+  state: S,
+  slaDueAt: Date | null,
+  now: Date,
+): WorkflowSlaState {
+  if (!slaDueAt && recordDeadlineState(definition, state)) return "on_record";
+  return workflowSlaState(slaDueAt, now);
+}
+
+/** Whether `state` carries a deadline kept on the record. */
+export function recordDeadlineState<S extends string>(
+  definition: WorkflowDefinition<S>,
+  state: S,
+): boolean {
+  return definition.deadlineOnRecord?.states.includes(state) ?? false;
+}
+
+/** The states an approval step (one the creator may not take) leaves from. */
+export function approvalStates<S extends string>(definition: WorkflowDefinition<S>): S[] {
+  const states = new Set<S>();
+  for (const t of definition.transitions) {
+    if (t.distinctFromCreator) for (const from of asList(t.from)) states.add(from);
+  }
+  return definition.states.filter((s) => states.has(s));
+}
+
+/** One step the reader may take now, with what it needs. */
+export interface WorkflowMoveOption<S extends string> {
+  readonly to: S;
+  /** A step someone other than the record's creator must take (separation of duties). */
+  readonly approval: boolean;
+  readonly requiresReason: boolean;
+  readonly requiresStepUp: boolean;
+}
+
+export interface WorkflowActorView<S extends string> {
+  /** The steps open to the reader, in the order the workflow declares them. */
+  readonly moves: readonly WorkflowMoveOption<S>[];
+  /** An approval step is open to the reader: the record is waiting for them. */
+  readonly awaitingYourApproval: boolean;
+  /**
+   * The reader holds an approval step's permission but created the record, so someone else must
+   * take it: the list says so rather than offering it.
+   */
+  readonly raisedByYou: boolean;
+}
+
+export function workflowActorView<S extends string>(
+  definition: WorkflowDefinition<S>,
+  instance: WorkflowInstanceView<S>,
+  actorId: string,
+  permissions: ReadonlySet<string>,
+): WorkflowActorView<S> {
+  if (definition.terminal.includes(instance.state)) {
+    return { moves: [], awaitingYourApproval: false, raisedByYou: false };
+  }
+  const fromHere = definition.transitions.filter((t) => asList(t.from).includes(instance.state));
+  const isCreator = actorId === instance.createdBy;
+  const moves = fromHere
+    .filter((t) => permissions.has(t.permission))
+    .filter((t) => !(t.distinctFromCreator && isCreator))
+    .map((t) => ({
+      to: t.to,
+      approval: t.distinctFromCreator === true,
+      requiresReason: t.requiresReason === true,
+      requiresStepUp: t.requiresStepUp === true || requiresStepUp(t.permission),
+    }));
+  return {
+    moves,
+    awaitingYourApproval: moves.some((m) => m.approval),
+    raisedByYou:
+      isCreator && fromHere.some((t) => t.distinctFromCreator && permissions.has(t.permission)),
+  };
+}
+
+/** Every permission some step of the workflow needs: holding none means no stake in it. */
+export function workflowPermissions<S extends string>(
+  definition: WorkflowDefinition<S>,
+): ReadonlySet<Permission> {
+  return new Set(definition.transitions.map((t) => t.permission));
 }

@@ -428,6 +428,17 @@ export function placesCover(places: PermissionPlaces, locationId: string | null)
   return locationId !== null && places.locationIds.includes(locationId);
 }
 
+/**
+ * Whether one permission's scope reaches a home: across the organisation, or at that location.
+ * A scope of assigned people, or of none, reaches no home. Deciding by the record's location, not
+ * by whether row-level security shows it, keeps a permission from acting where it is not held
+ * (an incident shows to its raiser anywhere; #130 review round 2, M1).
+ */
+export function scopeReachesLocation(scope: PermissionScope, locationId: string): boolean {
+  if (scope.scope === "tenant") return true;
+  return scope.scope === "locations" && scope.locationIds.includes(locationId);
+}
+
 export function can(access: EffectiveAccess, permission: Permission): boolean {
   return access.permissions.has(permission);
 }

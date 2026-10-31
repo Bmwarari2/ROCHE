@@ -16,6 +16,7 @@ import {
   type RoleAssignmentInput,
   resolveAccess,
   scopeFor,
+  scopeReachesLocation,
   widestScope,
 } from "./access";
 import {
@@ -845,5 +846,31 @@ describe("hazard HZ-011 hazard HZ-018 a permission reaches no further than what 
       scopeFor(resolveAccess([assignment("clinical_lead", NORTH)], [], NOW), "care.handover.manage")
         .locationIds,
     ).toEqual([NORTH]);
+  });
+});
+
+describe("whether one permission's scope reaches a home (#130 review round 2, M1)", () => {
+  const HOUSE = "0194d000-0000-7000-8000-000000000101";
+  const LODGE = "0194d000-0000-7000-8000-000000000102";
+  const scope = (over: Partial<PermissionScope>): PermissionScope => ({
+    scope: "locations",
+    locationIds: [HOUSE],
+    includesAssigned: false,
+    includesBreakGlass: false,
+    ...over,
+  });
+  it.each<[string, PermissionScope, string, boolean]>([
+    ["across the organisation", scope({ scope: "tenant", locationIds: [] }), LODGE, true],
+    ["at its own home", scope({}), HOUSE, true],
+    ["never at another home", scope({}), LODGE, false],
+    [
+      "never from people assigned",
+      scope({ scope: "assigned", locationIds: [], includesAssigned: true }),
+      HOUSE,
+      false,
+    ],
+    ["never from no scope", scope({ scope: "none", locationIds: [] }), HOUSE, false],
+  ])("%s", (_label, given, locationId, expected) => {
+    expect(scopeReachesLocation(given, locationId)).toBe(expected);
   });
 });
