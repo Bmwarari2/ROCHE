@@ -63,3 +63,17 @@ Branch `feat/safety-complaints`, stacked on `feat/safety-domain-phase-2` (#137).
   another organisation, and audit and events with ids only. `route-gates`, `workflows` and
   `incidents` pass (62).
 - `apps/web/src/lib/approvals.test.ts` (43), with the complaint workflow's words and states.
+
+## Security review fixes (#152)
+
+- M1: `safety.complaint.manage` is now a care-record permission, so the complainant's details and
+  any linked resident need MFA, as incidents and safeguarding do.
+- M2: complaints and compliments no longer copy personal data into `record_version`, which every
+  member reads. `app.capture_version_redacted` (migration 0080) keeps only the named non-personal
+  columns: ids, home, relationship, channel, dates, state, recorder and version. Every other column
+  that held a value reads `[redacted]`. A database test proves that a member without the permission
+  reads none of what a complaint or compliment said from the history.
+- L3: the API checks that a linked person or document is one the caller can see in their scope
+  before it is stored, because the composite foreign keys skip row-level security. An unknown id
+  is refused with 422, never a 500. API test: a resident at another home, an unknown person and an
+  unknown document are each refused.

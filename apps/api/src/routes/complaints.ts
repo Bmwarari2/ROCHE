@@ -13,7 +13,7 @@ import {
   SetComplaintPauses,
   TagCompliment,
 } from "@harbour/contracts";
-import { complaint, compliment, location, type Transaction } from "@harbour/db";
+import { complaint, compliment, document, location, person, type Transaction } from "@harbour/db";
 import {
   COMPLAINT_WORKFLOW,
   type ComplaintClocks,
@@ -201,6 +201,43 @@ async function syncDeadline(tx: Transaction, row: ComplaintRow, { clocks }: Cloc
   );
 }
 
+/**
+ * A person or document linked to a complaint or compliment must be one the caller sees in this
+ * request's scope (#152 security review L3): the composite foreign keys skip row-level security,
+ * so without this a manager at one home could link a resident or document from another.
+ */
+async function requireLinked(
+  tx: Transaction,
+  links: { readonly personId?: string | null; readonly documentId?: string | null },
+): Promise<void> {
+  if (links.personId) {
+    const [seen] = await tx
+      .select({ id: person.id })
+      .from(person)
+      .where(eq(person.id, links.personId));
+    if (!seen) throw problems.invalid("That person is not one you can see.");
+  }
+  if (links.documentId) {
+    const [seen] = await tx
+      .select({ id: document.id })
+      .from(document)
+      .where(and(eq(document.id, links.documentId), isNull(document.deletedAt)));
+    if (!seen) throw problems.invalid("That document is not one you can see.");
+  }
+}
+
+/** A foreign key the database refused (an unknown or unreachable id) as 422, never 500. */
+async function orInvalid<T>(write: Promise<T>): Promise<T> {
+  try {
+    return await write;
+  } catch (error) {
+    const code =
+      (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+    if (code === "23503") throw problems.invalid("A linked record does not exist.");
+    throw error;
+  }
+}
+
 const OPEN_FOR_PAUSES = new Set(["received", "acknowledged", "investigating"]);
 
 export const complaintsRouter = createRouter()
@@ -236,23 +273,26 @@ export const complaintsRouter = createRouter()
         locationId: body.locationId,
       });
       const item = await withTenant(c, async (tx) => {
-        const [row] = await tx
-          .insert(complaint)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            locationId: body.locationId,
-            personId: body.personId ?? null,
-            complainantName: body.complainantName,
-            complainantRelationship: body.complainantRelationship,
-            complainantContact: body.complainantContact ?? null,
-            channel: body.channel,
-            receivedAt: new Date(body.receivedAt),
-            knewOfMatterOn: body.knewOfMatterOn,
-            summary: body.summary,
-            recordedBy: access.tenantUserId,
-          })
-          .onConflictDoNothing()
-          .returning();
+        await requireLinked(tx, { personId: body.personId });
+        const [row] = await orInvalid(
+          tx
+            .insert(complaint)
+            .values({
+              ...(body.id ? { id: body.id } : {}),
+              locationId: body.locationId,
+              personId: body.personId ?? null,
+              complainantName: body.complainantName,
+              complainantRelationship: body.complainantRelationship,
+              complainantContact: body.complainantContact ?? null,
+              channel: body.channel,
+              receivedAt: new Date(body.receivedAt),
+              knewOfMatterOn: body.knewOfMatterOn,
+              summary: body.summary,
+              recordedBy: access.tenantUserId,
+            })
+            .onConflictDoNothing()
+            .returning(),
+        );
         if (!row) throw problems.conflict();
         const clocks = await clocksOf(tx, access.tenantId, row);
         await startWorkflow(
@@ -396,6 +436,7 @@ export const complaintsRouter = createRouter()
             documentId: response?.documentId ?? null,
           });
           if (needs.length > 0) throw problems.invalid(needs.join(" "));
+          await requireLinked(tx, { documentId: response?.documentId });
           if (body.to === "responded") {
             changes.response = response;
             changes.respondedAt = now;
@@ -536,23 +577,26 @@ export const complaintsRouter = createRouter()
         locationId: body.locationId,
       });
       const item = await withTenant(c, async (tx) => {
-        const [row] = await tx
-          .insert(compliment)
-          .values({
-            ...(body.id ? { id: body.id } : {}),
-            locationId: body.locationId,
-            personId: body.personId ?? null,
-            fromName: body.fromName,
-            fromRelationship: body.fromRelationship,
-            receivedAt: new Date(body.receivedAt),
-            summary: body.summary,
-            staffIds: [...new Set(body.staffIds)],
-            evidenceStatementIds: [...new Set(body.evidenceStatementIds)],
-            documentId: body.documentId ?? null,
-            recordedBy: access.tenantUserId,
-          })
-          .onConflictDoNothing()
-          .returning();
+        await requireLinked(tx, { personId: body.personId, documentId: body.documentId });
+        const [row] = await orInvalid(
+          tx
+            .insert(compliment)
+            .values({
+              ...(body.id ? { id: body.id } : {}),
+              locationId: body.locationId,
+              personId: body.personId ?? null,
+              fromName: body.fromName,
+              fromRelationship: body.fromRelationship,
+              receivedAt: new Date(body.receivedAt),
+              summary: body.summary,
+              staffIds: [...new Set(body.staffIds)],
+              evidenceStatementIds: [...new Set(body.evidenceStatementIds)],
+              documentId: body.documentId ?? null,
+              recordedBy: access.tenantUserId,
+            })
+            .onConflictDoNothing()
+            .returning(),
+        );
         if (!row) throw problems.conflict();
         await publish(tx, {
           context: "safety",

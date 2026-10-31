@@ -330,6 +330,10 @@ security checks it again (`app.holds_permission_at`).
   `safety.complaint.closed`, `safety.compliment.recorded`, `safety.compliment.tagged`. The evidence
   library (slice 14) and the quality dashboard (slice 47) read them.
 - Audit events carry record ids only, never the complainant's details or what they said.
+- A linked person or document must be visible in the caller's scope (checked before storing, as the
+  foreign keys skip row-level security); an unknown id is a 422. Version history keeps only
+  non-personal columns (`app.capture_version_redacted`), because every member reads
+  `record_version`.
 - Web screens are slice 62.
 
 Whistleblowing and speaking up (Phase 2 slice 24; rule 3 above; SAFE-012; ADR-0089;

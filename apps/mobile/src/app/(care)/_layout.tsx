@@ -1,17 +1,25 @@
 import { useTheme } from "@harbour/ui-native";
 import { Tabs } from "expo-router";
 import CalendarDays from "lucide-react-native/icons/calendar-days";
+import ClipboardList from "lucide-react-native/icons/clipboard-list";
 import ListChecks from "lucide-react-native/icons/list-checks";
 import Settings from "lucide-react-native/icons/settings";
 import Users from "lucide-react-native/icons/users";
+import { useSession } from "../../app-state/session";
 import { t } from "../../i18n/t";
 
+/** Who takes part in the handover, as the API and the handover streams decide (care.md rule 14). */
+const HANDOVER_PERMISSION = "care.handover.manage";
+
 /**
- * Care mode: Today, Round, People and Settings tabs. Tab icons are Lucide (never SF Symbols); see the
+ * Care mode: Today, Round, Handover (only for those who take part in the handover, whose phone
+ * receives it), People and Settings tabs. Tab icons are Lucide (never SF Symbols); see the
  * README for the planned move to expo-router native tabs once they leave "unstable".
  */
 export default function CareLayout() {
   const theme = useTheme();
+  const { me } = useSession();
+  const handover = (me?.permissions ?? []).includes(HANDOVER_PERMISSION);
   return (
     <Tabs
       screenOptions={{
@@ -45,6 +53,20 @@ export default function CareLayout() {
           tabBarAccessibilityLabel: t("mobile.round.title"),
           tabBarIcon: ({ color, size }) => (
             <ListChecks color={color} size={size} strokeWidth={1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="handover"
+        options={{
+          title: t("mobile.handover.title"),
+          tabBarButtonTestID: "tab-handover",
+          tabBarAccessibilityLabel: t("mobile.handover.title"),
+          // Hidden for those the handover streams send nothing to, so the phone never says
+          // "not compiled yet" for a handover it could never receive.
+          href: handover ? undefined : null,
+          tabBarIcon: ({ color, size }) => (
+            <ClipboardList color={color} size={size} strokeWidth={1.5} />
           ),
         }}
       />

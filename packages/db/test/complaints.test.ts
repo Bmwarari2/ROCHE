@@ -116,6 +116,19 @@ describe("hazard HZ-011 complaints and compliments (migration 0080)", () => {
         c.query("SELECT 1 FROM record_version WHERE record_id = $1", [id]),
       );
       expect(versions.rows.length).toBeGreaterThanOrEqual(1);
+      // A member without the permission reads the version history, never what it said (#152 M2).
+      const history = await asCarer((c) =>
+        c.query<{ data: Record<string, unknown> }>(
+          "SELECT data FROM record_version WHERE record_id = $1",
+          [id],
+        ),
+      );
+      expect(history.rows.length).toBeGreaterThanOrEqual(1);
+      const seen = JSON.stringify(history.rows);
+      for (const secret of ["Pat Example", "Sam Example", "Meals arrive", "birthday tea"]) {
+        expect(seen).not.toContain(secret);
+      }
+      expect(history.rows[0]?.data.summary).toBe("[redacted]");
       await expect(
         asNorthManager((c) =>
           c.query(`UPDATE ${table} SET deleted_at = now() WHERE id = $1`, [id]),

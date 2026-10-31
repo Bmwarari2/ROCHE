@@ -243,6 +243,34 @@ describe("SAFE-011 complaints (Regulation 16)", () => {
     expect(lodge.status).toBe(403);
   });
 
+  it("refuses linking a resident or document the manager cannot see, in words, never a 500", async () => {
+    const lodgeResident = await as("manager", "/v1/complaints", {
+      method: "POST",
+      body: newComplaint({ personId: LODGE.personId }),
+    });
+    expect(lodgeResident.status).toBe(422);
+    expect((await json<ProblemDetails>(lodgeResident)).detail).toMatch(/person/);
+    const unknownPerson = await as("manager", "/v1/complaints", {
+      method: "POST",
+      body: newComplaint({ personId: "0199f000-0000-7000-8000-00000000beef" }),
+    });
+    expect(unknownPerson.status).toBe(422);
+    const unknownDocument = await as("manager", "/v1/compliments", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        fromName: "Sam Example",
+        fromRelationship: "family_or_friend",
+        receivedAt: ago(DAY),
+        summary: "Thank you.",
+        staffIds: [],
+        evidenceStatementIds: [],
+        documentId: "0199f000-0000-7000-8000-00000000beef",
+      },
+    });
+    expect(unknownDocument.status).toBe(422);
+  });
+
   it("refuses a receipt in the future, and knowing of it after it arrived", async () => {
     const future = await as("manager", "/v1/complaints", {
       method: "POST",
