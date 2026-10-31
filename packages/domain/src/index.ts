@@ -61,6 +61,7 @@ export * from "./platform/branding";
 export * from "./platform/data-rights";
 export * from "./platform/documents";
 export * from "./platform/dpia";
+export * from "./platform/dsar";
 export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";

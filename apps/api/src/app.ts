@@ -27,6 +27,7 @@ import { careSettingsRouter } from "./routes/care-settings";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
+import { dsarRouter } from "./routes/dsar";
 import { evidenceLinkRouter } from "./routes/evidence-link";
 import { evidencePacksRouter } from "./routes/evidence-packs";
 import { exportsRouter } from "./routes/exports";
@@ -334,6 +335,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membersRouter);
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
+  app.route("/", dsarRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

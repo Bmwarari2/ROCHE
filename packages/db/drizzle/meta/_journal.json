@@ -526,6 +526,13 @@
       "when": 1793454260156,
       "tag": "0076_quality_framework_library",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793472028214,
+      "tag": "0077_dsar_workbench",
+      "breakpoints": true
     }
   ]
 }

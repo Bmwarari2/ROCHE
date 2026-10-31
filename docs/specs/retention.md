@@ -58,6 +58,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | ai_interaction_log | 12 | months | created | Master prompt 16.2 | Pseudonymised prompts, context sets, model and version, outputs and user actions from the AI gateway. |
 | dpia | 8 | years | record_closed | Interim: as audit_event (UK GDPR Art 5(2) and 35 accountability evidence); #81 security review | DPIA versions: the prefill, the organisation's answers, residual risks, the preparers and the signature bound to the version read. Counted from when a later signed version supersedes it (record_closed), so the DPIA in force is never offered for destruction. Interim period: the DPO sets it (H-115). |
 | invitation | 12 | months | created | Harbour default for data minimisation (UK GDPR Art 5(1)(c) and (e)); #43 review M4 | Invitations to join an organisation. The address is cleared as soon as the invitation is accepted, revoked or lapses (a nightly sweep), so a closed invitation holds opaque ids and times only; the audit trail keeps who was given access, by whom and when, for its own period. DPO to confirm (H-355). |
+| data_rights_case | 3 | years | record_closed | NHS Records Management Code of Practice 2023 (subject access requests and disclosure correspondence: 3 years after closure); ADR-0090 | Data subject requests (`dsar_case`, `dsar_item`): the request, identity check (how, never the document), clock dates, decisions and reasons per record, the outcome and the bundle's hash. Counted from the response or withdrawal (record_closed). The case holds table and record ids; the bundle as issued is kept in the exports bucket under `dsar/`, which the exports' 30-day expiry does not reach, and destroyed with the case. A case under complaint to the ICO or in litigation is kept longer by a legal hold. DPO to confirm (H-613). |
 
 ## Mapping of Phase 0 and Phase 1 tables to record classes
 
@@ -112,6 +113,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `location_visit_restriction` | care_record |
 | `sharing_decision_suspension` ([people.md](people.md)) | care_record, with the decision |
 | `invitation` ([platform.md](platform.md), Invitations and MFA enrolment; migration 0054) | invitation; its address is cleared when it closes, and the link is only ever a hash |
+| `dsar_case`, `dsar_item` ([platform.md](platform.md), Phase 2: the DSAR workbench; migration 0077) | data_rights_case |
 | `tenant_export` ([platform-completions.md](platform-completions.md)) | audit_event; the export file itself is deleted at `export.link_expiry_hours` and never kept as a record |
 | `dpia` | dpia (above; the period is interim until the DPO sets it, H-115) |
 | `sub_processor_response`, `tenant_setting_decision`, `retention_decision` | audit_event (interim: accountability evidence; H-115) |
@@ -142,6 +144,10 @@ of the record they attach to.
   risk assessment decision) is part of the staff file and kept under `staff_file`. An upload of a
   DBS certificate copy is refused.
 - DSAR cases, breach register entries and data-protection complaints (Phase 2).
+- DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
+  confirm the period before the Phase 2 pre-employment file stores them.
+- Breach register entries and data-protection complaints (Phase 2). DSAR cases have their own
+  class, data_rights_case (ADR-0090).
 - DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim
   audit_event (8 years from creation) until the DPO confirms a period (H-115).
 - ECM visit events (Phase 4): likely care_record and rota_and_timesheet together (longest wins).
