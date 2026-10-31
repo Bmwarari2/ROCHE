@@ -496,6 +496,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
   SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
+- `request_id`: the caller's `x-request-id` only when it is a UUID or 1 to 64 letters, digits and
+  hyphens (`apps/api/src/http/request-id.ts`); anything else is replaced by a fresh UUID before the
+  request runs, and the response's `x-request-id` gives the id used. The web passes on only a
+  well-formed id (`apps/web/src/lib/request-id.ts`), so free text (or personal data) never enters
+  the hash chain and a caller cannot write arbitrary log correlation (security review, 31 October
+  2026).
 - Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
   not a member); notification acknowledgement; sync token issue and uploads; integration settings
   and quarantine decisions; operator requests and tenant decisions.
@@ -615,9 +621,25 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (owner, quality lead); RLS enforces the same.
 - `GET /v1/retention/candidates`: documents past their class's period (care-record documents
   count from discharge or death; people still receiving care are never eligible) with no hold.
-- `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
-  row without the title, and writes an append-only `destruction_certificate` per record class
-  (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
+  It and `GET /v1/legal-holds` are audited by count (`platform.retention_candidate.list`,
+  `platform.legal_hold.list`).
+- `POST /v1/retention/destroy`: re-checks each id, keeps a tombstone row without the title, writes
+  an append-only `destruction_certificate` per record class (ids, rule, reason, method), then
+  deletes every stored version. Held, current or unknown ids are returned as skipped.
+  - Holds: placing a hold and destroying both take the organisation's retention lock (a
+    transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
+    reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
+    is always seen and a hold placed meanwhile waits for it to commit (security review, 31
+    October 2026).
+  - Order: the tombstones, the certificate, the audit event and one `platform.document.destroyed`
+    outbox event per document commit together, before any bytes are touched; the bytes are
+    deleted after the commit, so a failed transaction never leaves bytes gone without a
+    certificate. The worker deletes them again from the outbox event (idempotent, only for a
+    document recorded as destroyed) until the storage accepts it, backing off up to an hour.
+  - A failed deletion is detected by the worker's `worker.job.failed` line (queue
+    `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
+    (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
+    `platform.document.destroyed` outbox event with its attempts and error kind.
 - Later: retention of structured care records (not only documents), crypto-shredding with
   per-tenant data keys, and the destruction review screen (Phase 1 web slice).
 
