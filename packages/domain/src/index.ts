@@ -91,6 +91,7 @@ export * from "./safety/outbreak";
 export * from "./safety/post-fall";
 export * from "./safety/questions";
 export * from "./safety/rates";
+export * from "./scheduling/pay";
 export * from "./shared/citation";
 export * from "./shared/email";
 export * from "./shared/time";

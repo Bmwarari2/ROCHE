@@ -67,6 +67,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ssp.waiting_days | 0 | days | 2026-04-06 | - | scotland | master prompt 3, 12.3 (SSP from day one) | master-prompt |
 | ssp.max_weeks | 28 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/employers-sick-pay | verified |
 | family_pay.standard_weekly | 194.32 | GBP_per_week | 2026-04-05 | - | uk | Statutory maternity, paternity, adoption, shared parental and parental bereavement pay standard rate from April 2026 (secondary sources citing gov.uk; start date 5 or 6 April to confirm) | to-verify |
+| family_pay.standard_weekly | 187.18 | GBP_per_week | 2025-04-06 | 2026-04-04 | uk | Statutory family pay standard rate for 2025-26 (secondary sources citing gov.uk) | to-verify |
 | family_pay.earnings_percentage | 90 | percent | 2000-01-01 | - | uk | https://www.gov.uk/maternity-pay-leave (90% of average weekly earnings) | to-verify |
 | smp.higher_rate_weeks | 6 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/maternity-pay-leave (the first 6 weeks at 90%) | to-verify |
 | smp.total_weeks | 39 | weeks | 2007-04-01 | - | uk | https://www.gov.uk/maternity-pay-leave | to-verify |
@@ -97,12 +98,12 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | auto_enrolment.earnings_trigger | 10000.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627; master prompt 12.3 | verified |
 | auto_enrolment.qualifying_earnings.lower | 6240.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
 | auto_enrolment.qualifying_earnings.upper | 50270.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
-| auto_enrolment.earnings_trigger.weekly | 192.00 | GBP_per_week | 2026-04-06 | - | uk | The Pensions Regulator, earnings thresholds by pay reference period (annual figure unchanged for 2026-27) | to-verify |
-| auto_enrolment.earnings_trigger.monthly | 833.00 | GBP_per_month | 2026-04-06 | - | uk | As above | to-verify |
-| auto_enrolment.qualifying_earnings.lower.weekly | 120.00 | GBP_per_week | 2026-04-06 | - | uk | As above | to-verify |
-| auto_enrolment.qualifying_earnings.lower.monthly | 520.00 | GBP_per_month | 2026-04-06 | - | uk | As above | to-verify |
-| auto_enrolment.qualifying_earnings.upper.weekly | 967.00 | GBP_per_week | 2026-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/ earnings thresholds table | verified |
-| auto_enrolment.qualifying_earnings.upper.monthly | 4189.00 | GBP_per_month | 2026-04-06 | - | uk | As above | verified |
+| auto_enrolment.earnings_trigger.weekly | 192.00 | GBP_per_week | 2024-04-06 | - | uk | The Pensions Regulator, earnings thresholds by pay reference period (the annual thresholds unchanged since 2024-25) | to-verify |
+| auto_enrolment.earnings_trigger.monthly | 833.00 | GBP_per_month | 2024-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.lower.weekly | 120.00 | GBP_per_week | 2024-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.lower.monthly | 520.00 | GBP_per_month | 2024-04-06 | - | uk | As above | to-verify |
+| auto_enrolment.qualifying_earnings.upper.weekly | 967.00 | GBP_per_week | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/ earnings thresholds table | verified |
+| auto_enrolment.qualifying_earnings.upper.monthly | 4189.00 | GBP_per_month | 2024-04-06 | - | uk | As above | verified |
 | auto_enrolment.eligible_min_age | 22 | years | 2012-10-01 | - | uk | Pensions Act 2008 (eligible jobholder: aged 22 to state pension age) | to-verify |
 | auto_enrolment.min_age | 16 | years | 2012-10-01 | - | uk | Pensions Act 2008 (non-eligible jobholder and entitled worker from 16) | to-verify |
 | auto_enrolment.max_age | 74 | years | 2012-10-01 | - | uk | Pensions Act 2008 (to 74) | to-verify |
