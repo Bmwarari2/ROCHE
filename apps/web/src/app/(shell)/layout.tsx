@@ -4,6 +4,7 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
@@ -36,10 +37,15 @@ export default async function ShellLayout({ children }: { readonly children: Rea
   const notifications = await api.GET("/v1/notifications").catch(() => null);
   const unread = notifications?.data?.unread ?? 0;
 
+  // White-label accent (PLAT-002): only a colour that passes every contrast check, both themes.
+  const accent = accentStyle(me.tenant.brandAccent);
+  const logo = logoSrc(me.tenant.logoDocumentId);
+
   return (
     <ShellFrame
       user={{ name: me.user.name, email: me.user.email }}
       organisation={{ id: me.tenant.id, name: me.tenant.name }}
+      {...(logo ? { brandLogoSrc: logo } : {})}
       memberships={me.memberships}
       // A family member's portal session works at no location: no location switcher.
       locations={(isFamilyMember(me) ? [] : me.locations).map((location) => {
@@ -70,6 +76,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
+        branding: brandingShown(me.permissions) ? t("shell.nav.branding") : undefined,
         breakGlassReport: breakGlassReportShown(me.permissions)
           ? t("shell.nav.breakGlassReport")
           : undefined,
@@ -82,6 +89,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         signOut: t("common.signOut"),
       }}
     >
+      {accent ? <style>{accent}</style> : null}
       <OfflineBanner />
       <SampleDataBanner present={me.sampleData} mayManage={me.permissions.includes(MANAGE)} />
       {children}
