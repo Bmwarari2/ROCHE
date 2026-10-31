@@ -15,7 +15,14 @@ import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { t } from "@/lib/i18n";
-import { decisionFor, itemChip, MANAGE, ONBOARDING_PAGE, onboardingShown } from "@/lib/onboarding";
+import {
+  decisionFor,
+  itemChip,
+  MANAGE,
+  ONBOARDING_PAGE,
+  onboardingShown,
+  settingName,
+} from "@/lib/onboarding";
 import { firstParam } from "@/lib/record-metadata";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -90,7 +97,7 @@ export default async function OnboardingPage({
               <StaffFileOption current={list.staffFileOption} version={list.version} />
             ) : (
               <>
-                <p className="m-0 font-mono text-body-dense">{entry}</p>
+                <p className="m-0 font-semibold text-body-dense">{settingName(entry)}</p>
                 {kind === "setting" ? (
                   <AcceptSetting
                     rateKey={entry}

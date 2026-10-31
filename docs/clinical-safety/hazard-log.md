@@ -1594,6 +1594,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 
 | Test | Status |
 | --- | --- |
+| `apps/web/src/lib/incidents.test.ts`: `hazard HZ-019 never says follow-up tasks were raised` (the body map's saved message predicts no task, because the API raises them only for marks still present; #160 clinical review) | Passing |
 | `packages/domain` (care): `hazard HZ-019 a mark whose drawn side and stated side differ cannot be saved` | Passing |
 | `packages/domain` (care): `hazard HZ-019 body map sides are the person's own left and right` | Passing |
 | `apps/api/test/care.test.ts`: `hazard HZ-019 body map` (a mark whose stated side differs from the drawing is refused; a category 3 ulcer prompts an incident and the safeguarding guide) | Passing |
@@ -2050,6 +2051,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/api/test/incidents.test.ts`: `hazard HZ-027 a fall creates the post-fall tasks with the observation schedule, shortened for a head injury` (one task per timed observation from the rate table) | Passing |
 | `apps/api/test/incidents.test.ts`: `hazard HZ-027 ruling out both risks replaces the timed observations with general monitoring` and `counts the observations from when an unwitnessed fall was found` | Passing |
 | `packages/domain` (safety): `hazard HZ-027 counts post-fall observations from when the person was found` (`classifier.test.ts`; the found time was dropped before slice 7 stored it) | Passing |
+| `apps/web/src/lib/incidents.test.ts`: `hazard HZ-027 shows the card for …` (every fall in every nation, open or closed, restricted views included), `hazard HZ-027 points to the task list and never predicts the tasks`, `hazard HZ-027 urgent advice matches the post-fall rule: aspirin alone excepted, the procedure followed` (#160 clinical review: the card no longer predicts tasks from the classifier, which lists none outside England and hid them on closing; no API returns an incident's tasks yet) | Passing |
 | Maestro `hazard-HZ-027-post-fall-observations.yaml` | Planned, Phase 1 |
 | `packages/domain/src/platform/onboarding.test.ts` (go-live clinical items): `hazard HZ-027 a post-fall chain with no steps`, `hazard HZ-027 post-fall observation figures not reviewed by the clinical lead` | Passing (Phase 1) |
 | `packages/domain/src/platform/onboarding.test.ts`: `HZ-027 clinical decisions name who reviewed them`; `apps/api/test/onboarding-decisions.test.ts`: `hazard HZ-027 accepts a clinical setting only with the clinical lead or CSO who reviewed it` (refused with no reviewer; the reviewer's member id in the audit event); `apps/web/e2e/onboarding.spec.ts`: a clinical setting refused on the page without its reviewer, then accepted naming them, with axe | Passing (slice 13 web) |

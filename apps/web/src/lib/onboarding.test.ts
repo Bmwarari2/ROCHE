@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { t } from "./i18n";
-import { decisionFor, itemChip, onboardingShown, STAFF_FILE_OPTIONS } from "./onboarding";
+import {
+  decisionFor,
+  itemChip,
+  onboardingShown,
+  STAFF_FILE_OPTIONS,
+  settingName,
+} from "./onboarding";
 
 describe("the onboarding checklist page", () => {
   it.each([
@@ -36,5 +42,18 @@ describe("the onboarding checklist page", () => {
         t("onboarding.staffFile.option", { option: option.replace("staff_file.", "") }),
       ),
     ).toEqual(["For the set period after the person leaves", "Until the person's 75th birthday"]);
+  });
+});
+
+describe("settings and record classes in words on the checklist", () => {
+  it.each([
+    ["care_plan.review_interval_months", "Care plan review interval (months)"],
+    ["care_plan.initial_working_days", "Care plan initial (working days)"],
+    ["downtime_pack", "Downtime pack"],
+    ["news2.escalation_minutes", "NEWS2 escalation (minutes)"],
+    ["la_review.interval_months", "LA review interval (months)"],
+    ["serious_incident", "Serious incident"],
+  ])("shows %s as %s, never the key", (key, words) => {
+    expect(settingName(key)).toBe(words);
   });
 });

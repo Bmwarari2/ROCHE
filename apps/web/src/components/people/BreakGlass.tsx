@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, buttonClassName, Sheet, SheetClose, TextArea } from "@harbour/ui";
+import { Button, buttonClassName, SelectField, Sheet, SheetClose, TextArea } from "@harbour/ui";
 import { LockOpen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,11 @@ export interface BreakGlassLabels {
   readonly body: string;
   readonly justification: string;
   readonly hint: string;
+  /** "Why you need this record": the reason code the weekly report counts (PLAT-006). */
+  readonly reasonCode: string;
+  readonly chooseReason: string;
+  readonly reasonOptions: readonly { readonly value: string; readonly label: string }[];
+  readonly noReasonCode: string;
   readonly submit: string;
   readonly cancel: string;
   readonly close: string;
@@ -45,6 +50,7 @@ export function BreakGlass({
   const [error, setError] = useState<string | null>(null);
   const [stepUp, setStepUp] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   // The message is part of the field's description, so moving focus to the field reads it out.
   const fail = (message: string) => {
@@ -54,16 +60,25 @@ export function BreakGlass({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const reason = String(new FormData(event.currentTarget).get("justification") ?? "").trim();
+    const form = new FormData(event.currentTarget);
+    const reason = String(form.get("justification") ?? "").trim();
+    const reasonCode = String(form.get("reasonCode") ?? "");
+    // Both problems are shown at once; focus goes to the first field on screen (the reason code).
     const problem = justificationProblem(reason);
+    const codeMissing = !labels.reasonOptions.some((option) => option.value === reasonCode);
+    setCodeError(codeMissing ? labels.noReasonCode : null);
+    setError(problem ? labels.failure[problem] : null);
+    if (codeMissing) {
+      requestAnimationFrame(() => document.getElementById("break-glass-reason-code")?.focus());
+      return;
+    }
     if (problem) {
       fail(labels.failure[problem]);
       return;
     }
-    setError(null);
     setBusy(true);
     try {
-      const outcome = await openBreakGlass(personId, reason);
+      const outcome = await openBreakGlass(personId, reason, reasonCode);
       if (outcome.ok) {
         setOpen(false);
         router.refresh();
@@ -93,6 +108,7 @@ export function BreakGlass({
         setOpen(next);
         if (!next) {
           setError(null);
+          setCodeError(null);
           setStepUp(false);
         }
       }}
@@ -122,6 +138,15 @@ export function BreakGlass({
         </div>
       ) : (
         <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
+          <SelectField
+            id="break-glass-reason-code"
+            name="reasonCode"
+            label={labels.reasonCode}
+            emptyOption={labels.chooseReason}
+            required
+            options={labels.reasonOptions}
+            {...(codeError ? { error: codeError } : {})}
+          />
           <TextArea
             ref={fieldRef}
             name="justification"
