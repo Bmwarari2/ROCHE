@@ -428,7 +428,7 @@ at `enquiry`, with the same location, names, date of birth and, when sent, time 
 the same id with other details is refused with 409 `id_reused_with_different_details`, nothing
 changed (the form then starts a new id and asks for the list to be checked, HZ-001); any other
 record's id, seen or not, is refused alike (422). Refusals are audited as denied with opaque ids
-(`outside_scope`, `location_not_found`, `id_in_use`, `id_reused_with_different_details`). The NHS number and other details are not taken here: the
+(`outside_scope`, `location_not_found`, `id_in_use`, `id_reused_with_different_details`). Every request takes one path: the insert, which does nothing when the id is in use (`ON CONFLICT (id) DO NOTHING`), then a read of what holds it, so an id the caller cannot see and someone else's record they can are refused after the same steps; while sample people are loaded every insert is refused with 422 `remove_sample_data_first`. Names are one line (no line breaks or other control characters) and free text has no control characters but tab and line breaks, so no value can start a line of its own in a log or a print. The NHS number and other details are not taken here: the
 demographics edit (PEOP-001) records them. The enquiry pipeline itself (sources, stages,
 follow-ups) stays PEOP-004. `GET /v1/locations/{id}/services` lists a location's services (no
 personal data) for the assessment and the admission. Tests: `apps/api/test/people-enquiries.test.ts`.

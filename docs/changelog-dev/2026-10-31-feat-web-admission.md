@@ -66,5 +66,16 @@ Branch `feat/web-admission`.
     reaches the log (and fails with the old logging).
   - L1: refusals are audited as denied with opaque ids (`outside_scope`, `location_not_found`,
     `id_in_use`, `id_reused_with_different_details`).
+- Security review round 2 (PR #118):
+  - L1: `loggableError` drops the stack's lines that repeat the message, counted by the
+    message's lines, then keeps only lines shaped like a real frame (`at ... :line:column`), so a
+    value shaped like a frame ("    at 12 Acacia Road ...") never reaches the log; the contract's
+    `text()` refuses control characters other than tab and line breaks, and names refuse line
+    breaks too. A log-capture test with such a line in a free-text value fails with the old filter.
+  - L2: one path for every id: `INSERT ... ON CONFLICT (id) DO NOTHING`, then a read to decide
+    between a replay, 409 and 422; the sample-data refusal is 422 like an id in use.
+  - CI: `smoke.spec.ts` checks "Allergies not recorded" on Cara's row only; the admission journey
+    discharges the person it admitted and the pre-admission journey closes what it left open, so
+    later specs and runs find the demo home as it was.
 - Main merged (#105, #109, #112, #117 and others): the record keeps the reviews and hospital tabs
   beside the three tabs here; People offers the reviews tracker beside enquiries.
