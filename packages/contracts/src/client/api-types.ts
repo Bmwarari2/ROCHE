@@ -7281,7 +7281,7 @@ export interface paths {
     put?: never;
     /**
      * Raise a concern anonymously (no sign-in)
-     * @description No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor; no event is published. With wantsReplies the response holds a reply token once: keep it to read replies and reply. Throttled per client address in memory.
+     * @description No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor and only the lead reads it; no event is published. With wantsReplies the response holds a reply token once, with the last date it works: keep it to read replies and reply. Limited per network, per organisation per minute and per organisation per day, counted in Postgres.
      */
     post: {
       parameters: {
@@ -7734,10 +7734,16 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Concerns you hold as the Freedom to Speak Up lead or as a member of the case */
+    /**
+     * Concerns you hold as the Freedom to Speak Up lead or as a member of the case
+     * @description Newest first, a page at a time (pass nextCursor back as cursor). The lead also sees when today's anonymous concerns have reached the organisation's daily limit.
+     */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          cursor?: string;
+          limit?: number;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -8082,6 +8088,76 @@ export interface paths {
         };
         /** @description Not found or outside your access */
         404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/speak-up/lead": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Appoint or remove the Freedom to Speak Up lead
+     * @description Needs platform.user.manage, without holding the lead's silo permission (app.set_speak_up_lead, ADR-0089). Nobody appoints themselves, and the lead never also manages users or roles. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetSpeakUpLead"];
+        };
+      };
+      responses: {
+        /** @description Done, or nothing to change */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SpeakUpLeadChanged"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
           headers: {
             [name: string]: unknown;
           };
@@ -25192,6 +25268,8 @@ export interface components {
       /** Format: date */
       receivedOn: string;
       replyToken: components["schemas"]["SpeakUpReplyToken"];
+      /** Format: date */
+      replyTokenExpiresOn: string | null;
     };
     SpeakUpReplyToken: string | null;
     RaiseAnonymousSpeakUp: {
@@ -25255,6 +25333,11 @@ export interface components {
     };
     SpeakUpCaseList: {
       items: components["schemas"]["SpeakUpCase"][];
+      nextCursor: string | null;
+      possibleFlood: {
+        count: number;
+        cap: number;
+      } | null;
     };
     SpeakUpCase: {
       /** Format: uuid */
@@ -25311,6 +25394,14 @@ export interface components {
     };
     SetSpeakUpMembers: {
       memberIds: string[];
+    };
+    SpeakUpLeadChanged: {
+      changed: boolean;
+    };
+    SetSpeakUpLead: {
+      /** Format: uuid */
+      tenantUserId: string;
+      appoint: boolean;
     };
     WorkflowInstanceList: {
       items: components["schemas"]["WorkflowInstanceItem"][];

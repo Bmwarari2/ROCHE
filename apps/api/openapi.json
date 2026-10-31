@@ -7816,11 +7816,19 @@
           },
           "replyToken": {
             "$ref": "#/components/schemas/SpeakUpReplyToken"
+          },
+          "replyTokenExpiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
           }
         },
         "required": [
           "receivedOn",
-          "replyToken"
+          "replyToken",
+          "replyTokenExpiresOn"
         ]
       },
       "SpeakUpReplyToken": {
@@ -8048,10 +8056,36 @@
             "items": {
               "$ref": "#/components/schemas/SpeakUpCase"
             }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "possibleFlood": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "cap": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "count",
+              "cap"
+            ]
           }
         },
         "required": [
-          "items"
+          "items",
+          "nextCursor",
+          "possibleFlood"
         ]
       },
       "SpeakUpCase": {
@@ -8293,6 +8327,33 @@
         },
         "required": [
           "memberIds"
+        ]
+      },
+      "SpeakUpLeadChanged": {
+        "type": "object",
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "changed"
+        ]
+      },
+      "SetSpeakUpLead": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appoint": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "appoint"
         ]
       },
       "WorkflowInstanceList": {
@@ -34287,7 +34348,7 @@
           "safety"
         ],
         "summary": "Raise a concern anonymously (no sign-in)",
-        "description": "No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor; no event is published. With wantsReplies the response holds a reply token once: keep it to read replies and reply. Throttled per client address in memory.",
+        "description": "No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor and only the lead reads it; no event is published. With wantsReplies the response holds a reply token once, with the last date it works: keep it to read replies and reply. Limited per network, per organisation per minute and per organisation per day, counted in Postgres.",
         "parameters": [
           {
             "schema": {
@@ -34745,12 +34806,35 @@
           "safety"
         ],
         "summary": "Concerns you hold as the Freedom to Speak Up lead or as a member of the case",
+        "description": "Newest first, a page at a time (pass nextCursor back as cursor). The lead also sees when today's anonymous concerns have reached the organisation's daily limit.",
         "security": [
           {
             "bearerAuth": []
           },
           {
             "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
           }
         ],
         "responses": {
@@ -35122,6 +35206,74 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/lead": {
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Appoint or remove the Freedom to Speak Up lead",
+        "description": "Needs platform.user.manage, without holding the lead's silo permission (app.set_speak_up_lead, ADR-0089). Nobody appoints themselves, and the lead never also manages users or roles. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpeakUpLead"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done, or nothing to change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpLeadChanged"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

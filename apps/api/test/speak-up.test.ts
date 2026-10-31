@@ -10,7 +10,13 @@ import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
-import { createHarness, type Harness, markSessionsVerified, PASSWORD } from "./support/harness";
+import {
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  PASSWORD,
+} from "./support/harness";
 
 /**
  * Whistleblowing and speaking up through the API (Phase 2 slice 24; SAFE-012; ADR-0089). The
@@ -36,13 +42,21 @@ const asLead = (path: string, init = {}) => as(guardian, path, init);
 const publicRequest = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   h.request(path, { method: "POST", body, headers });
 
-async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+/**
+ * The owner database role in the demo organisation; with `userId`, as that member. The silo binds
+ * the owner role too, so checks on what was stored read as the lead (`asLeadDb`).
+ */
+async function asDemoTenant<T>(
+  fn: (c: pg.PoolClient) => Promise<T>,
+  userId: string | null = null,
+): Promise<T> {
   const client = await h.db.pool("harbour_owner").connect();
   try {
     await client.query("BEGIN");
     await client.query(
-      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-      [DEMO.tenantId],
+      `SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true),
+              set_config('app.user_id', $2, true)`,
+      [DEMO.tenantId, userId ?? ""],
     );
     const result = await fn(client);
     await client.query("COMMIT");
@@ -84,8 +98,10 @@ async function appointLead(): Promise<string> {
   return token;
 }
 
+const asLeadDb = <T>(fn: (c: pg.PoolClient) => Promise<T>) => asDemoTenant(fn, GUARDIAN_ID);
+
 const traces = (concernId: string) =>
-  asDemoTenant(async (c) => {
+  asLeadDb(async (c) => {
     const audit = await c.query(
       `SELECT action, actor_tenant_user_id, actor_auth_user_id, actor_role_keys, ip, device_id,
               request_id, scope
@@ -115,10 +131,13 @@ const step = (id: string, body: Record<string, unknown>) =>
 beforeAll(async () => {
   h = await createHarness();
   guardian = await appointLead();
-  // The nurse is named on cases below: a member reading a case needs MFA like any care record.
+  // The nurse is named on cases below, and the quality lead appointed lead: reading a case needs
+  // MFA like any care record.
   await h.db
     .pool("harbour_auth")
-    .query("UPDATE auth.user SET two_factor_enabled = true WHERE id = $1", [h.authIds.nurse]);
+    .query("UPDATE auth.user SET two_factor_enabled = true WHERE id = ANY($1)", [
+      [h.authIds.nurse, h.authIds.quality],
+    ]);
   await markSessionsVerified(h.db.pool("harbour_auth"));
 }, 180_000);
 
@@ -143,7 +162,7 @@ describe("SAFE-012 anonymous concerns (ADR-0089)", () => {
     expect(raised.replyToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const token = raised.replyToken as string;
 
-    const stored = await asDemoTenant(async (c) => {
+    const stored = await asLeadDb(async (c) => {
       const { rows } = await c.query("SELECT * FROM speak_up_concern WHERE reply_token_hash = $1", [
         hashOf(token),
       ]);
@@ -154,7 +173,7 @@ describe("SAFE-012 anonymous concerns (ADR-0089)", () => {
     expect(concern).toMatchObject({ identity: "anonymous", created_by: null, updated_by: null });
     // The token itself is stored nowhere, only its hash.
     expect(JSON.stringify(stored)).not.toContain(token);
-    const reporters = await asDemoTenant(
+    const reporters = await asLeadDb(
       async (c) =>
         (await c.query("SELECT 1 FROM speak_up_reporter WHERE concern_id = $1", [concern.id])).rows,
     );
@@ -243,18 +262,69 @@ describe("SAFE-012 anonymous concerns (ADR-0089)", () => {
     expect(closed.status, await closed.clone().text()).toBe(200);
   });
 
-  it("throttles public requests by address", async () => {
-    let last = 0;
+  it("limits public requests per network in Postgres, an IPv6 /64 counting as one", async () => {
+    const statuses: number[] = [];
     for (let i = 0; i < 11; i += 1) {
-      last = (
-        await publicRequest(
-          `/p/speak-up/${DEMO.tenantId}/thread`,
-          { replyToken: "B".repeat(43) },
-          { "x-forwarded-for": "198.51.100.23" },
-        )
-      ).status;
+      statuses.push(
+        (
+          await publicRequest(
+            `/p/speak-up/${DEMO.tenantId}/thread`,
+            { replyToken: "B".repeat(43) },
+            { "x-forwarded-for": `2001:db8:5:7::${(i + 1).toString(16)}` },
+          )
+        ).status,
+      );
     }
-    expect(last).toBe(429);
+    expect(statuses.slice(0, 10).every((s) => s === 404)).toBe(true);
+    expect(statuses[10]).toBe(429);
+    // Another network is not held back.
+    const other = await publicRequest(
+      `/p/speak-up/${DEMO.tenantId}/thread`,
+      { replyToken: "B".repeat(43) },
+      { "x-forwarded-for": "2001:db8:5:8::1" },
+    );
+    expect(other.status).toBe(404);
+    // The count holds no address, only a keyed hash.
+    const buckets = await asDemoTenant(async (c) => {
+      await c.query("SELECT set_config('app.speak_up', 'true', true)");
+      return (await c.query<{ bucket: string }>("SELECT bucket FROM speak_up_intake")).rows;
+    });
+    expect(JSON.stringify(buckets)).not.toMatch(/2001|db8/);
+    expect(buckets.some((b) => /^net:[0-9a-f]{64}$/.test(b.bucket))).toBe(true);
+  });
+
+  it("takes the longest concern on the public route, and refuses a body past 48 KiB", async () => {
+    // 10,000 four-byte characters: the longest concern there is (about 40 KB), never an emoji.
+    const longest = "\u{20000}".repeat(10_000);
+    const accepted = await publicRequest(
+      `/p/speak-up/${DEMO.tenantId}`,
+      { category: "other", summary: longest, wantsReplies: false },
+      { "x-forwarded-for": "192.0.2.10" },
+    );
+    expect(accepted.status, await accepted.clone().text()).toBe(201);
+    const tooLarge = await h.request(`/p/speak-up/${DEMO.tenantId}`, {
+      method: "POST",
+      raw: {
+        bytes: new TextEncoder().encode(
+          JSON.stringify({ category: "other", summary: "x".repeat(49_200), wantsReplies: false }),
+        ),
+        contentType: "application/json",
+      },
+      headers: { "x-forwarded-for": "192.0.2.11" },
+    });
+    expect(tooLarge.status).toBe(413);
+  });
+
+  it("gives the reply token's last date, from the rate table", async () => {
+    const raised = await json<AnonymousSpeakUpRaised>(
+      await publicRequest(
+        `/p/speak-up/${DEMO.tenantId}`,
+        { category: "other", summary: "The fire door is propped open.", wantsReplies: true },
+        { "x-forwarded-for": "192.0.2.12" },
+      ),
+    );
+    expect(raised.replyTokenExpiresOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((raised.replyTokenExpiresOn as string) > raised.receivedOn).toBe(true);
   });
 });
 
@@ -370,5 +440,89 @@ describe("SAFE-012 named and confidential concerns (ADR-0089)", () => {
         (await json<SpeakUpThreadList>(await asUser(user, "/v1/speak-up/mine"))).items,
       ).toEqual([]);
     }
+  });
+});
+
+describe("SAFE-012 the lead's view and appointment (ADR-0089 security review)", () => {
+  it("pages the lead's list by cursor, and refuses a cursor Harbour did not give", async () => {
+    await raiseNamed("named");
+    await raiseNamed("named");
+    const first = await json<SpeakUpCaseList>(await asLead("/v1/speak-up/cases?limit=2"));
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+    const second = await json<SpeakUpCaseList>(
+      await asLead(`/v1/speak-up/cases?limit=2&cursor=${first.nextCursor}`),
+    );
+    expect(second.items.length).toBeGreaterThan(0);
+    for (const item of second.items) {
+      expect(first.items.map((i) => i.id)).not.toContain(item.id);
+    }
+    expect((await asLead("/v1/speak-up/cases?cursor=not-ours")).status).toBe(422);
+  });
+
+  it("keeps speak-up audit events out of the owner's audit view", async () => {
+    const raised = await raiseNamed("confidential");
+    await asLead(`/v1/speak-up/cases/${raised.id}`);
+    const response = await asUser("owner", `/v1/audit?resourceId=${raised.id}`);
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(JSON.stringify(await response.json())).not.toContain("speak_up");
+    expect((await traces(raised.id)).audit.length).toBeGreaterThan(0);
+  });
+
+  it("lets the owner appoint and remove a lead, never themselves, and a carer neither", async () => {
+    const quality = LODGE.qualityLeadId;
+    const appoint = await asUser("owner", "/v1/speak-up/lead", {
+      method: "PUT",
+      body: { tenantUserId: quality, appoint: true },
+    });
+    expect(appoint.status, await appoint.clone().text()).toBe(200);
+    expect((await json<{ changed: boolean }>(appoint)).changed).toBe(true);
+    const asQuality = await as(h.tokens.quality as string, "/v1/speak-up/cases");
+    expect(asQuality.status, await asQuality.clone().text()).toBe(200);
+    expect((await json<SpeakUpCaseList>(asQuality)).items.length).toBeGreaterThan(0);
+    const remove = await asUser("owner", "/v1/speak-up/lead", {
+      method: "PUT",
+      body: { tenantUserId: quality, appoint: false },
+    });
+    expect((await json<{ changed: boolean }>(remove)).changed).toBe(true);
+    const after = await as(h.tokens.quality as string, "/v1/speak-up/cases");
+    expect((await json<SpeakUpCaseList>(after)).items).toEqual([]);
+
+    const self = await asUser("owner", "/v1/speak-up/lead", {
+      method: "PUT",
+      body: { tenantUserId: DEMO.users.owner.id, appoint: true },
+    });
+    expect(self.status).toBe(422);
+    const carer = await asUser("carer", "/v1/speak-up/lead", {
+      method: "PUT",
+      body: { tenantUserId: quality, appoint: true },
+    });
+    expect(carer.status).toBe(403);
+  });
+
+  it("refuses anonymous concerns past the daily limit and shows the lead a possible flood", async () => {
+    // Today's count at the limit (as many concerns as SPEAK_UP_ANONYMOUS_PER_DAY allows).
+    await asDemoTenant(async (c) => {
+      await c.query("SELECT set_config('app.speak_up', 'true', true)");
+      await c.query(
+        `INSERT INTO speak_up_intake (bucket, window_start, window_end, hits)
+         VALUES ('day',
+           date_trunc('day', now() AT TIME ZONE 'Europe/London') AT TIME ZONE 'Europe/London',
+           (date_trunc('day', now() AT TIME ZONE 'Europe/London') AT TIME ZONE 'Europe/London')
+             + interval '1 day', 50)
+         ON CONFLICT (tenant_id, bucket, window_start) DO UPDATE SET hits = 50`,
+      );
+    });
+    const refused = await publicRequest(
+      `/p/speak-up/${DEMO.tenantId}`,
+      { category: "other", summary: "One more concern.", wantsReplies: false },
+      { "x-forwarded-for": "192.0.2.50" },
+    );
+    expect(refused.status).toBe(429);
+    expect((await json<{ code: string }>(refused)).code).toBe("speak_up_daily_limit");
+    const list = await json<SpeakUpCaseList>(await asLead("/v1/speak-up/cases"));
+    expect(list.possibleFlood).toMatchObject({ cap: 50 });
+    const member = await json<SpeakUpCaseList>(await asUser("nurse", "/v1/speak-up/cases"));
+    expect(member.possibleFlood).toBeNull();
   });
 });

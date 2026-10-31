@@ -68,6 +68,8 @@ export const AnonymousSpeakUpRaised = z
     receivedOn: isoDate,
     /** Shown once and never again: Harbour keeps only its SHA-256. Null when no replies wanted. */
     replyToken: SpeakUpReplyToken.nullable(),
+    /** The last UK date the token opens the concern (`speak_up.reply_token_days`). */
+    replyTokenExpiresOn: isoDate.nullable(),
   })
   .meta({ id: "AnonymousSpeakUpRaised" });
 export type AnonymousSpeakUpRaised = z.infer<typeof AnonymousSpeakUpRaised>;
@@ -144,7 +146,16 @@ export const SpeakUpCaseDetail = SpeakUpCase.extend({
 export type SpeakUpCaseDetail = z.infer<typeof SpeakUpCaseDetail>;
 
 export const SpeakUpCaseList = z
-  .object({ items: z.array(SpeakUpCase) })
+  .object({
+    items: z.array(SpeakUpCase),
+    /** Pass as `cursor` for the next page; null on the last. */
+    nextCursor: z.string().nullable(),
+    /**
+     * For the lead: today's anonymous concerns reached the organisation's daily limit, so more are
+     * being refused. Null otherwise, and always for a member.
+     */
+    possibleFlood: z.object({ count: z.number().int(), cap: z.number().int() }).nullable(),
+  })
   .meta({ id: "SpeakUpCaseList" });
 export type SpeakUpCaseList = z.infer<typeof SpeakUpCaseList>;
 
@@ -164,3 +175,11 @@ export const SetSpeakUpMembers = z
   .meta({ id: "SetSpeakUpMembers" });
 
 export const PostSpeakUpMessage = z.object({ body }).meta({ id: "PostSpeakUpMessage" });
+
+export const SetSpeakUpLead = z
+  .object({ tenantUserId: uuid, appoint: z.boolean() })
+  .meta({ id: "SetSpeakUpLead" });
+
+export const SpeakUpLeadChanged = z
+  .object({ changed: z.boolean() })
+  .meta({ id: "SpeakUpLeadChanged" });

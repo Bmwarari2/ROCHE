@@ -92,8 +92,6 @@ export interface Services {
     readonly address: MemoryThrottle;
     readonly link: MemoryThrottle;
   };
-  /** Public speak-up requests, by a hash of the client address (ADR-0089; never stored). */
-  readonly speakUpThrottle: MemoryThrottle;
   /** Invitation links opened or accepted: per client address and per token hash. */
   readonly invitationThrottles: {
     readonly address: MemoryThrottle;

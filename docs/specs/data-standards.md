@@ -448,7 +448,8 @@ mapping of incident types to LFPSE categories is an open item below.
 | `speak_up_concern.category` | Harbour | `care_quality_or_safety`, `staff_safety`, `conduct`, `bullying_or_harassment`, `fraud_or_finance`, `other` | |
 | `speak_up_concern.state` | National Guardian's Office guidance (`SPEAK_UP_WORKFLOW`) | `received`, `acknowledged`, `under_review`, `outcome_shared`, `closed` (reason) | Acknowledgement target `whistleblowing.acknowledge_working_days`; the outcome is shared before closing unless no one can be told |
 | `speak_up_concern.received_on` | Harbour | ISO date (UK) | A date only, so its time never lines up with other activity |
-| Speak-up reply token | Harbour (ADR-0089) | 256 random bits, base64url (43 characters) | Shown once; sent only in request bodies; stored only as `reply_token_hash` |
+| Speak-up reply token | Harbour (ADR-0089) | 256 random bits, base64url (43 characters) | Shown once; sent only in request bodies; stored only as `reply_token_hash`; expires at `reply_token_expires_at` (`speak_up.reply_token_days` after raising) |
+| `speak_up_intake.bucket` | Harbour (ADR-0089) | `net:` and an HMAC-SHA256 (hex) of the UK date and network, `tenant` or `day` | The network is an IPv6 /64 or an IPv4 address, never stored itself |
 | `complaint.response`, `appeal_response` | Harbour (`complaintResponseProblems`) | `{ outcome: upheld, partly_upheld or not_upheld, actionsTaken, ombudsmanSignposted: true, documentId }` | A response is refused without the Ombudsman signposted and a kept copy |
 | `compliment.evidence_statement_ids` | The compliance framework's quality statement identifiers (slice 14) | Up to 50 identifiers | Not checked against the framework until slice 14 lands |
 | `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |

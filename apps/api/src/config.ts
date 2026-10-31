@@ -84,8 +84,19 @@ const Env = z.object({
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
-  /** Public speak-up requests (raise, read, reply) per minute per client address, per instance. */
-  SPEAK_UP_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(10),
+  /**
+   * Public speak-up limits (ADR-0089, security review H1), counted in Postgres across instances:
+   * requests per minute from one network (an IPv6 /64 or an IPv4 address), requests per minute to
+   * one organisation, and anonymous concerns per organisation per UK day.
+   */
+  SPEAK_UP_REQUESTS_PER_MINUTE_PER_NETWORK: z.coerce.number().int().positive().default(10),
+  SPEAK_UP_REQUESTS_PER_MINUTE_PER_TENANT: z.coerce.number().int().positive().default(60),
+  SPEAK_UP_ANONYMOUS_PER_DAY: z.coerce.number().int().positive().default(50),
+  /** Keys the network hash in the speak-up counts (a secret from the managed store; L6). */
+  SPEAK_UP_THROTTLE_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-speak-up-throttle-secret-0123456789"),
   /** How long a verified link session lasts in the browser (never past the link's own expiry). */
   EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
@@ -152,6 +163,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
     if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
       throw new Error("EVIDENCE_LINK_SECRET must be set in production");
+    }
+    if (parsed.SPEAK_UP_THROTTLE_SECRET.startsWith("local-development")) {
+      throw new Error("SPEAK_UP_THROTTLE_SECRET must be set in production");
     }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");

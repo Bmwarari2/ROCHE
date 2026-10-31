@@ -6,10 +6,12 @@ import {
   ProblemDetails,
   RaiseAnonymousSpeakUp,
   RaiseSpeakUp,
+  SetSpeakUpLead,
   SetSpeakUpMembers,
   type SpeakUpCase,
   SpeakUpCaseDetail,
   SpeakUpCaseList,
+  SpeakUpLeadChanged,
   type SpeakUpMessage,
   SpeakUpStep,
   type SpeakUpThread,
@@ -31,6 +33,8 @@ import {
 import {
   can,
   checkWorkflowTransition,
+  resolveRate,
+  SAFETY_PHASE2_RATE_KEYS,
   SPEAK_UP_WORKFLOW,
   type SpeakUpIdentity,
   type SpeakUpState,
@@ -38,7 +42,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -50,6 +54,14 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { throttleAddress } from "../http/throttle";
+import { rateRows } from "../services/rates";
+import {
+  countIntake,
+  type IntakeBucket,
+  networkBucket,
+  networkOf,
+  possibleFlood,
+} from "../services/speak-up-intake";
 import { type StaffLookup, staffNames } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
 
@@ -273,18 +285,49 @@ const publicErrors = {
   429: problem("Too many requests; wait as Retry-After says"),
 } as const;
 
-/** Throttled by a hash of the client address, in this instance's memory only (never stored). */
-function throttlePublic(c: Context<AppEnv>): void {
-  const services = c.get("services");
-  const address = throttleAddress(c.req.header("x-forwarded-for"), services.config.trustedProxies);
-  const wait = services.speakUpThrottle.take(hashOf(`speak-up:${address ?? "unknown"}`));
-  if (wait === null) return;
-  const limited = new HttpProblem(
-    429,
-    "rate_limited",
-    "Too many attempts. Wait a moment and try again.",
+/**
+ * Counts a public request against the network, the organisation's minute and (for a new
+ * concern) the organisation's day, in Postgres and in a transaction of its own, so the count stands
+ * even when the request then fails (security review H1). An organisation that does not exist or is
+ * not live takes nothing (404) and counts nothing.
+ */
+async function intakeOrRefuse(
+  c: Context<AppEnv>,
+  tenantId: string,
+  kind: "raise" | "follow",
+): Promise<void> {
+  const { config } = c.get("services");
+  const network = networkOf(
+    throttleAddress(c.req.header("x-forwarded-for"), config.trustedProxies),
   );
-  limited.retryAfterSeconds = wait;
+  const buckets: IntakeBucket[] = [];
+  if (network) {
+    buckets.push({
+      kind: "network",
+      bucket: networkBucket(config.SPEAK_UP_THROTTLE_SECRET, network, ukIsoDate(new Date())),
+      limit: config.SPEAK_UP_REQUESTS_PER_MINUTE_PER_NETWORK,
+    });
+  }
+  buckets.push({ kind: "tenant", limit: config.SPEAK_UP_REQUESTS_PER_MINUTE_PER_TENANT });
+  if (kind === "raise") buckets.push({ kind: "day", limit: config.SPEAK_UP_ANONYMOUS_PER_DAY });
+  const over = await asPublic(c, tenantId, null, async (tx) => {
+    const [live] = await tx
+      .select({ id: tenant.id })
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.status, "active")));
+    if (!live) throw problems.notFound();
+    return countIntake(tx, buckets);
+  });
+  if (!over) return;
+  const limited =
+    over.kind === "day"
+      ? new HttpProblem(
+          429,
+          "speak_up_daily_limit",
+          "This organisation cannot take more anonymous concerns here today. Try again tomorrow, or raise it with the National Guardian's Office or a prescribed person.",
+        )
+      : new HttpProblem(429, "rate_limited", "Too many attempts. Wait a moment and try again.");
+  limited.retryAfterSeconds = over.kind === "day" ? 3_600 : 60;
   throw limited;
 }
 
@@ -306,9 +349,38 @@ async function concernByToken(tx: Transaction, hash: string): Promise<ConcernRow
   const [row] = await tx
     .select()
     .from(speakUpConcern)
-    .where(and(eq(speakUpConcern.replyTokenHash, hash), isNull(speakUpConcern.deletedAt)));
+    .where(
+      and(
+        eq(speakUpConcern.replyTokenHash, hash),
+        isNull(speakUpConcern.deletedAt),
+        gt(speakUpConcern.replyTokenExpiresAt, sql`now()`),
+      ),
+    );
   if (!row) throw problems.notFound();
   return row;
+}
+
+const TOKEN_DAYS = SAFETY_PHASE2_RATE_KEYS.speakUpReplyTokenDays;
+
+const codeOf = (error: unknown): string | undefined =>
+  (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+
+/** The case list's cursor: the last item's receipt date and id, as base64url JSON. */
+function cursorOf(cursor: string): { receivedOn: string; id: string } {
+  try {
+    const [receivedOn, id] = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (
+      typeof receivedOn === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(receivedOn) &&
+      typeof id === "string" &&
+      z.uuid().safeParse(id).success
+    ) {
+      return { receivedOn, id };
+    }
+  } catch {
+    // Falls through to the refusal below.
+  }
+  throw problems.invalid("That page cursor is not one Harbour gave.");
 }
 
 const closedProblem = () =>
@@ -322,7 +394,7 @@ export const speakUpRouter = createRouter()
       tags: ["safety"],
       summary: "Raise a concern anonymously (no sign-in)",
       description:
-        "No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor; no event is published. With wantsReplies the response holds a reply token once: keep it to read replies and reply. Throttled per client address in memory.",
+        "No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor and only the lead reads it; no event is published. With wantsReplies the response holds a reply token once, with the last date it works: keep it to read replies and reply. Limited per network, per organisation per minute and per organisation per day, counted in Postgres.",
       request: {
         params: TenantParam,
         body: { content: { "application/json": { schema: RaiseAnonymousSpeakUp } } },
@@ -330,20 +402,26 @@ export const speakUpRouter = createRouter()
       responses: { 201: jsonBody(AnonymousSpeakUpRaised, "Raised"), ...publicErrors },
     }),
     async (c) => {
-      throttlePublic(c);
       const { tenantId } = c.req.valid("param");
       const body = c.req.valid("json");
+      await intakeOrRefuse(c, tenantId, "raise");
       const replyToken = body.wantsReplies ? randomBytes(32).toString("base64url") : null;
       const replyTokenHash = replyToken ? hashOf(replyToken) : null;
       const id = randomUUID();
-      const receivedOn = ukIsoDate(new Date());
+      const now = new Date();
+      const receivedOn = ukIsoDate(now);
+      let replyTokenExpiresAt: Date | null = null;
       await asPublic(c, tenantId, null, async (tx) => {
-        // Only an organisation that exists and is live takes concerns (the table has no tenant key).
-        const [live] = await tx
-          .select({ id: tenant.id })
-          .from(tenant)
-          .where(and(eq(tenant.id, tenantId), eq(tenant.status, "active")));
-        if (!live) throw problems.notFound();
+        if (replyToken) {
+          const days = resolveRate(
+            await rateRows(tx, [TOKEN_DAYS]),
+            TOKEN_DAYS,
+            "england",
+            receivedOn,
+            tenantId,
+          ).value;
+          replyTokenExpiresAt = new Date(now.getTime() + days * 86_400_000);
+        }
         // A client id, never RETURNING: the request may not read the concern back (migration 0086).
         await tx.insert(speakUpConcern).values({
           id,
@@ -352,6 +430,7 @@ export const speakUpRouter = createRouter()
           summary: body.summary,
           receivedOn,
           replyTokenHash,
+          replyTokenExpiresAt,
           createdBy: null,
           updatedBy: null,
         });
@@ -361,7 +440,11 @@ export const speakUpRouter = createRouter()
           actor: "anonymous",
         });
       });
-      return c.json({ receivedOn, replyToken }, 201);
+      const expires = replyTokenExpiresAt as Date | null;
+      return c.json(
+        { receivedOn, replyToken, replyTokenExpiresOn: expires ? ukIsoDate(expires) : null },
+        201,
+      );
     },
   )
   .openapi(
@@ -378,8 +461,8 @@ export const speakUpRouter = createRouter()
       responses: { 200: jsonBody(SpeakUpThreadSchema, "The concern"), ...publicErrors },
     }),
     async (c) => {
-      throttlePublic(c);
       const { tenantId } = c.req.valid("param");
+      await intakeOrRefuse(c, tenantId, "follow");
       const hash = hashOf(c.req.valid("json").replyToken);
       const thread = await asPublic(c, tenantId, hash, async (tx) => {
         const row = await concernByToken(tx, hash);
@@ -407,8 +490,8 @@ export const speakUpRouter = createRouter()
       responses: { 200: jsonBody(SpeakUpThreadSchema, "The concern"), ...publicErrors },
     }),
     async (c) => {
-      throttlePublic(c);
       const { tenantId } = c.req.valid("param");
+      await intakeOrRefuse(c, tenantId, "follow");
       const body = c.req.valid("json");
       const hash = hashOf(body.replyToken);
       const thread = await asPublic(c, tenantId, hash, async (tx) => {
@@ -448,23 +531,15 @@ export const speakUpRouter = createRouter()
       const body = c.req.valid("json");
       const id = body.id ?? randomUUID();
       const thread = await withTenant(c, async (tx) => {
-        const inserted = await tx
-          .insert(speakUpConcern)
-          .values({
-            id,
-            identity: body.identity,
-            category: body.category,
-            summary: body.summary,
-            receivedOn: ukIsoDate(new Date()),
-            createdBy: null,
-            updatedBy: null,
-          })
-          .onConflictDoNothing();
-        if ((inserted.rowCount ?? 0) === 0) throw problems.conflict();
-        // In the same transaction: the database lets a member claim only a concern made in it.
-        await tx
-          .insert(speakUpReporter)
-          .values({ concernId: id, tenantUserId: access.tenantUserId });
+        // The concern and who raised it, in one step: only this function writes a reporter.
+        try {
+          await tx.execute(
+            sql`SELECT app.raise_speak_up(${id}::uuid, ${body.identity}, ${body.category}, ${body.summary})`,
+          );
+        } catch (error) {
+          if (codeOf(error) === "23505") throw problems.conflict();
+          throw error;
+        }
         await siloAudit(tx, access.tenantId, {
           action: "safety.speak_up.raise",
           concernId: id,
@@ -543,26 +618,56 @@ export const speakUpRouter = createRouter()
       path: "/v1/speak-up/cases",
       tags: ["safety"],
       summary: "Concerns you hold as the Freedom to Speak Up lead or as a member of the case",
+      description:
+        "Newest first, a page at a time (pass nextCursor back as cursor). The lead also sees when today's anonymous concerns have reached the organisation's daily limit.",
       security,
+      request: {
+        query: z.object({
+          cursor: z.string().max(200).optional(),
+          limit: z.coerce.number().int().min(1).max(200).default(50),
+        }),
+      },
       responses: { 200: jsonBody(SpeakUpCaseList, "Cases"), ...errorResponses },
     }),
     async (c) => {
       const access = await caseReader(c);
-      const items = await withTenant(c, async (tx) => {
+      const { cursor, limit } = c.req.valid("query");
+      const after = cursor ? cursorOf(cursor) : null;
+      const page = await withTenant(c, async (tx) => {
         const rows = await tx
           .select()
           .from(speakUpConcern)
-          .where(and(isNull(speakUpConcern.deletedAt), caseVisible))
-          .orderBy(desc(speakUpConcern.receivedOn), desc(speakUpConcern.createdAt))
-          .limit(500);
+          .where(
+            and(
+              isNull(speakUpConcern.deletedAt),
+              caseVisible,
+              after
+                ? sql`(${speakUpConcern.receivedOn}, ${speakUpConcern.id}) < (${after.receivedOn}::date, ${after.id}::uuid)`
+                : undefined,
+            ),
+          )
+          .orderBy(desc(speakUpConcern.receivedOn), desc(speakUpConcern.id))
+          .limit(limit + 1);
+        const shown = rows.slice(0, limit);
+        const last = shown.at(-1);
         await auditInTx(tx, access, {
           action: "safety.speak_up.list",
-          scope: { count: rows.length },
+          resourceType: "speak_up_concern",
+          scope: { count: shown.length },
           requestId: c.get("requestId"),
         });
-        return casesOut(tx, access, rows);
+        return {
+          items: await casesOut(tx, access, shown),
+          nextCursor:
+            rows.length > limit && last
+              ? Buffer.from(JSON.stringify([last.receivedOn, last.id])).toString("base64url")
+              : null,
+          possibleFlood: can(access.effective, LEAD)
+            ? await possibleFlood(tx, c.get("services").config.SPEAK_UP_ANONYMOUS_PER_DAY)
+            : null,
+        };
       });
-      return c.json({ items }, 200);
+      return c.json(page, 200);
     },
   )
   .openapi(
@@ -777,5 +882,54 @@ export const speakUpRouter = createRouter()
         return { ...(item as SpeakUpCase), messages: await messagesOf(tx, id, false) };
       });
       return c.json(detail, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "put",
+      path: "/v1/speak-up/lead",
+      tags: ["safety"],
+      summary: "Appoint or remove the Freedom to Speak Up lead",
+      description:
+        "Needs platform.user.manage, without holding the lead's silo permission (app.set_speak_up_lead, ADR-0089). Nobody appoints themselves, and the lead never also manages users or roles. Audited.",
+      security,
+      request: { body: { content: { "application/json": { schema: SetSpeakUpLead } } } },
+      responses: {
+        200: jsonBody(SpeakUpLeadChanged, "Done, or nothing to change"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "platform.user.manage");
+      const body = c.req.valid("json");
+      const changed = await withTenant(c, async (tx) => {
+        let result: boolean;
+        try {
+          const { rows } = await tx.execute<{ changed: boolean }>(
+            sql`SELECT app.set_speak_up_lead(${body.tenantUserId}::uuid, ${body.appoint}) AS changed`,
+          );
+          result = rows[0]?.changed === true;
+        } catch (error) {
+          const code = codeOf(error);
+          if (code === "23514") {
+            throw problems.invalid(
+              "That member cannot be the Freedom to Speak Up lead: nobody appoints themselves, and the lead never also manages users or roles.",
+            );
+          }
+          if (code === "P0002")
+            throw problems.invalid("Name an active member of the organisation.");
+          if (code === "42501") throw problems.forbidden();
+          throw error;
+        }
+        await auditInTx(tx, access, {
+          action: body.appoint ? "platform.speak_up_lead.appoint" : "platform.speak_up_lead.remove",
+          resourceType: "tenant_user",
+          resourceId: body.tenantUserId,
+          scope: { changed: result },
+          requestId: c.get("requestId"),
+        });
+        return result;
+      });
+      return c.json({ changed }, 200);
     },
   );

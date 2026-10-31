@@ -94,6 +94,11 @@ export const PUBLIC_MAX_BODY_BYTES = 4 * 1024;
  * registration, whose attestation is the largest at a few kilobytes.
  */
 export const AUTH_MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Largest public speak-up body: a concern of up to 10,000 characters, each up to four bytes in
+ * UTF-8, with room for the JSON around it (security review M2).
+ */
+export const SPEAK_UP_MAX_BODY_BYTES = 48 * 1024;
 /** The public routes reached with no session that take a body, capped at PUBLIC_MAX_BODY_BYTES. */
 const PUBLIC_BODY_PATHS = ["/p/*", "/v1/invitations/lookup", "/v1/invitations/accept"] as const;
 
@@ -159,7 +164,6 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
     },
-    speakUpThrottle: new MemoryThrottle(config.SPEAK_UP_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
     invitationThrottles: {
       address: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       token: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN, 60_000),
@@ -209,7 +213,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     });
   // Registered before the handler below, which answers without calling on.
   app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
-  for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
+  for (const path of PUBLIC_BODY_PATHS) {
+    const cap = capped(PUBLIC_MAX_BODY_BYTES);
+    // A speak-up concern may be long; it has its own cap below (security review M2).
+    app.use(path, (c, next) => (c.req.path.startsWith("/p/speak-up/") ? next() : cap(c, next)));
+  }
+  app.use("/p/speak-up/*", capped(SPEAK_UP_MAX_BODY_BYTES));
 
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>
     withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
