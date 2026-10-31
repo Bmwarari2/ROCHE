@@ -103,19 +103,32 @@ export function ruleSetChip(status: string, t: Translator): SafetyChip {
     : chip("due", "file-pen", t("payTime.ruleSet.draft"));
 }
 
-/** Whole pence as "£1,234.56". */
+/** Whole pence as "£1,234.56" (never signed: a direction is said in words where it matters). */
 export function pounds(pence: number | null | undefined): string {
   if (pence === null || pence === undefined) return "";
-  const sign = pence < 0 ? "-" : "";
   const abs = Math.abs(pence);
-  return `${sign}£${Math.floor(abs / 100).toLocaleString("en-GB")}.${String(abs % 100).padStart(2, "0")}`;
+  return `£${Math.floor(abs / 100).toLocaleString("en-GB")}.${String(abs % 100).padStart(2, "0")}`;
 }
 
-/** Minutes as "7 h 30 min". */
-export function hoursAndMinutes(minutes: number, t: Translator): string {
+/** A difference from the run corrected: "£2.50 more than ...", "£2.50 less than ...". */
+export function difference(pence: number, t: Translator): string {
+  const direction = pence > 0 ? "more" : pence < 0 ? "less" : "same";
+  return t("payTime.line.difference", { direction, amount: pounds(pence) });
+}
+
+/** Minutes in whole words: "7 hours 30 minutes", "45 minutes", "0 minutes"; null "Not recorded". */
+export function hoursAndMinutes(minutes: number | null | undefined, t: Translator): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) {
+    return t("payTime.notRecorded");
+  }
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
   return t("payTime.duration", {
-    hours: Math.floor(minutes / 60),
-    minutes: Math.round(minutes % 60),
+    hours,
+    minutes: rest,
+    both: hours > 0 && rest > 0 ? "yes" : "no",
+    none: total === 0 ? "yes" : "no",
   });
 }
 

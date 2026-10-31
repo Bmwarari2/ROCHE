@@ -353,10 +353,11 @@ async function runDetail(tx: Transaction, r: RunRow): Promise<z.infer<typeof Pay
     .from(payRunException)
     .where(and(eq(payRunException.runId, r.id), eq(payRunException.calculation, r.calculation)))
     .orderBy(payRunException.memberId, payRunException.kind);
-  // Pay is organisation-wide: the names of everyone on the run, read with the system's rights.
-  const names = await withSystemRights(tx, () =>
-    staffNames(tx, [...lines.map((l) => l.memberId), ...exceptions.map((e) => e.memberId)]),
-  );
+  // Pay is organisation-wide: the names of everyone on the run, read under the caller's own rights.
+  const names = await staffNames(tx, [
+    ...lines.map((l) => l.memberId),
+    ...exceptions.map((e) => e.memberId),
+  ]);
   return {
     run: await runItem(tx, r),
     lines: lines.map((l) => lineItem(l, names)),
@@ -979,9 +980,9 @@ export const payRouter = createRouter()
           resourceId: id,
           scopeExtra: { runId: e.runId, kind: e.kind },
         });
-        return saved;
+        return { saved, names: await staffNames(tx, [saved.memberId]) };
       });
-      return c.json(exceptionItem(row), 200);
+      return c.json(exceptionItem(row.saved, row.names), 200);
     },
   )
   .openapi(

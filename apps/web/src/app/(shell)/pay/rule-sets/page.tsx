@@ -1,8 +1,10 @@
 import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Scale } from "lucide-react";
 import type { Metadata } from "next";
+import { PayNotOrganisationWide } from "@/components/pay-time/PayNotOrganisationWide";
 import { ApproveRuleSetForm, RuleSetForm } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -23,6 +25,9 @@ export default async function RuleSetsPage() {
   const { data, error, response } = await api.GET("/v1/pay-rule-sets");
   if (!data) {
     if (problemCode(error) === "missing_permission") return <SafetyForbidden title={title} />;
+    if (problemCode(error) === "pay_not_organisation_wide") {
+      return <PayNotOrganisationWide title={title} />;
+    }
     return failWith(error, response, "/pay/rule-sets");
   }
   const canManage = me.permissions.includes(PAY_MANAGE);
@@ -34,6 +39,7 @@ export default async function RuleSetsPage() {
         title={title}
         description={t("payTime.ruleSets.description")}
       />
+      <SiloStatus />
       {canManage ? (
         <Card headingLevel={2} title={t("payTime.ruleSets.newTitle")}>
           <RuleSetForm />
@@ -71,7 +77,14 @@ export default async function RuleSetsPage() {
                     ))}
                   </ul>
                   {canApprove && r.status === "draft" ? (
-                    <ApproveRuleSetForm id={r.id} version={r.version} />
+                    <ApproveRuleSetForm
+                      id={r.id}
+                      version={r.version}
+                      context={t("payTime.ruleSet.heading", {
+                        name: r.name,
+                        number: r.versionNumber,
+                      })}
+                    />
                   ) : null}
                 </div>
               </Card>

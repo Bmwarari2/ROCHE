@@ -2,13 +2,16 @@ import { Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Banknote } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { PayNotOrganisationWide } from "@/components/pay-time/PayNotOrganisationWide";
 import { OverrideForm, RunActions } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import {
+  difference,
   exceptionChip,
   hoursAndMinutes,
   PAY_APPROVE,
@@ -38,6 +41,9 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
   });
   if (!data) {
     if (problemCode(error) === "missing_permission") return <SafetyForbidden title={title} />;
+    if (problemCode(error) === "pay_not_organisation_wide") {
+      return <PayNotOrganisationWide title={title} />;
+    }
     if (response.status === 404) notFound();
     return failWith(error, response, `/pay/${id}`);
   }
@@ -45,17 +51,17 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
   const canManage = me.permissions.includes(PAY_MANAGE);
   const canApprove = me.permissions.includes(PAY_APPROVE);
   const draft = run.status === "draft";
+  const runName = t("payTime.run.heading", {
+    from: formatDate(run.periodStart) ?? "",
+    to: formatDate(run.periodEnd) ?? "",
+    frequency: run.frequency,
+    kind: run.kind,
+  });
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
-      <PageHeader
-        eyebrow={t("payTime.pay.title")}
-        title={t("payTime.run.heading", {
-          from: formatDate(run.periodStart) ?? "",
-          to: formatDate(run.periodEnd) ?? "",
-          frequency: run.frequency,
-          kind: run.kind,
-        })}
-      />
+      <title>{runName}</title>
+      <PageHeader eyebrow={t("payTime.pay.title")} title={runName} />
+      <SiloStatus />
       <Card headingLevel={2} title={t("payTime.run.status")}>
         <div className="flex flex-col gap-3">
           <p className="m-0 flex flex-wrap items-center gap-2">
@@ -80,6 +86,7 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
             canCalculate={canManage && draft}
             canLock={canApprove && draft && run.calculation > 0 && run.openExceptions === 0}
             canCorrect={canManage && !draft}
+            runName={runName.charAt(0).toLowerCase() + runName.slice(1)}
           />
         </div>
       </Card>
@@ -110,7 +117,12 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
                       </p>
                     ) : null}
                     {canApprove && draft && x.status === "open" ? (
-                      <OverrideForm id={x.id} version={x.version} runId={run.id} />
+                      <OverrideForm
+                        id={x.id}
+                        version={x.version}
+                        runId={run.id}
+                        context={x.memberName ?? t("payTime.member.unnamed")}
+                      />
                     ) : null}
                   </div>
                 </Card>
@@ -148,9 +160,7 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
                       {t("payTime.line.paidTime", { time: hoursAndMinutes(l.paidMinutes, t) })}
                     </p>
                     {l.differencePence !== null ? (
-                      <p className="m-0 text-body-dense">
-                        {t("payTime.line.difference", { amount: pounds(l.differencePence) })}
-                      </p>
+                      <p className="m-0 text-body-dense">{difference(l.differencePence, t)}</p>
                     ) : null}
                     <details>
                       <summary className="min-h-target cursor-pointer underline">
@@ -160,8 +170,9 @@ export default async function PayRunPage({ params }: { readonly params: Promise<
                         {l.working.map((w, i) => (
                           // biome-ignore lint/suspicious/noArrayIndexKey: the working is a fixed ordered list.
                           <li key={i}>
-                            {w.step}
-                            {w.pence !== null ? ` ${pounds(w.pence)}` : ""}
+                            {w.pence !== null
+                              ? t("payTime.line.step", { step: w.step, amount: pounds(w.pence) })
+                              : w.step}
                           </li>
                         ))}
                       </ol>

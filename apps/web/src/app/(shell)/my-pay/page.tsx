@@ -5,7 +5,7 @@ import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { myTimeShown, pounds } from "@/lib/pay-time";
+import { difference, myTimeShown, pounds } from "@/lib/pay-time";
 
 export const metadata: Metadata = { title: t("payTime.myPay.title") };
 
@@ -16,9 +16,7 @@ export const metadata: Metadata = { title: t("payTime.myPay.title") };
 export default async function MyPayPage() {
   const { me } = await getShellContext();
   const title = t("payTime.myPay.title");
-  if (!myTimeShown(me.permissions) && !me.permissions.includes("workforce.self.read")) {
-    return <SafetyForbidden title={title} />;
-  }
+  if (!myTimeShown(me.permissions)) return <SafetyForbidden title={title} />;
   const api = await tenantApi();
   const { data, error, response } = await api.GET("/v1/me/pay-lines");
   if (!data) {
@@ -55,7 +53,7 @@ export default async function MyPayPage() {
                   </p>
                   {item.line.differencePence !== null ? (
                     <p className="m-0 text-body-dense">
-                      {t("payTime.line.difference", { amount: pounds(item.line.differencePence) })}
+                      {difference(item.line.differencePence, t)}
                     </p>
                   ) : null}
                   <details>
@@ -66,8 +64,9 @@ export default async function MyPayPage() {
                       {item.line.working.map((w, i) => (
                         // biome-ignore lint/suspicious/noArrayIndexKey: the working is a fixed ordered list.
                         <li key={i}>
-                          {w.step}
-                          {w.pence !== null ? ` ${pounds(w.pence)}` : ""}
+                          {w.pence !== null
+                            ? t("payTime.line.step", { step: w.step, amount: pounds(w.pence) })
+                            : w.step}
                         </li>
                       ))}
                     </ol>

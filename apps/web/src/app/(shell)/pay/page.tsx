@@ -2,6 +2,7 @@ import { ButtonLink, Card, EmptyState, PageHeader } from "@harbour/ui";
 import { Banknote } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PayNotOrganisationWide } from "@/components/pay-time/PayNotOrganisationWide";
 import { NewPayRunForm } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -24,6 +25,9 @@ export default async function PayPage() {
   const { data, error, response } = await api.GET("/v1/pay-runs");
   if (!data) {
     if (problemCode(error) === "missing_permission") return <SafetyForbidden title={title} />;
+    if (problemCode(error) === "pay_not_organisation_wide") {
+      return <PayNotOrganisationWide title={title} />;
+    }
     return failWith(error, response, "/pay");
   }
   const canManage = me.permissions.includes(PAY_MANAGE);
@@ -59,7 +63,10 @@ export default async function PayPage() {
               <Card as="article">
                 <div className="flex flex-col gap-2">
                   <h2 className="m-0 text-heading-4">
-                    <Link href={`/pay/${r.id}`} className="underline">
+                    <Link
+                      href={`/pay/${r.id}`}
+                      className="inline-flex min-h-target items-center underline"
+                    >
                       {t("payTime.run.heading", {
                         from: formatDate(r.periodStart) ?? "",
                         to: formatDate(r.periodEnd) ?? "",

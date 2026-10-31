@@ -1,8 +1,29 @@
 "use client";
 
-import { Button, DateInput, RadioGroup, SelectField, TextArea, TextField } from "@harbour/ui";
-import { Check, Clock, Coffee, Lock, LogIn, LogOut, Play, RotateCcw, Send } from "lucide-react";
+import {
+  Button,
+  ButtonLink,
+  DateInput,
+  RadioGroup,
+  SelectField,
+  TextArea,
+  TextField,
+  VisuallyHidden,
+} from "@harbour/ui";
+import {
+  Calculator,
+  CalendarPlus,
+  Check,
+  Coffee,
+  Lock,
+  LogIn,
+  LogOut,
+  Play,
+  RotateCcw,
+  Send,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   approveEntry,
   approveRuleSet,
@@ -20,6 +41,7 @@ import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { StepUpNotice } from "@/components/safety/ManageForms";
 import { useSubmit } from "@/components/safety-silos/use-submit";
+import { isUuid } from "@/lib/context-cookies";
 import { uuidv7 } from "@/lib/entry-id";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, partsFor } from "@/lib/outcome";
@@ -60,36 +82,134 @@ function Feedback({
   ) {
     return <StepUpNotice next={path} refusal={result} body={t("payTime.stepUp")} />;
   }
+  if (result && !result.ok && result.code === "mfa_enrolment_required") {
+    return (
+      <div role="alert" className="flex flex-col gap-2">
+        <p className="m-0">{t("payTime.mfaEnrol")}</p>
+        <div>
+          <ButtonLink href="/settings/security?reason=mfa" variant="primary">
+            {t("payTime.mfaEnrolLink")}
+          </ButtonLink>
+        </div>
+      </div>
+    );
+  }
   return <FormFeedback result={result} success={success} {...(fieldIds ? { fieldIds } : {})} />;
 }
 
-/** One button that sends one thing (no fields to check). */
+/**
+ * One button that sends one thing (no fields to check). `context` names what it acts on for a
+ * screen reader ("Approve timesheet entry, Cat Carer, ..."), where the same button repeats down
+ * the page. `replaced` marks a button the refresh takes away: success is then announced in the
+ * page's status region and focus moves to the heading (WCAG 2.4.3, 4.1.3).
+ */
 function OneButton<R>({
   label,
+  context,
   success,
   path,
   act,
   glyph,
   variant,
+  replaced = false,
 }: {
   readonly label: string;
+  readonly context?: string;
   readonly success: string;
   readonly path: string;
   readonly act: () => Promise<ActionResult<R>>;
   readonly glyph: React.ReactNode;
   readonly variant?: "primary" | "secondary";
+  readonly replaced?: boolean;
 }) {
-  const { submit, result, pending } = useSubmit(() => ({ ok: true, body: null }), act);
+  const { submit, result, pending } = useSubmit(
+    () => ({ ok: true, body: null }),
+    act,
+    undefined,
+    replaced ? success : undefined,
+  );
   return (
     <form method="post" onSubmit={submit} noValidate className="flex flex-col gap-2">
       <Feedback result={result} success={success} path={path} />
       <div>
-        <Button type="submit" disabled={pending} variant={variant ?? "primary"}>
-          {glyph}
-          {label}
+        <Button type="submit" disabled={pending} variant={variant ?? "primary"} icon={glyph}>
+          {pending ? t("common.saving") : label}
+          {context && !pending ? <VisuallyHidden>{`, ${context}`}</VisuallyHidden> : null}
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * A step that cannot be undone (locking a pay run, starting a correction): the first button
+ * opens a confirmation that says what happens, with the step and a way out; focus moves to it.
+ */
+function ConfirmStep<R>({
+  open,
+  question,
+  body,
+  confirm,
+  keep,
+  success,
+  path,
+  act,
+  glyph,
+  replaced,
+}: {
+  readonly open: string;
+  readonly question: string;
+  readonly body: string;
+  readonly confirm: string;
+  readonly keep: string;
+  readonly success: string;
+  readonly path: string;
+  readonly act: () => Promise<ActionResult<R>>;
+  readonly glyph: React.ReactNode;
+  readonly replaced: boolean;
+}) {
+  const [asking, setAsking] = useState(false);
+  const panel = useRef<HTMLElement>(null);
+  const questionId = useId();
+  useEffect(() => {
+    if (asking) panel.current?.focus();
+  }, [asking]);
+  if (!asking) {
+    return (
+      <div>
+        <Button variant="secondary" icon={glyph} onClick={() => setAsking(true)}>
+          {open}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <section
+      ref={panel}
+      aria-labelledby={questionId}
+      tabIndex={-1}
+      className="flex flex-col gap-3 rounded-input border-s-4 border-warning bg-bg-secondary p-4"
+    >
+      <p id={questionId} className="m-0 font-semibold">
+        {question}
+      </p>
+      <p className="m-0">{body}</p>
+      <div className="flex flex-wrap gap-3">
+        <OneButton
+          label={confirm}
+          success={success}
+          path={path}
+          glyph={glyph}
+          act={act}
+          replaced={replaced}
+        />
+        <div>
+          <Button variant="secondary" onClick={() => setAsking(false)}>
+            {keep}
+          </Button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -140,13 +260,17 @@ export function ClockButtons({
 export function ApproveEntryForm({
   id,
   version,
+  context,
 }: {
   readonly id: string;
   readonly version: number;
+  readonly context: string;
 }) {
   return (
     <OneButton
       label={t("payTime.entry.approve")}
+      context={context}
+      replaced
       success={t("payTime.entry.approvedDone")}
       path="/timesheets"
       glyph={<Check {...icon} />}
@@ -187,6 +311,7 @@ export function LeaveRequestForm({ locationId }: { readonly locationId: string }
         name="startsOn"
         legend={t("payTime.absence.form.start")}
         labels={dateTimeLabels(t)}
+        hint={t("care.date.hint")}
         error={errorFor(result, "startsOn")}
         errorParts={dateBoxesOf(partsFor(result, "startsOn"))}
       />
@@ -195,13 +320,13 @@ export function LeaveRequestForm({ locationId }: { readonly locationId: string }
         name="endsOn"
         legend={t("payTime.absence.form.end")}
         labels={dateTimeLabels(t)}
+        hint={t("care.date.hint")}
         error={errorFor(result, "endsOn")}
         errorParts={dateBoxesOf(partsFor(result, "endsOn"))}
       />
       <div>
-        <Button type="submit" disabled={pending}>
-          <Send {...icon} />
-          {t("payTime.absence.form.submit")}
+        <Button type="submit" disabled={pending} icon={<Send {...icon} />}>
+          {pending ? t("common.saving") : t("payTime.absence.form.submit")}
         </Button>
       </div>
     </form>
@@ -213,6 +338,8 @@ export function DecisionForm({ id, version }: { readonly id: string; readonly ve
   const { submit, result, pending } = useSubmit(
     (form) => readDecision(form, t, version),
     (body) => decideAbsence(id, body),
+    undefined,
+    t("payTime.absence.decide.done"),
   );
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
@@ -242,9 +369,8 @@ export function DecisionForm({ id, version }: { readonly id: string; readonly ve
         error={errorFor(result, "reason")}
       />
       <div>
-        <Button type="submit" disabled={pending}>
-          <Send {...icon} />
-          {t("payTime.absence.decide.submit")}
+        <Button type="submit" disabled={pending} icon={<Send {...icon} />}>
+          {pending ? t("common.saving") : t("payTime.absence.decide.submit")}
         </Button>
       </div>
     </form>
@@ -260,7 +386,7 @@ export function NewPayRunForm() {
     (form) => readPayRun(form, t),
     createPayRun,
     (data) => {
-      if (data?.id) router.push(`/pay/${data.id}`);
+      if (isUuid(data?.id)) router.push(`/pay/${data.id}`);
     },
   );
   return (
@@ -281,6 +407,7 @@ export function NewPayRunForm() {
         name="periodStart"
         legend={t("payTime.run.form.start")}
         labels={dateTimeLabels(t)}
+        hint={t("care.date.hint")}
         error={errorFor(result, "periodStart")}
         errorParts={dateBoxesOf(partsFor(result, "periodStart"))}
       />
@@ -289,13 +416,13 @@ export function NewPayRunForm() {
         name="periodEnd"
         legend={t("payTime.run.form.end")}
         labels={dateTimeLabels(t)}
+        hint={t("care.date.hint")}
         error={errorFor(result, "periodEnd")}
         errorParts={dateBoxesOf(partsFor(result, "periodEnd"))}
       />
       <div>
-        <Button type="submit" disabled={pending}>
-          <Clock {...icon} />
-          {t("payTime.run.form.submit")}
+        <Button type="submit" disabled={pending} icon={<CalendarPlus {...icon} />}>
+          {pending ? t("common.saving") : t("payTime.run.form.submit")}
         </Button>
       </div>
     </form>
@@ -308,12 +435,15 @@ export function RunActions({
   canCalculate,
   canLock,
   canCorrect,
+  runName,
 }: {
   readonly id: string;
   readonly version: number;
   readonly canCalculate: boolean;
   readonly canLock: boolean;
   readonly canCorrect: boolean;
+  /** The run in words ("Weekly run, 05/10/2026 to 11/10/2026"), for the confirmation. */
+  readonly runName: string;
 }) {
   const router = useRouter();
   const path = `/pay/${id}`;
@@ -324,30 +454,38 @@ export function RunActions({
           label={t("payTime.run.calculate")}
           success={t("payTime.run.calculated")}
           path={path}
-          glyph={<RotateCcw {...icon} />}
+          glyph={<Calculator {...icon} />}
           act={() => calculatePayRun(id, version)}
         />
       ) : null}
       {canLock ? (
-        <OneButton
-          label={t("payTime.run.lock")}
+        <ConfirmStep
+          open={t("payTime.run.lock")}
+          question={t("payTime.run.lockQuestion", { run: runName })}
+          body={t("payTime.run.lockBody")}
+          confirm={t("payTime.run.lock")}
+          keep={t("payTime.run.keepDraft")}
           success={t("payTime.run.lockedDone")}
           path={path}
           glyph={<Lock {...icon} />}
-          variant="secondary"
+          replaced
           act={() => lockPayRun(id, version)}
         />
       ) : null}
       {canCorrect ? (
-        <OneButton
-          label={t("payTime.run.correct")}
+        <ConfirmStep
+          open={t("payTime.run.correct")}
+          question={t("payTime.run.correctQuestion", { run: runName })}
+          body={t("payTime.run.correctBody")}
+          confirm={t("payTime.run.correct")}
+          keep={t("payTime.run.keepAsIs")}
           success={t("payTime.run.corrected")}
           path={path}
           glyph={<RotateCcw {...icon} />}
-          variant="secondary"
+          replaced={false}
           act={async () => {
             const out = await correctPayRun(id);
-            if (out.ok && out.data?.id) router.push(`/pay/${out.data.id}`);
+            if (out.ok && isUuid(out.data?.id)) router.push(`/pay/${out.data.id}`);
             return out;
           }}
         />
@@ -360,15 +498,19 @@ export function OverrideForm({
   id,
   version,
   runId,
+  context,
 }: {
   readonly id: string;
   readonly version: number;
   readonly runId: string;
+  readonly context: string;
 }) {
   const ids = useFieldIds(["reason"]);
   const { submit, result, pending } = useSubmit(
     (form) => readOverride(form, t, version),
     (body) => overrideException(id, body),
+    undefined,
+    t("payTime.exception.overriddenDone"),
   );
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
@@ -388,9 +530,9 @@ export function OverrideForm({
         error={errorFor(result, "reason")}
       />
       <div>
-        <Button type="submit" disabled={pending} variant="secondary">
-          <Check {...icon} />
-          {t("payTime.exception.override")}
+        <Button type="submit" disabled={pending} variant="secondary" icon={<Check {...icon} />}>
+          {pending ? t("common.saving") : t("payTime.exception.override")}
+          {pending ? null : <VisuallyHidden>{`, ${context}`}</VisuallyHidden>}
         </Button>
       </div>
     </form>
@@ -425,6 +567,7 @@ export function RuleSetForm() {
         name="effectiveFrom"
         legend={t("payTime.ruleSet.form.from")}
         labels={dateTimeLabels(t)}
+        hint={t("care.date.hint")}
         error={errorFor(result, "effectiveFrom")}
         errorParts={dateBoxesOf(partsFor(result, "effectiveFrom"))}
       />
@@ -456,9 +599,8 @@ export function RuleSetForm() {
         error={errorFor(result, "mileage")}
       />
       <div>
-        <Button type="submit" disabled={pending}>
-          <Send {...icon} />
-          {t("payTime.ruleSet.form.submit")}
+        <Button type="submit" disabled={pending} icon={<Send {...icon} />}>
+          {pending ? t("common.saving") : t("payTime.ruleSet.form.submit")}
         </Button>
       </div>
     </form>
@@ -468,13 +610,17 @@ export function RuleSetForm() {
 export function ApproveRuleSetForm({
   id,
   version,
+  context,
 }: {
   readonly id: string;
   readonly version: number;
+  readonly context: string;
 }) {
   return (
     <OneButton
       label={t("payTime.ruleSet.approve")}
+      context={context}
+      replaced
       success={t("payTime.ruleSet.approvedDone")}
       path="/pay/rule-sets"
       glyph={<Check {...icon} />}

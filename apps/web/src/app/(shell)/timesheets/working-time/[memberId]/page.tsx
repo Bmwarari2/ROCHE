@@ -42,9 +42,13 @@ export default async function WorkingTimePage({
     if (response.status === 404) notFound();
     return failWith(error, response, `/timesheets/working-time/${memberId}`);
   }
+  const heading = data.memberName
+    ? t("payTime.workingTime.titleFor", { name: data.memberName })
+    : title;
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
-      <PageHeader eyebrow={me.tenant.name} title={title} />
+      <title>{heading}</title>
+      <PageHeader eyebrow={me.tenant.name} title={heading} />
       <Card headingLevel={2} title={t("payTime.workingTime.adviceTitle")}>
         <p className="m-0 text-body">{t("payTime.workingTime.advice")}</p>
       </Card>
@@ -111,8 +115,8 @@ export default async function WorkingTimePage({
                           </p>
                           <p className="m-0 text-body-dense text-text-secondary">
                             {t("payTime.workingTime.minutes", {
-                              actual: hoursAndMinutes(f.actualMinutes ?? 0, t),
-                              limit: hoursAndMinutes(f.limitMinutes ?? 0, t),
+                              actual: hoursAndMinutes(f.actualMinutes, t),
+                              limit: hoursAndMinutes(f.limitMinutes, t),
                             })}
                             {f.citation ? ` (${f.citation})` : ""}
                           </p>

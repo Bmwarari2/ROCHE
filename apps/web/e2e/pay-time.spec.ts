@@ -100,6 +100,8 @@ test("the manager declines only with a reason, approves the leave, and opens tim
 
   await request.getByRole("radio", { name: "Approve" }).check();
   await request.getByRole("button", { name: "Save decision" }).click();
+  // The form is gone after the refresh: the decision is announced and focus goes to the heading.
+  await expect(page.getByRole("heading", { level: 1, name: "Absences" })).toBeFocused();
   await expect(request.getByText("Approved").first()).toBeVisible();
   await bothThemes(page, "leave approved");
 
@@ -131,7 +133,7 @@ test("the owner opens pay runs and rule sets, and each form says what it needs",
   const draft = region(page, "Draft a rule set");
   await draft.getByRole("textbox", { name: "Hourly rates by role" }).fill("carer is twelve");
   await draft.getByRole("button", { name: "Save draft rule set" }).click();
-  await expect(draft.getByText("Enter one rate a line, like carer = 12.50.").first()).toBeVisible();
+  await expect(draft.getByText(/Write each rate on its own line/).first()).toBeVisible();
   await draft.getByRole("heading", { name: "Draft a rule set" }).scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, -80));
   await bothThemes(page, "rule set errors");

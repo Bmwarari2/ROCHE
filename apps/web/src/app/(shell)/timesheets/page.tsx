@@ -3,6 +3,7 @@ import { ClipboardCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { ApproveEntryForm } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -45,6 +46,7 @@ export default async function TimesheetsPage() {
         title={title}
         description={t("payTime.timesheets.description")}
       />
+      <SiloStatus />
       {entries.length === 0 ? (
         <Card>
           <EmptyState
@@ -56,27 +58,28 @@ export default async function TimesheetsPage() {
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {entries.map((e) => {
+            const name = e.workerName ?? t("payTime.member.unnamed");
             const span = t("payTime.entry.span", {
               from: formatDateTime(e.startedAt) ?? "",
               to: formatDateTime(e.endedAt) ?? "",
             });
             return (
               <li key={e.id}>
-                <Card
-                  as="article"
-                  headingLevel={2}
-                  title={e.workerName ?? t("payTime.member.unnamed")}
-                >
+                <Card as="article" headingLevel={2} title={name}>
                   <div className="flex flex-col gap-2">
                     <p className="m-0 flex flex-wrap items-center gap-2">
                       <SafetyChip chip={timesheetChip(e, t)} />
                     </p>
                     <p className="m-0 text-body-dense">{e.superseded ? <s>{span}</s> : span}</p>
                     <p className="m-0 text-body-dense text-text-secondary">
-                      {t("payTime.entry.worked", { time: hoursAndMinutes(e.workedMinutes, t) })}
-                      {" · "}
-                      {t("payTime.entry.kind", { kind: e.kind })}
+                      {t("payTime.entry.workedKind", {
+                        kind: e.kind,
+                        time: hoursAndMinutes(e.workedMinutes, t),
+                      })}
                     </p>
+                    {e.superseded ? (
+                      <p className="m-0 text-body-dense">{t("payTime.entry.notCounted")}</p>
+                    ) : null}
                     {e.correctionReason ? (
                       <p className="m-0 text-body-dense">
                         {t("payTime.entry.correction", { reason: e.correctionReason })}
@@ -89,13 +92,21 @@ export default async function TimesheetsPage() {
                     ))}
                     <div className="flex flex-wrap items-start gap-3">
                       {canApprove && e.status === "draft" && !e.superseded ? (
-                        <ApproveEntryForm id={e.id} version={e.version} />
+                        e.workerId === me.tenantUserId ? (
+                          <p className="m-0 text-body-dense">{t("payTime.entry.own")}</p>
+                        ) : (
+                          <ApproveEntryForm
+                            id={e.id}
+                            version={e.version}
+                            context={t("payTime.entry.context", { name, span })}
+                          />
+                        )
                       ) : null}
                       <ButtonLink
                         href={`/timesheets/working-time/${e.workerId}`}
                         variant="secondary"
                       >
-                        {t("payTime.workingTime.link")}
+                        {t("payTime.workingTime.link", { name })}
                       </ButtonLink>
                     </div>
                   </div>

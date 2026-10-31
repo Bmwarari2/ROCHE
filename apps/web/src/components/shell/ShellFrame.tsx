@@ -14,6 +14,7 @@ import {
   Banknote,
   Bell,
   BookCheck,
+  CalendarClock,
   CalendarOff,
   ClipboardCheck,
   ClipboardList,
@@ -375,7 +376,7 @@ export function ShellFrame({
             id: "timesheets",
             label: labels.timesheets,
             href: "/timesheets",
-            icon: <ClipboardList {...icon} />,
+            icon: <CalendarClock {...icon} />,
           },
         ]
       : []),

@@ -44766,6 +44766,12 @@
       "WorkingTimeResultList": {
         "type": "object",
         "properties": {
+          "memberName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "items": {
             "type": "array",
             "items": {
@@ -44818,6 +44824,7 @@
           }
         },
         "required": [
+          "memberName",
           "items"
         ]
       },

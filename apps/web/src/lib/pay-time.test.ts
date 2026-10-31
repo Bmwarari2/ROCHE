@@ -4,6 +4,7 @@ import {
   absenceChip,
   absencesShown,
   coverChip,
+  difference,
   exceptionChip,
   hoursAndMinutes,
   myTimeShown,
@@ -106,15 +107,25 @@ describe("money and time", () => {
     [0, "£0.00"],
     [5, "£0.05"],
     [123456, "£1,234.56"],
-    [-250, "-£2.50"],
+    [-250, "£2.50"],
     [null, ""],
   ])("pounds(%s)", (pence, want) => {
     expect(pounds(pence)).toBe(want);
   });
 
   it("hours and minutes", () => {
-    expect(hoursAndMinutes(450, t)).toBe("7 h 30 min");
-    expect(hoursAndMinutes(0, t)).toBe("0 h 0 min");
+    expect(hoursAndMinutes(450, t)).toBe("7 hours 30 minutes");
+    expect(hoursAndMinutes(60, t)).toBe("1 hour");
+    expect(hoursAndMinutes(45, t)).toBe("45 minutes");
+    expect(hoursAndMinutes(61, t)).toBe("1 hour 1 minute");
+    expect(hoursAndMinutes(0, t)).toBe("0 minutes");
+    expect(hoursAndMinutes(undefined, t)).toBe("Not recorded");
+  });
+
+  it("says a difference in words, never by a sign", () => {
+    expect(difference(250, t)).toBe("£2.50 more than the run it corrects");
+    expect(difference(-250, t)).toBe("£2.50 less than the run it corrects");
+    expect(difference(0, t)).toBe("The same as the run it corrects");
   });
 });
 

@@ -194,6 +194,8 @@ export const OptOutList = z.object({ items: z.array(OptOutItem) }).meta({ id: "O
 
 export const WorkingTimeResultList = z
   .object({
+    /** The member's name, only when there are results to show (null otherwise). */
+    memberName: z.string().nullable(),
     items: z.array(
       z.object({
         id: uuid,

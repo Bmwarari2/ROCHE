@@ -973,6 +973,9 @@ payroll exports (slice 76) map them to each provider.
 | `timesheet_entry.mileage_tenths` | Harbour | Whole tenths of a mile | Travel entries only. |
 | `timesheet_entry.breaks` | Harbour | `[{ start, end }]`, ISO 8601 UTC | Inside the entry. |
 | `timesheet_entry.status` | Harbour | `draft`, `approved` | Approved entries never change; a correction supersedes (`supersedes_id`). |
+| `TimesheetEntryItem.workerName` (API only) | Harbour | `tenant_user.display_name`, or null when the reader cannot see the member | Not stored on the entry; looked up under the reader's rights (slice 60). |
+| `WorkingTimeResultList.memberName` (API only) | Harbour | `tenant_user.display_name`; null when there are no results | Not stored; looked up under the reader's rights (slice 60). |
+| `PayRunLineItem.memberName`, `PayRunExceptionItem.memberName` (API only) | Harbour | `tenant_user.display_name`, or null | Not stored on the line; organisation-wide pay holders only (slice 60). |
 | `working_time_opt_out.notice_unit` | Harbour (WTR reg 5) | `days`, `months` | |
 | `working_time_result.findings` | Harbour | As `WorkingTimeFindingItem` (rule, citation, outcome, minutes) | With `input_hash`, so a result reproduces. |
 

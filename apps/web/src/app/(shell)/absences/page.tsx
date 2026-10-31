@@ -3,6 +3,7 @@ import { CalendarOff } from "lucide-react";
 import type { Metadata } from "next";
 import { DecisionForm, LeaveRequestForm } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -45,6 +46,7 @@ export default async function AbsencesPage() {
         title={title}
         description={t("payTime.absences.description")}
       />
+      <SiloStatus />
       {canAsk ? (
         <Card headingLevel={2} title={t("payTime.absences.askTitle")}>
           <LeaveRequestForm locationId={location.id} />

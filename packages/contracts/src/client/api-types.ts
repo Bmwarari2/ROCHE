@@ -58481,6 +58481,7 @@ export interface components {
       noticeGivenOn: string | null;
     };
     WorkingTimeResultList: {
+      memberName: string | null;
       items: {
         /** Format: uuid */
         id: string;

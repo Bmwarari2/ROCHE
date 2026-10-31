@@ -4439,6 +4439,23 @@
     "shell.nav.myPay",
     "shell.nav.timesheets",
     "shell.nav.absences",
-    "shell.nav.pay"
+    "shell.nav.pay",
+    "payTime.mfaEnrol",
+    "payTime.mfaEnrolLink",
+    "payTime.pay.notOrganisationWide",
+    "payTime.notRecorded",
+    "payTime.line.step",
+    "payTime.entry.notCounted",
+    "payTime.entry.workedKind",
+    "payTime.entry.context",
+    "payTime.run.lockQuestion",
+    "payTime.run.lockBody",
+    "payTime.run.keepDraft",
+    "payTime.run.correctQuestion",
+    "payTime.run.correctBody",
+    "payTime.run.keepAsIs",
+    "payTime.workingTime.titleFor",
+    "payTime.entry.own",
+    "payTime.myTime.entryTitle"
   ]
 }

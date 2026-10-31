@@ -1393,16 +1393,20 @@ export const timeAttendanceRouter = createRouter()
       } else {
         await requirePermission(c, "scheduling.rota.approve");
       }
-      const rows = await withTenant(c, (tx) =>
-        tx
+      const { rows, memberName } = await withTenant(c, async (tx) => {
+        const found = await tx
           .select()
           .from(workingTimeResult)
           .where(eq(workingTimeResult.workerId, id))
           .orderBy(desc(workingTimeResult.createdAt))
-          .limit(50),
-      );
+          .limit(50);
+        // The name only beside results the reader may already see (row-level security decides).
+        const names = found.length > 0 ? await staffNames(tx, [id]) : () => null;
+        return { rows: found, memberName: names(id)?.displayName ?? null };
+      });
       return c.json(
         {
+          memberName,
           items: rows.map((r) => ({
             id: r.id,
             evaluateFrom: r.evaluateFrom,

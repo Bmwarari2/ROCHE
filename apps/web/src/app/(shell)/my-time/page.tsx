@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ClockButtons } from "@/components/pay-time/PayTimeForms";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { hoursAndMinutes, myTimeShown, timesheetChip } from "@/lib/pay-time";
 import { addDays, ukToday } from "@/lib/uk-time";
@@ -81,7 +81,14 @@ export default async function MyTimePage() {
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {entries.map((e) => (
               <li key={e.id}>
-                <Card as="article" headingLevel={3} title={formatDateTime(e.startedAt) ?? ""}>
+                <Card
+                  as="article"
+                  headingLevel={3}
+                  title={t("payTime.myTime.entryTitle", {
+                    date: formatDate(e.startedAt) ?? "",
+                    kind: e.kind,
+                  })}
+                >
                   <div className="flex flex-col gap-2">
                     <p className="m-0 flex flex-wrap items-center gap-2">
                       <SafetyChip chip={timesheetChip(e, t)} />
@@ -106,6 +113,19 @@ export default async function MyTimePage() {
                     <p className="m-0 text-body-dense text-text-secondary">
                       {t("payTime.entry.worked", { time: hoursAndMinutes(e.workedMinutes, t) })}
                     </p>
+                    {e.superseded ? (
+                      <p className="m-0 text-body-dense">{t("payTime.entry.notCounted")}</p>
+                    ) : null}
+                    {e.correctionReason ? (
+                      <p className="m-0 text-body-dense">
+                        {t("payTime.entry.correction", { reason: e.correctionReason })}
+                      </p>
+                    ) : null}
+                    {e.problems.map((p) => (
+                      <p key={p} className="m-0 text-body-dense">
+                        {t("payTime.entry.problem", { problem: p })}
+                      </p>
+                    ))}
                   </div>
                 </Card>
               </li>

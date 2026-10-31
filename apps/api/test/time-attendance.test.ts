@@ -138,6 +138,7 @@ interface Entry {
   superseded: boolean;
   breaks: unknown[];
   workedMinutes: number;
+  workerName: string | null;
 }
 
 beforeAll(async () => {
@@ -217,6 +218,8 @@ describe("hazard HZ-010 clock events", () => {
     const entry = ((await list.json()) as { items: Entry[] }).items.find((e) => e.id === entryId);
     expect(entry?.status).toBe("draft");
     expect(entry?.breaks).toHaveLength(1);
+    // The worker's name, for the approver at the home (slice 60).
+    expect(entry?.workerName).toBe(DEMO.users.carer.name);
   });
 });
 
@@ -400,6 +403,12 @@ describe("approval never by the worker, and corrections", () => {
       body.workingTime.resultId,
     ]);
     expect(results).toHaveLength(1);
+    // The stored results, as advice, with the member's name for the screen (slice 60).
+    const read = await as("manager", `/v1/members/${CARER}/working-time`);
+    expect(read.status).toBe(200);
+    const list = (await read.json()) as { memberName: string | null; items: { id: string }[] };
+    expect(list.memberName).toBe(DEMO.users.carer.name);
+    expect(list.items.map((i) => i.id)).toContain(body.workingTime.resultId);
     const events = await sql(
       "SELECT 1 FROM outbox_event WHERE event_type = 'scheduling.timesheet_approved' AND aggregate_id = $1",
       [entryId],
