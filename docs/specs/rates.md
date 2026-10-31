@@ -82,6 +82,23 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | wtr.young_worker.break_threshold_hours | 4.5 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | wtr.young_worker.daily_rest_hours | 12 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
 | wtr.young_worker.weekly_rest_hours | 48 | hours | 1998-10-01 | - | uk | https://www.gov.uk/rest-breaks-work/young-workers | verified |
+| wtr.reference_period_weeks.special_case | 26 | weeks | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/4 (reg 4(5): 26 weeks for a worker within reg 21, such as care in residential institutions) | verified |
+| wtr.reference_period_weeks.agreement_max | 52 | weeks | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/23 (reg 23(b): "a period not exceeding 52 weeks"); https://www.gov.uk/night-working-hours/hours-and-limits (night average up to 52 weeks by agreement) | verified |
+| wtr.opt_out.default_notice_days | 7 | days | 1999-12-17 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/5 (reg 5(2)(b): not less than seven days' notice in writing unless the agreement provides otherwise) | verified |
+| wtr.opt_out.max_notice_months | 3 | months | 1999-12-17 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/5 (reg 5(3): the notice period "shall not exceed three months") | verified |
+| wtr.night_time.default_start_minute | 1380 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time": in default of a relevant agreement, 11 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_time.default_end_minute | 360 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time": in default of a relevant agreement, 11 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_time.min_hours | 7 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed: "not less than seven hours") | verified |
+| wtr.night_time.core_start_minute | 0 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed must include the period between midnight and 5 a.m.) | verified |
+| wtr.night_time.core_end_minute | 300 | minute_of_day | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night time" agreed must include the period between midnight and 5 a.m.) | verified |
+| wtr.night_worker.min_night_hours | 3 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("night worker": at least three hours of daily working time during night time, as a normal course); https://www.gov.uk/night-working-hours | verified |
+| wtr.night_work.hazard_max_hours | 8 | hours | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/6 (reg 6(7): special hazards or heavy physical or mental strain, not more than eight hours in any 24-hour period with night work) | verified |
+| wtr.young_worker.until_age_years | 18 | years | 1998-10-01 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("young worker": attained the age of 15 but not the age of 18) | verified |
+| wtr.young_worker.restricted_start_minute | 1320 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 10 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours/young-workers | verified |
+| wtr.young_worker.restricted_end_minute | 360 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 10 p.m. to 6 a.m.); https://www.gov.uk/night-working-hours/young-workers | verified |
+| wtr.young_worker.restricted_late_start_minute | 1380 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
+| wtr.young_worker.restricted_late_end_minute | 420 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
+| wtr.young_worker.weekly_rest_reduced_min_hours | 36 | hours | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/11 (reg 11(8)(b): reduced for technical or organisation reasons "but not to less than 36 consecutive hours") | verified |
 | awr.qualifying_weeks | 12 | weeks | 2011-10-01 | - | uk | master prompt 12.3 (AWR 2010) | master-prompt |
 | auto_enrolment.earnings_trigger | 10000.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627; master prompt 12.3 | verified |
 | auto_enrolment.qualifying_earnings.lower | 6240.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
@@ -500,4 +517,19 @@ literals, and tests assert against the table, not a literal (section 7, section 
   regulations' commencement for the clock's purposes (1 April 2010, as the other `cqc.*` rows).
   England only; Wales, Scotland and Northern Ireland have their own regulators and rules (Phase 7
   nation packs).
+- Working time rows added by Phase 2 slice 5 (`wtr.reference_period_weeks.special_case`,
+  `.agreement_max`, `wtr.opt_out.*`, `wtr.night_time.*`, `wtr.night_worker.min_night_hours`,
+  `wtr.night_work.hazard_max_hours`, `wtr.young_worker.until_age_years`,
+  `wtr.young_worker.restricted_*` and `wtr.young_worker.weekly_rest_reduced_min_hours`) were read
+  on legislation.gov.uk (Working Time Regulations 1998, regulations 2, 4, 5, 6, 11, 23, 27A; no
+  outstanding effects listed) and the gov.uk night working pages on 31 October 2026, not on
+  11 October. `valid_from` is the regulations' commencement (1 October 1998), the date regulation 5
+  took its present form (17 December 1999), or the date the young worker rules were inserted
+  (6 April 2003). The young-worker age was planned for slice 6; slice 5 adds it because the
+  under-18 rules need it first. Northern Ireland has parallel figures in the Working Time
+  Regulations (Northern Ireland) 2016, so the rows are `uk` like the earlier `wtr.*` rows. The
+  figures are statutory, so `resolveWorkingTimeRates` ignores tenant overrides; what an employer
+  may agree (night time, reference periods) is the tenant's working-time setting
+  ([scheduling.md](scheduling.md) section 4). How the rules are read is for the employment law
+  adviser to confirm (H-580).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.

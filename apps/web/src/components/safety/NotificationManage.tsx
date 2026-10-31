@@ -79,6 +79,7 @@ function PrepareForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -187,6 +188,7 @@ function SubmitForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate

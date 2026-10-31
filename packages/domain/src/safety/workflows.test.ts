@@ -14,6 +14,7 @@ import {
   candourDecisionNeedsReason,
   candourFindingOf,
   candourReasonProblems,
+  candourStateDeadline,
   candourStepProblems,
 } from "./candour";
 import { candourCloseBlock, INCIDENT_WORKFLOW, incidentCloseProblems } from "./incident";
@@ -620,5 +621,25 @@ describe("notification kinds and the medical examiner pack", () => {
       "advance_care_records",
       "death_circumstances",
     ]);
+  });
+});
+
+describe("hazard HZ-013 the deadline of each candour state, for the approvals list", () => {
+  const clocks = {
+    verbalDueAt: new Date("2026-10-01T09:00:00Z"),
+    writtenTargetAt: new Date("2026-10-15T23:59:59Z"),
+    writtenTargetWording: "",
+    provisional: false,
+  };
+  it.each<[CandourState, Date | null]>([
+    ["threshold_assessment", clocks.verbalDueAt],
+    ["verbal_due", clocks.verbalDueAt],
+    ["written_due", clocks.writtenTargetAt],
+    ["enquiries_open", null],
+    ["no_contact", null],
+    ["not_notifiable", null],
+    ["closed", null],
+  ])("%s", (state, expected) => {
+    expect(candourStateDeadline(state, clocks)).toEqual(expected);
   });
 });

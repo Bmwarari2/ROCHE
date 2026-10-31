@@ -44,6 +44,7 @@ export function ClassifierQuestions({
       {questions.length > 0 ? (
         // A new set of questions (after saving) is a new form, with nothing left ticked.
         <form
+          method="post"
           key={questions.map((q) => q.key).join("|")}
           className="flex flex-col gap-6"
           onSubmit={submit}

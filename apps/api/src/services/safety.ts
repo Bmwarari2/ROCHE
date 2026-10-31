@@ -16,16 +16,21 @@ import {
   statutoryNotification,
   type Transaction,
   task,
+  workflowInstance,
 } from "@harbour/db";
 import {
   addUkDays,
+  CANDOUR_WORKFLOW,
   type CandourCloseFacts,
+  type CandourState,
   type ClassifierAnswer,
   type ClassifierAnswerValue,
   type ClassifierQuestionKey,
   type ClassifierResult,
   type ClassifierTaskKind,
+  candourClocks,
   candourCloseBlock,
+  candourStateDeadline,
   classifierAnswerProblem,
   classifyIncident,
   DOLS_NATIONS,
@@ -66,7 +71,7 @@ import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
-import { startWorkflow } from "./workflow";
+import { setWorkflowDeadline, startWorkflow } from "./workflow";
 
 /**
  * Safety rules wired to the database (docs/specs/safety.md; hazards HZ-013 and HZ-027). The
@@ -224,6 +229,7 @@ export async function upsertDraft(
       STATUTORY_NOTIFICATION_WORKFLOW,
       { subjectType: "statutory_notification", subjectId: row.id, personId: spec.personId },
       now,
+      spec.dueAt,
     );
     await publish(tx, {
       context: "safety",
@@ -261,6 +267,14 @@ export async function upsertDraft(
         .set({ ...values, noLongerIndicated: false, noLongerIndicatedReason: null })
         .where(eq(statutoryNotification.id, existing.id));
     }
+    // The workflow carries the clock too, for the approvals list (HZ-013); written every time, so
+    // an instance started before it carried one catches up.
+    await setWorkflowDeadline(
+      tx,
+      STATUTORY_NOTIFICATION_WORKFLOW,
+      { subjectType: "statutory_notification", subjectId: existing.id },
+      spec.dueAt,
+    );
   }
   return { id: existing.id, created: false };
 }
@@ -1475,4 +1489,81 @@ export async function raiseCandourBlockedTasks(
     }
     return raised;
   });
+}
+
+// ------------------------------------------------------------------------------------------------
+// Deadlines kept on the record, for the approvals list (HZ-013; PLAT-011)
+// ------------------------------------------------------------------------------------------------
+
+type CandourRecordRow = typeof candourRecord.$inferSelect;
+
+/**
+ * Writes the deadline of a candour record's state onto its workflow, so the approvals list shows
+ * it (HZ-013): the safety module's own clocks, never worked out elsewhere.
+ */
+export async function syncCandourDeadline(
+  tx: Transaction,
+  tenantId: string,
+  row: CandourRecordRow,
+  occurredAt: Date,
+  nation: IncidentNation,
+): Promise<void> {
+  const rates = await safetyRates(tx, tenantId, ukIsoDate(occurredAt));
+  const decidedAt = row.thresholdNotifiable === true ? (row.thresholdDecidedAt ?? null) : null;
+  const clocks = candourClocks(occurredAt, decidedAt, rates, await bankHolidays(tx, nation));
+  await setWorkflowDeadline(
+    tx,
+    CANDOUR_WORKFLOW,
+    { subjectType: "candour_record", subjectId: row.id },
+    candourStateDeadline(row.state as CandourState, clocks),
+  );
+}
+
+/**
+ * Fills the deadline on open notification and candour workflows that started before the safety
+ * module wrote it there (#130 review round 2, L5). Idempotent: it only fills instances in a state
+ * that carries a deadline and has none, from the record's own clock, so running it again changes
+ * nothing. Returns how many it filled.
+ */
+export async function backfillWorkflowDeadlines(
+  tx: Transaction,
+  tenantId: string,
+): Promise<number> {
+  const notifications = await tx.execute<{ id: string }>(sql`
+    UPDATE workflow_instance wi
+       SET sla_due_at = sn.due_at
+      FROM statutory_notification sn
+     WHERE wi.definition_key = ${STATUTORY_NOTIFICATION_WORKFLOW.key}
+       AND wi.subject_type = 'statutory_notification'
+       AND wi.subject_id = sn.id
+       AND wi.state IN ('draft', 'ready')
+       AND wi.sla_due_at IS NULL
+       AND wi.deleted_at IS NULL
+       AND sn.deleted_at IS NULL
+    RETURNING wi.id`);
+  const states = CANDOUR_WORKFLOW.deadlineOnRecord?.states ?? [];
+  const waiting = await tx
+    .select({
+      record: candourRecord,
+      occurredAt: incident.occurredAt,
+      nation: location.nation,
+    })
+    .from(workflowInstance)
+    .innerJoin(candourRecord, eq(candourRecord.id, workflowInstance.subjectId))
+    .innerJoin(incident, eq(incident.id, candourRecord.incidentId))
+    .innerJoin(location, eq(location.id, incident.locationId))
+    .where(
+      and(
+        eq(workflowInstance.definitionKey, CANDOUR_WORKFLOW.key),
+        eq(workflowInstance.subjectType, "candour_record"),
+        inArray(workflowInstance.state, [...states]),
+        isNull(workflowInstance.slaDueAt),
+        isNull(workflowInstance.deletedAt),
+        isNull(candourRecord.deletedAt),
+      ),
+    );
+  for (const w of waiting) {
+    await syncCandourDeadline(tx, tenantId, w.record, w.occurredAt, w.nation);
+  }
+  return notifications.rows.length + waiting.length;
 }

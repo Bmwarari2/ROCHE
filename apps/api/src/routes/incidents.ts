@@ -72,6 +72,7 @@ import {
   finishCandourBlockedTasks,
   incidentCloseView,
   safetyRates,
+  syncCandourDeadline,
   toClassifierAnswers,
   withTenantWideScope,
 } from "../services/safety";
@@ -94,6 +95,7 @@ import {
   managesIncident,
   mayChange,
   readIncident,
+  requireManagesIncident,
 } from "./safety-shared";
 import { moveOrRefuse } from "./workflow-shared";
 
@@ -826,6 +828,9 @@ export const incidentsRouter = createRouter()
       const detail = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         if (row.version !== body.version) throw problems.conflict();
+        // Managing it where it is: raising it, or holding the permission at another home, is not
+        // enough (#130 review round 2, M1).
+        await requireManagesIncident(c, tx, access, id);
         await moveOrRefuse(
           c,
           tx,
@@ -879,6 +884,7 @@ export const incidentsRouter = createRouter()
       const detail = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         if (row.version !== body.version) throw problems.conflict();
+        await requireManagesIncident(c, tx, access, id);
         // Every notification, the candour record and everyone affected count, including people
         // and notifications the closer cannot see.
         const view = await incidentCloseView(tx, row);
@@ -1195,6 +1201,13 @@ export const incidentsRouter = createRouter()
           .where(and(eq(candourRecord.id, record.id), eq(candourRecord.version, record.version)))
           .returning();
         if (!saved) throw problems.conflict();
+        await syncCandourDeadline(
+          tx,
+          access.tenantId,
+          saved,
+          row.occurredAt,
+          await nationOf(tx, row.locationId),
+        );
         if (thresholdChanged || body.version === 0) {
           await classifyAndStore(tx, {
             tenantId: access.tenantId,
@@ -1301,6 +1314,13 @@ export const incidentsRouter = createRouter()
           .where(and(eq(candourRecord.id, record.id), eq(candourRecord.version, body.version)))
           .returning();
         if (!saved) throw problems.conflict();
+        await syncCandourDeadline(
+          tx,
+          access.tenantId,
+          saved,
+          row.occurredAt,
+          await nationOf(tx, row.locationId),
+        );
         await audit(c, tx, access, {
           action: `safety.candour.${body.to}`,
           resourceType: "candour_record",

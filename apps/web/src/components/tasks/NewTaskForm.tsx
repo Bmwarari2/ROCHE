@@ -68,7 +68,7 @@ export function NewTaskForm({
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <TextField
         id={ids.title}
         name="title"

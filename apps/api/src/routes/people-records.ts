@@ -141,6 +141,7 @@ function linkOut(
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     active: visible && row.revokedAt === null && row.expiresAt.getTime() > now.getTime(),
+    version: row.version,
   };
 }
 

@@ -145,7 +145,7 @@ export function RiskForm({
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 text-body-dense text-text-secondary">
         {t("care.risk.templateSource", { source: template.source, version: template.version })}
       </p>
