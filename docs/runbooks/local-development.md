@@ -18,13 +18,19 @@ development, staging and pilots.
 ```sh
 pnpm install
 cp .env.example .env            # optional: every value has the same local default
-pnpm db:bootstrap               # roles (harbour_owner, harbour_app, ...) and the harbour database
+pnpm db:bootstrap               # roles (harbour_owner, harbour_app, ...), the harbour database, pgAudit
 pnpm db:migrate                 # schema, row-level security, triggers, PowerSync publication
 pnpm db:seed                    # statutory figures, retention schedule, demo tenant
 HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users   # demo sign-ins (local only; refuses to run without the opt-in)
 pnpm --filter @harbour/api dev  # API on http://localhost:4000
 pnpm --filter @harbour/web dev  # web on http://localhost:3000
 ```
+
+`db:bootstrap` creates the `pgaudit` extension in the harbour database where the server offers
+it (the Docker image does) and says it skipped it on a plain local Postgres, which is fine for
+development. In production it refuses to continue without it: on Cloud SQL the extension is offered
+only while the `cloudsql.enable_pgaudit` database flag is on (`infra/modules/cloud_sql_postgres`
+sets it), and the migration job stops with `pgaudit is not_loaded` if the flag is off.
 
 Demo sign-ins (password `correct horse battery staple`): `owner@example.invalid`,
 `manager@example.invalid`, `nurse@example.invalid`, `carer@example.invalid`. Leave
