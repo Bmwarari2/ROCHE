@@ -351,7 +351,10 @@ describe("hazard HZ-011 people scope", () => {
     const ben = list.items.find((p) => p.givenName === "Ben");
     const history = await demo("manager", `/v1/people/${ben?.id}/history`);
     expect(history.status).toBe(200);
-    expect((await json<{ versions: unknown[] }>(history)).versions).toEqual([]);
+    const body = await json<{ versions: unknown[]; latestChanged: string[] }>(history);
+    expect(body.versions).toEqual([]);
+    // Nothing to compare with, so no field is marked.
+    expect(body.latestChanged).toEqual([]);
   });
 });
 
