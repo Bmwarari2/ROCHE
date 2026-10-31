@@ -173,10 +173,15 @@ export function readUpdateOutbreak(
 export function readCloseOutbreak(
   form: FormLike,
   t: Translator,
-  options: { readonly version: number },
+  options: { readonly version: number; readonly stillUnwell?: number },
 ): Read<{ version: number; closedOn: string; reason: string }> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
+  // People still unwell are said before closing, and the closer says they know (HZ-013).
+  const unwell = options.stillUnwell ?? 0;
+  if (unwell > 0 && text(form, "knowStillUnwell") !== "yes") {
+    errors.knowStillUnwell = t("outbreaks.close.knowStillUnwellError", { count: unwell });
+  }
   const closed = readDateField(form, "closedOn", { subject: t("outbreaks.close.dateSubject"), t });
   if (!closed.ok) {
     errors.closedOn = (closed as TimeProblem).message;
@@ -203,8 +208,16 @@ export interface RecordCaseBody {
   readonly covidVaccinated: (typeof VACCINATION_ANSWERS)[number];
   readonly outcome: (typeof OUTBREAK_OUTCOMES)[number];
   readonly outcomeOn: string | null;
-  readonly supersedesId: null;
-  readonly correctionReason: null;
+  readonly supersedesId: string | null;
+  readonly correctionReason: string | null;
+}
+
+export const CORRECTION_REASON_MAX = 500;
+
+/** The row a form updates or corrects: its id and the resident it is about. */
+export interface SupersededRow {
+  readonly id: string;
+  readonly personId: string;
 }
 
 /**
@@ -212,9 +225,30 @@ export interface RecordCaseBody {
  * choose yet; the page says so. The API refuses anything its rules do not allow (for example a
  * test result without the test).
  */
-export function readRecordCase(form: FormWithAll, t: Translator): Read<RecordCaseBody> {
+export function readRecordCase(
+  form: FormWithAll,
+  t: Translator,
+  options: { readonly supersedes?: SupersededRow } = {},
+): Read<RecordCaseBody> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
+  // Updating a row (their condition changed) or correcting it (the row was wrong, with a reason):
+  // a new row that supersedes the current one, so the person is counted once (HZ-013).
+  const supersedes = options.supersedes ?? null;
+  let correctionReason: string | null = null;
+  if (supersedes) {
+    const change = text(form, "change");
+    if (change !== "update" && change !== "correct") {
+      errors.change = t("outbreaks.case.changeError");
+    } else if (change === "correct") {
+      correctionReason = text(form, "correctionReason");
+      if (correctionReason.length < 3 || correctionReason.length > CORRECTION_REASON_MAX) {
+        errors.correctionReason = t("outbreaks.case.correctionReasonError", {
+          max: CORRECTION_REASON_MAX,
+        });
+      }
+    }
+  }
   const date = (name: string, subject: string, optional: boolean) => {
     const read = readDateField(form, name, { subject, t, optional });
     if (read.ok) return read.date;
@@ -222,7 +256,7 @@ export function readRecordCase(form: FormWithAll, t: Translator): Read<RecordCas
     parts[name] = (read as TimeProblem).parts;
     return null;
   };
-  const personId = text(form, "personId");
+  const personId = supersedes ? supersedes.personId : text(form, "personId");
   if (!UUID.test(personId)) errors.personId = t("outbreaks.case.personError");
   const onsetOn = date("onsetOn", t("outbreaks.case.onsetSubject"), false);
   const symptoms = [
@@ -261,8 +295,8 @@ export function readRecordCase(form: FormWithAll, t: Translator): Read<RecordCas
       covidVaccinated: oneOf(VACCINATION_ANSWERS, text(form, "covidVaccinated")) ?? "unknown",
       outcome,
       outcomeOn: outcome === "unwell" ? null : outcomeOn,
-      supersedesId: null,
-      correctionReason: null,
+      supersedesId: supersedes?.id ?? null,
+      correctionReason: supersedes ? correctionReason : null,
     },
   };
 }

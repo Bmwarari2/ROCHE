@@ -217,3 +217,53 @@ describe("hazard HZ-013 the death record (slice 37)", () => {
     ).toHaveLength(1);
   });
 });
+
+describe("hazard HZ-013 the police steps stand until the clinician's judgement (slice 63)", () => {
+  const unjudged: DeathRecordFacts = {
+    diedAt: DIED,
+    expected: null,
+    possiblyUnnatural: null,
+    learningDisabilityOrAutism: false,
+  };
+  const refused =
+    "The clinician's judgement is not recorded yet, so this police step cannot be marked not needed. Record the judgement first.";
+  it.each<[string, DeathRecordFacts, Parameters<typeof deathStepProblems>[2], string[]]>([
+    [
+      "police told, not needed, no judgement",
+      unjudged,
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "room left, not needed, no judgement",
+      unjudged,
+      { step: "preserve_room_and_equipment", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "police told, done, no judgement",
+      unjudged,
+      { step: "police_informed", outcome: "done", at: NOW, note: null },
+      [],
+    ],
+    [
+      "police told, not needed, expected only",
+      { ...unjudged, expected: true },
+      { step: "police_informed", outcome: "not_needed", at: NOW, note: enough },
+      [refused],
+    ],
+    [
+      "another step, not needed, no judgement",
+      unjudged,
+      { step: "family_informed", outcome: "not_needed", at: NOW, note: enough },
+      [],
+    ],
+  ])("%s", (_name, facts, step, problems) => {
+    expect(
+      deathStepProblems(deathRecordPlan(facts, rates), DIED, step, NOW, {
+        expected: facts.expected,
+        possiblyUnnatural: facts.possiblyUnnatural,
+      }),
+    ).toEqual(problems);
+  });
+});

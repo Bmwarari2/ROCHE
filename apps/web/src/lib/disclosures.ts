@@ -1,3 +1,4 @@
+import { EXPORT_TABLES } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import { formatDateTime } from "./format";
 import type { SafetyChip } from "./incidents";
@@ -322,7 +323,7 @@ export function readWithdraw(
   const reason = text(form, "reason");
   return reason.length >= 3 && reason.length <= DISCLOSURE_TEXT_MAX
     ? { ok: true, body: { reason, expectedVersion: options.expectedVersion } }
-    : failed({ reason: t("disclosures.withdraw.reasonError") });
+    : failed({ reason: t("disclosures.withdraw.reasonError", { max: DISCLOSURE_TEXT_MAX }) });
 }
 
 /** The coroner's Regulation 28 report: when it came, and when the response went (if it has). */
@@ -384,4 +385,94 @@ export function disclosureSteps(request: {
     default:
       return [];
   }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Collected records in plain words (accessibility review, slice 63): never a table or column name
+// ------------------------------------------------------------------------------------------------
+
+/** "received_at" as "Received at": a column or key in plain words, sentence case. */
+export function plainName(name: string): string {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_.]+/g, " ")
+    .trim()
+    .toLowerCase();
+  return words ? words[0]?.toUpperCase() + words.slice(1) : "";
+}
+
+/**
+ * What kind of record a collected table holds, from the export catalogue's description (its first
+ * sentence); the table's name in plain words when the catalogue has no short description.
+ */
+export function recordKind(tableName: string): string {
+  const table = EXPORT_TABLES[`public.${tableName}`] ?? EXPORT_TABLES[tableName];
+  const first = table?.description
+    .split(/(?<=\.)\s/)[0]
+    ?.replace(/\.$/, "")
+    .trim();
+  if (first && first.length <= 80) return first;
+  return plainName(tableName.replace(/^public\./, ""));
+}
+
+/** A short reference for a collected record, so records of the same kind are told apart. */
+export function recordReference(recordId: string): string {
+  return recordId.replace(/-/g, "").slice(-6).toUpperCase();
+}
+
+const DATE_KEYS = ["occurred_at", "received_at", "recorded_at", "created_at"] as const;
+
+/** When the record is from: the first of its usual time columns that holds a value. */
+export function recordWhen(record: Readonly<Record<string, unknown>> | null): string | null {
+  if (!record) return null;
+  for (const key of DATE_KEYS) {
+    const value = record[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return null;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/**
+ * A field's value in words: dates and times in UK form, yes or no, lists joined, objects as
+ * "name: value" lines; never raw JSON.
+ */
+export function plainValue(
+  value: unknown,
+  t: Translator,
+  format: {
+    readonly date: (iso: string) => string | null;
+    readonly dateTime: (iso: string) => string | null;
+  },
+): string {
+  if (value === null || value === undefined || value === "") return t("disclosures.notRecorded");
+  if (typeof value === "boolean") return t("disclosures.value.boolean", { value: String(value) });
+  if (typeof value === "number") return value.toLocaleString("en-GB");
+  if (typeof value === "string") {
+    if (ISO_DATE.test(value)) return format.date(value) ?? value;
+    if (ISO_INSTANT.test(value)) return format.dateTime(value) ?? value;
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0
+      ? t("disclosures.value.none")
+      : value.map((v) => plainValue(v, t, format)).join(", ");
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.length === 0
+      ? t("disclosures.value.none")
+      : entries.map(([k, v]) => `${plainName(k)}: ${plainValue(v, t, format)}`).join("\n");
+  }
+  return String(value);
+}
+
+/** Whether the reader logged the request, so another approver must decide it (the API's rule). */
+export function loggedByReader(
+  request: { readonly loggedBy: string | null },
+  tenantUserId: string,
+): boolean {
+  return request.loggedBy !== null && request.loggedBy === tenantUserId;
 }

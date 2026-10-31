@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { AutoRefresh } from "@/components/safety-events/AutoRefresh";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -41,6 +42,7 @@ export default async function MissingPage() {
           title={t("missing.truncated")}
         />
       ) : null}
+      <AutoRefresh active={data.items.some((i) => i.status === "open")} />
       {data.items.length === 0 ? (
         <Card>
           <EmptyState

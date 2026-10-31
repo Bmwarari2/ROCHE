@@ -324,10 +324,14 @@ export function ItemDecisionForm({
   contentSha256,
   version,
   redacted,
+  decision,
 }: {
   readonly id: string;
   readonly itemId: string;
-  readonly fields: readonly string[];
+  /** Each field's stored name (sent) and its plain label (shown). */
+  readonly fields: readonly { readonly name: string; readonly label: string }[];
+  /** The decision already saved: preselected, never lost on a second visit. */
+  readonly decision: string;
   readonly contentSha256: string;
   readonly version: number;
   readonly redacted: readonly string[];
@@ -346,6 +350,9 @@ export function ItemDecisionForm({
         id={ids.decision}
         name="decision"
         legend={t("disclosures.item.legend")}
+        {...((ITEM_DECISIONS as readonly string[]).includes(decision)
+          ? { defaultValue: decision as (typeof ITEM_DECISIONS)[number] }
+          : {})}
         options={ITEM_DECISIONS.map((decision) => ({
           value: decision,
           label: t("disclosures.item.decision", { decision }),
@@ -380,12 +387,12 @@ export function ItemDecisionForm({
         ) : null}
         {fields.map((field, index) => (
           <Checkbox
-            key={field}
+            key={field.name}
             {...(index === 0 ? { id: ids.redactedFields } : {})}
             name="redactedFields"
-            value={field}
-            label={field}
-            defaultChecked={redacted.includes(field)}
+            value={field.name}
+            label={field.label}
+            defaultChecked={redacted.includes(field.name)}
             {...(fieldsError ? { "aria-invalid": true } : {})}
           />
         ))}

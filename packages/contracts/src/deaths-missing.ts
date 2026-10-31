@@ -273,6 +273,11 @@ export const HerbertProfileFields = z
 export const SaveHerbertProfile = HerbertProfileFields.extend({
   reviewedOn: isoDate,
   version: upsertVersion,
+  /**
+   * A first profile when the record prefills any part: true once staff have checked each
+   * prefilled part with the person or their family (HZ-127). Not stored.
+   */
+  prefillChecked: z.boolean().optional(),
 }).meta({ id: "SaveHerbertProfile" });
 
 export const HerbertProfileView = z

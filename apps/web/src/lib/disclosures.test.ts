@@ -6,12 +6,18 @@ import {
   disclosureSteps,
   disclosuresShown,
   itemDecisionChip,
+  loggedByReader,
+  plainName,
+  plainValue,
   preventionChip,
   readDecide,
   readItemDecision,
   readLogRequest,
   readPreventionReport,
   readWithdraw,
+  recordKind,
+  recordReference,
+  recordWhen,
 } from "./disclosures";
 
 /**
@@ -214,5 +220,55 @@ describe("disclosure requests", () => {
     );
     expect(backwards.ok).toBe(false);
     if (!backwards.ok) expect(Object.keys(backwards.errors)).toEqual(["respondedOn"]);
+  });
+});
+
+describe("collected records in plain words (accessibility review)", () => {
+  const format = {
+    date: (iso: string) => `d:${iso}`,
+    dateTime: (iso: string) => `dt:${iso}`,
+  };
+
+  it.each([
+    ["received_at", "Received at"],
+    ["person_id", "Person id"],
+    ["communicationNeeds", "Communication needs"],
+    ["", ""],
+  ])("names %s as %s", (name, plain) => {
+    expect(plainName(name)).toBe(plain);
+  });
+
+  it("names a table by the export catalogue's description, never its name", () => {
+    expect(recordKind("care_note")).not.toContain("_");
+    expect(recordKind("no_such_table")).toBe("No such table");
+  });
+
+  it("gives a short, upper-case reference from the record's id", () => {
+    expect(recordReference("0199f000-0000-7000-8000-0000000abc12")).toBe("0ABC12");
+  });
+
+  it("finds when the record is from", () => {
+    expect(recordWhen({ created_at: "2026-10-30T09:00:00Z" })).toBe("2026-10-30T09:00:00Z");
+    expect(recordWhen({ note: "x" })).toBeNull();
+    expect(recordWhen(null)).toBeNull();
+  });
+
+  it.each([
+    [null, "disclosures.notRecorded"],
+    [true, 'disclosures.value.boolean {"value":"true"}'],
+    [1200, "1,200"],
+    ["2026-10-30", "d:2026-10-30"],
+    ["2026-10-30T09:00:00Z", "dt:2026-10-30T09:00:00Z"],
+    [["a", "b"], "a, b"],
+    [[], "disclosures.value.none"],
+    [{ first_name: "Ada" }, "First name: Ada"],
+  ])("shows %j in words, never raw JSON", (value, shown) => {
+    expect(plainValue(value, t, format)).toBe(shown);
+  });
+
+  it("knows when the reader logged the request, so another must decide", () => {
+    expect(loggedByReader({ loggedBy: "a" }, "a")).toBe(true);
+    expect(loggedByReader({ loggedBy: "a" }, "b")).toBe(false);
+    expect(loggedByReader({ loggedBy: null }, "a")).toBe(false);
   });
 });

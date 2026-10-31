@@ -73,6 +73,29 @@ describe("missing persons", () => {
     expect(policeCallState(episode)).toBe(state);
   });
 
+  it("hazard HZ-127 says a missed police call as late once the person is found, never as not needed", () => {
+    expect(policeCallState({ status: "found", policeCallDueAt: "x", policeCallLate: true })).toBe(
+      "missed",
+    );
+    expect(policeCallState({ status: "closed", policeCallDueAt: "x", policeCallLate: true })).toBe(
+      "missed",
+    );
+    expect(policeCallChip("missed", "31/10/2026 12:30", t)).toMatchObject({
+      status: "overdue",
+      icon: "circle-alert",
+    });
+  });
+
+  it("hazard HZ-127 turns the police call overdue on the device clock, without waiting for the API", () => {
+    const episode = {
+      status: "open",
+      policeCallDueAt: "2026-10-31T12:30:00.000Z",
+      policeCallLate: false,
+    } as const;
+    expect(policeCallState(episode, new Date("2026-10-31T12:29:00Z"))).toBe("due");
+    expect(policeCallState(episode, new Date("2026-10-31T12:30:00Z"))).toBe("overdue");
+  });
+
   it("says the police call in words with the target time, never by colour alone", () => {
     const chip = policeCallChip("overdue", "31/10/2026 12:30", t);
     expect(chip).toMatchObject({ status: "overdue", icon: "circle-alert" });
@@ -163,6 +186,30 @@ describe("missing persons", () => {
       { version: 0, today: "2026-10-31" },
     );
     expect(future.ok).toBe(false);
+  });
+
+  it("hazard HZ-127 refuses a first profile with prefilled parts until each is checked", () => {
+    const values = {
+      physicalDescription: "Short, grey hair, glasses.",
+      placesLikely: "The old family home on Example Street.",
+      communication: "From the record: Hard of hearing",
+      "reviewedOn-day": "30",
+      "reviewedOn-month": "10",
+      "reviewedOn-year": "2026",
+    };
+    const unchecked = readHerbertProfile(form(values), t, {
+      version: 0,
+      today: "2026-10-31",
+      prefilled: true,
+    });
+    expect(unchecked.ok).toBe(false);
+    if (!unchecked.ok) expect(Object.keys(unchecked.errors)).toEqual(["prefillChecked"]);
+    const checked = readHerbertProfile(form({ ...values, prefillChecked: "yes" }), t, {
+      version: 0,
+      today: "2026-10-31",
+      prefilled: true,
+    });
+    expect(checked).toMatchObject({ ok: true, body: { prefillChecked: true } });
   });
 
   it("names where each prefilled part came from", () => {

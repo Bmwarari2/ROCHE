@@ -358,6 +358,7 @@ export const deathsMissingRouter = createRouter()
             note: body.note ?? null,
           },
           new Date(now.getTime() + FUTURE_TOLERANCE_MS),
+          { expected: row.expected, possiblyUnnatural: row.possiblyUnnatural },
         );
         if (stepProblems.length > 0) throw problems.invalid(stepProblems.join(" "));
         await tx.insert(deathStep).values({
@@ -917,6 +918,16 @@ export const deathsMissingRouter = createRouter()
         }
         const profileProblems = herbertProfileProblems(body, ukIsoDate(now));
         if (profileProblems.length > 0) throw problems.invalid(profileProblems.join(" "));
+        // A first profile the record prefills is saved only once each prefilled part has been
+        // checked with the person or their family (HZ-127: never taken as checked).
+        if (body.version === 0 && body.prefillChecked !== true) {
+          const prefill = await herbertPrefillFor(tx, id);
+          if (Object.values(prefill).some((v) => typeof v === "string" && v.trim() !== "")) {
+            throw problems.invalid(
+              "Check each part filled in from the record with the person or their family, and say so, before saving the profile.",
+            );
+          }
+        }
         if (body.photoDocumentId) {
           const [photo] = await tx
             .select({ id: document.id })

@@ -3,6 +3,7 @@
 import { Button, DateTimeInput, RadioGroup, TextArea, TextField } from "@harbour/ui";
 import { CircleCheck, FilePlus, Save, Stethoscope } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   closeDeathRecord,
   openDeathRecord,
@@ -18,6 +19,7 @@ import {
   DEATH_REVIEW_MAX,
   type DeathStepKey,
   JUDGED_BY_MAX,
+  notNeededAllowed,
   readCloseDeath,
   readDeathReview,
   readDeathStep,
@@ -51,10 +53,9 @@ export function JudgementForm({
 }) {
   const ids = useFieldIds(["expected", "possiblyUnnatural", "judgedBy"]);
   const { submit, result, pending } = useSubmit(
+    // The judgement form stays on the page after saving: FormFeedback says so, focus stays.
     (form) => readJudgement(form, t, { version }),
     (body) => recordJudgement(id, body),
-    undefined,
-    t("deaths.judgement.done"),
   );
   const answer = (value: boolean | null) => (value === null ? undefined : value ? "yes" : "no");
   return (
@@ -98,12 +99,26 @@ export function JudgementForm({
 }
 
 /** Recording one step on the record as done, or not needed with the reason. */
-export function DeathStepForm({ id, step }: { readonly id: string; readonly step: DeathStepKey }) {
+export function DeathStepForm({
+  id,
+  step,
+  missingFacts,
+}: {
+  readonly id: string;
+  readonly step: DeathStepKey;
+  /** The judgement facts still missing: a police step cannot be "not needed" until recorded. */
+  readonly missingFacts: readonly string[];
+}) {
   const ids = useFieldIds(["outcome", "at", "note", "reference"]);
+  // The step's own id, kept until it is saved: a retry after an unknown outcome sends the same id,
+  // so the API returns the step already recorded instead of a second one (HZ-029).
+  const [entryId, setEntryId] = useState(uuidv7);
+  const allowNotNeeded = notNeededAllowed(step, missingFacts);
   const { submit, result, pending } = useSubmit(
-    (form) => readDeathStep(form, t, { id: uuidv7(), step }),
+    (form) => readDeathStep(form, t, { id: entryId, step, missingFacts }),
     (body) => recordDeathStep(id, body),
-    undefined,
+    // Saved, the step is settled and its form leaves the page.
+    () => setEntryId(uuidv7()),
     t("deaths.step.done"),
   );
   return (
@@ -114,11 +129,16 @@ export function DeathStepForm({ id, step }: { readonly id: string; readonly step
         legend={t("deaths.step.outcome")}
         options={[
           { value: "done", label: t("deaths.step.outcomeOption", { outcome: "done" }) },
-          {
-            value: "not_needed",
-            label: t("deaths.step.outcomeOption", { outcome: "not_needed" }),
-          },
+          ...(allowNotNeeded
+            ? [
+                {
+                  value: "not_needed" as const,
+                  label: t("deaths.step.outcomeOption", { outcome: "not_needed" }),
+                },
+              ]
+            : []),
         ]}
+        {...(allowNotNeeded ? {} : { hint: t("deaths.step.policeUntilJudgement") })}
         error={errorFor(result, "outcome")}
       />
       <DateTimeInput

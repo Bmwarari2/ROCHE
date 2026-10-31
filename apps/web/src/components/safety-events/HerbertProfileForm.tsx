@@ -1,7 +1,7 @@
 "use client";
 
 import type { HerbertProfileView } from "@harbour/contracts";
-import { Button, DateInput, TextArea } from "@harbour/ui";
+import { Button, Checkbox, DateInput, TextArea } from "@harbour/ui";
 import { Save } from "lucide-react";
 import { saveHerbertProfile } from "@/app/actions/missing";
 import { FormFeedback } from "@/components/care/FormFeedback";
@@ -40,13 +40,15 @@ export function HerbertProfileForm({
   readonly prefill: Prefill;
   readonly today: string;
 }) {
-  const ids = useFieldIds([...HERBERT_TEXT_FIELDS, "reviewedOn"]);
-  const { submit, result, pending } = useSubmit(
-    (form) => readHerbertProfile(form, t, { version: profile?.version ?? 0, today }),
-    (body) => saveHerbertProfile(personId, body),
-  );
+  const ids = useFieldIds([...HERBERT_TEXT_FIELDS, "reviewedOn", "prefillChecked"]);
   const suggestion = (field: HerbertTextField): string | null =>
     profile ? null : ((prefill[field] as string | null | undefined) ?? null);
+  // A first profile with any prefilled part needs each part confirmed before it is saved (HZ-127).
+  const prefilled = HERBERT_TEXT_FIELDS.some((field) => Boolean(suggestion(field)));
+  const { submit, result, pending } = useSubmit(
+    (form) => readHerbertProfile(form, t, { version: profile?.version ?? 0, today, prefilled }),
+    (body) => saveHerbertProfile(personId, body),
+  );
   return (
     <form method="post" className="flex flex-col gap-5" onSubmit={submit} noValidate>
       {profile?.photoDocumentId ? (
@@ -56,31 +58,35 @@ export function HerbertProfileForm({
         const required = HERBERT_REQUIRED.includes(field);
         const suggested = suggestion(field);
         const sources = prefillSources(suggested);
-        const prefilled = Boolean(suggested) && !required;
+        const filledIn = Boolean(suggested) && !required;
         const value = profile
           ? ((profile[field] as string | null) ?? "")
-          : prefilled
+          : filledIn
             ? suggested
             : "";
+        // Where a prefilled part came from (and, for a field never prefilled, the suggestion
+        // itself) is in the field's hint, so screen readers hear it with the field.
+        const source = suggested
+          ? t(filledIn ? "herbert.prefill.filled" : "herbert.prefill.suggested", {
+              sources:
+                sources.map((s) => t("herbert.prefill.source", { source: s })).join(", ") ||
+                t("herbert.prefill.source", { source: "record" }),
+            })
+          : null;
+        const hint = [
+          t("herbert.hint", { field }),
+          source,
+          required && suggested ? t("herbert.prefill.suggestion", { text: suggested }) : null,
+        ]
+          .filter(Boolean)
+          .join(" ");
         return (
           <div key={field} className="flex flex-col gap-2" data-herbert-field={field}>
-            {suggested ? (
-              <div className="flex flex-col gap-1 rounded-input border-s-4 border-accent bg-bg-secondary p-3">
-                <p className="m-0 text-body-dense font-semibold">
-                  {t(prefilled ? "herbert.prefill.filled" : "herbert.prefill.suggested", {
-                    sources:
-                      sources.map((s) => t("herbert.prefill.source", { source: s })).join(", ") ||
-                      t("herbert.prefill.source", { source: "record" }),
-                  })}
-                </p>
-                {required ? <p className="m-0 whitespace-pre-wrap">{suggested}</p> : null}
-              </div>
-            ) : null}
             <TextArea
               id={ids[field]}
               name={field}
               label={t("herbert.field", { field })}
-              hint={t("herbert.hint", { field })}
+              hint={hint}
               rows={field === "phoneOrTracker" || field === "reviewedWith" ? 2 : 4}
               maxLength={herbertMax(field)}
               defaultValue={value ?? ""}
@@ -100,6 +106,16 @@ export function HerbertProfileForm({
         error={errorFor(result, "reviewedOn")}
         errorParts={dateBoxesOf(partsFor(result, "reviewedOn"))}
       />
+      {prefilled ? (
+        <Checkbox
+          id={ids.prefillChecked}
+          name="prefillChecked"
+          value="yes"
+          label={t("herbert.form.prefillCheck")}
+          hint={t("herbert.form.prefillCheckHint")}
+          error={errorFor(result, "prefillChecked")}
+        />
+      ) : null}
       <div>
         <Button
           type="submit"

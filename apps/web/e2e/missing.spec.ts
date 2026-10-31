@@ -77,7 +77,7 @@ test("SAFE-015 the manager opens a missing person episode with the police call f
   await fillWhen(page, "When they were noticed missing", noticed);
   await page
     .getByRole("group", { name: /call the police at once/i })
-    .getByLabel("No")
+    .getByRole("radio", { name: "No", exact: true })
     .check();
   await accessibleInBothThemes(page, "open a missing person episode");
   await page.getByRole("button", { name: "Open the episode" }).click();

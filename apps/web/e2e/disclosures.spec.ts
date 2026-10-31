@@ -61,4 +61,10 @@ test("SAFE-016 the manager logs a police request, collects the records and revie
   await expect(page.getByText(/records found:/)).toBeVisible();
   await expect(page.getByText("Still to review").first()).toBeVisible();
   await accessibleInBothThemes(page, "disclosure request record");
+
+  // One collected record, named in plain words (never a table name), reviewed before release.
+  await page.locator('a[href*="/items/"]').first().click();
+  await page.waitForURL(/\/items\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("heading", { level: 1 })).not.toContainText("_");
+  await accessibleInBothThemes(page, "collected record review");
 });

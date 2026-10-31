@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { demoPerson, expectAccessible, signIn } from "./support";
 
 /**
@@ -21,7 +21,7 @@ async function accessibleInBothThemes(page: Page, name: string) {
 }
 
 /** Fills a date field's boxes, found by its legend, with a UK date offset from today. */
-async function fillDate(page: Page, legend: string, daysAgo: number) {
+async function fillDate(page: Page | Locator, legend: string, daysAgo: number) {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     day: "2-digit",
@@ -77,11 +77,27 @@ test("SAFE-013 the manager declares an outbreak, records a case and closes it", 
   ).toBeVisible();
   await accessibleInBothThemes(page, "outbreak record");
 
-  await page.getByLabel("Resident").selectOption(demoPerson(1));
+  // The new-case form's resident picker (the line list also says "Resident" elsewhere).
+  await page.getByRole("combobox", { name: "Resident", exact: true }).selectOption(demoPerson(1));
   await fillDate(page, "When symptoms started", 1);
   await page.getByRole("group", { name: "Symptoms" }).getByLabel("Vomiting").check();
   await page.getByRole("button", { name: "Add to the line list" }).click();
   await expect(page.getByText("Current", { exact: true }).first()).toBeVisible();
+  // The line list with a row in it, and its update form, scanned in both themes.
+  await accessibleInBothThemes(page, "outbreak record with a line-list row");
+
+  // HZ-013: they recovered, so the row is updated (superseded), never added a second time.
+  const update = page.locator("details").filter({ hasText: "Update this case" }).first();
+  await update.locator("summary").click();
+  await update.getByLabel("Their condition or test result changed").check();
+  await update
+    .getByRole("group", { name: /How they are/ })
+    .getByLabel("Recovered")
+    .check();
+  await fillDate(update, "When that changed", 0);
+  await update.getByRole("button", { name: "Save the update" }).click();
+  await expect(page.getByText("Superseded", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Current", { exact: true })).toHaveCount(1);
 
   await fillDate(page, "Date the outbreak ended", 0);
   await page

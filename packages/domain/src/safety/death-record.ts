@@ -52,6 +52,12 @@ export type DeathStepOutcome = (typeof DEATH_STEP_OUTCOMES)[number];
 /** The shortest reason for a step not needed, and for each part of the mortality review. */
 export const DEATH_REASON_MIN = 20;
 
+/** The steps for a death that may be unnatural: kept until the clinician's judgement says otherwise. */
+export const POLICE_DEATH_STEPS: readonly DeathStep[] = [
+  "police_informed",
+  "preserve_room_and_equipment",
+];
+
 export interface DeathRecordFacts {
   readonly diedAt: Date;
   /** The clinician's judgement as recorded; null until recorded. */
@@ -215,7 +221,8 @@ export function deathRecordView(input: {
  * Why a step cannot be recorded: it is not in this death's plan; the mortality review is recorded
  * on its own; a notification step is done only in the notification centre (here only "not
  * needed"); "not needed" takes a reason of at least `DEATH_REASON_MIN` characters; the time is
- * not later than now nor earlier than the death.
+ * not later than now nor earlier than the death. While the clinician's judgement is not yet
+ * recorded, the police steps are never "not needed": the safer answer stands until it is (HZ-013).
  */
 export function deathStepProblems(
   plan: DeathPlan,
@@ -227,8 +234,19 @@ export function deathStepProblems(
     readonly note: string | null;
   },
   now: Date,
+  judgement?: { readonly expected: boolean | null; readonly possiblyUnnatural: boolean | null },
 ): string[] {
   const problems: string[] = [];
+  if (
+    judgement &&
+    (judgement.expected === null || judgement.possiblyUnnatural === null) &&
+    POLICE_DEATH_STEPS.includes(step.step) &&
+    step.outcome === "not_needed"
+  ) {
+    problems.push(
+      "The clinician's judgement is not recorded yet, so this police step cannot be marked not needed. Record the judgement first.",
+    );
+  }
   if (step.step === "mortality_review") {
     problems.push("Record the mortality review on its own, with its findings and lessons.");
   } else if (!plan.steps.includes(step.step)) {

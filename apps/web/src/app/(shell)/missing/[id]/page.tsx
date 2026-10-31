@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
+import { AutoRefresh } from "@/components/safety-events/AutoRefresh";
 import { CloseEpisodeForm, TimelineEntryForm } from "@/components/safety-events/MissingForms";
 import { SiloStatus } from "@/components/safety-events/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -55,13 +56,14 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <SiloStatus />
+      <AutoRefresh active={data.status === "open"} />
       <PageHeader
         title={person ? t("missing.itemTitle", { name: personNames(person).full }) : title}
       />
       <Notice
         tone={police === "called" || police === "not_needed" ? "info" : "warning"}
         icon={
-          police === "overdue" ? (
+          police === "overdue" || police === "missed" ? (
             <CircleAlert {...noticeIcon} />
           ) : police === "now" ? (
             <TriangleAlert {...noticeIcon} />
@@ -76,7 +78,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <p className="m-0">
           {police === "called"
             ? t("missing.police.reference", { reference: data.policeReference ?? "" })
-            : t("missing.police.body", { state: police })}
+            : t("missing.police.body", { state: police, when: due })}
         </p>
       </Notice>
       {data.immediateRisk ? (
@@ -90,7 +92,7 @@ export default async function EpisodePage({ params }: { params: Promise<{ id: st
         <SafetyChip chip={missingStatusChip(data.status, t)} />
       </p>
       {person ? (
-        <Card as="section" headingLevel={2} title={t("missing.person")}>
+        <Card as="section" headingLevel={2} title={personNames(person).full}>
           <PersonNeeds person={person} />
         </Card>
       ) : null}

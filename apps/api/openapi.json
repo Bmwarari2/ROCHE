@@ -19010,6 +19010,9 @@
           "version": {
             "type": "integer",
             "minimum": 0
+          },
+          "prefillChecked": {
+            "type": "boolean"
           }
         },
         "required": [

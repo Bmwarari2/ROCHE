@@ -1,5 +1,5 @@
 import { Card, PageHeader } from "@harbour/ui";
-import { ExternalLink, ShieldAlert, TriangleAlert } from "lucide-react";
+import { ChevronRight, ShieldAlert, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -143,18 +143,23 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
                           href={href}
                           className="inline-flex min-h-target items-center gap-1 underline"
                         >
-                          <ExternalLink size={16} strokeWidth={1.5} aria-hidden="true" />
                           {t("deaths.step.openNotification", {
                             status: s.notificationStatus ?? "none",
                           })}
+                          <ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />
                         </Link>
                       ) : (
                         <p className="m-0">{t("deaths.step.noNotification")}</p>
                       )}
                     </div>
                   ) : null}
-                  {manage && recordableHere(s.step) && s.state !== "done" ? (
-                    <DeathStepForm id={data.id} step={s.step} />
+                  {/* A settled step (done, or not needed) has no form, so a form that succeeds
+                      always leaves the page and focus moves to the heading. */}
+                  {manage &&
+                  recordableHere(s.step) &&
+                  s.state !== "done" &&
+                  s.state !== "not_needed" ? (
+                    <DeathStepForm id={data.id} step={s.step} missingFacts={data.missingFacts} />
                   ) : null}
                 </div>
               </Card>
@@ -182,14 +187,20 @@ export default async function DeathPage({ params }: { params: Promise<{ id: stri
               lessons={data.review.lessons}
             />
           ) : (
-            <>
-              {data.review.findings ? (
-                <p className="m-0 whitespace-pre-wrap">{data.review.findings}</p>
-              ) : null}
-              {data.review.lessons ? (
-                <p className="m-0 whitespace-pre-wrap">{data.review.lessons}</p>
-              ) : null}
-            </>
+            <dl className="m-0 flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <dt className="text-body-dense font-semibold">{t("deaths.review.findings")}</dt>
+                <dd className="m-0 whitespace-pre-wrap">
+                  {data.review.findings ?? t("deaths.review.notYet")}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-1">
+                <dt className="text-body-dense font-semibold">{t("deaths.review.lessons")}</dt>
+                <dd className="m-0 whitespace-pre-wrap">
+                  {data.review.lessons ?? t("deaths.review.notYet")}
+                </dd>
+              </div>
+            </dl>
           )}
         </div>
       </Card>

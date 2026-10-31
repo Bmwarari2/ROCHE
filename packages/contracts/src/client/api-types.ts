@@ -32416,6 +32416,7 @@ export interface components {
       /** Format: date */
       reviewedOn: string;
       version: number;
+      prefillChecked?: boolean;
     };
     /** @description A location's downtime pack, with its freshness worked out now (HZ-021) */
     DowntimePackOut: {

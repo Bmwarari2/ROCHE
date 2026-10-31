@@ -1,9 +1,11 @@
+import type { PersonSummary } from "@harbour/contracts";
 import { Card, PageHeader } from "@harbour/ui";
 import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import {
   CloseOutbreakForm,
@@ -54,10 +56,17 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
   const listed = await api.GET("/v1/people", {
     params: { query: { locationId: data.locationId } },
   });
-  const people = (listed.data?.items ?? []).map((p) => ({ id: p.id, name: personNames(p).full }));
+  const summaries = listed.data?.items ?? [];
+  const people = summaries.map((p) => ({ id: p.id, name: personNames(p).full }));
   const nameOf = new Map(people.map((p) => [p.id, p.name]));
+  const personOf = new Map(summaries.map((p) => [p.id, p]));
   const open = data.state === "declared";
   const report = data.report;
+  // Staff cannot be added on these screens yet, so a staff figure of 0 is not a fact (HZ-013).
+  const staffNotCollected = report.staffCases === 0;
+  const missing = staffNotCollected
+    ? [...report.missing, t("outbreaks.report.staffMissing")]
+    : report.missing;
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <SiloStatus />
@@ -89,14 +98,14 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
           ) : (
             <p className="m-0">{t("outbreaks.report.notShown")}</p>
           )}
-          {report.missing.length > 0 ? (
+          {missing.length > 0 ? (
             <Notice
               tone="warning"
               icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
               title={t("outbreaks.report.missing")}
             >
               <ul className="m-0 flex flex-col gap-1 pl-5">
-                {report.missing.map((m) => (
+                {missing.map((m) => (
                   <li key={m}>{m}</li>
                 ))}
               </ul>
@@ -107,7 +116,12 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
             <Row term={t("outbreaks.report.organism")} value={report.organism} />
             <Row term={t("outbreaks.report.declaredOn")} value={formatDate(report.declaredOn)} />
             <Row term={t("outbreaks.report.residentCases")} value={report.residentCases} />
-            <Row term={t("outbreaks.report.staffCases")} value={report.staffCases} />
+            <Row
+              term={t("outbreaks.report.staffCases")}
+              value={
+                staffNotCollected ? t("outbreaks.report.staffNotCollected") : report.staffCases
+              }
+            />
             <Row term={t("outbreaks.report.firstOnset")} value={formatDate(report.firstOnsetOn)} />
             <Row
               term={t("outbreaks.report.latestOnset")}
@@ -156,6 +170,37 @@ export default async function OutbreakPage({ params }: { params: Promise<{ id: s
                   <p className="m-0 text-body-dense text-text-secondary">
                     {row.symptoms.map((value) => t("outbreaks.symptom", { value })).join(", ")}
                   </p>
+                  {row.caseType === "resident" && row.personId && personOf.get(row.personId) ? (
+                    <PersonNeeds person={personOf.get(row.personId) as PersonSummary} />
+                  ) : null}
+                  {open && row.current && row.caseType === "resident" && row.personId ? (
+                    <details className="mt-1">
+                      <summary className="inline-flex min-h-target cursor-pointer items-center underline">
+                        {t("outbreaks.case.update", {
+                          name: nameOf.get(row.personId) ?? t("outbreaks.lineList.resident"),
+                        })}
+                      </summary>
+                      <div className="mt-3">
+                        <RecordCaseForm
+                          id={data.id}
+                          people={people}
+                          supersedes={{
+                            id: row.id,
+                            personId: row.personId,
+                            onsetOn: row.onsetOn,
+                            symptoms: row.symptoms,
+                            testType: row.testType,
+                            testedOn: row.testedOn,
+                            testResult: row.testResult,
+                            fluVaccinated: row.fluVaccinated,
+                            covidVaccinated: row.covidVaccinated,
+                            outcome: row.outcome,
+                            outcomeOn: row.outcomeOn,
+                          }}
+                        />
+                      </div>
+                    </details>
+                  ) : null}
                 </li>
               ))}
             </ul>

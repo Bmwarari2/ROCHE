@@ -9,7 +9,7 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { CircleAlert, ClipboardPlus, Save, ShieldCheck, Siren } from "lucide-react";
+import { CircleAlert, ClipboardPlus, Save, ShieldCheck, Siren, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   closeOutbreak,
@@ -19,9 +19,11 @@ import {
 } from "@/app/actions/outbreaks";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
+import { Notice } from "@/components/care/Notice";
 import { characterCount, t } from "@/lib/i18n";
 import {
   CLOSE_REASON_MAX,
+  CORRECTION_REASON_MAX,
   OUTBREAK_OUTCOMES,
   OUTBREAK_SYMPTOMS,
   OUTBREAK_SYNDROMES,
@@ -154,13 +156,34 @@ export function UpdateOutbreakForm({
 const choose = (list: readonly string[], key: "outbreaks.testType" | "outbreaks.testResult") =>
   list.map((value) => ({ value, label: t(key, { value }) }));
 
-/** A resident's row on the line list: onset, symptoms, test, vaccination and how they are. */
+/** The current row a form starts from when it updates or corrects a case. */
+export interface CaseStart {
+  readonly id: string;
+  readonly personId: string;
+  readonly onsetOn: string;
+  readonly symptoms: readonly string[];
+  readonly testType: string | null;
+  readonly testedOn: string | null;
+  readonly testResult: string;
+  readonly fluVaccinated: string;
+  readonly covidVaccinated: string;
+  readonly outcome: string;
+  readonly outcomeOn: string | null;
+}
+
+/**
+ * A resident's row on the line list: onset, symptoms, test, vaccination and how they are. With
+ * `supersedes`, it updates or corrects that current row instead (HZ-013: never a second row), and
+ * starts from what the row says.
+ */
 export function RecordCaseForm({
   id,
   people,
+  supersedes,
 }: {
   readonly id: string;
   readonly people: readonly Place[];
+  readonly supersedes?: CaseStart;
 }) {
   const ids = useFieldIds([
     "personId",
@@ -173,26 +196,61 @@ export function RecordCaseForm({
     "covidVaccinated",
     "outcome",
     "outcomeOn",
+    "change",
+    "correctionReason",
   ]);
   const { submit, result, pending } = useSubmit(
-    (form) => readRecordCase(form, t),
+    (form) =>
+      readRecordCase(
+        form,
+        t,
+        supersedes ? { supersedes: { id: supersedes.id, personId: supersedes.personId } } : {},
+      ),
     (body) => recordOutbreakCase(id, body),
     (_data, form) => form.reset(),
+    // An update replaces the row it came from, so its form goes with the refresh.
+    supersedes ? t("outbreaks.case.updateDone") : undefined,
   );
   const symptomsError = errorFor(result, "symptoms");
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <SelectField
-        id={ids.personId}
-        name="personId"
-        label={t("outbreaks.case.person")}
-        defaultValue={people[0]?.id ?? ""}
-        options={people.map((p) => ({ value: p.id, label: p.name }))}
-        error={errorFor(result, "personId")}
-      />
+      {supersedes ? (
+        <>
+          <RadioGroup
+            id={ids.change}
+            name="change"
+            legend={t("outbreaks.case.change")}
+            options={[
+              { value: "update", label: t("outbreaks.case.changeUpdate") },
+              { value: "correct", label: t("outbreaks.case.changeCorrect") },
+            ]}
+            error={errorFor(result, "change")}
+          />
+          <TextArea
+            id={ids.correctionReason}
+            name="correctionReason"
+            label={t("outbreaks.case.correctionReason")}
+            hint={t("outbreaks.case.correctionReasonHint")}
+            rows={2}
+            maxLength={CORRECTION_REASON_MAX}
+            formatCount={(remaining) => characterCount(remaining)}
+            error={errorFor(result, "correctionReason")}
+          />
+        </>
+      ) : (
+        <SelectField
+          id={ids.personId}
+          name="personId"
+          label={t("outbreaks.case.person")}
+          defaultValue={people[0]?.id ?? ""}
+          options={people.map((p) => ({ value: p.id, label: p.name }))}
+          error={errorFor(result, "personId")}
+        />
+      )}
       <DateInput
         id={ids.onsetOn}
         name="onsetOn"
+        defaultValue={supersedes?.onsetOn ?? null}
         legend={t("outbreaks.case.onset")}
         hint={t("care.date.hint")}
         labels={dateTimeLabels(t)}
@@ -220,6 +278,7 @@ export function RecordCaseForm({
             {...(index === 0 ? { id: ids.symptoms } : {})}
             name="symptoms"
             value={value}
+            defaultChecked={supersedes?.symptoms.includes(value) ?? false}
             label={t("outbreaks.symptom", { value })}
             {...(symptomsError ? { "aria-invalid": true } : {})}
           />
@@ -229,7 +288,7 @@ export function RecordCaseForm({
         id={ids.testResult}
         name="testResult"
         label={t("outbreaks.case.testResult")}
-        defaultValue="not_tested"
+        defaultValue={supersedes?.testResult ?? "not_tested"}
         options={choose(OUTBREAK_TEST_RESULTS, "outbreaks.testResult")}
       />
       <SelectField
@@ -237,7 +296,7 @@ export function RecordCaseForm({
         name="testType"
         label={t("outbreaks.case.testType")}
         hint={t("outbreaks.case.testTypeHint")}
-        defaultValue=""
+        defaultValue={supersedes?.testType ?? ""}
         options={[
           { value: "", label: t("outbreaks.case.choose") },
           ...choose(OUTBREAK_TEST_TYPES, "outbreaks.testType"),
@@ -247,6 +306,7 @@ export function RecordCaseForm({
       <DateInput
         id={ids.testedOn}
         name="testedOn"
+        defaultValue={supersedes?.testedOn ?? null}
         legend={t("outbreaks.case.testedOn")}
         hint={t("outbreaks.case.optionalDateHint")}
         labels={dateTimeLabels(t)}
@@ -259,7 +319,7 @@ export function RecordCaseForm({
           id={ids[name]}
           name={name}
           legend={t("outbreaks.case.vaccinated", { vaccine: name })}
-          defaultValue="unknown"
+          defaultValue={(supersedes?.[name] as (typeof VACCINATION_ANSWERS)[number]) ?? "unknown"}
           options={VACCINATION_ANSWERS.map((value) => ({
             value,
             label: t("outbreaks.vaccination", { value }),
@@ -270,7 +330,7 @@ export function RecordCaseForm({
         id={ids.outcome}
         name="outcome"
         legend={t("outbreaks.case.outcome")}
-        defaultValue="unwell"
+        defaultValue={(supersedes?.outcome as (typeof OUTBREAK_OUTCOMES)[number]) ?? "unwell"}
         options={OUTBREAK_OUTCOMES.map((value) => ({
           value,
           label: t("outbreaks.outcome", { value }),
@@ -279,6 +339,7 @@ export function RecordCaseForm({
       <DateInput
         id={ids.outcomeOn}
         name="outcomeOn"
+        defaultValue={supersedes?.outcomeOn ?? null}
         legend={t("outbreaks.case.outcomeOn")}
         hint={t("outbreaks.case.outcomeOnHint")}
         labels={dateTimeLabels(t)}
@@ -287,10 +348,18 @@ export function RecordCaseForm({
       />
       <div>
         <Button type="submit" icon={<ClipboardPlus {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("outbreaks.case.submit")}
+          {pending
+            ? t("common.saving")
+            : supersedes
+              ? t("outbreaks.case.updateSubmit")
+              : t("outbreaks.case.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success={t("outbreaks.case.done")} fieldIds={ids} />
+      <FormFeedback
+        result={result}
+        success={supersedes ? t("outbreaks.case.updateDone") : t("outbreaks.case.done")}
+        fieldIds={ids}
+      />
     </form>
   );
 }
@@ -308,16 +377,33 @@ export function CloseOutbreakForm({
   readonly version: number;
   readonly stillUnwell: number;
 }) {
-  const ids = useFieldIds(["closedOn", "reason"]);
+  const ids = useFieldIds(["knowStillUnwell", "closedOn", "reason"]);
   const { submit, result, pending } = useSubmit(
-    (form) => readCloseOutbreak(form, t, { version }),
+    (form) => readCloseOutbreak(form, t, { version, stillUnwell }),
     (body) => closeOutbreak(id, body),
     undefined,
     t("outbreaks.close.done"),
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
-      <p className="m-0">{t("outbreaks.close.stillUnwell", { count: stillUnwell })}</p>
+      {stillUnwell > 0 ? (
+        <>
+          <Notice
+            tone="warning"
+            icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+            title={t("outbreaks.close.stillUnwell", { count: stillUnwell })}
+          />
+          <Checkbox
+            id={ids.knowStillUnwell}
+            name="knowStillUnwell"
+            value="yes"
+            label={t("outbreaks.close.knowStillUnwell", { count: stillUnwell })}
+            error={errorFor(result, "knowStillUnwell")}
+          />
+        </>
+      ) : (
+        <p className="m-0">{t("outbreaks.close.stillUnwell", { count: stillUnwell })}</p>
+      )}
       <p className="m-0">{t("outbreaks.close.final")}</p>
       <DateInput
         id={ids.closedOn}

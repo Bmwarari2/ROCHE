@@ -6,17 +6,23 @@ import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { ItemDecisionForm } from "@/components/safety-events/DisclosureForms";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
-import { canManageDisclosures, disclosuresShown, itemDecisionChip } from "@/lib/disclosures";
+import {
+  canManageDisclosures,
+  disclosuresShown,
+  itemDecisionChip,
+  plainName,
+  plainValue,
+  recordKind,
+  recordReference,
+  recordWhen,
+} from "@/lib/disclosures";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: t("disclosures.item.pageTitle") };
 
 const shown = (value: unknown): string =>
-  value === null || value === undefined
-    ? t("disclosures.notRecorded")
-    : typeof value === "string"
-      ? value
-      : JSON.stringify(value);
+  plainValue(value, t, { date: formatDate, dateTime: formatDateTime });
 
 /**
  * One collected record, reviewed before anything leaves: every field, other people's names found
@@ -48,10 +54,18 @@ export default async function DisclosureItemPage({
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader
-        title={t("disclosures.item.title", {
-          table: data.tableName,
-          record: data.recordId.slice(0, 8),
-        })}
+        title={
+          recordWhen(data.record)
+            ? t("disclosures.item.titleWhen", {
+                kind: recordKind(data.tableName),
+                when: formatDateTime(recordWhen(data.record)) ?? "",
+                reference: recordReference(data.recordId),
+              })
+            : t("disclosures.item.title", {
+                kind: recordKind(data.tableName),
+                reference: recordReference(data.recordId),
+              })
+        }
       />
       <p className="m-0 flex flex-wrap items-center gap-2">
         <SafetyChip chip={itemDecisionChip(data.decision, t)} />
@@ -67,7 +81,7 @@ export default async function DisclosureItemPage({
           <dl className="m-0 flex flex-col gap-3">
             {fields.map((field) => (
               <div key={field} className="flex flex-col gap-1">
-                <dt className="text-body-dense font-semibold">{field}</dt>
+                <dt className="text-body-dense font-semibold">{plainName(field)}</dt>
                 <dd className="m-0 whitespace-pre-wrap break-words">
                   {shown(data.record?.[field])}
                   {namesIn(field).length > 0 ? (
@@ -88,7 +102,8 @@ export default async function DisclosureItemPage({
           <ItemDecisionForm
             id={id}
             itemId={itemId}
-            fields={fields}
+            fields={fields.map((field) => ({ name: field, label: plainName(field) }))}
+            decision={data.decision}
             contentSha256={data.contentSha256}
             version={data.version}
             redacted={data.redactedFields}

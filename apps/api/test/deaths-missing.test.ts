@@ -459,7 +459,7 @@ describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
     expect(short.status).toBe(422);
     const stale = await as("manager", path, {
       method: "PUT",
-      body: { ...fields, reviewedOn: monthsAgo(7), version: 0 },
+      body: { ...fields, reviewedOn: monthsAgo(7), version: 0, prefillChecked: true },
     });
     expect(stale.status, await stale.clone().text()).toBe(200);
     expect((await json<HerbertProfileView>(stale)).state).toBe("out_of_date");
@@ -490,5 +490,77 @@ describe("hazard HZ-127 the Herbert Protocol profile (slice 37)", () => {
       body: { ...fields, reviewedOn: future, version: 2 },
     });
     expect(ahead.status).toBe(422);
+  });
+});
+
+describe("hazard HZ-013 the police steps stand until the judgement (slice 63)", () => {
+  it("hazard HZ-013 refuses a police step as not needed while the clinician's judgement is missing", async () => {
+    const exitId = await deathExit(3, null);
+    const view = await json<DeathView>(
+      await as("manager", "/v1/deaths", { method: "POST", body: { exitRecordId: exitId } }),
+    );
+    expect(view.missingFacts).toEqual(["expected", "possiblyUnnatural"]);
+    for (const step of ["police_informed", "preserve_room_and_equipment"]) {
+      const refused = await as("manager", `/v1/deaths/${view.id}/steps`, {
+        method: "POST",
+        body: {
+          id: newId(),
+          step,
+          outcome: "not_needed",
+          at: ago(MIN),
+          note: "The family say the GP expected it, so no police.",
+        },
+      });
+      expect(refused.status, step).toBe(422);
+      expect(await refused.text()).toMatch(/judgement is not recorded yet/);
+    }
+    const done = await as("manager", `/v1/deaths/${view.id}/steps`, {
+      method: "POST",
+      body: { id: newId(), step: "police_informed", outcome: "done", at: ago(MIN) },
+    });
+    expect(done.status, await done.clone().text()).toBe(200);
+  });
+});
+
+describe("hazard HZ-127 a prefilled Herbert profile is never taken as checked (slice 63)", () => {
+  it("hazard HZ-127 refuses a first profile the record prefills until each part is said to be checked", async () => {
+    // A resident whose record prefills something (allergies, communication needs or About Me).
+    let path = "";
+    for (const n of [3, 4, 5, 6, 7, 8]) {
+      const candidate = `/v1/people/${resident(n)}/herbert-profile`;
+      const view = await json<HerbertProfileView>(await as("manager", candidate));
+      const prefilled = Object.values(view.prefill).some((v) => typeof v === "string" && v !== "");
+      if (view.profile === null && prefilled) {
+        path = candidate;
+        break;
+      }
+    }
+    expect(path, "a demo resident with something to prefill").not.toBe("");
+    const body = {
+      photoDocumentId: null,
+      physicalDescription: "Tall, grey hair, walks with a stick",
+      distinguishingFeatures: null,
+      usualClothing: null,
+      medicalNeeds: null,
+      mobility: null,
+      communication: null,
+      placesLikely: "The park by the old house",
+      peopleLikely: null,
+      routines: null,
+      phoneOrTracker: null,
+      previousEpisodes: null,
+      approach: null,
+      reviewedWith: null,
+      reviewedOn: new Date().toISOString().slice(0, 10),
+      version: 0,
+    };
+    const unchecked = await as("manager", path, { method: "PUT", body });
+    expect(unchecked.status).toBe(422);
+    expect(await unchecked.text()).toMatch(/Check each part filled in from the record/);
+    const checked = await as("manager", path, {
+      method: "PUT",
+      body: { ...body, prefillChecked: true },
+    });
+    expect(checked.status, await checked.clone().text()).toBe(200);
   });
 });

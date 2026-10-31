@@ -189,7 +189,8 @@ describe("the line list and the report fields", () => {
       422,
     ],
     ["a result without its test", { testType: null }, 422],
-    ["the same person again", {}, 409],
+    // HZ-013: a second current row would count them twice; the screen offers "Update this case".
+    ["the same person again", {}, 422],
   ])("refuses %s", async (_label, over, status) => {
     const response = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
       method: "POST",
@@ -198,7 +199,16 @@ describe("the line list and the report fields", () => {
     expect(response.status).toBe(status);
   });
 
-  it("updates a case by superseding its current row, and refuses superseding an old one", async () => {
+  it("hazard HZ-013 refuses a second current row for a person, in words", async () => {
+    const again = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
+      method: "POST",
+      body: resident(people[0] as string),
+    });
+    expect(again.status).toBe(422);
+    expect((await json(again)).detail).toMatch(/Update their existing row instead/);
+  });
+
+  it("hazard HZ-013 updates a case by superseding its current row, counted once, and refuses superseding an old one", async () => {
     const update = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
       method: "POST",
       body: resident(people[0] as string, {
@@ -211,6 +221,8 @@ describe("the line list and the report fields", () => {
     const detail = await json(update);
     expect(detail.cases.find((c: Json) => c.id === first).current).toBe(false);
     expect(detail.stillUnwell).toBe(1);
+    // Still one resident in the report: the superseded row is history, not a second case.
+    expect(detail.report.residentCases).toBe(1);
     // Positive once, positive in the report, whatever the latest row says.
     expect(detail.report.positive).toBe(1);
     const stale = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {

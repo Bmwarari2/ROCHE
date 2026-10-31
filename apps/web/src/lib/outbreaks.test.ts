@@ -123,6 +123,61 @@ describe("outbreaks", () => {
     expect(recovered.ok).toBe(false);
   });
 
+  it("hazard HZ-013 a new row never supersedes anything", () => {
+    const read = readRecordCase(
+      form({ personId: PERSON, ...date("onsetOn", ["29", "10", "2026"]), symptoms: "cough" }),
+      t,
+    );
+    expect(read).toMatchObject({ ok: true, body: { supersedesId: null, correctionReason: null } });
+  });
+
+  it("hazard HZ-013 updates or corrects a current row by superseding it, never as a second row", () => {
+    const ROW = "0199f000-0000-7000-8000-0000000000c1";
+    const base = {
+      ...date("onsetOn", ["29", "10", "2026"]),
+      symptoms: "cough",
+      outcome: "recovered",
+      ...date("outcomeOn", ["31", "10", "2026"]),
+      // A person field sent with an update is ignored: the update stays with the row's person.
+      personId: "0199f000-0000-7000-8000-0000000000ff",
+    };
+    const supersedes = { id: ROW, personId: PERSON };
+    expect(readRecordCase(form(base), t, { supersedes }).ok).toBe(false);
+    expect(readRecordCase(form({ ...base, change: "update" }), t, { supersedes })).toMatchObject({
+      ok: true,
+      body: { supersedesId: ROW, personId: PERSON, correctionReason: null, outcome: "recovered" },
+    });
+    const noReason = readRecordCase(form({ ...base, change: "correct" }), t, { supersedes });
+    expect(noReason.ok).toBe(false);
+    if (!noReason.ok) expect(Object.keys(noReason.errors)).toEqual(["correctionReason"]);
+    expect(
+      readRecordCase(
+        form({ ...base, change: "correct", correctionReason: "Wrong onset date." }),
+        t,
+        {
+          supersedes,
+        },
+      ),
+    ).toMatchObject({
+      ok: true,
+      body: { supersedesId: ROW, correctionReason: "Wrong onset date." },
+    });
+  });
+
+  it("hazard HZ-013 closes with people still unwell only once the closer says they know", () => {
+    const values = { ...date("closedOn", ["30", "10", "2026"]), reason: "Agreed with the team." };
+    const unticked = readCloseOutbreak(form(values), t, { version: 3, stillUnwell: 2 });
+    expect(unticked.ok).toBe(false);
+    if (!unticked.ok) expect(Object.keys(unticked.errors)).toEqual(["knowStillUnwell"]);
+    expect(
+      readCloseOutbreak(form({ ...values, knowStillUnwell: "yes" }), t, {
+        version: 3,
+        stillUnwell: 2,
+      }).ok,
+    ).toBe(true);
+    expect(readCloseOutbreak(form(values), t, { version: 3, stillUnwell: 0 }).ok).toBe(true);
+  });
+
   it("refuses a row with no symptoms or no onset", () => {
     const read = readRecordCase(form({ personId: PERSON }), t);
     expect(read.ok).toBe(false);

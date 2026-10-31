@@ -99,16 +99,22 @@ export interface PoliceCall {
   readonly immediateRisk?: boolean;
 }
 
-export type PoliceCallState = "called" | "overdue" | "now" | "due" | "not_needed";
+export type PoliceCallState = "called" | "overdue" | "now" | "due" | "missed" | "not_needed";
 
 /**
  * The police call as the screens put it first: overdue, call now (immediate risk), due by the
- * target, called (a reference recorded), or no longer needed (found or closed before a call).
+ * target, called (a reference recorded), missed (found or closed after the target with no call:
+ * said as late, never "not needed", HZ-127), or no longer needed (found before the target).
+ * Lateness is also worked out from the device clock, so a page left open turns overdue at the
+ * target without waiting for the API.
  */
-export function policeCallState(episode: PoliceCall): PoliceCallState {
+export function policeCallState(episode: PoliceCall, now: Date = new Date()): PoliceCallState {
   if (episode.policeReference) return "called";
-  if (episode.status !== "open") return "not_needed";
-  if (episode.policeCallLate) return "overdue";
+  const late =
+    episode.policeCallLate ||
+    (episode.policeCallDueAt !== null && Date.parse(episode.policeCallDueAt) <= now.getTime());
+  if (episode.status !== "open") return episode.policeCallLate ? "missed" : "not_needed";
+  if (late) return "overdue";
   if (episode.immediateRisk) return "now";
   return episode.policeCallDueAt ? "due" : "now";
 }
@@ -118,6 +124,7 @@ export function policeCallChip(state: PoliceCallState, when: string, t: Translat
   const label = t("missing.police.chip", { state, when });
   switch (state) {
     case "overdue":
+    case "missed":
       return { status: "overdue", icon: "circle-alert", label };
     case "now":
       return { status: "overdue", icon: "triangle-alert", label };
@@ -282,6 +289,8 @@ export type HerbertBody = Record<HerbertTextField, string | null> & {
   readonly photoDocumentId: string | null;
   readonly reviewedOn: string;
   readonly version: number;
+  /** Sent on a first profile with prefilled parts: each was checked with the person or family. */
+  readonly prefillChecked?: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -293,7 +302,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function readHerbertProfile(
   form: FormLike,
   t: Translator,
-  options: { readonly version: number; readonly today: string },
+  options: {
+    readonly version: number;
+    readonly today: string;
+    /** A first profile with prefilled parts: the check that each was confirmed is required (HZ-127). */
+    readonly prefilled?: boolean;
+  },
 ): Read<HerbertBody> {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
@@ -318,6 +332,10 @@ export function readHerbertProfile(
   } else if (reviewed.date && reviewed.date > options.today) {
     errors.reviewedOn = t("herbert.form.reviewedFuture");
   }
+  const prefillChecked = text(form, "prefillChecked") === "yes";
+  if (options.prefilled && !prefillChecked) {
+    errors.prefillChecked = t("herbert.form.prefillCheckError");
+  }
   const photo = text(form, "photoDocumentId");
   if (Object.keys(errors).length > 0 || !reviewed.ok || !reviewed.date) {
     return failed(errors, parts);
@@ -331,6 +349,7 @@ export function readHerbertProfile(
       photoDocumentId: UUID.test(photo) ? photo : null,
       reviewedOn: reviewed.date,
       version: options.version,
+      ...(options.prefilled ? { prefillChecked } : {}),
     },
   };
 }

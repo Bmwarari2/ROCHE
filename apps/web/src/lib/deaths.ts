@@ -1,4 +1,5 @@
 import type { DeathView } from "@harbour/contracts";
+import { DEATH_REASON_MIN } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { SafetyChip } from "./incidents";
 import { type FormLike, readDateTimeField, type TimeProblem } from "./uk-time";
@@ -32,6 +33,8 @@ export const POLICE_STEPS: readonly DeathStepKey[] = [
   "preserve_room_and_equipment",
 ];
 
+/** A reason or review text's shortest length: the domain's own rule, so web and API agree. */
+export const DEATH_TEXT_MIN = DEATH_REASON_MIN;
 export const DEATH_NOTE_MAX = 2_000;
 export const DEATH_REFERENCE_MAX = 100;
 export const DEATH_REVIEW_MAX = 10_000;
@@ -48,6 +51,14 @@ export function canManageDeaths(permissions: readonly string[]): boolean {
 /** A step recorded on the death record itself: never a notification step or the mortality review. */
 export function recordableHere(step: string): boolean {
   return !(NOTIFICATION_STEPS as readonly string[]).includes(step) && step !== "mortality_review";
+}
+
+/**
+ * Whether a step may be recorded as not needed: never a police step while the clinician's
+ * judgement is missing (HZ-013), because the safer answer stands until it is recorded.
+ */
+export function notNeededAllowed(step: string, missingFacts: readonly string[]): boolean {
+  return !(missingFacts.length > 0 && (POLICE_STEPS as readonly string[]).includes(step));
 }
 
 export function isNotificationStep(step: string): boolean {
@@ -171,7 +182,13 @@ export function readJudgement(
 export function readDeathStep(
   form: FormLike,
   t: Translator,
-  options: { readonly id: string; readonly step: DeathStepKey; readonly now?: Date },
+  options: {
+    readonly id: string;
+    readonly step: DeathStepKey;
+    readonly now?: Date;
+    /** The judgement facts still missing (`DeathView.missingFacts`). */
+    readonly missingFacts?: readonly string[];
+  },
 ): Read<{
   id: string;
   step: DeathStepKey;
@@ -188,6 +205,11 @@ export function readDeathStep(
   const outcome = text(form, "outcome");
   if (outcome !== "done" && outcome !== "not_needed") {
     errors.outcome = t("deaths.step.outcomeError");
+  } else if (
+    outcome === "not_needed" &&
+    !notNeededAllowed(options.step, options.missingFacts ?? [])
+  ) {
+    errors.outcome = t("deaths.step.policeNotNeededRefused");
   }
   const at = readDateTimeField(form, "at", {
     subject: t("deaths.step.atSubject"),
@@ -201,7 +223,9 @@ export function readDeathStep(
   const note = text(form, "note");
   if (note.length > DEATH_NOTE_MAX)
     errors.note = t("deaths.step.noteError", { max: DEATH_NOTE_MAX });
-  if (outcome === "not_needed" && note.length < 3) errors.note = t("deaths.step.reasonError");
+  if (outcome === "not_needed" && note.length < DEATH_TEXT_MIN) {
+    errors.note = t("deaths.step.reasonError", { min: DEATH_TEXT_MIN });
+  }
   const reference = text(form, "reference");
   if (reference.length > DEATH_REFERENCE_MAX) {
     errors.reference = t("deaths.step.referenceError", { max: DEATH_REFERENCE_MAX });
@@ -231,11 +255,17 @@ export function readDeathReview(
   const errors: Record<string, string> = {};
   const findings = text(form, "findings");
   const lessons = text(form, "lessons");
-  if (findings.length < 3 || findings.length > DEATH_REVIEW_MAX) {
-    errors.findings = t("deaths.review.findingsError", { max: DEATH_REVIEW_MAX });
+  if (findings.length < DEATH_TEXT_MIN || findings.length > DEATH_REVIEW_MAX) {
+    errors.findings = t("deaths.review.findingsError", {
+      min: DEATH_TEXT_MIN,
+      max: DEATH_REVIEW_MAX,
+    });
   }
-  if (lessons.length < 3 || lessons.length > DEATH_REVIEW_MAX) {
-    errors.lessons = t("deaths.review.lessonsError", { max: DEATH_REVIEW_MAX });
+  if (lessons.length < DEATH_TEXT_MIN || lessons.length > DEATH_REVIEW_MAX) {
+    errors.lessons = t("deaths.review.lessonsError", {
+      min: DEATH_TEXT_MIN,
+      max: DEATH_REVIEW_MAX,
+    });
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, body: { findings, lessons, version: options.version } };

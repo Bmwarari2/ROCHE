@@ -22,7 +22,10 @@ import {
   disclosureSteps,
   disclosuresShown,
   itemDecisionChip,
+  loggedByReader,
   preventionChip,
+  recordKind,
+  recordReference,
 } from "@/lib/disclosures";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -91,12 +94,17 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
         {due ? <SafetyChip chip={due} /> : null}
       </p>
       <Card as="section" headingLevel={2} title={t("disclosures.detail.request")}>
+        {/* Communication needs sit outside the list: they are a list of their own (WCAG 1.3.1). */}
+        {person ? (
+          <div className="mb-3">
+            <PersonNeeds person={person} />
+          </div>
+        ) : null}
         <dl className="m-0 flex flex-col gap-3">
           <Row
             term={t("disclosures.detail.person")}
             value={person ? personNames(person).full : t("disclosures.personHidden")}
           />
-          {person ? <PersonNeeds person={person} /> : null}
           <Row term={t("disclosures.detail.legalBasis")} value={data.legalBasis} />
           <Row term={t("disclosures.form.name")} value={data.requester.name} />
           <Row term={t("disclosures.form.organisation")} value={data.requester.organisation} />
@@ -133,8 +141,8 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
                     className="inline-flex min-h-target items-center underline"
                   >
                     {t("disclosures.item.title", {
-                      table: item.tableName,
-                      record: item.recordId.slice(0, 8),
+                      kind: recordKind(item.tableName),
+                      reference: recordReference(item.recordId),
                     })}
                   </Link>
                   <SafetyChip chip={itemDecisionChip(item.decision, t)} />
@@ -149,7 +157,7 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
                 {data.notSearched.map((n) => (
                   <li key={n.table}>
                     {t("disclosures.detail.notSearchedItem", {
-                      table: n.table,
+                      kind: recordKind(n.table),
                       guidance: n.guidance,
                     })}
                   </li>
@@ -171,7 +179,9 @@ export default async function DisclosurePage({ params }: { params: Promise<{ id:
       ) : null}
       {steps.includes("decide") ? (
         <Card as="section" headingLevel={2} title={t("disclosures.decide.title")}>
-          {approve ? (
+          {approve && loggedByReader(data, me.tenantUserId) ? (
+            <p className="m-0">{t("disclosures.decide.notYou")}</p>
+          ) : approve ? (
             <div className="flex flex-col gap-3">
               <p className="m-0">{t("disclosures.decide.who")}</p>
               <DecideForm id={data.id} version={data.version} />

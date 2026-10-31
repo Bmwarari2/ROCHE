@@ -9,6 +9,7 @@ import {
   isNotificationStep,
   NOTIFICATION_STEPS,
   notificationHref,
+  notNeededAllowed,
   POLICE_STEPS,
   readDeathReview,
   readDeathStep,
@@ -18,6 +19,9 @@ import {
   stepsToShow,
 } from "./deaths";
 import { t } from "./i18n";
+
+/** Echoes the key: for messages whose strings are added with the catalogue merge. */
+const tk = ((key: string) => key) as unknown as typeof t;
 
 /** Phase 2 slice 63: the pure parts of the death record screens (SAFE-014; HZ-013). */
 
@@ -162,13 +166,18 @@ describe("the death record screens", () => {
   });
 
   it("needs both findings and lessons for the mortality review", () => {
-    expect(readDeathReview(form({ findings: "Seen by the GP." }), t, { version: 1 }).ok).toBe(
+    const findings = "Seen by the GP the day before; death expected.";
+    expect(readDeathReview(form({ findings }), tk, { version: 1 }).ok).toBe(false);
+    // Shorter than the domain's minimum (DEATH_REASON_MIN), as the API would refuse it.
+    expect(readDeathReview(form({ findings, lessons: "None new." }), tk, { version: 1 }).ok).toBe(
       false,
     );
     expect(
-      readDeathReview(form({ findings: "Seen by the GP.", lessons: "None new." }), t, {
-        version: 1,
-      }).ok,
+      readDeathReview(
+        form({ findings, lessons: "None new: the end of life plan was followed." }),
+        tk,
+        { version: 1 },
+      ).ok,
     ).toBe(true);
   });
 
@@ -178,5 +187,45 @@ describe("the death record screens", () => {
     expect(exitRecordFrom(ID)).toBe(ID);
     expect(exitRecordFrom("nope")).toBeNull();
     expect(exitRecordFrom(undefined)).toBeNull();
+  });
+
+  it.each([
+    ["police told", "police_informed", ["expected"], false],
+    ["room left", "preserve_room_and_equipment", ["expected", "possiblyUnnatural"], false],
+    ["police told, judged", "police_informed", [], true],
+    ["family told, not judged", "family_informed", ["expected"], true],
+  ] as const)(
+    "hazard HZ-013 not needed is offered for %s only when allowed",
+    (_name, s, missing, allowed) => {
+      expect(notNeededAllowed(s, missing)).toBe(allowed);
+    },
+  );
+
+  it("hazard HZ-013 refuses a police step as not needed while the judgement is missing", () => {
+    const at = when("at", ["31", "10", "2026", "10", "00"]);
+    const reason = "The GP expected it and the family agree.";
+    const refused = readDeathStep(form({ outcome: "not_needed", note: reason, ...at }), tk, {
+      id: ID,
+      step: "police_informed",
+      now: NOW,
+      missingFacts: ["expected", "possiblyUnnatural"],
+    });
+    expect(refused).toMatchObject({
+      ok: false,
+      errors: { outcome: "deaths.step.policeNotNeededRefused" },
+    });
+    const judged = readDeathStep(form({ outcome: "not_needed", note: reason, ...at }), tk, {
+      id: ID,
+      step: "police_informed",
+      now: NOW,
+      missingFacts: [],
+    });
+    expect(judged.ok).toBe(true);
+    const short = readDeathStep(form({ outcome: "not_needed", note: "No family.", ...at }), tk, {
+      id: ID,
+      step: "family_informed",
+      now: NOW,
+    });
+    expect(short).toMatchObject({ ok: false, errors: { note: "deaths.step.reasonError" } });
   });
 });
