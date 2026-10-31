@@ -22,6 +22,14 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 16, the medicines record and reconciliation** (`feat/meds-record-schema`, MEDS-001):
+migration 0111 and the API on the slice 2 rules (transcribe, change, check, stop, the MAR for a
+cycle, and reconciliation applied in one transaction, completing a return's medicines check). dm+d
+codes are stored by shape until slice 10 (a test asks for the foreign key once a VMP table exists);
+competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
+medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
+then the screens (slice 52). Open: H-1020 (CSO), H-1021 (DPO).
+
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
 

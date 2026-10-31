@@ -21,7 +21,7 @@ export const DmdRoute = z.object({ code: text(40), name: text(200) }).meta({ id:
 export const DoseUnit = z.object({ code: text(40), name: text(200) }).meta({ id: "DoseUnit" });
 
 /** A dose quantity as a number; the API refuses more than 3 decimal places and zero or less. */
-const quantity = z.number().positive().max(10_000_000);
+const quantity = z.number().min(0.001).max(10_000_000);
 export const Dose = z
   .discriminatedUnion("kind", [
     z.object({ kind: z.literal("amount"), quantity, unit: DoseUnit }),

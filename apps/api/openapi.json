@@ -29427,7 +29427,7 @@
               },
               "quantity": {
                 "type": "number",
-                "exclusiveMinimum": 0,
+                "minimum": 0.001,
                 "maximum": 10000000
               },
               "unit": {
@@ -29451,12 +29451,12 @@
               },
               "from": {
                 "type": "number",
-                "exclusiveMinimum": 0,
+                "minimum": 0.001,
                 "maximum": 10000000
               },
               "to": {
                 "type": "number",
-                "exclusiveMinimum": 0,
+                "minimum": 0.001,
                 "maximum": 10000000
               },
               "unit": {
