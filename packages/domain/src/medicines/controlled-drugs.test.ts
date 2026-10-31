@@ -128,6 +128,33 @@ describe("a mistake is put right by a correction entry beside it, never by editi
   });
 
   it.each<[string, Partial<CdEntry>, CdEntryProblem[]]>([
+    [
+      "corrects the time and changes no quantity",
+      { quantity: 0, balanceAfter: 27, reason: "Time was 08:10, not 08:00" },
+      [],
+    ],
+    [
+      "changes no quantity but leaves a different balance",
+      { quantity: 0, balanceAfter: 28, reason: "Time was 08:10" },
+      ["balance_wrong"],
+    ],
+    [
+      "changes no quantity and says nothing",
+      { quantity: 0, balanceAfter: 27, reason: " " },
+      ["correction_needs_reason"],
+    ],
+  ])("hazard HZ-116 a margin correction that %s", (_name, overrides, expected) => {
+    const base = cd("cd-3", { movement: "correction", correctsId: "cd-2", at: at(2, 9) });
+    expect(problems([receipt, given], { ...base, ...overrides })).toEqual(expected);
+  });
+
+  it("still refuses an entry of nothing that is not a correction", () => {
+    expect(problems([receipt], cd("cd-2", { quantity: 0, balanceAfter: 28 }))).toEqual([
+      "bad_quantity",
+    ]);
+  });
+
+  it.each<[string, Partial<CdEntry>, CdEntryProblem[]]>([
     ["names no entry", { correctsId: null }, ["correction_needs_entry"]],
     ["names an entry on another page", { correctsId: "cd-99" }, ["correction_needs_entry"]],
     ["gives no reason", { reason: " " }, ["correction_needs_reason"]],
@@ -200,6 +227,24 @@ describe("hazard HZ-116 a controlled drugs entry is witnessed by a second person
       noWitnessReason: "None on shift",
     });
     expect(problems([receipt], destroyed, "where_available")).toEqual(["witness_required"]);
+  });
+
+  it.each<[string, Partial<CdEntry>, CdWitnessPolicy]>([
+    ["an empty witness where one is required", { witnessedBy: "" }, "required"],
+    ["a blank witness where one is required", { witnessedBy: "   " }, "required"],
+    ["an empty witness where a lone worker may say why", { witnessedBy: "" }, "where_available"],
+    [
+      "an empty witness beside a reason there was none",
+      { witnessedBy: "", noWitnessReason: "Lone visit" },
+      "where_available",
+    ],
+    [
+      "an empty witness to a destruction (the #162 probe)",
+      { movement: "destruction", quantity: 1, balanceAfter: 27, witnessedBy: "" },
+      "required",
+    ],
+  ])("hazard HZ-116 refuses %s", (_name, overrides, policy) => {
+    expect(problems([receipt], { ...given, ...overrides }, policy)).toEqual(["witness_blank"]);
   });
 
   it("refuses a witness and a reason there was none on one entry", () => {

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { tableMedicinesRates } from "../../test/rate-table";
-import { formatUkTime, fromUkWallClock } from "../shared/time";
+import { formatUkTime, fromUkWallClock, toUkWallClock, ukOffsetMinutes } from "../shared/time";
 import {
   doseNotices,
   doseWindow,
   driftCorrectedTime,
   escalationAt,
   isTimeCritical,
+  type RecordedTiming,
   recordedTiming,
   SCHEDULED_DOSE_WORDS,
   scheduledDoseState,
@@ -55,14 +56,71 @@ describe("hazard HZ-003 a dose with no recorded outcome stays outstanding after 
     expect(scheduledDoseState(window, recorded, plus(minutes))).toBe(state);
     expect(SCHEDULED_DOSE_WORDS[state]).not.toBe("");
   });
+});
 
-  it.each([
-    [-rates.doseEarlyMinutes - 1, "early"],
-    [-rates.doseEarlyMinutes, "on_time"],
+describe("hazard HZ-004 a dose is recorded no earlier than its window opens, early inside it before its due time", () => {
+  const window = doseWindow(dueAt, false, rates);
+  it.each<[number, RecordedTiming]>([
+    [-rates.doseEarlyMinutes - 1, "before_window"],
+    [-rates.doseEarlyMinutes, "early"],
+    [-1, "early"],
+    [0, "on_time"],
     [rates.doseLateMinutes, "on_time"],
     [rates.doseLateMinutes + 1, "late"],
-  ] as const)("a dose given %i minutes from its due time is %s", (minutes, timing) => {
+  ])("a dose recorded %i minutes from its due time is %s", (minutes, timing) => {
     expect(recordedTiming(window, plus(minutes))).toBe(timing);
+  });
+});
+
+describe("hazard HZ-009 a dose window on the days the clocks change is measured in elapsed time", () => {
+  // The last Sundays of March and October 2027. Forward: 01:00 GMT becomes 02:00 BST, so a dose
+  // due at 02:01 has its window open before the change. Back: 02:00 BST becomes 01:00 GMT, so a
+  // dose due at the first 01:59 has its window end after the change.
+  const forward = fromUkWallClock(2027, 3, 28, 2, 1);
+  const back = fromUkWallClock(2027, 10, 31, 1, 59);
+  const wallMinutes = (d: Date) => toUkWallClock(d).hour * 60 + toUkWallClock(d).minute;
+  const minutesFrom = (due: Date, n: number) => new Date(due.getTime() + n * MINUTE);
+  it.each<[string, Date, boolean, number, RecordedTiming]>([
+    [
+      "forward: a minute before the window opens",
+      forward,
+      false,
+      -rates.doseEarlyMinutes - 1,
+      "before_window",
+    ],
+    ["forward: as the window opens", forward, false, -rates.doseEarlyMinutes, "early"],
+    [
+      "forward: time-critical, a minute before its window",
+      forward,
+      true,
+      -rates.timeCriticalEarlyMinutes - 1,
+      "before_window",
+    ],
+    ["back: at the end of the window", back, false, rates.doseLateMinutes, "on_time"],
+    ["back: a minute after the window", back, false, rates.doseLateMinutes + 1, "late"],
+    [
+      "back: time-critical, a minute after its window",
+      back,
+      true,
+      rates.timeCriticalLateMinutes + 1,
+      "late",
+    ],
+  ])("%s", (_name, due, critical, minutes, timing) => {
+    const when = minutesFrom(due, minutes);
+    // The record and the due time are either side of the change, so the clock face is an hour
+    // out: after the clocks go back, a dose late by elapsed time can read as before its time.
+    expect(ukOffsetMinutes(when)).not.toBe(ukOffsetMinutes(due));
+    expect(wallMinutes(when) - wallMinutes(due)).toBe(minutes - 60);
+    expect(recordedTiming(doseWindow(due, critical, rates), when)).toBe(timing);
+  });
+
+  it("keeps each window as long in elapsed time as on any other day", () => {
+    for (const due of [forward, back]) {
+      const window = doseWindow(due, false, rates);
+      expect(window.lateAfter.getTime() - window.opensAt.getTime()).toBe(
+        (rates.doseEarlyMinutes + rates.doseLateMinutes) * MINUTE,
+      );
+    }
   });
 });
 

@@ -52,6 +52,46 @@ Branch `feat/meds-domain-administration`, stacked on #135 (`feat/meds-domain-rec
   had left behind its rows, and the total) and the STATUS counts now match the register's rows:
   80 `partial`, 153 `todo`.
 
+## #162 clinical review (31/10/2026)
+
+Each finding reproduced by the reviewer's probe and fixed with a table-driven `hazard HZ-...` test:
+
+- HZ-005 (high): `variableDoseFor` let an older checked dosing record answer when a newer one for
+  the same day was unchecked or found to differ (warfarin came back as 2.5 mg, not 1 mg). The
+  newest record covering the day and time now decides; unchecked or differing, the dose is refused
+  (`dosing_record_not_checked`, `dosing_record_differs`), never taken from an older record.
+- HZ-004 (high): "taken by the person themselves" and "given by family" counted as nothing at the
+  maximum, and an amount entered at the maximum was refused, so the dose went unrecorded. On an
+  entry with a 24-hour maximum the amount is now required and always counts; such a dose is always
+  recorded, flagged "over maximum" over it, with an urgent escalation in the result
+  (`AdministrationEscalation`) for the API to raise. Staff giving over the maximum is still refused.
+- HZ-004 (high): an early dose had no limit, so this evening's or tomorrow's dose could be recorded
+  at 08:06 with a typed reason. No outcome is now recorded before the dose's own window opens (the
+  table's `medicines.dose_window.early_minutes`, or the time-critical figure; `dose_not_due_yet`);
+  inside the window before its due time it is early, with a reason; and a dose is not given while
+  an earlier dose of the entry that day has no outcome (`earlier_dose_outstanding`). A dose the
+  person already took is flagged instead of refused. New input: `recordedDueTimes`.
+- The 24-hour maximum now covers every 24 hours containing the dose, before and after it, so a dose
+  entered later than others (10 against a maximum of 8) is refused.
+- A member never signed off (`not_held`) is refused outright; only an expired competence may be
+  overridden (NICE SC1 1.18).
+- `checkCorrection` now runs every `checkAdministration` rule on what the correction says, leaving
+  out only the duplicate check and the corrected record itself; it takes the rates and returns
+  issues, flags and escalations (`AdministrationCorrectionCheck`).
+- A when-required entry with neither a minimum interval nor a maximum is refused at transcription
+  (`prn_limit_required`); the fixtures that relied on one now state an interval.
+- Low: a blank controlled drugs witness is refused (`witness_blank`); a margin correction of
+  something other than the quantity may change the balance by none; a dose of the medicine in
+  another unit is named as not counted (`prnDosesNotCounted`, `PRN_NOTICES.otherUnitNotCounted`,
+  the `other_unit_not_counted` flag), never converted; `prnStatus` returns every notice
+  (`notices`), so "not synced" is never hidden; the HZ-001 wrong-person test is in HZ-001's
+  verification table; dose windows and competence lapsing at 00:00 UK time are tested on the last
+  Sundays of March and October.
+- Docs: medicines.md rules 13, 14, 16 to 19, 22, 23, 26 and 27, the test list and open questions;
+  hazard log HZ-004, HZ-005, HZ-116 and HZ-119 (causes, controls, verification), with HZ-001 and
+  HZ-009 verification rows; the two early-window rate rows say what the figure now does; the
+  medical-device boundary's slice 3 paragraph (the dose already taken, "remaining", other units).
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -65,6 +105,11 @@ Branch `feat/meds-domain-administration`, stacked on #135 (`feat/meds-domain-rec
 - H-556 (CSO with a pharmacist, with H-516): controlled drugs defaults.
 - H-557 (CSO): competence and the override.
 - H-558 (CSO with a pharmacist): administration record rules and ADR-0082's residual risk.
+- H-1060 to H-1066 (CSO, from the #162 clinical review, each with the default built): a newer
+  dosing record replacing older ones from its first date; `not_held` never overridable; how a dose
+  taken over the maximum is recorded; the paracetamol total across products not enforced; an upper
+  limit on a tenant's dose windows; whether "remaining" stays inside the device boundary; a
+  when-required entry needing a limit at transcription (H-555's default changed with it).
 
 ## Tests
 
@@ -74,3 +119,6 @@ Branch `feat/meds-domain-administration`, stacked on #135 (`feat/meds-domain-rec
   package after the merges: 5,394 tests, 99.68% line coverage under each of the three time
   zones (`pnpm --filter @harbour/domain test:coverage`). `pnpm lint`, the domain typecheck and the
   markdown link check run clean.
+- After the #162 clinical review: 623 medicines tests (518 before); the whole domain package 6,129
+  tests, passing under the three time zones, with 99.69% line coverage (medicines 99.43%, every
+  medicines file at 99% or more). `pnpm exec biome ci .` and `pnpm typecheck` clean.

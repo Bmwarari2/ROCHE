@@ -152,6 +152,7 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
           dose: { kind: "amount", quantity: 10, unit: UNIT.ml },
           maxQuantityPer24Hours: null,
         },
+        minimumIntervalMinutes: 240,
       },
       ["unit_not_permitted"],
     ],
@@ -206,6 +207,31 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
     expect(transcribeMarEntry(draft({ prescriber: "" }), TABLET_FACTS, newMeta)).toMatchObject({
       ok: false,
     });
+  });
+});
+
+describe("hazard HZ-004 a when-required entry states a minimum interval or a 24-hour maximum at transcription", () => {
+  const noMax = { ...prn, maxQuantityPer24Hours: null };
+  it.each<[string, Partial<MarEntryDraft>, MarEntryProblem[]]>([
+    [
+      "neither (a second dose a minute later would pass)",
+      { directions: noMax },
+      ["prn_limit_required"],
+    ],
+    ["a minimum interval only", { directions: noMax, minimumIntervalMinutes: 240 }, []],
+    ["a 24-hour maximum only", { directions: prn }, []],
+    ["both", { directions: prn, minimumIntervalMinutes: 240 }, []],
+    ["neither, for a regular medicine (its times are its limit)", {}, []],
+  ])("with %s", (_name, overrides, problems) => {
+    expect(checkMarEntryDraft(draft(overrides), TABLET_FACTS).map((i) => i.problem)).toEqual(
+      problems,
+    );
+  });
+
+  it("refuses to transcribe or change into one with neither, asking for the prescriber", () => {
+    const refused = transcribeMarEntry(draft({ directions: noMax }), TABLET_FACTS, newMeta);
+    expect(refused).toMatchObject({ ok: false, issues: [{ problem: "prn_limit_required" }] });
+    expect(refused.ok ? "" : refused.issues[0]?.message).toMatch(/ask the prescriber/);
   });
 });
 

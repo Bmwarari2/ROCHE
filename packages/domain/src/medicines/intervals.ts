@@ -5,7 +5,9 @@
  * it. The intervals come from the prescription or PRN protocol as transcribed on the entry, and
  * from the tenant's paracetamol rule for entries a person tagged paracetamol (applied across every
  * entry so tagged, which is how Harbour covers two products with the same ingredient without
- * matching ingredients). The 24-hour total runs over the 24 hours up to the dose.
+ * matching ingredients). The 24-hour maximum is checked over every 24 hours that contains the
+ * dose, before and after it, as the interval check is; a dose of the same medicine recorded in
+ * another unit is never converted and never silently left out: it is named as not counted.
  */
 
 import type { MarEntry, MedicineTag } from "./mar-entry";
@@ -87,15 +89,41 @@ export function intervalConflicts(
   return conflicts.sort((a, b) => b.previous.at.getTime() - a.previous.at.getTime());
 }
 
+/**
+ * The doses of an entry's versions: those in the when-required dose's own unit count towards its
+ * maximum; those in any other unit are never converted (Harbour does no unit arithmetic) and are
+ * reported as not counted instead.
+ */
 function dosesOf(entry: MarEntry, versionIds: ReadonlySet<string>, history: readonly GivenDose[]) {
   const unit = entry.directions.kind === "when_required" ? entry.directions.dose.unit.code : null;
-  return history.filter((d) => versionIds.has(d.entryId) && (unit === null || d.unitCode === unit));
+  const all = history.filter((d) => versionIds.has(d.entryId));
+  return {
+    all,
+    counted: all.filter((d) => unit === null || d.unitCode === unit),
+    otherUnit: all.filter((d) => unit !== null && d.unitCode !== unit),
+  };
 }
 
-function totalIn24Hours(doses: readonly GivenDose[], at: Date): number {
+/** The total in the 24 hours up to and including `end`: (end - 24 hours, end]. */
+function totalIn24Hours(doses: readonly GivenDose[], end: number): number {
   return doses
-    .filter((d) => d.at.getTime() > at.getTime() - DAY_MS && d.at.getTime() <= at.getTime())
+    .filter((d) => d.at.getTime() > end - DAY_MS && d.at.getTime() <= end)
     .reduce((sum, d) => sum + d.quantity, 0);
+}
+
+/**
+ * The most taken in any 24 hours that contains `at`, before or after it. A 24 hours ending at a
+ * dose after `at` (and less than 24 hours after it) still contains `at`, so a record entered later
+ * than others is counted against the doses that follow it too. The largest total is always found
+ * in a 24 hours ending at `at` or at one of those later doses.
+ */
+function mostIn24HoursAround(doses: readonly GivenDose[], at: Date): number {
+  const t = at.getTime();
+  const ends = [
+    t,
+    ...doses.map((d) => d.at.getTime()).filter((end) => end > t && end < t + DAY_MS),
+  ];
+  return Math.max(...ends.map((end) => totalIn24Hours(doses, end)));
 }
 
 export interface PrnStatus {
@@ -105,7 +133,8 @@ export interface PrnStatus {
   readonly remaining: number | null;
   /** Until when a minimum interval says to wait, if it does now. */
   readonly nextAllowedAt: Date | null;
-  readonly notice: string | null;
+  /** Every notice that applies, never only the first, so "not synced" is never hidden. */
+  readonly notices: readonly string[];
 }
 
 export const PRN_NOTICES = {
@@ -114,6 +143,8 @@ export const PRN_NOTICES = {
   maximumReached:
     "The most allowed in 24 hours has been given. Do not give more: contact the prescriber.",
   notSynced: "The last dose shown was recorded on this device and has not reached Harbour yet.",
+  otherUnitNotCounted:
+    "Not counted: a dose of this medicine was recorded in a different unit. Harbour never converts units, so it is not in the 24-hour total. Check it with the nurse in charge.",
 } as const;
 
 /** What the round shows beside a when-required medicine: last given, the 24-hour total and when next. */
@@ -124,36 +155,40 @@ export function prnStatus(
   now: Date,
   rates: Pick<MedicinesRates, "paracetamolMinIntervalHours">,
 ): PrnStatus {
-  const doses = dosesOf(entry, versionIds, history).filter((d) => d.at.getTime() <= now.getTime());
-  const last = [...doses].sort((a, b) => b.at.getTime() - a.at.getTime())[0] ?? null;
+  const upToNow = (d: GivenDose) => d.at.getTime() <= now.getTime();
+  const doses = dosesOf(entry, versionIds, history);
+  // The last dose of the medicine in any unit: when it was last taken does not depend on its unit.
+  const last = doses.all.filter(upToNow).sort((a, b) => b.at.getTime() - a.at.getTime())[0] ?? null;
   const max =
     entry.directions.kind === "when_required" ? entry.directions.maxQuantityPer24Hours : null;
-  const given = totalIn24Hours(doses, now);
+  const given = totalIn24Hours(doses.counted.filter(upToNow), now.getTime());
   const remaining = max === null ? null : Math.max(0, max - given);
   const waits = intervalConflicts(entry, versionIds, history, now, rates)
     .map((c) => c.nextAllowedAt.getTime())
     .filter((t) => t > now.getTime());
-  const notice =
-    max === null
-      ? PRN_NOTICES.noMaximum
-      : remaining === 0
-        ? PRN_NOTICES.maximumReached
-        : last && !last.synced
-          ? PRN_NOTICES.notSynced
-          : null;
+  const notCounted = doses.otherUnit.some(
+    (d) => upToNow(d) && d.at.getTime() > now.getTime() - DAY_MS,
+  );
+  const notices: string[] = [];
+  if (max === null) notices.push(PRN_NOTICES.noMaximum);
+  if (remaining === 0) notices.push(PRN_NOTICES.maximumReached);
+  if (last && !last.synced) notices.push(PRN_NOTICES.notSynced);
+  if (notCounted) notices.push(PRN_NOTICES.otherUnitNotCounted);
   return {
     lastGiven: last ? { at: last.at, by: last.by, synced: last.synced } : null,
     givenInLast24Hours: given,
     maxPer24Hours: max,
     remaining,
     nextAllowedAt: waits.length > 0 ? new Date(Math.max(...waits)) : null,
-    notice,
+    notices,
   };
 }
 
 /**
- * Whether giving `quantity` at `at` would take the total over the prescribed maximum in the 24
- * hours up to then. Exceeding the maximum is never overridden on the round: the prescriber decides.
+ * Whether giving `quantity` at `at` would take the total over the prescribed maximum in any 24
+ * hours that contains it, before or after it (`given` is the most already taken in such a 24
+ * hours). Exceeding the maximum is never overridden on the round: the prescriber decides. Doses in
+ * another unit are not counted: `prnDosesNotCounted` names them.
  */
 export function prnMaximumExceeded(
   entry: MarEntry,
@@ -165,8 +200,24 @@ export function prnMaximumExceeded(
   if (entry.directions.kind !== "when_required") return null;
   const max = entry.directions.maxQuantityPer24Hours;
   if (max === null) return null;
-  const given = totalIn24Hours(dosesOf(entry, versionIds, history), at);
+  const given = mostIn24HoursAround(dosesOf(entry, versionIds, history).counted, at);
   return given + quantity > max ? { given, max } : null;
+}
+
+/**
+ * Doses of a when-required medicine recorded in another unit within 24 hours either side of `at`:
+ * not in its 24-hour total, because Harbour never converts units, and so shown as not counted
+ * (`PRN_NOTICES.otherUnitNotCounted`) rather than left out silently.
+ */
+export function prnDosesNotCounted(
+  entry: MarEntry,
+  versionIds: ReadonlySet<string>,
+  history: readonly GivenDose[],
+  at: Date,
+): readonly GivenDose[] {
+  return dosesOf(entry, versionIds, history).otherUnit.filter(
+    (d) => Math.abs(d.at.getTime() - at.getTime()) < DAY_MS,
+  );
 }
 
 /** When the outcome of a when-required dose falls due (`medicines.prn.outcome_check_minutes`). */

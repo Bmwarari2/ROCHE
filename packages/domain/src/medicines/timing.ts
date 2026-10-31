@@ -2,9 +2,13 @@
  * When a scheduled dose is due, early or late (medicines.md rules 13 to 15; HZ-003, HZ-009,
  * HZ-010; ADR-0082). Every window is the tenant's own figure from the rate table: a regular dose
  * has `medicines.dose_window.*`, and an entry a person tagged time-critical at transcription has
- * the narrower `medicines.time_critical.*` (never wider than the regular window). A dose with no
- * outcome after its window is late and stays outstanding until someone records what happened;
- * nothing closes it. Times are compared as elapsed UTC instants, on the drift-corrected clock.
+ * the narrower `medicines.time_critical.*` (never wider than the regular window). A scheduled dose
+ * is recorded no earlier than its own window opens (HZ-004 review: a later dose, this evening's or
+ * tomorrow's, can no longer be recorded at the morning round); inside its window before its due
+ * time it is early, from its due time to the end of its window on time, and after that late. A
+ * dose with no outcome after its window is late and stays outstanding until someone records what
+ * happened; nothing closes it. Times are compared as elapsed UTC instants, on the drift-corrected
+ * clock, so a window on the night the clocks change is as long as on any other night.
  */
 
 import type { MarEntry } from "./mar-entry";
@@ -24,7 +28,7 @@ export function isTimeCritical(entry: Pick<MarEntry, "tags">): boolean {
 
 export interface DoseWindow {
   readonly dueAt: Date;
-  /** Given before this, the dose is early. */
+  /** The dose cannot be recorded before this; from it until the due time it is early. */
   readonly opensAt: Date;
   /** With no outcome after this, the dose is late, outstanding and escalated. */
   readonly lateAfter: Date;
@@ -50,9 +54,16 @@ export function doseWindow(dueAt: Date, timeCritical: boolean, rates: WindowRate
   };
 }
 
-/** Whether a dose given at `at` was early, on time or late for its window. */
-export function recordedTiming(window: DoseWindow, at: Date): "early" | "on_time" | "late" {
-  if (at.getTime() < window.opensAt.getTime()) return "early";
+export type RecordedTiming = "before_window" | "early" | "on_time" | "late";
+
+/**
+ * Where a dose recorded at `at` falls against its window: before the window opens (refused, unless
+ * the person already took it), inside the window before its due time (early, with a reason), from
+ * its due time to the end of the window (on time), or after (late, with a reason).
+ */
+export function recordedTiming(window: DoseWindow, at: Date): RecordedTiming {
+  if (at.getTime() < window.opensAt.getTime()) return "before_window";
+  if (at.getTime() < window.dueAt.getTime()) return "early";
   if (at.getTime() > window.lateAfter.getTime()) return "late";
   return "on_time";
 }

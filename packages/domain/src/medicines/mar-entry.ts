@@ -65,7 +65,8 @@ export interface MarSourceDocument {
 /**
  * Regular times with a dose at each, or a when-required (PRN) medicine with its dose and the most
  * the prescription or PRN protocol allows in any 24 hours, in the dose's unit (null when the source
- * states none: the PRN status then says so, H-555).
+ * states none: the PRN status then says so, H-555). A when-required entry must carry a maximum in
+ * 24 hours or a minimum interval (`prn_limit_required`, H-1066).
  */
 export type MarDirections =
   | { readonly kind: "regular"; readonly schedule: RegularSchedule }
@@ -146,6 +147,7 @@ export type MarEntryProblem =
   | "bad_minimum_interval"
   | "bad_maximum"
   | "maximum_below_dose"
+  | "prn_limit_required"
   | "not_awaiting_check"
   | "checker_is_transcriber"
   | "checker_not_competent"
@@ -239,6 +241,19 @@ export function checkMarEntryDraft(
           "The most allowed in 24 hours is less than one dose. Check both against the source document.",
       });
     }
+  }
+  // A when-required medicine with neither limit would take a second dose a minute after the first:
+  // the source must state one, or the prescriber is asked before it is transcribed (H-1066).
+  if (
+    d.kind === "when_required" &&
+    d.maxQuantityPer24Hours === null &&
+    draft.minimumIntervalMinutes === null
+  ) {
+    issues.push({
+      problem: "prn_limit_required",
+      message:
+        "A when-required medicine needs the least time between doses or the most allowed in 24 hours, as the prescription or PRN protocol states. If the source states neither, ask the prescriber before transcribing it.",
+    });
   }
   if (
     new Set(draft.tags).size !== draft.tags.length ||

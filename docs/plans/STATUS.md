@@ -121,6 +121,12 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   seven tenant-default rate rows marked to verify; human actions H-554 to H-558. Merged with
   #135's third to sixth reviews and `main`: the overall counts above, and the register's Platform core and
   Quality rows (which `main` had left at 6 and 11 `todo`), were corrected to the register's rows.
+  PR #162's clinical review fixed (31/10/2026): the newest dosing record decides a variable dose,
+  never an older one; a dose the person or family already gave counts towards the maximum and is
+  always recorded, flagged and over the maximum escalated urgently; no outcome before a dose's
+  window, and no dose given ahead of an earlier one that day; the maximum over every 24 hours
+  containing a dose; no override without a competence sign-off; corrections checked as new
+  records; a when-required entry needs an interval or a maximum; human actions H-1060 to H-1066.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):

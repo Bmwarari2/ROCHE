@@ -8,6 +8,7 @@ import {
   type DosingRecordDraft,
   type DosingRecordProblem,
   recordDosingRecord,
+  type VariableDose,
   variableDoseFor,
 } from "./dosing-record";
 import type { SecondCheckInput } from "./mar-entry";
@@ -38,33 +39,88 @@ function checked(record: DosingRecord): DosingRecord {
 const versions = new Set(["entry-warf"]);
 
 describe("hazard HZ-005 a variable dose is given only from a dosing record that has been second-checked", () => {
-  it("gives no dose from a record nobody has checked, or one whose check found a difference", () => {
-    expect(variableDoseFor([recorded()], versions, "2026-11-02", "18:00")).toBeNull();
-    const differs = checkDosingRecord(recorded(), {
+  const differs = (record: DosingRecord): DosingRecord => {
+    const result = checkDosingRecord(record, {
       ...check,
       outcome: "differs_from_source",
       difference: "Clinic says 2 mg on Tuesday",
     });
-    if (!differs.ok) throw new Error("check refused");
-    expect(variableDoseFor([differs.record], versions, "2026-11-02", "18:00")).toBeNull();
-  });
+    if (!result.ok) throw new Error("check refused");
+    return result.record;
+  };
+  // The clinic's newer letter, a day later, for 03/11 only: 1 mg (the #162 probe).
+  const newerDraft: DosingRecordDraft = {
+    ...CLINIC_RECORD,
+    doses: [{ date: "2026-11-03", time: "18:00", quantity: 1 }],
+  };
+  const newerAt = new Date("2026-11-02T15:00:00Z");
+  const first = checked(recorded());
 
-  it("gives the checked record's dose for the day and time, the latest record first", () => {
-    const first = checked(recorded());
-    expect(variableDoseFor([first], versions, "2026-11-03", "18:00")).toBe(2.5);
-    expect(variableDoseFor([first], versions, "2026-11-04", "18:00")).toBeNull();
-    const newer = checked(
-      recorded(
-        { ...CLINIC_RECORD, doses: [{ date: "2026-11-03", time: "18:00", quantity: 2 }] },
-        "dosing-2",
-        new Date("2026-11-02T15:00:00Z"),
-      ),
-    );
-    expect(variableDoseFor([first, newer], versions, "2026-11-03", "18:00")).toBe(2);
-    expect(variableDoseFor([first, newer], versions, "2026-11-02", "18:00")).toBe(3);
-    expect(
-      variableDoseFor([first, newer], new Set(["entry-other"]), "2026-11-02", "18:00"),
-    ).toBeNull();
+  it.each<[string, DosingRecord[], string, VariableDose]>([
+    ["no record", [], "2026-11-02", { ok: false, problem: "no_dosing_record", recordId: null }],
+    [
+      "a record nobody has checked",
+      [recorded()],
+      "2026-11-02",
+      { ok: false, problem: "dosing_record_not_checked", recordId: "dosing-1" },
+    ],
+    [
+      "a record whose check found a difference",
+      [differs(recorded())],
+      "2026-11-02",
+      { ok: false, problem: "dosing_record_differs", recordId: "dosing-1" },
+    ],
+    ["a checked record", [first], "2026-11-03", { ok: true, quantity: 2.5, recordId: "dosing-1" }],
+    [
+      "a checked record for a day it does not cover",
+      [first],
+      "2026-11-04",
+      { ok: false, problem: "no_dosing_record", recordId: null },
+    ],
+    [
+      "a newer checked record for the day",
+      [first, checked(recorded(newerDraft, "dosing-2", newerAt))],
+      "2026-11-03",
+      { ok: true, quantity: 1, recordId: "dosing-2" },
+    ],
+    [
+      "a newer record for the day nobody has checked: never the older dose",
+      [first, recorded(newerDraft, "dosing-2", newerAt)],
+      "2026-11-03",
+      { ok: false, problem: "dosing_record_not_checked", recordId: "dosing-2" },
+    ],
+    [
+      "a newer record for the day whose check found a difference: never the older dose",
+      [differs(recorded(newerDraft, "dosing-2", newerAt)), first],
+      "2026-11-03",
+      { ok: false, problem: "dosing_record_differs", recordId: "dosing-2" },
+    ],
+    [
+      "an older record for a day the newer one does not cover (H-1060)",
+      [first, recorded(newerDraft, "dosing-2", newerAt)],
+      "2026-11-02",
+      { ok: true, quantity: 3, recordId: "dosing-1" },
+    ],
+    [
+      "two records made at the same instant, whatever order they come in",
+      [checked(recorded(newerDraft, "dosing-3", recordedAt)), first],
+      "2026-11-03",
+      { ok: true, quantity: 1, recordId: "dosing-3" },
+    ],
+  ])(
+    "hazard HZ-005 the newest record covering the day decides: %s",
+    (_name, records, date, dose) => {
+      expect(variableDoseFor(records, versions, date, "18:00")).toEqual(dose);
+      expect(variableDoseFor([...records].reverse(), versions, date, "18:00")).toEqual(dose);
+    },
+  );
+
+  it("reads only records for the entry's own versions", () => {
+    expect(variableDoseFor([first], new Set(["entry-other"]), "2026-11-02", "18:00")).toEqual({
+      ok: false,
+      problem: "no_dosing_record",
+      recordId: null,
+    });
   });
 
   it.each<[string, Partial<DosingRecordDraft>, DosingRecordProblem[]]>([

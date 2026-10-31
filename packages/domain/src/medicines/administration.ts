@@ -1,18 +1,30 @@
 /**
  * Recording a dose (medicines.md rules 13 to 23; master prompt 10.2 and 10.3; HZ-001, HZ-003,
  * HZ-004, HZ-005, HZ-119). `checkAdministration` is the one rule the API runs for every record,
- * from the web or a device: it refuses a record without a selected person, a dose and an outcome;
- * refuses one for someone else's medicine, a dose already recorded, a version not in force, a
- * when-required dose over its 24-hour maximum, or a member whose medicines competence has lapsed
- * without an override; and asks for a reason for an early or late dose, a different amount, or a
- * dose inside a minimum interval. Harbour never calculates a dose or says whether one is right: it
- * compares what was given with what the entry, or its checked dosing record, says.
+ * from the web or a device, and `checkCorrection` runs it again on what a correction says: it
+ * refuses a record without a selected person, a dose and an outcome; refuses one for someone
+ * else's medicine, a dose already recorded, a scheduled dose before its window opens, a dose given
+ * while an earlier dose of the medicine that day has no outcome, a version not in force, a
+ * when-required dose given over its 24-hour maximum, or a member whose medicines competence has
+ * lapsed without an override or was never signed off; and asks for a reason for an early or late
+ * dose, a different amount, or a dose inside a minimum interval. A dose the person took themselves,
+ * or their family gave, is a fact: its amount counts towards the maximum, and it is recorded even
+ * before its window or over the maximum, flagged, and over the maximum escalated urgently. Harbour
+ * never calculates a dose or says whether one is right: it compares what was given with what the
+ * entry, or its checked dosing record, says.
  */
 
+import type { Severity } from "../platform/notifications";
+import { formatUkDate, formatUkTime, ukStartOfDay } from "../shared/time";
 import { type CompetenceOverride, type CompetenceProblem, checkCompetenceGate } from "./competence";
-import type { Dose } from "./dose";
-import { type DosingRecord, variableDoseFor } from "./dosing-record";
-import { type GivenDose, intervalConflicts, prnMaximumExceeded } from "./intervals";
+import { type Dose, formatDose } from "./dose";
+import { type DosingRecord, type VariableDoseProblem, variableDoseFor } from "./dosing-record";
+import {
+  type GivenDose,
+  intervalConflicts,
+  prnDosesNotCounted,
+  prnMaximumExceeded,
+} from "./intervals";
 import {
   type MarEntry,
   type MedicinesCompetence,
@@ -87,6 +99,16 @@ export const DOSE_TAKEN_OUTCOMES: ReadonlySet<AdministrationOutcome> = new Set([
   "given_by_family",
 ]);
 
+/**
+ * Outcomes recording a dose staff did not give but the person already took: facts, so the rules
+ * that decide whether staff may give a dose (its window, an earlier dose outstanding, the 24-hour
+ * maximum) flag them rather than refuse them, and they are always recorded (H-1062).
+ */
+export const DOSE_ALREADY_TAKEN_OUTCOMES: ReadonlySet<AdministrationOutcome> = new Set([
+  "self_administered",
+  "given_by_family",
+]);
+
 export interface AdministrationInput {
   /** The person selected on the screen. */
   readonly personId: string | null;
@@ -96,7 +118,10 @@ export interface AdministrationInput {
   readonly dueAt: Date | null;
   readonly outcome: AdministrationOutcome | null;
   readonly reason: { readonly code: string; readonly note: string | null } | null;
-  /** The amount given, in the entry's unit; required for "given". */
+  /**
+   * The amount given, in the entry's unit; required for "given", and for a dose already taken from
+   * an entry with a 24-hour maximum, so that it counts towards it.
+   */
   readonly amount: { readonly quantity: number; readonly unitCode: string } | null;
   readonly amountDifferenceReason: string | null;
   /** Drift-corrected time the dose was given or the outcome happened. */
@@ -108,6 +133,11 @@ export interface AdministrationInput {
   readonly policy: UncheckedEntryPolicy;
   /** The scheduled dose already has an outcome: a change is a correction of that record. */
   readonly alreadyRecorded: boolean;
+  /**
+   * The due times of this entry's scheduled doses that already have an outcome, at least those on
+   * the dose's day, so a dose is not given while an earlier one that day has none.
+   */
+  readonly recordedDueTimes: readonly Date[];
   /** The entry and its earlier versions (`entryVersionIds`). */
   readonly versionIds: ReadonlySet<string>;
   /** Doses the person took, from every entry, for intervals and the 24-hour total. */
@@ -122,6 +152,8 @@ export type AdministrationProblem =
   | "outcome_required"
   | "wrong_person"
   | "dose_not_scheduled"
+  | "dose_not_due_yet"
+  | "earlier_dose_outstanding"
   | "already_recorded"
   | "reason_required"
   | "reason_not_for_outcome"
@@ -132,6 +164,8 @@ export type AdministrationProblem =
   | "amount_not_a_dose"
   | "amount_differs_needs_reason"
   | "no_checked_dosing_record"
+  | "dosing_record_not_checked"
+  | "dosing_record_differs"
   | "timing_reason_required"
   | "interval_override_required"
   | "prn_maximum_reached";
@@ -142,7 +176,25 @@ export type AdministrationFlag =
   | "interval_override"
   | "competence_override"
   | "amount_differs"
-  | "entry_not_yet_checked";
+  | "entry_not_yet_checked"
+  /** A dose already taken before its window opened. */
+  | "before_window"
+  /** A dose already taken while an earlier dose that day has no outcome. */
+  | "earlier_dose_outstanding"
+  /** A dose already taken that went over the 24-hour maximum (escalated urgently). */
+  | "over_maximum"
+  /** A dose of the medicine in another unit is near this one and not in the 24-hour total. */
+  | "other_unit_not_counted";
+
+/**
+ * An escalation the API raises through the notification centre's chain when the record is saved
+ * (slice 48). Urgent: the person has taken more than the prescriber allows in 24 hours.
+ */
+export interface AdministrationEscalation {
+  readonly severity: Extract<Severity, "urgent">;
+  readonly reason: "over_maximum";
+  readonly message: string;
+}
 
 export interface AdministrationIssue {
   readonly problem: AdministrationProblem;
@@ -155,6 +207,8 @@ export type AdministrationCheck =
       readonly flags: readonly AdministrationFlag[];
       /** The dose the entry says to give, a variable dose read from its checked dosing record. */
       readonly prescribed: Dose | null;
+      /** What the API escalates when it saves the record; empty for almost every record. */
+      readonly escalations: readonly AdministrationEscalation[];
     }
   | { readonly ok: false; readonly issues: readonly AdministrationIssue[] };
 
@@ -170,6 +224,31 @@ type AdministrationRates = Pick<
 
 const blank = (value: string | null | undefined) =>
   value === null || value === undefined || value.trim() === "";
+
+const VARIABLE_DOSE_MESSAGES: Readonly<Record<VariableDoseProblem, string>> = {
+  no_dosing_record:
+    "No checked dosing record gives this day's dose. Do not give it until the dosing record is recorded and checked.",
+  dosing_record_not_checked:
+    "The latest dosing record for this day has not been checked. Do not give it until a second person has checked it against its source; an older record is never used instead.",
+  dosing_record_differs:
+    "The check of the latest dosing record for this day found a difference from its source. Do not give it: tell the nurse in charge, who records the corrected dosing record.",
+};
+const VARIABLE_DOSE_PROBLEMS: Readonly<Record<VariableDoseProblem, AdministrationProblem>> = {
+  no_dosing_record: "no_checked_dosing_record",
+  dosing_record_not_checked: "dosing_record_not_checked",
+  dosing_record_differs: "dosing_record_differs",
+};
+
+/** The words that name a day's earlier doses with no outcome, and what to do first. */
+function earlierDosesMessage(doses: readonly MarDose[]): string {
+  const times = doses.map((d) => d.time);
+  const on = formatUkDate((doses[0] as MarDose).dueAt);
+  if (times.length === 1) {
+    return `The ${times[0]} dose on ${on} has no outcome. Record what happened to it before giving this one.`;
+  }
+  const list = `${times.slice(0, -1).join(", ")} and ${times[times.length - 1]}`;
+  return `The ${list} doses on ${on} have no outcome. Record what happened to them before giving this one.`;
+}
 
 /** Whether an amount matches what was prescribed: the amount, within the range, or the dosing record's. */
 function amountMatches(
@@ -245,6 +324,51 @@ export function checkAdministration(
   }
 
   const flags: AdministrationFlag[] = [];
+  const escalations: AdministrationEscalation[] = [];
+  const alreadyTaken = DOSE_ALREADY_TAKEN_OUTCOMES.has(outcome);
+
+  if (dose !== null) {
+    const window = doseWindow(dose.dueAt, isTimeCritical(entry), rates);
+    const timing = recordedTiming(window, input.at);
+    // Never before its own window: a later dose (this evening's, tomorrow's) is not recorded at the
+    // morning round, and no outcome is filled in ahead of time. A dose the person already took is
+    // a fact, recorded with what happened (HZ-004 review).
+    if (timing === "before_window" && !alreadyTaken) {
+      add(
+        "dose_not_due_yet",
+        `This dose is not due yet. Its window opens at ${formatUkTime(window.opensAt)} on ${formatUkDate(window.opensAt)}: record it then.`,
+      );
+    } else if (DOSE_TAKEN_OUTCOMES.has(outcome) && timing !== "on_time") {
+      if (blank(input.timingReason)) {
+        add(
+          "timing_reason_required",
+          timing === "before_window"
+            ? "This dose was taken before its window opened. Say what happened."
+            : `This dose is ${timing}. Say why.`,
+        );
+      } else flags.push(timing);
+    }
+
+    // A dose is not given while an earlier dose of the medicine that day has no outcome: what
+    // happened to that one is recorded first (HZ-004 review).
+    if (outcome === "given" || alreadyTaken) {
+      const recorded = new Set(input.recordedDueTimes.map((d) => d.getTime()));
+      const earlier = marEntryDoses(entry, {
+        from: ukStartOfDay(dose.date),
+        to: dose.dueAt,
+      }).filter(
+        (d) =>
+          d.date === dose.date &&
+          d.dueAt.getTime() < dose.dueAt.getTime() &&
+          !recorded.has(d.dueAt.getTime()),
+      );
+      if (earlier.length > 0 && alreadyTaken) flags.push("earlier_dose_outstanding");
+      else if (earlier.length > 0) {
+        add("earlier_dose_outstanding", earlierDosesMessage(earlier));
+      }
+    }
+  }
+
   let prescribed: Dose | null = null;
   if (DOSE_TAKEN_OUTCOMES.has(outcome)) {
     const status = marEntryStatus(entry, input.at, input.policy);
@@ -254,15 +378,17 @@ export function checkAdministration(
 
     const prescribedDose =
       entry.directions.kind === "when_required" ? entry.directions.dose : (dose?.dose ?? null);
-    const variableQuantity =
-      prescribedDose?.kind === "variable" && dose
+    let variableQuantity: number | null = null;
+    if (prescribedDose?.kind === "variable") {
+      // The newest dosing record covering the day decides; never an older one (HZ-005 review).
+      const variable = dose
         ? variableDoseFor(input.dosingRecords, input.versionIds, dose.date, dose.time)
         : null;
-    if (prescribedDose?.kind === "variable" && variableQuantity === null) {
-      add(
-        "no_checked_dosing_record",
-        "No checked dosing record gives this day's dose. Do not give it until the dosing record is recorded and checked.",
-      );
+      if (variable?.ok) variableQuantity = variable.quantity;
+      else {
+        const problem = variable?.problem ?? "no_dosing_record";
+        add(VARIABLE_DOSE_PROBLEMS[problem], VARIABLE_DOSE_MESSAGES[problem]);
+      }
     }
     prescribed =
       prescribedDose?.kind === "variable"
@@ -271,32 +397,36 @@ export function checkAdministration(
           : { kind: "amount", quantity: variableQuantity, unit: prescribedDose.unit }
         : prescribedDose;
 
+    // A dose already taken from an entry with a 24-hour maximum needs its amount, so it counts.
+    const maximum =
+      entry.directions.kind === "when_required" ? entry.directions.maxQuantityPer24Hours : null;
     const amount = input.amount;
-    if (outcome === "given" && amount === null) add("amount_required", "Record the amount given.");
+    if (amount === null && outcome === "given") add("amount_required", "Record the amount given.");
+    if (amount === null && alreadyTaken && maximum !== null) {
+      add(
+        "amount_required",
+        "Record the amount taken: it counts towards the most allowed in 24 hours.",
+      );
+    }
+    let counted: number | null = null;
     if (amount !== null && prescribedDose !== null) {
       if (amount.unitCode !== prescribedDose.unit.code) {
         add("amount_wrong_unit", "Record the amount in the unit on the MAR.");
       } else if (!(Number.isFinite(amount.quantity) && amount.quantity > 0)) {
         add("amount_not_a_dose", "Record the amount given as a number more than zero.");
-      } else if (
-        !amountMatches(prescribedDose, amount.quantity, variableQuantity) &&
-        prescribed !== null
-      ) {
-        if (blank(input.amountDifferenceReason)) {
-          add(
-            "amount_differs_needs_reason",
-            "The amount is not the prescribed dose. Say what happened; it is reviewed as a possible medication error.",
-          );
-        } else flags.push("amount_differs");
-      }
-    }
-
-    if (dose !== null) {
-      const timing = recordedTiming(doseWindow(dose.dueAt, isTimeCritical(entry), rates), input.at);
-      if (timing !== "on_time") {
-        if (blank(input.timingReason)) {
-          add("timing_reason_required", `This dose is ${timing}. Say why.`);
-        } else flags.push(timing);
+      } else {
+        counted = amount.quantity;
+        if (
+          !amountMatches(prescribedDose, amount.quantity, variableQuantity) &&
+          prescribed !== null
+        ) {
+          if (blank(input.amountDifferenceReason)) {
+            add(
+              "amount_differs_needs_reason",
+              "The amount is not the prescribed dose. Say what happened; it is reviewed as a possible medication error.",
+            );
+          } else flags.push("amount_differs");
+        }
       }
     }
 
@@ -308,17 +438,38 @@ export function checkAdministration(
           first.rule === "paracetamol" ? "the paracetamol rule" : "the prescribed minimum interval";
         add(
           "interval_override_required",
-          `A dose was taken within ${rule}. Do not give it unless the prescriber agrees; if you must, say why.`,
+          alreadyTaken
+            ? `This dose was taken within ${rule} of another. Say what happened.`
+            : `A dose was taken within ${rule}. Do not give it unless the prescriber agrees; if you must, say why.`,
         );
       } else flags.push("interval_override");
     }
 
-    const quantity = amount?.quantity ?? 0;
-    if (prnMaximumExceeded(entry, input.versionIds, input.history, quantity, input.at)) {
-      add(
-        "prn_maximum_reached",
-        "This would go over the most allowed in 24 hours. Do not give it: contact the prescriber.",
-      );
+    // The maximum counts every dose taken, over every 24 hours containing this one. Staff never
+    // give over it; a dose already taken over it is recorded, flagged and escalated (H-1062).
+    if (counted !== null) {
+      const over = prnMaximumExceeded(entry, input.versionIds, input.history, counted, input.at);
+      if (over && alreadyTaken && prescribedDose !== null) {
+        flags.push("over_maximum");
+        const taken = formatDose({
+          kind: "amount",
+          quantity: over.given + counted,
+          unit: prescribedDose.unit,
+        });
+        escalations.push({
+          severity: "urgent",
+          reason: "over_maximum",
+          message: `More than the most allowed in 24 hours has been taken: ${taken} against a maximum of ${formatDose({ kind: "amount", quantity: over.max, unit: prescribedDose.unit })}. Tell the nurse in charge now, who follows your organisation's policy and contacts the prescriber.`,
+        });
+      } else if (over) {
+        add(
+          "prn_maximum_reached",
+          "This would go over the most allowed in 24 hours. Do not give it: contact the prescriber.",
+        );
+      }
+      if (prnDosesNotCounted(entry, input.versionIds, input.history, input.at).length > 0) {
+        flags.push("other_unit_not_counted");
+      }
     }
   }
 
@@ -333,7 +484,7 @@ export function checkAdministration(
   else if (gate.overridden) flags.push("competence_override");
 
   if (issues.length > 0) return { ok: false, issues };
-  return { ok: true, flags, prescribed };
+  return { ok: true, flags, prescribed, escalations };
 }
 
 /** A dose on a round, for closing it. */
@@ -398,32 +549,72 @@ export function checkAmendment(
   return by === record.recordedBy ? null : "not_author";
 }
 
-export type CorrectionProblem = "already_corrected" | "reason_required" | "correction_moves_dose";
+export type CorrectionProblem =
+  | "already_corrected"
+  | "correction_reason_required"
+  | "correction_moves_dose";
+
+export interface AdministrationCorrectionIssue {
+  readonly problem: CorrectionProblem | AdministrationProblem;
+  readonly message: string;
+}
+
+export type AdministrationCorrectionCheck =
+  | Extract<AdministrationCheck, { readonly ok: true }>
+  | { readonly ok: false; readonly issues: readonly AdministrationCorrectionIssue[] };
 
 /**
  * A correction is a new record that refers to the one it corrects (`supersedes_id`), with a reason;
  * it corrects the latest record for the dose, and it stays about the same person and dose, so it
- * can never move a record onto another dose.
+ * can never move a record onto another dose. What the corrected record says meets every rule a new
+ * record does (`checkAdministration`: competence, the entry in force, the window, an earlier dose
+ * outstanding, the amount, intervals and the maximum), so "refused" corrected to "given" is checked
+ * as a dose given at that time. Only the duplicate check against the record it corrects is left
+ * out, and that record (by its id) is left out of the history, so it neither counts twice nor
+ * stands in the way of its own correction.
  */
 export function checkCorrection(
   original: RecordedAdministration,
   correction: {
+    /** Why the record is corrected. */
     readonly reason: string;
-    readonly personId: string;
-    readonly entryId: string;
-    readonly dueAt: Date | null;
+    /** What the corrected record says, as a new record would give it. */
+    readonly record: AdministrationInput;
   },
-): readonly CorrectionProblem[] {
-  const problems: CorrectionProblem[] = [];
-  if (original.supersededById !== null) problems.push("already_corrected");
-  if (blank(correction.reason)) problems.push("reason_required");
-  const sameDue = (original.dueAt?.getTime() ?? null) === (correction.dueAt?.getTime() ?? null);
+  rates: AdministrationRates,
+): AdministrationCorrectionCheck {
+  const issues: AdministrationCorrectionIssue[] = [];
+  if (original.supersededById !== null) {
+    issues.push({
+      problem: "already_corrected",
+      message: "This record has been corrected already. Correct the latest record for the dose.",
+    });
+  }
+  if (blank(correction.reason)) {
+    issues.push({ problem: "correction_reason_required", message: "Say why it is corrected." });
+  }
+  const record = correction.record;
+  const sameDue = (original.dueAt?.getTime() ?? null) === (record.dueAt?.getTime() ?? null);
   if (
-    correction.personId !== original.personId ||
-    correction.entryId !== original.entryId ||
+    record.personId !== original.personId ||
+    (record.entry !== null && record.entry.id !== original.entryId) ||
     !sameDue
   ) {
-    problems.push("correction_moves_dose");
+    issues.push({
+      problem: "correction_moves_dose",
+      message:
+        "A correction stays with the person and the dose it corrects. Record another dose as a record of its own.",
+    });
   }
-  return problems;
+  const content = checkAdministration(
+    {
+      ...record,
+      alreadyRecorded: false,
+      history: record.history.filter((d) => d.id !== original.id),
+    },
+    rates,
+  );
+  if (!content.ok) issues.push(...content.issues);
+  if (issues.length > 0 || !content.ok) return { ok: false, issues };
+  return content;
 }

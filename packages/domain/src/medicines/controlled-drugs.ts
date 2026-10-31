@@ -63,7 +63,10 @@ export interface CdEntry {
   readonly id: string;
   readonly pageKey: string;
   readonly movement: CdMovement;
-  /** The amount moved; for a correction, the signed change it makes to the balance. */
+  /**
+   * The amount moved; for a correction, the signed change it makes to the balance (0 for one that
+   * corrects something other than the quantity, such as the time).
+   */
   readonly quantity: number;
   /** The entry a correction puts right. */
   readonly correctsId: string | null;
@@ -86,6 +89,7 @@ export type CdEntryProblem =
   | "correction_needs_reason"
   | "not_a_correction"
   | "witness_required"
+  | "witness_blank"
   | "witness_is_recorder"
   | "witness_and_no_witness";
 
@@ -127,7 +131,12 @@ export function checkCdEntry(
     );
   }
   const size = Math.abs(entry.quantity);
-  if (!isDoseQuantity(size) || (entry.movement !== "correction" && entry.quantity < 0)) {
+  // A margin correction of the time, the page reference or another detail changes no quantity.
+  const correctsDetail = entry.movement === "correction" && entry.quantity === 0;
+  if (
+    !correctsDetail &&
+    (!isDoseQuantity(size) || (entry.movement !== "correction" && entry.quantity < 0))
+  ) {
     add("bad_quantity", "Record the amount as a number more than zero.");
   } else {
     const expected = cdBalanceAfter(last?.balanceAfter ?? 0, entry.movement, entry.quantity);
@@ -157,7 +166,12 @@ export function checkCdEntry(
     add("not_a_correction", "Only a correction refers to another entry.");
   }
   const noWitness = entry.noWitnessReason !== null && entry.noWitnessReason.trim() !== "";
-  if (entry.witnessedBy !== null && noWitness) {
+  if (entry.witnessedBy !== null && entry.witnessedBy.trim() === "") {
+    add(
+      "witness_blank",
+      "The witness is blank. Record who witnessed this entry, or, where your policy allows, why no witness was available.",
+    );
+  } else if (entry.witnessedBy !== null && noWitness) {
     add("witness_and_no_witness", "Record a witness or why there was none, not both.");
   } else if (entry.witnessedBy !== null && entry.witnessedBy === entry.recordedBy) {
     add(

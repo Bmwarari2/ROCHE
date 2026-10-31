@@ -125,10 +125,18 @@ record for a variable dose, and asks why when they differ; it never calculates a
 or says whether one is safe. Time windows, the paracetamol gap and the PRN maximum are the
 prescriber's or the tenant's figures, applied to entries a person tagged; Harbour adds no interval
 of its own and matches no ingredient. A dose over the prescribed 24-hour maximum is refused and the
-prescriber decides; a dose inside an interval needs a person's reason. Late doses stay outstanding
-and are escalated; Harbour never makes a missed dose due again (a treatment decision). Competence is
-a record of an observed sign-off, not an assessment. The controlled drugs register checks
-arithmetic and signatures, not the medicine.
+prescriber decides; a dose inside an interval needs a person's reason. A dose the person took
+themselves, or their family gave, is recorded as a fact; over the maximum it is flagged and
+escalated to the nurse in charge, whose organisation's policy decides what follows: Harbour adds no
+clinical advice (#162 clinical review; H-1062). "Remaining" is the prescriber's maximum less the
+total recorded, arithmetic on a figure a person set (section 3), and says nothing about whether
+another dose is safe; the CSO confirms that reading (H-1065). A dose in another unit is named as
+not counted, never converted. A scheduled dose is not recorded before its window opens, which is
+the tenant's own figure; a variable dose comes from the newest dosing record a person transcribed
+and another checked, never from a calculation. Late doses stay outstanding and are escalated;
+Harbour never makes a missed dose due again (a treatment decision). Competence is a record of an
+observed sign-off, not an assessment. The controlled drugs register checks arithmetic and
+signatures, not the medicine.
 
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 

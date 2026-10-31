@@ -14,6 +14,7 @@ import {
   type GivenDose,
   intervalConflicts,
   PRN_NOTICES,
+  prnDosesNotCounted,
   prnMaximumExceeded,
   prnOutcomeDueAt,
   prnOutcomesOutstanding,
@@ -159,6 +160,66 @@ describe("hazard HZ-004 enforces the PRN maximum in 24 hours", () => {
     expect(prnMaximumExceeded(prn, only(prn), history, quantity, at(16))).toEqual(exceeded);
   });
 
+  // Four doses of 2 tablets, 8 in all, from 10:00 to 22:00 on 02/11 (the #162 probe).
+  const later = [given("a", at(10)), given("b", at(14)), given("c", at(18)), given("d", at(22))];
+  const nextDay = (hour: number) => new Date(at(hour).getTime() + 24 * HOUR);
+  it.each<[string, readonly GivenDose[], Date, number, { given: number; max: number } | null]>([
+    [
+      "a dose entered at 05:00 before eight taken later that day",
+      later,
+      at(5),
+      2,
+      { given: 8, max: 8 },
+    ],
+    [
+      "a dose at 05:00 with the last of them 17 hours later still in its 24 hours",
+      later.slice(1),
+      at(5),
+      2,
+      null,
+    ],
+    [
+      "a dose at 23:00 the day before, whose 24 hours reach 22:00",
+      later,
+      fromUkWallClock(2026, 11, 1, 23, 0),
+      2,
+      { given: 8, max: 8 },
+    ],
+    [
+      "a dose exactly 24 hours before the last, which no 24 hours holds with it",
+      later,
+      new Date(at(22).getTime() - 24 * HOUR),
+      2,
+      null,
+    ],
+    [
+      "a dose a minute later, inside the last one's 24 hours",
+      later,
+      new Date(at(22).getTime() - 24 * HOUR + MINUTE),
+      2,
+      { given: 8, max: 8 },
+    ],
+    [
+      "a dose the next day after 10:00, when 10:00 has left its 24 hours",
+      later,
+      nextDay(10),
+      2,
+      null,
+    ],
+    [
+      "a dose the next day at 10:00 exactly, 24 hours after the first",
+      later,
+      nextDay(10),
+      3,
+      { given: 6, max: 8 },
+    ],
+  ])(
+    "hazard HZ-004 checks every 24 hours containing the dose, before and after it: %s",
+    (_name, history, when, quantity, exceeded) => {
+      expect(prnMaximumExceeded(prn, only(prn), history, quantity, when)).toEqual(exceeded);
+    },
+  );
+
   it("counts the 24 hours up to the dose in elapsed time, so a dose 24 hours ago no longer counts", () => {
     const later = new Date(at(1).getTime() + 24 * HOUR);
     expect(prnMaximumExceeded(prn, only(prn), history, 4, later)).toBeNull();
@@ -174,7 +235,10 @@ describe("hazard HZ-004 enforces the PRN maximum in 24 hours", () => {
     expect(prnMaximumExceeded(prn, only(prn), other, 2, at(16))).toBeNull();
     expect(prnMaximumExceeded(entry(), new Set(["entry-1"]), history, 100, at(16))).toBeNull();
     const noMax = entry(
-      { directions: { ...prnDirections, maxQuantityPer24Hours: null } },
+      {
+        directions: { ...prnDirections, maxQuantityPer24Hours: null },
+        minimumIntervalMinutes: 240,
+      },
       "entry-prn",
     );
     expect(prnMaximumExceeded(noMax, only(noMax), history, 100, at(16))).toBeNull();
@@ -196,7 +260,7 @@ describe("hazard HZ-004 shows the last-given time for every when-required medici
       maxPer24Hours: 8,
       remaining: 4,
       nextAllowedAt: at(15),
-      notice: null,
+      notices: [],
     });
   });
 
@@ -221,7 +285,55 @@ describe("hazard HZ-004 shows the last-given time for every when-required medici
     ],
   ] as const)("says so when %s", (_name, directions, history, notice) => {
     const e = entry({ directions, minimumIntervalMinutes: 240 }, "entry-prn");
-    expect(prnStatus(e, only(e), history, at(13), rates).notice).toBe(notice);
+    expect(prnStatus(e, only(e), history, at(13), rates).notices).toEqual([notice]);
+  });
+
+  it("hazard HZ-004 returns every notice that applies, so not synced is never hidden", () => {
+    const history = [
+      given("a", at(1), { quantity: 4 }),
+      given("b", at(8), { quantity: 4, synced: false }),
+      given("c", at(9), { unitCode: UNIT.ml.code, quantity: 10 }),
+    ];
+    expect(prnStatus(prn, only(prn), history, at(13), rates)).toMatchObject({
+      lastGiven: { at: at(9), synced: true },
+      givenInLast24Hours: 8,
+      notices: [PRN_NOTICES.maximumReached, PRN_NOTICES.otherUnitNotCounted],
+    });
+    expect(prnStatus(prn, only(prn), history.slice(0, 2), at(13), rates).notices).toEqual([
+      PRN_NOTICES.maximumReached,
+      PRN_NOTICES.notSynced,
+    ]);
+  });
+
+  it.each<[string, readonly GivenDose[], number]>([
+    [
+      "a dose in ml of a tablet medicine 3 hours ago",
+      [given("m", at(10), { unitCode: UNIT.ml.code })],
+      1,
+    ],
+    [
+      "one 23 hours after",
+      [given("m", new Date(at(13).getTime() + 23 * HOUR), { unitCode: UNIT.ml.code })],
+      1,
+    ],
+    [
+      "one 24 hours before",
+      [given("m", new Date(at(13).getTime() - 24 * HOUR), { unitCode: UNIT.ml.code })],
+      0,
+    ],
+    ["a dose in its own unit", [given("t", at(10))], 0],
+    [
+      "a dose of another medicine in ml",
+      [given("m", at(10), { entryId: "entry-other", unitCode: UNIT.ml.code })],
+      0,
+    ],
+  ])("hazard HZ-004 names, never converts or drops silently, %s", (_name, history, count) => {
+    expect(prnDosesNotCounted(prn, only(prn), history, at(13))).toHaveLength(count);
+    expect(
+      prnStatus(prn, only(prn), history, at(13), rates).notices.includes(
+        PRN_NOTICES.otherUnitNotCounted,
+      ),
+    ).toBe(count > 0 && history[0] !== undefined && history[0].at.getTime() <= at(13).getTime());
   });
 
   it("never shows a dose recorded for later as already given", () => {

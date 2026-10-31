@@ -3,8 +3,9 @@
  * (for example warfarin, whose dose changes with each blood test) holds only the unit; each day's
  * dose comes from a dosing record transcribed from its source (the anticoagulant clinic's letter
  * or record). A dosing record is checked like a MAR entry: by a second person, not the one who
- * wrote it, with current medicines competence, who compared it with the source. A dose is given
- * only from the latest checked record that covers that day and time.
+ * wrote it, with current medicines competence, who compared it with the source. The newest record
+ * that covers a day and time decides that dose: given only when that record was second-checked and
+ * found to match its source, and never from an older record instead (HZ-005 review).
  */
 
 import { isDoseQuantity } from "./dose";
@@ -162,23 +163,48 @@ export function checkDosingRecord(
   };
 }
 
+export type VariableDoseProblem =
+  | "no_dosing_record"
+  | "dosing_record_not_checked"
+  | "dosing_record_differs";
+
+export type VariableDose =
+  | { readonly ok: true; readonly quantity: number; readonly recordId: string }
+  | {
+      readonly ok: false;
+      readonly problem: VariableDoseProblem;
+      /** The newest record covering the day and time, when there is one. */
+      readonly recordId: string | null;
+    };
+
 /**
- * The dose to give at a variable-dose time: from the most recently recorded dosing record that a
- * second person checked and found to match its source, and that covers the day and time. Null when
- * there is none, and then no dose may be given (`no_checked_dosing_record`).
+ * The dose to give at a variable-dose time. The newest dosing record (by when it was recorded) that
+ * covers the day and time decides: its dose when a second person checked it and found it matches
+ * its source; otherwise no dose (`dosing_record_not_checked`, `dosing_record_differs`), never an
+ * older record's dose, because a newer record is the clinic's newer instruction. With no record
+ * covering the day and time, no dose either (`no_dosing_record`). Records recorded at the same
+ * instant are ordered by id, so the answer never depends on the order they arrive in.
  */
 export function variableDoseFor(
   records: readonly DosingRecord[],
   entryIds: ReadonlySet<string>,
   date: string,
   time: string,
-): number | null {
-  const usable = records
-    .filter((r) => entryIds.has(r.entryId) && r.secondCheck?.outcome === "matches_source")
-    .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
-  for (const record of usable) {
-    const dose = record.doses.find((d) => d.date === date && d.time === time);
-    if (dose) return dose.quantity;
+): VariableDose {
+  const covers = (r: DosingRecord) => r.doses.find((d) => d.date === date && d.time === time);
+  const newest = records
+    .filter((r) => entryIds.has(r.entryId) && covers(r) !== undefined)
+    .sort(
+      (a, b) =>
+        b.recordedAt.getTime() - a.recordedAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    )[0];
+  if (newest === undefined) return { ok: false, problem: "no_dosing_record", recordId: null };
+  if (newest.secondCheck === null) {
+    return { ok: false, problem: "dosing_record_not_checked", recordId: newest.id };
   }
-  return null;
+  if (newest.secondCheck.outcome !== "matches_source") {
+    return { ok: false, problem: "dosing_record_differs", recordId: newest.id };
+  }
+  const dose = covers(newest) as DosingRecordDraft["doses"][number];
+  return { ok: true, quantity: dose.quantity, recordId: newest.id };
 }

@@ -6,7 +6,9 @@
  * expired competence blocks every administration unless someone else, who holds
  * `medicines.override.approve` (checked by the API), records an override with a reason for a
  * bounded time (`medicines.competence_override.max_hours`); every use is flagged for the override
- * report (slice 45), so the override cannot quietly become routine.
+ * report (slice 45), so the override cannot quietly become routine. A member never signed off
+ * (`not_held`) is refused outright: staff not assessed as competent must not give medicines (NICE
+ * SC1 1.18, as the master prompt cites it), so only a lapsed competence may be overridden (H-1061).
  */
 
 import { addUkMonths, ukStartOfDay } from "../shared/time";
@@ -40,7 +42,7 @@ export function medicinesCompetenceAt(
   return { state: at.getTime() < expiresAt.getTime() ? "current" : "expired", expiresAt };
 }
 
-/** A manager's override of a member's lapsed medicines competence, for a bounded time. */
+/** A manager's override of a member's lapsed (expired) medicines competence, for a bounded time. */
 export interface CompetenceOverride {
   readonly memberId: string;
   readonly approvedBy: string;
@@ -69,8 +71,9 @@ const refused = (problem: CompetenceProblem, message: string): MedicinesCompeten
 });
 
 /**
- * Whether a member may carry out a medicines action at `at`: with current competence, or under an
- * override in force that someone else approved with a reason.
+ * Whether a member may carry out a medicines action at `at`: with current competence, or, when it
+ * has expired, under an override in force that someone else approved with a reason. A member with
+ * no sign-off is refused whatever override is offered.
  */
 export function checkCompetenceGate(
   memberId: string,
@@ -80,16 +83,17 @@ export function checkCompetenceGate(
   rates: Pick<MedicinesRates, "competenceOverrideMaxHours">,
 ): MedicinesCompetenceGate {
   if (competence === "current") return { ok: true, overridden: false };
+  if (competence === "not_held") {
+    return refused(
+      "competence_not_held",
+      "You have no medicines competence sign-off, so you cannot record medicines. This cannot be overridden: ask for your competence to be assessed.",
+    );
+  }
   if (override === null) {
-    return competence === "expired"
-      ? refused(
-          "competence_expired",
-          "Your medicines competence has expired. Ask a manager who can approve overrides, and book your competence check.",
-        )
-      : refused(
-          "competence_not_held",
-          "You have no medicines competence sign-off. Ask a manager who can approve overrides.",
-        );
+    return refused(
+      "competence_expired",
+      "Your medicines competence has expired. Ask a manager who can approve overrides, and book your competence check.",
+    );
   }
   if (override.memberId !== memberId) {
     return refused("override_for_someone_else", "This override is for someone else.");
