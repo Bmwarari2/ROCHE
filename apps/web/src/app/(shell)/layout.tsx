@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
-import { getShellContext, tenantApi } from "@/lib/api";
+import { getShellContext } from "@/lib/api";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
+import { readNotifications } from "@/lib/dashboard-data";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { evidencePacksShown } from "@/lib/evidence-packs";
@@ -34,10 +35,10 @@ function locationDescription(location: LocationSummary): string | undefined {
 /** The signed-in product shell. Every page under it has a session and an active organisation. */
 export default async function ShellLayout({ children }: { readonly children: ReactNode }) {
   const { me, locationId } = await getShellContext();
-  const api = await tenantApi();
-  // The unread count is a convenience; the shell still renders if it cannot be fetched.
-  const notifications = await api.GET("/v1/notifications").catch(() => null);
-  const unread = notifications?.data?.unread ?? 0;
+  // The unread count is a convenience; the shell still renders if it cannot be fetched. Read once
+  // per request, shared with the home page's alerts tile.
+  const notifications = await readNotifications();
+  const unread = notifications.kind === "ok" ? notifications.data.unread : 0;
 
   return (
     <ShellFrame

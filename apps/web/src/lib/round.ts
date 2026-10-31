@@ -11,6 +11,9 @@ import { staffName } from "./mca";
  * state the web does not know warns, never reads as calm.
  */
 
+/** The task kind of a DoLS expiry reminder (apps/api/src/services/mca.ts, care.md rule 11). */
+export const DOLS_REMINDER_KIND = "care.dols_expiry";
+
 /** Who may open the round: anyone who reads care plans (the API's permission). */
 export function roundShown(permissions: readonly string[]): boolean {
   return permissions.includes("care.plan.read");
@@ -105,6 +108,8 @@ export function recordHref(
   if (!task.personId) return null;
   const person = `/people/${task.personId}`;
   if (isChart(task.kind)) return `${person}/charts?record=${task.kind}`;
+  // A DoLS expiry reminder is dealt with in the person's DoLS register (care.md rule 11, HZ-020).
+  if (task.kind === DOLS_REMINDER_KIND) return `${person}/dols`;
   switch (task.evidenceType) {
     case "observation":
       return `${person}/charts`;
