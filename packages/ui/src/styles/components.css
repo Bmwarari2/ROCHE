@@ -226,6 +226,23 @@
     text-decoration: none;
   }
 
+  /* The organisation's white-label logo (PLAT-002): 24 px high, never wider than 120 px. */
+  .hb-appbar__logo {
+    display: block;
+    height: 24px;
+    width: auto;
+    max-width: 120px;
+    margin-inline-end: 8px;
+    object-fit: contain;
+  }
+
+  /* On phones the logo gives way, so the switchers and account menu keep their room. */
+  @media (max-width: 734px) {
+    .hb-appbar__logo {
+      display: none;
+    }
+  }
+
   .hb-appbar__switchers {
     display: flex;
     align-items: center;
