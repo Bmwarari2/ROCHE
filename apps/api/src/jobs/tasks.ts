@@ -27,7 +27,10 @@ import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
 } from "../services/break-glass-report";
-import { raiseCandourBlockedTasks } from "../services/candour-blocked";
+import {
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
+  raiseCandourBlockedTasks,
+} from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
 import {
@@ -340,7 +343,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
 /**
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
- * urgent result alert and a break-glass alert.
+ * urgent result alert, a break-glass alert, an overdue statutory notification and an incident the
+ * duty of candour holds open.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -350,6 +354,9 @@ export const UNROUTED_ACTIONS = [
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   NOTIFICATION_UNROUTED_ACTION,
+  // An incident the duty of candour holds open, with no one who manages incidents there to tell
+  // (#120 review round 4, M2).
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */

@@ -80,13 +80,37 @@ async function told(
   return (await roleHolders(tx, roleKeys, [locationId], now)).filter((id) => managers.has(id));
 }
 
+/** The audit action when no one who manages incidents there could be told (the daily signal). */
+export const CANDOUR_BLOCKED_UNROUTED_ACTION = "safety.candour.close_blocked_unrouted";
+
 /**
- * Today's step of the ladder for one open task (day 0 is the day it was raised): tells each
- * member once that day, and audits who was told (a count and the tier), or that no one could be.
+ * When the incident first became held open: the first stuck-candour task ever raised for it,
+ * whatever became of that task (#120 review round 4, M1). The ladder counts from here, so a task
+ * ended some other way and raised again never starts the ladder over.
+ */
+async function blockedSince(tx: Transaction, incidentId: string): Promise<Date | null> {
+  const [first] = await tx
+    .select({ at: sql<Date>`min(${task.createdAt})` })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, CANDOUR_BLOCKED_TASK_KIND),
+        eq(task.sourceType, CANDOUR_BLOCKED_SOURCE),
+        eq(task.sourceId, incidentId),
+      ),
+    );
+  return first?.at ? new Date(first.at) : null;
+}
+
+/**
+ * Today's step of the ladder for one open task (day 0 is the day the incident first became held
+ * open, `blockedSince`): tells each member once that day, and audits who was told (a count and the
+ * tier), or that no one could be.
  */
 async function escalate(tx: Transaction, t: TaskRow, incidentId: string, now: Date) {
   if (!t.locationId) return;
-  const day = Math.max(0, Math.floor((now.getTime() - t.createdAt.getTime()) / DAY_MS));
+  const since = (await blockedSince(tx, incidentId)) ?? t.createdAt;
+  const day = Math.max(0, Math.floor((now.getTime() - since.getTime()) / DAY_MS));
   const managers = await told(tx, t.locationId, ["registered_manager"], now);
   const owners = await told(tx, t.locationId, ["owner"], now);
   const tier =
@@ -138,7 +162,7 @@ async function escalate(tx: Transaction, t: TaskRow, incidentId: string, now: Da
       and(
         eq(auditEvent.resourceType, "task"),
         eq(auditEvent.resourceId, t.id),
-        eq(auditEvent.action, "safety.candour.close_blocked_unrouted"),
+        eq(auditEvent.action, CANDOUR_BLOCKED_UNROUTED_ACTION),
         sql`${auditEvent.scope}->>'day' = ${String(day)}`,
       ),
     )
@@ -146,7 +170,7 @@ async function escalate(tx: Transaction, t: TaskRow, incidentId: string, now: Da
   if (already) return;
   await tx.insert(auditEvent).values({
     tenantId: t.tenantId,
-    action: "safety.candour.close_blocked_unrouted",
+    action: CANDOUR_BLOCKED_UNROUTED_ACTION,
     outcome: "error",
     resourceType: "task",
     resourceId: t.id,

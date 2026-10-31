@@ -1135,6 +1135,9 @@ export const incidentsRouter = createRouter()
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         refuseClosedCandour(row);
+        // Only someone who manages incidents where this one is, never its raiser for holding the
+        // permission elsewhere (#120 review round 4, M3; as #130 M1 for review and close).
+        await requireManagesIncident(c, tx, access, id);
         // The relevant person is one of the people affected (#120 round 2, M2).
         const affected = await withTenantWideScope(tx, () => affectedServiceUsers(tx, id));
         if (body.personId && !affected.includes(body.personId)) {
@@ -1291,6 +1294,9 @@ export const incidentsRouter = createRouter()
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         refuseClosedCandour(row);
+        // Only someone who manages incidents where this one is, never its raiser for holding the
+        // permission elsewhere (#120 review round 4, M3; as #130 M1 for review and close).
+        await requireManagesIncident(c, tx, access, id);
         const [record] = await tx
           .select()
           .from(candourRecord)
@@ -1395,6 +1401,9 @@ export const incidentsRouter = createRouter()
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         refuseClosedCandour(row);
+        // Only someone who manages incidents where this one is, never its raiser for holding the
+        // permission elsewhere (#120 review round 4, M3; as #130 M1 for review and close).
+        await requireManagesIncident(c, tx, access, id);
         const [record] = await tx
           .select()
           .from(candourRecord)

@@ -449,7 +449,7 @@ describe("PLAT-011 open workflows and approvals", () => {
     expect(submit.status, await submit.clone().text()).toBe(403);
   });
 
-  it("hazard HZ-091 never lets a manager move an incident they raised at another home", async () => {
+  it("hazard HZ-091 never lets a manager move an incident they raised at another home, or take a candour step on it", async () => {
     // Dee manages incidents at Harbour House; under a grant at the Lodge, since ended, she raised
     // an incident about nobody there.
     const [grant] = await asOwner(
@@ -489,6 +489,29 @@ describe("PLAT-011 open workflows and approvals", () => {
       body: { to: "under_review", version: lodgeIncident.version },
     });
     expect(review.status, await review.clone().text()).toBe(403);
+    // Nor any duty of candour step on it (#120 review round 4, M3).
+    for (const [path, body] of [
+      [
+        `/v1/incidents/${lodgeIncident.id}/candour`,
+        {
+          threshold: { notifiable: true, decidedAt: ago(MIN), decidedBy: "A GP" },
+          version: 0,
+        },
+      ],
+      [`/v1/incidents/${lodgeIncident.id}/candour/step`, { to: "verbal_due", version: 1 }],
+      [
+        `/v1/incidents/${lodgeIncident.id}/candour/reopen`,
+        { reason: "A fracture was confirmed later on.", version: 1 },
+      ],
+    ] as const) {
+      const response = await h.request(path, {
+        token: extra.dee,
+        tenant: DEMO.tenantId,
+        method: path.endsWith("/candour") ? "PUT" : "POST",
+        body,
+      });
+      expect({ path, status: response.status }).toEqual({ path, status: 403 });
+    }
   });
 
   it("hazard HZ-013 writes the candour clocks onto the workflow on the record and each step", async () => {

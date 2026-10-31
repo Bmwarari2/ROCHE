@@ -1271,7 +1271,7 @@ describe("duty of candour and investigations", () => {
   const reopen = (incidentId: string, body: Record<string, unknown>) =>
     as("manager", `/v1/incidents/${incidentId}/candour/reopen`, { method: "POST", body });
 
-  it("hazard HZ-013 a finished record keeps its decision until reopened with a reason, which blocks closing again (round 3 H1)", async () => {
+  it("hazard HZ-013 hazard HZ-091 a finished record keeps its decision until reopened with a reason, which blocks closing again (round 3 H1)", async () => {
     const incident = await harmed([affected(4)]);
     // A is recorded as not notifiable, and the candour draft is marked not required.
     let view = await json<CandourView>(
@@ -1345,7 +1345,7 @@ describe("duty of candour and investigations", () => {
     expect(again.status).toBe(422);
   });
 
-  it("hazard HZ-013 a closed incident's candour record is never changed (round 3 H1)", async () => {
+  it("hazard HZ-013 hazard HZ-091 a closed incident's candour record is never changed (round 3 H1)", async () => {
     const incident = await created("manager", { type: "environmental", people: [] });
     await answerEverything(incident.id);
     const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
@@ -1370,7 +1370,7 @@ describe("duty of candour and investigations", () => {
     expect((await json<ProblemDetails>(again)).detail).toBe(detail);
   });
 
-  it("hazard HZ-013 a finished record keeps the person it names (round 3 low)", async () => {
+  it("hazard HZ-013 hazard HZ-091 a finished record keeps the person it names (round 3 low)", async () => {
     const incident = await harmed([affected(4), affected(5)]);
     await finishWithoutContact(incident.id, resident(4));
     const record = await json<CandourView>(
@@ -1512,6 +1512,90 @@ describe("duty of candour and investigations", () => {
     expect(await audits("safety.candour.close_blocked_finished")).toEqual([
       { incidentId: incident.id, why: "closed" },
     ]);
+  });
+
+  it("hazard HZ-013 hazard HZ-073 the stuck-incident ladder cannot be reset by ending its task (round 4 M1)", async () => {
+    const incident = await harmed([affected(5)], ago(30 * 24 * HOUR));
+    const start = new Date();
+    const tasks = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ id: string; version: number; status: string }>(
+          "SELECT id, version, status FROM task WHERE kind = 'safety.candour_close_blocked' AND source_id = $1 ORDER BY created_at",
+          [incident.id],
+        );
+        return rows;
+      });
+    await raiseCandourBlocked(deps, start);
+    const [first] = await tasks();
+    // Nobody ends it by hand: only resolving the duty of candour finishes it.
+    for (const to of ["done", "skipped", "cancelled"]) {
+      const ended = await as("manager", `/v1/tasks/${first?.id}/transition`, {
+        method: "POST",
+        body: { to, reason: "Dealt with elsewhere.", version: first?.version },
+      });
+      expect(ended.status).toBe(422);
+      expect((await json<ProblemDetails>(ended)).detail).toMatch(/finishes on its own/);
+    }
+    // Ended some other way, a new task is raised, and the ladder counts from the first: the next
+    // day the owners are told, as they would have been.
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET status = 'cancelled', status_reason = 'Test' WHERE id = $1", [
+        first?.id,
+      ]),
+    );
+    await raiseCandourBlocked(deps, new Date(start.getTime() + 25 * HOUR));
+    const all = await tasks();
+    expect(all.map((t) => t.status)).toEqual(["cancelled", "open"]);
+    const told = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ recipient: string }>(
+        "SELECT recipient_tenant_user_id AS recipient FROM notification WHERE source_type = 'task' AND source_id = $1",
+        [all[1]?.id],
+      );
+      return rows.map((r) => r.recipient).sort();
+    });
+    expect(told).toEqual([DEMO.users.manager.id, DEMO.users.owner.id].sort());
+  });
+
+  it("hazard HZ-013 hazard HZ-073 an incident held open with no one to tell reaches the daily signal (round 4 M2)", async () => {
+    const PIER = "0194d000-0000-7000-8000-0000000001f8";
+    const incidentId = await asDemoTenant(async (c) => {
+      await c.query("INSERT INTO location (id, name) VALUES ($1, 'Harbour Pier')", [PIER]);
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids,
+           classifier_result)
+         VALUES ($1, 'medication', now() - interval '30 days', 'Fixture incident', $2, '{}',
+           '{"outputs": [{"kind": "candour"}]}'::jsonb)
+         RETURNING id`,
+        [PIER, DEMO.users.manager.id],
+      );
+      return rows[0]?.id ?? "";
+    });
+    const setStatus = (id: string, status: string) =>
+      asDemoTenant((c) =>
+        c.query("UPDATE tenant_user SET status = $2 WHERE id = $1", [id, status]),
+      );
+    await setStatus(DEMO.users.owner.id, "suspended");
+    try {
+      await raiseCandourBlocked(deps);
+      await raiseCandourBlocked(deps, new Date(Date.now() + HOUR));
+      const audited = await asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ outcome: string }>(
+          `SELECT a.outcome FROM audit_event a JOIN task t ON a.resource_id = t.id::text
+            WHERE a.action = 'safety.candour.close_blocked_unrouted' AND t.source_id = $1`,
+          [incidentId],
+        );
+        return rows.map((r) => r.outcome);
+      });
+      // Once in the day, however often the job runs.
+      expect(audited).toEqual(["error"]);
+      expect(UNROUTED_ACTIONS).toContain("safety.candour.close_blocked_unrouted");
+      const reported = await reportUnroutedDaily(deps);
+      expect(
+        reported.get(DEMO.tenantId)?.["safety.candour.close_blocked_unrouted"],
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      await setStatus(DEMO.users.owner.id, "active");
+    }
   });
 
   it("hazard HZ-091 gives a reopened action a new task (review L1)", async () => {
