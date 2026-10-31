@@ -8,6 +8,7 @@
   "files": {
     "maxSize": 2097152,
     "ignoreUnknown": true,
+    "maxSize": 4194304,
     "includes": [
       "**",
       "!**/node_modules",
