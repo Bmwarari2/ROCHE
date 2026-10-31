@@ -14,9 +14,12 @@ import {
   type BreakGlassWeek,
   PEOPLE_RATE_KEYS,
   previousBreakGlassReportWeek,
+  resolveAccess,
+  scopeFor,
 } from "@harbour/domain";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { publish } from "../outbox";
+import { accessRowsOf } from "./access-rows";
 import { registeredManagersAt } from "./people";
 import { rateNumber } from "./rates";
 import { roleHolders } from "./role-holders";
@@ -43,6 +46,27 @@ async function dataProtectionLeads(tx: Transaction, now: Date): Promise<string[]
   // A role in force, on the staff, anywhere (ADR-0071 review round 2), as for the alert when a
   // record is opened by break-glass.
   return roleHolders(tx, DATA_PROTECTION_LEAD_ROLES, null, now);
+}
+
+/**
+ * Of these members, those whose `platform.audit.read` reaches the whole organisation now: the
+ * only readers given a report's organisation-wide section (the route's `summaryFor`).
+ */
+async function readersAcrossOrganisation(
+  tx: Transaction,
+  ids: readonly string[],
+  now: Date,
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const rows = await accessRowsOf(tx, ids);
+  return new Set(
+    ids.filter((id) => {
+      const mine = rows.get(id);
+      if (!mine) return false;
+      const access = resolveAccess(mine.assignments, mine.grants, now);
+      return scopeFor(access, "platform.audit.read").scope === "tenant";
+    }),
+  );
 }
 
 export async function eventsInWeek(
@@ -79,7 +103,9 @@ export async function eventsInWeek(
 /**
  * The week's break-glass searches, each with the homes whose people it showed. A search that
  * showed no one at a home (no match, or only people without a home) has no locations: the report
- * puts it in every home's report so it is still reported weekly (master prompt section 4).
+ * puts it in every report's tenant-level section, read only across the organisation, so it is
+ * still reported weekly (master prompt section 4) without naming its searcher to a location's
+ * manager (review round 1 of feat/web-break-glass-report).
  */
 export async function searchesInWeek(
   tx: Transaction,
@@ -119,13 +145,19 @@ export async function generateBreakGlassReports(
     .from(location)
     .where(isNull(location.deletedAt));
   const leads = await dataProtectionLeads(tx, now);
+  const organisationReaders = await readersAcrossOrganisation(tx, leads, now);
+  // A search that showed no one at any location is the organisation's, not a location's: it goes
+  // in each report's tenant-level section, which only readers reaching the whole organisation see
+  // (review round 1 of feat/web-break-glass-report), never in a location's own searches.
+  const unplaced = searches.filter((e) => e.locationIds.length === 0);
   let stored = 0;
   for (const { id: locationId } of locations) {
     const report = aggregate(
       events.filter((e) => e.locationId === locationId),
       week,
       threshold,
-      searches.filter((e) => e.locationIds.length === 0 || e.locationIds.includes(locationId)),
+      searches.filter((e) => e.locationIds.includes(locationId)),
+      unplaced,
     );
     const [inserted] = await tx
       .insert(breakGlassWeeklyReport)
@@ -142,6 +174,12 @@ export async function generateBreakGlassReports(
     if (!inserted) continue;
     stored++;
     const recipients = new Set([...(await registeredManagersAt(tx, locationId, now)), ...leads]);
+    const locationFlagged =
+      report.flagged.length > 0 || report.searches.byUser.some((u) => u.flags.length > 0);
+    // The tenant-level section's flags raise the alert only for the data protection leads whose
+    // `platform.audit.read` reaches the whole organisation, the only ones who read it; nobody is
+    // told of searches they cannot see (security re-review I-1).
+    const unplacedFlagged = report.unplacedSearches.byUser.some((u) => u.flags.length > 0);
     for (const recipient of recipients) {
       await tx
         .insert(notification)
@@ -149,7 +187,7 @@ export async function generateBreakGlassReports(
           recipientTenantUserId: recipient,
           kind: "people.break_glass_report",
           severity:
-            report.flagged.length > 0 || report.searches.byUser.some((u) => u.flags.length > 0)
+            locationFlagged || (unplacedFlagged && organisationReaders.has(recipient))
               ? "warning"
               : "info",
           title: "The weekly break-glass report is ready",

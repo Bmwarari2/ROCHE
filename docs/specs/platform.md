@@ -82,7 +82,58 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   the location's Registered Manager and the data protection lead (holders of the quality lead role
   until the DPO confirms, H-80) with a generic title; `GET /v1/break-glass/weekly-report?week=`
   (`platform.audit.read`, the locations in the reader's access) and `POST
-  .../weekly-report/{reportId}/review` (the actions taken, once). The screen comes with the web work.
+  .../weekly-report/{reportId}/review` (the actions taken, once, never by anyone the report counts:
+  an opening, a search at the location or one in its organisation-wide section, flagged or not).
+  A search that showed no one at any location goes in an organisation-wide section of every
+  report of the week (`unplacedSearches`), never in a location's own searches; the API gives it,
+  and names its searchers, only to readers whose access reaches the whole organisation. Each
+  report carries `staff`, the `StaffName` of every member it counts (as far as the reader may see)
+  and of its reviewer (display name and job title only), so a reader who cannot list the members
+  (the quality lead, a group executive) still sees who used break-glass. A report stored before the
+  organisation-wide section (no `unplacedSearches`) names to a location's reader only the members
+  on its opening lines and flags, never its searchers, since its searches may include ones that
+  showed no one at any location; separation of duties still counts everyone. Each view is audited
+  with the ids of the reports shown and whether the organisation-wide section was. The
+  organisation-wide section's warning on the alert goes only to data protection leads whose
+  `platform.audit.read` reaches the whole organisation.
+  - **Accepted risk (security re-review L-2).** Row-level security does not restrict
+    `unplacedSearches`: it is a key in the summary of every location's row, and only the route's
+    `summaryFor` withholds it (and its searchers' names) from a reader who does not reach the whole
+    organisation. Any other read of `break_glass_weekly_report` under a location scope would see
+    it. Moving it to an organisation-level row (`location_id` null) that row-level security limits
+    to organisation-wide readers needs a migration (nullable `location_id`, its policies and the
+    `break_glass_weekly_report_once` unique index); not done.
+  - **Known limit (security re-review L-3).** The organisation-wide section has no review state of
+    its own: it is reviewed with each location's report, and the "Actions taken" written there is
+    read by that location's readers, so the form says so.
+- Break-glass report screen (web, `apps/web/src/app/(shell)/break-glass/weekly-report`): "Break-glass
+  report" in the side bar for `platform.audit.read` only (anyone else opening the address is told
+  they do not have access). The list shows one UK week (Monday to Sunday, dd/mm/yyyy in a `<time>`
+  holding the ISO week; the last complete week by default, `?week=` any date in it, with previous
+  and next week, next only once it has ended), each location's report in the reader's access
+  (narrowed to the location switcher's location when one is chosen, and saying so when that hides
+  every report) with its totals in words and its state as icons and words ("Reviewed" or "To
+  review", "n things flagged", "Could not be read"); a week with no reports says when Harbour
+  builds them. For a reader across the organisation it also shows the searches that showed no one
+  at any location, with who searched, why and who is flagged. The report page ("Break-glass report
+  for {location}", its title naming the location and week, never a person) shows the totals, what
+  it flags as sentences, one for each flag and each flagged searcher, so the count on its chip and
+  the sentences always agree ("Mo Manager opened the record of Una Example 3 times. Their access
+  may need changing."; "Mo Manager made 4 break-glass searches, at or above the limit of 3
+  searches a week."), tables of records opened by member of staff, by person and by reason chosen
+  (reasons the web does not know merged into one line), the break-glass searches by member of staff
+  and by reason, and the review. People are named from the reader's own people list, each with
+  their communication needs (AIS); anyone else is numbered ("Person 2 (not shown to you)"). The
+  typed reasons are not on the page: the report holds counts and ids, and the screen says the
+  reasons are in the audit log. A report that does not count the reader, and is not yet reviewed,
+  offers "Actions taken" (3 to 2,000 characters) and "Record the review"; the review needs no
+  step-up (the API asks none). A report counting the reader says someone else must review it. A
+  stored summary the web cannot read in part warns rather than reading as nothing to report
+  (HZ-011). The per-opening "not yet reviewed" count is not shown: nothing reviews an opening one
+  by one yet. Local journeys build reports with `pnpm --filter @harbour/api break-glass-report:run`
+  (`--this-week`, or `--e2e-week=yyyy-mm-dd` for an unused past week with an invented opening and
+  search); the script, like `exports:run`, runs only against a local or CI database
+  (`testOnlySwitchRefusal`).
 - Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:

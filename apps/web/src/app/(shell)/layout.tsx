@@ -4,6 +4,7 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { exportShown } from "@/lib/exports";
@@ -73,6 +74,9 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
+        breakGlassReport: breakGlassReportShown(me.permissions)
+          ? t("shell.nav.breakGlassReport")
+          : undefined,
         onboarding: onboardingShown(me.permissions) ? t("shell.nav.onboarding") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
