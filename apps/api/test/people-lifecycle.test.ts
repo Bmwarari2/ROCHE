@@ -374,13 +374,66 @@ describe("people.md rule 1: recording an enquiry (POST /v1/people)", () => {
     expect(await detail(refused)).toContain("NHS number");
   });
 
-  it("hazard HZ-001 refuses a second person with an NHS number already recorded", async () => {
+  it("hazard HZ-001 refuses a second person with an NHS number already recorded, audited", async () => {
     const duplicate = await as("manager", "/v1/people", {
       method: "POST",
       body: { ...enquiry, nhsNumber: "999 000 0018" },
     });
     expect(duplicate.status).toBe(409);
     expect(await json<ProblemDetails>(duplicate)).toMatchObject({ code: "nhs_number_in_use" });
+    const denied = await asDemoTenant((c) =>
+      c.query<{ reason: string | null }>(
+        `SELECT reason FROM audit_event WHERE action = 'people.person.create' AND outcome = 'denied'`,
+      ),
+    );
+    expect(denied.rows.map((r) => r.reason)).toContain("nhs_number_in_use");
+  });
+
+  it("hazard HZ-011 refuses a number recorded only out of scope in the words of an invalid one", async () => {
+    // Someone at Harbour Lodge, which the manager of Harbour House cannot see.
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO person (location_id, status, given_name, family_name, nhs_number)
+         VALUES ($1, 'enquiry', 'Lena', 'Example', '9991234586')`,
+        [LODGE.locationId],
+      ),
+    );
+    const hidden = await as("manager", "/v1/people", {
+      method: "POST",
+      body: { ...enquiry, nhsNumber: "999 123 4586" },
+    });
+    const invalid = await as("manager", "/v1/people", {
+      method: "POST",
+      body: { ...enquiry, nhsNumber: "999 123 4587" },
+    });
+    expect(hidden.status).toBe(422);
+    expect(invalid.status).toBe(422);
+    const [a, b] = [await json<ProblemDetails>(hidden), await json<ProblemDetails>(invalid)];
+    expect({ code: a.code, title: a.title, detail: a.detail }).toEqual({
+      code: b.code,
+      title: b.title,
+      detail: b.detail,
+    });
+    const denied = await asDemoTenant((c) =>
+      c.query<{ reason: string | null; scope: unknown }>(
+        `SELECT reason, scope FROM audit_event
+         WHERE action = 'people.person.create' AND outcome = 'denied'
+           AND reason = 'nhs_number_in_use_out_of_scope'`,
+      ),
+    );
+    expect(denied.rows).toHaveLength(1);
+    // The number never reaches the audit trail.
+    expect(JSON.stringify(denied.rows)).not.toContain("9991234586");
+  });
+
+  it("refuses a date of birth in the future or before 1900", async () => {
+    for (const dateOfBirth of ["2999-01-01", "1899-12-31", "0000-01-01"]) {
+      const refused = await as("manager", "/v1/people", {
+        method: "POST",
+        body: { ...enquiry, nhsNumber: undefined, dateOfBirth },
+      });
+      expect(refused.status, dateOfBirth).toBe(422);
+    }
   });
 
   it("hazard HZ-011 treats a location outside the caller's scope as not found", async () => {
@@ -2270,6 +2323,26 @@ describe("people.md rule 12: residents' money at exit (separation of duties)", (
     expect(await moneyItem()).toMatchObject({ status: "done", doneBy: DEMO.users.owner.id });
   });
 
+  it("refuses to drop the money from the plan when the departure is recorded, without a fresh sign-in", async () => {
+    await setSessionAge("manager", 60);
+    const dropped = await as("manager", `/v1/people/${NEWCOMER}/status`, {
+      method: "POST",
+      body: {
+        to: "discharged",
+        exitKind: "discharge",
+        effectiveAt: new Date().toISOString(),
+        reason: "Going home",
+        exit: { holdsResidentsMoney: false },
+        version: (await summary(NEWCOMER, "owner")).version,
+      },
+    });
+    await setSessionAge("manager", 0);
+    expect(dropped.status).toBe(403);
+    expect(await code(dropped)).toBe("finance_flag_change");
+    expect(await auditCount("people.person.status.discharged", NEWCOMER, "denied")).toBe(1);
+    expect((await moneyItem())?.owner).toBe("finance");
+  });
+
   it("cancels the planned discharge with a reason", async () => {
     const exit = (await json<ExitView>(await as("manager", exitPath))).exit;
     const cancelled = await as("manager", `${exitPath}/moves`, {
@@ -2355,6 +2428,19 @@ describe("people.md rules 11 and 12: a death, its notifications and its correcti
     expect(board.rooms.find((r) => r.label === "5")?.status).toBe("awaiting_clearance");
     // The board gives the room's version, so its clearance can be recorded from it.
     expect(board.rooms.find((r) => r.label === "5")?.version).toBeGreaterThanOrEqual(1);
+    // HZ-013: before the safety module drafts the regulator's notification, nobody ticks it by
+    // hand: not the nurse (no notification permission), not a manager (it follows its draft).
+    const before = (await json<ExitView>(await as("manager", `/v1/people/${resident(5)}/exit`)))
+      .exit;
+    const early = before?.checklist.find((i) => i.key === "regulator_death_notification");
+    expect(early).toMatchObject({ status: "pending", derived: false });
+    const tick = (user: "nurse" | "manager") =>
+      as(user, `/v1/people/${resident(5)}/exit/items/regulator_death_notification`, {
+        method: "PUT",
+        body: { status: "done", version: early?.version },
+      });
+    expect((await tick("nurse")).status).toBe(403);
+    expect([403, 422]).toContain((await tick("manager")).status);
     await drainOutbox();
     const exit = (await json<ExitView>(await as("manager", `/v1/people/${resident(5)}/exit`))).exit;
     expect(exit?.kind).toBe("death");

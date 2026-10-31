@@ -30,6 +30,7 @@ import {
   admissionCondition,
   admissionDecision,
   bedOccupancy,
+  exitRecord,
   location,
   person,
   placement,
@@ -65,8 +66,10 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import { permissionsReaching, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { requireWithinLimit } from "../http/rate-limit";
 import { publish } from "../outbox";
 import {
   currentPlacement,
@@ -112,6 +115,48 @@ const NHS_NUMBER_KEY = "person_tenant_nhs_number_key";
 function constraintOf(error: unknown): string | undefined {
   const e = error as { constraint?: string; cause?: { constraint?: string } };
   return e.constraint ?? e.cause?.constraint;
+}
+
+/** The flags whose return finance confirms (residents' money, deposits, the DWP). */
+const FINANCE_FLAGS = new Set(["holdsResidentsMoney", "holdsDeposit", "homeIsDwpAppointee"]);
+const PLAN_FLAGS = [
+  "holdsResidentsMoney",
+  "holdsDeposit",
+  "hasLoanEquipment",
+  "homeIsDwpAppointee",
+] as const;
+
+/** How the departure's flags differ from the planned exit's, if there is one. */
+async function plannedFlagChanges(
+  tx: Transaction,
+  personId: string,
+  details: { readonly [K in (typeof PLAN_FLAGS)[number]]?: boolean } | undefined,
+): Promise<{ readonly flag: string; readonly to: boolean }[]> {
+  const [planned] = await tx
+    .select()
+    .from(exitRecord)
+    .where(
+      and(
+        eq(exitRecord.personId, personId),
+        eq(exitRecord.state, "planned"),
+        isNull(exitRecord.deletedAt),
+      ),
+    );
+  if (!planned) return [];
+  return PLAN_FLAGS.filter((flag) => planned[flag] !== (details?.[flag] ?? false)).map((flag) => ({
+    flag,
+    to: details?.[flag] ?? false,
+  }));
+}
+
+const INVALID_NHS_NUMBER = "Enter a valid NHS number, or leave it out.";
+
+/** An NHS number already recorded: by someone the caller can see, or not. */
+class DuplicateNhsNumber extends Error {
+  constructor(readonly visible: boolean) {
+    super("duplicate NHS number");
+    this.name = "DuplicateNhsNumber";
+  }
 }
 
 /** The database's refusal of a real person while sample data is loaded (migration 0069). */
@@ -486,69 +531,100 @@ export const peopleLifecycleRouter = createRouter()
       tags: ["people"],
       summary: "Record an enquiry: a new person at the start of the lifecycle (people.md rule 1)",
       description:
-        "people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first), and an NHS number already recorded is refused (409 nhs_number_in_use, HZ-001). Audited (people.person.create, the person's id only).",
+        "people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first). An NHS number already recorded for someone the caller can see is refused (409 nhs_number_in_use, HZ-001); one recorded only for someone outside their scope is refused in the same words as an invalid number (422), so the refusal confirms nothing about people they cannot see (HZ-011). Both refusals are audited (denied, without the number). At most ENQUIRY_REQUESTS_PER_MINUTE a user a minute (429). Audited (people.person.create, the person's id only).",
       security,
       request: { body: { content: { "application/json": { schema: CreateEnquiry } } } },
       responses: { 201: jsonBody(PersonSummary, "Recorded"), ...errorResponses },
     }),
     async (c) => {
       const access = await requirePermission(c, "people.person.create");
+      // An NHS number is a probe for who is recorded where: a per-user limit (HZ-011).
+      await requireWithinLimit(c.get("services").db, access, c.get("services").enquiryLimiter);
       const body = c.req.valid("json");
       requireLocationInScope(access, body.locationId);
+      if (body.dateOfBirth && body.dateOfBirth > ukIsoDate(new Date())) {
+        throw problems.invalid("The date of birth cannot be in the future.");
+      }
       let nhsNumber: string | null = null;
       if (body.nhsNumber) {
         const check = validateNhsNumber(body.nhsNumber);
-        if (!check.valid) throw problems.invalid("Enter a valid NHS number, or leave it out.");
+        if (!check.valid) throw problems.invalid(INVALID_NHS_NUMBER);
         nhsNumber = check.value;
       }
-      const summary = await withTenant(c, async (tx) => {
-        const [home] = await tx
-          .select({ id: location.id })
-          .from(location)
-          .where(and(eq(location.id, body.locationId), isNull(location.deletedAt)));
-        if (!home) throw problems.notFound();
-        const [created] = await tx
-          .insert(person)
-          .values({
-            locationId: home.id,
-            status: "enquiry",
-            givenName: body.givenName,
-            familyName: body.familyName,
-            preferredName: body.preferredName ?? null,
-            dateOfBirth: body.dateOfBirth ?? null,
-            nhsNumber,
-          })
-          .returning({ id: person.id })
-          .catch((error: unknown) => {
-            // Neutral words: the person may be at a location the caller cannot see (HZ-011).
-            if (dbCode(error) === "23505" && constraintOf(error) === NHS_NUMBER_KEY) {
-              throw new HttpProblem(
-                409,
-                "nhs_number_in_use",
-                "The person was not recorded.",
-                "Someone with this NHS number is already recorded in this organisation. Check the number, or ask your Registered Manager before recording them again.",
-              );
-            }
-            if (sampleRefusal(error)) {
-              throw new HttpProblem(
-                409,
-                "remove_sample_data_first",
-                "The person was not recorded.",
-                "Remove the sample data before recording real people.",
-              );
-            }
-            throw error;
+      let summary: PersonSummary;
+      try {
+        summary = await withTenant(c, async (tx) => {
+          const [home] = await tx
+            .select({ id: location.id })
+            .from(location)
+            .where(and(eq(location.id, body.locationId), isNull(location.deletedAt)));
+          if (!home) throw problems.notFound();
+          // Someone the caller can see (row-level security in their scope) already has the number.
+          if (nhsNumber) {
+            const [seen] = await tx
+              .select({ id: person.id })
+              .from(person)
+              .where(eq(person.nhsNumber, nhsNumber))
+              .limit(1);
+            if (seen) throw new DuplicateNhsNumber(true);
+          }
+          const [created] = await tx
+            .insert(person)
+            .values({
+              locationId: home.id,
+              status: "enquiry",
+              givenName: body.givenName,
+              familyName: body.familyName,
+              preferredName: body.preferredName ?? null,
+              dateOfBirth: body.dateOfBirth ?? null,
+              nhsNumber,
+            })
+            .returning({ id: person.id })
+            .catch((error: unknown) => {
+              // The number belongs to someone the caller cannot see.
+              if (dbCode(error) === "23505" && constraintOf(error) === NHS_NUMBER_KEY) {
+                throw new DuplicateNhsNumber(false);
+              }
+              if (sampleRefusal(error)) {
+                throw new HttpProblem(
+                  409,
+                  "remove_sample_data_first",
+                  "The person was not recorded.",
+                  "Remove the sample data before recording real people.",
+                );
+              }
+              throw error;
+            });
+          if (!created) throw problems.conflict();
+          await audit(c, tx, access, {
+            action: "people.person.create",
+            resourceType: "person",
+            resourceId: created.id,
           });
-        if (!created) throw problems.conflict();
-        await audit(c, tx, access, {
-          action: "people.person.create",
-          resourceType: "person",
-          resourceId: created.id,
+          const [out] = await personSummaries(tx, [created.id]);
+          if (!out) throw problems.notFound();
+          return out;
         });
-        const [out] = await personSummaries(tx, [created.id]);
-        if (!out) throw problems.notFound();
-        return out;
-      });
+      } catch (error) {
+        if (!(error instanceof DuplicateNhsNumber)) throw error;
+        // Audited outside the failed transaction; never the number itself.
+        await writeAudit(c.get("services").appPool, access, {
+          action: "people.person.create",
+          outcome: "denied",
+          resourceType: "person",
+          reason: error.visible ? "nhs_number_in_use" : "nhs_number_in_use_out_of_scope",
+          requestId: c.get("requestId"),
+        });
+        // Out of scope: the same words as a mistyped number, so the refusal confirms nothing
+        // about people at homes the caller cannot see (HZ-011).
+        if (!error.visible) throw problems.invalid(INVALID_NHS_NUMBER);
+        throw new HttpProblem(
+          409,
+          "nhs_number_in_use",
+          "The person was not recorded.",
+          "Someone with this NHS number is already recorded. Search for them instead of recording them again.",
+        );
+      }
       return c.json(summary, 201);
     },
   )
@@ -581,45 +657,81 @@ export const peopleLifecycleRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const result = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id, true);
-        requireVersion(p.version, body.version);
-        if (p.status === "pre_admission" && body.to === "active") {
-          throw problems.invalid("Record the admission with its placement and bed instead.");
-        }
-        const outcome = await changeStatus(
-          c,
-          tx,
-          p,
-          {
-            to: body.to,
-            effectiveAt: new Date(body.effectiveAt),
-            reason: body.reason ?? null,
-            ...(body.exitKind ? { exitKind: body.exitKind } : {}),
-            ...(body.exit ? { exit: body.exit } : {}),
-            ...(body.serviceId ? { serviceId: body.serviceId } : {}),
-            ...(body.placementTypeSought ? { placementTypeSought: body.placementTypeSought } : {}),
-          },
-          now,
-        );
-        await audit(c, tx, access, {
-          action: `people.person.status.${body.to}`,
-          resourceType: "person",
-          resourceId: id,
-          reason: body.reason,
-          scope: { from: p.status, to: body.to, event: outcome.check.event },
-        });
-        return {
-          personId: id,
-          status: outcome.person.status,
-          statusChangedAt: outcome.person.statusChangedAt.toISOString(),
-          event: outcome.check.event,
-          effects: [...outcome.check.effects],
-          correction: outcome.check.correction,
-          exitRecordId: outcome.exitRecordId,
-          version: outcome.person.version,
-        };
-      });
+      const result = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const p = await loadPerson(tx, id, true);
+          requireVersion(p.version, body.version);
+          if (p.status === "pre_admission" && body.to === "active") {
+            throw problems.invalid("Record the admission with its placement and bed instead.");
+          }
+          // A planned discharge or transfer that said the home holds the person's money, a deposit
+          // or is their DWP appointee: recording the departure without it would drop the return
+          // from the checklist, so only a finance approver with step-up clears it (people.md rule 12).
+          const flagChanges =
+            body.to === "discharged" ? await plannedFlagChanges(tx, id, body.exit) : [];
+          const cleared = flagChanges.filter((f) => f.to === false && FINANCE_FLAGS.has(f.flag));
+          if (cleared.length > 0) {
+            const reaching = new Set(await permissionsReaching(tx, access, id));
+            if (!reaching.has("finance.ledger.approve") || !access.stepUpFresh) {
+              throw new AuditedRefusal(
+                new HttpProblem(
+                  403,
+                  "finance_flag_change",
+                  "The departure was not recorded.",
+                  "The plan says the home holds the person's money, a deposit or is their DWP appointee. Keep it ticked, or ask a finance approver to change it with a fresh sign-in.",
+                ),
+                {
+                  action: "people.person.status.discharged",
+                  outcome: "denied",
+                  resourceType: "person",
+                  resourceId: id,
+                  reason: "finance_flag_change",
+                  scope: { cleared: cleared.map((f) => f.flag) },
+                },
+              );
+            }
+          }
+          const outcome = await changeStatus(
+            c,
+            tx,
+            p,
+            {
+              to: body.to,
+              effectiveAt: new Date(body.effectiveAt),
+              reason: body.reason ?? null,
+              ...(body.exitKind ? { exitKind: body.exitKind } : {}),
+              ...(body.exit ? { exit: body.exit } : {}),
+              ...(body.serviceId ? { serviceId: body.serviceId } : {}),
+              ...(body.placementTypeSought
+                ? { placementTypeSought: body.placementTypeSought }
+                : {}),
+            },
+            now,
+          );
+          await audit(c, tx, access, {
+            action: `people.person.status.${body.to}`,
+            resourceType: "person",
+            resourceId: id,
+            reason: body.reason,
+            scope: {
+              from: p.status,
+              to: body.to,
+              event: outcome.check.event,
+              ...(flagChanges.length > 0 ? { flagChanges } : {}),
+            },
+          });
+          return {
+            personId: id,
+            status: outcome.person.status,
+            statusChangedAt: outcome.person.statusChangedAt.toISOString(),
+            event: outcome.check.event,
+            effects: [...outcome.check.effects],
+            correction: outcome.check.correction,
+            exitRecordId: outcome.exitRecordId,
+            version: outcome.person.version,
+          };
+        }),
+      );
       return c.json(result, 200);
     },
   )

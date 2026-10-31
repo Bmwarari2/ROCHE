@@ -90,7 +90,19 @@ export const CreateEnquiry = z
     givenName: text(100).min(1),
     familyName: text(100).min(1),
     preferredName: text(100).optional(),
-    dateOfBirth: isoDate.optional(),
+    /**
+     * On or after 1900-01-01 and not in the future. The contract allows a day's slack for time
+     * zones; the API refuses a date after today in the UK.
+     */
+    dateOfBirth: isoDate
+      .refine(
+        (d) =>
+          d >= "1900-01-01" && d <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+        {
+          message: "A date of birth from 1900 onwards and not in the future",
+        },
+      )
+      .optional(),
     /** Ten digits with a valid check digit; spaces are ignored. */
     nhsNumber: text(20).optional(),
   })

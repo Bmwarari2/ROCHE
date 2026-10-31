@@ -595,7 +595,7 @@ export interface paths {
     put?: never;
     /**
      * Record an enquiry: a new person at the start of the lifecycle (people.md rule 1)
-     * @description people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first), and an NHS number already recorded is refused (409 nhs_number_in_use, HZ-001). Audited (people.person.create, the person's id only).
+     * @description people.person.create, with the location in the caller's scope (otherwise 404). The person starts as `enquiry`, which takes contact details and the enquiry only. An NHS number must have ten digits and a valid check digit. A real person waits while sample data is loaded (409 remove_sample_data_first). An NHS number already recorded for someone the caller can see is refused (409 nhs_number_in_use, HZ-001); one recorded only for someone outside their scope is refused in the same words as an invalid number (422), so the refusal confirms nothing about people they cannot see (HZ-011). Both refusals are audited (denied, without the number). At most ENQUIRY_REQUESTS_PER_MINUTE a user a minute (429). Audited (people.person.create, the person's id only).
      */
     post: {
       parameters: {
@@ -4577,7 +4577,7 @@ export interface paths {
     get?: never;
     /**
      * Record an item of the exit checklist as done, or not required with a reason
-     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.
+     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.
      */
     put: {
       parameters: {
