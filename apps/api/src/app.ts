@@ -16,6 +16,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger } from "./logger";
+import { brandingRouter } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -179,7 +180,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     c.header("cache-control", "no-store");
   });
   // Uploads are capped before they are read (largest category limit plus headroom; ASVS V5).
-  for (const path of ["/v1/documents", "/v1/documents/*", "/v1/people/:id/photo"]) {
+  for (const path of [
+    "/v1/documents",
+    "/v1/documents/*",
+    "/v1/people/:id/photo",
+    "/v1/branding/logo",
+  ]) {
     app.use(
       path,
       bodyLimit({
@@ -219,6 +225,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", brandingRouter);
   app.route("/", searchRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);

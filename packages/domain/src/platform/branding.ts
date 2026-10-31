@@ -118,3 +118,124 @@ export function adjustAccentForContrast(hex: string): string {
   // Rounding to 8-bit channels can step over the band for some hues; fall back to grey in band.
   return "#767676";
 }
+
+/**
+ * The surfaces a tenant accent meets in Harbour's two themes (PLAT-002; platform.md, white-label
+ * branding). These mirror the `bg`, `bgSecondary`, `card` and `onAccent` tokens in
+ * `@harbour/ui` (`colorLight`, `colorDark`); apps/web/src/lib/branding.test.ts fails if they drift.
+ * The accent fills primary buttons and selected menu items with white text on it, and draws
+ * borders, tab underlines, toggles, meters and icons on the page's surfaces. The focus ring keeps
+ * Harbour's own colour in both themes, so an accent never weakens it.
+ */
+export const BRAND_THEMES = {
+  light: { onAccent: "#ffffff", bg: "#ffffff", bgSecondary: "#f5f5f7", card: "#ffffff" },
+  dark: { onAccent: "#ffffff", bg: "#000000", bgSecondary: "#1d1d1f", card: "#161617" },
+} as const;
+
+export type BrandTheme = keyof typeof BRAND_THEMES;
+
+/** Text (and the accent itself as text or an icon) needs 4.5:1; borders and fills 3:1 (WCAG 1.4.11). */
+export const NON_TEXT_CONTRAST = 3;
+
+export interface AccentCheck {
+  readonly theme: BrandTheme;
+  /** `text_on_accent`: white words on the accent; `accent_on_surface`: the accent on a page surface. */
+  readonly use: "text_on_accent" | "accent_on_surface";
+  readonly surface: "onAccent" | "bg" | "bgSecondary" | "card";
+  readonly against: string;
+  readonly ratio: number;
+  readonly needed: number;
+  readonly passes: boolean;
+}
+
+export type AccentVerdict =
+  | { readonly ok: true; readonly accent: string; readonly checks: readonly AccentCheck[] }
+  | { readonly ok: false; readonly problem: "not_a_colour" }
+  | {
+      readonly ok: false;
+      /**
+       * `too_light`: white words on it, or the accent on the light theme's white page, fall below
+       * 4.5:1. `too_dark`: the accent on the dark theme's black page falls below 4.5:1, or on a
+       * dark surface below 3:1. One luminance cannot be both, so exactly one applies.
+       */
+      readonly problem: "too_light" | "too_dark";
+      readonly accent: string;
+      readonly checks: readonly AccentCheck[];
+      /** The closest colour of the same hue that passes every check, offered to the owner. */
+      readonly suggestion: string;
+    };
+
+/** Whether the text is a six-digit hex colour, with or without the leading #. */
+export function isHexColour(value: string): boolean {
+  return HEX.test(value.trim());
+}
+
+/** Every contrast an accent must meet in both themes, measured. */
+export function accentChecks(hex: string): AccentCheck[] {
+  const accent = toHex(parseHex(hex));
+  const checks: AccentCheck[] = [];
+  for (const theme of Object.keys(BRAND_THEMES) as BrandTheme[]) {
+    const surfaces = BRAND_THEMES[theme];
+    const measure = (
+      use: AccentCheck["use"],
+      surface: AccentCheck["surface"],
+      needed: number,
+    ): AccentCheck => {
+      const against = surfaces[surface];
+      const ratio = contrastRatio(accent, against);
+      return { theme, use, surface, against, ratio, needed, passes: ratio >= needed };
+    };
+    checks.push(
+      measure("text_on_accent", "onAccent", MIN_CONTRAST),
+      // On white and on black at 4.5:1, as section 9.1 sets; the other surfaces at 3:1.
+      measure("accent_on_surface", "bg", MIN_CONTRAST),
+      measure("accent_on_surface", "bgSecondary", NON_TEXT_CONTRAST),
+      measure("accent_on_surface", "card", NON_TEXT_CONTRAST),
+    );
+  }
+  return checks;
+}
+
+/**
+ * Checks a tenant's accent (PLAT-002). A colour that passes is returned normalised (lower case,
+ * with the #); one that fails is refused with why, and the closest passing colour of the same hue
+ * is suggested for the owner to accept. Harbour never stores a colour that fails.
+ */
+export function checkAccent(input: string): AccentVerdict {
+  if (!isHexColour(input)) return { ok: false, problem: "not_a_colour" };
+  const accent = toHex(parseHex(input));
+  const checks = accentChecks(accent);
+  if (checks.every((c) => c.passes)) return { ok: true, accent, checks };
+  // White on the accent and the accent on white are the same ratio: failing either is too light.
+  const tooLight = checks.some((c) => !c.passes && c.against === "#ffffff");
+  return {
+    ok: false,
+    problem: tooLight ? "too_light" : "too_dark",
+    accent,
+    checks,
+    suggestion: adjustAccentForContrast(accent),
+  };
+}
+
+/** The longest display name the shell shows (it shortens with an ellipsis on phones). */
+export const BRAND_NAME_MAX = 80;
+
+export type BrandNameVerdict =
+  | { readonly ok: true; readonly name: string | null }
+  | { readonly ok: false; readonly problem: "too_long" | "control_characters" };
+
+/**
+ * The organisation's display name (PLAT-002): trimmed, inner spaces collapsed; blank means "use
+ * the registered name". At most 80 characters and no control characters.
+ */
+export function checkBrandName(input: string | null | undefined): BrandNameVerdict {
+  const raw = input ?? "";
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses.
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(raw.replace(/[\t\n\r]/g, " "))) {
+    return { ok: false, problem: "control_characters" };
+  }
+  const name = raw.replace(/\s+/g, " ").trim();
+  if (name.length === 0) return { ok: true, name: null };
+  if ([...name].length > BRAND_NAME_MAX) return { ok: false, problem: "too_long" };
+  return { ok: true, name };
+}

@@ -83,6 +83,7 @@ export const meRouter = createRouter().openapi(
           name: t.brandName ?? t.name,
           terminology: t.terminology,
           brandAccent: t.brandAccent,
+          logoDocumentId: t.logoDocumentId,
           nation: t.nation,
         },
         tenantUserId: access.tenantUserId,
