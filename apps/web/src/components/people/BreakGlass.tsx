@@ -121,7 +121,7 @@ export function BreakGlass({
           </div>
         </div>
       ) : (
-        <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
           <TextArea
             ref={fieldRef}
             name="justification"

@@ -77,7 +77,7 @@ export function ReviewForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <SelectField
           id={ids.kind}
           error={errorFor(result, "kind")}
@@ -195,7 +195,7 @@ export function CarePlanChangeForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <p className="m-0 max-w-prose">{t("people.reviews.change.hint")}</p>
         <SelectField
           id={ids.kind}

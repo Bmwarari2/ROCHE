@@ -47,7 +47,7 @@ export function AddPasskey() {
   };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={add} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={add} noValidate>
       <TextField
         name="name"
         label={t("security.passkeys.name")}

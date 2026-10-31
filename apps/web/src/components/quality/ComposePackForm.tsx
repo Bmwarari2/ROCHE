@@ -139,6 +139,7 @@ export function ComposePackForm({
   return (
     <div className="flex flex-col gap-6">
       <form
+        method="post"
         className="flex flex-col gap-6"
         onSubmit={onSubmit}
         noValidate
