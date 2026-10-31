@@ -71,6 +71,12 @@ field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 
 (Working Time rules); #139 Phase 2 slice 80 (Cyber Essentials and ISO 27001 mapping); #141
 `fromUkWallClock` refuses a time that does not exist instead of recursing.
 
+**Pushed on 31/10/2026, not merged:** `docs/security-controls-gcp` refreshes slice 80 for Google
+Cloud. The cloud controls now cite the Google Cloud Terraform and its `terraform test` suites, the
+API adapters and crypto-shredding, tagged by the branch each is on until `integration/google-cloud`
+merges. ISO 27001 Annex A now has 32 Met, 34 Partly met, 16 Gap and 11 Inherited (it was 26 Met and
+40 Partly met). Cyber Essentials has 9 Met, 9 Partly met and 3 Gap. Human actions H-1170 to H-1179.
+
 **Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
 its work in progress (`wip(...)` commits) and stop. Resume by reading this section.
 
