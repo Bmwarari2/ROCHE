@@ -141,9 +141,10 @@ test.describe("360 px wide", () => {
     const account = page.getByRole("button", { name: /^Your account/ });
     await expect(account).toBeInViewport();
     // Every section of the navigation is reachable and opens its page.
-    const nav = page.getByRole("navigation", { name: /main|primary|sections/i }).first();
+    const nav = page.getByRole("navigation", { name: "Modules" }).first();
     await expect(nav).toBeVisible();
-    await nav.getByRole("link", { name: "People" }).click();
+    // The section name follows the organisation's terminology ("Residents", "People"); its address does not.
+    await nav.locator('a[href="/people"]').click();
     await page.waitForURL((url) => url.pathname === "/people");
     await expectNoHorizontalOverflow(page, "people from the navigation");
     await account.click();

@@ -90,7 +90,7 @@ async function RiskAssessmentsTab({
                 value: template.key,
                 label: template.title,
               }))}
-              className="min-w-64"
+              className="w-full max-w-64"
             />
             <Button type="submit" variant="secondary">
               {t("care.risk.start")}

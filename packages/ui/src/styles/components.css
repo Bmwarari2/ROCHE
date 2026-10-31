@@ -85,11 +85,21 @@
     text-align: center;
     text-decoration: none;
     white-space: nowrap;
+    /* Never wider than the column it sits in (WCAG 1.4.10 reflow at 360 px). */
+    max-width: 100%;
     cursor: pointer;
     transition:
       background-color var(--motion-duration-fast) var(--motion-easing),
       border-color var(--motion-duration-fast) var(--motion-easing),
       color var(--motion-duration-fast) var(--motion-easing);
+  }
+
+  /* Phones: a long label wraps inside the button rather than pushing the page sideways. */
+  @media (max-width: 734px) {
+    .hb-button {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   }
 
   .hb-button:hover {
@@ -494,14 +504,16 @@
   }
 
   .hb-sidebar--collapsed {
-    width: calc(var(--touch-target) + 24px);
+    /* The target, the padding on both sides and the hairline border: links stay 44 px wide. */
+    width: calc(var(--touch-target) + 24px + var(--hairline));
   }
 
   /* `hb-sidebar--narrow-auto`: until the app has chosen (before hydration), a narrow screen shows
      icons only, as the app will once it runs. */
   @media (max-width: 734px) {
     .hb-sidebar--narrow-auto {
-      width: calc(var(--touch-target) + 24px);
+      /* The target, the padding on both sides and the hairline border: links stay 44 px wide. */
+      width: calc(var(--touch-target) + 24px + var(--hairline));
     }
 
     .hb-sidebar--narrow-auto .hb-sidebar__link,
@@ -545,6 +557,7 @@
     align-items: center;
     gap: 12px;
     width: 100%;
+    min-width: var(--touch-target);
     min-height: var(--touch-target);
     padding: 0 12px;
     border: 0;
@@ -804,6 +817,17 @@
     font-weight: 600;
   }
 
+  /* Phones and touch screens: a link in a cell (a person's name, a record) is a 44 px target
+     (section 8), however dense the table. */
+  @media (max-width: 734px), (pointer: coarse) {
+    .hb-table__td a {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--touch-target);
+      min-width: var(--touch-target);
+    }
+  }
+
   .hb-table__row:last-child > .hb-table__td {
     border-bottom: 0;
   }
@@ -874,6 +898,7 @@
 
   .hb-card__header {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
@@ -899,9 +924,14 @@
     font-size: var(--type-callout-size);
   }
 
+  /* The actions keep to one row beside the heading while there is room, and wrap below it on a
+     phone (WCAG 1.4.10). */
   .hb-card__actions {
     display: flex;
-    flex-shrink: 0;
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
     align-items: center;
     gap: 8px;
   }
