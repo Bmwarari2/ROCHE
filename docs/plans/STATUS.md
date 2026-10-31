@@ -28,7 +28,7 @@ documents are updated (`docs/production-google-cloud`). Engineering follow-ups b
 rewrite the Terraform in `infra/` for Google Cloud; a Cloud Storage adapter for documents, exports
 and the audit archive (signed URLs) to replace the S3 adapter, and the production configuration
 check in `apps/api/src/config.ts`; an SMTP email adapter to replace SES (production email stays off
-until H-08 chooses a provider); a load test of PowerSync on Cloud Run at the 60-bed target; the operator alarms (H-171) as Cloud Monitoring alerts; the restore runbook's maintenance rule; the Cloud SQL edition (PITR window); the certificate pin set (ADR-0028); evidence pack codes without email (ADR-0050). The
+until H-08 chooses a provider); a load test of PowerSync on Cloud Run at the 60-bed target; the operator alarms (H-171) as Cloud Monitoring alerts; the restore runbook's maintenance rule; the Cloud SQL edition (PITR window); the certificate pin set (ADR-0028); evidence pack codes without email (ADR-0050). Also `apps/api/src/routes/integrations.ts` accepts only AWS Secrets Manager ARNs as secret references (Secret Manager names must be allowed), and the API's Flagsmith and config comments name AWS. The
 owner also accepted the default of every open decision he owns; the rows with no default stay open
 in human-actions.md.
 
