@@ -31,7 +31,7 @@ test.beforeEach(async ({ context }) => {
   await context.addCookies(session);
 });
 
-test("the history tab lists a reviewed risk assessment and its earlier version passes axe in both themes", async ({
+test("hazard HZ-024 the history tab lists a reviewed risk assessment, marks what the review changed and passes axe in both themes", async ({
   page,
 }) => {
   const request = page.request;
@@ -93,18 +93,41 @@ test("the history tab lists a reviewed risk assessment and its earlier version p
   ).toBeVisible();
   const versions = page.getByRole("list", { name: "Changes to the risk assessment" });
   // Only earlier versions are listed: the first, with the controls as they were before the review.
-  const first = versions.getByRole("listitem").filter({ hasText: "Version 1" });
+  // The versions are the list's own items; answers are lists inside them.
+  const items = versions.locator(":scope > li");
+  const first = items.filter({ hasText: "Version 1" });
   await expect(first).toHaveCount(1);
-  await expect(versions.getByRole("listitem")).toHaveCount(1);
+  await expect(items).toHaveCount(1);
   await expect(first.getByText("Changed by you")).toBeVisible();
-  await expect(first.getByRole("row", { name: /^Controls / })).toHaveText(
-    /Staff with them at meals and snacks$/,
-  );
+  // Labelled as an earlier version in word and icon, never read as the record in use.
+  await expect(first.getByText("Earlier version: not in use now")).toBeVisible();
+  await expect(first.locator("time")).toHaveCount(2);
+  const fields = first.getByRole("table", { name: "Version 1" });
+  // The review added a control. Version 1 is the newest earlier version, so it is compared with
+  // the record as it is now: the controls as they were are marked as changed since.
+  const controls = fields.getByRole("row", { name: /^Controls / });
+  await expect(controls).toHaveText(/Staff with them at meals and snacks/);
+  await expect(controls).toContainText("Changed since this version");
+  // Fields the review left alone are not marked.
+  await expect(fields.getByRole("row", { name: /^Hazard / })).not.toContainText("Changed");
+  // Answers read as the template's questions, one per line, in words, not stored data.
+  const answers = fields.getByRole("row", { name: /^Answers / });
+  await expect(answers.getByRole("listitem")).toHaveCount(5);
+  await expect(answers).toContainText("Does the person need someone with them when eating? Yes");
+  await expect(answers).not.toContainText("{");
+  // The status as it was then, under a label that says so.
+  await expect(fields.getByRole("row", { name: /^Status at the time / })).toHaveText(/In use/);
+  // The template by its title, not its key.
+  await expect(fields.getByRole("row", { name: /^Template Choking/ })).toBeVisible();
   await expectAccessible(page, "risk assessment history");
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "risk assessment history, dark theme");
   await page.emulateMedia({ colorScheme: "light" });
 
+  // The record as it is now is one link away.
+  await expect(
+    page.getByRole("link", { name: "See the risk assessment as it is now" }),
+  ).toHaveAttribute("href", `/people/${PERSON}/risk-assessments`);
   await page.getByRole("link", { name: "Back to the history" }).click();
   await expect(page).toHaveURL(new RegExp(`/people/${PERSON}/history$`));
 });

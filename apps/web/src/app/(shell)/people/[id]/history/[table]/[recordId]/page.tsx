@@ -7,7 +7,7 @@ import { VersionList } from "@/components/care/VersionList";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { isUuid } from "@/lib/context-cookies";
-import { isHistoryTable } from "@/lib/history";
+import { CURRENT_RECORD_TAB, isHistoryTable } from "@/lib/history";
 import { t } from "@/lib/i18n";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { recordMetadata } from "@/lib/record-metadata";
@@ -49,6 +49,11 @@ async function RecordHistoryTab({ params }: { readonly params: Params }) {
         <Link href={path}>{t("care.history.back")}</Link>
       </p>
       <h2 className="m-0 text-eyebrow">{t("care.history.versions.title", { record })}</h2>
+      <p className="m-0 text-body-dense">
+        <Link href={tabHref(id, CURRENT_RECORD_TAB[table])}>
+          {t("care.history.current", { record })}
+        </Link>
+      </p>
       <VersionList
         history={history}
         tenantUserId={me.tenantUserId}
