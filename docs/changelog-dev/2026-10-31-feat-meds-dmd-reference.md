@@ -76,3 +76,27 @@ found, and this branch fixes:
 - H-650 (CSO): HZ-113 and the boundary reading; H-651: the out-of-date limit; H-652 (pharmacist):
   the dose units offered; H-653: what happens when a real release is refused; H-654: a first real
   load outside Git; H-655: whether invalid products may ever be chosen; H-656: bootstrap before 0110.
+
+## Security review round 2
+
+The coordinator's security review of feb3840d found nothing critical or high. Fixed on this branch,
+each with tests (migration 0110 edited in place, as it is not on `main`):
+
+- Medium: the fixture guard depended on the operator's shell. Each database now carries a mark
+  (`app.database_environment`): the deploy's migrate task writes `HARBOUR_ENV`, `pnpm db:migrate`
+  writes `dev` only for a database on this machine, test databases are `test`, and a database once
+  marked anything else can never be marked `dev` or `test` again or unmarked. The loader and
+  `app.dmd_begin_release` refuse a release named `fixture_...` or loaded as `fixture` unless the
+  mark is `dev` or `test`, whatever source it claims.
+- Medium: no size or time limits. The worker's `DMD_RELEASE_MAX_FILES`, `DMD_RELEASE_MAX_BYTES` and
+  `DMD_LOAD_TIMEOUT_MINUTES` bound a load; directories and files that are symbolic links are
+  refused (`lstat`, `O_NOFOLLOW`); each file is streamed through `saxes` in chunks, yielding to the
+  event loop between them, never read whole; every statement runs only for the time the load has
+  left; the job has its own `exclusive` queue worked one job at a time. A process of its own for
+  the load is recorded for slice 75.
+- Low: a release dated more than 3 days ahead of today is refused, in the loader and the database.
+- Low: `app.dmd_finish_release` no longer takes the caller's identifiers: what a load wrote is noted
+  in temporary tables named after the release and owned by `harbour_dmd_loader`, which the caller
+  cannot write, and finish works out the release (and its counts) from them.
+- Low: the four loader functions' search path ends in `pg_temp`; the other definer functions are a
+  separate chore.

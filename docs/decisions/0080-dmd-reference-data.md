@@ -69,7 +69,12 @@ it ourselves lets the database enforce whole-or-nothing, never-backwards and not
    refused, unless the concept is named as a new concept's previous identifier, when the old row
    points to its successor. A GTIN mapping a release lacks is kept, withdrawn, and never matches
    again. Each refused or failed release is recorded with its problems; the release in use stays.
-   XML is read with `saxes` (ISC); a document type declaration is refused, so no entity expands.
+   XML is read with `saxes` (ISC), streamed a chunk at a time; a document type declaration is
+   refused, so no entity expands. A load has limits from the worker's configuration (files, bytes,
+   time), refuses symbolic links, and runs on its own queue one job at a time; a process of its own
+   is slice 75's. A release dated more than 3 days ahead of today is refused. What a load wrote is
+   noted in temporary tables only the loader's role owns, and finish works out from them what the
+   release holds, never from the caller.
 4. **Refresh.** Monthly, as section 15.3 sets it (the worker's `dmd-release-load` queue, early on the
    3rd), with a manual run (`pnpm --filter @harbour/db dmd:load <directory>`). The TRUD download,
    its checksum and the failure alert are slice 75, behind the `DmdReleaseSourcePort` built here with
@@ -79,8 +84,11 @@ it ourselves lets the database enforce whole-or-nothing, never-backwards and not
    row only so a tenant cannot quieten it; no release means nothing can be chosen.
 6. **Development and tests** use a small invented fixture (`packages/db/test/fixtures/dmd/`: invented
    products, identifiers in an invented range with valid check digits, GTINs in the GS1
-   restricted-circulation range 200), never real release files; it is never loaded where real people
-   work (`NODE_ENV=production`, or `HARBOUR_ENV` naming staging, pilot or production).
+   restricted-circulation range 200), never real release files. It is never loaded where real people
+   work: the mock source is off on staging, pilot and production, and the database itself refuses a
+   release named `fixture_...` unless it is marked `dev` or `test` (`app.database_environment`,
+   written by the deploy's migrate task from `HARBOUR_ENV`; a database once marked for real use is
+   never marked `dev` or `test` again).
 7. **The device subset.** Each device holds only the products on its location's MARs, the products
    that replaced them, every valid brand and pack that could be in the person's hand (only the named
    brand's packs when the MAR names one), the GTINs in force on them, and the lookups those rows

@@ -91,6 +91,9 @@ in the GS1 restricted-circulation range 200), never real dm+d data. **Status: bu
 
 ### Schema (migration 0110)
 
+`app.database_environment` (one row, owned by `harbour_owner`, readable by the loader and the
+worker) says what the database is for; only `dev` and `test` accept the invented fixture (rule 1).
+
 Global reference tables with no `tenant_id`, like `bank_holiday`: forced RLS with a read policy for
 every role and one for the sync role's replication (in the `powersync` publication, ADR-0080); the
 application, the worker and the sync role have SELECT only; nobody deletes or truncates (the
@@ -127,11 +130,30 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
    `packages/db/src/dmd`) reads every file, checks the release (`checkDmdRelease`), and writes it in
    one transaction through `app.dmd_begin_release` (under an advisory lock), `app.dmd_load_rows`
    (each file in batches, writing a row only when it is new or changed) and
-   `app.dmd_finish_release`, so readers see the previous release or the new one, never a mixture. A
-   refused or failed release is recorded by `app.dmd_record_refusal` in a transaction of its own,
-   with its problems, and the previous release stays in use. A failure's message is its database
-   code only. Each outcome is also a platform event in the audit chain
-   (`medicines.dmd_release.loaded`, `.refused`, `.failed`; no tenant, readable by the operator).
+   `app.dmd_finish_release`, so readers see the previous release or the new one, never a mixture.
+   What a load wrote (every identifier, and the counts) is noted in two temporary tables named after
+   the release, created by `app.dmd_begin_release` and owned by `harbour_dmd_loader`, so the caller
+   can neither write them nor tell `app.dmd_finish_release` what the release holds; finish works it
+   out from them, and they go at commit. A refused or failed release is recorded by
+   `app.dmd_record_refusal` in a transaction of its own, with its problems, and the previous release
+   stays in use. A failure's message is its database code only. Each outcome is also a platform
+   event in the audit chain (`medicines.dmd_release.loaded`, `.refused`, `.failed`; no tenant,
+   readable by the operator).
+   **Limits** (security review): before any file is read, a release with more files or bytes than
+   the worker's `DMD_RELEASE_MAX_FILES` (64) or `DMD_RELEASE_MAX_BYTES` (2 GiB) allow is refused
+   (`too_large`); a directory or file that is a symbolic link is refused (`lstat`, and `O_NOFOLLOW`
+   when a file is opened); each file is streamed through the XML reader in 1 MiB chunks, yielding
+   to the event loop between them, never read whole; and the whole load, reading and writing, stops
+   after `DMD_LOAD_TIMEOUT_MINUTES` (60; each statement may run only for the time left), failing as
+   `timed_out` with the release in use unchanged. The job has its own queue holding one job, queued
+   or running, worked one at a time; a process of its own for the load is slice 75's.
+   **The invented fixture** (security review): a release named `fixture_...` or loaded as `fixture`
+   is refused (`fixture_not_allowed`), by the loader and by `app.dmd_begin_release`, unless the
+   database is marked `dev` or `test` in `app.database_environment`, whatever the operator's shell
+   says. The deploy's migrate task marks each environment's database from `HARBOUR_ENV`;
+   `pnpm db:migrate` marks a database on this machine `dev`; test databases are marked `test`; an
+   unmarked database refuses the fixture; and a database once marked anything else is never marked
+   `dev` or `test` again, nor unmarked (the table's guard).
 2. **Checks before loading** (`parseDmdRelease`, `checkDmdRelease`): every file present once and
    readable XML with the expected root element and no document type declaration; records in every
    file; identifiers of the SNOMED CT concept shape with a valid Verhoeff check digit (`isDmdId`),
@@ -140,8 +162,10 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
    product); every form, route, unit, controlled drug and legal category code in the lookups;
    quantities as decimals; GTINs of 14 digits after padding with a valid GS1 check digit; dates real,
    an end not before the start. Only the first 50 problems are kept, with the count.
-3. **Never backwards, never twice** (`dmdReleaseOrder`, and again in `app.dmd_begin_release` under
-   the lock): a release dated before the one in use is refused (`older_than_current`); one already
+3. **Never backwards, never twice, never ahead** (`dmdReleaseOrder` and `dmdReleaseDateProblem`, and
+   again in `app.dmd_begin_release` under the lock): a release dated more than
+   `DMD_RELEASE_FUTURE_DAYS` (3) days after today's UK date is refused (`dated_in_future`); a
+   release dated before the one in use is refused (`older_than_current`); one already
    loaded under the same name is not loaded again (`already_loaded`), so a repeated run changes
    nothing. A re-issue on the same date loads.
 4. **Nothing disappears.** dm+d never deletes a concept; it marks it invalid. A release missing a
@@ -191,7 +215,8 @@ organisation rows), and `rls-coverage.test.ts` lists them as national reference 
 ### Release source port
 
 `DmdReleaseSourcePort` (`packages/domain/src/integrations/dmd-release-source.ts`): `latest()` gives
-the latest release's name, date, source and files, or null; `health()`. Adapters
+the latest release's name, date, source and files, or null; `health()`. Each file
+(`DmdReleaseFileSource`) gives its size and its text in chunks, never whole. Adapters
 (`apps/api/src/integrations/dmd.ts`): the mock serves the newest fixture release only on a
 developer's machine, CI or the shared dev environment; with `NODE_ENV=production`, or `HARBOUR_ENV`
 naming staging, pilot or production, there is no source (`unconfigured`) until slice 75 builds the
@@ -219,6 +244,12 @@ not audited one by one; refusals are audited as every refusal is, and each load 
 - Domain (`packages/domain/src/medicines/dmd-release.test.ts`, `dmd-subset.test.ts`): every check in
   rule 2 from a table; release order; freshness at, before and after the limit; GTIN check digits
   and padding; the search query; dose units and routes; the device subset.
+- Database, after the security review: more files or bytes than allowed and a load past its time
+  limit refused with the data unchanged; symbolic links refused; chunks yielding to other work; a
+  release dated ahead of today refused in the loader and the database; finish working out the
+  release from what was written (the caller cannot write the notes); `pg_temp` last in each loader
+  function's search path; the fixture refused in an unmarked or production-marked database under
+  any source, and a production mark never turned back to `test`.
 - Database (`packages/db/test/dmd.test.ts`): the fixture loads and reads back; loading it again
   changes nothing; a broken reference, unreadable XML, a missing file, a bad GTIN, a document type
   declaration, an older release and a missing concept are refused whole with the history recorded

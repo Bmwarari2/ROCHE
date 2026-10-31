@@ -121,7 +121,13 @@ with a mock and a monthly worker job (the TRUD download is slice 75); search, pr
 release history routes that always say whether the data is out of date
 (`medicines.dmd.stale_after_days`); the device subset rule for slice 68. ADR-0080 (proposed), HZ-113,
 human actions H-650 to H-656 (H-657 to H-659 spare); [integrations.md](../specs/integrations.md)
-section 11. Next in lane A: slice 3 (stacked on #135), then slice 16 (the medicines record).
+section 11. Security review round 2 fixed: the fixture refused by the database unless it is marked
+dev or test (`app.database_environment`); file, byte and time limits with streamed reads and no
+symbolic links; releases dated ahead of today refused; finish deriving the release from the rows
+written; `pg_temp` last in the loader functions' search path. Follow-ups: run the dm+d load in a
+process of its own (slice 75; it now runs chunked on its own one-job queue in the shared worker),
+and add `pg_temp` to the other definer functions' search path (a separate chore). Next in lane A:
+slice 3 (stacked on #135), then slice 16 (the medicines record).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
