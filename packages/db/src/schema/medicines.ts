@@ -223,18 +223,19 @@ export const medication = pgTable(
       sql`(earlier_doses_due_on IS NULL) = (earlier_doses_due_reason IS NULL)
        AND (earlier_doses_due_reason IS NULL OR length(btrim(earlier_doses_due_reason)) > 0)`,
     ),
-    // The state follows the set-once columns, so it can never contradict them.
+    // Each state needs the set-once column that defines it (a stop may sit beside a check, a
+    // replacement or a not-yet-checked version that carried it over, rule 6b).
     check(
       "medication_state_matches",
       sql`CASE state
             WHEN 'withdrawn' THEN withdrawn_at IS NOT NULL
             WHEN 'replaced' THEN replaced_by_id IS NOT NULL AND withdrawn_at IS NULL
-            WHEN 'stopped' THEN stop_at IS NOT NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND stop_at IS NULL
-                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            WHEN 'checked' THEN check_outcome = 'matches_source' AND stop_at IS NULL
-                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            ELSE check_at IS NULL AND stop_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
+            WHEN 'stopped' THEN stop_at IS NOT NULL AND withdrawn_at IS NULL
+            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND withdrawn_at IS NULL
+                 AND replaced_by_id IS NULL
+            WHEN 'checked' THEN check_outcome = 'matches_source' AND withdrawn_at IS NULL
+                 AND replaced_by_id IS NULL
+            ELSE check_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
           END`,
     ),
     check(

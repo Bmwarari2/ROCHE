@@ -13422,7 +13422,7 @@
         },
         "medication_state_matches": {
           "name": "medication_state_matches",
-          "value": "CASE state\n            WHEN 'withdrawn' THEN withdrawn_at IS NOT NULL\n            WHEN 'replaced' THEN replaced_by_id IS NOT NULL AND withdrawn_at IS NULL\n            WHEN 'stopped' THEN stop_at IS NOT NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL\n            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND stop_at IS NULL\n                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL\n            WHEN 'checked' THEN check_outcome = 'matches_source' AND stop_at IS NULL\n                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL\n            ELSE check_at IS NULL AND stop_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL\n          END"
+          "value": "CASE state\n            WHEN 'withdrawn' THEN withdrawn_at IS NOT NULL\n            WHEN 'replaced' THEN replaced_by_id IS NOT NULL AND withdrawn_at IS NULL\n            WHEN 'stopped' THEN stop_at IS NOT NULL AND withdrawn_at IS NULL\n            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND withdrawn_at IS NULL\n                 AND replaced_by_id IS NULL\n            WHEN 'checked' THEN check_outcome = 'matches_source' AND withdrawn_at IS NULL\n                 AND replaced_by_id IS NULL\n            ELSE check_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL\n          END"
         },
         "medication_origin_link": {
           "name": "medication_origin_link",

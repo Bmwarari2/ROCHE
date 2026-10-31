@@ -15,6 +15,7 @@ import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { createMedicinesPorts } from "./integrations/medicines-ports";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
@@ -43,6 +44,7 @@ import { letterTemplatesRouter } from "./routes/letter-templates";
 import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
+import { medicinesRouter } from "./routes/medicines";
 import { memberSessionsRouter } from "./routes/member-sessions";
 import { membersRouter } from "./routes/members";
 import { onboardingRouter } from "./routes/onboarding";
@@ -164,6 +166,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    medicines: createMedicinesPorts(config.NODE_ENV === "production"),
     adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
     mockEmail: mocks.email,
     evidenceLinkThrottles: {
@@ -358,6 +361,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dpiaRouter);
   app.route("/", dataProtectionRouter);
   app.route("/", dsarRouter);
+  app.route("/", medicinesRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);

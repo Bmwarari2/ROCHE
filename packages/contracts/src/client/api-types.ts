@@ -26251,6 +26251,1106 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/medicines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The person's medicines record: entries in force or scheduled, and reconciliations due
+     * @description Each medicine's version in force now, or the first scheduled to start, with its status in words and whether a dose may be given; the admissions and returns from hospital not yet reconciled. Audited by the person's id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicinesRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Transcribe a new MAR entry from its source document
+     * @description A dm+d product, a route and units dm+d gives, a schedule or a when-required dose, the prescriber and the source document. It is not yet checked until a second person checks it. One entry per dm+d product (rule 6). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["TranscribeMedicine"];
+        };
+      };
+      responses: {
+        /** @description Transcribed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineEntry"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Every version of a medicine, with its check, stop, replacement and withdrawal
+     * @description Audited by the entry's id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The versions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineHistory"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/mar": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The MAR for a cycle: every regular dose with its day name and clock-change flags
+     * @description The cycle runs `medicines.ordering_cycle_days` days (rate table) from `cycleStart`. Times before an entry was recorded are shown as not due. Audited by the person's id.
+     */
+    get: {
+      parameters: {
+        query: {
+          cycleStart: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The MAR */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MarChart"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Change a medicine: a new version, not yet checked
+     * @description The same dm+d product; now or later, while a version is in force; never part-way through a day with doses (except a correction after a check found a difference). `expectedVersion` is the latest version read. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeMedicine"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineChanged"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the second check of an entry against its source document
+     * @description By someone other than the transcriber, with current medicines competence (read on the server from the workforce port, never from the request). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CheckMedicine"];
+        };
+      };
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineEntry"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/stop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Stop a medicine now or later, with the reason and the document that says so
+     * @description Doses before the stop stay. `expectedVersion` is the latest version read. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StopMedicine"];
+        };
+      };
+      responses: {
+        /** @description Stopped */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineChanged"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start a medicines reconciliation for an admission, transfer, return from hospital or change
+     * @description Records the entries to decide on now (`entriesToReconcile`, from dates, never by state). One open reconciliation per person. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartReconciliation"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A reconciliation with its sources, lines and decisions
+     * @description Audited by its id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The reconciliation */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/sources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a source document to an open reconciliation
+     * @description Append-only. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddReconciliationSource"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/items": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a line from a source, as written, with its dm+d product and what it says
+     * @description Append-only. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddReconciliationItem"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/decisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Replace the decisions made so far on an open reconciliation
+     * @description Each decision names an entry the reconciliation decides on or a line from its sources. The rules are tried when it completes. Audited with counts.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutReconciliationDecisions"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-reconciliations/{recId}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Complete a reconciliation and apply its plan in one transaction
+     * @description Runs `completeReconciliation` (every entry and line decided, supported by its lines, the MAR rules tried, allergies compared, the person involved, the completer's competence from the workforce port) and, when it passes, records every continue, change, stop and start, at the time of completion. Completes the return from hospital's medicines check. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          recId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompleteReconciliation"];
+        };
+      };
+      responses: {
+        /** @description Completed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineReconciliation"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -37093,6 +38193,522 @@ export interface components {
     };
     DsarErasureInput: {
       expectedVersion: number;
+    };
+    MedicinesRecord: {
+      entries: components["schemas"]["MedicineEntry"][];
+      outstandingReconciliations: components["schemas"]["OutstandingReconciliation"][];
+      /** Format: uuid */
+      openReconciliationId: string | null;
+    };
+    MedicineEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      medicineId: string;
+      /** Format: uuid */
+      personId: string;
+      version: number;
+      /** Format: uuid */
+      replacesId: string | null;
+      /** @enum {string} */
+      state:
+        | "not_yet_checked"
+        | "checked"
+        | "difference_found"
+        | "stopped"
+        | "replaced"
+        | "withdrawn";
+      /** @enum {string} */
+      origin: "transcribed" | "reconciliation" | "import";
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      directionsInWords: string;
+      indication: string | null;
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /** Format: date-time */
+      stopsAt: string | null;
+      /** Format: date */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      transcribed: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      secondCheck: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** @enum {string} */
+        outcome: "matches_source" | "differs_from_source";
+        difference: string | null;
+      } | null;
+      stop: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** Format: date-time */
+        effectiveAt: string;
+        reason: string;
+        source: components["schemas"]["MarSourceDocument"];
+      } | null;
+      /** Format: uuid */
+      replacedById: string | null;
+      /** Format: date-time */
+      replacedFrom: string | null;
+      reanchor: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        reason: string;
+      } | null;
+      withdrawn: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        reason: string;
+      } | null;
+      status: {
+        words: string;
+        mayGive: boolean;
+        notice: string | null;
+      };
+    };
+    DmdProductRef: {
+      vmpId: string;
+      /** @default null */
+      ampId: string | null;
+      name: string;
+    };
+    DmdRoute: {
+      code: string;
+      name: string;
+    };
+    MarDirections:
+      | {
+          /** @enum {string} */
+          kind: "regular";
+          schedule: {
+            pattern: components["schemas"]["SchedulePattern"];
+            times: {
+              time: string;
+              dose: components["schemas"]["Dose"];
+            }[];
+          };
+        }
+      | {
+          /** @enum {string} */
+          kind: "when_required";
+          dose: components["schemas"]["Dose"];
+        };
+    SchedulePattern:
+      | {
+          /** @enum {string} */
+          kind: "every_day";
+        }
+      | {
+          /** @enum {string} */
+          kind: "every_n_days";
+          intervalDays: number;
+          /** Format: date */
+          anchorOn: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "weekly";
+          weekdays: (
+            | "monday"
+            | "tuesday"
+            | "wednesday"
+            | "thursday"
+            | "friday"
+            | "saturday"
+            | "sunday"
+          )[];
+          intervalWeeks: number;
+          /** Format: date */
+          anchorOn: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "monthly";
+          dayOfMonth: number;
+        };
+    Dose:
+      | {
+          /** @enum {string} */
+          kind: "amount";
+          quantity: number;
+          unit: components["schemas"]["DoseUnit"];
+        }
+      | {
+          /** @enum {string} */
+          kind: "range";
+          from: number;
+          to: number;
+          unit: components["schemas"]["DoseUnit"];
+        }
+      | {
+          /** @enum {string} */
+          kind: "variable";
+          unit: components["schemas"]["DoseUnit"];
+        };
+    DoseUnit: {
+      code: string;
+      name: string;
+    };
+    MarSourceDocument: {
+      kind: components["schemas"]["MarSourceKind"];
+      reference: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      documentId: string | null;
+    };
+    /** @enum {string} */
+    MarSourceKind:
+      | "prescription"
+      | "pharmacy_label"
+      | "pharmacy_mar"
+      | "discharge_letter"
+      | "transfer_letter"
+      | "gp_record"
+      | "clinic_letter"
+      | "prescriber_instruction"
+      | "previous_mar";
+    OutstandingReconciliation: {
+      /** @enum {string} */
+      kind: "admission" | "transfer" | "return_from_hospital";
+      /** Format: uuid */
+      eventId: string;
+      /** Format: date-time */
+      at: string;
+      notice: string;
+    };
+    MedicineHistory: {
+      versions: components["schemas"]["MedicineEntry"][];
+    };
+    MarChart: {
+      cycle: {
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+        days: number;
+      };
+      clockChanges: {
+        /** Format: date */
+        date: string;
+        /** @enum {string} */
+        change: "forward" | "back";
+      }[];
+      doses: components["schemas"]["MarDose"][];
+    };
+    MarDose: {
+      /** Format: uuid */
+      medicineEntryId: string;
+      /** Format: date-time */
+      dueAt: string;
+      /** Format: date */
+      date: string;
+      time: string;
+      dayName: string | null;
+      doseInWords: string;
+      /** @enum {string|null} */
+      clockChange: "time_skipped" | "time_repeated" | null;
+      sameInstantAs: string | null;
+      lastDayOfShorterMonth: boolean;
+      notDue: boolean;
+    };
+    TranscribeMedicine: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      /** @default null */
+      reanchorReason: string | null;
+      /** @default null */
+      earlierDosesDueReason: string | null;
+    };
+    MedicineChanged: {
+      entry: components["schemas"]["MedicineEntry"];
+      withdrawn: string[];
+    };
+    ChangeMedicine: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+      source: components["schemas"]["MarSourceDocument"];
+      expectedVersion: number;
+      /** @default null */
+      reanchorReason: string | null;
+      /** @default null */
+      withdrawLaterReason: string | null;
+    };
+    CheckMedicine: {
+      /** @enum {string} */
+      outcome: "matches_source" | "differs_from_source";
+      /** @default null */
+      difference: string | null;
+      /** @enum {boolean} */
+      comparedWithSource: true;
+    };
+    StopMedicine: {
+      /** Format: date-time */
+      effectiveAt: string;
+      reason: string;
+      source: components["schemas"]["MarSourceDocument"];
+      expectedVersion: number;
+      /** @default null */
+      withdrawLaterReason: string | null;
+    };
+    MedicineReconciliation: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      trigger: components["schemas"]["ReconciliationTrigger"];
+      /** Format: uuid */
+      eventId: string | null;
+      /** Format: date-time */
+      triggeredAt: string;
+      /** @enum {string} */
+      status: "open" | "completed";
+      started: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      completed: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      } | null;
+      entriesAtStart: {
+        /** Format: uuid */
+        entryId: string;
+        version: number;
+      }[];
+      sources: {
+        kind: components["schemas"]["MarSourceKind"] | "person_or_family";
+        reference: string;
+        /** Format: uuid */
+        documentId: string | null;
+        /** Format: date-time */
+        receivedAt: string;
+        currentBecause: string | null;
+        /** Format: uuid */
+        id: string;
+      }[];
+      items: {
+        /** Format: uuid */
+        id: string;
+        /** Format: uuid */
+        sourceId: string;
+        asWritten: string;
+        product: components["schemas"]["DmdProductRef"] & (Record<string, never> | null);
+        /** @enum {string} */
+        says: "start" | "continue" | "change" | "stop" | "unclear";
+      }[];
+      entryDecisions: components["schemas"]["EntryDecision"][];
+      itemDecisions: components["schemas"]["ItemDecision"][];
+      version: number;
+    };
+    /** @enum {string} */
+    ReconciliationTrigger: "admission" | "transfer" | "return_from_hospital" | "change";
+    EntryDecision:
+      | {
+          /** @enum {string} */
+          kind: "continue";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          /** @default null */
+          note: string | null;
+          /** @default null */
+          confirmedWith: string | null;
+          /** @default null */
+          scheduledStillStands: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "change";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          draft: components["schemas"]["ReconciliationDraftInput"];
+          /** @default null */
+          reanchorReason: string | null;
+          /** @default null */
+          withdrawLaterReason: string | null;
+          /** @default null */
+          scheduledStillStands: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "stop";
+          /** Format: uuid */
+          entryId: string;
+          itemIds: string[];
+          reason: string;
+          /** @default null */
+          withdrawLaterReason: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "query";
+          /** Format: uuid */
+          entryId: string;
+          question: string;
+        };
+    ReconciliationDraftInput: {
+      product: components["schemas"]["DmdProductRef"];
+      route: components["schemas"]["DmdRoute"];
+      directions: components["schemas"]["MarDirections"];
+      /** @default null */
+      indication: string | null;
+      /** @default null */
+      specialInstructions: string | null;
+      prescriber: string;
+      /** Format: date-time */
+      startsAt: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      stopsAt: string | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      reviewOn: string | null;
+    };
+    ItemDecision:
+      | {
+          /** @enum {string} */
+          kind: "start";
+          /** Format: uuid */
+          itemId: string;
+          draft: components["schemas"]["ReconciliationDraftInput"];
+          /** @default null */
+          reanchorReason: string | null;
+          /** @default null */
+          earlierDosesDueReason: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "not_started";
+          /** Format: uuid */
+          itemId: string;
+          reason: string;
+        }
+      | {
+          /** @enum {string} */
+          kind: "query";
+          /** Format: uuid */
+          itemId: string;
+          question: string;
+        };
+    StartReconciliation: {
+      trigger: components["schemas"]["ReconciliationTrigger"];
+      /**
+       * Format: uuid
+       * @default null
+       */
+      eventId: string | null;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      triggeredAt: string | null;
+    };
+    AddReconciliationSource: {
+      kind: components["schemas"]["MarSourceKind"] | "person_or_family";
+      reference: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      documentId: string | null;
+      /** Format: date-time */
+      receivedAt: string;
+      /** @default null */
+      currentBecause: string | null;
+    };
+    AddReconciliationItem: {
+      /** Format: uuid */
+      sourceId: string;
+      asWritten: string;
+      product?: components["schemas"]["DmdProductRef"] & (Record<string, never> | null);
+      /** @enum {string} */
+      says: "start" | "continue" | "change" | "stop" | "unclear";
+    };
+    PutReconciliationDecisions: {
+      expectedVersion: number;
+      entryDecisions: components["schemas"]["EntryDecision"][];
+      itemDecisions: components["schemas"]["ItemDecision"][];
+    };
+    CompleteReconciliation: {
+      expectedVersion: number;
+      allergiesCompared: boolean;
+      personInvolvement:
+        | {
+            /** @enum {boolean} */
+            involved: true;
+          }
+        | {
+            /** @enum {boolean} */
+            involved: false;
+            reason: string;
+          };
+      /** @default null */
+      noDischargeLetterReason: string | null;
     };
     SubProcessorOverview: {
       noticeDays: number;

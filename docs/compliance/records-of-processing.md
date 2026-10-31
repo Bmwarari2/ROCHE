@@ -154,6 +154,13 @@ Lawful basis follows master prompt section 5.1 exactly. Consent is **never** the
 | B9 | Optional: marketing to families and enquirers | Contacts, enquirers | Art 6(1)(a) consent (and PECR) | Same | None | Tenant | Until consent is withdrawn | When built |
 | B10 | Optional: AI processing of free-text notes (AI module off by default) | People receiving care (pseudonymised), staff | Art 6(1)(a) consent for free text; other AI features use the basis of the underlying purpose | Same | Art 9(2)(a) explicit consent for free text. Where the person lacks capacity to consent, their free text is excluded unless someone with legal authority consents `[DPO to confirm - human action]` | AI provider chosen by the tenant ([sub-processors.md](sub-processors.md)) | Prompt and response audit 12 months (pseudonymised) | 6 |
 
+Medicines record (Phase 2 slice 16, migration 0111): B1 now covers the person's medicines list and
+its versions (dm+d product, dose, times, route, indication, special instructions, prescriber, source
+document, second check, stop) and medicines reconciliations (the sources and their lines as written,
+and each decision with its note, reason or question). Sources and notes may name family members and
+clinicians (third parties in a subject access bundle). Retention class `mar_chart` (8 years after care
+ends). No new recipient or sub-processor; the medicines record is not yet sent to devices.
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

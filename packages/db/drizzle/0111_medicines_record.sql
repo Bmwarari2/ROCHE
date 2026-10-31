@@ -104,12 +104,12 @@ CREATE TABLE "medication" (
 	CONSTRAINT "medication_state_matches" CHECK (CASE state
             WHEN 'withdrawn' THEN withdrawn_at IS NOT NULL
             WHEN 'replaced' THEN replaced_by_id IS NOT NULL AND withdrawn_at IS NULL
-            WHEN 'stopped' THEN stop_at IS NOT NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND stop_at IS NULL
-                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            WHEN 'checked' THEN check_outcome = 'matches_source' AND stop_at IS NULL
-                 AND replaced_by_id IS NULL AND withdrawn_at IS NULL
-            ELSE check_at IS NULL AND stop_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
+            WHEN 'stopped' THEN stop_at IS NOT NULL AND withdrawn_at IS NULL
+            WHEN 'difference_found' THEN check_outcome = 'differs_from_source' AND withdrawn_at IS NULL
+                 AND replaced_by_id IS NULL
+            WHEN 'checked' THEN check_outcome = 'matches_source' AND withdrawn_at IS NULL
+                 AND replaced_by_id IS NULL
+            ELSE check_at IS NULL AND replaced_by_id IS NULL AND withdrawn_at IS NULL
           END),
 	CONSTRAINT "medication_origin_link" CHECK ((origin = 'reconciliation') = (reconciliation_id IS NOT NULL)),
 	CONSTRAINT "medication_cd_schedule" CHECK (cd_schedule IS NULL OR cd_schedule IN ('1', '2', '3', '4', '4.1', '4.2', '5'))
