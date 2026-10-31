@@ -39,6 +39,22 @@ describe("forwardRequestHeaders", () => {
   ])("drops %s", (name) => {
     expect(forwardRequestHeaders(incoming).has(name)).toBe(false);
   });
+
+  it.each([
+    [
+      "a UUID request id",
+      "3f2b8c1e-9d4a-4f6b-8e2c-1a5b7c9d0e4f",
+      "3f2b8c1e-9d4a-4f6b-8e2c-1a5b7c9d0e4f",
+    ],
+    ["a request id carrying free text", "Ada Example 9990000000", null],
+    ["an id-shaped name and NHS number", "Ada-Example-9434765919", null],
+  ])("forwards %s only when it is a UUID", (_label, sent, forwarded) => {
+    const out = forwardRequestHeaders(
+      new Headers({ ...Object.fromEntries(incoming), "x-request-id": sent }),
+    );
+    expect(out.get("x-request-id")).toBe(forwarded);
+    expect(out.get("cookie")).toBe("harbour.session_token=abc");
+  });
 });
 
 describe("forwardResponseHeaders", () => {
