@@ -16,13 +16,15 @@ import {
   isIncidentApproval,
   raisedByLine,
   slaChip,
-  workflowLabel,
+  workflowItemTitle,
   workflowLink,
   workflowStateChip,
 } from "@/lib/approvals";
+import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { incidentManageView, manageDone } from "@/lib/incident-review";
+import { doneToShow, incidentManageView, manageDone } from "@/lib/incident-review";
+import { incidentTitle } from "@/lib/incidents";
 
 export const metadata: Metadata = { title: t("approvals.title") };
 
@@ -32,16 +34,20 @@ const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 function Item({
   item,
   incident,
-  viewer,
+  tenantUserId,
 }: {
   readonly item: WorkflowInstanceItem;
   readonly incident: IncidentDetail | undefined;
-  readonly viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] };
+  readonly tenantUserId: string;
 }) {
   const href = workflowLink(item);
-  const label = workflowLabel(item.definitionKey, t);
+  const label = workflowItemTitle(item, t);
   const describedBy = `workflow-${item.id}`;
-  const manage = incident && isIncidentApproval(item) ? incidentManageView(incident, viewer) : null;
+  // The permissions the API found reaching this record, never ones held at another home.
+  const manage =
+    incident && isIncidentApproval(item)
+      ? incidentManageView(incident, { tenantUserId, permissions: item.permissions })
+      : null;
   return (
     <li
       className="flex flex-col gap-2 border-b border-border pb-4 break-words"
@@ -76,7 +82,7 @@ function Item({
           incidentId={incident.id}
           version={incident.version}
           view={manage}
-          path={APPROVALS_PAGE}
+          path={`${APPROVALS_PAGE}?incident=${incident.id}`}
         />
       ) : !item.raisedByYou && href && item.moves.length > 0 ? (
         <p className="m-0">{t("approvals.nextStep")}</p>
@@ -100,42 +106,51 @@ export default async function ApprovalsPage({
 }) {
   const params = await searchParams;
   const done = manageDone(params.done);
+  const doneIncident =
+    typeof params.incident === "string" && isUuid(params.incident) ? params.incident : null;
   const { me } = await getShellContext();
   const title = t("approvals.title");
   const forbidden = <SafetyForbidden title={title} hint={t("approvals.forbiddenHint")} />;
   if (!approvalsShown(me.permissions)) return forbidden;
   const api = await tenantApi();
-  const read = async (view: "approvals" | "all") => {
-    const { data, error, response } = await api.GET("/v1/workflows", {
-      params: { query: { view } },
-    });
-    if (data) return data;
-    if (problemCode(error) === "missing_permission") return null;
+  // One list: the API marks what waits for the reader and what they raised.
+  const { data, error, response } = await api.GET("/v1/workflows", {
+    params: { query: { view: "all" } },
+  });
+  if (!data) {
+    if (problemCode(error) === "missing_permission") return forbidden;
     return failWith(error, response, APPROVALS_PAGE);
-  };
-  const [approvals, all] = await Promise.all([read("approvals"), read("all")]);
-  if (!approvals || !all) return forbidden;
-  const groups = approvalGroups(approvals.items, all.items);
+  }
+  const groups = approvalGroups(data.items);
   // Each incident waiting for the reader, for its version and what must be done before closing.
+  // Reading one is audited as a view, as on its own page; the waiting ones are few.
+  const readIncident = async (id: string) =>
+    (await api.GET("/v1/incidents/{id}", { params: { path: { id } } })).data ?? undefined;
   const incidents = new Map<string, IncidentDetail>();
   await Promise.all(
     groups.yours.filter(isIncidentApproval).map(async (item) => {
-      const { data } = await api.GET("/v1/incidents/{id}", {
-        params: { path: { id: item.subjectId } },
-      });
-      if (data) incidents.set(item.subjectId, data);
+      const detail = await readIncident(item.subjectId);
+      if (detail) incidents.set(item.subjectId, detail);
     }),
   );
-  const viewer = { tenantUserId: me.tenantUserId, permissions: me.permissions };
+  // Say what was done only while the incident's status still matches (an old address says nothing).
+  const acted =
+    done && doneIncident
+      ? (incidents.get(doneIncident) ?? (await readIncident(doneIncident)))
+      : undefined;
+  const shownDone = acted && done ? doneToShow(done, acted.status) : null;
   const now = new Date();
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader eyebrow={me.tenant.name} title={title} description={t("approvals.description")} />
-      {done === "closed" || done === "reopened" ? (
-        <RecordedArrival message={t("safety.manage.done", { done })} param="done" />
+      {acted && (shownDone === "closed" || shownDone === "reopened") ? (
+        <RecordedArrival
+          message={t("approvals.done", { done: shownDone, title: incidentTitle(acted, t) })}
+          param="done"
+        />
       ) : null}
-      {approvals.truncated || all.truncated ? (
+      {data.truncated ? (
         <Notice
           tone="warning"
           icon={<TriangleAlert {...iconProps} />}
@@ -148,7 +163,9 @@ export default async function ApprovalsPage({
       {GROUPS.map((group) => (
         <Card key={group} as="section" headingLevel={2} title={t("approvals.group", { group })}>
           {groups[group].length === 0 ? (
-            <p className="m-0">{t("approvals.empty", { group })}</p>
+            <p className="m-0">
+              {data.truncated ? t("approvals.emptyTruncated") : t("approvals.empty", { group })}
+            </p>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-4 p-0">
               {groups[group].map((item) => (
@@ -156,7 +173,7 @@ export default async function ApprovalsPage({
                   key={item.id}
                   item={item}
                   incident={incidents.get(item.subjectId)}
-                  viewer={viewer}
+                  tenantUserId={me.tenantUserId}
                 />
               ))}
             </ul>

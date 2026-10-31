@@ -2302,6 +2302,9 @@
     "approvals.raisedByYou",
     "approvals.nextStep",
     "approvals.incident.blocked",
-    "approvals.asOf"
+    "approvals.asOf",
+    "approvals.itemTitle",
+    "approvals.emptyTruncated",
+    "approvals.done"
   ]
 }

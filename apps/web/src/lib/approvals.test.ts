@@ -6,6 +6,7 @@ import {
   isIncidentApproval,
   raisedByLine,
   slaChip,
+  workflowItemTitle,
   workflowLabel,
   workflowLink,
   workflowStateChip,
@@ -21,6 +22,7 @@ const base: WorkflowInstanceItem = {
   incidentId: null,
   locationId: null,
   state: "under_review",
+  startedAt: "2026-10-30T08:00:00.000Z",
   enteredStateAt: "2026-10-30T09:00:00.000Z",
   slaDueAt: null,
   slaState: "none",
@@ -29,6 +31,7 @@ const base: WorkflowInstanceItem = {
     displayName: "Mo Manager",
     jobTitle: null,
   },
+  permissions: ["safety.incident.manage"],
   moves: [{ to: "closed", approval: true, requiresReason: true, requiresStepUp: false }],
   awaitingYourApproval: true,
   raisedByYou: false,
@@ -57,7 +60,7 @@ describe("approvals screen (PLAT-011)", () => {
     const yours = item({ id: "a" });
     const raised = item({ id: "b", awaitingYourApproval: false, raisedByYou: true, moves: [] });
     const other = item({ id: "c", awaitingYourApproval: false, moves: [] });
-    const groups = approvalGroups([yours, raised], [yours, raised, other]);
+    const groups = approvalGroups([yours, raised, other]);
     expect(groups.yours.map((i) => i.id)).toEqual(["a"]);
     expect(groups.raised.map((i) => i.id)).toEqual(["b"]);
     expect(groups.other.map((i) => i.id)).toEqual(["c"]);
@@ -78,7 +81,13 @@ describe("approvals screen (PLAT-011)", () => {
 
   it.each<[string, Partial<WorkflowInstanceItem>, { status: string; label: string }]>([
     ["under review", {}, { status: "info", label: "Under review" }],
-    ["a draft notification", { state: "draft" }, { status: "info", label: "Draft" }],
+    ["a draft notification, waiting", { state: "draft" }, { status: "due", label: "Draft" }],
+    ["an open incident, waiting", { state: "open" }, { status: "due", label: "Open" }],
+    [
+      "written candour notice due",
+      { state: "written_due" },
+      { status: "due", label: "Written notice due" },
+    ],
     [
       "an outage that has ended",
       { definitionKey: "operations.outage", state: "closed" },
@@ -112,6 +121,11 @@ describe("approvals screen (PLAT-011)", () => {
       { status: "neutral", label: "Due by 01/07/2026 09:00" },
     ],
     ["without a deadline", { slaState: "none" }, { status: "neutral", label: "No deadline" }],
+    [
+      "the deadline is kept on the record (HZ-013)",
+      { slaState: "on_record" },
+      { status: "due", label: "Deadline kept on the record: open it to check" },
+    ],
     [
       "in a state the web does not know",
       { slaState: "later" as WorkflowInstanceItem["slaState"] },
@@ -147,6 +161,10 @@ describe("approvals screen (PLAT-011)", () => {
     ["a type the web does not know", { subjectType: "mystery" }, null],
   ])("links %s to its own page", (_label, change, href) => {
     expect(workflowLink(item(change))).toBe(href);
+  });
+
+  it("tells items of one kind apart by when they were raised, never by a name", () => {
+    expect(workflowItemTitle(base, t)).toBe("Incident, raised 30/10/2026 08:00");
   });
 
   it("says who raised it, or that Harbour started it", () => {

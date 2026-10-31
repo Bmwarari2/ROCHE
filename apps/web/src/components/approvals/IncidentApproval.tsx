@@ -22,7 +22,10 @@ export function IncidentApproval({
   view,
   path,
 }: {
-  /** The approvals page, to come back to when done (kept out of this client bundle's imports). */
+  /**
+   * The approvals page naming this incident, to come back to when done (kept out of this client
+   * bundle's imports), so the page can say which incident was closed.
+   */
   readonly path: string;
   readonly incidentId: string;
   readonly version: number;
@@ -39,6 +42,7 @@ export function IncidentApproval({
           purpose="close"
           submit={t("safety.manage.close.submit")}
           path={path}
+          headingLevel={4}
           done="closed"
           onSend={(reason) => closeIncident(incidentId, { reason, version })}
         />
@@ -62,6 +66,7 @@ export function IncidentApproval({
           purpose="reopen"
           submit={t("safety.manage.reopen.submit")}
           path={path}
+          headingLevel={4}
           done="reopened"
           onSend={(reason) => reviewIncident(incidentId, { to: "open", reason, version })}
         />

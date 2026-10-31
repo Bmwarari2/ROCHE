@@ -24,17 +24,27 @@ export type ApprovalGroup = "yours" | "raised" | "other";
 /**
  * Waiting for the reader's approval first, then what they raised that waits for someone else,
  * then every other open record they have a part in; each record in one group only, in the API's
- * order (soonest deadline first).
+ * order. One list (`view=all`) gives all three.
  */
 export function approvalGroups(
-  approvals: readonly WorkflowInstanceItem[],
-  all: readonly WorkflowInstanceItem[],
+  items: readonly WorkflowInstanceItem[],
 ): Record<ApprovalGroup, WorkflowInstanceItem[]> {
-  const yours = approvals.filter((i) => i.awaitingYourApproval);
-  const raised = approvals.filter((i) => !i.awaitingYourApproval && i.raisedByYou);
-  const listed = new Set([...yours, ...raised].map((i) => i.id));
-  const other = all.filter((i) => !listed.has(i.id) && !i.awaitingYourApproval && !i.raisedByYou);
-  return { yours, raised, other };
+  return {
+    yours: items.filter((i) => i.awaitingYourApproval),
+    raised: items.filter((i) => !i.awaitingYourApproval && i.raisedByYou),
+    other: items.filter((i) => !i.awaitingYourApproval && !i.raisedByYou),
+  };
+}
+
+/**
+ * The item's heading, told apart from others of its kind by when it was raised (never a name):
+ * "Incident, raised 31/10/2026 12:16".
+ */
+export function workflowItemTitle(item: WorkflowInstanceItem, t: Translator): string {
+  return t("approvals.itemTitle", {
+    workflow: workflowLabel(item.definitionKey, t),
+    when: formatDateTime(item.startedAt) ?? "",
+  });
 }
 
 /** "Incident", "Statutory notification" and so on; "Record" for one the web does not know. */
@@ -42,23 +52,27 @@ export function workflowLabel(definitionKey: string, t: Translator): string {
   return t("approvals.workflow", { key: definitionKey.replace(/\./g, "_") });
 }
 
-const KNOWN_STATES = new Set([
+/** States where something is waiting to be done: shown as due, with a clock. */
+const WAITING_STATES = new Set([
   "open",
-  "under_review",
   "threshold_assessment",
   "verbal_due",
   "written_due",
-  "enquiries_open",
   "draft",
   "ready",
   "awaiting_review",
-  "reviewed",
-  "referred",
   "declared",
   "planned",
-  "left",
   "recorded",
   "awaiting_return",
+]);
+/** States where the work is under way: shown as in progress, with a magnifying glass. */
+const IN_PROGRESS_STATES = new Set([
+  "under_review",
+  "enquiries_open",
+  "reviewed",
+  "referred",
+  "left",
 ]);
 
 /**
@@ -73,14 +87,14 @@ export function workflowStateChip(item: WorkflowInstanceItem, t: Translator): Sa
       label: t("approvals.state", { state: "outage_closed" }),
     };
   }
-  if (!KNOWN_STATES.has(item.state)) {
-    return {
-      status: "overdue",
-      icon: "triangle-alert",
-      label: t("approvals.state", { state: "unknown" }),
-    };
-  }
-  return { status: "info", icon: "search", label: t("approvals.state", { state: item.state }) };
+  const label = t("approvals.state", { state: item.state });
+  if (WAITING_STATES.has(item.state)) return { status: "due", icon: "clock", label };
+  if (IN_PROGRESS_STATES.has(item.state)) return { status: "info", icon: "search", label };
+  return {
+    status: "overdue",
+    icon: "triangle-alert",
+    label: t("approvals.state", { state: "unknown" }),
+  };
 }
 
 const timeOnly = (iso: string) => formatDateTime(iso)?.split(" ").slice(1).join(" ") ?? "";
@@ -110,6 +124,13 @@ export function slaChip(item: WorkflowInstanceItem, t: Translator): SafetyChip {
         status: "neutral",
         icon: "clock",
         label: t("approvals.sla", { state: "on_track", when, time: "" }),
+      };
+    case "on_record":
+      // The deadline is on the record and the list does not have it: never "no deadline" (HZ-013).
+      return {
+        status: "due",
+        icon: "triangle-alert",
+        label: t("approvals.sla", { state: "on_record", when: "", time: "" }),
       };
     case "none":
       return {

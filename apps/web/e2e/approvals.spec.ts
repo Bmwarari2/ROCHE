@@ -133,6 +133,13 @@ test("hazard HZ-013 hazard HZ-091 another manager closes one here and sends the 
   const closing = entry(page, toClose.id);
   await expect(yours.locator(`a[href="/incidents/${toClose.id}"]`)).toBeVisible();
   await expect(closing.getByText("Raised by Mo Manager")).toBeVisible();
+  // Each item's heading says when it was raised; its forms are headed one level below.
+  await expect(
+    closing.getByRole("heading", { level: 3, name: /^Incident, raised \d{2}\/\d{2}\/\d{4}/ }),
+  ).toBeVisible();
+  await expect(
+    closing.getByRole("heading", { level: 4, name: "Close the incident" }),
+  ).toBeVisible();
   await bothThemes(page, "approvals, waiting for you");
 
   // Refused in words without a reason.
@@ -143,7 +150,12 @@ test("hazard HZ-013 hazard HZ-091 another manager closes one here and sends the 
 
   await close.getByLabel("Why can it close?").fill(`The catch was replaced (${RUN}).`);
   await close.getByRole("button", { name: "Close the incident" }).click();
-  await expect(page.getByRole("status").getByText("Incident closed")).toBeVisible();
+  // Says which incident was closed.
+  await expect(
+    page
+      .getByRole("status")
+      .getByText(/^Incident closed: Environmental incident, \d{2}\/\d{2}\/\d{4}/),
+  ).toBeVisible();
   await expect(page.locator(`a[href="/incidents/${toClose.id}"]`)).toHaveCount(0);
   await bothThemes(page, "approvals, incident closed");
 
@@ -153,7 +165,9 @@ test("hazard HZ-013 hazard HZ-091 another manager closes one here and sends the 
     .getByLabel("Why is it going back to open?")
     .fill(`Waiting for the contractor (${RUN}).`);
   await back.getByRole("button", { name: "Send it back to open" }).click();
-  await expect(page.getByRole("status").getByText("The incident is open again")).toBeVisible();
+  await expect(
+    page.getByRole("status").getByText(/^Sent back to open: Environmental incident/),
+  ).toBeVisible();
   const reopened = entry(page, toSendBack.id);
   await expect(reopened.getByText("Open", { exact: true })).toBeVisible();
   await expect(reopened.getByRole("form", { name: "Send it back to open" })).toHaveCount(0);

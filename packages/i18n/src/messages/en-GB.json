@@ -2294,12 +2294,15 @@
   "approvals.truncated": "Not every open record fits on this page. Use each module's own list to see the rest.",
   "approvals.workflow": "{key, select, safety_incident {Incident} safety_candour {Duty of candour} safety_statutory_notification {Statutory notification} care_dols_legal_change_review {DoLS review after the legal change} operations_outage {Outage} people_discharge {Discharge} people_transfer {Transfer} people_death {Death} other {Record}}",
   "approvals.state": "{state, select, open {Open} under_review {Under review} threshold_assessment {Threshold to decide} verbal_due {Telling the person is due} written_due {Written notice due} enquiries_open {Enquiries open} draft {Draft} ready {Ready to submit} awaiting_review {Awaiting review} reviewed {Reviewed} referred {Referred to the local authority} declared {Under way} outage_closed {Ended, to reconcile} planned {Planned} left {Left} recorded {Recorded} awaiting_return {Waiting for money, property and keys to be returned} other {State could not be read}}",
-  "approvals.sla": "{state, select, overdue {Overdue since {when}} due_today {Due today by {time}} on_track {Due by {when}} other {No deadline}}",
+  "approvals.sla": "{state, select, overdue {Overdue since {when}} due_today {Due today by {time}} on_track {Due by {when}} on_record {Deadline kept on the record: open it to check} other {No deadline}}",
   "approvals.raisedBy": "Raised by {name}",
   "approvals.startedByHarbour": "Started by Harbour",
   "approvals.since": "In this state since {when}",
   "approvals.raisedByYou": "You raised this, so someone else must approve it.",
   "approvals.nextStep": "Take the next step on its own page.",
   "approvals.incident.blocked": "Open the incident to see what must be done before it can close.",
-  "approvals.asOf": "Deadlines worked out at {time}"
+  "approvals.asOf": "Deadlines worked out at {time}",
+  "approvals.itemTitle": "{workflow}, raised {when}",
+  "approvals.emptyTruncated": "None found in the records this page could check. Use each module's own list to be sure.",
+  "approvals.done": "{done, select, closed {Incident closed: {title}} reopened {Sent back to open: {title}} other {Saved: {title}}}"
 }
