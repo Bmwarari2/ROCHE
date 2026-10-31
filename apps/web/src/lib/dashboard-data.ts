@@ -47,21 +47,17 @@ interface Read<T> {
 }
 
 /**
- * One read. A refusal for a missing permission hides the tile; so does `not_found` for a
- * per-location read, since a permission's scope can leave out a location the person works at
- * (ADR-0071) and its list page would not open either. Anything else is a failure, logged by path,
- * status and problem code only (no personal data), and shown as a warning.
+ * One read. A refusal for a missing permission hides the tile. Anything else, including a
+ * location outside one permission's scope (`not_found`), is a failure for that location, logged
+ * by path, status and problem code only (no personal data), and shown as a warning: safety work
+ * never disappears from the dashboard because of scope (HZ-073, clinical review round 1).
  */
-async function read<T>(
-  path: string,
-  call: () => Promise<Result<T>>,
-  perLocation = false,
-): Promise<Read<T>> {
+async function read<T>(path: string, call: () => Promise<Result<T>>): Promise<Read<T>> {
   try {
     const { data, error, response } = await call();
     if (data) return { load: ok(data), code: undefined };
     const code = problemCode(error);
-    if (code === "missing_permission" || (perLocation && code === "not_found")) {
+    if (code === "missing_permission") {
       return { load: FORBIDDEN, code };
     }
     console.warn(
@@ -102,9 +98,7 @@ export async function loadDashboard(me: Me, locationId: string | null): Promise<
   ): Promise<Load<T>[]> => {
     const ids = typeof id === "string" ? [id] : id;
     if (!ids.some((i) => shown.has(i)) || places.tooMany) return [];
-    const reads = await Promise.all(
-      places.ids.map((location) => read(path, () => call(location), true)),
-    );
+    const reads = await Promise.all(places.ids.map((location) => read(path, () => call(location))));
     return reads.map(keep);
   };
   const once = async <T>(
@@ -113,7 +107,7 @@ export async function loadDashboard(me: Me, locationId: string | null): Promise<
     call: () => Promise<Result<T>>,
   ): Promise<Load<T> | null> => (shown.has(id) ? keep(await read(path, call)) : null);
 
-  const [alerts, rounds, handovers, reviews, incidents, draft, ready, outages, breakGlass] =
+  const [alerts, rounds, handovers, reviews, open, underReview, draft, ready, outages, breakGlass] =
     await Promise.all([
       readNotifications(),
       perLocation(["tasks", "dols"], "/v1/locations/{id}/round", (id) =>
@@ -126,7 +120,14 @@ export async function loadDashboard(me: Me, locationId: string | null): Promise<
         api.GET("/v1/locations/{id}/reviews", { params: { path: { id } } }),
       ),
       once("incidents", "/v1/incidents", () =>
-        api.GET("/v1/incidents", { params: { query: locationId ? { locationId } : {} } }),
+        api.GET("/v1/incidents", {
+          params: { query: { ...(locationId ? { locationId } : {}), status: "open" } },
+        }),
+      ),
+      once("incidents", "/v1/incidents", () =>
+        api.GET("/v1/incidents", {
+          params: { query: { ...(locationId ? { locationId } : {}), status: "under_review" } },
+        }),
       ),
       once("notifications", "/v1/notifications/statutory", () =>
         api.GET("/v1/notifications/statutory", {
@@ -159,7 +160,7 @@ export async function loadDashboard(me: Me, locationId: string | null): Promise<
     dols: () => dolsTile(rounds, locationHref("/round", places.ids)),
     handover: () => handoverTile(handovers, locationHref("/handover", places.ids)),
     reviews: () => reviewsTile(reviews),
-    incidents: () => (incidents ? incidentsTile(incidents) : null),
+    incidents: () => (open && underReview ? incidentsTile([open, underReview]) : null),
     notifications: () => (draft && ready ? notificationsTile([draft, ready]) : null),
     outages: () => outagesTile(outages, locationHref("/downtime", places.ids)),
     breakGlass: () => (breakGlass ? breakGlassTile(breakGlass, locationId) : null),

@@ -37,8 +37,9 @@ export default async function HomePage() {
   // A family member's portal session has no staff dashboard: their home is the updates page.
   if (isFamilyMember(me)) redirect("/updates");
   const location = me.locations.find((l) => l.id === locationId);
-  const tiles = await loadDashboard(me, locationId);
+  // Taken before the reads, so the time shown is never later than the data it describes.
   const readAt = new Date();
+  const tiles = await loadDashboard(me, locationId);
   const today = tiles.filter((tile) => TODAY.has(tile.id));
   const oversight = tiles.filter((tile) => !TODAY.has(tile.id));
   const people = me.permissions.includes("people.person.read");
@@ -61,7 +62,7 @@ export default async function HomePage() {
           })}
         </time>
       </p>
-      <DashboardRefresh readAt={readAt.getTime()} label={t("dashboard.readAgain")} />
+      <DashboardRefresh key={readAt.toISOString()} label={t("dashboard.readAgain")} />
       {today.length > 0 ? (
         <section aria-labelledby="dashboard-today" className="flex flex-col gap-4">
           <h2 id="dashboard-today" className="m-0 text-eyebrow">

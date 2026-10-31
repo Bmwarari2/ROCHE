@@ -12,24 +12,24 @@ import { DASHBOARD_REFRESH_MS } from "@/lib/dashboard";
  * keeps the session alive nor fills the audit log (security review F2, F3), and nothing moves
  * on its own (WCAG 2.2.2). The update is silent, never announced.
  */
-export function DashboardRefresh({
-  readAt,
-  label,
-}: {
-  readonly readAt: number;
-  readonly label: string;
-}) {
+export function DashboardRefresh({ label }: { readonly label: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  // The age is measured on this device's monotonic clock from when the counts arrived, never by
+  // comparing its wall clock with the server's (HZ-002, HZ-010). A refresh mounts this afresh.
   useEffect(() => {
+    const shownAt = performance.now();
     const onShow = () => {
-      if (document.visibilityState === "visible" && Date.now() - readAt >= DASHBOARD_REFRESH_MS) {
+      if (
+        document.visibilityState === "visible" &&
+        performance.now() - shownAt >= DASHBOARD_REFRESH_MS
+      ) {
         router.refresh();
       }
     };
     document.addEventListener("visibilitychange", onShow);
     return () => document.removeEventListener("visibilitychange", onShow);
-  }, [readAt, router]);
+  }, [router]);
   return (
     <div>
       <Button

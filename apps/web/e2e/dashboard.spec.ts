@@ -36,7 +36,7 @@ const ALL_TILES = [
   "Alerts",
   "Tasks on the round",
   "Handover",
-  "DoLS authorisations ending",
+  "DoLS expiry reminders",
   "Reviews due",
   "Incidents open",
   "Statutory notifications",
@@ -56,7 +56,7 @@ async function expectTiles(page: Page, shown: readonly string[]) {
     const card = tile(page, title);
     await expect(
       card.getByText(
-        /^(Nothing waiting|To do|Overdue|Urgent|Not known|Could not load|Choose a location)$/,
+        /^(Nothing waiting|None open|To do|Overdue|Urgent|Not known|Could not load|Choose a location)$/,
       ),
     ).toBeVisible();
     // The state chip carries its own icon beside the word, never colour alone.
@@ -157,7 +157,7 @@ test("the carer sees their own work, without the manager's oversight tiles", asy
     await expect(tile(page, title)).toHaveCount(1);
   }
   for (const title of [
-    "DoLS authorisations ending",
+    "DoLS expiry reminders",
     "Statutory notifications",
     "Outages",
     "Break-glass reports",

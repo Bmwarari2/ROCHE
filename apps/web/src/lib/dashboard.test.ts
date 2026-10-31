@@ -116,7 +116,7 @@ describe("the locations read (insights.md rules 5 and 6)", () => {
 const alert = (severity: string, acknowledgedAt: string | null = null) =>
   ({ severity, acknowledgedAt }) as never;
 
-describe("alerts (HZ-008)", () => {
+describe("alerts", () => {
   it.each([
     ["none", [], 0, 0, "clear", "No alerts waiting for you"],
     ["info only", [alert("info")], 0, 0, "clear", "No alerts waiting for you"],
@@ -132,7 +132,7 @@ describe("alerts (HZ-008)", () => {
     ],
     // A severity the web does not know is urgent, so it warns.
     ["unknown severity", [alert("critical")], 1, 1, "urgent", "1 alert not acknowledged"],
-  ])("%s", (_, items, count, apart, state, words) => {
+  ])("hazard HZ-008 %s", (_, items, count, apart, state, words) => {
     const tile = alertsTile(ok({ items })) as TileSummary;
     expect(tile).toMatchObject({ id: "alerts", count, apart, state, href: "/notifications" });
     if (words) expect(countLine(tile, t)).toBe(words);
@@ -160,7 +160,7 @@ const roundOf = (tasks: { kind?: string; timeState: string }[], complete = true)
   ],
 });
 
-describe("tasks on the round (HZ-003)", () => {
+describe("tasks on the round", () => {
   const href = `/round/${HOUSE}`;
   it.each([
     ["none", [], 0, 0, "clear"],
@@ -210,7 +210,7 @@ describe("tasks on the round (HZ-003)", () => {
     expect(tileChips(tile, t).map((c) => c.label)).toEqual(["To do", "Some not loaded"]);
   });
 
-  it("never says none when part of it failed", () => {
+  it("hazard HZ-003 never says none, nor shows the all-clear, when part of it failed", () => {
     const tile = tasksTile([ok(roundOf([]) as never), FAILED], "/round") as TileSummary;
     expect(tile.partial).toBe(true);
     expect(countLine(tile, t)).toBe("None in the part that loaded");
@@ -240,9 +240,9 @@ describe("tasks on the round (HZ-003)", () => {
   });
 });
 
-describe("DoLS reminders (care.md rule 11; HZ-020)", () => {
+describe("DoLS reminders (care.md rule 11)", () => {
   it.each([
-    ["none", [{ timeState: "due" }], 0, 0, "clear", "No DoLS reminders open"],
+    ["none", [{ timeState: "due" }], 0, 0, "noneOpen", "No DoLS reminders open"],
     [
       "an open reminder, its window not yet started",
       [{ kind: "care.dols_expiry", timeState: "upcoming" }],
@@ -262,32 +262,52 @@ describe("DoLS reminders (care.md rule 11; HZ-020)", () => {
       "overdue",
       "2 DoLS reminders open",
     ],
-  ])("%s", (_, tasks, count, apart, state, words) => {
+  ])("hazard HZ-020 %s", (_, tasks, count, apart, state, words) => {
     const tile = dolsTile([ok(roundOf(tasks) as never)], "/round") as TileSummary;
     expect(tile).toMatchObject({ id: "dols", count, apart, state });
     expect(countLine(tile, t)).toBe(words);
   });
+
+  it("hazard HZ-020 no reminder open is said neutrally, never with the all-clear tick", () => {
+    const tile = dolsTile([ok(roundOf([]) as never)], "/round") as TileSummary;
+    expect(tileChips(tile, t)).toEqual([
+      { status: "neutral", icon: "circle-minus", label: "None open" },
+    ]);
+  });
 });
 
-const handover = (start: string, end: string, unacknowledged: boolean | null) => ({
-  shift: { name: "Day", start, end },
-  unacknowledged,
-});
+const handover = (
+  start: string,
+  end: string,
+  unacknowledged: boolean | null,
+  pending: string[] = [],
+) => ({ shift: { name: "Day", start, end }, unacknowledged, pending });
 
-describe("handover (HZ-018)", () => {
+describe("handover", () => {
   const now = new Date("2026-10-31T10:00:00Z");
   const running = handover("2026-10-31T08:00:00Z", "2026-10-31T20:00:00Z", false);
-  const lastNight = (u: boolean | null) =>
-    handover("2026-10-30T20:00:00Z", "2026-10-31T08:00:00Z", u);
+  const lastNight = (u: boolean | null, pending: string[] = []) =>
+    handover("2026-10-30T20:00:00Z", "2026-10-31T08:00:00Z", u, pending);
 
   it.each([
     ["every one acknowledged", [running, lastNight(false)], 0, "clear", "compiled"],
-    ["last night's not acknowledged", [running, lastNight(true)], 1, "overdue", "compiled"],
-    // Limited to the reader's own people: not known here, so not counted as acknowledged or not.
-    ["not known when limited", [lastNight(null)], 0, "clear", "notCompiled"],
-  ] as const)("%s", (_, items, count, state, current) => {
+    // "To do", never "Overdue": how long the incoming shift has is the tenant's to set.
+    ["last night's not acknowledged", [running, lastNight(true)], 1, "todo", "compiled"],
+    ["a late addition still to be seen", [running, lastNight(false, ["x"])], 1, "todo", "compiled"],
+    // Limited to the reader's own people: not known, never "every one acknowledged".
+    ["not known when limited", [lastNight(null)], 0, "notKnown", "notCompiled"],
+  ] as const)("hazard HZ-018 %s", (_, items, count, state, current) => {
     const tile = handoverTile([ok({ items: [...items] })], `/handover/${HOUSE}`, now);
     expect(tile).toMatchObject({ id: "handover", count, state, current });
+  });
+
+  it("hazard HZ-018 the shift running now is not counted until it ends", () => {
+    const tile = handoverTile(
+      [ok({ items: [handover("2026-10-31T08:00:00Z", "2026-10-31T20:00:00Z", true)] })],
+      "/handover",
+      now,
+    );
+    expect(tile).toMatchObject({ count: 0, state: "clear" });
   });
 
   it("says whether the shift running now has one, for one location only", () => {
@@ -311,10 +331,11 @@ describe("reviews due", () => {
   it.each([
     ["none", [], 0, 0, "clear"],
     ["upcoming only", [review("upcoming")], 0, 0, "clear"],
-    ["due and paused", [review("due"), review("paused")], 2, 0, "todo"],
+    // Paused while the person is in hospital: not due, so not counted.
+    ["due and paused", [review("due"), review("paused")], 1, 0, "todo"],
     ["overdue", [review("overdue"), review("due")], 2, 1, "overdue"],
     ["unknown state", [review("lapsed")], 1, 1, "overdue"],
-  ])("%s", (_, items, count, apart, state) => {
+  ])("hazard HZ-024 %s", (_, items, count, apart, state) => {
     expect(reviewsTile([ok({ items })])).toMatchObject({
       id: "reviews",
       count,
@@ -326,46 +347,60 @@ describe("reviews due", () => {
 });
 
 describe("incidents open", () => {
-  const incident = (status: string) => ({ status }) as never;
+  let n = 0;
+  const incident = (status: string) => {
+    n += 1;
+    return { id: `i${n}`, status } as never;
+  };
   it.each([
-    ["none", [], 0, 0, "clear", "No incidents open"],
-    ["closed only", [incident("closed")], 0, 0, "clear", "No incidents open"],
+    ["none", [], [], 0, 0, "clear", "No incidents open"],
     [
       "open and under review",
-      [incident("open"), incident("under_review"), incident("closed")],
-      2,
+      [incident("open"), incident("open")],
+      [incident("under_review")],
+      3,
       1,
       "todo",
-      "2 incidents open",
+      "3 incidents open",
     ],
-  ])("%s", (_, items, count, apart, state, words) => {
-    const tile = incidentsTile(ok({ items })) as TileSummary;
+  ])("%s", (_, open, review, count, apart, state, words) => {
+    const tile = incidentsTile([
+      ok({ items: open as never[] }),
+      ok({ items: review as never[] }),
+    ]) as TileSummary;
     expect(tile).toMatchObject({ id: "incidents", count, apart, state, href: "/incidents" });
     expect(countLine(tile, t)).toBe(words);
   });
 
+  it("counts an incident once if it moved between the two reads", () => {
+    const same = { id: "x", status: "under_review" } as never;
+    const tile = incidentsTile([ok({ items: [same] }), ok({ items: [same] })]) as TileSummary;
+    expect(tile.count).toBe(1);
+  });
+
   it("says at least past the API's limit", () => {
-    const items = Array.from({ length: INCIDENT_LIST_LIMIT }, () => incident("closed"));
-    const tile = incidentsTile(ok({ items })) as TileSummary;
+    const items = Array.from({ length: INCIDENT_LIST_LIMIT }, () => incident("open"));
+    const tile = incidentsTile([ok({ items }), ok({ items: [] })]) as TileSummary;
     expect(tile.partial).toBe(true);
-    expect(countLine(tile, t)).toBe("None in the part that loaded");
+    expect(countLine(tile, t)).toBe(`At least ${INCIDENT_LIST_LIMIT} incidents open`);
   });
 
   it("warns when it could not be read, and hides when refused", () => {
-    expect(incidentsTile(FAILED)).toMatchObject({ state: "failed", count: null });
-    expect(incidentsTile(FORBIDDEN)).toBeNull();
+    expect(incidentsTile([FAILED, FAILED])).toMatchObject({ state: "failed", count: null });
+    expect(incidentsTile([FORBIDDEN, FORBIDDEN])).toBeNull();
   });
 });
 
 describe("statutory notifications (HZ-013)", () => {
-  const notification = (clock: string) => ({ clock }) as never;
+  const notification = (clock: string, dueAt = "2026-10-31T12:00:00Z") =>
+    ({ clock, dueAt }) as never;
   it.each([
     ["none", [[], []], 0, 0, "clear"],
     ["due", [[notification("due")], []], 1, 0, "todo"],
     ["overdue", [[notification("overdue")], [notification("due")]], 2, 1, "overdue"],
     // A clock the web does not know is overdue, never calm.
     ["unknown clock", [[notification("paused")], []], 1, 1, "overdue"],
-  ])("%s", (_, [draft, ready], count, apart, state) => {
+  ])("hazard HZ-013 %s", (_, [draft, ready], count, apart, state) => {
     const tile = notificationsTile([
       ok({ items: draft ?? [] }),
       ok({ items: ready ?? [] }),
@@ -378,7 +413,20 @@ describe("statutory notifications (HZ-013)", () => {
     expect(tile).toMatchObject({ state: "failed", count: null });
   });
 
-  it("says the overdue ones apart", () => {
+  it("hazard HZ-013 gives the soonest due time of those still to submit", () => {
+    const tile = notificationsTile([
+      ok({ items: [notification("due", "2026-11-02T09:00:00Z")] }),
+      ok({
+        items: [
+          notification("overdue", "2026-10-30T09:00:00Z"),
+          notification("done", "2026-10-01T09:00:00Z"),
+        ],
+      }),
+    ]) as TileSummary;
+    expect(tile.earliestDue).toBe("2026-10-30T09:00:00Z");
+  });
+
+  it("hazard HZ-013 says the overdue ones apart", () => {
     const tile = notificationsTile([
       ok({ items: [notification("overdue")] }),
       ok({ items: [] }),

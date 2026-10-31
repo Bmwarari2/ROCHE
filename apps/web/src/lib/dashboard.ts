@@ -139,7 +139,15 @@ function combine<T>(loads: readonly Load<T>[]): Combined<T> {
 // Summaries
 // ------------------------------------------------------------------------------------------------
 
-export type TileState = "clear" | "todo" | "overdue" | "urgent" | "notKnown" | "failed" | "choose";
+export type TileState =
+  | "clear"
+  | "noneOpen"
+  | "todo"
+  | "overdue"
+  | "urgent"
+  | "notKnown"
+  | "failed"
+  | "choose";
 
 export interface TileSummary {
   readonly id: TileId;
@@ -153,6 +161,8 @@ export interface TileSummary {
   readonly href: string;
   /** Handover only, for one location: whether the shift running now has a handover. */
   readonly current?: "compiled" | "notCompiled";
+  /** Statutory notifications only: the soonest due time of those still to submit (HZ-013). */
+  readonly earliestDue?: string;
 }
 
 /** A summary from its counts: overdue or urgent first, then to do, else nothing waiting. */
@@ -255,8 +265,11 @@ export function tasksTile(loads: readonly Load<RoundTasks>[], href: string) {
 }
 
 /** DoLS expiry reminders still open (care.md rule 11; HZ-020), from the same round views. */
-export function dolsTile(loads: readonly Load<RoundTasks>[], href: string) {
-  return roundTile("dols", loads, href, (kind) => kind === DOLS_REMINDER_KIND);
+export function dolsTile(loads: readonly Load<RoundTasks>[], href: string): TileSummary | null {
+  const tile = roundTile("dols", loads, href, (kind) => kind === DOLS_REMINDER_KIND);
+  // No reminder open is not "nothing waiting": an authorisation already ended, or one whose
+  // reminder was closed without renewal, raises none (HZ-020). Said neutrally, never with a tick.
+  return tile?.state === "clear" ? { ...tile, state: "noneOpen" } : tile;
 }
 
 /**
@@ -264,7 +277,9 @@ export function dolsTile(loads: readonly Load<RoundTasks>[], href: string) {
  * `unacknowledged`, HZ-018), and for one location whether the shift running now has one.
  */
 export function handoverTile(
-  loads: readonly Load<{ items: readonly Pick<HandoverSummary, "shift" | "unacknowledged">[] }>[],
+  loads: readonly Load<{
+    items: readonly Pick<HandoverSummary, "shift" | "unacknowledged" | "pending">[];
+  }>[],
   href: string,
   now: Date = new Date(),
 ): TileSummary | null {
@@ -272,13 +287,20 @@ export function handoverTile(
   if (all.outcome === "hidden") return null;
   if (all.outcome === "failed") return failedTile("handover", href);
   const lists = all.data.map((d) => d.items);
-  const unacknowledged = lists.flat().filter((h) => h.unacknowledged === true).length;
-  const tile = summary("handover", href, {
-    count: unacknowledged,
-    apart: unacknowledged,
+  const ended = lists.flat().filter((h) => Date.parse(h.shift.end) <= now.getTime());
+  // Not acknowledged by the incoming shift, or a late addition still to be seen by someone who
+  // had acknowledged it. "To do", not "Overdue": how long the incoming shift has to read it is
+  // the tenant's to set (a human action), so the dashboard never says it is late.
+  const waiting = ended.filter((h) => h.unacknowledged === true || h.pending.length > 0).length;
+  // A view limited to the reader's people cannot tell (null): never "every one acknowledged".
+  const notKnown = ended.some((h) => h.unacknowledged === null);
+  const base = summary("handover", href, {
+    count: waiting,
+    apart: 0,
     partial: all.partial,
-    late: unacknowledged > 0 ? "overdue" : null,
+    late: null,
   });
+  const tile: TileSummary = notKnown && waiting === 0 ? { ...base, state: "notKnown" } : base;
   if (loads.length !== 1 || lists.length !== 1) return tile;
   return { ...tile, current: currentHandover(lists[0] ?? [], now) ? "compiled" : "notCompiled" };
 }
@@ -291,8 +313,11 @@ export function reviewsTile(
   const all = combine(loads);
   if (all.outcome === "hidden") return null;
   if (all.outcome === "failed") return failedTile("reviews", href);
-  const items = all.data.flatMap((d) => d.items).filter((i) => i.state !== "upcoming");
-  const late = items.filter((i) => i.state !== "due" && i.state !== "paused").length;
+  // Upcoming reviews are not waiting yet; paused ones (the person in hospital) are not due.
+  const items = all.data
+    .flatMap((d) => d.items)
+    .filter((i) => i.state !== "upcoming" && i.state !== "paused");
+  const late = items.filter((i) => i.state !== "due").length;
   return summary("reviews", href, {
     count: items.length,
     apart: late,
@@ -303,19 +328,19 @@ export function reviewsTile(
 
 /** Incidents open or under review; under review said apart. */
 export function incidentsTile(
-  load: Load<{ items: readonly Pick<IncidentSummary, "status">[] }>,
+  loads: readonly Load<{ items: readonly Pick<IncidentSummary, "id" | "status">[] }>[],
 ): TileSummary | null {
   const href = "/incidents";
-  const all = combine([load]);
+  const all = combine(loads);
   if (all.outcome === "hidden") return null;
   if (all.outcome === "failed") return failedTile("incidents", href);
-  const items = all.data[0]?.items ?? [];
-  const open = items.filter((i) => i.status !== "closed");
+  // Read by status (open, under review), so old closed ones never push an open one off the list.
+  const byId = new Map(all.data.flatMap((d) => d.items).map((i) => [i.id, i]));
+  const open = [...byId.values()].filter((i) => i.status !== "closed");
   return summary("incidents", href, {
     count: open.length,
     apart: open.filter((i) => i.status === "under_review").length,
-    // Past the limit an older open incident may be cut off.
-    partial: items.length >= INCIDENT_LIST_LIMIT,
+    partial: all.partial || all.data.some((d) => d.items.length >= INCIDENT_LIST_LIMIT),
     late: null,
   });
 }
@@ -325,7 +350,9 @@ export function incidentsTile(
  * (HZ-013). A clock the web does not know counts as overdue.
  */
 export function notificationsTile(
-  loads: readonly Load<{ items: readonly Pick<StatutoryNotificationSummary, "clock">[] }>[],
+  loads: readonly Load<{
+    items: readonly Pick<StatutoryNotificationSummary, "clock" | "dueAt">[];
+  }>[],
 ): TileSummary | null {
   const href = "/notifications/statutory";
   const all = combine(loads);
@@ -334,12 +361,17 @@ export function notificationsTile(
   if (all.outcome === "failed" || all.partial) return failedTile("notifications", href);
   const todo = all.data.flatMap((d) => d.items).filter((n) => n.clock !== "done");
   const late = todo.filter((n) => n.clock !== "due").length;
-  return summary("notifications", href, {
+  const tile = summary("notifications", href, {
     count: todo.length,
     apart: late,
     partial: all.data.some((d) => d.items.length >= NOTIFICATION_LIST_LIMIT),
     late: late > 0 ? "overdue" : null,
   });
+  const earliest = todo
+    .map((n) => n.dueAt)
+    .filter((d) => !Number.isNaN(Date.parse(d)))
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+  return earliest ? { ...tile, earliestDue: earliest } : tile;
 }
 
 /** Outages under way (urgent) and closed ones still to reconcile (operations.md rules 9 to 15). */
@@ -395,6 +427,7 @@ export function breakGlassTile(
 
 const STATE_CHIPS: Record<TileState, Omit<SafetyChip, "label">> = {
   clear: { status: "done", icon: "circle-check" },
+  noneOpen: { status: "neutral", icon: "circle-minus" },
   todo: { status: "due", icon: "clock" },
   overdue: { status: "overdue", icon: "circle-alert" },
   urgent: { status: "overdue", icon: "triangle-alert" },

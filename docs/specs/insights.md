@@ -28,9 +28,11 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
    says so ("We could not load this. Open the list to check.") with a warning icon and word, and
    shows no count. When only part of it loaded (one location of several, or a list cut at the API's
    limit), the count is shown as "at least" with a second chip saying some could not be loaded.
-   A refusal for a missing permission hides the tile, as the list page would refuse it; so does
-   "not found" for one location, since a permission's scope can leave out a location the person
-   works at (ADR-0071). A refusal that needs the person to sign in again, confirm their second
+   A refusal for a missing permission hides the tile, as the list page would refuse it. "Not
+   found" for one location (a permission's scope can leave out a location the person works at,
+   ADR-0071) is a failure for that location, never a hidden tile, so safety work never disappears
+   because of scope (HZ-073). A partial read that found nothing is "Not known", never the
+   all-clear. A refusal that needs the person to sign in again, confirm their second
    factor or step up sends them there, as the list pages do, instead of warning on every tile.
    Failed reads are logged by path, status and problem code only.
 4. **Facts only.** Counts and states come straight from the API (task time state, review state,
@@ -40,8 +42,8 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
    shown, tiles read per location for up to three locations; past that the per-location tiles ask
    the reader to choose a location instead of fanning out, and the organisation-wide tiles
    (alerts, incidents, statutory notifications, break-glass reports) still show.
-6. **Budget.** All reads run in parallel on the server: at most 17 dashboard reads (one alerts read
-   shared with the shell's unread count, one incidents, two statutory notifications, one
+6. **Budget.** All reads run in parallel on the server: at most 18 dashboard reads (one alerts read
+   shared with the shell's unread count, two incidents (open, under review), two statutory notifications, one
    break-glass, and four per location for up to three locations) plus the shell's two
    (`/v1/memberships`, `/v1/me`). No client-side fetching.
 7. **Family members** keep their own home (`/updates`); they never see the staff dashboard.
@@ -57,11 +59,11 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
 | --- | --- | --- | --- | --- | --- |
 | Alerts | always (staff) | `GET /v1/notifications` (latest 100) | warning and urgent alerts not yet acknowledged; urgent ones said apart | `/notifications` | No alerts waiting for you |
 | Tasks on the round | `care.plan.read` | `GET /v1/locations/{id}/round` | open tasks overdue or escalated, and due now | `/round/{id}` or `/round` | No tasks due or overdue on this shift |
-| DoLS authorisations ending | `care.dols.manage` and `care.plan.read` | the same round views: open `care.dols_expiry` reminders (care.md rule 11) | reminders open, overdue ones said apart | `/round/{id}` or `/round` | No DoLS reminders open |
-| Handover | `care.handover.manage` | `GET /v1/locations/{id}/handovers` | handovers of the last week the incoming shift has not acknowledged; whether the shift running now has one | `/handover/{id}` or `/handover` | Every handover this week acknowledged |
-| Reviews due | `care.plan.read` | `GET /v1/locations/{id}/reviews` | reviews due and overdue | `/people/reviews` | No reviews due or overdue |
-| Incidents open | `safety.incident.read` | `GET /v1/incidents` (latest 500) | open and under review | `/incidents` | No incidents open |
-| Statutory notifications | `safety.incident.manage` | `GET /v1/notifications/statutory` (draft, ready) | still to submit; overdue clocks said apart | `/notifications/statutory` | No notifications to submit |
+| DoLS expiry reminders | `care.dols.manage` and `care.plan.read` | the same round views: open `care.dols_expiry` reminders (care.md rule 11) | reminders open, overdue ones said apart; none open is said neutrally ("None open"), never with the tick, as an ended authorisation raises no reminder | `/round/{id}` or `/round` | No DoLS reminders open |
+| Handover | `care.handover.manage` | `GET /v1/locations/{id}/handovers` | handovers of ended shifts in the last week the incoming shift has not acknowledged, or with a late addition still to be seen ("To do"; how long the shift has is H-410); "Not known" for a view limited to the reader's people; whether the shift running now has one | `/handover/{id}` or `/handover` | Every handover this week acknowledged |
+| Reviews due | `care.plan.read` | `GET /v1/locations/{id}/reviews` | reviews due and overdue (paused ones left out) | `/people/reviews` | No reviews due or overdue |
+| Incidents open | `safety.incident.read` | `GET /v1/incidents` (status open, status under review; 500 each) | open and under review | `/incidents` | No incidents open |
+| Statutory notifications | `safety.incident.manage` | `GET /v1/notifications/statutory` (draft, ready) | still to submit; overdue clocks said apart; the soonest due time | `/notifications/statutory` | No notifications to submit |
 | Outages | `operations.downtime.read` or `.manage`, and `people.person.read` | `GET /v1/locations/{id}/outages` | outages under way, and closed ones still to reconcile | `/downtime/{id}` or `/downtime` | No outages under way or to reconcile |
 | Break-glass reports | `platform.audit.read` | `GET /v1/break-glass/weekly-report` (last full week) | reports not yet reviewed | `/break-glass/weekly-report` | Every report for last week reviewed |
 | People | `people.person.read` | none | none | `/people` | (always a link) |
@@ -72,7 +74,8 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
 | --- | --- | --- |
 | Nothing waiting | circle with tick, "Nothing waiting" | the count is zero and everything loaded |
 | To do | clock, "To do" | something waits, none of it late |
-| Overdue | circle with alert, "Overdue" | a task, review, reminder or notification clock is past due, or a handover was not acknowledged |
+| None open | circle with minus, "None open" | DoLS only: no reminder open (not an all-clear) |
+| Overdue | circle with alert, "Overdue" | a task, review, reminder or notification clock is past due |
 | Urgent | triangle with alert, "Urgent" | an urgent alert is unacknowledged, or an outage is under way |
 | Not known | triangle with alert, "Not known" | nothing found, but part of it could not be read (never a green tick) |
 | Could not load | triangle with alert, "Could not load" | every source of the tile failed |
@@ -104,9 +107,16 @@ code never names a role.
 ## Hazards
 
 The dashboard is a pointer to lists, never the list itself. Its controls are recorded against
-HZ-008 (alert fatigue: urgent alerts said apart, no colour-only state), HZ-013 (statutory
-notification overdue shown, a failed read never reads as none) and HZ-020 (DoLS reminders open shown
-to managers) in [the hazard log](../clinical-safety/hazard-log.md).
+HZ-002 (counts say when they were read), HZ-008 (alert fatigue: urgent alerts said apart, no
+colour-only state, never a false all-clear), HZ-013 (statutory notification overdue shown, a failed
+read never reads as none), HZ-018 (handover not acknowledged or not known), HZ-020 (DoLS reminders,
+never an all-clear), HZ-024 (reviews) and HZ-073 (scope never hides a tile) in
+[the hazard log](../clinical-safety/hazard-log.md). Residual risks and open decisions are H-410.
+
+Known gaps, for follow-up: the DoLS tile counts reminders, not authorisations (a location-level
+DoLS register endpoint is in another PR; when it merges the tile should use it); the location
+review tracker does not say when a nation has no review figures; alerts beyond the newest 100 are
+not read (an API count of unacknowledged alerts would close it).
 
 ## Audit and data protection
 

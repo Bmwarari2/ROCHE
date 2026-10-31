@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { SafetyChip } from "@/components/safety/SafetyChip";
 import { apartLine, countLine, type TileId, type TileSummary, tileChips } from "@/lib/dashboard";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 const ICONS: Record<TileId, LucideIcon> = {
@@ -38,7 +39,12 @@ export function SummaryTile({ tile }: { readonly tile: TileSummary }) {
   const apart = apartLine(tile, t);
   const details: string[] = [];
   if (apart) details.push(apart);
+  if (tile.id === "handover" && tile.state === "notKnown") {
+    details.push(t("dashboard.tile.handover.notKnown"));
+  }
   if (tile.current) details.push(t("dashboard.tile.handover.current", { state: tile.current }));
+  const earliest = formatDateTime(tile.earliestDue);
+  if (earliest) details.push(t("dashboard.tile.notifications.earliest", { dateTime: earliest }));
   if (tile.id === "dols" && tile.count !== null) details.push(t("dashboard.tile.dols.description"));
   return (
     <Tile
