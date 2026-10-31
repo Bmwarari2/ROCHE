@@ -17,7 +17,13 @@ export const LoneWorkerAlarmReason = z
   .enum(["overdue", "not_finished", "duress", "help"])
   .meta({ id: "LoneWorkerAlarmReason" });
 export const LoneWorkerAlarmState = z
-  .enum(["open", "acknowledged", "resolved_by_check_in", "resolved_late_check_in"])
+  .enum([
+    "open",
+    "acknowledged",
+    "resolved_by_check_in",
+    "resolved_late_check_in",
+    "resolved_by_finish",
+  ])
   .meta({ id: "LoneWorkerAlarmState" });
 export const LoneWorkerOutcome = z
   .enum(["safe_confirmed", "help_sent", "emergency_services_called", "other"])
@@ -48,11 +54,17 @@ export const LoneWorkerRoute = z
     problems: z.array(z.object({ code: z.string(), message: z.string() })),
     /** Whether the organisation attaches location evidence to events (off by default; H-527). */
     locationEvidence: z.boolean(),
+    /** The saved route's version, to send back with a change; null before one is saved. */
+    version: version.nullable(),
   })
   .meta({ id: "LoneWorkerRoute" });
 
 export const SetLoneWorkerRoute = z
-  .object({ steps: z.array(LoneWorkerRouteStep).min(1).max(6) })
+  .object({
+    steps: z.array(LoneWorkerRouteStep).min(1).max(6),
+    /** The version read; null to name the first route. A stale version is refused. */
+    version: version.nullable(),
+  })
   .meta({ id: "SetLoneWorkerRoute" });
 
 export const StartLoneWorkerSession = z
@@ -160,6 +172,8 @@ export const LoneWorkerAlarmItem = z
     id: uuid,
     sessionId: uuid,
     workerTenantUserId: uuid,
+    /** Who to contact: the worker's name as the organisation holds it (clinical review M5). */
+    workerName: z.string().nullable(),
     locationId: uuid,
     reason: LoneWorkerAlarmReason,
     reasonWords: z.string(),

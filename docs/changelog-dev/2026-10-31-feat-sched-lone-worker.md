@@ -23,3 +23,19 @@ Branch `feat/sched-lone-worker`, Phase 2 slice 46, migration 0113.
 
 - Web screens (slice 61) and the mobile app's one-tap check-in with an offline queue (slice 71).
 - The CSO rates HZ-125 and confirms the figures; the DPO confirms the DPIA (H-1030 to H-1033).
+
+## Review round 1 (clinical safety and security)
+
+- Lone-worker alarms now escalate in their own service. Every recipient is worked out with the
+  worker removed first and kept to people who can acknowledge the alarm, so a duress alarm never
+  reaches the worker and a step that names only the worker falls through at once.
+- A help or duress press never resolves an overdue alarm or shows as "checked in"; the board shows
+  duress first. A finish resolves an alarm in its own words.
+- One alarm per missed due time; "safe confirmed" restarts the interval; one open help or duress
+  alarm per session.
+- The worker is told the truth about who was reached; help is recorded even without the figures.
+- Each sweep item runs in its own savepoint; acknowledgements clear their notifications in the same
+  transaction.
+- The route may name only staff who can acknowledge alarms, needs the version read and is
+  protected in the database; monitors need MFA; the database checks where a worker may start, and
+  only the system removes a session or touches its reminders.

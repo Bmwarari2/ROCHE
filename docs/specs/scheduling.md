@@ -730,28 +730,44 @@ Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minut
    stay on (`nextCheckInDue`). Help and duress events count as signs of the worker; finish does
    not.
 4. **The order of escalation.** At the due time the worker is reminded. When the grace period
-   ends the alarm is raised: the worker is told to check in now, step 1 is told at once, and the
-   chain carries it to the later steps (the Registered Manager) by their minutes while nobody
-   acknowledges (`sessionStatus`, the notification escalation engine).
+   ends the alarm is raised: step 1 is told at once, and later steps (the Registered Manager) by
+   their minutes after the alarm was raised, while it is open. The lone-worker service escalates
+   its own alarms (not the general engine), so reading a notification never stops it.
+   **Recipients**: each step's person or role with the worker removed first, kept to holders of
+   `scheduling.lone_worker.monitor` where the alarm is; if that leaves nobody, the Registered
+   Manager, then the owner, on the same terms; a step that still reaches nobody is audited and
+   the next step is told at once. The route may name only staff roles carrying the monitor
+   permission and active members holding it; a session cannot start when nobody but the worker
+   could be told. The worker is then told the truth: "the on-call person has been told" only when
+   someone was, otherwise "If you are in danger, call 999".
 5. **Never silent.** An open alarm is sent again to everyone on the route every
    `lone_worker.realert_minutes` until a person acknowledges the alarm, even after the chain has
    run out (`realertDue`). Reading or acknowledging a notification does not close the alarm. A
    step that reaches nobody, even through the fallback to the Registered Manager and owner, is
    audited as unrouted; a route removed after sessions started falls back to the Registered
    Manager and owner, audited.
-6. **Acknowledging.** Only a monitor where the session is, never the worker, with an outcome
+6. **Acknowledging.** One alarm per missed due time, so acknowledging never raises it again;
+   "safe confirmed" counts as a contact that restarts the check-in interval (H-1032). Only a
+   monitor where the session is, never the worker, with an outcome
    (`safe_confirmed`, `help_sent`, `emergency_services_called`, `other`) and a note. Anything but
    safe confirmed suggests an incident report, which can be linked to the alarm. Acknowledging
    acknowledges every notification about the alarm and ends its escalation.
 7. **Help.** Raises an urgent alarm at once and tells the worker help has been asked for. It is
-   always accepted: after the session finished, or with a wrong clock (counted from receipt).
+   always accepted: after the session finished, with a wrong clock (counted from receipt), or when
+   the organisation's figures cannot be read. One open help (or duress) alarm per session: a
+   further press re-sends it, at most once a minute.
 8. **Duress.** Raises an urgent alarm at once and answers the worker exactly as a check-in: the
    same words, the same fields, shown and audited to the worker as a check-in, never notified to
    the worker and never readable by them. A later check-in never resolves it, because the worker
-   may be made to check in; only a monitor's acknowledgement does.
-9. **Resolution by a check-in.** An overdue or unfinished alarm is resolved by a check-in or the
-   finish, unless the worker is overdue again by now (`resolveOnCheckIn`). Everyone alerted is
-   told how it ended.
+   may be made to check in; only a monitor's acknowledgement does. It counts as a check-in on the
+   worker's own screen; a duress press a check-in would have been refused for is still recorded
+   and alarmed, but answers with the same refusal.
+9. **Resolution by a check-in.** An overdue or unfinished alarm is resolved by an ordinary
+   check-in or the finish (`resolved_by_finish`, "Session finished after the alarm"), unless the
+   worker is overdue again by now (`resolveOnCheckIn`); never by a help or duress press. Everyone
+   alerted is told how it ended. Monitors see an open duress or help alarm ahead of any check-in.
+10. **Never held up.** The sweep runs each session and alarm in its own savepoint: one that fails
+   is audited and the others go on.
 
 ### 14.4 The offline rule
 

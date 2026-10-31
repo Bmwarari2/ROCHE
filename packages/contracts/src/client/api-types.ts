@@ -29306,7 +29306,7 @@ export interface paths {
     };
     /**
      * Name the on-call route for lone-worker alarms (H-539)
-     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. A named person must be an active member. Saving a valid route switches lone-worker check-ins on. Audited.
+     * @description scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.
      */
     put: {
       parameters: {
@@ -29341,6 +29341,15 @@ export interface paths {
         };
         /** @description Not a member, missing permission, MFA not set up or step-up needed */
         403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
           headers: {
             [name: string]: unknown;
           };
@@ -38451,6 +38460,7 @@ export interface components {
         message: string;
       }[];
       locationEvidence: boolean;
+      version: number | null;
     };
     LoneWorkerRouteStep: {
       afterMinutes: number;
@@ -38461,6 +38471,7 @@ export interface components {
     };
     SetLoneWorkerRoute: {
       steps: components["schemas"]["LoneWorkerRouteStep"][];
+      version: number | null;
     };
     LoneWorkerMine: {
       session: components["schemas"]["LoneWorkerOwnSession"];
@@ -38574,6 +38585,7 @@ export interface components {
       sessionId: string;
       /** Format: uuid */
       workerTenantUserId: string;
+      workerName: string | null;
       /** Format: uuid */
       locationId: string;
       reason: components["schemas"]["LoneWorkerAlarmReason"];
@@ -38616,7 +38628,8 @@ export interface components {
       | "open"
       | "acknowledged"
       | "resolved_by_check_in"
-      | "resolved_late_check_in";
+      | "resolved_late_check_in"
+      | "resolved_by_finish";
     /** @enum {string|null} */
     LoneWorkerOutcome:
       | "safe_confirmed"

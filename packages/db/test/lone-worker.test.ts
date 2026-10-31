@@ -192,7 +192,7 @@ describe("who sees what", () => {
   });
 
   it("the redacted history keeps no worker or note", async () => {
-    await asCarer((c) =>
+    await asSweep((c) =>
       c.query("UPDATE lone_worker_session SET reminder_sent_for = now() WHERE id = $1", [
         NORTH_SESSION,
       ]),
@@ -211,6 +211,92 @@ describe("writing", () => {
     await expect(
       asNorth((c) => startSession(c, "0199f200-0000-7000-8000-0000000000a9", a.locationNorth)),
     ).rejects.toThrow(/row-level security/);
+  });
+
+  it("nobody starts a session where they do not hold the check-in permission", async () => {
+    // The carer's check-in role is at North House only; the manager has none at all.
+    await expect(
+      asCarer((c) =>
+        c.query(
+          `INSERT INTO lone_worker_session (location_id, work_kind, started_at, planned_end_at, interval_minutes)
+           VALUES ($1, 'night_shift', now(), now() + interval '1 hour', 30)`,
+          [a.locationSouth],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asManager((c) =>
+        c.query(
+          `INSERT INTO lone_worker_session (location_id, work_kind, started_at, planned_end_at, interval_minutes)
+           VALUES ($1, 'night_shift', now(), now() + interval '1 hour', 30)`,
+          [a.locationNorth],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("the worker can only finish: never remove a session or touch its reminders", async () => {
+    await expect(
+      asCarer((c) =>
+        c.query("UPDATE lone_worker_session SET deleted_at = now() WHERE id = $1", [NORTH_SESSION]),
+      ),
+    ).rejects.toThrow(/only the system/);
+    await expect(
+      asCarer((c) =>
+        c.query("UPDATE lone_worker_session SET reminder_sent_for = now() WHERE id = $1", [
+          NORTH_SESSION,
+        ]),
+      ),
+    ).rejects.toThrow(/only the system/);
+  });
+
+  it("an event never counts from after it arrived", async () => {
+    await expect(
+      asCarer((c) =>
+        c.query(
+          `INSERT INTO lone_worker_event (id, session_id, kind, device_at, effective_at, late)
+           VALUES (app.uuid_v7(), $1, 'check_in', now(), now() + interval '1 hour', false)`,
+          [NORTH_SESSION],
+        ),
+      ),
+    ).rejects.toThrow(/lone_worker_event_effective/);
+  });
+
+  it("only a holder of the manage permission writes the on-call route", async () => {
+    for (const as of [asCarer, asNorth]) {
+      await expect(
+        as((c) =>
+          c.query(
+            `INSERT INTO escalation_chain (key, name, steps)
+             VALUES ('scheduling.lone_worker.alarm', 'Route', '[]'::jsonb)`,
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    }
+  });
+
+  it("one open overdue alarm per missed due time, and one open help or duress alarm per kind", async () => {
+    await expect(
+      asSweep((c) =>
+        c.query(
+          `INSERT INTO lone_worker_alarm (session_id, location_id, worker_tenant_user_id, reason,
+             due_at, raised_at, last_alerted_at)
+           SELECT session_id, location_id, worker_tenant_user_id, 'overdue', due_at, now(), now()
+             FROM lone_worker_alarm WHERE id = $1`,
+          [OVERDUE_ALARM],
+        ),
+      ),
+    ).rejects.toThrow(/lone_worker_alarm_overdue_due_key/);
+    await expect(
+      asSweep((c) =>
+        c.query(
+          `INSERT INTO lone_worker_alarm (session_id, location_id, worker_tenant_user_id, reason,
+             trigger_event_id, raised_at, last_alerted_at)
+           VALUES ($1, $2, $3, 'duress', $4, now(), now())`,
+          [NORTH_SESSION, a.locationNorth, a.carer, OLD_EVENT],
+        ),
+      ),
+    ).rejects.toThrow(/lone_worker_alarm_open_worker_raised_key/);
   });
 
   it("one open session per worker", async () => {

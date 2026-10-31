@@ -41,7 +41,7 @@ import {
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
-import { sweepLoneWorkers } from "../services/lone-worker";
+import { LONE_WORKER_UNROUTED_ACTION, sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -367,6 +367,8 @@ export const UNROUTED_ACTIONS = [
   // An incident the duty of candour holds open, with no one who manages incidents there to tell
   // (#120 review round 4, M2).
   CANDOUR_BLOCKED_UNROUTED_ACTION,
+  // A lone-worker alarm step, or the whole route, that reached nobody but the worker (HZ-125).
+  LONE_WORKER_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */

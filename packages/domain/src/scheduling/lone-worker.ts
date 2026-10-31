@@ -35,6 +35,7 @@ export const LONE_WORKER_ALARM_STATES = [
   "acknowledged",
   "resolved_by_check_in",
   "resolved_late_check_in",
+  "resolved_by_finish",
 ] as const;
 export type LoneWorkerAlarmState = (typeof LONE_WORKER_ALARM_STATES)[number];
 
@@ -241,24 +242,29 @@ export type CheckInResolution =
   | { readonly kind: "stays_open"; readonly why: "raised_by_worker" | "still_overdue" }
   | {
       readonly kind: "resolved";
-      readonly state: "resolved_by_check_in" | "resolved_late_check_in";
+      readonly state: "resolved_by_check_in" | "resolved_late_check_in" | "resolved_by_finish";
     };
 
 /**
- * What a newly accepted check-in does to an open alarm. Only an overdue or not-finished alarm is
- * resolved by a check-in; a duress or help alarm needs a person to acknowledge it, because the
- * worker may be made to check in. A check-in made before the alarm was raised (it was stuck on an
- * offline device) resolves it as a late check-in, flagged; but only if the worker is not overdue
- * again by now, since being safe then is not being safe now (no false sense of safety; HZ-125).
+ * What a newly accepted check-in (or the finish) does to an open alarm. Only an overdue or
+ * not-finished alarm is resolved by one; a duress or help alarm needs a person to acknowledge it,
+ * because the worker may be made to check in. Only ordinary check-ins and the finish count here:
+ * a help or duress press never tells anyone the worker "checked in" (clinical review M1), so the
+ * caller works out `statusAfter` from check-ins alone. A check-in made before the alarm was raised
+ * (stuck on an offline device) resolves it as a late check-in, flagged; but only if the worker is
+ * not overdue again by now, since safe then is not safe now (no false sense of safety; HZ-125).
+ * A finish resolves it in its own words, so nobody reads it as a check-in (clinical review M8).
  */
 export function resolveOnCheckIn(
   alarm: { readonly reason: LoneWorkerAlarmReason; readonly raisedAt: Date },
   checkInEffectiveAt: Date,
   statusAfter: SessionStatus,
+  byFinish = false,
 ): CheckInResolution {
   if (alarm.reason === "duress" || alarm.reason === "help")
     return { kind: "stays_open", why: "raised_by_worker" };
   if (statusAfter.kind === "alarm") return { kind: "stays_open", why: "still_overdue" };
+  if (byFinish) return { kind: "resolved", state: "resolved_by_finish" };
   return {
     kind: "resolved",
     state:
@@ -352,6 +358,7 @@ export const ALARM_STATE_WORDS: Record<LoneWorkerAlarmState, string> = {
   acknowledged: "Acknowledged",
   resolved_by_check_in: "Checked in after the alarm",
   resolved_late_check_in: "Late check-in from an offline device",
+  resolved_by_finish: "Session finished after the alarm",
 };
 
 export const ALARM_REASON_WORDS: Record<LoneWorkerAlarmReason, string> = {

@@ -40,6 +40,7 @@ export const LONE_WORKER_ALARM_STATE_CODES = [
   "acknowledged",
   "resolved_by_check_in",
   "resolved_late_check_in",
+  "resolved_by_finish",
 ] as const;
 /** `LONE_WORKER_OUTCOMES` in packages/domain. */
 export const LONE_WORKER_OUTCOME_CODES = [
@@ -129,6 +130,7 @@ export const loneWorkerEvent = pgTable(
     }),
     index("lone_worker_event_session_idx").on(t.tenantId, t.sessionId, t.effectiveAt),
     check("lone_worker_event_kind", sql`kind IN (${sqlList(LONE_WORKER_EVENT_KIND_CODES)})`),
+    check("lone_worker_event_effective", sql`effective_at <= received_at`),
   ],
 );
 
@@ -152,6 +154,8 @@ export const loneWorkerAlarm = pgTable(
     triggerEventId: uuid("trigger_event_id"),
     lastAlertedAt: timestamp("last_alerted_at", { withTimezone: true }).notNull(),
     alertCount: integer("alert_count").notNull().default(1),
+    /** Route steps told so far (step 1 at once; later ones by their minutes after `raised_at`). */
+    escalationStep: integer("escalation_step").notNull().default(1),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     resolvedByEventId: uuid("resolved_by_event_id"),
     acknowledgedBy: uuid("acknowledged_by"),
@@ -191,10 +195,15 @@ export const loneWorkerAlarm = pgTable(
       columns: [t.tenantId, t.incidentId],
       foreignColumns: [incident.tenantId, incident.id],
     }),
-    // One open overdue or unfinished alarm per session; one alarm per help or duress event.
-    uniqueIndex("lone_worker_alarm_open_overdue_key")
-      .on(t.tenantId, t.sessionId)
-      .where(sql`state = 'open' AND reason IN ('overdue', 'not_finished')`),
+    // One alarm per missed due time, open or not, so acknowledging it never raises it again
+    // (clinical review M2); one open help or duress alarm per session and kind, so repeated
+    // presses do not flood the route (security review M4); one alarm per help or duress event.
+    uniqueIndex("lone_worker_alarm_overdue_due_key")
+      .on(t.tenantId, t.sessionId, t.dueAt)
+      .where(sql`reason IN ('overdue', 'not_finished')`),
+    uniqueIndex("lone_worker_alarm_open_worker_raised_key")
+      .on(t.tenantId, t.sessionId, t.reason)
+      .where(sql`state = 'open' AND reason IN ('duress', 'help')`),
     uniqueIndex("lone_worker_alarm_trigger_event_key")
       .on(t.tenantId, t.triggerEventId)
       .where(sql`trigger_event_id IS NOT NULL`),
@@ -221,13 +230,14 @@ export const loneWorkerAlarm = pgTable(
     ),
     check(
       "lone_worker_alarm_resolved",
-      sql`(state IN ('resolved_by_check_in', 'resolved_late_check_in'))
+      sql`(state IN ('resolved_by_check_in', 'resolved_late_check_in', 'resolved_by_finish'))
         = (resolved_at IS NOT NULL AND resolved_by_event_id IS NOT NULL)`,
     ),
     check(
       "lone_worker_alarm_worker_raised",
       sql`reason NOT IN ('duress', 'help') OR state IN ('open', 'acknowledged')`,
     ),
+    check("lone_worker_alarm_escalation_step", sql`escalation_step >= 1`),
     check("lone_worker_alarm_note_length", sql`note IS NULL OR char_length(note) <= 2000`),
     check("lone_worker_alarm_retention_class", sql`retention_class IN ('lone_worker')`),
   ],

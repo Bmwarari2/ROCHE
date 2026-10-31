@@ -11294,6 +11294,13 @@
           "notNull": true,
           "default": 1
         },
+        "escalation_step": {
+          "name": "escalation_step",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
         "resolved_at": {
           "name": "resolved_at",
           "type": "timestamp with time zone",
@@ -11386,8 +11393,8 @@
         }
       },
       "indexes": {
-        "lone_worker_alarm_open_overdue_key": {
-          "name": "lone_worker_alarm_open_overdue_key",
+        "lone_worker_alarm_overdue_due_key": {
+          "name": "lone_worker_alarm_overdue_due_key",
           "columns": [
             {
               "expression": "tenant_id",
@@ -11400,10 +11407,44 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "due_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "state = 'open' AND reason IN ('overdue', 'not_finished')",
+          "where": "reason IN ('overdue', 'not_finished')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "lone_worker_alarm_open_worker_raised_key": {
+          "name": "lone_worker_alarm_open_worker_raised_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reason",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "state = 'open' AND reason IN ('duress', 'help')",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -11584,7 +11625,7 @@
         },
         "lone_worker_alarm_state": {
           "name": "lone_worker_alarm_state",
-          "value": "state IN ('open', 'acknowledged', 'resolved_by_check_in', 'resolved_late_check_in')"
+          "value": "state IN ('open', 'acknowledged', 'resolved_by_check_in', 'resolved_late_check_in', 'resolved_by_finish')"
         },
         "lone_worker_alarm_outcome": {
           "name": "lone_worker_alarm_outcome",
@@ -11604,11 +11645,15 @@
         },
         "lone_worker_alarm_resolved": {
           "name": "lone_worker_alarm_resolved",
-          "value": "(state IN ('resolved_by_check_in', 'resolved_late_check_in'))\n        = (resolved_at IS NOT NULL AND resolved_by_event_id IS NOT NULL)"
+          "value": "(state IN ('resolved_by_check_in', 'resolved_late_check_in', 'resolved_by_finish'))\n        = (resolved_at IS NOT NULL AND resolved_by_event_id IS NOT NULL)"
         },
         "lone_worker_alarm_worker_raised": {
           "name": "lone_worker_alarm_worker_raised",
           "value": "reason NOT IN ('duress', 'help') OR state IN ('open', 'acknowledged')"
+        },
+        "lone_worker_alarm_escalation_step": {
+          "name": "lone_worker_alarm_escalation_step",
+          "value": "escalation_step >= 1"
         },
         "lone_worker_alarm_note_length": {
           "name": "lone_worker_alarm_note_length",
@@ -11745,6 +11790,10 @@
         "lone_worker_event_kind": {
           "name": "lone_worker_event_kind",
           "value": "kind IN ('check_in', 'duress', 'help', 'finish')"
+        },
+        "lone_worker_event_effective": {
+          "name": "lone_worker_event_effective",
+          "value": "effective_at <= received_at"
         }
       },
       "isRLSEnabled": false

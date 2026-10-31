@@ -31939,13 +31939,21 @@
           },
           "locationEvidence": {
             "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
           }
         },
         "required": [
           "on",
           "steps",
           "problems",
-          "locationEvidence"
+          "locationEvidence",
+          "version"
         ]
       },
       "LoneWorkerRouteStep": {
@@ -31995,10 +32003,18 @@
             },
             "minItems": 1,
             "maxItems": 6
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
           }
         },
         "required": [
-          "steps"
+          "steps",
+          "version"
         ]
       },
       "LoneWorkerMine": {
@@ -32398,6 +32414,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "workerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "locationId": {
             "type": "string",
             "format": "uuid"
@@ -32524,6 +32546,7 @@
           "id",
           "sessionId",
           "workerTenantUserId",
+          "workerName",
           "locationId",
           "reason",
           "reasonWords",
@@ -32560,7 +32583,8 @@
           "open",
           "acknowledged",
           "resolved_by_check_in",
-          "resolved_late_check_in"
+          "resolved_late_check_in",
+          "resolved_by_finish"
         ]
       },
       "LoneWorkerOutcome": {
@@ -66265,7 +66289,7 @@
           "scheduling"
         ],
         "summary": "Name the on-call route for lone-worker alarms (H-539)",
-        "description": "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. A named person must be an active member. Saving a valid route switches lone-worker check-ins on. Audited.",
+        "description": "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -66306,6 +66330,16 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

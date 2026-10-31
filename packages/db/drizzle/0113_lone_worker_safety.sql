@@ -11,6 +11,7 @@ CREATE TABLE "lone_worker_alarm" (
 	"trigger_event_id" uuid,
 	"last_alerted_at" timestamp with time zone NOT NULL,
 	"alert_count" integer DEFAULT 1 NOT NULL,
+	"escalation_step" integer DEFAULT 1 NOT NULL,
 	"resolved_at" timestamp with time zone,
 	"resolved_by_event_id" uuid,
 	"acknowledged_by" uuid,
@@ -27,16 +28,17 @@ CREATE TABLE "lone_worker_alarm" (
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "lone_worker_alarm_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "lone_worker_alarm_reason" CHECK (reason IN ('overdue', 'not_finished', 'duress', 'help')),
-	CONSTRAINT "lone_worker_alarm_state" CHECK (state IN ('open', 'acknowledged', 'resolved_by_check_in', 'resolved_late_check_in')),
+	CONSTRAINT "lone_worker_alarm_state" CHECK (state IN ('open', 'acknowledged', 'resolved_by_check_in', 'resolved_late_check_in', 'resolved_by_finish')),
 	CONSTRAINT "lone_worker_alarm_outcome" CHECK (outcome IS NULL OR outcome IN ('safe_confirmed', 'help_sent', 'emergency_services_called', 'other')),
 	CONSTRAINT "lone_worker_alarm_trigger" CHECK ((reason IN ('duress', 'help')) = (trigger_event_id IS NOT NULL)
         AND (reason IN ('overdue', 'not_finished')) = (due_at IS NOT NULL)),
 	CONSTRAINT "lone_worker_alarm_acknowledged" CHECK ((state = 'acknowledged') = (acknowledged_at IS NOT NULL AND acknowledged_by IS NOT NULL
         AND outcome IS NOT NULL AND note IS NOT NULL AND btrim(note) <> '')),
 	CONSTRAINT "lone_worker_alarm_not_self" CHECK (acknowledged_by IS NULL OR acknowledged_by <> worker_tenant_user_id),
-	CONSTRAINT "lone_worker_alarm_resolved" CHECK ((state IN ('resolved_by_check_in', 'resolved_late_check_in'))
+	CONSTRAINT "lone_worker_alarm_resolved" CHECK ((state IN ('resolved_by_check_in', 'resolved_late_check_in', 'resolved_by_finish'))
         = (resolved_at IS NOT NULL AND resolved_by_event_id IS NOT NULL)),
 	CONSTRAINT "lone_worker_alarm_worker_raised" CHECK (reason NOT IN ('duress', 'help') OR state IN ('open', 'acknowledged')),
+	CONSTRAINT "lone_worker_alarm_escalation_step" CHECK (escalation_step >= 1),
 	CONSTRAINT "lone_worker_alarm_note_length" CHECK (note IS NULL OR char_length(note) <= 2000),
 	CONSTRAINT "lone_worker_alarm_retention_class" CHECK (retention_class IN ('lone_worker'))
 );--> statement-breakpoint
@@ -51,7 +53,8 @@ CREATE TABLE "lone_worker_event" (
 	"late" boolean NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	CONSTRAINT "lone_worker_event_tenant_id_id_key" UNIQUE("tenant_id","id"),
-	CONSTRAINT "lone_worker_event_kind" CHECK (kind IN ('check_in', 'duress', 'help', 'finish'))
+	CONSTRAINT "lone_worker_event_kind" CHECK (kind IN ('check_in', 'duress', 'help', 'finish')),
+	CONSTRAINT "lone_worker_event_effective" CHECK (effective_at <= received_at)
 );--> statement-breakpoint
 CREATE TABLE "lone_worker_location" (
 	"id" uuid PRIMARY KEY DEFAULT app.uuid_v7() NOT NULL,
@@ -107,7 +110,8 @@ ALTER TABLE "lone_worker_location" ADD CONSTRAINT "lone_worker_location_event_fk
 ALTER TABLE "lone_worker_location" ADD CONSTRAINT "lone_worker_location_session_fk" FOREIGN KEY ("tenant_id","session_id") REFERENCES "public"."lone_worker_session"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lone_worker_session" ADD CONSTRAINT "lone_worker_session_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lone_worker_session" ADD CONSTRAINT "lone_worker_session_worker_fk" FOREIGN KEY ("tenant_id","worker_tenant_user_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "lone_worker_alarm_open_overdue_key" ON "lone_worker_alarm" USING btree ("tenant_id","session_id") WHERE state = 'open' AND reason IN ('overdue', 'not_finished');--> statement-breakpoint
+CREATE UNIQUE INDEX "lone_worker_alarm_overdue_due_key" ON "lone_worker_alarm" USING btree ("tenant_id","session_id","due_at") WHERE reason IN ('overdue', 'not_finished');--> statement-breakpoint
+CREATE UNIQUE INDEX "lone_worker_alarm_open_worker_raised_key" ON "lone_worker_alarm" USING btree ("tenant_id","session_id","reason") WHERE state = 'open' AND reason IN ('duress', 'help');--> statement-breakpoint
 CREATE UNIQUE INDEX "lone_worker_alarm_trigger_event_key" ON "lone_worker_alarm" USING btree ("tenant_id","trigger_event_id") WHERE trigger_event_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "lone_worker_alarm_open_idx" ON "lone_worker_alarm" USING btree ("tenant_id","state","last_alerted_at");--> statement-breakpoint
 CREATE INDEX "lone_worker_event_session_idx" ON "lone_worker_event" USING btree ("tenant_id","session_id","effective_at");--> statement-breakpoint
@@ -157,6 +161,38 @@ $$;
 REVOKE ALL ON FUNCTION app.lone_worker_session_worker(uuid) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.lone_worker_session_worker(uuid) TO harbour_app;--> statement-breakpoint
 
+-- Whether the caller holds scheduling.lone_worker.check_in at a location, by any role scope
+-- (care workers' roles are scoped to assigned people, which holds_permission_at does not count)
+-- or a grant there; the database's own check of where a worker may start (security review L2).
+-- Invoker rights: the caller's own role assignments and grants.
+CREATE OR REPLACE FUNCTION app.lone_worker_works_at(p_location_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
+  SELECT app.current_user_id() IS NOT NULL AND (
+    EXISTS (
+      SELECT 1
+      FROM public.role_assignment ra
+      JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+      WHERE ra.tenant_id = app.current_tenant_id()
+        AND ra.tenant_user_id = app.current_user_id()
+        AND ra.deleted_at IS NULL AND r.archived_at IS NULL
+        AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())
+        AND 'scheduling.lone_worker.check_in' = ANY (r.permissions)
+        AND (ra.location_id = p_location_id
+          OR (ra.location_id IS NULL AND (r.scope_kind = 'tenant' OR ra.organisation_wide))))
+    OR EXISTS (
+      SELECT 1
+      FROM public.access_grant g
+      WHERE g.tenant_id = app.current_tenant_id()
+        AND g.tenant_user_id = app.current_user_id()
+        AND g.deleted_at IS NULL AND g.revoked_at IS NULL
+        AND g.valid_from <= now() AND g.valid_to > now()
+        AND 'scheduling.lone_worker.check_in' = ANY (g.permissions)
+        AND (g.location_id = p_location_id OR (g.location_id IS NULL AND g.organisation_wide))))
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.lone_worker_works_at(uuid) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.lone_worker_works_at(uuid) TO harbour_app;--> statement-breakpoint
+
 -- Sessions: the worker's own, or a monitor's where they hold the permission. Only the worker
 -- starts their own session; the worker finishes it, the sweep records reminders.
 CREATE POLICY lone_worker_session_read ON public.lone_worker_session AS RESTRICTIVE FOR SELECT
@@ -165,7 +201,8 @@ CREATE POLICY lone_worker_session_read ON public.lone_worker_session AS RESTRICT
     OR app.lone_worker_monitor_at(location_id));--> statement-breakpoint
 CREATE POLICY lone_worker_session_insert ON public.lone_worker_session AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner
-  WITH CHECK (worker_tenant_user_id = app.current_user_id());--> statement-breakpoint
+  WITH CHECK (worker_tenant_user_id = app.current_user_id()
+    AND app.lone_worker_works_at(location_id));--> statement-breakpoint
 CREATE POLICY lone_worker_session_update ON public.lone_worker_session AS RESTRICTIVE FOR UPDATE
   TO harbour_app, harbour_owner
   USING (app.is_system() OR worker_tenant_user_id = app.current_user_id())
@@ -185,6 +222,13 @@ BEGIN
   IF OLD.finished_at IS NOT NULL AND NEW.finished_at IS DISTINCT FROM OLD.finished_at THEN
     RAISE EXCEPTION 'a finished lone-working session stays finished'
       USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  -- The worker may only finish; nobody but the system removes a session or touches its
+  -- reminders, so no session's alarms can be silenced from the application (security review L1).
+  IF NOT app.is_system() AND (NEW.deleted_at IS DISTINCT FROM OLD.deleted_at
+     OR NEW.reminder_sent_for IS DISTINCT FROM OLD.reminder_sent_for) THEN
+    RAISE EXCEPTION 'only the system changes a lone-working session''s reminders or removes it'
+      USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN NEW;
 END $$;
@@ -300,6 +344,19 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.lone_worker_alarm
   FOR EACH ROW EXECUTE FUNCTION app.capture_version_redacted('id', 'tenant_id', 'session_id',
     'location_id', 'state', 'raised_at', 'resolved_at', 'acknowledged_at', 'retention_class',
     'created_at', 'updated_at', 'version', 'deleted_at');--> statement-breakpoint
+
+-- The on-call route is written only by holders of scheduling.lone_worker.manage (or the system):
+-- the database's own check beside the API's (security review L3). Other chains are untouched.
+CREATE POLICY lone_worker_route_insert ON public.escalation_chain AS RESTRICTIVE FOR INSERT
+  TO harbour_app, harbour_owner
+  WITH CHECK (key <> 'scheduling.lone_worker.alarm' OR app.is_system()
+    OR app.holds_permission_anywhere('scheduling.lone_worker.manage'));--> statement-breakpoint
+CREATE POLICY lone_worker_route_update ON public.escalation_chain AS RESTRICTIVE FOR UPDATE
+  TO harbour_app, harbour_owner
+  USING (key <> 'scheduling.lone_worker.alarm' OR app.is_system()
+    OR app.holds_permission_anywhere('scheduling.lone_worker.manage'))
+  WITH CHECK (key <> 'scheduling.lone_worker.alarm' OR app.is_system()
+    OR app.holds_permission_anywhere('scheduling.lone_worker.manage'));--> statement-breakpoint
 
 GRANT SELECT, INSERT, UPDATE ON public.lone_worker_session, public.lone_worker_alarm TO harbour_app;--> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.lone_worker_session, public.lone_worker_alarm FROM harbour_app;--> statement-breakpoint

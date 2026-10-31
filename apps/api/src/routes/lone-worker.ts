@@ -23,6 +23,7 @@ import {
   loneWorkerLocation,
   loneWorkerSession,
   type Transaction,
+  tenantUser,
   withRequestContext,
 } from "@harbour/db";
 import {
@@ -63,14 +64,17 @@ import { HttpProblem, problems } from "../http/problem";
 import { accessRowsOfMember } from "../services/access-rows";
 import {
   acknowledgeAlarmNotifications,
-  checkInTimes,
+  type LoneWorkerFigures,
   loneWorkerFigures,
   loneWorkerRoute,
   raiseWorkerAlarm,
   resolveAfterCheckIn,
+  routeReachesSomeone,
+  routeTargetProblems,
+  signsOfWorker,
   statusOf,
 } from "../services/lone-worker";
-import { toldOf } from "../services/role-holders";
+import { withTenantWideScope } from "../services/safety";
 import {
   conflictResponse,
   createRouter,
@@ -143,7 +147,15 @@ async function change<T>(
     });
     if (code === "42501") throw problems.forbidden();
     if (code === "23505") {
-      throw stateConflict("You already have a lone-working session open. Finish it first.");
+      const constraint =
+        (error as { constraint?: string }).constraint ??
+        (error as { cause?: { constraint?: string } }).cause?.constraint ??
+        "";
+      throw stateConflict(
+        constraint.includes("lone_worker_session")
+          ? "You already have a lone-working session open. Finish it first."
+          : "Someone else changed this at the same time. Reload it and try again.",
+      );
     }
     if (code === "23503")
       throw problems.invalid("A location, member or incident named was not found.");
@@ -220,6 +232,17 @@ async function locationFlagOn(
   return flags[LOCATION_FLAG] === true;
 }
 
+/** The status a monitor reads: an open help or duress alarm first, never "checked in" (M1). */
+function boardStatus(
+  status: SessionStatus,
+  openReasons: readonly string[],
+): { status: SessionStatus["kind"]; words: string } {
+  for (const reason of ["duress", "help", "overdue", "not_finished"] as const) {
+    if (openReasons.includes(reason)) return { status: "alarm", words: ALARM_REASON_WORDS[reason] };
+  }
+  return { status: status.kind, words: statusWords(status) };
+}
+
 function statusWords(status: SessionStatus): string {
   switch (status.kind) {
     case "ok":
@@ -247,20 +270,34 @@ async function alarmItem(
     .from(loneWorkerEvent)
     .where(eq(loneWorkerEvent.sessionId, row.sessionId))
     .orderBy(desc(loneWorkerEvent.effectiveAt));
-  const last = events.find((e) => e.kind !== "finish");
-  const [point] = await tx
-    .select({ p: loneWorkerLocation, at: loneWorkerEvent.effectiveAt })
-    .from(loneWorkerLocation)
-    .innerJoin(loneWorkerEvent, eq(loneWorkerEvent.id, loneWorkerLocation.eventId))
-    .where(
-      and(eq(loneWorkerLocation.sessionId, row.sessionId), isNull(loneWorkerLocation.clearedAt)),
-    )
-    .orderBy(desc(loneWorkerEvent.effectiveAt))
-    .limit(1);
+  // An ordinary check-in only: a help or duress press is never shown as one (clinical review M1).
+  const last = events.find((e) => e.kind === "check_in");
+  const [worker] = await tx
+    .select({ name: tenantUser.displayName })
+    .from(tenantUser)
+    .where(eq(tenantUser.id, row.workerTenantUserId));
+  // Location only while the alarm is open (security review L7): evidence for finding the
+  // worker, not a record of where staff were.
+  const [point] =
+    row.state !== "open"
+      ? []
+      : await tx
+          .select({ p: loneWorkerLocation, at: loneWorkerEvent.effectiveAt })
+          .from(loneWorkerLocation)
+          .innerJoin(loneWorkerEvent, eq(loneWorkerEvent.id, loneWorkerLocation.eventId))
+          .where(
+            and(
+              eq(loneWorkerLocation.sessionId, row.sessionId),
+              isNull(loneWorkerLocation.clearedAt),
+            ),
+          )
+          .orderBy(desc(loneWorkerEvent.effectiveAt))
+          .limit(1);
   return {
     id: row.id,
     sessionId: row.sessionId,
     workerTenantUserId: row.workerTenantUserId,
+    workerName: worker?.name ?? null,
     locationId: row.locationId,
     reason: row.reason as LoneWorkerAlarmReason,
     reasonWords: ALARM_REASON_WORDS[row.reason as LoneWorkerAlarmReason],
@@ -335,6 +372,7 @@ export const loneWorkerRouter = createRouter()
               ? [{ code: "not_named", message: "No on-call route has been named yet." }]
               : body.found.map((code) => ({ code, message: ROUTE_PROBLEM_MESSAGES[code] })),
           locationEvidence: flags[LOCATION_FLAG] === true,
+          version: body.route.version,
         },
         200,
       );
@@ -347,10 +385,14 @@ export const loneWorkerRouter = createRouter()
       tags: ["scheduling"],
       summary: "Name the on-call route for lone-worker alarms (H-539)",
       description:
-        "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. A named person must be an active member. Saving a valid route switches lone-worker check-ins on. Audited.",
+        "scheduling.lone_worker.manage. Step 1 is the on-call person or role, told the moment an alarm is raised; a later step is the Registered Manager; every step reaches people outside the app. Every role on it is a staff role that can see and acknowledge lone-worker alarms, and every named person an active member who can. The version read must be sent back (null for the first route). Saving a valid route switches lone-worker check-ins on. Audited.",
       security,
       request: { body: { content: { "application/json": { schema: SetLoneWorkerRoute } } } },
-      responses: { 200: jsonBody(LoneWorkerRoute, "Saved"), ...errorResponses },
+      responses: {
+        200: jsonBody(LoneWorkerRoute, "Saved"),
+        ...errorResponses,
+        ...conflictResponse,
+      },
     }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
@@ -369,22 +411,25 @@ export const loneWorkerRouter = createRouter()
           [...found.map((p) => ROUTE_PROBLEM_MESSAGES[p]), ...chainProblems].join(" "),
         );
       }
-      await change(
+      // Who the route names is checked as the system: a manager may not read every member's roles.
+      const targetProblems = await asSystem(c, access, (tx) =>
+        routeTargetProblems(tx, steps, new Date()),
+      );
+      if (targetProblems.length > 0) {
+        await writeAudit(c.get("services").appPool, access, {
+          action: A.routeSet,
+          outcome: "denied",
+          resourceType: "escalation_chain",
+          reason: "target_not_allowed",
+          requestId: c.get("requestId"),
+        });
+        throw problems.invalid(targetProblems.join(" "));
+      }
+      const saved = await change(
         c,
         access,
         { action: A.routeSet, resourceType: "escalation_chain", id: null },
         async (tx) => {
-          const named = steps.flatMap((s) => (s.targetTenantUserId ? [s.targetTenantUserId] : []));
-          const active = await toldOf(tx, named);
-          if (named.some((id) => !active.has(id))) {
-            throw refused(
-              problems.invalid("A person named in the route is not an active member of staff."),
-              A.routeSet,
-              "escalation_chain",
-              null,
-              "inactive_member",
-            );
-          }
           const [existing] = await tx
             .select()
             .from(escalationChain)
@@ -395,13 +440,48 @@ export const loneWorkerRouter = createRouter()
               ),
             );
           let id: string;
+          let savedVersion: number;
           if (existing) {
-            await tx
+            if (body.version !== existing.version) {
+              throw refused(
+                problems.conflict(),
+                A.routeSet,
+                "escalation_chain",
+                existing.id,
+                "version_conflict",
+              );
+            }
+            const [updated] = await tx
               .update(escalationChain)
               .set({ steps })
-              .where(eq(escalationChain.id, existing.id));
+              .where(
+                and(
+                  eq(escalationChain.id, existing.id),
+                  eq(escalationChain.version, existing.version),
+                ),
+              )
+              .returning({ version: escalationChain.version });
+            if (!updated) {
+              throw refused(
+                problems.conflict(),
+                A.routeSet,
+                "escalation_chain",
+                existing.id,
+                "version_conflict",
+              );
+            }
             id = existing.id;
+            savedVersion = updated.version;
           } else {
+            if (body.version !== null) {
+              throw refused(
+                problems.conflict(),
+                A.routeSet,
+                "escalation_chain",
+                null,
+                "version_conflict",
+              );
+            }
             const [made] = await tx
               .insert(escalationChain)
               .values({
@@ -409,9 +489,10 @@ export const loneWorkerRouter = createRouter()
                 name: "Lone-worker alarm on-call route",
                 steps,
               })
-              .returning({ id: escalationChain.id });
+              .returning({ id: escalationChain.id, version: escalationChain.version });
             if (!made) throw new Error("route not stored");
             id = made.id;
+            savedVersion = made.version;
           }
           await audit(c, tx, access, {
             action: A.routeSet,
@@ -419,14 +500,29 @@ export const loneWorkerRouter = createRouter()
             resourceId: id,
             scopeExtra: { steps: steps.length },
           });
+          const overrides = await tx
+            .select({
+              flagKey: featureFlag.flagKey,
+              locationId: featureFlag.locationId,
+              enabled: featureFlag.enabled,
+            })
+            .from(featureFlag)
+            .where(isNull(featureFlag.deletedAt));
+          return { version: savedVersion, overrides };
         },
       );
+      const flags = await c.get("services").flags.evaluateAll({
+        tenantId: access.tenantId,
+        locationId: null,
+        overrides: saved.overrides,
+      });
       return c.json(
         {
           on: true,
           steps: steps.map((s) => ({ ...s, channels: [...s.channels] })),
           problems: [],
-          locationEvidence: false,
+          locationEvidence: flags[LOCATION_FLAG] === true,
+          version: saved.version,
         },
         200,
       );
@@ -453,11 +549,18 @@ export const loneWorkerRouter = createRouter()
       const access = await requirePermission(c, CHECK_IN);
       const body = c.req.valid("json");
       const now = new Date();
-      const { on, figures, works } = await asSystem(c, access, async (tx) => ({
-        on: (await loneWorkerRoute(tx)).on,
-        figures: await loneWorkerFigures(tx, access.tenantId),
-        works: worksAt(await accessRowsOfMember(tx, access.tenantUserId), body.locationId, now),
-      }));
+      const { on, figures, works, reaches } = await asSystem(c, access, async (tx) => {
+        const route = await loneWorkerRoute(tx);
+        return {
+          on: route.on,
+          figures: await loneWorkerFigures(tx, access.tenantId),
+          works: worksAt(await accessRowsOfMember(tx, access.tenantUserId), body.locationId, now),
+          // Somebody but the worker must be reachable (clinical review H2).
+          reaches:
+            route.on &&
+            (await routeReachesSomeone(tx, route.steps, access.tenantUserId, body.locationId, now)),
+        };
+      });
       const deny = async (problem: HttpProblem, reason: string) => {
         await writeAudit(c.get("services").appPool, access, {
           action: A.started,
@@ -474,6 +577,14 @@ export const loneWorkerRouter = createRouter()
         throw await deny(
           problems.invalid("You can only start a session at a location where you work."),
           "not_your_location",
+        );
+      }
+      if (!reaches) {
+        throw await deny(
+          problems.invalid(
+            "Nobody but you could be told if you needed help here. Ask your Registered Manager to check the on-call route.",
+          ),
+          "route_reaches_nobody",
         );
       }
       const input = {
@@ -584,7 +695,15 @@ export const loneWorkerRouter = createRouter()
       const { id: sessionId } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const figures = await asSystem(c, access, (tx) => loneWorkerFigures(tx, access.tenantId));
+      // A call for help never fails for want of a figure (clinical review M4): without the figures
+      // a help or duress press is still recorded, from its receipt.
+      let figures: LoneWorkerFigures | null = null;
+      try {
+        figures = await asSystem(c, access, (tx) => loneWorkerFigures(tx, access.tenantId));
+      } catch (error) {
+        if (body.kind !== "help" && body.kind !== "duress") throw error;
+        c.get("services").logger.error({ sessionId }, "lone-worker figures missing; help recorded");
+      }
       const outcome = await change(
         c,
         access,
@@ -615,32 +734,51 @@ export const loneWorkerRouter = createRouter()
           if (existing) {
             if (existing.sessionId !== sessionId)
               throw problems.invalid("That event id is already used.");
-            return { session, event: existing, created: false };
+            return { session, event: existing, created: false, refusal: null };
           }
-          const accepted = acceptEvent(
-            { kind: body.kind, deviceAt: new Date(body.deviceAt), receivedAt: now },
-            session,
-            figures,
-          );
-          if (!accepted.accepted) {
+          const deviceAt = new Date(body.deviceAt);
+          // Judged as a check-in first: a duress press a check-in would have been refused for is
+          // still recorded and alarmed, but answers with the same refusal (security review L4).
+          const asCheckIn = figures
+            ? acceptEvent(
+                {
+                  kind: body.kind === "duress" ? "check_in" : body.kind,
+                  deviceAt,
+                  receivedAt: now,
+                },
+                session,
+                figures,
+              )
+            : null;
+          if (asCheckIn && !asCheckIn.accepted && body.kind !== "duress" && body.kind !== "help") {
             throw refused(
-              problems.invalid(EVENT_REFUSAL_MESSAGES[accepted.refusal]),
+              problems.invalid(EVENT_REFUSAL_MESSAGES[asCheckIn.refusal]),
               A.event,
               "lone_worker_session",
               sessionId,
-              accepted.refusal,
+              asCheckIn.refusal,
             );
           }
+          const accepted =
+            figures && (body.kind === "help" || body.kind === "duress")
+              ? acceptEvent({ kind: body.kind, deviceAt, receivedAt: now }, session, figures)
+              : asCheckIn?.accepted
+                ? asCheckIn
+                : null;
+          const effectiveAt = accepted?.accepted ? accepted.effectiveAt : now;
+          const late = accepted?.accepted ? accepted.late : false;
+          const refusal =
+            body.kind === "duress" && asCheckIn && !asCheckIn.accepted ? asCheckIn.refusal : null;
           const [event] = await tx
             .insert(loneWorkerEvent)
             .values({
               id: body.id,
               sessionId,
               kind: body.kind,
-              deviceAt: new Date(body.deviceAt),
+              deviceAt,
               receivedAt: now,
-              effectiveAt: accepted.effectiveAt,
-              late: accepted.late,
+              effectiveAt,
+              late,
             })
             .returning();
           if (!event) throw new Error("event not stored");
@@ -648,12 +786,16 @@ export const loneWorkerRouter = createRouter()
           if (body.kind === "finish" && !session.finishedAt) {
             const [finished] = await tx
               .update(loneWorkerSession)
-              .set({ finishedAt: accepted.effectiveAt })
+              .set({ finishedAt: effectiveAt })
               .where(eq(loneWorkerSession.id, sessionId))
               .returning();
             if (finished) current = finished;
           }
-          if (body.location && (await locationFlagOn(c, tx, access.tenantId, session.locationId))) {
+          if (
+            figures &&
+            body.location &&
+            (await locationFlagOn(c, tx, access.tenantId, session.locationId))
+          ) {
             await tx.insert(loneWorkerLocation).values({
               eventId: event.id,
               sessionId,
@@ -671,20 +813,27 @@ export const loneWorkerRouter = createRouter()
             scopeExtra: {
               eventId: event.id,
               kind: kindShownToWorker(body.kind),
-              late: accepted.late,
+              late,
             },
+            ...(refusal ? { outcome: "denied" as const, reason: refusal } : {}),
           });
-          return { session: current, event, created: true };
+          return { session: current, event, created: true, refusal };
         },
       );
       // The alarm side, as the system, straight away; the sweep repairs it if this fails.
+      let told: number | null = null;
       if (outcome.created) {
         try {
           await asSystem(c, access, async (tx) => {
             const kind = outcome.event.kind as LoneWorkerEventKind;
             if (kind === "help" || kind === "duress") {
-              await raiseWorkerAlarm(tx, outcome.session, { id: outcome.event.id, kind }, now);
-            } else {
+              told = await raiseWorkerAlarm(
+                tx,
+                outcome.session,
+                { id: outcome.event.id, kind },
+                now,
+              );
+            } else if (figures) {
               await resolveAfterCheckIn(tx, outcome.session, figures, now);
             }
           });
@@ -695,11 +844,15 @@ export const loneWorkerRouter = createRouter()
           );
         }
       }
-      const times = await withTenant(c, (tx) => checkInTimes(tx, sessionId));
+      if (outcome.refusal) throw problems.invalid(EVENT_REFUSAL_MESSAGES[outcome.refusal]);
+      const times = await withTenant(c, (tx) => signsOfWorker(tx, sessionId));
       const kind = kindShownToWorker(outcome.event.kind as LoneWorkerEventKind);
+      // Only say someone was told when someone was (clinical review M3).
       const message =
         kind === "help"
-          ? "Help has been asked for. The on-call person has been told."
+          ? (told ?? 0) > 0
+            ? "Help has been asked for. The on-call person has been told."
+            : "Help has been asked for. If you are in danger, call 999."
           : kind === "finish"
             ? "Your session has finished."
             : "Thank you. You are checked in.";
@@ -762,12 +915,14 @@ export const loneWorkerRouter = createRouter()
             .from(loneWorkerEvent)
             .where(eq(loneWorkerEvent.sessionId, s.id))
             .orderBy(desc(loneWorkerEvent.effectiveAt));
-          const checkIns = events.filter((e) => e.kind !== "finish");
-          const status = statusOf(
-            s,
-            checkIns.map((e) => e.effectiveAt),
-            figures,
-            now,
+          // When the next check-in is due counts every sign of the worker (as the worker sees it);
+          // what is shown as the last check-in is an ordinary one only (clinical review M1).
+          const signs = await signsOfWorker(tx, s.id);
+          const checkIns = events.filter((e) => e.kind === "check_in");
+          const status = statusOf(s, signs, figures, now);
+          const shown = boardStatus(
+            status,
+            alarms.filter((a) => a.sessionId === s.id).map((a) => a.reason),
           );
           out.push({
             sessionId: s.id,
@@ -777,14 +932,9 @@ export const loneWorkerRouter = createRouter()
             startedAt: s.startedAt.toISOString(),
             plannedEndAt: s.plannedEndAt.toISOString(),
             intervalMinutes: s.intervalMinutes,
-            status: status.kind,
-            statusWords: statusWords(status),
-            nextDueAt: iso(
-              dueOf(
-                s,
-                checkIns.map((e) => e.effectiveAt),
-              ),
-            ),
+            status: shown.status,
+            statusWords: shown.words,
+            nextDueAt: iso(dueOf(s, signs)),
             lastCheckInAt: iso(checkIns[0]?.effectiveAt),
             lastCheckInLate: checkIns[0]?.late ?? false,
             openAlarmIds: alarms.filter((a) => a.sessionId === s.id).map((a) => a.id),
@@ -793,7 +943,8 @@ export const loneWorkerRouter = createRouter()
         await audit(c, tx, access, {
           action: A.board,
           resourceType: "lone_worker_session",
-          scopeExtra: { sessions: out.length },
+          // Which sessions were shown, for accountability (security review L6).
+          scopeExtra: { sessions: out.length, sessionIds: out.map((i) => i.sessionId) },
         });
         return out;
       });
@@ -831,7 +982,7 @@ export const loneWorkerRouter = createRouter()
         await audit(c, tx, access, {
           action: A.viewed,
           resourceType: "lone_worker_alarm",
-          scopeExtra: { alarms: out.length },
+          scopeExtra: { alarms: out.length, alarmIds: out.map((i) => i.id) },
         });
         return out;
       });
@@ -950,13 +1101,15 @@ export const loneWorkerRouter = createRouter()
               incidentLinked: body.incidentId !== undefined && body.incidentId !== null,
             },
           });
+          // Its notifications in the same transaction, so an acknowledged alarm is never sent on
+          // (clinical review M7); the table's recipient rule is lifted for this write only.
+          await withTenantWideScope(tx, () => acknowledgeAlarmNotifications(tx, id, now));
           return {
             item: await alarmItem(tx, updated),
             incidentSuggested: verdict.incidentSuggested,
           };
         },
       );
-      await asSystem(c, access, (tx) => acknowledgeAlarmNotifications(tx, id, now));
       return c.json({ alarm: result.item, incidentSuggested: result.incidentSuggested }, 200);
     },
   );
@@ -972,18 +1125,10 @@ async function ownView(
     .from(loneWorkerEvent)
     .where(eq(loneWorkerEvent.sessionId, session.id))
     .orderBy(desc(loneWorkerEvent.effectiveAt));
-  const times = events.filter((e) => e.kind !== "finish").map((e) => e.effectiveAt);
+  // Duress counts as a check-in here, exactly as the worker saw it, so the overdue state the
+  // worker sees never differs after a duress press from after a check-in (security review M1).
+  const times = await signsOfWorker(tx, session.id);
   const status = statusOf(session, times, figures, now);
-  const [overdue] = await tx
-    .select({ id: loneWorkerAlarm.id })
-    .from(loneWorkerAlarm)
-    .where(
-      and(
-        eq(loneWorkerAlarm.sessionId, session.id),
-        eq(loneWorkerAlarm.state, "open"),
-        inArray(loneWorkerAlarm.reason, ["overdue", "not_finished"]),
-      ),
-    );
   return {
     id: session.id,
     locationId: session.locationId,
@@ -994,7 +1139,7 @@ async function ownView(
     finishedAt: iso(session.finishedAt),
     status: status.kind,
     nextDueAt: iso(dueOf(session, times)),
-    overdueAlarmOpen: overdue !== undefined,
+    overdueAlarmOpen: status.kind === "alarm",
     events: events.map((e) => ({
       id: e.id,
       kind: kindShownToWorker(e.kind as LoneWorkerEventKind),

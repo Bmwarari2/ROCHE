@@ -5286,6 +5286,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
           resolved_by_check_in: "The worker checked in or finished after the alarm.",
           resolved_late_check_in:
             "A check-in made before the alarm arrived late from an offline device.",
+          resolved_by_finish: "The worker finished the session after the alarm.",
         },
       },
       due_at: { description: "When the missed check-in was due; empty for help and duress." },
@@ -5293,6 +5294,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       trigger_event_id: { description: "The help or duress event (lone_worker_event.id)." },
       last_alerted_at: "exported",
       alert_count: { description: "How many times the alarm was sent.", unit: "count" },
+      escalation_step: {
+        description: "How many steps of the on-call route have been told.",
+        unit: "count",
+      },
       resolved_at: "exported",
       resolved_by_event_id: { description: "The event that resolved it (lone_worker_event.id)." },
       acknowledged_by: "exported",

@@ -63,7 +63,7 @@ describe("checkSession", () => {
   });
 });
 
-describe("acceptEvent: offline and late events", () => {
+describe("hazard HZ-125 acceptEvent: offline and late events", () => {
   const cases: {
     label: string;
     kind: LoneWorkerEventKind;
@@ -245,7 +245,7 @@ describe("sessionStatus: when the sweep reminds and when it raises the alarm", (
  * may be offline: the check-ins they made (device time) with when the server received each, and
  * what the server shows at the time it looks.
  */
-describe("the offline rule: no false alarm from a sync gap, no silence from a hurt worker", () => {
+describe("hazard HZ-125 the offline rule: no false alarm from a sync gap, no silence from a hurt worker", () => {
   const rows: {
     label: string;
     events: { device: string; received: string }[];
@@ -295,7 +295,7 @@ describe("the offline rule: no false alarm from a sync gap, no silence from a hu
   });
 });
 
-describe("resolveOnCheckIn", () => {
+describe("hazard HZ-125 resolveOnCheckIn", () => {
   const raisedAt = at("23:15");
   const ok = { kind: "ok" as const, dueAt: at("23:59") };
   const stillAlarm = {
@@ -335,6 +335,58 @@ describe("resolveOnCheckIn", () => {
   });
 });
 
+describe("hazard HZ-125 a finish resolves an overdue alarm in its own words", () => {
+  it.each([
+    ["an overdue alarm, finished", "overdue", "resolved_by_finish"],
+    ["a not-finished alarm, finished", "not_finished", "resolved_by_finish"],
+    ["a duress alarm is never closed by a finish", "duress", "stays_open"],
+  ] as const)("%s", (_label, reason, expected) => {
+    const result = resolveOnCheckIn(
+      { reason, raisedAt: at("23:15") },
+      at("23:20"),
+      { kind: "finished" },
+      true,
+    );
+    expect(result.kind === "resolved" ? result.state : result.kind).toBe(expected);
+  });
+});
+
+describe("hazard HZ-125 across the clock changes (UTC instants)", () => {
+  it("measures a night across the end of British Summer Time as elapsed time", () => {
+    // 25 October 2026: clocks go back at 02:00 BST (01:00 UTC); 22:00 BST is 21:00 UTC.
+    const start = new Date("2026-10-24T21:00:00Z");
+    const end = new Date("2026-10-25T07:00:00Z"); // 07:00 GMT, ten hours later
+    expect(
+      checkSession(
+        { startedAt: start, plannedEndAt: end, intervalMinutes: 60 },
+        {
+          intervalMinMinutes: 15,
+          intervalMaxMinutes: 120,
+          sessionMaxHours: 10,
+          clockDriftMinutes: 5,
+        },
+        start,
+      ),
+    ).toEqual([]);
+    const due = nextCheckInDue(
+      { startedAt: start, plannedEndAt: end, intervalMinutes: 60 },
+      [new Date("2026-10-25T00:30:00Z")], // 01:30 BST, before the change
+    );
+    // One elapsed hour later: 01:30 GMT, the second 01:30 of the night.
+    expect(due.dueAt).toEqual(new Date("2026-10-25T01:30:00Z"));
+  });
+
+  it("does the same across the start of British Summer Time", () => {
+    // 28 March 2027: clocks go forward at 01:00 GMT.
+    const start = new Date("2027-03-27T22:00:00Z");
+    const due = nextCheckInDue(
+      { startedAt: start, plannedEndAt: new Date("2027-03-28T06:00:00Z"), intervalMinutes: 120 },
+      [new Date("2027-03-28T00:30:00Z")],
+    );
+    expect(due.dueAt).toEqual(new Date("2027-03-28T02:30:00Z"));
+  });
+});
+
 describe("checkAcknowledge", () => {
   const open = { state: "open" as const, workerId: "worker" };
   it.each([
@@ -368,7 +420,7 @@ describe("checkAcknowledge", () => {
   });
 });
 
-describe("realertDue: an open alarm is never silent", () => {
+describe("hazard HZ-125 realertDue: an open alarm is never silent", () => {
   it.each([
     ["open, period not passed", "open", "23:15", "23:24", false],
     ["open, period passed", "open", "23:15", "23:25", true],
