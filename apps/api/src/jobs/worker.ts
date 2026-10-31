@@ -25,6 +25,7 @@ import {
   raiseCareReviews,
   raiseReviews,
   relayOutbox,
+  remindDevelopmentExpiry,
   remindDolsExpiry,
   remindPolicies,
   remindStaffFileExpiry,
@@ -76,6 +77,7 @@ const QUEUES = {
   dolsExpiry: "dols-expiry-reminders",
   staffFileExpiry: "staff-file-expiry-reminders",
   policyReminders: "policy-reminders",
+  developmentExpiry: "development-expiry-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   candourBlocked: "candour-blocked-incidents",
@@ -133,6 +135,9 @@ await work(QUEUES.staffFileExpiry, async () => {
 });
 await work(QUEUES.policyReminders, async () => {
   await remindPolicies(deps);
+});
+await work(QUEUES.developmentExpiry, async () => {
+  await remindDevelopmentExpiry(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -210,6 +215,8 @@ await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
 // Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.
 await boss.schedule(QUEUES.policyReminders, "27 * * * *");
+// Training and competence expiry reminders (workforce.md section 5), hourly at 21 past.
+await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.

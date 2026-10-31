@@ -29,6 +29,14 @@ This statement is used, unchanged, in the clinical safety case, the user guides,
 | Enforce safety rules on record-keeping | Refuse an administration without person, dose and outcome; block a duplicate within the prescribed minimum interval (the interval comes from the prescription or PRN protocol, not from Harbour) |
 | Draft, summarise and search records with the optional AI module, labelled as drafts for human review | Shift handover draft generated from records |
 
+**Training and competence (Phase 2, slice 17)**: these stay inside the boundary and add no
+score. Training, observed competence sign-offs, supervision and revalidation are records about
+staff, not about a person receiving care. The competence port (ADR-0085;
+`packages/domain/src/workforce/competence-port.ts`) answers whether a member holds an unwithdrawn,
+in-date sign-off for a named competence on a UK date, from dates the organisation recorded; it
+blocks an action the organisation's rules say needs the competence, and makes no judgement about
+the person, the medicine or the dose.
+
 ## 4. What Harbour must never do
 
 | Harbour must never | Notes |

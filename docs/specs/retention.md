@@ -84,6 +84,10 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
 | `training_record`, `competence` | training_record |
+| `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
+| `supervision_record` (slice 17) | staff_file (tenant's chosen row) |
+| `training_requirement` (slice 17) | tenant configuration, kept while current; each change kept in `record_version` |
+| `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |
 | `shift`, `timesheet_entry` | rota_and_timesheet |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |

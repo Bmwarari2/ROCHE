@@ -1,4 +1,5 @@
 export * from "./competence";
+export * from "./competence-port";
 export * from "./dbs";
 export * from "./employment-history";
 export * from "./expiry";

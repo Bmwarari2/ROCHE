@@ -19025,6 +19025,829 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/training-requirements": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The training matrix by role
+     * @description workforce.training.manage. Every requirement, by role and topic.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Requirements */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TrainingRequirementList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set one role's requirement for a topic
+     * @description workforce.training.manage. Adds or changes one role and topic's requirement (expectedVersion when it exists). The Oliver McGowan topic needs its tier; others never have one. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutTrainingRequirement"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TrainingRequirementItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/development": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's development record
+     * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. The training matrix today (Oliver McGowan tiers in England), records, competences and their state, supervisions with the next supervision and appraisal, and the revalidation plan. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/training-records": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record training
+     * @description workforce.training.manage, never for oneself. Completed on a date no later than today. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateTrainingRecord"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/training-records/{recordId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Correct a training record
+     * @description workforce.training.manage, never for oneself, against the version you loaded; the earlier version is kept. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+          recordId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateTrainingRecord"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/competences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Sign off an observed competence
+     * @description workforce.competence.observe, in the caller's own name, never for oneself, observed on a date no later than today. Valid until the day before the competence's refresh (competence.medicines.refresh_months or competence.default_refresh_months). Publishes workforce.competence.changed. Audited (HZ-119).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateCompetenceSignOff"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/competences/{signOffId}/withdraw": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Withdraw a competence sign-off
+     * @description workforce.competence.observe or workforce.training.manage, never for oneself, with a reason. From the day it is withdrawn the sign-off no longer counts. Publishes workforce.competence.changed. Audited (HZ-119).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+          signOffId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["WithdrawCompetenceSignOff"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/supervisions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a supervision, appraisal or spot check
+     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateSupervisionRecord"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/members/{memberId}/revalidation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record revalidation evidence for a cycle
+     * @description workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          memberId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PutRevalidationEvidence"];
+        };
+      };
+      responses: {
+        /** @description The member's development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/development": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My development record
+     * @description workforce.self.read. The member's own training, competences, supervisions and revalidation.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Your development record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DevelopmentRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -31129,6 +31952,10 @@ export interface components {
       remindedOn?: string;
       /** @enum {string} */
       importedAllergyStatus?: "no_known_allergies" | "has_allergies";
+      /** Format: uuid */
+      memberId?: string;
+      trainingTopic?: string;
+      competence?: string;
     } | null;
     CreateTask: {
       title: string;
@@ -35512,6 +36339,195 @@ export interface components {
       expectedVersion: number;
       /** Format: date */
       signedOn: string;
+    };
+    TrainingRequirementList: {
+      items: components["schemas"]["TrainingRequirementItem"][];
+    };
+    TrainingRequirementItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      roleKey: string;
+      topic: components["schemas"]["TrainingTopic"];
+      refreshYears: number | null;
+      tier: 1 | 2 | null;
+      active: boolean;
+    };
+    /** @enum {string} */
+    TrainingTopic:
+      | "care_certificate"
+      | "safeguarding_adults"
+      | "safeguarding_children"
+      | "moving_and_handling"
+      | "infection_prevention_and_control"
+      | "fire_safety"
+      | "health_and_safety"
+      | "basic_life_support"
+      | "food_hygiene"
+      | "medicines"
+      | "mental_capacity_and_dols"
+      | "equality_diversity_and_human_rights"
+      | "information_governance"
+      | "dementia_awareness"
+      | "fluids_and_nutrition"
+      | "oliver_mcgowan";
+    PutTrainingRequirement: {
+      expectedVersion?: number;
+      roleKey: string;
+      topic: components["schemas"]["TrainingTopic"];
+      refreshYears: number | null;
+      tier: 1 | 2 | null;
+      active: boolean;
+    };
+    DevelopmentRecord: {
+      member: components["schemas"]["StaffName"];
+      /** Format: date */
+      asOf: string;
+      matrix: components["schemas"]["TrainingMatrixRow"][];
+      trainingRecords: components["schemas"]["TrainingRecordItem"][];
+      competences: components["schemas"]["CompetenceStateItem"][];
+      signOffs: components["schemas"]["CompetenceSignOffItem"][];
+      supervisions: components["schemas"]["SupervisionRecordItem"][];
+      nextSupervision: components["schemas"]["NextMeetingItem"];
+      nextAppraisal: components["schemas"]["NextMeetingItem"];
+      revalidation: components["schemas"]["RevalidationView"];
+    };
+    TrainingMatrixRow: {
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** @enum {string} */
+      status: "valid" | "due_soon" | "expired" | "missing";
+      /** Format: date */
+      validUntil: string | null;
+    };
+    TrainingRecordItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** Format: date */
+      completedOn: string;
+      /** Format: date */
+      expiresOn: string | null;
+      provider: string | null;
+    };
+    CompetenceStateItem: {
+      competence: components["schemas"]["Competence"];
+      allowed: boolean;
+      /** @enum {string|null} */
+      reason: "missing" | "expired" | "withdrawn" | null;
+      /** Format: date */
+      validUntil: string | null;
+    };
+    /** @enum {string} */
+    Competence:
+      | "medicines_administration"
+      | "controlled_drugs"
+      | "insulin_administration"
+      | "epilepsy_rescue_medication"
+      | "moving_and_handling_hoist"
+      | "catheter_care"
+      | "enteral_feeding"
+      | "oxygen_therapy";
+    CompetenceSignOffItem: {
+      /** Format: uuid */
+      id: string;
+      competence: components["schemas"]["Competence"];
+      /** Format: date */
+      observedOn: string;
+      observer: components["schemas"]["StaffName"];
+      /** Format: date */
+      validUntil: string;
+      withdrawn: {
+        /** Format: date */
+        on: string;
+        by: components["schemas"]["StaffName"];
+        reason: string;
+      } | null;
+    };
+    SupervisionRecordItem: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["SupervisionKind"];
+      /** Format: date */
+      heldOn: string;
+      heldBy: components["schemas"]["StaffName"];
+    };
+    /** @enum {string} */
+    SupervisionKind: "supervision" | "appraisal" | "spot_check";
+    NextMeetingItem: {
+      /** @enum {string} */
+      kind: "supervision" | "appraisal";
+      /** Format: date */
+      dueOn: string;
+      /** @enum {string} */
+      state: "upcoming" | "due" | "overdue";
+    } | null;
+    RevalidationView: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: date */
+      cycleDueOn: string;
+      practiceHours: number;
+      cpdHours: number;
+      participatoryCpdHours: number;
+      feedbackPieces: number;
+      reflectiveAccounts: number;
+      reflectiveDiscussion: boolean;
+      healthAndCharacter: boolean;
+      professionalIndemnity: boolean;
+      confirmation: boolean;
+      daysLeft: number;
+      outstanding: string[];
+      ready: boolean;
+    } | null;
+    CreateTrainingRecord: {
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** Format: date */
+      completedOn: string;
+      /** Format: date */
+      expiresOn: string | null;
+      provider: string | null;
+    };
+    UpdateTrainingRecord: {
+      expectedVersion: number;
+      topic: components["schemas"]["TrainingTopic"];
+      tier: 1 | 2 | null;
+      /** Format: date */
+      completedOn: string;
+      /** Format: date */
+      expiresOn: string | null;
+      provider: string | null;
+    };
+    CreateCompetenceSignOff: {
+      competence: components["schemas"]["Competence"];
+      /** Format: date */
+      observedOn: string;
+    };
+    WithdrawCompetenceSignOff: {
+      reason: string;
+    };
+    CreateSupervisionRecord: {
+      kind: components["schemas"]["SupervisionKind"];
+      /** Format: date */
+      heldOn: string;
+    };
+    PutRevalidationEvidence: {
+      expectedVersion?: number;
+      /** Format: date */
+      cycleDueOn: string;
+      practiceHours: number;
+      cpdHours: number;
+      participatoryCpdHours: number;
+      feedbackPieces: number;
+      reflectiveAccounts: number;
+      reflectiveDiscussion: boolean;
+      healthAndCharacter: boolean;
+      professionalIndemnity: boolean;
+      confirmation: boolean;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {

@@ -38,6 +38,7 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import { raiseDevelopmentReminders } from "../services/development";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
@@ -501,6 +502,18 @@ export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<
     raisePolicyReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "policy reminders raised");
+  return raised;
+}
+
+/**
+ * Training and competence expiry reminders (workforce.md section 5; HZ-119): one task for HR per
+ * reminder day before a required topic or a competence runs out, never twice.
+ */
+export async function remindDevelopmentExpiry(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "development-reminders", (tx, tenantId) =>
+    raiseDevelopmentReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "training and competence reminders raised");
   return raised;
 }
 

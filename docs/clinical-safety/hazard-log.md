@@ -3026,11 +3026,39 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Description**: a worker is put on a shift, or works it, without a check the role or the shift needs: no DBS clearance (or only supervised clearance on an unsupervised shift), no right to work, a lapsed professional registration, or a competence the shift's tasks need that is missing or out of date.
 
-**Causes**: the rota does not consult the worker's file; a check lapses after the shift was planned; a supervised-only start rostered alone; a manager override used routinely or without a reason; an override used where the law allows none (a missing right to work); stale records on a device; dates read in the wrong time zone near midnight or a clock change.
+**Causes**: the rota does not consult the worker's file; the rota uses a different competence rule from medicines (for example one that ignores withdrawals); a sign-off withdrawn while an older one is still in date; a sign-off backdated to before a withdrawal; a time the device gives deciding the gate; reminders that never fire for leavers' replacements, or so many stale ones that HR stops reading them; a check lapses after the shift was planned; a supervised-only start rostered alone; a manager override used routinely or without a reason; an override used where the law allows none (a missing right to work); stale records on a device; dates read in the wrong time zone near midnight or a clock change.
 
 **Effects**: care given by someone not vetted or not competent to give it (for example medicines administered without a valid competence sign-off, or moving and handling without training), with harm to the person; unlawful working; regulatory breach (Regulations 12, 18 and 19).
 
 **Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
+| Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
+| Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and, for competence, the competence port's `competenceDecision` (slice 17; the slice 4 `competenceGate` is no longer used for gating: it ignores withdrawals and stored dates), all on UK calendar dates | Built in Phase 2 slices 4 and 17 (domain) |
+| Design | Competence comes from stored sign-offs only, through the competence port on the server (ADR-0085): append-only, observed in the observer's own name by a holder of `workforce.competence.observe`, never for oneself, never dated in the future, never before a withdrawal of the same competence, valid exactly until the day before the rate table's refresh (the database checks it); a withdrawal blocks the competence until a new observation on or after it; the server's clock decides, and a time the device gives can only block; the port never takes a competence from the client | Port built in Phase 2 slice 17 (migration 0079, `apps/api/src/services/competence-port.ts`); called by the rota from slices 21 and 27 and by medicines from slice 22 |
+| Design | Training and competence expiry reminders for HR at each document-expiry reminder day, once each, cancelled when the topic or competence is recorded again, none for leavers; workforce reminder tasks visible to holders of their permission | Built in Phase 2 slice 17 |
+| Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
+| Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
+| `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (the port's decision: through the valid-until day, expired, withdrawn, missing, future sign-offs ignored) | Passing (Phase 2 slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (sign-offs only by a holder of the observe permission, in their own name, never for oneself, never in the future, never changed or deleted; withdrawals never by the member) | Passing (Phase 2 slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks missing, expired and withdrawn competence, a newest sign-off withdrawn beside an older one, a backdated re-sign-off and a device's earlier time, and allows a valid one, about another member whatever the caller can read) | Passing (Phase 2 slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-124 ...` (training and competence reminders once each, for HR; cancelled by a renewal) | Passing (Phase 2 slice 17) |
+| Rota tests (planning and on the day) | Planned, slices 21 and 27 |
+
+---
 
 ## HZ-126 A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person
 
@@ -3054,13 +3082,6 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 | Type | Control | When |
 | --- | --- | --- |
-| Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
-| Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
-| Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and `competenceGate` (never self-signed, observer must hold `workforce.competence.observe`), all on UK calendar dates | Built in Phase 2 slice 4 (domain) |
-| Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
-| Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
-
-**Target residual risk**: `[CSO rating - human action]`.
 | Design | Every concern carries a referral target (`safeguarding.referral_hours` after it was raised, a tenant target; the view says the law says without delay); it stays overdue until it is referred or a reason not to refer is recorded, and never clears by itself (`safeguardingClock`) | Built in Phase 2 slice 13 |
 | Design | The worker tells the holders of `safety.safeguarding.manage` at the home where the person lives now, urgently, in app and by push, through the tenant's escalation chain (default: the owner role), and again each day while the concern waits, so acknowledging an alert never silences it; referring or deciding not to refer acknowledges the alerts; an overdue concern nobody active can manage is audited daily and counted in the operator's unrouted signal (`escalateOverdueSafeguardingReferrals`; review round 1) | Built in Phase 2 slice 13 |
 | Design | A concern cannot be dropped silently: not referring needs a reason and who decided, and the person who raised it cannot decide it alone or close it; the other managers at the person's home are told of a decision not to refer; Making Safeguarding Personal is recorded before the referral decision and whether it was achieved before closing; closing needs the finding and a reason; the staff question has no default and is answered before the outcome and before the concern ends, and the DBS referral decision is needed when a member of staff was removed or would have been; only an ended concern may be soft-deleted. The API checks `safeguardingStepProblems` and `safeguardingLogProblems`, the database checks the same rules, and there is no DELETE grant | Built in Phase 2 slice 13 (migration 0075; review round 1) |
@@ -3075,9 +3096,6 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 | Test | Status |
 | --- | --- |
-| `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
-| `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
-| Rota tests (planning and on the day) | Planned, slices 21 and 27 |
 | `packages/domain/src/safety/safeguarding.test.ts`: `hazard HZ-126 shows a ... concern at ... as ...` (due, overdue at and after the target, referred, not referred), `hazard HZ-126 is due the target's elapsed hours after the concern, across the spring change` and `... the autumn change`, `hazard HZ-126 shows the protective measures of every open concern, newest first`, `hazard HZ-126 counts an open concern with no measures, so the screen never shows nothing`, `hazard HZ-126 refuses ... while ...` and `allows ...` (`safeguardingLogProblems`: Making Safeguarding Personal before the referral decision, the staff question, the measures' outcome), `hazard HZ-126 asks for the DBS decision when the staff answer is ...`, `hazard HZ-126 refuses no_referral` and `closed by whoever raised the concern` | Passing |
 | `packages/db/test/safeguarding-log.test.ts`: `hazard HZ-126 a safeguarding concern is never dropped or closed without its records` (code lists in step with the domain; an unknown or empty abuse type, not referring without a reason, referring without the local authority, closing without Making Safeguarding Personal, a referral decision before it, ending before the staff question or with staff removed and no DBS decision, ending with measures not carried on, and soft-deleting an open concern are refused; every change versioned) and `hazard HZ-011 the safeguarding log is isolated by tenant and scoped as incidents` (including a raiser writing about a person they cannot see) | Passing |
 | `apps/api/test/safeguarding.test.ts`: `hazard HZ-126 anyone who works with the person can raise a concern, and only managers run the log`, `hazard HZ-126 a concern is never dropped or closed without its records` (including the raiser refused, the other managers told, the description kept), `hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)`, `hazard HZ-126 a concern opened from a Phase 1 s.42 draft`, `hazard HZ-126 staff caring for the person see the protective measures, never the allegation`, `hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)` (again each day after a manual acknowledgement; to the person's current home) | Passing |
