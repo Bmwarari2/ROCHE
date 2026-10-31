@@ -48,10 +48,10 @@ Branch `feat/mobile-tablet-split`. Phase 2 plan slice 73 (lane G), MOB-013, haza
 
 - **The MAR's split view**: slice 73's plan row names the MAR, which waits for the mobile MAR
   (slice 69).
-- **Today**: Today is unchanged. It still opens the record as its own screen on a tablet.
-- **"The gate"**: the lead's brief listed round, handover, gate and the person record. No screen is
-  called the gate (the mobile gate was configuration and CI), so I took it to mean the screens gate:
-  round, handover and person record. People is covered too.
+- **Today (gap, agreed with the lead)**: Today is unchanged. It still opens the record as its own
+  screen on a tablet. A split for Today is left for a later slice.
+- **"The gate"**: the lead confirmed this means the screens gate (round, handover and person
+  record), plus People.
 - **Responsive web down to 360 px**: the other half of MOB-013, not part of this slice.
 
 ## Clinical safety and data protection
