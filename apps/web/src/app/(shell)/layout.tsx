@@ -4,8 +4,10 @@ import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
+import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
@@ -15,6 +17,7 @@ import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
+import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 
 /** "CQC location 1-000000001", for the location switcher. */
@@ -66,9 +69,18 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        evidencePacks: evidencePacksShown(me.permissions)
+          ? t("shell.nav.evidencePacks")
+          : undefined,
+        statementOfPurpose: statementShown(me.permissions)
+          ? t("shell.nav.statementOfPurpose")
+          : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
         dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
+        breakGlassReport: breakGlassReportShown(me.permissions)
+          ? t("shell.nav.breakGlassReport")
+          : undefined,
         onboarding: onboardingShown(me.permissions) ? t("shell.nav.onboarding") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),

@@ -61,7 +61,7 @@ beforeAll(async () => {
   await ownerSql(
     `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
        ($1, 'onboarder', 'Onboarder', 'tenant',
-        '{platform.onboarding.manage,platform.onboarding.read,people.person.read,care.note.create,care.note.read}')`,
+        '{platform.onboarding.manage,platform.onboarding.read,people.person.read,people.person.update,care.note.create,care.note.read}')`,
     [NEW.roleId],
   );
   await ownerSql("INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, $2)", [
@@ -185,6 +185,20 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
       [ada],
     );
 
+    // A document practised on a sample person: its stored file must go with them (rule 32).
+    const pdf = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+    const uploaded = await h.request(
+      `/v1/documents?${new URLSearchParams({ category: "person_document", title: "Practice letter", personId: ada ?? "" })}`,
+      { ...as("owner"), method: "POST", raw: { bytes: pdf, contentType: "application/pdf" } },
+    );
+    expect(uploaded.status).toBe(201);
+    const [stored] = await ownerSql<{ storage_key: string }>(
+      "SELECT storage_key FROM document WHERE person_id = $1",
+      [ada],
+    );
+    const storage = h.handle.services.storage;
+    expect(await storage.get(stored?.storage_key ?? "")).not.toBeNull();
+
     // Removal needs a fresh step-up.
     const auth = h.db.pool("harbour_auth");
     const session = h.tokens.owner?.split(".")[0] ?? "";
@@ -203,6 +217,9 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
     expect(await ownerSql("SELECT id FROM person")).toEqual([]);
     expect(await ownerSql("SELECT id FROM care_note")).toEqual([]);
     expect(await ownerSql("SELECT id FROM observation")).toEqual([]);
+    expect(await ownerSql("SELECT id FROM document")).toEqual([]);
+    // hazard HZ-072: the removed sample person's stored file is deleted, not left in the bucket.
+    expect(await storage.get(stored?.storage_key ?? "")).toBeNull();
     expect(await audits(REMOVED)).toEqual([
       expect.objectContaining({ outcome: "denied", reason: "nothing_to_remove" }),
       expect.objectContaining({ outcome: "denied", reason: "step_up_required" }),
@@ -210,7 +227,7 @@ describe("hazard HZ-072 sample data mode (rules 29 to 32)", () => {
         outcome: "success",
         scope: {
           people: SAMPLE_PEOPLE.length,
-          records: { allergy: 1, care_note: 1, legal_hold: 1, observation: 1 },
+          records: { allergy: 1, care_note: 1, document: 1, legal_hold: 1, observation: 1 },
         },
       }),
     ]);

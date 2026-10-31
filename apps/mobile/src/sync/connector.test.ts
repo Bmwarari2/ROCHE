@@ -320,16 +320,18 @@ describe("fetchCredentials", () => {
     expect(revoked.count).toBe(1);
   });
 
-  it.each(["not_a_member", "mfa_enrolment_required", "step_up_required"])(
-    "hazard HZ-006 treats a 403 %s from the sync token as an ended session",
-    async (code) => {
-      const { fetch, calls } = fakeFetch([problem(403, code, "Session problem.")]);
-      const { instance, revoked } = connector(fetch);
-      await expect(instance.fetchCredentials()).resolves.toBeNull();
-      expect(revoked.count).toBe(1);
-      expect(calls).toHaveLength(1);
-    },
-  );
+  it.each([
+    "not_a_member",
+    "mfa_enrolment_required",
+    "mfa_verification_required",
+    "step_up_required",
+  ])("hazard HZ-006 treats a 403 %s from the sync token as an ended session", async (code) => {
+    const { fetch, calls } = fakeFetch([problem(403, code, "Session problem.")]);
+    const { instance, revoked } = connector(fetch);
+    await expect(instance.fetchCredentials()).resolves.toBeNull();
+    expect(revoked.count).toBe(1);
+    expect(calls).toHaveLength(1);
+  });
 
   it.each([
     ["missing_permission", () => problem(403, "missing_permission", "No access.")],
@@ -597,7 +599,12 @@ describe("uploadData: care entries go to their own endpoints", () => {
     expect(queue.state.completed).toBe(0);
   });
 
-  it.each(["not_a_member", "mfa_enrolment_required", "step_up_required"])(
+  it.each([
+    "not_a_member",
+    "mfa_enrolment_required",
+    "mfa_verification_required",
+    "step_up_required",
+  ])(
     "hazard HZ-006 ends the session on a 403 %s instead of parking the entry as refused",
     async (code) => {
       const { fetch, calls } = fakeFetch([problem(403, code, "Session problem.")]);

@@ -15,13 +15,16 @@ import {
   ClipboardList,
   CloudOff,
   FileLock,
+  FolderLock,
   House,
   ListChecks,
   ListTodo,
   LogOut,
   Mail,
   Newspaper,
+  ScrollText,
   Search,
+  ShieldAlert,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -64,11 +67,17 @@ export interface ShellFrameLabels {
   readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
+  /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
+  readonly evidencePacks?: string | undefined;
+  /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
+  readonly statementOfPurpose?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
+  /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
+  readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
@@ -112,6 +121,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
+  if (pathname.startsWith("/break-glass")) return "break-glass";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -235,6 +245,26 @@ export function ShellFrame({
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
       : []),
+    ...(labels.evidencePacks
+      ? [
+          {
+            id: "evidence-packs",
+            label: labels.evidencePacks,
+            href: "/quality/evidence-packs",
+            icon: <FolderLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.statementOfPurpose
+      ? [
+          {
+            id: "statement-of-purpose",
+            label: labels.statementOfPurpose,
+            href: "/quality/statement-of-purpose",
+            icon: <ScrollText {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.team
       ? [
           {
@@ -272,6 +302,16 @@ export function ShellFrame({
             label: labels.dataProtection,
             href: "/settings/data-protection",
             icon: <FileLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.breakGlassReport
+      ? [
+          {
+            id: "break-glass",
+            label: labels.breakGlassReport,
+            href: "/break-glass/weekly-report",
+            icon: <ShieldAlert {...icon} />,
           },
         ]
       : []),

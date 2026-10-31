@@ -9,6 +9,10 @@ import { type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
  * - The New Architecture and Hermes are the only options in React Native 0.86 / Expo SDK 57, so the
  *   old `newArchEnabled` and `jsEngine` keys no longer exist in the config schema; there is
  *   nothing to switch on.
+ * - Store compliance (MOB-011; docs/compliance/app-store-privacy.md): the privacy manifest declares
+ *   exactly what the app collects, no tracking; Android targets API 36 through React Native 0.86's
+ *   defaults; iOS builds use an EAS image with Xcode 26 and the iOS 26 SDK (eas.json). The
+ *   store-compliance test checks all three.
  * - Usage strings are British English and say why, as App Review and section 17.2 require. Camera,
  *   location and microphone are declared for later phases; Android permissions are limited to what
  *   Phase 0 uses, and the rest are blocked so a dependency cannot add them silently.
@@ -109,6 +113,28 @@ const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
         },
         {
           NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeEmailAddress",
+          NSPrivacyCollectedDataTypeLinked: true,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+        },
+        {
+          // The member's account id, sent with every request and every entry (MOB-011).
+          NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeUserID",
+          NSPrivacyCollectedDataTypeLinked: true,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+        },
+        {
+          // The app's own per-install id (x-harbour-device), for remote wipe and device reports.
+          // Never the advertising identifier.
+          NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeDeviceID",
+          NSPrivacyCollectedDataTypeLinked: true,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],
+        },
+        {
+          // The device report: counts of unsent, refused and held entries (HZ-006, HZ-040).
+          NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeOtherDiagnosticData",
           NSPrivacyCollectedDataTypeLinked: true,
           NSPrivacyCollectedDataTypeTracking: false,
           NSPrivacyCollectedDataTypePurposes: ["NSPrivacyCollectedDataTypePurposeAppFunctionality"],

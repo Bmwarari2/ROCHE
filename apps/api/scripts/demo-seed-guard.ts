@@ -21,12 +21,40 @@ export function wantsTestOnlySwitch(env: Readonly<Record<string, string | undefi
   return env.HARBOUR_DEMO_E2E_PASSKEY === "1" || env.HARBOUR_DEMO_MFA === "off";
 }
 
-function hostOf(url: string): string | null {
+/**
+ * Query parameters that name the server instead of the URL's host: node-postgres
+ * (pg-connection-string) takes `host` over the host in the URL, so
+ * `postgres://u:p@localhost/db?host=prod.example.invalid` connects to prod; libpq also reads
+ * `hostaddr`. Any of them, in any case, is refused rather than interpreted (security re-review of
+ * feat/web-break-glass-report, L-4).
+ */
+const HOST_PARAMETERS = new Set(["host", "hostaddr"]);
+
+type HostReading = { readonly host: string } | { readonly problem: string };
+
+/** The host a database URL connects to, or why it cannot be told from the URL alone. */
+function hostOf(url: string): HostReading {
+  // A Unix socket path ("/var/run/postgresql harbour") names no host to classify.
+  if (url.trimStart().startsWith("/")) return { problem: "a socket path" };
+  let parsed: URL;
   try {
-    return new URL(url).hostname.toLowerCase();
+    parsed = new URL(url);
   } catch {
-    return null;
+    return { problem: "an unreadable host" };
   }
+  // `socket:` and anything but a Postgres URL are not classified.
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") {
+    return { problem: "an unreadable host" };
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (HOST_PARAMETERS.has(key.toLowerCase())) {
+      return { problem: `a host in its "${key}" query parameter` };
+    }
+  }
+  const host = parsed.hostname.toLowerCase();
+  // No host: node-postgres falls back to PGHOST, which the URL does not show.
+  if (host === "") return { problem: "no host" };
+  return { host };
 }
 
 /**
@@ -47,12 +75,14 @@ export function testOnlySwitchRefusal(input: {
     return `NODE_ENV is ${input.nodeEnv}: the test-only demo switches need test or development`;
   }
   for (const url of input.databaseUrls) {
-    const host = hostOf(url);
-    const allowed =
-      host !== null &&
-      (LOCAL_HOSTS.has(host) || (input.env.CI === "true" && host === CI_SERVICE_HOST));
+    const reading = hostOf(url);
+    if ("problem" in reading) {
+      return `A database URL names ${reading.problem}: the test-only demo switches need a local database named by its host`;
+    }
+    const { host } = reading;
+    const allowed = LOCAL_HOSTS.has(host) || (input.env.CI === "true" && host === CI_SERVICE_HOST);
     if (!allowed) {
-      return `A database URL points at ${host ?? "an unreadable host"}: the test-only demo switches need a local database`;
+      return `A database URL points at ${host}: the test-only demo switches need a local database`;
     }
   }
   return null;

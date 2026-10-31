@@ -531,7 +531,19 @@ its reason) are append-only with device ids. `GET`, `POST` and `PUT /v1/people/{
 record ReSPECT, DNACPR, ADRT and advance care plans (a new record supersedes the active one of its
 kind; withdrawal needs a reason), and the person summary carries the resuscitation status in force,
 or `not_recorded` (HZ-015). `GET /v1/people/{id}/care-history/{table}/{recordId}` shows earlier
-versions of the mutable records. Every write for a discharged, deceased or archived person is
+versions of the mutable records, under the permission the record's own read route needs
+(`care.plan.read`; `care.dols.manage` for a DoLS legal-change review). A removed (soft-deleted)
+record's history, and a removed person's (`GET /v1/people/{id}/history`), is found only by those
+who may use `platform.audit.read` now and whose roles and grants for it reach the person, never by
+break-glass; the audit event of such a view carries `removed: true` in its scope. The check reads
+the record's own row: a care plan and a DoLS authorisation are never removed on their own (no route
+removes either today, and retention treats the care record as one class, `care_record`, counted
+from the end of the person's care; [retention.md](retention.md)), so a section, an action or a legal-change review is never left
+readable under a removed parent. A route that ever removes one of them must remove its children
+with it, or this check must read the parent too. With the
+versions it sends `latestChanged`, the field keys where the newest version differs from the record
+as it is now (keys only; null when the record was saved again while it was read), as does
+`GET /v1/people/{id}/history` (HZ-024). Every write for a discharged, deceased or archived person is
 refused, except activities, visits and assessments about an event at or before the exit, which
 follow rule 3 as the charts do (slice 8). Outbox events `care.plan.published` and `care.assessment.completed` are written.
 
@@ -555,7 +567,13 @@ date, storing the IMCA prompt where nobody appropriate could be consulted. `GET`
 Wales only, and return the status, days left, reminders and the CQC notification; when the outcome
 of a standard request or a court application is known (or it is withdrawn), the regulation 18(4A)
 draft is created with its 18(4B) statement and `care.dols.outcome_known` is published (an urgent
-authorisation is not notified on its own) (HZ-020). `GET /v1/dols/legal-change-review` lists, where
+authorisation is not notified on its own) (HZ-020). `GET /v1/locations/{id}/dols` lists what needs
+attention at a location for the people the reader may see (`care.plan.read`, row-level security):
+requests still waiting for an outcome, authorisations inside the first reminder window and
+authorisations past their end with nothing recorded since. It lists them ending soonest first, with
+requests last, and is audited by location only. It is for the role dashboards (INSI-001), and it
+catches a lapse the reminders miss: a request with no outcome has no end date and so no reminder
+(HZ-020). `GET /v1/dols/legal-change-review` lists, where
 the tenant flag `dols.post_2026_review_workflow` is on, the authorisations granted before the
 judgment and still in force with no review, soonest ending first, and the reviews under way; `POST
 /v1/dols/legal-change-review/{authorisationId}` records each step through the workflow engine with

@@ -434,7 +434,18 @@ export const RecordVersion = z
   .meta({ id: "RecordVersion" });
 
 export const RecordHistory = z
-  .object({ table: z.string(), recordId: uuid, versions: z.array(RecordVersion) })
+  .object({
+    table: z.string(),
+    recordId: uuid,
+    versions: z.array(RecordVersion),
+    /**
+     * The stored field keys the latest change altered: where the newest earlier version differs
+     * from the record as it is now. Empty when there is no earlier version; null when the record
+     * was saved again while it was read, so nothing could be compared. Keys only, never the current
+     * values (the record's own route shows those, under its own permission).
+     */
+    latestChanged: z.array(z.string()).nullable(),
+  })
   .meta({ id: "RecordHistory", description: "Human-readable history of a mutable record" });
 export type RecordHistory = z.infer<typeof RecordHistory>;
 
@@ -512,3 +523,22 @@ export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";
+
+/**
+ * A member asks for their own account to be deleted (MOB-011; master prompt 17.3; App Store
+ * guideline 5.1.1(v) and Google Play's account deletion policy). Staff accounts belong to the care
+ * provider, the controller, so the request goes to the people who manage its members as a task;
+ * nothing is deleted by the request, and no care record ever is.
+ */
+export const AccountDeletionRequest = z
+  .object({
+    /** `requested` the first time; `already_requested` while an earlier request is still open. */
+    status: z.enum(["requested", "already_requested"]),
+    requestedAt: isoDateTime,
+    /** When the organisation is asked to have confirmed (`account_deletion.confirmation_days`). */
+    respondBy: isoDateTime,
+    /** False when the organisation has no one who manages members: the request is still kept. */
+    routedToManager: z.boolean(),
+  })
+  .meta({ id: "AccountDeletionRequest" });
+export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
