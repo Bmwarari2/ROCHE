@@ -187,6 +187,90 @@ export async function clearCodeAttempts(authPool: pg.Pool, sessionId: string): P
 }
 
 /**
+ * Wrong codes across all of a member's sessions (#33 re-check 2, M1; HZ-112). One session's
+ * limit does not stop someone who can mint many sessions (an organisation's identity provider
+ * can, for its members) from spreading guesses across them. So every code checked on a session
+ * also takes an attempt for the member, kept in Postgres (every API instance sees the same
+ * count): the first `USER_CODE_FREE_ATTEMPTS` in an hour go straight through, each one after waits
+ * twice as long as the last (from a second, at most `USER_CODE_MAX_DELAY_SECONDS`), and no more
+ * than `USER_CODE_ATTEMPTS_PER_HOUR` are checked in an hour. A throttle, never a lockout (NCSC
+ * password guidance): the member can always try again later, and a right code clears the count.
+ * Product settings, not statutory figures.
+ */
+export const USER_CODE_FREE_ATTEMPTS = 5;
+export const USER_CODE_ATTEMPTS_PER_HOUR = 10;
+export const USER_CODE_MAX_DELAY_SECONDS = 900;
+
+function userAttemptIdentifier(authUserId: string): string {
+  return `user-factor-attempt:${authUserId}`;
+}
+
+/** The wait before the next code, given the attempts in the last hour and the age of the newest. */
+export function userCodeWait(
+  attemptsInHour: number,
+  secondsSinceLast: number,
+  secondsSinceOldest: number,
+): number {
+  if (attemptsInHour >= USER_CODE_ATTEMPTS_PER_HOUR) {
+    return Math.max(1, Math.ceil(3600 - secondsSinceOldest));
+  }
+  if (attemptsInHour < USER_CODE_FREE_ATTEMPTS) return 0;
+  const delay = Math.min(
+    2 ** (attemptsInHour - USER_CODE_FREE_ATTEMPTS),
+    USER_CODE_MAX_DELAY_SECONDS,
+  );
+  return secondsSinceLast >= delay ? 0 : Math.ceil(delay - secondsSinceLast);
+}
+
+/**
+ * Takes one of the member's code attempts before the code is checked, or returns how many seconds
+ * to wait. Counted and inserted under an advisory lock on the member, on the database's clock, so
+ * parallel requests on any instance cannot all see the same count.
+ */
+export async function reserveUserCodeAttempt(
+  authPool: pg.Pool,
+  authUserId: string,
+): Promise<{ readonly allowed: true } | { readonly allowed: false; readonly retryAfter: number }> {
+  const identifier = userAttemptIdentifier(authUserId);
+  const client = await authPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [identifier]);
+    const { rows } = await client.query<{ n: number; since_last: number; since_oldest: number }>(
+      `SELECT count(*)::int AS n,
+              coalesce(extract(epoch FROM now() - max(created_at)), 0)::float8 AS since_last,
+              coalesce(extract(epoch FROM now() - min(created_at)), 0)::float8 AS since_oldest
+         FROM auth.verification
+        WHERE identifier = $1 AND created_at > now() - interval '1 hour'`,
+      [identifier],
+    );
+    const row = rows[0] ?? { n: 0, since_last: 0, since_oldest: 0 };
+    const wait = userCodeWait(row.n, row.since_last, row.since_oldest);
+    if (wait === 0) {
+      await client.query(
+        `INSERT INTO auth.verification (id, identifier, value, expires_at)
+         VALUES ($1, $2, 'attempt', now() + interval '1 hour')`,
+        [randomUUID(), identifier],
+      );
+    }
+    await client.query("COMMIT");
+    return wait === 0 ? { allowed: true } : { allowed: false, retryAfter: wait };
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Clears the member's code attempts once a code is accepted. */
+export async function clearUserCodeAttempts(authPool: pg.Pool, authUserId: string): Promise<void> {
+  await authPool.query("DELETE FROM auth.verification WHERE identifier = $1", [
+    userAttemptIdentifier(authUserId),
+  ]);
+}
+
+/**
  * The organisation an SSO session belongs to, from the session row itself (written in the same
  * insert as the session; #33 re-check H1), or null for a session that is not from SSO.
  */
@@ -199,4 +283,14 @@ export async function sessionSsoTenant(
     [sessionId],
   );
   return rows[0]?.sso_tenant_id ?? null;
+}
+
+/**
+ * Ends an SSO session (#33 re-check 2): when its organisation's `platform.sso` flag has been
+ * switched off, its live sessions end at their next request rather than lasting to expiry.
+ */
+export async function endSsoSession(authPool: pg.Pool, sessionId: string): Promise<void> {
+  await authPool.query("DELETE FROM auth.session WHERE id = $1 AND sso_tenant_id IS NOT NULL", [
+    sessionId,
+  ]);
 }

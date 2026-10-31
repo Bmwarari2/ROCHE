@@ -56,6 +56,18 @@ Branch `feat/platform-sso`. PLAT-005 (partial: OpenID Connect; SAML later, H-753
 - Generic callback errors; production names the refused SSO setting; issuers normalised before
   comparing; egress controls in H-751.
 
+## Re-check 2 (#33)
+
+- M1 (HZ-112): wrong authenticator and backup codes counted per member across every session, in
+  Postgres, with doubling waits after five and a cap of ten an hour; a throttle, not a lockout. The
+  sign-in step itself (password, then code) keeps Better Auth's own handling and the sign-in
+  throttles.
+- Switching `platform.sso` off ends live SSO sessions (tenant middleware and the auth gate delete
+  them); the operator console refuses SSO sessions.
+- Discovery pins the address it checked (a `lookup` on the connection that refuses non-public
+  addresses, through `node:https`, so no new dependency) and enforces the 256 KB cap while the
+  body streams.
+
 ## Tests
 
 - `packages/domain/src/platform/sso.test.ts` (44, 25 new).

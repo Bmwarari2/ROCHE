@@ -7,6 +7,7 @@ import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAuth, isBlockedSsoPath, SSO_DISABLED_PATHS } from "../src/auth/better-auth";
 import { FACTOR_ROUTES } from "../src/auth/session-factor";
+import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
 import {
@@ -14,6 +15,8 @@ import {
   createSsoKeyStore,
   discoverPublic,
   isPublicAddress,
+  pinnedPublicLookup,
+  readCapped,
 } from "../src/services/sso";
 import {
   ageSession,
@@ -21,6 +24,7 @@ import {
   type Harness,
   markSessionsVerified,
   OTHER,
+  PASSWORD,
 } from "./support/harness";
 
 /**
@@ -61,12 +65,20 @@ const connection = (o: Record<string, unknown> = {}) => ({
 });
 
 async function owner<T = Record<string, unknown>>(text: string, values: unknown[] = []) {
+  return ownerIn<T>(DEMO.tenantId, text, values);
+}
+
+async function ownerIn<T = Record<string, unknown>>(
+  tenantId: string,
+  text: string,
+  values: unknown[] = [],
+) {
   const client = await h.db.pool("harbour_owner").connect();
   try {
     await client.query("BEGIN");
     await client.query(
       "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
-      [DEMO.tenantId],
+      [tenantId],
     );
     const result = await client.query(text, values);
     await client.query("COMMIT");
@@ -484,6 +496,10 @@ describe("#33 security review", () => {
   it("H1/H2: an SSO session reaches only its organisation, and only a few auth routes", async () => {
     const auth = h.db.pool("harbour_auth");
     const token = (h.tokens.manager ?? "").split(".")[0];
+    await ownerIn(
+      OTHER.tenantId,
+      "INSERT INTO feature_flag (flag_key, enabled) VALUES ('platform.sso', true)",
+    );
     await auth.query("UPDATE auth.session SET sso_tenant_id = $2 WHERE token = $1", [
       token,
       OTHER.tenantId,
@@ -508,6 +524,7 @@ describe("#33 security review", () => {
       expect((await h.request("/api/auth/get-session", as("manager"))).status).toBe(200);
     } finally {
       await auth.query("UPDATE auth.session SET sso_tenant_id = NULL WHERE token = $1", [token]);
+      await ownerIn(OTHER.tenantId, "DELETE FROM feature_flag WHERE flag_key = 'platform.sso'");
     }
     expect((await h.request(NOTES, as("manager"))).status).toBe(200);
   });
@@ -586,5 +603,122 @@ describe("#33 security review", () => {
       expect(r.status, path).toBe(404);
     }
     expect(isBlockedSsoPath(`/api/auth/sso/callback/${PROVIDER}`)).toBe(false);
+  });
+});
+
+describe("#33 re-check 2", () => {
+  /** A fresh password session for the carer, so ending it touches no other test's token. */
+  async function freshSession(): Promise<string> {
+    // The demo members have an authenticator; a password-only sign-in, then marked as verified.
+    const auth = h.db.pool("harbour_auth");
+    await auth.query("UPDATE auth.user SET two_factor_enabled = false WHERE email = $1", [
+      DEMO.users.carer.email,
+    ]);
+    const r = await h.request("/api/auth/sign-in/email", {
+      method: "POST",
+      body: { email: DEMO.users.carer.email, password: PASSWORD },
+      origin: MOBILE_APP_ORIGIN,
+    });
+    await auth.query("UPDATE auth.user SET two_factor_enabled = true WHERE email = $1", [
+      DEMO.users.carer.email,
+    ]);
+    await markSessionsVerified(auth);
+    const token = r.headers.get("set-auth-token") ?? "";
+    expect(token).not.toBe("");
+    await h.db
+      .pool("harbour_auth")
+      .query("UPDATE auth.session SET sso_tenant_id = $2 WHERE token = $1", [
+        token.split(".")[0],
+        DEMO.tenantId,
+      ]);
+    return token;
+  }
+  const sessionCount = async (token: string) =>
+    (
+      await h.db
+        .pool("harbour_auth")
+        .query<{ n: number }>("SELECT count(*)::int AS n FROM auth.session WHERE token = $1", [
+          token.split(".")[0],
+        ])
+    ).rows[0]?.n;
+
+  it("L: switching the flag off ends live SSO sessions, on the API and on Better Auth's routes", async () => {
+    const api = await freshSession();
+    const authRoute = await freshSession();
+    expect((await h.request("/v1/me", { token: api, tenant: DEMO.tenantId })).status).toBe(200);
+    await owner("UPDATE feature_flag SET enabled = false WHERE flag_key = 'platform.sso'");
+    try {
+      const refused = await h.request("/v1/me", { token: api, tenant: DEMO.tenantId });
+      expect(refused.status).toBe(401);
+      expect(await codeOf(refused)).toBe("sso_session_ended");
+      expect(await sessionCount(api)).toBe(0);
+      const gate = await h.request("/api/auth/get-session", { token: authRoute });
+      expect(gate.status).toBe(401);
+      expect(await codeOf(gate)).toBe("sso_session_ended");
+      expect(await sessionCount(authRoute)).toBe(0);
+    } finally {
+      await owner("UPDATE feature_flag SET enabled = true WHERE flag_key = 'platform.sso'");
+    }
+    // Ended for good: switching it back on does not revive them.
+    expect((await h.request("/v1/me", { token: api, tenant: DEMO.tenantId })).status).toBe(401);
+  });
+
+  it("L: the operator console refuses an SSO-bound session", async () => {
+    const auth = h.db.pool("harbour_auth");
+    const token = (h.tokens.opsAdmin ?? "").split(".")[0];
+    expect((await h.request("/operator/tenants", { token: h.tokens.opsAdmin })).status).toBe(200);
+    await auth.query("UPDATE auth.session SET sso_tenant_id = $2 WHERE token = $1", [
+      token,
+      DEMO.tenantId,
+    ]);
+    try {
+      const r = await h.request("/operator/tenants", { token: h.tokens.opsAdmin });
+      expect(r.status).toBe(401);
+      expect(await codeOf(r)).toBe("sso_session_ended");
+    } finally {
+      await auth.query("UPDATE auth.session SET sso_tenant_id = NULL WHERE token = $1", [token]);
+    }
+  });
+
+  it("L: discovery connects only to the public address it checked (no DNS rebinding)", async () => {
+    const call = (addresses: { address: string; family: number }[], all: boolean) =>
+      new Promise<{ error: Error | null; address: unknown }>((resolve) =>
+        pinnedPublicLookup(async () => addresses)(
+          "idp.example.invalid",
+          { all },
+          (error, address) => resolve({ error, address }),
+        ),
+      );
+    for (const all of [true, false]) {
+      const privateOne = await call(
+        [
+          { address: "203.0.113.10", family: 4 },
+          { address: "10.0.0.5", family: 4 },
+        ],
+        all,
+      );
+      expect(privateOne.error?.message).toBe("sso_address_not_public");
+      expect((await call([{ address: "::ffff:127.0.0.1", family: 6 }], all)).error).not.toBeNull();
+      const ok = await call([{ address: "203.0.113.10", family: 4 }], all);
+      expect(ok.error).toBeNull();
+      expect(ok.address).toEqual(all ? [{ address: "203.0.113.10", family: 4 }] : "203.0.113.10");
+    }
+  });
+
+  it("L: a discovery document over 256 KB is refused while it streams, not after", async () => {
+    let pulled = 0;
+    async function* endless() {
+      while (true) {
+        pulled += 1;
+        yield new Uint8Array(64 * 1024);
+      }
+    }
+    await expect(readCapped(endless(), 256 * 1024)).rejects.toThrow("sso_discovery_failed");
+    expect(pulled).toBe(5);
+    async function* small() {
+      yield new TextEncoder().encode('{"issuer":');
+      yield new TextEncoder().encode('"x"}');
+    }
+    expect(await readCapped(small(), 256 * 1024)).toBe('{"issuer":"x"}');
   });
 });

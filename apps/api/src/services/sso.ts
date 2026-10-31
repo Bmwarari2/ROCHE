@@ -1,5 +1,7 @@
+import type { LookupAddress } from "node:dns";
 import { lookup, resolveTxt } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
+import { get as httpsGet } from "node:https";
 import { BlockList, isIP } from "node:net";
 import {
   DescribeSecretCommand,
@@ -287,20 +289,90 @@ export interface DiscoveryNet {
 const DISCOVERY_TIMEOUT_MS = 10_000;
 const DISCOVERY_MAX_BYTES = 256 * 1024;
 
+type LookupCallback = (
+  error: NodeJS.ErrnoException | null,
+  address: string | LookupAddress[],
+  family?: number,
+) => void;
+
+/**
+ * A `lookup` for the discovery connection that refuses any non-public address, so the address
+ * checked is the address connected to (#33 re-check 2: no DNS rebinding between the check and the
+ * fetch). `resolve` is injectable for tests.
+ */
+export function pinnedPublicLookup(
+  resolve: (host: string) => Promise<LookupAddress[]> = (host) =>
+    lookup(host, { all: true, verbatim: true }),
+) {
+  return (host: string, options: { all?: boolean } | number, callback: LookupCallback): void => {
+    resolve(host).then(
+      (addresses) => {
+        if (addresses.length === 0 || !addresses.every((a) => isPublicAddress(a.address))) {
+          const error: NodeJS.ErrnoException = new Error("sso_address_not_public");
+          error.code = "ENOTFOUND";
+          callback(error, []);
+          return;
+        }
+        const all = typeof options === "object" && options.all === true;
+        const first = addresses[0] as LookupAddress;
+        if (all) callback(null, addresses);
+        else callback(null, first.address, first.family);
+      },
+      (error: NodeJS.ErrnoException) => callback(error, []),
+    );
+  };
+}
+
+/** Reads a body, giving up as soon as it passes `max` bytes (never the whole body first). */
+export async function readCapped(body: AsyncIterable<Uint8Array>, max: number): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of body) {
+    size += chunk.length;
+    if (size > max) throw new Error("sso_discovery_failed");
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export const SYSTEM_NET: DiscoveryNet = {
   async lookup(host) {
     return (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);
   },
-  async fetchJson(url) {
-    const response = await fetch(url, {
-      redirect: "error",
-      signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
-      headers: { accept: "application/json" },
+  fetchJson(url) {
+    return new Promise((resolvePromise, reject) => {
+      const request = httpsGet(
+        url,
+        {
+          lookup: pinnedPublicLookup() as never,
+          headers: { accept: "application/json" },
+          signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
+        },
+        (response) => {
+          // No redirects: anything but a 2xx is a failure.
+          const status = response.statusCode ?? 0;
+          if (status < 200 || status > 299) {
+            response.resume();
+            reject(new Error("sso_discovery_failed"));
+            return;
+          }
+          readCapped(response, DISCOVERY_MAX_BYTES).then(
+            (text) => {
+              try {
+                resolvePromise(JSON.parse(text) as unknown);
+              } catch {
+                reject(new Error("sso_discovery_failed"));
+              }
+            },
+            (error: unknown) => {
+              request.destroy();
+              reject(error);
+            },
+          );
+        },
+      );
+      request.on("error", () => reject(new Error("sso_discovery_failed")));
     });
-    if (!response.ok) throw new Error("sso_discovery_failed");
-    const text = await response.text();
-    if (text.length > DISCOVERY_MAX_BYTES) throw new Error("sso_discovery_failed");
-    return JSON.parse(text) as unknown;
   },
 };
 

@@ -1100,6 +1100,14 @@ change in `record_version` and the audit trail.
     API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
     organisation on its own row and reaches no other; on Better Auth's routes it may only read
     itself, sign out and confirm a Harbour code. No implicit linking by email.
+24. Switching the flag off ends the organisation's live SSO sessions at their next request (the
+    API and Better Auth's routes delete the session and answer 401 `sso_session_ended`); switching
+    it back on revives none. The operator console refuses any SSO session.
+25. Wrong Harbour codes are throttled per member across all sessions as well as per session
+    (HZ-112): the member's attempts are counted in Postgres, with growing waits and an hourly cap.
+26. Discovery connects only to the address it checked: its connection's DNS lookup refuses any
+    non-public address, so a host cannot resolve to a public address for the check and a private
+    one for the fetch; the document is refused as soon as it passes 256 KB.
 
 **Permission matrix**
 

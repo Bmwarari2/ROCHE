@@ -3,7 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppEnv, Services } from "../http/context";
 import { ssoEnabledFor } from "../services/sso";
 import { isBlockedSsoPath } from "./better-auth";
-import { sessionSsoTenant } from "./session-factor";
+import { endSsoSession, sessionSsoTenant } from "./session-factor";
 
 /**
  * What a session made by single sign-on may do on Better Auth's own routes (#33 re-check H2):
@@ -68,19 +68,28 @@ export function ssoAuthGate(services: Services): MiddlewareHandler<AppEnv> {
       if (!tenantId || !(await ssoEnabledFor(services, tenantId))) {
         return problem(404, "sso_not_available", "Single sign-on is not available here.");
       }
-    } else if (
-      !SSO_SESSION_AUTH_PATHS.has(path) &&
-      (request.headers.has("cookie") || request.headers.has("authorization"))
-    ) {
+    } else if (request.headers.has("cookie") || request.headers.has("authorization")) {
       const found = await services.auth.api
         .getSession({ headers: request.headers, query: { disableRefresh: true } })
         .catch(() => null);
-      if (found && (await sessionSsoTenant(services.authPool, found.session.id)) !== null) {
-        return problem(
-          403,
-          "sso_session_limited",
-          "Sign in with your Harbour passkey or password to change your sign-in settings.",
-        );
+      const ssoTenant = found ? await sessionSsoTenant(services.authPool, found.session.id) : null;
+      if (found && ssoTenant !== null) {
+        // Switching the flag off ends the organisation's SSO sessions (#33 re-check 2).
+        if (!(await ssoEnabledFor(services, ssoTenant))) {
+          await endSsoSession(services.authPool, found.session.id);
+          return problem(
+            401,
+            "sso_session_ended",
+            "Single sign-on is not available here. Sign in with your Harbour passkey or password.",
+          );
+        }
+        if (!SSO_SESSION_AUTH_PATHS.has(path)) {
+          return problem(
+            403,
+            "sso_session_limited",
+            "Sign in with your Harbour passkey or password to change your sign-in settings.",
+          );
+        }
       }
     }
     await next();

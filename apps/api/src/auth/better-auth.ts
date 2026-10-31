@@ -13,11 +13,13 @@ import type { SsoHooks } from "../services/sso";
 import { passwordProblem } from "./password-policy";
 import {
   clearCodeAttempts,
+  clearUserCodeAttempts,
   FACTOR_CHANGE_ROUTES,
   FACTOR_ROUTES,
   IN_SESSION_CODE_ROUTES,
   recordSessionFactor,
   reserveCodeAttempt,
+  reserveUserCodeAttempt,
   sessionMfa,
 } from "./session-factor";
 import { MOBILE_APP_ORIGIN } from "./token-exposure";
@@ -191,6 +193,18 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
             code: "TOO_MANY_ATTEMPTS",
           });
         } else {
+          // And one of the member's, across every session and instance (#33 re-check 2, M1).
+          const member = await reserveUserCodeAttempt(authPool, found.user.id);
+          if (!member.allowed) {
+            throw new APIError(
+              "TOO_MANY_REQUESTS",
+              {
+                message: "Too many wrong codes. Wait a little and try again.",
+                code: "TOO_MANY_ATTEMPTS",
+              },
+              { "retry-after": String(member.retryAfter) },
+            );
+          }
           const enrolled = await sessionMfa(authPool, {
             authUserId: found.user.id,
             sessionId: found.session.id,
@@ -214,6 +228,7 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
         if (isAPIError(ctx.context.returned)) return;
         if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
           await clearCodeAttempts(authPool, existing.id);
+          await clearUserCodeAttempts(authPool, existing.userId);
         }
         if (firstEnrolment) return;
         const session = ctx.context.newSession?.session ?? ctx.context.session?.session;
