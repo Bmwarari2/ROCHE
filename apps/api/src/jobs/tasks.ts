@@ -41,6 +41,7 @@ import {
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
+import { sweepLoneWorkers } from "../services/lone-worker";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -534,6 +535,19 @@ export async function escalateSafeguardingReferrals(
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue safeguarding referrals escalated");
   return escalated;
+}
+
+/**
+ * Lone-worker safety (SCHED-012, HZ-125), every minute: reminders, alarms past the grace period,
+ * help and duress alarms the API did not raise, re-alerts until acknowledged, resolutions after
+ * late check-ins, and erasing location evidence at its date.
+ */
+export async function sweepLoneWorkersJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const acted = await eachTenant(deps, "lone-worker-sweep", (tx, tenantId) =>
+    sweepLoneWorkers(tx, tenantId, now),
+  );
+  if (acted > 0) deps.logger.info({ acted }, "lone-worker alarms raised or re-sent");
+  return acted;
 }
 
 /**

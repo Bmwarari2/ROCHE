@@ -71,11 +71,12 @@
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
+| [HZ-125](#hz-125-a-lone-workers-missed-check-in-or-call-for-help-not-escalated-or-a-false-sense-of-safety) | A lone worker's missed check-in or call for help not escalated, or a false sense of safety | Catastrophic / Medium / 4 | Catastrophic / Very low / 3 until the mobile app sends check-ins with its own offline alarm (slice 71), then for the CSO (engineering proposal; the CSO rates it, H-1030) | Open | None (Phase 2) | Phase 2 (slices 46, 61, 71) |
 | [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Low / 3 until the open questions in H-599 are settled, then Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
 | [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
 | [HZ-130](#hz-130-imported-records-mis-mapped-duplicated-or-attached-to-the-wrong-person) | Imported records mis-mapped, duplicated or attached to the wrong person | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-543 and H-680) | Open | None (Phase 2) | Phase 2 (slices 26, 51, 67, 79) |
 
-Sixteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Seventeen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, HZ-112 until its mobile control is built, HZ-123 until the rota shows the staffing comparison, HZ-125 until the mobile app sends check-ins, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
 
@@ -3174,6 +3175,53 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 **Effects**: care given by someone not vetted or not competent to give it (for example medicines administered without a valid competence sign-off, or moving and handling without training), with harm to the person; unlawful working; regulatory breach (Regulations 12, 18 and 19).
 
 **Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+## HZ-125 A lone worker's missed check-in or call for help not escalated, or a false sense of safety
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-125 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `scheduling` module (lane C) |
+| Source | Master prompt section 12.3 (lone-worker safety); [phase-2.md](../plans/phase-2.md) hazards table (slices 46, 61, 71); [scheduling.md](../specs/scheduling.md) section 14; HSE INDG73 (working alone); H-539 (the on-call route), H-527 (employee-monitoring DPIA); related to HZ-013 (escalation not routed) and HZ-010 (device clocks) |
+
+**Description**: a member of staff working alone (a domiciliary visit, a night shift) misses a check-in, presses for help or checks in under duress, and nobody who can act is told, or is told too late, or the alarm is silenced before anyone has checked on them; or the opposite: the system shows the worker as safe when the last sign of them is old (a late check-in from an offline device read as "safe now"), or raises so many false alarms from sync gaps that people stop answering them.
+
+**Causes**: no on-call route named, or one that reaches only the app while the on-call person is asleep; an alarm sent once and then forgotten when the notification is read or the chain runs out; reading a notification taken as dealing with the alarm; an offline device's on-time check-in arriving late and counted as missed (a false alarm), or a late check-in resolving the alarm when the worker is overdue again by now (false safety); events arriving out of order moving the next due time backwards; a device clock ahead of the server making a check-in count for the future; a duress check-in visible on the worker's screen or cancelled by the worker under pressure; a help request refused because the session had finished or the clock was wrong; the API failing between recording the event and raising the alarm; a worker monitoring their own alarm; the sweep held up by an unrelated failure.
+
+**Effects**: a worker who is hurt, taken ill or attacked waits without help, with serious or fatal harm; staff lose trust in the alarm and stop responding to it.
+
+**Initial risk**: severity Catastrophic, likelihood Medium, **risk 4** (engineering proposal; the CSO rates it at the Phase 2 workshop, H-1030, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The feature stays off until the organisation saves a valid on-call route: step 1 the on-call person or role, a later step the Registered Manager, every step reaching people away from the app (push, email or text message); a session cannot start without one, in words (`checkRoute`; H-539) | Built in Phase 2 slice 46 |
+| Design | The order is fixed: the worker is reminded when the check-in is due; at the end of the grace period (`lone_worker.grace_minutes`) the alarm is raised, the worker is told to check in, step 1 is told at once and the chain carries it to the Registered Manager by its minutes until someone acknowledges | Built in Phase 2 slice 46 |
+| Design | An open alarm is sent again to everyone on the route every `lone_worker.realert_minutes` until a person acknowledges the alarm itself, even after the chain has run out; reading or acknowledging a notification never closes it (`realertDue`) | Built in Phase 2 slice 46 |
+| Design | An alarm is acknowledged only by a holder of `scheduling.lone_worker.monitor` where the session is who is not the worker, with an outcome and a note; anything but "safe confirmed" suggests an incident and can link one (`checkAcknowledge`; the database refuses the worker too) | Built in Phase 2 slice 46 |
+| Design | The offline rule: only check-ins the server has received count, from the time the worker made them (clamped to their receipt), so an on-time check-in sent late never counts as missed once it arrives, and the latest by device time wins whatever the order of arrival; silence past the grace period always raises the alarm, because offline and hurt look the same; the grace period absorbs ordinary sync delays (`acceptEvent`, `nextCheckInDue`, `sessionStatus`) | Built in Phase 2 slice 46 |
+| Design | A late check-in made before the alarm resolves it as "late check-in from an offline device", flagged, and everyone alerted is told the worker was safe at that time, not now; it resolves the alarm only if the worker is not overdue again by now (`resolveOnCheckIn`) | Built in Phase 2 slice 46 |
+| Design | A device clock ahead of the server beyond `sync.clock_drift_flag_minutes` is refused for a check-in; help and duress are always accepted, even after the session finished or with a wrong clock, and then counted from receipt | Built in Phase 2 slice 46 |
+| Design | Duress answers exactly as a check-in, is shown and audited to the worker as a check-in, never notifies the worker, is never readable by the worker in the database, and is never resolved by a later check-in | Built in Phase 2 slice 46 |
+| Design | Alarm rows are written only by the system: straight after the worker's event and by the per-minute sweep, which raises any help or duress alarm the API did not, re-evaluates alarms after late check-ins and judges location erasure on the database's clock so it can never hold the alarms up (migration 0113) | Built in Phase 2 slice 46 |
+| Design | Nobody to tell for a step, even through the fallback to the Registered Manager and owner, is audited as unrouted and counted; a route removed after sessions started falls back to the Registered Manager and owner at once, audited | Built in Phase 2 slice 46 |
+| Design | Check-in intervals are bounded (`lone_worker.check_in_min_minutes` against alarm fatigue, `lone_worker.check_in_max_minutes` so nobody goes unmissed for long); the board and alarms show status as words, never colour alone | Built in Phase 2 slice 46 (web slice 61) |
+| Design | The mobile app checks in with one tap, queues check-ins offline with their device time, warns the worker when it cannot reach the server, and offers help and duress without signing in again | Slice 71 |
+| Deployer control | The organisation names its on-call route and keeps it staffed around the clock while anyone works alone, sets intervals that suit the work, and tells lone workers what happens when their phone has no signal (H-539, H-1031) | Before switching lone-worker check-ins on |
+| Training and user documentation | Lone workers and on-call staff are shown how check-ins, help and duress work, what a late check-in means, and that acknowledging an alarm means having checked on the worker | Slice 82 |
+
+**Target residual risk**: severity Catastrophic, likelihood Very low, **risk 3** (engineering proposal; the CSO rates it, H-1030). Justification: until the mobile app (slice 71) sends check-ins, workers have only the web, and the server cannot tell an offline phone from a hurt worker; the alarm is never suppressed, which costs some false alarms by design. A BS 8484 device or alarm receiving centre is a later choice (H-539).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/scheduling/lone-worker.test.ts`: table-driven `checkSession`, `acceptEvent: offline and late events` (on time, flagged late, hours late, clock clamped or refused, before start, after finish, made before the finish and sent after, help after finishing, duress with a wrong clock), `nextCheckInDue` (out-of-order arrivals, planned end, staying on), `sessionStatus` (ok, due, alarm, finished, not finished), `the offline rule: no false alarm from a sync gap, no silence from a hurt worker`, `resolveOnCheckIn` (late, after, duress and help stay open, safe then but overdue now stays open), `checkAcknowledge`, `realertDue: an open alarm is never silent`, `checkRoute (H-539)`, the figures in the rate table | Passing (Phase 2 slice 46) |
+| `packages/db/test/lone-worker.test.ts`: tenant isolation for all four tables; the worker sees their own and never a duress alarm; monitors only where they hold the permission; nobody starts a session for someone else; one open session; events append-only and written only by the worker, once per client id; a worker never raises or resolves an alarm; a check-in never resolves duress, not even the system; the worker cannot acknowledge; a note required; a closed alarm stays closed; location erased only by the sweep at its date and never deleted | Passing (Phase 2 slice 46) |
+| `apps/api/test/lone-worker.test.ts`: off until a valid route; the reminder, then the alarm to the worker and on-call at once, the escalation to the Registered Manager, the re-alert after the chain; a late offline check-in resolving as late, flagged, everyone told, notifications acknowledged, replay once; an on-time check-in received late never alarming; `safe then is not safe now`; duress answering as a check-in, invisible to the worker, unresolved by a check-in, acknowledged only by a monitor with what was done; help after finishing; location evidence off by default, kept as one point and erased | Passing (Phase 2 slice 46) |
 
 ## HZ-126 A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person
 

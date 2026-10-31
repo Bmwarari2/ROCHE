@@ -798,6 +798,20 @@ category so a receiving system can read it.
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
+## Lone-worker safety (Phase 2, slice 46)
+Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines lone-worker
+check-ins (BS 8484 covers lone-worker devices and alarm receiving centres, a later choice; H-539),
+so the codes are Harbour's. Times are instants in UTC, shown in UK local time (24-hour).
+| `lone_worker_session.work_kind` | Harbour | `domiciliary_visit`, `night_shift`, `other` | No place name or address is held: where the worker is comes only from optional location evidence. |
+| `lone_worker_session.interval_minutes` | Harbour | Whole minutes between `lone_worker.check_in_min_minutes` and `lone_worker.check_in_max_minutes` (rates.md) | The planned length is at most `lone_worker.session_max_hours`. |
+| `lone_worker_event.kind` | Harbour | `check_in`, `duress`, `help`, `finish` (`LONE_WORKER_EVENT_KINDS`) | A duress event is shown to the worker, and audited, as `check_in`. |
+| `lone_worker_event.device_at`, `received_at`, `effective_at`, `late` | ISO 8601 instant (UTC) | `effective_at` is `device_at`, never later than `received_at`; `late` is true when received `lone_worker.offline_flag_minutes` or more after it was made | A device clock ahead by more than `sync.clock_drift_flag_minutes` is refused, except for help and duress. |
+| `lone_worker_alarm.reason` | Harbour | `overdue`, `not_finished`, `duress`, `help` (`LONE_WORKER_ALARM_REASONS`) | |
+| `lone_worker_alarm.state` | Harbour | `open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in` (`LONE_WORKER_ALARM_STATES`) | Shown with words (`ALARM_STATE_WORDS`), never by colour alone. |
+| `lone_worker_alarm.outcome` | Harbour | `safe_confirmed`, `help_sent`, `emergency_services_called`, `other` (`LONE_WORKER_OUTCOMES`) | Any outcome but `safe_confirmed` suggests an incident report. |
+| `lone_worker_alarm.note` | Harbour | Plain text, 1 to 2,000 characters | Required to acknowledge. |
+| `lone_worker_location.latitude`, `longitude` | WGS 84 decimal degrees | Five decimal places (about one metre); empty once erased | Evidence only (H-527); erased at `delete_after`. |
+| `lone_worker_location.accuracy_metres` | Harbour | Whole metres, 0 to 100,000, or empty | As the device reported it. |
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
 Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
 these fields; exported with these names.

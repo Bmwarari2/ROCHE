@@ -133,6 +133,9 @@ that home only.
 | `scheduling.visit.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.timesheet.self` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
 | `scheduling.dependency.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `scheduling.lone_worker.check_in` |  |  | yes |  | yes | yes | yes | yes | yes |  | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
+| `scheduling.lone_worker.monitor` |  |  | yes |  | yes | yes |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| `scheduling.lone_worker.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.premises.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |
 | `operations.catering.manage` |  |  | yes |  | yes | yes |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |
 | `operations.housekeeping.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |

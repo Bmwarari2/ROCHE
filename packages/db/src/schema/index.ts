@@ -10,6 +10,7 @@ export * from "./exports";
 export * from "./imports";
 export * from "./integrations";
 export * from "./invitations";
+export * from "./lone-worker";
 export * from "./mca";
 export * from "./onboarding";
 export * from "./operations";

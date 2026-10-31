@@ -678,3 +678,139 @@ audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, locatio
   `packages/contracts/src/scheduling.ts`.
 - The placement's free-text `dependency_category` (Phase 1 admission form) is left as it is and is
   not read by the requirement; whether to retire it is H-716.
+
+## 14. Lone-worker safety (slice 46; SCHED-012)
+
+Staff who work alone (domiciliary visits, night shifts) check in on a schedule. A missed check-in,
+a call for help or a duress check-in raises an alarm to the organisation's named on-call route
+(H-539), which keeps escalating and keeps being sent until a person acknowledges it. Hazard
+HZ-125; employee-monitoring DPIA (H-527); human actions H-1030 to H-1039. The web screens are
+slice 61 and the mobile app slice 71. No rota or shift table exists yet (slice 21), so a session
+stands alone: the worker starts it.
+
+### 14.1 Schema (migration 0113)
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `lone_worker_session` | Mutable (finish, reminder); client id; one open per worker | Location, worker, kind of work (`domiciliary_visit`, `night_shift`, `other`), start, planned end, check-in interval, finish. No place name or address. |
+| `lone_worker_event` | Append-only; client UUID; idempotent | `check_in`, `duress`, `help`, `finish`, with `device_at`, `received_at`, `effective_at` and `late`. |
+| `lone_worker_alarm` | Mutable; written only by the system and by a monitor acknowledging | Reason (`overdue`, `not_finished`, `duress`, `help`), state (`open`, `acknowledged`, `resolved_by_check_in`, `resolved_late_check_in`), when due and raised, how often sent, who acknowledged with outcome and note, any incident linked. |
+| `lone_worker_location` | Insert, then erased only | One point with one event, while the location flag is on. |
+
+Every table has `tenant_id`, forced row-level security and policies: the worker reads their own
+sessions, events and alarms (never a duress alarm); holders of `scheduling.lone_worker.monitor`
+read those at the locations where they hold it (never their own alarm); only the worker writes
+their own session and events; alarms are inserted and resolved only by the system (no user,
+tenant scope), and acknowledged only by a monitor who is not the worker. History in
+`record_version` is redacted (no worker, note or outcome). Records stay on the server for now.
+
+### 14.2 Permissions and figures
+
+| Permission | Who has it by default | What it allows |
+| --- | --- | --- |
+| `scheduling.lone_worker.check_in` | Every point-of-care role and the support roles that clock in | Start one's own session, check in, ask for help, raise duress, finish |
+| `scheduling.lone_worker.monitor` | Registered Manager, deputy, care coordinator, team leader, owner | See sessions and alarms where held; acknowledge alarms |
+| `scheduling.lone_worker.manage` | Registered Manager, deputy, owner | Name the on-call route |
+
+Figures are rate-table rows (rates.md), never literals: `lone_worker.grace_minutes`,
+`lone_worker.check_in_min_minutes`, `lone_worker.check_in_max_minutes`,
+`lone_worker.realert_minutes`, `lone_worker.offline_flag_minutes`, `lone_worker.session_max_hours`,
+`lone_worker.location_days`, and the existing `sync.clock_drift_flag_minutes`.
+
+### 14.3 Rules
+
+1. **Off until the route is named.** A session starts only when the organisation has saved a
+   valid route under the chain key `scheduling.lone_worker.alarm`: step 1 the on-call person or
+   role, a later step the Registered Manager, every step reaching people away from the app (push,
+   email or text message) (`checkRoute`). Otherwise the start is refused in words.
+2. **Starting.** For oneself, at a location where one works, with an interval and length within
+   the figures (`checkSession`). A retry with the same client id returns the first session.
+3. **When a check-in is due.** One interval after the latest check-in (by its effective time), or
+   after the start; never later than the planned end, when the worker must finish or check in to
+   stay on (`nextCheckInDue`). Help and duress events count as signs of the worker; finish does
+   not.
+4. **The order of escalation.** At the due time the worker is reminded. When the grace period
+   ends the alarm is raised: the worker is told to check in now, step 1 is told at once, and the
+   chain carries it to the later steps (the Registered Manager) by their minutes while nobody
+   acknowledges (`sessionStatus`, the notification escalation engine).
+5. **Never silent.** An open alarm is sent again to everyone on the route every
+   `lone_worker.realert_minutes` until a person acknowledges the alarm, even after the chain has
+   run out (`realertDue`). Reading or acknowledging a notification does not close the alarm. A
+   step that reaches nobody, even through the fallback to the Registered Manager and owner, is
+   audited as unrouted; a route removed after sessions started falls back to the Registered
+   Manager and owner, audited.
+6. **Acknowledging.** Only a monitor where the session is, never the worker, with an outcome
+   (`safe_confirmed`, `help_sent`, `emergency_services_called`, `other`) and a note. Anything but
+   safe confirmed suggests an incident report, which can be linked to the alarm. Acknowledging
+   acknowledges every notification about the alarm and ends its escalation.
+7. **Help.** Raises an urgent alarm at once and tells the worker help has been asked for. It is
+   always accepted: after the session finished, or with a wrong clock (counted from receipt).
+8. **Duress.** Raises an urgent alarm at once and answers the worker exactly as a check-in: the
+   same words, the same fields, shown and audited to the worker as a check-in, never notified to
+   the worker and never readable by them. A later check-in never resolves it, because the worker
+   may be made to check in; only a monitor's acknowledgement does.
+9. **Resolution by a check-in.** An overdue or unfinished alarm is resolved by a check-in or the
+   finish, unless the worker is overdue again by now (`resolveOnCheckIn`). Everyone alerted is
+   told how it ended.
+
+### 14.4 The offline rule
+
+The server decides only from check-ins it has received, by the time the worker made them:
+
+- A check-in's effective time is its device time, never later than when it arrived. A device clock
+  ahead of the server by more than `sync.clock_drift_flag_minutes` is refused for a check-in.
+- An on-time check-in sent late from an offline device never counts as missed once it arrives, and
+  the latest by device time wins whatever order check-ins arrive in. One received
+  `lone_worker.offline_flag_minutes` or more after it was made is flagged as late.
+- The grace period (`lone_worker.grace_minutes`) is what absorbs ordinary sync delays: a check-in
+  made on time and delivered within it raises nothing.
+- Silence past the grace period always raises the alarm. The server cannot tell a phone with no
+  signal from a worker who is hurt, so nothing suppresses an alarm because the device might be
+  offline. This costs some false alarms by design.
+- A check-in made before the alarm was raised that arrives after it resolves the alarm as "late
+  check-in from an offline device", flagged, and everyone alerted is told the worker was safe at
+  that time, not now. If the worker is overdue again by now, the alarm stays open.
+
+### 14.5 Location evidence (H-527)
+
+Off by default (`scheduling.lone_worker.location`, a location-level flag). When on, the device may
+attach one point to the event it sends (check-in, help, duress, finish); nothing is collected
+between events, so there is never a track. A monitor sees the latest point on an alarm. The sweep
+erases each point (coordinates cleared, the row kept as proof of the erasure) after
+`lone_worker.location_days`, on the database's clock. Never used to judge performance or
+timekeeping (R22).
+
+### 14.6 API, audit and outbox
+
+| Route | Permission | Notes |
+| --- | --- | --- |
+| `GET /v1/lone-worker/route` | check_in, monitor or manage | Whether it is on, the steps, problems, whether location evidence is on |
+| `PUT /v1/lone-worker/route` | manage | Validated; a named person must be an active member; audited `scheduling.lone_worker.route_set` |
+| `POST /v1/lone-worker/sessions` | check_in | Client id; 201 or 200 on replay; audited `session_started` |
+| `GET /v1/lone-worker/sessions/mine` | check_in | Duress shown as check-in; overdue alarm only |
+| `POST /v1/lone-worker/sessions/{id}/events` | check_in | Client UUID; 201 or 200 on replay; audited `event_recorded` (duress as check-in) |
+| `GET /v1/lone-worker/board` | monitor | Open sessions with status words; audited |
+| `GET /v1/lone-worker/alarms` | monitor | Open by default; with the latest location point; audited |
+| `POST /v1/lone-worker/alarms/{id}/acknowledge` | monitor | `expected_version`; audited `alarm_acknowledged` |
+
+The alarm side runs as the system straight after the worker's event, and the per-minute worker
+job `lone-worker-sweep` repairs anything missed: reminders, alarms past grace, help or duress
+alarms not yet raised, resolutions after late check-ins, re-alerts and location erasure. Outbox
+events: `scheduling.lone_worker.alarm_raised`, `scheduling.lone_worker.alarm_resolved`.
+Notifications carry no personal data.
+
+### 14.7 Retention and data protection
+
+`lone_worker` (3 years from the session's finish) for sessions, events and alarms; location points
+are not retained beyond `lone_worker.location_days`. Records of processing B3; data standards
+"Lone-worker safety". The DPO confirms the employee-monitoring DPIA covers it before it is switched
+on (H-1033).
+
+### 14.8 Test list
+
+- Domain, table-driven: session checks, event acceptance offline and late, next due, status, the
+  offline rule end to end, resolution, acknowledgement, re-alert, route checks, figures present.
+- Database: isolation for all four tables, who reads and writes what, append-only events, alarms
+  only by the system, duress never readable by the worker, location erasure only at its date.
+- API: off until the route, the escalation order, re-alert, offline late check-in, safe then is
+  not safe now, duress, help after finishing, location evidence.
