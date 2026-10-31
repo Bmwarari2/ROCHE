@@ -203,7 +203,8 @@ function parseIsoDate(value: string): Day {
   return d;
 }
 
-function isIsoDate(value: string): boolean {
+function isIsoDate(value: string | null | undefined): boolean {
+  if (typeof value !== "string") return false;
   try {
     parseIsoDate(value);
     return true;
@@ -213,34 +214,16 @@ function isIsoDate(value: string): boolean {
 }
 
 /**
- * Whether two counting patterns fall on the same days: the same kind and interval, and anchors a
- * whole number of intervals apart (for weekly patterns, the same weekdays too). A change between
- * patterns that do not keep the count re-anchors it, which must be explicit (rule 6a).
+ * Whether a new pattern keeps the count from the last dose actually due (rule 6a): that dose's day
+ * must be a day the new pattern falls on. Every day always keeps it; every n days must keep the
+ * grid; a weekly pattern must keep the weekday (a Monday dose moved to Tuesday is due again the
+ * next day) and, every n weeks, the week; a monthly pattern must keep the day of the month. With
+ * no earlier dose there is nothing to keep. A pattern whose anchor cannot be read keeps nothing.
  */
-export function keepsCount(before: SchedulePattern, after: SchedulePattern): boolean {
-  // A count that did not exist before, or is not kept after, has nothing to carry over.
-  if (!isCounting(before) || !isCounting(after)) return true;
-  if (before.kind === "every_n_days" && after.kind === "every_n_days") {
-    if (before.intervalDays !== after.intervalDays) return false;
-    const gap = dayNumber(parseIsoDate(after.anchorOn)) - dayNumber(parseIsoDate(before.anchorOn));
-    return mod(gap, after.intervalDays) === 0;
-  }
-  if (before.kind === "weekly" && after.kind === "weekly") {
-    if (before.intervalWeeks !== after.intervalWeeks) return false;
-    const monday = (iso: string) => {
-      const d = parseIsoDate(iso);
-      return dayNumber(d) - weekdayIndex(d);
-    };
-    return mod((monday(after.anchorOn) - monday(before.anchorOn)) / 7, after.intervalWeeks) === 0;
-  }
-  return false;
-}
-
-/** A pattern whose days are counted from an anchor (every n days, or weekly every 2 or more weeks). */
-export function isCounting(pattern: SchedulePattern): boolean {
-  return (
-    pattern.kind === "every_n_days" || (pattern.kind === "weekly" && pattern.intervalWeeks > 1)
-  );
+export function keepsCountFrom(lastDueOn: string | null, pattern: SchedulePattern): boolean {
+  if (lastDueOn === null || pattern.kind === "every_day") return true;
+  if (!isIsoDate(lastDueOn)) return false;
+  return patternFallsOn(pattern, parseIsoDate(lastDueOn));
 }
 
 function ukDay(instant: Date): Day {
@@ -261,9 +244,18 @@ function mod(a: number, n: number): number {
   return ((a % n) + n) % n;
 }
 
-/** Whether the pattern falls on a day, counting from the pattern's own anchor. */
+/**
+ * Whether the pattern falls on a day, counting from the pattern's own anchor. A missing or
+ * unreadable anchor falls on no day (`checkSchedule` refuses it with `bad_anchor`).
+ */
 function patternFallsOn(pattern: SchedulePattern, d: Day): boolean {
   if (pattern.kind === "every_day") return true;
+  if (
+    (pattern.kind === "every_n_days" || pattern.kind === "weekly") &&
+    !isIsoDate(pattern.anchorOn)
+  ) {
+    return false;
+  }
   if (pattern.kind === "every_n_days") {
     const anchor = parseIsoDate(pattern.anchorOn);
     return mod(dayNumber(d) - dayNumber(anchor), pattern.intervalDays) === 0;
@@ -275,6 +267,11 @@ function patternFallsOn(pattern: SchedulePattern, d: Day): boolean {
     return mod(Math.floor((dayNumber(d) - anchorMonday) / 7), pattern.intervalWeeks) === 0;
   }
   return d.day === Math.min(pattern.dayOfMonth, daysInMonth(d.year, d.month));
+}
+
+/** The UK calendar date (YYYY-MM-DD) of an instant. */
+export function ukDateOf(instant: Date): string {
+  return isoDate(ukDay(instant));
 }
 
 /** One dose on the MAR. */
@@ -449,14 +446,19 @@ export function describeSchedule(schedule: RegularSchedule): string {
   if (p.kind === "every_day") when = "every day";
   else if (p.kind === "every_n_days") {
     when = ordinalEvery(p.intervalDays, "day");
-    const anchor = parseIsoDate(p.anchorOn);
-    from = `, counting from ${WEEKDAY_NAMES[WEEKDAYS[weekdayIndex(anchor)] as Weekday]} ${dated(p.anchorOn)}`;
+    from = isIsoDate(p.anchorOn)
+      ? `, counting from ${WEEKDAY_NAMES[WEEKDAYS[weekdayIndex(parseIsoDate(p.anchorOn))] as Weekday]} ${dated(p.anchorOn)}`
+      : ", with no recorded day to count from: check the prescription";
   } else if (p.kind === "weekly") {
     when =
       p.intervalWeeks === 1
         ? `every ${weekdayNames(p.weekdays)}`
         : `${ordinalEvery(p.intervalWeeks, "week")} on ${weekdayNames(p.weekdays)}`;
-    if (p.intervalWeeks > 1) from = `, counting from the week of ${dated(p.anchorOn)}`;
+    if (p.intervalWeeks > 1) {
+      from = isIsoDate(p.anchorOn)
+        ? `, counting from the week of ${dated(p.anchorOn)}`
+        : ", with no recorded week to count from: check the prescription";
+    }
   } else {
     when = `once a month on day ${p.dayOfMonth}`;
     // February in a common year has the fewest days of any month: a later day falls, in some

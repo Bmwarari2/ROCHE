@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { draft, PERSON, PRODUCT, TABLET_FACTS, UNIT } from "../../test/medicines-fixtures";
-import { type MarEntryDraft, transcribeMarEntry } from "./mar-entry";
+import { draft, entry, PERSON, PRODUCT, TABLET_FACTS, UNIT } from "../../test/medicines-fixtures";
+import type { DmdProductRef } from "./dmd";
+import { type MarEntry, type MarEntryDraft, transcribeMarEntry } from "./mar-entry";
 import {
   completeReconciliation,
   type EntryDecision,
   type ItemDecision,
+  type LineSays,
   linkDifference,
   outstandingReconciliations,
   type ReconciledEntry,
@@ -33,17 +35,25 @@ const alendronic: ReconciledEntry = {
   personId: PERSON,
   product: PRODUCT.alendronicAcid,
 };
+const VERSIONS: Record<string, MarEntry[]> = {
+  "entry-para": [entry({ product: PRODUCT.paracetamolTablets }, "entry-para")],
+  "entry-alen": [entry({ product: PRODUCT.alendronicAcid }, "entry-alen")],
+  "entry-warf": [entry({ product: PRODUCT.warfarin }, "entry-warf")],
+};
 
 const source = (
   id: string,
   kind: ReconciliationSource["kind"],
   reference: string,
+  overrides: Partial<ReconciliationSource> = {},
 ): ReconciliationSource => ({
   id,
   kind,
   reference,
   documentId: kind === "person_or_family" ? null : `doc-${id}`,
   receivedAt: returnedAt,
+  currentBecause: null,
+  ...overrides,
 });
 const LETTER = source("letter", "discharge_letter", "Discharge letter, Ward 7, 03/11/2026");
 const FAMILY = source("family", "person_or_family", "Ada Example and her daughter");
@@ -51,30 +61,29 @@ const FAMILY = source("family", "person_or_family", "Ada Example and her daughte
 const line = (
   id: string,
   sourceId: string,
+  says: LineSays,
   asWritten: string,
-  product: ReconciliationItem["product"],
-) => ({
-  id,
-  sourceId,
-  asWritten,
-  product,
-});
+  product: DmdProductRef | null,
+): ReconciliationItem => ({ id, sourceId, says, asWritten, product });
 const PARA_LINE = line(
   "item-para",
   "letter",
+  "continue",
   "Paracetamol 500mg tabs 2 QDS",
   PRODUCT.paracetamolTablets,
 );
 const ALEN_STOP_LINE = line(
   "item-alen",
   "letter",
+  "stop",
   "Alendronic acid 70mg weekly: STOPPED on the ward, GP to review",
   PRODUCT.alendronicAcid,
 );
 const LEVO_LINE = line(
   "item-levo",
   "letter",
-  "Levothyroxine 25 micrograms OM",
+  "start",
+  "Levothyroxine 25 micrograms OM: NEW",
   PRODUCT.levothyroxine,
 );
 
@@ -110,6 +119,11 @@ const {
   },
 });
 const newDraft: ReconciliationDraft = levothyroxineDraft;
+const draftOf = (product: DmdProductRef): ReconciliationDraft => ({
+  ...newDraft,
+  product,
+  indication: "Pain",
+});
 
 const continuePara: EntryDecision = {
   kind: "continue",
@@ -130,6 +144,7 @@ function completion(overrides: Partial<ReconciliationCompletion> = {}): Reconcil
   return {
     reconciliation,
     currentEntries: [paracetamol, alendronic],
+    entryVersions: (id) => VERSIONS[id] ?? [],
     entryDecisions: [continuePara, stopAlen],
     itemDecisions: [startLevo],
     completer: { id: NURSE, competence: "current" },
@@ -159,32 +174,100 @@ describe("a completed reconciliation is the plan the API applies", () => {
         source: { kind: "discharge_letter", reference: LETTER.reference, documentId: "doc-letter" },
       },
     ]);
-    expect(result.plan.starts).toHaveLength(1);
-    expect(result.plan.starts[0]?.draft).toMatchObject({
-      personId: PERSON,
-      product: PRODUCT.levothyroxine,
-      source: { kind: "discharge_letter", documentId: "doc-letter" },
-    });
+    expect(result.plan.starts).toMatchObject([
+      {
+        itemId: "item-levo",
+        reanchorReason: null,
+        draft: {
+          personId: PERSON,
+          product: PRODUCT.levothyroxine,
+          source: { kind: "discharge_letter" },
+        },
+      },
+    ]);
     expect(result.plan).toMatchObject({ completedBy: NURSE, changes: [], notStarted: [] });
   });
 
-  it("makes a change from the source line that shows it, with the reason when its day count moves", () => {
+  it("makes a change from the line that says it, with what happened to that day's doses", () => {
+    const changeLine = { ...PARA_LINE, says: "change" as const };
+    const rec = { ...reconciliation, items: [changeLine, ALEN_STOP_LINE, LEVO_LINE] };
     const change: EntryDecision = {
       kind: "change",
       entryId: "entry-para",
       itemIds: ["item-para"],
-      draft: { ...newDraft, product: PRODUCT.paracetamolTablets, indication: "Pain" },
-      reanchorReason: "New pattern from the ward",
+      draft: draftOf(PRODUCT.paracetamolTablets),
+      todaysDoses: "some_still_due",
     };
-    const result = completeReconciliation(completion({ entryDecisions: [change, stopAlen] }));
-    if (!result.ok) throw new Error("refused");
+    const result = completeReconciliation(
+      completion({ reconciliation: rec, entryDecisions: [change, stopAlen] }),
+    );
+    if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
     expect(result.plan.changes).toMatchObject([
       {
         entryId: "entry-para",
-        reanchorReason: "New pattern from the ward",
+        todaysDoses: "some_still_due",
+        reanchorReason: null,
         draft: { personId: PERSON, source: { kind: "discharge_letter" } },
       },
     ]);
+  });
+
+  it("shows a change's day-count and change-day questions when the reconciliation completes", () => {
+    const changeLine = { ...PARA_LINE, says: "change" as const };
+    const rec = { ...reconciliation, items: [changeLine, ALEN_STOP_LINE, LEVO_LINE] };
+    const unstated: EntryDecision = {
+      kind: "change",
+      entryId: "entry-para",
+      itemIds: ["item-para"],
+      draft: draftOf(PRODUCT.paracetamolTablets),
+    };
+    expect(
+      completeReconciliation(
+        completion({ reconciliation: rec, entryDecisions: [unstated, stopAlen] }),
+      ),
+    ).toMatchObject({
+      ok: false,
+      issues: [
+        {
+          problem: "change_refused",
+          entryId: "entry-para",
+          draftIssues: [{ problem: "todays_doses_unstated" }],
+        },
+      ],
+    });
+    const every3 = (anchorOn: string): ReconciliationDraft => ({
+      ...draftOf(PRODUCT.paracetamolTablets),
+      directions: {
+        kind: "regular",
+        schedule: {
+          pattern: { kind: "every_n_days", intervalDays: 3, anchorOn },
+          times: [{ time: "08:00", dose: { kind: "amount", quantity: 1, unit: UNIT.tablet } }],
+        },
+      },
+    });
+    const versions: Record<string, MarEntry[]> = {
+      ...VERSIONS,
+      "entry-para": [entry({ directions: every3("2026-11-02").directions }, "entry-para")],
+    };
+    const moved: EntryDecision = {
+      kind: "change",
+      entryId: "entry-para",
+      itemIds: ["item-para"],
+      draft: every3("2026-11-04"),
+      todaysDoses: "some_still_due",
+    };
+    expect(
+      completeReconciliation(
+        completion({
+          reconciliation: rec,
+          entryVersions: (id) => versions[id] ?? [],
+          entryDecisions: [moved, stopAlen],
+        }),
+      ),
+    ).toMatchObject({
+      ok: false,
+      issues: [{ problem: "change_refused", draftIssues: [{ problem: "count_reanchored" }] }],
+    });
   });
 
   it("records a source line not started, with the reason", () => {
@@ -205,9 +288,8 @@ describe("hazard HZ-121 every medicine on the MAR needs a decision before a reco
     const result = completeReconciliation(
       completion({ reconciliation: withoutStopLine, entryDecisions: [continuePara] }),
     );
-    expect(result).toMatchObject({ ok: false });
+    expect(result.ok ? [] : result.issues.map((i) => i.problem)).toEqual(["entry_undecided"]);
     if (!result.ok) {
-      expect(result.issues.map((i) => i.problem)).toEqual(["entry_undecided"]);
       expect(result.issues[0]?.message).toBe(
         "Decide what happens to Alendronic acid 70mg tablets: continue, change, stop or ask.",
       );
@@ -230,27 +312,63 @@ describe("hazard HZ-121 every medicine on the MAR needs a decision before a reco
     );
   });
 
-  it("a stop cites the line that says so, never absence and never only the family's word", () => {
+  it("a stop cites a current document's line that says so, never absence and never only the family's word", () => {
     const noLine = { ...stopAlen, itemIds: [] };
     expect(
       problems(
         completion({ reconciliation: withoutStopLine, entryDecisions: [continuePara, noLine] }),
       ),
     ).toEqual(["stop_needs_source_item"]);
-    const familyLine = line("item-fam", "family", "Daughter says the ward stopped it", null);
-    const familyOnly = {
-      ...reconciliation,
-      items: [PARA_LINE, LEVO_LINE, familyLine],
-    };
-    const byFamily = { ...stopAlen, itemIds: ["item-fam"] };
+    const familyLine = line(
+      "item-fam",
+      "family",
+      "stop",
+      "Daughter says the ward stopped it",
+      PRODUCT.alendronicAcid,
+    );
+    const familyOnly = { ...reconciliation, items: [PARA_LINE, LEVO_LINE, familyLine] };
     expect(
       problems(
-        completion({ reconciliation: familyOnly, entryDecisions: [continuePara, byFamily] }),
+        completion({
+          reconciliation: familyOnly,
+          entryDecisions: [continuePara, { ...stopAlen, itemIds: ["item-fam"] }],
+        }),
       ),
     ).toEqual(["source_not_a_document"]);
     expect(
       problems(completion({ entryDecisions: [continuePara, { ...stopAlen, reason: " " }] })),
     ).toEqual(["stop_needs_reason"]);
+  });
+
+  it("a stop is never supported by a pre-admission label that says the medicine continues (M2)", () => {
+    const LABEL = source("label", "pharmacy_label", "Pack brought in, labelled 12/10/2026", {
+      receivedAt: new Date("2026-10-12T10:00:00Z"),
+    });
+    const labelLine = line(
+      "item-label",
+      "label",
+      "continue",
+      "Alendronic acid 70mg once a week",
+      PRODUCT.alendronicAcid,
+    );
+    const rec = {
+      ...reconciliation,
+      sources: [LETTER, FAMILY, LABEL],
+      items: [PARA_LINE, LEVO_LINE, labelLine],
+    };
+    const byLabel = { ...stopAlen, itemIds: ["item-label"], reason: "Not on the letter" };
+    expect(
+      problems(completion({ reconciliation: rec, entryDecisions: [continuePara, byLabel] })),
+    ).toEqual(["line_does_not_support"]);
+    const stopLabel = { ...labelLine, says: "stop" as const };
+    expect(
+      problems(
+        completion({
+          reconciliation: { ...rec, items: [PARA_LINE, LEVO_LINE, stopLabel] },
+          entryDecisions: [continuePara, byLabel],
+        }),
+      ),
+    ).toEqual(["stop_not_shown_current"]);
   });
 
   it("refuses to complete when the medicines record changed after the reconciliation began", () => {
@@ -295,6 +413,159 @@ describe("hazard HZ-121 every medicine on the MAR needs a decision before a reco
   });
 });
 
+describe("hazard HZ-121 a decision is supported only by a line that says it, about the same dm+d product", () => {
+  it("never continues alendronic acid on the letter's line that says it was stopped, whatever the note", () => {
+    const keep: EntryDecision = {
+      kind: "continue",
+      entryId: "entry-alen",
+      itemIds: ["item-alen"],
+      note: "Carry on as before",
+      confirmedWith: "Daughter",
+    };
+    const result = completeReconciliation(completion({ entryDecisions: [continuePara, keep] }));
+    expect(result).toMatchObject({
+      ok: false,
+      issues: [{ problem: "line_does_not_support", entryId: "entry-alen", itemId: "item-alen" }],
+    });
+    if (!result.ok) expect(result.issues[0]?.message).toContain("says stop it");
+  });
+
+  describe("warfarin on the MAR, and a letter that stops it and starts apixaban", () => {
+    const warfarin: ReconciledEntry = {
+      entryId: "entry-warf",
+      version: 1,
+      personId: PERSON,
+      product: PRODUCT.warfarin,
+    };
+    const stopWarf = line("item-warf", "letter", "stop", "Warfarin: STOPPED", PRODUCT.warfarin);
+    const startApix = line(
+      "item-apix",
+      "letter",
+      "start",
+      "Apixaban 5mg twice a day: NEW",
+      PRODUCT.apixaban,
+    );
+    const rec: Reconciliation = {
+      ...reconciliation,
+      entriesAtStart: [...reconciliation.entriesAtStart, { entryId: "entry-warf", version: 1 }],
+      items: [...reconciliation.items, stopWarf, startApix],
+    };
+    const base = { reconciliation: rec, currentEntries: [paracetamol, alendronic, warfarin] };
+    const apixaban: ItemDecision = {
+      kind: "start",
+      itemId: "item-apix",
+      draft: draftOf(PRODUCT.apixaban),
+    };
+
+    it("refuses warfarin continued on the apixaban line, with a note and without the clinician", () => {
+      const keep: EntryDecision = {
+        kind: "continue",
+        entryId: "entry-warf",
+        itemIds: ["item-apix"],
+        note: "Anticoagulant continues",
+        confirmedWith: null,
+      };
+      const result = completeReconciliation(
+        completion({
+          ...base,
+          entryDecisions: [continuePara, stopAlen, keep],
+          itemDecisions: [startLevo],
+        }),
+      );
+      expect(result.ok ? [] : result.issues.map((i) => i.problem)).toEqual([
+        "line_does_not_support",
+        "item_undecided",
+      ]);
+    });
+
+    it("stops warfarin on its own line and starts apixaban on its line", () => {
+      const stop: EntryDecision = {
+        kind: "stop",
+        entryId: "entry-warf",
+        itemIds: ["item-warf"],
+        reason: "Switched to apixaban on the ward",
+      };
+      const result = completeReconciliation(
+        completion({
+          ...base,
+          entryDecisions: [continuePara, stopAlen, stop],
+          itemDecisions: [startLevo, apixaban],
+        }),
+      );
+      expect(result).toMatchObject({
+        ok: true,
+        plan: {
+          stops: [{ entryId: "entry-alen" }, { entryId: "entry-warf" }],
+          starts: [{ itemId: "item-levo" }, { itemId: "item-apix" }],
+        },
+      });
+    });
+  });
+
+  it.each<[string, ItemDecision, ReconciliationItem]>([
+    [
+      "from a line that says stop",
+      { kind: "start", itemId: "item-x", draft: draftOf(PRODUCT.warfarin) },
+      line("item-x", "letter", "stop", "Warfarin: STOPPED", PRODUCT.warfarin),
+    ],
+    [
+      "of another product than the line's",
+      { kind: "start", itemId: "item-x", draft: draftOf(PRODUCT.warfarin) },
+      line("item-x", "letter", "start", "Apixaban: NEW", PRODUCT.apixaban),
+    ],
+    [
+      "from a line with no dm+d product",
+      { kind: "start", itemId: "item-x", draft: draftOf(PRODUCT.warfarin) },
+      line("item-x", "letter", "start", "Blood thinner", null),
+    ],
+  ])("refuses a start %s", (_name, decision, item) => {
+    const rec = { ...reconciliation, items: [...reconciliation.items, item] };
+    expect(
+      problems(completion({ reconciliation: rec, itemDecisions: [startLevo, decision] })),
+    ).toEqual(["line_does_not_support"]);
+  });
+
+  it("refuses a change on a line that says continue, or about another product", () => {
+    const change: EntryDecision = {
+      kind: "change",
+      entryId: "entry-para",
+      itemIds: ["item-para"],
+      draft: draftOf(PRODUCT.paracetamolTablets),
+      todaysDoses: "some_still_due",
+    };
+    expect(problems(completion({ entryDecisions: [change, stopAlen] }))).toEqual([
+      "line_does_not_support",
+    ]);
+    const otherProduct = { ...change, draft: draftOf(PRODUCT.paracetamolCapsules) };
+    const changeLine = { ...PARA_LINE, says: "change" as const };
+    expect(
+      problems(
+        completion({
+          reconciliation: { ...reconciliation, items: [changeLine, ALEN_STOP_LINE, LEVO_LINE] },
+          entryDecisions: [otherProduct, stopAlen],
+        }),
+      ),
+    ).toEqual(["line_does_not_support"]);
+  });
+
+  it("an unclear line is a question: completion waits until it says what it means", () => {
+    const unclear = line("item-q", "letter", "unclear", "Bisoprolol ?dose", null);
+    const rec = { ...reconciliation, items: [...reconciliation.items, unclear] };
+    const asked: ItemDecision = {
+      kind: "query",
+      itemId: "item-q",
+      question: "What dose of bisoprolol? Ask the ward.",
+    };
+    expect(
+      problems(completion({ reconciliation: rec, itemDecisions: [startLevo, asked] })),
+    ).toEqual(["line_unclear", "query_open"]);
+    const notStarted: ItemDecision = { kind: "not_started", itemId: "item-q", reason: "Not ours" };
+    expect(
+      problems(completion({ reconciliation: rec, itemDecisions: [startLevo, notStarted] })),
+    ).toEqual(["line_unclear"]);
+  });
+});
+
 describe("hazard HZ-121 continuing a medicine needs a line that shows what is prescribed now", () => {
   const warfarin: ReconciledEntry = {
     entryId: "entry-warf",
@@ -309,9 +580,21 @@ describe("hazard HZ-121 continuing a medicine needs a line that shows what is pr
   );
   const GP = source("gp", "gp_record", "GP summary printed 01/10/2026");
   const extra = [
-    line("item-warf-family", "family", "Warfarin at teatime, as usual", null),
-    line("item-warf-label", "label", "Warfarin 1mg tablets as directed", PRODUCT.warfarin),
-    line("item-warf-gp", "gp", "Warfarin 1mg tablets as per INR book", PRODUCT.warfarin),
+    line("item-warf-family", "family", "continue", "Warfarin at teatime, as usual", null),
+    line(
+      "item-warf-label",
+      "label",
+      "continue",
+      "Warfarin 1mg tablets as directed",
+      PRODUCT.warfarin,
+    ),
+    line(
+      "item-warf-gp",
+      "gp",
+      "continue",
+      "Warfarin 1mg tablets as per INR book",
+      PRODUCT.warfarin,
+    ),
   ];
   const rec = (overrides: Partial<Reconciliation> = {}): Reconciliation => ({
     ...reconciliation,
@@ -321,7 +604,11 @@ describe("hazard HZ-121 continuing a medicine needs a line that shows what is pr
     ...overrides,
   });
   /** Warfarin continued on the lines given; the other warfarin lines are recorded as not started. */
-  const input = (linked: string[], keep: Partial<EntryDecision> = {}, recOverrides = {}) =>
+  const input = (
+    linked: string[],
+    keep: Partial<EntryDecision> = {},
+    recOverrides: Partial<Reconciliation> = {},
+  ) =>
     completion({
       reconciliation: rec(recOverrides),
       currentEntries: [paracetamol, alendronic, warfarin],
@@ -367,29 +654,44 @@ describe("hazard HZ-121 continuing a medicine needs a line that shows what is pr
     expect(problems(input(["item-warf-family"], confirmed))).toEqual([]);
   });
 
-  it("on an admission, a label alone is not enough but the GP record is", () => {
-    const admission = { trigger: "admission" as const, sources: [FAMILY, LABEL, GP, LETTER] };
+  it("on an admission, a label alone is not enough but a current GP record is", () => {
+    const admission = { trigger: "admission" as const };
     expect(problems(input(["item-warf-label"], {}, admission))).toEqual([
       "continue_not_shown_current",
     ]);
     expect(problems(input(["item-warf-gp"], {}, admission))).toEqual([]);
   });
 
-  it("on a return with no discharge letter and the reason recorded, the GP record shows what is prescribed", () => {
-    const noLetter = {
-      sources: [FAMILY, LABEL, GP, source("gp2", "gp_record", "GP summary 03/11/2026")],
-      items: [
-        { ...PARA_LINE, sourceId: "gp2" },
-        { ...ALEN_STOP_LINE, sourceId: "gp2" },
-        { ...LEVO_LINE, sourceId: "gp2" },
-        ...extra,
+  it("a GP record from June does not show what is prescribed after the return, unless the person says why it is current (M3)", () => {
+    const june = source("gp", "gp_record", "GP summary, June 2026", {
+      receivedAt: new Date("2026-06-15T10:00:00Z"),
+    });
+    const noLetter = { sources: [FAMILY, LABEL, june] };
+    const withReason = (r: ReconciliationCompletion) => ({
+      ...r,
+      noDischargeLetterReason: "No letter sent",
+    });
+    const stopLine = { ...ALEN_STOP_LINE, sourceId: "gp" };
+    const items = [
+      { ...PARA_LINE, sourceId: "gp" },
+      stopLine,
+      { ...LEVO_LINE, sourceId: "gp" },
+      ...extra,
+    ];
+    const juneOnly = withReason(input(["item-warf-gp"], {}, { ...noLetter, items }));
+    expect(problems(juneOnly)).toContain("continue_not_shown_current");
+    const marked = {
+      sources: [
+        FAMILY,
+        LABEL,
+        {
+          ...june,
+          currentBecause: "GP surgery confirmed by phone on 03/11 that this list is current",
+        },
       ],
+      items,
     };
-    const withReason = {
-      ...input(["item-warf-gp"], {}, noLetter),
-      noDischargeLetterReason: "Letter not sent; GP surgery read the current list by phone",
-    };
-    expect(problems(withReason)).toEqual([]);
+    expect(problems(withReason(input(["item-warf-gp"], {}, marked)))).toEqual([]);
   });
 });
 
@@ -402,7 +704,7 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
     });
     if (!result.ok) {
       expect(result.issues[0]?.message).toBe(
-        'Decide what happens to "Levothyroxine 25 micrograms OM": link it to a MAR entry, start it, or say why not.',
+        'Decide what happens to "Levothyroxine 25 micrograms OM: NEW": link it to a MAR entry, start it, or say why not.',
       );
     }
   });
@@ -411,7 +713,12 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
     [
       "a line linked and also started",
       [
-        { kind: "start", itemId: "item-para", draft: { ...newDraft, product: PRODUCT.warfarin } },
+        {
+          kind: "start",
+          itemId: "item-para",
+          draft: draftOf(PRODUCT.paracetamolTablets),
+          note: "x",
+        },
         startLevo,
       ],
       null,
@@ -444,9 +751,15 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
   });
 
   it("starts a medicine only from a document, never from what the family says", () => {
-    const cream = line("item-cream", "family", "A cream for her knees", null);
+    const cream = line(
+      "item-cream",
+      "family",
+      "start",
+      "A cream for her knees",
+      PRODUCT.levothyroxine,
+    );
     const family: Reconciliation = { ...reconciliation, items: [...reconciliation.items, cream] };
-    const start: ItemDecision = { kind: "start", itemId: "item-cream", draft: newDraft };
+    const start: ItemDecision = { kind: "start", itemId: "item-cream", draft: newDraft, note: "x" };
     expect(
       problems(completion({ reconciliation: family, itemDecisions: [startLevo, start] })),
     ).toEqual(["source_not_a_document"]);
@@ -455,7 +768,7 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
   it("checks each new entry as any MAR entry is checked (dm+d, units, source)", () => {
     const bad: ReconciliationDraft = {
       ...newDraft,
-      product: { vmpId: "levothyroxine", ampId: null, name: "Levothyroxine" },
+      product: { ...PRODUCT.levothyroxine, vmpId: PRODUCT.levothyroxine.vmpId, name: "" },
     };
     const result = completeReconciliation(
       completion({ itemDecisions: [{ kind: "start", itemId: "item-levo", draft: bad }] }),
@@ -481,6 +794,7 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
       by: NURSE,
       at: returnedAt,
       origin: "reconciliation",
+      earlierEntries: [],
     });
     expect(made).toMatchObject({
       ok: true,
@@ -489,30 +803,105 @@ describe("hazard HZ-121 every medicine in the sources needs a decision, so a new
   });
 });
 
+describe("hazard HZ-121 a medicine stopped and started again in a reconciliation keeps its day count", () => {
+  const every3 = (anchorOn: string): ReconciliationDraft => ({
+    ...draftOf(PRODUCT.paracetamolTablets),
+    directions: {
+      kind: "regular",
+      schedule: {
+        pattern: { kind: "every_n_days", intervalDays: 3, anchorOn },
+        times: [{ time: "08:00", dose: { kind: "amount", quantity: 1, unit: UNIT.tablet } }],
+      },
+    },
+  });
+  const versions: Record<string, MarEntry[]> = {
+    ...VERSIONS,
+    "entry-para": [entry({ directions: every3("2026-11-02").directions }, "entry-para")],
+  };
+  const stopPara = line(
+    "item-para-stop",
+    "letter",
+    "stop",
+    "Paracetamol: STOPPED",
+    PRODUCT.paracetamolTablets,
+  );
+  const restart = line(
+    "item-para-new",
+    "letter",
+    "start",
+    "Paracetamol: restart every 3 days",
+    PRODUCT.paracetamolTablets,
+  );
+  const rec = { ...reconciliation, items: [stopPara, restart, ALEN_STOP_LINE, LEVO_LINE] };
+  const stop: EntryDecision = {
+    kind: "stop",
+    entryId: "entry-para",
+    itemIds: ["item-para-stop"],
+    reason: "Stopped on the ward",
+  };
+  const base = {
+    reconciliation: rec,
+    entryVersions: (id: string) => versions[id] ?? [],
+    entryDecisions: [stop, stopAlen],
+  };
+
+  it("refuses a restart off the count without a reason, and takes one on it or with a reason", () => {
+    const off: ItemDecision = {
+      kind: "start",
+      itemId: "item-para-new",
+      draft: every3("2026-11-04"),
+    };
+    expect(
+      completeReconciliation(completion({ ...base, itemDecisions: [startLevo, off] })),
+    ).toMatchObject({
+      ok: false,
+      issues: [
+        {
+          problem: "start_refused",
+          itemId: "item-para-new",
+          draftIssues: [{ problem: "count_reanchored" }],
+        },
+      ],
+    });
+    const on: ItemDecision = {
+      kind: "start",
+      itemId: "item-para-new",
+      draft: every3("2026-11-05"),
+    };
+    expect(problems(completion({ ...base, itemDecisions: [startLevo, on] }))).toEqual([]);
+    const withReason: ItemDecision = { ...off, reanchorReason: "Ward restarted it on 04/11" };
+    expect(
+      completeReconciliation(completion({ ...base, itemDecisions: [startLevo, withReason] })),
+    ).toMatchObject({
+      ok: true,
+      plan: {
+        starts: [{}, { itemId: "item-para-new", reanchorReason: "Ward restarted it on 04/11" }],
+      },
+    });
+  });
+});
+
 describe("hazard HZ-121 a medicine is never on the MAR twice without a reason", () => {
   const prnLine = line(
     "item-para-prn",
     "letter",
+    "start",
     "Paracetamol 500mg tabs 1-2 PRN",
     PRODUCT.paracetamolTablets,
   );
   const capsLine = line(
     "item-caps",
     "letter",
+    "start",
     "Paracetamol 500mg caps",
     PRODUCT.paracetamolCapsules,
   );
   const rec = { ...reconciliation, items: [...reconciliation.items, prnLine, capsLine] };
   const start = (
     itemId: string,
-    product: ReconciliationDraft["product"],
+    product: DmdProductRef,
     note: string | null = null,
-  ): ItemDecision => ({
-    kind: "start",
-    itemId,
-    draft: { ...newDraft, product, indication: "Pain" },
-    note,
-  });
+  ): ItemDecision => ({ kind: "start", itemId, draft: draftOf(product), note });
   const notCaps: ItemDecision = {
     kind: "not_started",
     itemId: "item-caps",
@@ -549,37 +938,90 @@ describe("hazard HZ-121 a medicine is never on the MAR twice without a reason", 
       itemId: "item-para-prn",
       reason: "Same as the regular entry",
     };
-    const caps = start("item-caps", PRODUCT.paracetamolCapsules);
     expect(
-      problems(completion({ reconciliation: rec, itemDecisions: [startLevo, notPrn, caps] })),
+      problems(
+        completion({
+          reconciliation: rec,
+          itemDecisions: [startLevo, notPrn, start("item-caps", PRODUCT.paracetamolCapsules)],
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags a change into a product that is already continued", () => {
+    const alenChange = line(
+      "item-alen-change",
+      "letter",
+      "change",
+      "Paracetamol in place of alendronic acid",
+      PRODUCT.paracetamolTablets,
+    );
+    const recChange = { ...reconciliation, items: [PARA_LINE, alenChange, LEVO_LINE] };
+    const change: EntryDecision = {
+      kind: "change",
+      entryId: "entry-alen",
+      itemIds: ["item-alen-change"],
+      draft: draftOf(PRODUCT.paracetamolTablets),
+      todaysDoses: "some_still_due",
+    };
+    expect(
+      problems(completion({ reconciliation: recChange, entryDecisions: [continuePara, change] })),
+    ).toEqual(["possible_duplicate"]);
+    expect(
+      problems(
+        completion({
+          reconciliation: recChange,
+          entryDecisions: [continuePara, { ...change, note: "Two strengths prescribed" }],
+        }),
+      ),
     ).toEqual([]);
   });
 });
 
-describe("hazard HZ-121 continuing a medicine the sources show as a different product needs a note", () => {
+describe("hazard HZ-121 continuing a medicine a source shows as another brand needs a note", () => {
   it.each([
     [
       "another VMP (tablets on the MAR, capsules on the letter)",
       PRODUCT.paracetamolCapsules,
       "product",
+      ["line_does_not_support"],
     ],
-    ["another brand of the same VMP", PRODUCT.paracetamolBrandB, "brand"],
-    ["a line that is not dm+d coded", null, "not_coded"],
-  ] as const)("%s", (_name, product, difference) => {
+    [
+      "another brand of the same VMP",
+      PRODUCT.paracetamolBrandB,
+      "brand",
+      ["continue_with_difference"],
+    ],
+    ["a line that is not dm+d coded", null, "not_coded", ["continue_not_shown_current"]],
+  ] as const)("%s", (_name, product, difference, expected) => {
     const mar = { ...paracetamol, product: PRODUCT.paracetamolBrandA };
     const item = { ...PARA_LINE, product };
     expect(linkDifference(mar, item)).toBe(difference);
     const rec = { ...reconciliation, items: [item, ALEN_STOP_LINE, LEVO_LINE] };
-    const input = completion({ reconciliation: rec, currentEntries: [mar, alendronic] });
-    expect(problems(input)).toEqual(["continue_with_difference"]);
+    expect(
+      problems(completion({ reconciliation: rec, currentEntries: [mar, alendronic] })),
+    ).toEqual(expected);
+  });
+
+  it("accepts another brand with a note, and the same product with none", () => {
+    const mar = { ...paracetamol, product: PRODUCT.paracetamolBrandA };
+    const rec = {
+      ...reconciliation,
+      items: [{ ...PARA_LINE, product: PRODUCT.paracetamolBrandB }, ALEN_STOP_LINE, LEVO_LINE],
+    };
     const noted = {
       ...continuePara,
       note: "The pharmacy supplies this brand; same medicine and strength",
     };
-    expect(problems({ ...input, entryDecisions: [noted, stopAlen] })).toEqual([]);
-  });
-
-  it("the same product needs no note", () => {
+    expect(
+      problems(
+        completion({
+          reconciliation: rec,
+          currentEntries: [mar, alendronic],
+          entryDecisions: [noted, stopAlen],
+        }),
+      ),
+    ).toEqual([]);
     expect(linkDifference(paracetamol, PARA_LINE)).toBeNull();
   });
 });
@@ -731,10 +1173,12 @@ describe("hazard HZ-121 the medicines record says it is not yet reconciled after
   });
 
   it("a reconciliation for the admission clears it, never the later return", () => {
-    const done = [{ personId: PERSON, triggerEventId: "adm-1" }];
-    expect(outstandingReconciliations([admission, back], done).map((o) => o.event.id)).toEqual([
-      "ret-1",
-    ]);
+    expect(
+      outstandingReconciliations(
+        [admission, back],
+        [{ personId: PERSON, triggerEventId: "adm-1" }],
+      ).map((o) => o.event.id),
+    ).toEqual(["ret-1"]);
   });
 
   it("a reconciliation for the return also covers the admission before it", () => {

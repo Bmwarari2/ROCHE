@@ -5,27 +5,36 @@
  * MAR, the medicines that came with the person, what the person and family say) and decides, for
  * every medicine on the MAR and every medicine in the sources, what happens to it.
  *
- * Harbour decides nothing itself. It never infers that a medicine stopped because a source leaves
- * it out, and it never pairs medicines: the person links each source line to the MAR entry it is
- * about. On a link, Harbour shows only whether the dm+d product differs by identity (another VMP,
- * or another brand of the same VMP), never by ingredient (medical-device boundary). Allergies in
- * the sources are compared with the recorded allergies by the person, who confirms it; Harbour
- * matches no allergen (ADR-0082 default).
+ * Each source line is recorded as written, with its dm+d product and what it says about the
+ * medicine: start, continue, change, stop or unclear. A decision is supported only by a line that
+ * says that thing about the same dm+d product (by identity, never ingredient), from a document
+ * that shows what is prescribed now for this event: received on or after the admission, transfer
+ * or return, or marked current by the person with a reason. A line that says something else, or is
+ * about another product, never supports a decision; an unclear line is a question to answer first.
+ * Harbour never infers a stop from a medicine missing from a source, and never pairs lines itself.
+ * Allergies in the sources are compared with the recorded allergies by the person, who confirms
+ * it; Harbour matches no allergen (ADR-0082 default).
  *
  * New and changed medicines become MAR entries "Not yet checked", so a second person checks each
- * against its source (HZ-005). The completed reconciliation is the plan the API applies.
+ * against its source (HZ-005); each change and start is tried against the entry's versions when
+ * the reconciliation completes, so a moved day count or a change-day question shows then
+ * (rule 6a, 6c). The completed reconciliation is the plan the API applies.
  */
 
 import { formatUkDateTime } from "../shared/time";
 import { type DmdProductRef, dmdProductDifference } from "./dmd";
 import {
+  changeMarEntry,
   checkMarEntryDraft,
   type DmdProductFacts,
+  type MarEntry,
   type MarEntryDraft,
   type MarEntryIssue,
   type MarSourceDocument,
   type MarSourceKind,
   type MedicinesCompetence,
+  type TodaysDoses,
+  transcribeMarEntry,
 } from "./mar-entry";
 
 export type ReconciliationTrigger = "admission" | "transfer" | "return_from_hospital" | "change";
@@ -46,10 +55,9 @@ export const RECONCILIATION_TRIGGER_WORDS: Readonly<Record<ReconciliationTrigger
 export type ReconciliationSourceKind = MarSourceKind | "person_or_family";
 
 /**
- * Sources that can show on their own that a medicine continues: what the prescriber or the
- * pharmacy records as prescribed now. The labels on medicines brought in, the previous setting's
- * MAR and what the person or family say show what was taken, not what is prescribed now, so a
- * medicine supported only by them needs a note and a clinician's confirmation (rule 7).
+ * Sources that can show what is prescribed now: what the prescriber or the pharmacy records. The
+ * labels on medicines brought in, the previous setting's MAR and what the person or family say show
+ * what was taken, not what is prescribed now (rule 7).
  */
 const SHOWS_CURRENT_PRESCRIPTION: ReadonlySet<ReconciliationSourceKind> = new Set([
   "prescription",
@@ -67,14 +75,31 @@ export interface ReconciliationSource {
   readonly reference: string;
   readonly documentId: string | null;
   readonly receivedAt: Date;
+  /**
+   * Why a source received before the admission, transfer or return still shows what is prescribed
+   * now (for example "GP summary printed for this admission on 30/09"); null otherwise (rule 9).
+   */
+  readonly currentBecause: string | null;
 }
 
-/** One medicine as a source lists it, written as it is there; dm+d coded when it can be. */
+/** What a source line says about the medicine, as the person recording it reads it. */
+export type LineSays = "start" | "continue" | "change" | "stop" | "unclear";
+
+export const LINE_SAYS_WORDS: Readonly<Record<LineSays, string>> = {
+  start: "start it",
+  continue: "continue it",
+  change: "change it",
+  stop: "stop it",
+  unclear: "it is unclear",
+};
+
+/** One medicine as a source lists it: as written, its dm+d product, and what it says. */
 export interface ReconciliationItem {
   readonly id: string;
   readonly sourceId: string;
   readonly asWritten: string;
   readonly product: DmdProductRef | null;
+  readonly says: LineSays;
 }
 
 /** A MAR entry in force, as the reconciliation sees it. */
@@ -93,23 +118,28 @@ export type EntryDecision =
       readonly kind: "continue";
       readonly entryId: string;
       readonly itemIds: readonly string[];
-      /** Why it continues when no linked line shows the current prescription, or one shows another product. */
+      /** Why it continues when no linked line shows the current prescription, or one shows another brand. */
       readonly note: string | null;
-      /** Who confirmed it continues (the prescriber or a clinician), how and when, when no linked line shows the current prescription. */
+      /** Who confirmed it continues (the prescriber or a clinician), how and when, when no linked line shows it. */
       readonly confirmedWith: string | null;
     }
   | {
       readonly kind: "change";
       readonly entryId: string;
+      /** The lines that say the change, about the new dm+d product. */
       readonly itemIds: readonly string[];
       readonly draft: ReconciliationDraft;
       /** Why the new pattern starts a new day count, when it does (rule 6a). */
       readonly reanchorReason?: string | null;
+      /** What happened to the doses of the day the change takes effect, when it has doses (rule 6c). */
+      readonly todaysDoses?: TodaysDoses | null;
+      /** Why, when the MAR will already hold the new dm+d product (rule 10). */
+      readonly note?: string | null;
     }
   | {
       readonly kind: "stop";
       readonly entryId: string;
-      /** The source lines that say the medicine stops (a letter's line, the prescriber's instruction): never absence. */
+      /** The lines that say the medicine stops: never absence. */
       readonly itemIds: readonly string[];
       readonly reason: string;
     }
@@ -122,6 +152,8 @@ export type ItemDecision =
       readonly draft: ReconciliationDraft;
       /** Why it is started when the MAR will already hold the same dm+d product (rule 10). */
       readonly note?: string | null;
+      /** Why a restart of a product the person had before starts a new day count (rule 6a). */
+      readonly reanchorReason?: string | null;
     }
   | { readonly kind: "not_started"; readonly itemId: string; readonly reason: string }
   | { readonly kind: "query"; readonly itemId: string; readonly question: string };
@@ -142,8 +174,11 @@ export interface ReconciliationCompletion {
   readonly reconciliation: Reconciliation;
   /** The person's MAR entries in force now (not stopped or replaced). */
   readonly currentEntries: readonly ReconciledEntry[];
+  /** Every version of an entry's medicine, for the day count and the change-day rule. */
+  readonly entryVersions: (entryId: string) => readonly MarEntry[];
   readonly entryDecisions: readonly EntryDecision[];
   readonly itemDecisions: readonly ItemDecision[];
+  /** Read on the server from the workforce port, never from the request (section 3). */
   readonly completer: { readonly id: string; readonly competence: MedicinesCompetence };
   readonly completedAt: Date;
   /** The completer compared the allergies in the sources with the recorded allergies. */
@@ -170,18 +205,24 @@ export type ReconciliationProblem =
   | "item_undecided"
   | "item_decided_twice"
   | "unknown_item"
-  | "unknown_source"
+  | "line_unclear"
+  | "line_does_not_support"
   | "source_not_a_document"
   | "continue_not_in_sources"
   | "continue_not_shown_current"
   | "continue_with_difference"
   | "change_needs_source_item"
+  | "change_not_shown_current"
+  | "change_refused"
   | "stop_needs_source_item"
+  | "stop_not_shown_current"
   | "stop_needs_reason"
-  | "possible_duplicate"
+  | "start_not_shown_current"
+  | "start_refused"
   | "not_started_needs_reason"
   | "query_open"
   | "draft_invalid"
+  | "possible_duplicate"
   | "allergies_not_compared"
   | "involvement_reason_required";
 
@@ -195,19 +236,24 @@ export interface ReconciliationIssue {
 
 export interface ReconciliationPlan {
   readonly continued: readonly string[];
-  /** New versions, made "Not yet checked" with origin `reconciliation` (`changeMarEntry`, with the reason when the day count moves). */
+  /** New versions, made "Not yet checked" with origin `reconciliation` through `changeMarEntry`. */
   readonly changes: readonly {
     readonly entryId: string;
     readonly draft: MarEntryDraft;
     readonly reanchorReason: string | null;
+    readonly todaysDoses: TodaysDoses | null;
   }[];
   readonly stops: readonly {
     readonly entryId: string;
     readonly reason: string;
     readonly source: MarSourceDocument;
   }[];
-  /** New entries, made "Not yet checked" with origin `reconciliation`. */
-  readonly starts: readonly { readonly itemId: string; readonly draft: MarEntryDraft }[];
+  /** New entries, made "Not yet checked" with origin `reconciliation` through `transcribeMarEntry`. */
+  readonly starts: readonly {
+    readonly itemId: string;
+    readonly draft: MarEntryDraft;
+    readonly reanchorReason: string | null;
+  }[];
   readonly notStarted: readonly { readonly itemId: string; readonly reason: string }[];
   readonly completedBy: string;
   readonly completedAt: Date;
@@ -237,7 +283,7 @@ function asMarSource(source: ReconciliationSource): MarSourceDocument | null {
 }
 
 const NOT_A_DOCUMENT =
-  "What the person or family says is not enough on its own. Link a prescription, label, letter or record.";
+  "What the person or family says is not enough on its own. Link a prescription, letter or record.";
 
 function sameEntries(
   atStart: Reconciliation["entriesAtStart"],
@@ -251,8 +297,8 @@ function sameEntries(
 
 /**
  * Checks a reconciliation for completion and returns the plan, or every reason it cannot complete
- * yet. Every medicine on the MAR and every medicine in the sources needs a decision a person made;
- * a query blocks completion until it is answered.
+ * yet. Every medicine on the MAR and every medicine in the sources needs a decision a person made,
+ * supported by a line that says it; a query or an unclear line blocks completion until answered.
  */
 export function completeReconciliation(input: ReconciliationCompletion): ReconciliationOutcome {
   const rec = input.reconciliation;
@@ -271,9 +317,10 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
   if (rec.sources.some((s) => blank(s.reference))) {
     add({ problem: "source_reference_required", message: "Say what each source is." });
   }
+  const hasLetter = rec.sources.some((s) => s.kind === "discharge_letter");
   if (
     rec.trigger === "return_from_hospital" &&
-    !rec.sources.some((s) => s.kind === "discharge_letter") &&
+    !hasLetter &&
     blank(input.noDischargeLetterReason)
   ) {
     add({
@@ -292,10 +339,18 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         "The medicines record changed after this reconciliation began. Review the new or changed entries before completing it.",
     });
   }
+  for (const item of rec.items.filter((i) => i.says === "unclear")) {
+    add({
+      problem: "line_unclear",
+      itemId: item.id,
+      message: `"${item.asWritten}" is unclear. Ask the prescriber or the ward, then record what it says.`,
+    });
+  }
 
   const entries = new Map(input.currentEntries.map((e) => [e.entryId, e]));
   const items = new Map(rec.items.map((i) => [i.id, i]));
   const sources = new Map(rec.sources.map((s) => [s.id, s]));
+  const allVersions = input.currentEntries.flatMap((e) => input.entryVersions(e.entryId));
   const itemUses = new Map<string, number>();
   const useItem = (itemId: string) => {
     if (!items.has(itemId))
@@ -307,13 +362,34 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     itemUses.set(itemId, (itemUses.get(itemId) ?? 0) + 1);
   };
   const decidedEntries = new Map<string, number>();
+
+  /** A source received for this event, or marked current by the person with a reason (rule 9). */
+  const isCurrent = (source: ReconciliationSource) =>
+    source.receivedAt.getTime() >= rec.triggeredAt.getTime() || !blank(source.currentBecause);
+  /** A line from a current document that shows what is prescribed now; on a return with a letter, for a continue, only the letter. */
+  const showsCurrent = (item: ReconciliationItem, onlyLetter: boolean) => {
+    const source = sources.get(item.sourceId);
+    if (!source || !isCurrent(source)) return false;
+    if (onlyLetter) return source.kind === "discharge_letter";
+    return SHOWS_CURRENT_PRESCRIPTION.has(source.kind);
+  };
+  const fromDocument = (item: ReconciliationItem) => {
+    const source = sources.get(item.sourceId);
+    return source !== undefined && asMarSource(source) !== null;
+  };
+  const about = (item: ReconciliationItem, product: DmdProductRef) =>
+    item.product !== null && item.product.vmpId === product.vmpId;
+  const otherProduct = (item: ReconciliationItem, product: DmdProductRef) =>
+    item.product !== null && item.product.vmpId !== product.vmpId;
+  const doesNotSupport = (item: ReconciliationItem, what: string) =>
+    `"${item.asWritten}" says ${LINE_SAYS_WORDS[item.says]}${item.product ? ` (${item.product.name})` : ""}, so it cannot support ${what}.`;
+
   const draftFor = (
     draft: ReconciliationDraft,
     source: ReconciliationSource | undefined,
     where: { entryId?: string; itemId?: string },
   ): MarEntryDraft | null => {
-    if (!source) return null;
-    const marSource = asMarSource(source);
+    const marSource = source ? asMarSource(source) : null;
     if (!marSource) {
       add({ problem: "source_not_a_document", ...where, message: NOT_A_DOCUMENT });
       return null;
@@ -332,21 +408,17 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     return full;
   };
 
-  const hasLetter = rec.sources.some((s) => s.kind === "discharge_letter");
-  /** On a return with a discharge letter only the letter shows what is prescribed now. */
-  const showsCurrent = (item: ReconciliationItem) => {
-    const source = sources.get(item.sourceId);
-    if (!source) return false;
-    if (rec.trigger === "return_from_hospital" && hasLetter)
-      return source.kind === "discharge_letter";
-    return SHOWS_CURRENT_PRESCRIPTION.has(source.kind);
-  };
   const plan = {
     continued: [] as string[],
-    changes: [] as { entryId: string; draft: MarEntryDraft; reanchorReason: string | null }[],
-    stops: [] as { entryId: string; reason: string; source: MarSourceDocument }[],
-    starts: [] as { itemId: string; draft: MarEntryDraft }[],
-    notStarted: [] as { itemId: string; reason: string }[],
+    changes: [] as ReconciliationPlan["changes"][number][],
+    stops: [] as ReconciliationPlan["stops"][number][],
+    starts: [] as ReconciliationPlan["starts"][number][],
+    notStarted: [] as ReconciliationPlan["notStarted"][number][],
+  };
+  const dryRun = {
+    by: input.completer.id,
+    at: input.completedAt,
+    origin: "reconciliation" as const,
   };
 
   for (const decision of input.entryDecisions) {
@@ -373,51 +445,100 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     }
     for (const itemId of decision.itemIds) useItem(itemId);
     const linked = decision.itemIds.map((id) => items.get(id)).filter((i) => i !== undefined);
+
     if (decision.kind === "continue") {
+      const against = linked.find((i) => i.says !== "continue" || otherProduct(i, entry.product));
       const confirmed = !blank(decision.note) && !blank(decision.confirmedWith);
-      if (decision.itemIds.length === 0 && !confirmed) {
+      const onlyLetter = rec.trigger === "return_from_hospital" && hasLetter;
+      if (against) {
+        add({
+          problem: "line_does_not_support",
+          entryId,
+          itemId: against.id,
+          message: doesNotSupport(against, `continuing ${entry.product.name}`),
+        });
+      } else if (linked.length === 0 && !confirmed) {
         add({
           problem: "continue_not_in_sources",
           entryId,
           message:
-            "No source lists this medicine. Link the line that does, or say how continuing it was confirmed and which prescriber or clinician confirmed it.",
+            "No source lists this medicine. Link the line that says it continues, or say how continuing it was confirmed and which prescriber or clinician confirmed it.",
         });
-      } else if (decision.itemIds.length > 0 && !linked.some(showsCurrent) && !confirmed) {
+      } else if (
+        !linked.some((i) => about(i, entry.product) && showsCurrent(i, onlyLetter)) &&
+        !confirmed
+      ) {
         add({
           problem: "continue_not_shown_current",
           entryId,
-          message:
-            rec.trigger === "return_from_hospital" && hasLetter
-              ? "Only the discharge letter shows what is prescribed after this stay. Link its line, or say how continuing it was confirmed and which prescriber or clinician confirmed it."
-              : "Labels, the previous MAR and what the person or family say do not show what is prescribed now. Link a prescription, letter or record, or say how continuing it was confirmed and which prescriber or clinician confirmed it.",
+          message: onlyLetter
+            ? "Only the discharge letter shows what is prescribed after this stay. Link its line, or say how continuing it was confirmed and which prescriber or clinician confirmed it."
+            : "No linked line, from a current prescription, letter or record, shows it continues. Link one, or say how continuing it was confirmed and which prescriber or clinician confirmed it.",
         });
-      } else if (linked.some((i) => linkDifference(entry, i) !== null) && blank(decision.note)) {
+      } else if (linked.some((i) => linkDifference(entry, i) === "brand") && blank(decision.note)) {
         add({
           problem: "continue_with_difference",
           entryId,
           message:
-            "A linked source shows another product or brand, or is not coded. Say why the MAR entry continues unchanged, or record a change.",
+            "A linked line names another brand of this medicine. Say why the MAR entry continues unchanged, or record a change.",
         });
       } else plan.continued.push(entryId);
     } else if (decision.kind === "change") {
-      const first = linked[0];
-      if (!first) {
+      const product = decision.draft.product;
+      const against = linked.find((i) => i.says !== "change" || otherProduct(i, product));
+      const supporting = linked.find((i) => about(i, product) && showsCurrent(i, false));
+      if (linked.length === 0) {
         add({
           problem: "change_needs_source_item",
           entryId,
-          message: "Link the source line that shows the change.",
+          message: "Link the line that says the change.",
         });
-        continue;
+      } else if (against) {
+        add({
+          problem: "line_does_not_support",
+          entryId,
+          itemId: against.id,
+          message: doesNotSupport(against, `this change`),
+        });
+      } else if (!supporting) {
+        add({
+          problem: "change_not_shown_current",
+          entryId,
+          message:
+            "No linked line, about the new product and from a current prescription, letter or record, shows the change.",
+        });
+      } else {
+        const draft = draftFor(decision.draft, sources.get(supporting.sourceId), { entryId });
+        const reanchorReason = blank(decision.reanchorReason)
+          ? null
+          : (decision.reanchorReason as string);
+        const todaysDoses = decision.todaysDoses ?? null;
+        if (draft) {
+          const tried = changeMarEntry(
+            input.entryVersions(entryId),
+            draft,
+            input.dmdFacts(draft.product),
+            {
+              ...dryRun,
+              id: `planned-${entryId}`,
+              reanchorReason,
+              todaysDoses,
+            },
+          );
+          if (!tried.ok) {
+            add({
+              problem: "change_refused",
+              entryId,
+              draftIssues: tried.issues,
+              message: tried.issues.map((i) => i.message).join(" "),
+            });
+          } else plan.changes.push({ entryId, draft, reanchorReason, todaysDoses });
+        }
       }
-      const draft = draftFor(decision.draft, sources.get(first.sourceId), { entryId });
-      const reanchorReason = blank(decision.reanchorReason)
-        ? null
-        : (decision.reanchorReason as string);
-      if (draft) plan.changes.push({ entryId, draft, reanchorReason });
     } else {
-      const lineSources = linked.map((i) => sources.get(i.sourceId)).filter((x) => x !== undefined);
-      const document = lineSources.find((x) => asMarSource(x) !== null);
-      const marSource = document ? asMarSource(document) : null;
+      const against = linked.find((i) => i.says !== "stop" || otherProduct(i, entry.product));
+      const documents = linked.filter(fromDocument);
+      const supporting = documents.find((i) => about(i, entry.product) && showsCurrent(i, false));
       if (linked.length === 0) {
         add({
           problem: "stop_needs_source_item",
@@ -425,21 +546,33 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
           message:
             "Link the line that says the medicine stops: a letter's line or the prescriber's instruction. A medicine missing from a source is a question, not a stop.",
         });
-      } else if (lineSources.length === 0) {
+      } else if (against) {
         add({
-          problem: "unknown_source",
+          problem: "line_does_not_support",
           entryId,
-          message: "The linked line's source is missing.",
+          itemId: against.id,
+          message: doesNotSupport(against, `stopping ${entry.product.name}`),
         });
-      } else if (!marSource) {
+      } else if (documents.length === 0) {
         add({ problem: "source_not_a_document", entryId, message: NOT_A_DOCUMENT });
+      } else if (!supporting) {
+        add({
+          problem: "stop_not_shown_current",
+          entryId,
+          message: "No linked line, from a current prescription, letter or record, says it stops.",
+        });
       } else if (blank(decision.reason)) {
         add({
           problem: "stop_needs_reason",
           entryId,
           message: "Say why the medicine stops, as the source says.",
         });
-      } else plan.stops.push({ entryId, reason: decision.reason, source: marSource });
+      } else {
+        const source = asMarSource(
+          sources.get(supporting.sourceId) as ReconciliationSource,
+        ) as MarSourceDocument;
+        plan.stops.push({ entryId, reason: decision.reason, source });
+      }
     }
   }
 
@@ -462,33 +595,82 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
           message: "Say why this medicine from the source is not started.",
         });
       } else plan.notStarted.push({ itemId, reason: decision.reason });
+    } else if (
+      item.says === "stop" ||
+      item.says === "unclear" ||
+      !about(item, decision.draft.product)
+    ) {
+      add({
+        problem: "line_does_not_support",
+        itemId,
+        message: doesNotSupport(item, `starting ${decision.draft.product.name}`),
+      });
+    } else if (!fromDocument(item)) {
+      add({ problem: "source_not_a_document", itemId, message: NOT_A_DOCUMENT });
+    } else if (!showsCurrent(item, false)) {
+      add({
+        problem: "start_not_shown_current",
+        itemId,
+        message:
+          "This line is not from a current prescription, letter or record. Confirm the medicine with the prescriber and record their instruction as a source.",
+      });
     } else {
       const draft = draftFor(decision.draft, sources.get(item.sourceId), { itemId });
-      if (draft) plan.starts.push({ itemId, draft });
+      const reanchorReason = blank(decision.reanchorReason)
+        ? null
+        : (decision.reanchorReason as string);
+      if (draft) {
+        const tried = transcribeMarEntry(draft, input.dmdFacts(draft.product), {
+          ...dryRun,
+          id: `planned-${itemId}`,
+          earlierEntries: allVersions,
+          reanchorReason,
+        });
+        if (!tried.ok) {
+          add({
+            problem: "start_refused",
+            itemId,
+            draftIssues: tried.issues,
+            message: tried.issues.map((i) => i.message).join(" "),
+          });
+        } else plan.starts.push({ itemId, draft, reanchorReason });
+      }
     }
   }
 
   // The same dm+d product twice on the MAR after the plan: flagged by identity (VMP), never by
-  // ingredient; a start beside an entry of the same VMP needs a note (a regular and a
+  // ingredient; a start or a change beside an entry of the same VMP needs a note (a regular and a
   // when-required entry of one product is common).
   const resulting = [
     ...plan.continued.map((id) => ({ ref: id, vmpId: entries.get(id)?.product.vmpId })),
     ...plan.changes.map((c) => ({ ref: c.entryId, vmpId: c.draft.product.vmpId })),
     ...plan.starts.map((st) => ({ ref: st.itemId, vmpId: st.draft.product.vmpId })),
   ];
+  const twinOf = (ref: string, vmpId: string) =>
+    resulting.some((r) => r.ref !== ref && r.vmpId === vmpId);
   for (const start of plan.starts) {
     const decision = input.itemDecisions.find(
       (d) => d.kind === "start" && d.itemId === start.itemId,
     );
     const note = decision?.kind === "start" ? decision.note : null;
-    const twin = resulting.some(
-      (r) => r.ref !== start.itemId && r.vmpId === start.draft.product.vmpId,
-    );
-    if (twin && blank(note)) {
+    if (twinOf(start.itemId, start.draft.product.vmpId) && blank(note)) {
       add({
         problem: "possible_duplicate",
         itemId: start.itemId,
         message: `${start.draft.product.name} is already on the MAR after this reconciliation. Say why a second entry is needed, or link the line to the existing entry.`,
+      });
+    }
+  }
+  for (const change of plan.changes) {
+    const decision = input.entryDecisions.find(
+      (d) => d.kind === "change" && d.entryId === change.entryId,
+    );
+    const note = decision?.kind === "change" ? decision.note : null;
+    if (twinOf(change.entryId, change.draft.product.vmpId) && blank(note)) {
+      add({
+        problem: "possible_duplicate",
+        entryId: change.entryId,
+        message: `${change.draft.product.name} is already on the MAR after this reconciliation. Say why a second entry is needed, or stop one of them.`,
       });
     }
   }

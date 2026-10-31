@@ -52,6 +52,7 @@ export const PRODUCT = {
     name: "Levothyroxine sodium 25microgram tablets",
   },
   warfarin: { vmpId: "90000071000001107", ampId: null, name: "Warfarin 1mg tablets" },
+  apixaban: { vmpId: "90000081000001109", ampId: null, name: "Apixaban 5mg tablets" },
 } as const satisfies Record<string, DmdProductRef>;
 
 export const TABLET_FACTS: DmdProductFacts = {
@@ -98,6 +99,7 @@ export function entry(overrides: Partial<MarEntryDraft> = {}, id = "entry-1"): M
     by: TRANSCRIBER,
     at: new Date("2026-11-01T10:00:00Z"),
     origin: "transcribed",
+    earlierEntries: [],
   });
   if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
   return result.entry;

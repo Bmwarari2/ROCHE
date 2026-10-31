@@ -13,7 +13,7 @@ import {
   clockChangesIn,
   describeSchedule,
   expandSchedule,
-  keepsCount,
+  keepsCountFrom,
   type MarDose,
   marCycle,
   marCycleContaining,
@@ -221,54 +221,96 @@ describe("hazard HZ-003 expands every supported frequency into the correct doses
     },
   );
 
-  it.each<[SchedulePattern, SchedulePattern, boolean]>([
+  it.each<[string, string | null, SchedulePattern, boolean]>([
     [
-      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      "no earlier dose",
+      null,
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-03" },
+      true,
+    ],
+    ["every day", "2026-11-02", { kind: "every_day" }, true],
+    [
+      "every 3 days on the grid",
+      "2026-11-02",
       { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-08" },
       true,
     ],
     [
-      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
+      "every 3 days off the grid",
+      "2026-11-02",
       { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-03" },
       false,
     ],
     [
-      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
-      { kind: "every_n_days", intervalDays: 4, anchorOn: "2026-11-02" },
+      "every 4 days from every 3",
+      "2026-11-02",
+      { kind: "every_n_days", intervalDays: 4, anchorOn: "2026-11-03" },
       false,
     ],
     [
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
-      { kind: "weekly", weekdays: ["tue"], intervalWeeks: 2, anchorOn: "2026-11-20" },
+      "fortnightly Monday kept",
+      "2026-11-02",
+      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-16" },
       true,
     ],
     [
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      "fortnightly Monday moved to Tuesday (due again the next day)",
+      "2026-11-02",
+      { kind: "weekly", weekdays: ["tue"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      false,
+    ],
+    [
+      "fortnightly moved a week",
+      "2026-11-02",
       { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-09" },
       false,
     ],
     [
-      { kind: "every_n_days", intervalDays: 14, anchorOn: "2026-11-02" },
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 2, anchorOn: "2026-11-02" },
+      "weekly Monday moved to Tuesday",
+      "2026-11-02",
+      { kind: "weekly", weekdays: ["tue"], intervalWeeks: 1, anchorOn: "2026-11-03" },
       false,
     ],
     [
-      { kind: "every_day" },
-      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-05" },
+      "weekly Monday kept, Thursday added",
+      "2026-11-02",
+      { kind: "weekly", weekdays: ["mon", "thu"], intervalWeeks: 1, anchorOn: "2026-11-02" },
       true,
+    ],
+    ["monthly day moved", "2026-11-15", { kind: "monthly", dayOfMonth: 16 }, false],
+    ["monthly day kept", "2026-11-15", { kind: "monthly", dayOfMonth: 15 }, true],
+    [
+      "an unreadable anchor",
+      "2026-11-02",
+      { kind: "every_n_days", intervalDays: 3, anchorOn: "" },
+      false,
     ],
     [
-      { kind: "every_n_days", intervalDays: 3, anchorOn: "2026-11-02" },
-      { kind: "every_day" },
-      true,
+      "an anchor missing altogether",
+      "2026-11-02",
+      { kind: "every_n_days", intervalDays: 3 } as unknown as SchedulePattern,
+      false,
     ],
-    [
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-02" },
-      { kind: "weekly", weekdays: ["mon"], intervalWeeks: 1, anchorOn: "2026-11-05" },
-      true,
-    ],
-  ])("a change from %o to %o keeps the day count: %s", (before, after, kept) => {
-    expect(keepsCount(before, after)).toBe(kept);
+  ])(
+    "hazard HZ-003 the count is kept from the last dose due: %s",
+    (_name, lastDueOn, pattern, kept) => {
+      expect(keepsCountFrom(lastDueOn, pattern)).toBe(kept);
+    },
+  );
+
+  it("refuses a missing or unreadable anchor instead of throwing", () => {
+    const missing = { kind: "every_n_days", intervalDays: 3 } as unknown as SchedulePattern;
+    expect(checkSchedule(schedule(missing), [UNIT.tablet]).map((i) => i.problem)).toEqual([
+      "bad_anchor",
+    ]);
+    expect(describeSchedule(schedule(missing))).toContain("no recorded day to count from");
+    const fortnight = {
+      kind: "weekly",
+      weekdays: ["mon"],
+      intervalWeeks: 2,
+      anchorOn: "x",
+    } as SchedulePattern;
+    expect(describeSchedule(schedule(fortnight))).toContain("no recorded week to count from");
   });
 
   it("starts at the time the medicine starts and ends before it stops", () => {
@@ -469,6 +511,43 @@ describe("hazard HZ-009 a 01:30 dose on a clocks-back day occurs once", () => {
     expect(dose.clockChange).toBe("time_repeated");
     expect(doses).toHaveLength(3);
   });
+});
+
+describe("hazard HZ-009 every-n-days and fortnightly doses keep their days and times across the clock changes", () => {
+  it.each([...SPRING, ...AUTUMN])(
+    "every 2 days at 01:30, and fortnightly on Sunday at 08:00, around %d-%d-%d",
+    (y, m, d) => {
+      const anchorOn = new Date(Date.UTC(y, m - 1, d - 4)).toISOString().slice(0, 10);
+      const window = { from: ukMidnight(y, m, d, -4), to: ukMidnight(y, m, d, 5) };
+      const everyOther = expandSchedule(
+        schedule({ kind: "every_n_days", intervalDays: 2, anchorOn }, at("01:30")),
+        always,
+        window,
+      );
+      expect(everyOther.map((x) => x.time)).toEqual(Array(everyOther.length).fill("01:30"));
+      const days = everyOther.map((x) => Date.parse(`${x.date}T00:00:00Z`));
+      for (let i = 1; i < days.length; i++)
+        expect((days[i] as number) - (days[i - 1] as number)).toBe(2 * 86_400_000);
+      const onTheDay = everyOther.find(
+        (x) => x.date === new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10),
+      );
+      expect(onTheDay?.clockChange).toBe(m === 3 ? "time_skipped" : "time_repeated");
+      const sundays = expandSchedule(
+        schedule({ kind: "weekly", weekdays: ["sun"], intervalWeeks: 2, anchorOn }, at("08:00")),
+        always,
+        { from: ukMidnight(y, m, d, -14), to: ukMidnight(y, m, d, 15) },
+      );
+      expect(sundays.map((x) => formatUkTime(x.dueAt))).toEqual(
+        Array(sundays.length).fill("08:00"),
+      );
+      for (let i = 1; i < sundays.length; i++) {
+        const gap =
+          ((sundays[i] as MarDose).dueAt.getTime() - (sundays[i - 1] as MarDose).dueAt.getTime()) /
+          3_600_000;
+        expect([14 * 24 - 1, 14 * 24, 14 * 24 + 1]).toContain(gap);
+      }
+    },
+  );
 });
 
 describe("hazard HZ-009 an 08:00 daily dose stays at 08:00 local time either side of each transition", () => {

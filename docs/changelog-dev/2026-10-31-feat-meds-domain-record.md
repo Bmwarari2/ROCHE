@@ -85,6 +85,32 @@ Branch `feat/meds-domain-record`.
     prescriber or pharmacist instead of inviting a conversion; medicines.md says slice 16 reads
     competence from the workforce port on the server; the blocker tests carry "hazard HZ-121".
   - Hazard log HZ-003, HZ-004, HZ-005 and HZ-121 and human actions H-550 to H-553 updated.
+- Round 2 (clinical re-check at f7f5f73e: fixes 1, 2, 3, 5 and 7 incomplete), ordinary commits:
+  - H1, M2: each source line records what it says (start, continue, change, stop, unclear) and its
+    dm+d product; a decision is supported only by a line that says that thing about the same VMP,
+    whatever the note; an unclear line blocks completion. Alendronic acid can no longer continue on
+    its STOPPED line, nor warfarin on the apixaban line.
+  - H2: changes and stops work on every version of the medicine (`changeMarEntry(versions, ...)`,
+    `stopMarEntry(versions, ...)`): the version in force when they take effect ends, later
+    versions that had not started are withdrawn, so exactly one version is ever in force; a
+    property test over 60 seeded random sequences checks every boundary.
+  - H3: the day count is kept from the last dose actually due across all versions, through every
+    day or when required, and across a stop and restart (`earlierEntries` on a new entry); a
+    weekday or day-of-month move is a new count that needs a reason (the old test asserting Monday
+    to Tuesday kept the count is replaced); a missing anchor is refused, never thrown.
+  - M1: a variable-dose entry is never givable until its dosing record exists.
+  - M3: a source shows what is prescribed now only when received on or after the event, or marked
+    current with a reason (`currentBecause`).
+  - M4: a change on a day with doses says whether that day's doses were all given or one is still
+    due at the new times (`todaysDoses`), so it never doubles or drops that day's dose.
+  - M5: an entry with a stop still to come can be corrected while in force; the stop carries over.
+  - Lows: a change into a continued product is flagged as a possible duplicate; every-n-days and
+    fortnightly tests across the four clock changes; the hazard log no longer says the count runs
+    from the start; a change's and a restart's count and change-day questions show when the
+    reconciliation completes.
+  - Where the design call was unclear, the more restrictive behaviour was chosen and recorded as a
+    CSO question (H-550, H-552, H-553): starts need a current prescriber's or pharmacy line with no
+    confirmation route; daily to weekly counts as a re-anchor; a stop carries over to a correction.
 
 ## Tests
 
