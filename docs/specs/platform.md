@@ -209,7 +209,7 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   sign in again and that unsent entries stay on it until then; HZ-006, HZ-110); for `staff_left`
   or `suspended`, the holds on those devices fall due at once and the manager is told, as after a
   device revocation (`hurryRevokedHold`).
-- Later: SSO (PLAT-005, Phase 2). Invitations and MFA enrolment: the next section.
+- Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
 
@@ -718,6 +718,112 @@ break-glass search and query-free audit ([ADR-0070](../decisions/0070-search-on-
 the free full tenant export with its manifest and documented schema, the onboarding checklist and
 sample data mode, and the DPIA prefill and sign-off with the records-of-processing and
 sub-processor registers. Domain rules are built; schema and API follow.
+
+## Phase 2: data rights, imports and single sign-on (PLAT-022, PLAT-014, PLAT-005)
+
+Phase 2 slice 9 ([phase-2.md](../plans/phase-2.md)): the rules only, as pure functions with
+table-driven tests. Schema, API and screens follow in slices 15 (DSAR workbench, ADR-0090), 26
+(import wizard, ADR-0092) and 33 (single sign-on, ADR-0091). Procedures:
+[dsar-procedure.md](../compliance/dsar-procedure.md),
+[breach-response.md](../compliance/breach-response.md),
+[data-protection-complaints.md](../compliance/data-protection-complaints.md). Every period is a
+rate-table row read through `resolveDataRightsRates` (`dsar.*`, `ico.breach.report_hours`,
+`dp_complaint.*`, `import.undo_window_days`), never a literal. Code:
+`packages/domain/src/platform/data-rights.ts`, `imports.ts`, `sso.ts`.
+
+### Rules that are easy to get wrong
+
+**Subject access requests** (`dsarClock`; UK GDPR Art 12 as amended by the Data (Use and Access)
+Act 2025; ICO guidance on time limits):
+
+1. The clock starts on the day the request is received (UK date), or, when identity information is
+   needed, on the day it arrives: until then the request is `awaiting_identity` and has no due date.
+   Received on a weekend or a bank holiday, it still starts that day.
+2. The due date is the corresponding calendar date `dsar.response_months` later. A date that does
+   not exist in that month (31 January plus one month) becomes the last day of the month (28 or 29
+   February). Due on a Saturday, Sunday or bank holiday of the location's nation, it moves to the
+   next working day.
+3. While the controller waits for clarification the clock is paused: each whole UK day paused is
+   added to the due date before the working-day roll in rule 2. A pause still open has no due date
+   (`paused`); the request is never shown overdue while paused. Pauses may not overlap or start
+   before the clock starts.
+4. An extension of up to `dsar.extension_months` more (three months in total) is allowed only when
+   the request is complex or the requester made several, with a reason, decided and told to the
+   requester before the original due date (pauses included). A later extension is refused. The
+   extended due date is the corresponding date counted from the clock's start, then pauses, then
+   the working-day roll.
+5. States: `awaiting_identity`, `running`, `paused`, `due_soon` (within `dsar.due_soon_days`,
+   tenant default), `overdue`, `closed`. A response sent ends the clock; sent after the due date it
+   is recorded as late, never rewritten as on time.
+
+**Personal data breaches** (`breachClock`, `assessBreach`, `checkBreachDecision`; UK GDPR Arts
+33 and 34):
+
+6. The ICO clock runs `ico.breach.report_hours` from the moment the controller became aware (an
+   instant, not a working-day count: weekends and nights count). A breach reported late must give
+   the reasons for the delay (Art 33(1)).
+7. Every breach is recorded, reportable or not (Art 33(5)). The assessment is decision support only:
+   it suggests a severity from the factors in breach-response.md section 4 (special category or
+   safeguarding data, the location of a person at risk, how many people, whether they can be
+   identified, consequences, vulnerability, containment) and says what to consider. It never
+   decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
+   written reasoning of at least `BREACH_REASONING_MIN` characters; deciding not to report a breach
+   suggested as medium or above, or not to tell individuals when the risk is suggested high, needs
+   an explicit acknowledgement that the suggestion was considered.
+8. A processor (Thapsus) notice to the controller is a separate record; the controller's clock
+   starts from its own awareness, which may be the notice.
+
+**Data protection complaints** (`complaintClock`; DPA 2018 as amended by DUAA 2025):
+
+9. Acknowledgement is due `dp_complaint.acknowledge_days` calendar days after the day of receipt
+   (the duty from 19 June 2026; complaints before that have no statutory clock). The tenant's target
+   (`dp_complaint.acknowledge_target_working_days`, a working-day figure) is shown alongside, never
+   instead.
+10. While open, the complainant is updated at least every `dp_complaint.update_interval_months`
+    (tenant default) from the last contact; the outcome letter always names the right to complain
+    to the ICO.
+
+**Imports** (`validateImportRows`, `dryRunReport`, `importUndoEligibility`; ADR-0092 in slice 26):
+
+11. Every value is checked against [data-standards.md](data-standards.md): NHS numbers pass the
+    modulus 11 check (spaces allowed, stored without); dates are dd/mm/yyyy, real, and a date of
+    birth is not in the future; coded fields (sex, gender, allergy status, allergy severity) take
+    only their listed codes; required fields are present; text fits its length. Errors are per row
+    and column with a code and plain words, never the value itself (it may be personal data).
+12. Two rows with the same NHS number in one file are both errors. `allergy_status` is never
+    inferred: a blank status imports as `unknown` (HZ-007).
+13. The dry run commits nothing and reports rows, valid rows and errors by code. A batch commits only
+    when every row is valid (no partial import).
+14. A batch may be undone only within `import.undo_window_days` of its commit, once, and only while
+    none of its records has been changed or had records made about it since; otherwise undo is
+    refused with the reason, and corrections are made record by record.
+
+**Single sign-on** (`ssoSignInDecision`; ADR-0091 in slice 33):
+
+15. SSO signs in only an existing, invited or active member of the tenant whose email domain the
+    tenant has verified; it never creates a member, never links a different email, and never signs
+    in a family member or an operator.
+16. The tenant chooses which roles may use SSO; a member holding a role not on the list signs in
+    with Harbour's own methods.
+17. SSO is a first factor only: a session from SSO that reaches care records still needs Harbour's
+    own second factor (passkey or authenticator), and step-up always needs it (section 5.3).
+
+### Tests (written before the code)
+
+- `packages/domain/src/platform/data-rights.test.ts`: `PLAT-022 the DSAR clock` (table: received on
+  a weekday, a weekend, 31 January in a leap and a common year, due on a bank holiday, identity
+  awaited, pauses open and closed, overlapping pauses refused, extension before and after the due
+  date, without grounds, beyond three months, responded late); `PLAT-022 the breach clock and
+  decision support` (72 hours across a weekend and the clock change; severity table; decisions
+  without reasoning or acknowledgement refused; late report needs reasons); `PLAT-022 complaint
+  clocks` (before and after 19 June 2026, the update interval, the outcome wording);
+  `resolveDataRightsRates` (every key read from the table, missing ones fail loudly).
+- `packages/domain/src/platform/imports.test.ts`: `PLAT-014 import validation` (table per field
+  rule, duplicate NHS numbers, no value echoed in an error, blank allergy status as unknown, dry run
+  counts, commit refused with errors, undo window, undo after changes refused).
+- `packages/domain/src/platform/sso.test.ts`: `PLAT-005 SSO sign-in policy` (table: unverified
+  domain, different email, not invited, family member, operator, role not allowed, allowed;
+  second factor still required for care records and step-up).
 
 ## Permission matrix
 
