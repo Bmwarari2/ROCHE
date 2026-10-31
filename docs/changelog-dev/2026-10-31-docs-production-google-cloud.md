@@ -38,9 +38,9 @@ Branch `docs/production-google-cloud`. Two owner decisions of 31/10/2026.
     - H-663: SCC and audit logs;
     - H-05, H-106, H-352, H-356, H-510, H-661 and H-662 wording.
   - H-372 is unchanged.
-  - New: H-980, sign the Cloud Data Processing Addendum and set the organisation policy.
+  - New: H-1000, sign the Cloud Data Processing Addendum and set the organisation policy.
 - **Owner decision**: every open decision owned by Brian with a default in force, and every product
-  decision with a default, is "decided 31/10/2026: default accepted (owner)" (30 rows). Rows with
+  decision with a default, is "decided 31/10/2026: default accepted (owner)" (29 rows; H-470 stays open, as it belongs to the CSO and DPO). Rows with
   no default (vendors, accounts, credentials, pricing, verification against guidance, and rows
   shared with the CSO, DPO or advisers) stay open. The product decisions table gains a Status
   column.
@@ -54,7 +54,7 @@ Branch `docs/production-google-cloud`. Two owner decisions of 31/10/2026.
 
 ## Human actions logged
 
-- H-980 (new); H-04, H-06, H-07, H-08, H-16, H-55, H-140 and H-663 rewritten.
+- H-1000 (new); H-04, H-06, H-07, H-08, H-16, H-55, H-140 and H-663 rewritten.
 
 ## Tests
 

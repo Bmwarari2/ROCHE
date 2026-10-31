@@ -153,12 +153,12 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
   crypto-shredding certificates state the delay and the date of destruction.
 - Neutral, because the sub-processor register, DPIA, records of processing and security documents
   name Google Cloud EMEA Limited under the Cloud Data Processing Addendum instead of AWS
-  (sub-processors.md); signing it and setting the organisation policy are human actions (H-980).
+  (sub-processors.md); signing it and setting the organisation policy are human actions (H-1000).
 
 ### Confirmation
 
 - The organisation policy `gcp.resourceLocations` is set on the Harbour folder before any
-  production resource is created (H-980); Terraform plans show only europe-west2 resources.
+  production resource is created (H-1000); Terraform plans show only europe-west2 resources.
 - CI has no service account key: a gitleaks rule and the WIF configuration are reviewed by the
   security reviewer.
 - The restore runbook's point-in-time drill (runbooks/restore.md) is run on Cloud SQL before
@@ -198,7 +198,7 @@ accepted here can still be changed later by a new ADR.
 - Human actions rewritten for Google Cloud: H-04 (organisation, folder, projects, state bucket,
   WIF), H-06 (Artifact Registry), H-07 (Secret Manager), H-08 (email provider), H-16 (ClamAV
   sidecar), H-55 (locked retention policy), H-140 (Cloud Armor rule versions), H-663 (Security
-  Command Center and audit logs); H-372 is unchanged; H-980 is new (Cloud Data Processing Addendum
+  Command Center and audit logs); H-372 is unchanged; H-1000 is new (Cloud Data Processing Addendum
   and the organisation policy).
 - Revisit if Google Cloud opens a second UK region (cross-region recovery inside the UK), or if
   PowerSync cannot run on Cloud Run at the target load.
