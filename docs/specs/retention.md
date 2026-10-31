@@ -132,7 +132,9 @@ of the record they attach to.
 - Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: the DBS code of practice limits how long certificate details may be kept;
   confirm the period before the Phase 2 pre-employment file stores them.
-- DSAR cases, breach register entries and data-protection complaints (Phase 2).
+- DSAR cases (Phase 2, slice 15), breach register entries, Thapsus breach notices and their
+  acknowledgements, and data-protection complaints (slice 20, migration 0082): interim audit_event
+  (8 years from creation) until the DPO sets periods (H-670).
 - DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim
   audit_event (8 years from creation) until the DPO confirms a period (H-115).
 - ECM visit events (Phase 4): likely care_record and rota_and_timesheet together (longest wins).
