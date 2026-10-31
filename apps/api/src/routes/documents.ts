@@ -1,5 +1,6 @@
 import {
   DestroyDocuments,
+  DestructionCertificateList,
   DestructionResult,
   DocumentItem,
   DocumentList,
@@ -745,10 +746,18 @@ export const documentsRouter = createRouter()
       const access = await requirePermission(c, RETENTION_PERMISSION);
       const items = await withTenant(c, async (tx) => {
         const due = await eligibleDocuments(tx, access.tenantId, new Date());
+        // A title is shown only where the caller may read that category of document (a person's
+        // record needs its own read permissions); otherwise the page says the category alone.
+        const mayRead = (category: string) => {
+          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          if (permission === null) return true;
+          if (permission === undefined) return false;
+          return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;
+        };
         await auditInTx(tx, access, {
           action: "platform.retention_candidate.list",
           resourceType: "document",
-          scope: { count: due.length },
+          scope: { count: due.length, documentIds: due.map((d) => d.row.id) },
           requestId: c.get("requestId"),
         });
         return due.map((d) => ({
@@ -756,7 +765,40 @@ export const documentsRouter = createRouter()
           category: d.row.category as DocumentCategoryKey,
           retentionClass: d.row.retentionClass,
           eligibleSince: d.since.toISOString(),
+          ...(mayRead(d.row.category) ? { title: d.row.title } : {}),
+          createdAt: d.row.createdAt.toISOString(),
         }));
+      });
+      return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/destruction-certificates",
+      tags: ["platform"],
+      summary: "Destruction certificates, newest first",
+      security,
+      responses: {
+        200: jsonBody(DestructionCertificateList, "Certificates"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, RETENTION_PERMISSION);
+      const items = await withTenant(c, async (tx) => {
+        const rows = await tx
+          .select()
+          .from(destructionCertificate)
+          .orderBy(desc(destructionCertificate.executedAt))
+          .limit(500);
+        await auditInTx(tx, access, {
+          action: "platform.destruction_certificate.list",
+          resourceType: "destruction_certificate",
+          scope: { count: rows.length },
+          requestId: c.get("requestId"),
+        });
+        return rows.map(certificateItem);
       });
       return c.json({ items }, 200);
     },
@@ -845,15 +887,7 @@ export const documentsRouter = createRouter()
         });
         return {
           result: {
-            certificates: certificates.map((cert) => ({
-              id: cert.id,
-              recordClass: cert.recordClass,
-              subjectType: cert.subjectType,
-              recordCount: cert.recordCount,
-              reason: cert.reason,
-              method: cert.method,
-              executedAt: cert.executedAt.toISOString(),
-            })),
+            certificates: certificates.map(certificateItem),
             skipped: req.documentIds.filter((id) => !destroyed.has(id)),
           },
           stored,
@@ -886,6 +920,18 @@ export const documentsRouter = createRouter()
  */
 async function lockRetention(tx: Transaction, tenantId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`retention:${tenantId}`}))`);
+}
+
+function certificateItem(cert: typeof destructionCertificate.$inferSelect) {
+  return {
+    id: cert.id,
+    recordClass: cert.recordClass,
+    subjectType: cert.subjectType,
+    recordCount: cert.recordCount,
+    reason: cert.reason,
+    method: cert.method,
+    executedAt: cert.executedAt.toISOString(),
+  };
 }
 
 function holdItem(row: typeof legalHold.$inferSelect) {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+  DestructionCertificateList,
   DestructionResult,
   DocumentItem,
   DocumentList,
@@ -13,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EICAR } from "../src/integrations/storage";
 import { outboxHandlers, relayOutbox } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness } from "./support/harness";
+import { ageSession, createHarness, type Harness } from "./support/harness";
 
 let h: Harness;
 
@@ -362,6 +363,38 @@ describe("legal holds and destruction (section 5.1)", () => {
       );
     expect(await candidates()).toContain(doc.id);
     expect(await candidates()).not.toContain(current.id);
+    // The reviewer sees what is to go: its title and when it was stored.
+    const listed = (
+      await json<RetentionCandidateList>(await as("owner", "/v1/retention/candidates"))
+    ).items.find((i) => i.documentId === doc.id);
+    expect(listed).toMatchObject({ title: "Old letter", createdAt: doc.createdAt });
+    // The listed ids are in the audit, so who saw which document is known.
+    const audited = await asDemoTenant((c) =>
+      c.query(
+        "SELECT scope FROM audit_event WHERE action = 'platform.retention_candidate.list' ORDER BY seq DESC LIMIT 1",
+      ),
+    );
+    expect(audited.rows[0]?.scope?.documentIds).toContain(doc.id);
+
+    // Someone holding only platform.retention.manage sees the category, never the title of a
+    // document about a person whose record they may not read.
+    await asDemoTenant(async (c) => {
+      const role = await c.query<{ id: string }>(
+        `INSERT INTO role (key, name, scope_kind, permissions)
+         VALUES ('records_only', 'Records only', 'tenant', '{platform.retention.manage}') RETURNING id`,
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id)
+         SELECT id, $1 FROM tenant_user WHERE email = 'agency@example.invalid' AND tenant_id = $2`,
+        [role.rows[0]?.id, DEMO.tenantId],
+      );
+    });
+    const recordsOnly = (
+      await json<RetentionCandidateList>(await as("agency", "/v1/retention/candidates"))
+    ).items.find((i) => i.documentId === doc.id);
+    expect(recordsOnly).toBeDefined();
+    expect(recordsOnly?.title).toBeUndefined();
+    expect(recordsOnly?.category).toBe("person_document");
 
     const hold = await json<LegalHoldItem>(
       await as("owner", "/v1/legal-holds", {
@@ -394,6 +427,11 @@ describe("legal holds and destruction (section 5.1)", () => {
     expect(destroyed.certificates).toMatchObject([
       { recordClass: "care_record", subjectType: "document", recordCount: 1 },
     ]);
+    // The certificate stays listed for the data protection lead, newest first.
+    const certificates = await json<DestructionCertificateList>(
+      await as("owner", "/v1/destruction-certificates"),
+    );
+    expect(certificates.items[0]).toEqual(destroyed.certificates[0]);
     expect((await as("manager", `/v1/documents/${doc.id}/content`)).status).toBe(404);
     expect((await json<DocumentItem>(await as("manager", `/v1/documents/${doc.id}`))).status).toBe(
       "destroyed",
@@ -429,7 +467,7 @@ describe("legal holds and destruction (section 5.1)", () => {
       {
         action: "platform.retention_candidate.list",
         actor: DEMO.users.owner.id,
-        scope: { count: expect.any(Number) },
+        scope: expect.objectContaining({ count: expect.any(Number) }),
       },
     ]);
   });
@@ -548,10 +586,27 @@ describe("legal holds and destruction (section 5.1)", () => {
     expect(await storage.get(key)).toBeNull();
   });
 
+  it("refuses both retention lists without a fresh step-up", async () => {
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.owner?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      for (const path of ["/v1/retention/candidates", "/v1/destruction-certificates"]) {
+        const refused = await as("owner", path);
+        expect(refused.status, path).toBe(403);
+        expect(((await refused.json()) as { code: string }).code).toBe("step_up_required");
+      }
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+  });
+
   it("keeps holds and destruction to tenant-wide records roles", async () => {
     expect((await as("carer", "/v1/legal-holds")).status).toBe(403);
     // The Registered Manager is location-scoped and cannot destroy records either.
     expect((await as("manager", "/v1/legal-holds")).status).toBe(403);
+    expect((await as("manager", "/v1/destruction-certificates")).status).toBe(403);
+    expect((await as("carer", "/v1/retention/candidates")).status).toBe(403);
     expect(
       (
         await as("carer", "/v1/retention/destroy", {
