@@ -20770,6 +20770,7 @@ export interface components {
       /** Format: uuid */
       recordId: string;
       versions: components["schemas"]["RecordVersion"][];
+      latestChanged: string[] | null;
     };
     RecordVersion: {
       version: number;
@@ -22079,6 +22080,7 @@ export interface components {
       actionsTaken: string | null;
       /** Format: uuid */
       supersedesId: string | null;
+      staff: components["schemas"]["StaffName"][];
     };
     ReviewBreakGlassReport: {
       actionsTaken: string;

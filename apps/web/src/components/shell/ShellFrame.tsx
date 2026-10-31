@@ -24,6 +24,7 @@ import {
   Newspaper,
   ScrollText,
   Search,
+  ShieldAlert,
   ShieldCheck,
   TriangleAlert,
   UserPlus,
@@ -75,6 +76,8 @@ export interface ShellFrameLabels {
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
+  /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
+  readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
@@ -118,6 +121,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
+  if (pathname.startsWith("/break-glass")) return "break-glass";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -298,6 +302,16 @@ export function ShellFrame({
             label: labels.dataProtection,
             href: "/settings/data-protection",
             icon: <FileLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.breakGlassReport
+      ? [
+          {
+            id: "break-glass",
+            label: labels.breakGlassReport,
+            href: "/break-glass/weekly-report",
+            icon: <ShieldAlert {...icon} />,
           },
         ]
       : []),

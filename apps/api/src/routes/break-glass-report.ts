@@ -3,7 +3,7 @@ import {
   type BreakGlassWeeklyReportOut,
   ReviewBreakGlassReport,
 } from "@harbour/contracts";
-import { breakGlassWeeklyReport } from "@harbour/db";
+import { breakGlassWeeklyReport, type Transaction } from "@harbour/db";
 import {
   breakGlassReportWeek,
   type Permission,
@@ -15,6 +15,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { type StaffLookup, staffNames } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -28,13 +29,85 @@ import { audit, iso } from "./people-shared";
 /**
  * The weekly break-glass report (people.md rule 14; PLAT-006; HZ-011): the stored report for each
  * location the reader can see, for the UK week (Monday to Monday) containing a date, or the last
- * complete week. Counts and opaque ids only; the justifications stay in the audit log. A review is
- * a new row that supersedes the report, with the actions taken.
+ * complete week. Counts and opaque ids only, with the names of the staff it counts for attribution
+ * (StaffName); the justifications stay in the audit log. Each report also stores the organisation's
+ * searches that showed no one at any location (a tenant-level section), shown, with its searchers'
+ * names, only to readers whose access reaches the whole organisation. A review is a new row that
+ * supersedes the report, with the actions taken, never by anyone the report counts.
  */
 
 type ReportRow = typeof breakGlassWeeklyReport.$inferSelect;
 
-function reportOut(row: ReportRow): BreakGlassWeeklyReportOut {
+interface SummaryIds {
+  readonly byUser?: readonly { readonly tenantUserId?: unknown }[];
+  readonly flagged?: readonly { readonly tenantUserId?: unknown }[];
+  readonly searches?: { readonly byUser?: readonly { readonly tenantUserId?: unknown }[] };
+  readonly unplacedSearches?: { readonly byUser?: readonly { readonly tenantUserId?: unknown }[] };
+}
+
+const idsOf = (lines: unknown): string[] =>
+  Array.isArray(lines)
+    ? lines.flatMap((l) =>
+        typeof (l as { tenantUserId?: unknown })?.tenantUserId === "string"
+          ? [(l as { tenantUserId: string }).tenantUserId]
+          : [],
+      )
+    : [];
+
+/**
+ * Everyone a stored report counts: its user lines, flags and searchers, and, with
+ * `organisationWide`, the searchers in its tenant-level section (searches that showed no one at
+ * any location). The reviewer is added for naming, never for separation of duties.
+ */
+export function reportStaffIds(
+  row: Pick<ReportRow, "summary">,
+  organisationWide: boolean,
+): string[] {
+  const summary = (row.summary ?? {}) as SummaryIds;
+  return [
+    ...new Set([
+      ...idsOf(summary.byUser),
+      ...idsOf(summary.flagged),
+      ...idsOf(summary.searches?.byUser),
+      ...(organisationWide ? idsOf(summary.unplacedSearches?.byUser) : []),
+    ]),
+  ];
+}
+
+/**
+ * The summary as this reader may read it: the tenant-level section only for a reader whose access
+ * reaches the whole organisation (review round 1), so a location's manager is never shown, or
+ * told the names of, searches that showed no one at their location.
+ */
+function summaryFor(row: ReportRow, organisationWide: boolean): Record<string, unknown> {
+  const summary = row.summary as Record<string, unknown>;
+  if (organisationWide) return summary;
+  const { unplacedSearches: _withheld, ...rest } = summary;
+  return rest;
+}
+
+/**
+ * The staff this reader is told the names of: everyone the report counts, as far as the reader
+ * may see it, and its reviewer. A report stored before the organisation-wide section existed (no
+ * `unplacedSearches` key) has searches that showed no one at any location mixed into its own
+ * searches, so a reader who does not reach the whole organisation is told only the names of those
+ * on its opening lines and flags, never its searchers (security re-review L-1). Separation of
+ * duties always uses the full set (`reportStaffIds(row, true)`).
+ */
+function namedIds(row: ReportRow, organisationWide: boolean): string[] {
+  const summary = (row.summary ?? {}) as SummaryIds & Record<string, unknown>;
+  const ids =
+    organisationWide || "unplacedSearches" in summary
+      ? reportStaffIds(row, organisationWide)
+      : [...new Set([...idsOf(summary.byUser), ...idsOf(summary.flagged)])];
+  return row.reviewedBy && !ids.includes(row.reviewedBy) ? [...ids, row.reviewedBy] : ids;
+}
+
+function reportOut(
+  row: ReportRow,
+  names: StaffLookup,
+  organisationWide: boolean,
+): BreakGlassWeeklyReportOut {
   return {
     id: row.id,
     locationId: row.locationId,
@@ -42,12 +115,25 @@ function reportOut(row: ReportRow): BreakGlassWeeklyReportOut {
     weekEnd: row.weekEnd.toISOString(),
     generatedAt: row.generatedAt.toISOString(),
     repeatThreshold: row.repeatThreshold,
-    summary: row.summary as Record<string, unknown>,
+    summary: summaryFor(row, organisationWide),
     reviewedBy: row.reviewedBy,
     reviewedAt: iso(row.reviewedAt),
     actionsTaken: row.actionsTaken,
     supersedesId: row.supersedesId,
+    staff: namedIds(row, organisationWide).flatMap((id) => {
+      const name = names(id);
+      return name ? [name] : [];
+    }),
   };
+}
+
+/** Each report with the staff it names, looked up in the reader's transaction. */
+async function reportsOut(tx: Transaction, rows: readonly ReportRow[], organisationWide: boolean) {
+  const names = await staffNames(
+    tx,
+    rows.flatMap((row) => namedIds(row, organisationWide)),
+  );
+  return rows.map((row) => reportOut(row, names, organisationWide));
 }
 
 /** Reading and reviewing the reports: the audit reader's permission, where it reaches. */
@@ -82,18 +168,24 @@ export const breakGlassReportRouter = createRouter()
             .from(breakGlassWeeklyReport)
             .where(eq(breakGlassWeeklyReport.weekStart, week.start))
         ).filter((r) => scope === "tenant" || locationIds.includes(r.locationId));
+        rows.sort(
+          (a, b) =>
+            a.locationId.localeCompare(b.locationId) ||
+            a.createdAt.getTime() - b.createdAt.getTime(),
+        );
         await audit(c, tx, access, {
           action: "platform.break_glass_report.view",
           resourceType: "break_glass_weekly_report",
-          scope: { weekStart: week.start.toISOString(), count: rows.length },
+          // Which reports were shown, by id (review round 1), as well as how many.
+          scope: {
+            weekStart: week.start.toISOString(),
+            count: rows.length,
+            reportIds: rows.map((r) => r.id),
+            // Whether the organisation-wide section and its searchers' names were shown.
+            organisationWide: scope === "tenant",
+          },
         });
-        return rows
-          .sort(
-            (a, b) =>
-              a.locationId.localeCompare(b.locationId) ||
-              a.createdAt.getTime() - b.createdAt.getTime(),
-          )
-          .map(reportOut);
+        return reportsOut(tx, rows, scope === "tenant");
       });
       return c.json(
         { weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), items },
@@ -139,16 +231,15 @@ export const breakGlassReportRouter = createRouter()
         if (scope !== "tenant" && !locationIds.includes(original.locationId)) {
           throw problems.notFound();
         }
-        // Nobody reviews a report that flags their own use of break-glass.
-        const flagged = (
-          (original.summary as { flagged?: { tenantUserId: string | null }[] }).flagged ?? []
-        ).some((f) => f.tenantUserId === access.tenantUserId);
-        if (flagged) {
+        // Nobody reviews a report that counts their own use of break-glass, flagged or not: an
+        // opening, a search at the location or one that showed no one at any location (review
+        // round 1; the opener-reviewer separation of master prompt section 4).
+        if (reportStaffIds(original, true).includes(access.tenantUserId)) {
           throw new HttpProblem(
             403,
             "separation_of_duties",
             "Someone else must review this report.",
-            "This report flags your own use of break-glass access, so another reviewer records the review.",
+            "This report counts your own use of break-glass access, so another reviewer records the review.",
           );
         }
         const [row] = await tx
@@ -173,7 +264,12 @@ export const breakGlassReportRouter = createRouter()
           resourceType: "break_glass_weekly_report",
           resourceId: row.id,
         });
-        return reportOut(row);
+        const organisationWide = scope === "tenant";
+        return reportOut(
+          row,
+          await staffNames(tx, namedIds(row, organisationWide)),
+          organisationWide,
+        );
       });
       return c.json(out, 201);
     },
