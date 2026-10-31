@@ -58,11 +58,11 @@ export type CompetenceProblem =
   | "override_too_long"
   | "override_not_in_force";
 
-export type CompetenceGate =
+export type MedicinesCompetenceGate =
   | { readonly ok: true; readonly overridden: boolean }
   | { readonly ok: false; readonly problem: CompetenceProblem; readonly message: string };
 
-const refused = (problem: CompetenceProblem, message: string): CompetenceGate => ({
+const refused = (problem: CompetenceProblem, message: string): MedicinesCompetenceGate => ({
   ok: false,
   problem,
   message,
@@ -78,7 +78,7 @@ export function checkCompetenceGate(
   override: CompetenceOverride | null,
   at: Date,
   rates: Pick<MedicinesRates, "competenceOverrideMaxHours">,
-): CompetenceGate {
+): MedicinesCompetenceGate {
   if (competence === "current") return { ok: true, overridden: false };
   if (override === null) {
     return competence === "expired"

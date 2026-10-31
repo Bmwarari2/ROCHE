@@ -99,7 +99,7 @@ export function NoteCorrection({
   return (
     <div className="flex flex-col gap-3">
       {inline.open ? (
-        <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
           <TextArea
             ref={inline.firstField}
             id={ids.body}

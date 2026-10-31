@@ -146,6 +146,18 @@ export const HandoverItem = z
     at: isoDateTime.meta({ description: "When it happened, or when the task fell due" }),
     lateAddition: z.boolean(),
     addedAt: isoDateTime,
+    /**
+     * What the item says, as a catalogue key (`handover.summary.*`) and its parameters: codes
+     * (a NEWS2 band and score, a chart, an incident type, an alert kind, a mark's type, view,
+     * region and side) and, for a task, its title and why it was not done. Word it in the
+     * reader's language from the key; null on items compiled before summaries existed.
+     */
+    summary: z
+      .object({
+        key: z.string(),
+        params: z.record(z.string(), z.union([z.string(), z.number()])),
+      })
+      .nullable(),
     /** Whether the reader has already acknowledged it. */
     seen: z.boolean(),
   })

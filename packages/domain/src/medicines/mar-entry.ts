@@ -6,16 +6,21 @@
  * States: a new or changed entry is "Not yet checked" until a second person, competent in
  * medicines and not the transcriber, compares it with the source document (NICE SC1, as the
  * master prompt cites it). A check that finds a difference holds the entry until a corrected
- * version replaces it. A change is a new version; a stop records why and on what source. Both work
- * on every version of the medicine, so exactly one version is in force at any instant (rule 6b).
- * Nothing is edited in place, so the history of what the MAR said, and who checked it, is kept.
+ * version replaces it. A change is a new version of the same dm+d product; a stop records why and
+ * on what source. Both work on every version of the medicine, so exactly one version is in force
+ * at any instant (rule 6b), and one entry per product is in force for a person. Nothing is edited
+ * in place, so the history of what the MAR said, and who checked it, is kept.
+ *
+ * The version rules refuse the sequences that are hard to get right rather than handling them
+ * (H-553): a change part-way through a day with doses, a change or stop while a later version is
+ * scheduled (unless it withdraws that version, with the reason), and a change into another product.
  *
  * Whether a not-yet-checked entry may be given before its check is the tenant policy the CSO
  * confirms (H-550); the default shows the dose with the notice and lets it be given, because a
  * dose held for want of a second person on a night shift is a missed dose (HZ-003).
  */
 
-import { formatUkDateTime, ukEndOfDay, ukStartOfDay } from "../shared/time";
+import { formatUkDateTime, formatUkTime, ukEndOfDay, ukStartOfDay } from "../shared/time";
 import { type DmdProductRef, type DmdRoute, isDmdProduct } from "./dmd";
 import { checkDose, type Dose, type DoseUnit, isDoseQuantity } from "./dose";
 import {
@@ -146,11 +151,13 @@ export type MarEntryProblem =
   | "difference_required"
   | "entry_closed"
   | "different_person"
+  | "different_product"
+  | "same_product_in_force"
   | "change_in_past"
   | "not_one_medicine"
-  | "todays_doses_unstated"
-  | "no_dose_left_today"
-  | "nothing_given_yet"
+  | "later_version_scheduled"
+  | "change_from_tomorrow"
+  | "restart_from_tomorrow"
   | "count_reanchored"
   | "entry_ended"
   | "stop_in_past"
@@ -291,13 +298,6 @@ export interface MarEntryStop {
   readonly source: MarSourceDocument;
 }
 
-/**
- * On the day a change takes effect, what happened to that day's doses: `all_given` (every dose
- * that day was given or recorded before the change, so the new version gives none that day) or
- * `some_still_due` (a dose is still to come that day, at the new times).
- */
-export type TodaysDoses = "all_given" | "some_still_due";
-
 export interface MarEntry extends MarEntryDraft {
   readonly id: string;
   readonly version: number;
@@ -314,10 +314,8 @@ export interface MarEntry extends MarEntryDraft {
   readonly replacedFrom: Date | null;
   /** Set when this version deliberately moved the day count (rule 6a). */
   readonly reanchor: { readonly by: string; readonly at: Date; readonly reason: string } | null;
-  /** Set when a later change or stop took effect before this version started: it is never in force. */
+  /** Set when a later change or stop withdrew this version before it started: it is never in force. */
   readonly withdrawn: { readonly by: string; readonly at: Date; readonly reason: string } | null;
-  /** The day this version took over mid-day, and what happened to that day's doses (rule 6c). */
-  readonly changeDay: { readonly date: string; readonly todaysDoses: TodaysDoses } | null;
 }
 
 export type MarEntryResult =
@@ -331,12 +329,13 @@ export interface TranscriptionMeta {
   readonly origin: MarEntryOrigin;
 }
 
-/** A new entry's details: the person's earlier entries keep a restarted medicine's day count. */
+/** A new entry's details: the person's earlier entries of the product. */
 export interface NewEntryMeta extends TranscriptionMeta {
   /**
    * Every version of the person's entries the API holds for the same dm+d product, stopped ones
-   * included (the API passes them all; the rule keeps those for this person and VMP): a stop then
-   * a start of the same product keeps the count from the last dose due (rule 6a).
+   * included (the API passes them all; the rule keeps those for this person and VMP). One entry of
+   * a product is in force at a time, and a restart keeps the count from the last dose due (rule
+   * 6a) and starts on a day with no dose already due under the entry that stopped (rule 6c).
    */
   readonly earlierEntries: readonly MarEntry[];
   readonly reanchorReason?: string | null;
@@ -366,8 +365,19 @@ function newEntry(draft: MarEntryDraft, meta: TranscriptionMeta): MarEntry {
     replacedFrom: null,
     reanchor: null,
     withdrawn: null,
-    changeDay: null,
   };
+}
+
+const live = (versions: readonly MarEntry[]) => versions.filter((v) => v.withdrawn === null);
+
+/** The regular doses due on the MAR in a window, across versions, earliest first. */
+function dosesIn(
+  versions: readonly MarEntry[],
+  window: { readonly from: Date; readonly to: Date },
+): readonly MarDose[] {
+  return versions
+    .flatMap((v) => marEntryDoses(v, window))
+    .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 }
 
 /**
@@ -375,15 +385,15 @@ function newEntry(draft: MarEntryDraft, meta: TranscriptionMeta): MarEntry {
  * doses), looking back from `before` to the earliest version's start.
  */
 export function lastDueDose(versions: readonly MarEntry[], before: Date): MarDose | null {
-  const live = versions.filter((v) => v.withdrawn === null && v.directions.kind === "regular");
-  if (live.length === 0) return null;
-  const earliest = Math.min(...live.map((v) => v.startsAt.getTime()));
+  const regular = live(versions).filter((v) => v.directions.kind === "regular");
+  if (regular.length === 0) return null;
+  const earliest = Math.min(...regular.map((v) => v.startsAt.getTime()));
   for (let to = before.getTime(); to > earliest; to -= LOOK_BACK_DAYS * DAY_MS) {
     const window = {
       from: new Date(Math.max(earliest, to - LOOK_BACK_DAYS * DAY_MS)),
       to: new Date(to),
     };
-    const doses = live.flatMap((v) => marEntryDoses(v, window));
+    const doses = regular.flatMap((v) => marEntryDoses(v, window));
     if (doses.length > 0) {
       return doses.reduce((a, b) => (b.dueAt.getTime() > a.dueAt.getTime() ? b : a));
     }
@@ -413,8 +423,11 @@ function countRule(
 }
 
 /**
- * A new entry, "Not yet checked" whatever its origin (an import or a reconciliation too). A
- * restart of a product the person had before keeps that medicine's day count (rule 6a).
+ * A new entry, "Not yet checked" whatever its origin (an import or a reconciliation too). It is
+ * refused while an entry of the same dm+d product (VMP) is in force for the person then or later:
+ * that entry is changed instead (H-553). A restart of a product the person had before keeps that
+ * medicine's day count (rule 6a), and starts on a day with no dose already due under the entry
+ * that stopped, so no dose is given twice (rule 6c).
  */
 export function transcribeMarEntry(
   draft: MarEntryDraft,
@@ -423,9 +436,27 @@ export function transcribeMarEntry(
 ): MarEntryResult {
   const issues = checkMarEntryDraft(draft, facts);
   if (issues.length > 0) return { ok: false, issues };
-  const earlier = meta.earlierEntries.filter(
+  const earlier = live(meta.earlierEntries).filter(
     (e) => e.personId === draft.personId && e.product.vmpId === draft.product.vmpId,
   );
+  const inForce = earlier.find((e) => {
+    const end = marEntryEnd(e);
+    return end === null || end.getTime() > draft.startsAt.getTime();
+  });
+  if (inForce) {
+    return fail(
+      "same_product_in_force",
+      `${draft.product.name} is already on the MAR from ${formatUkDateTime(inForce.startsAt)}. Change that entry, or stop it first.`,
+    );
+  }
+  const day = ukDateOf(draft.startsAt);
+  const dueEarlier = dosesIn(earlier, { from: ukStartOfDay(day), to: draft.startsAt });
+  if (dueEarlier.length > 0) {
+    return fail(
+      "restart_from_tomorrow",
+      `A dose was due at ${formatUkTime(dueEarlier[0]?.dueAt as Date)} that day under the entry that stopped. Start the new entry from 00:00 the next day, so no dose is given twice.`,
+    );
+  }
   const count = countRule(earlier, draft, meta);
   if ("issue" in count) return { ok: false, issues: [count.issue] };
   return { ok: true, entry: { ...newEntry(draft, meta), reanchor: count.reanchor } };
@@ -514,49 +545,74 @@ function oneMedicine(versions: readonly MarEntry[]): boolean {
   const first = versions[0];
   return (
     first !== undefined &&
-    versions.every((v) => v.personId === first.personId) &&
+    versions.every(
+      (v) => v.personId === first.personId && v.product.vmpId === first.product.vmpId,
+    ) &&
     new Set(versions.map((v) => v.id)).size === versions.length
   );
 }
 
+/** Versions that start after an instant: a change or stop then withdraws them only when asked. */
+function laterVersions(versions: readonly MarEntry[], after: Date): readonly MarEntry[] {
+  return live(versions).filter((v) => v.startsAt.getTime() > after.getTime());
+}
+
+function laterScheduled(later: readonly MarEntry[], stop: MarEntryStop | null): MarEntryIssue {
+  const first = later.reduce<MarEntry | null>(
+    (a, b) => (a === null || b.startsAt.getTime() < a.startsAt.getTime() ? b : a),
+    null,
+  );
+  return {
+    problem: "later_version_scheduled",
+    message: first
+      ? `Version ${first.version} starts ${formatUkDateTime(first.startsAt)}. Change that version instead, or withdraw it here and say why.`
+      : `A stop is already recorded from ${formatUkDateTime((stop as MarEntryStop).effectiveAt)}. To stop sooner, say why the earlier stop replaces it.`,
+  };
+}
+
 function withdraw(
-  versions: readonly MarEntry[],
-  after: Date,
+  later: readonly MarEntry[],
   by: string,
   at: Date,
-  reason: string,
-) {
-  return versions
-    .filter((v) => v.withdrawn === null && v.startsAt.getTime() > after.getTime())
-    .map((v): MarEntry => ({ ...v, state: "withdrawn", withdrawn: { by, at, reason } }));
+  reason: string | null | undefined,
+): readonly MarEntry[] {
+  const why = (reason ?? "").trim();
+  return later.map(
+    (v): MarEntry => ({ ...v, state: "withdrawn", withdrawn: { by, at, reason: why } }),
+  );
 }
 
 export type MarEntryChange =
   | {
       readonly ok: true;
       readonly next: MarEntry;
-      /** The version in force when the change takes effect, now ending then; null if none had started. */
-      readonly replaced: MarEntry | null;
-      /** Later versions that had not started, withdrawn: the API audits each. */
+      /** The version in force when the change takes effect, now ending then. */
+      readonly replaced: MarEntry;
+      /** Later versions that had not started, withdrawn as the change asked: the API audits each. */
       readonly withdrawn: readonly MarEntry[];
     }
   | { readonly ok: false; readonly issues: readonly MarEntryIssue[] };
 
-/** A change's details: the reason when it moves the day count, and what happened to that day's doses. */
+/** A change's details: why it moves the day count, and why it withdraws later versions. */
 export interface ChangeMeta extends TranscriptionMeta {
   readonly reanchorReason?: string | null;
-  readonly todaysDoses?: TodaysDoses | null;
+  /** Why the versions scheduled to start later are withdrawn; without it, the change is refused. */
+  readonly withdrawLaterReason?: string | null;
 }
 
 /**
- * A change (dose, time, product, anything) is a new version, "Not yet checked", taking effect at
- * `draft.startsAt` (now or later). It works on every version of the medicine (`versions`), so at
- * every instant exactly one version is in force (rule 6b): the version in force when the change
- * takes effect ends then, and any later version that had not started is withdrawn. A stop still to
- * come carries over to the new version, so a change never cancels a stop. The day count carries
- * over from the last dose due (rule 6a), and a change on a day with doses says what happened to
- * that day's doses (rule 6c). Corrections are changes: allowed whenever a version is in force,
- * whatever is still to come.
+ * A change is a new version of the same dm+d product (VMP): the dose, times, route, brand (AMP),
+ * dates and directions can change; another VMP is a stop and a new entry. It is "Not yet checked"
+ * and takes effect at `draft.startsAt` (now or later), when a version is in force: a medicine that
+ * has stopped, or has not started, is not changed (a correction of an entry not yet started takes
+ * effect from its start). It works on every version of the medicine (`versions`), so at every
+ * instant exactly one version is in force (rule 6b): the version in force when the change takes
+ * effect ends then. A change while a later version is scheduled is refused unless it
+ * withdraws that version, with the reason (H-553). A stop still to come, on the version in force or
+ * on a version withdrawn, carries over to the new version: a change never cancels a stop. The day
+ * count carries over from the last dose due (rule 6a), and a change part-way through a day on
+ * which either version has a regular dose is refused: it takes effect from 00:00 the next day, so
+ * no dose that day is given twice or dropped (rule 6c). Corrections are changes.
  */
 export function changeMarEntry(
   versions: readonly MarEntry[],
@@ -567,8 +623,15 @@ export function changeMarEntry(
   if (!oneMedicine(versions)) {
     return fail("not_one_medicine", "These are not the versions of one medicine for one person.");
   }
-  if (draft.personId !== versions[0]?.personId) {
+  const first = versions[0] as MarEntry;
+  if (draft.personId !== first.personId) {
     return fail("different_person", "The change is for a different person from the entry.");
+  }
+  if (draft.product.vmpId !== first.product.vmpId) {
+    return fail(
+      "different_product",
+      `A change keeps the same medicine (${first.product.name}). To switch to ${draft.product.name}, stop this entry and record the new medicine as a new entry.`,
+    );
   }
   const takesEffect = draft.startsAt;
   if (takesEffect.getTime() < meta.at.getTime()) {
@@ -578,14 +641,15 @@ export function changeMarEntry(
     );
   }
   const current = versionInForceAt(versions, takesEffect);
-  const pending = versions.filter(
-    (v) => v.withdrawn === null && v.startsAt.getTime() > takesEffect.getTime(),
-  );
-  if (current === null && pending.length === 0) {
+  if (current === null) {
     return fail(
       "entry_closed",
-      "This medicine has stopped or ended by then. Record it as a new entry if it starts again.",
+      "No version of this medicine is in force then: it has stopped, or has not started yet. Change it from a time it is in force, or record it as a new entry if it starts again.",
     );
+  }
+  const later = laterVersions(versions, takesEffect);
+  if (later.length > 0 && blank(meta.withdrawLaterReason)) {
+    return { ok: false, issues: [laterScheduled(later, null)] };
   }
   const issues = checkMarEntryDraft(draft, facts);
   if (issues.length > 0) return { ok: false, issues };
@@ -593,60 +657,42 @@ export function changeMarEntry(
   if ("issue" in count) return { ok: false, issues: [count.issue] };
 
   const latest = versions.reduce((a, b) => (b.version > a.version ? b : a));
-  const carriedStop =
-    current?.stop && current.stop.effectiveAt.getTime() > takesEffect.getTime()
-      ? current.stop
-      : null;
-  const candidate: MarEntry = {
+  const carriedStop = [current, ...later]
+    .map((v) => v.stop)
+    .filter(
+      (st): st is MarEntryStop => st !== null && st.effectiveAt.getTime() > takesEffect.getTime(),
+    )
+    .reduce<MarEntryStop | null>(
+      (a, b) => (a === null || b.effectiveAt.getTime() < a.effectiveAt.getTime() ? b : a),
+      null,
+    );
+  const next: MarEntry = {
     ...newEntry(draft, meta),
     version: latest.version + 1,
-    replacesId: (current ?? latest).id,
+    replacesId: current.id,
     reanchor: count.reanchor,
     stop: carriedStop,
   };
 
-  // Rule 6c: a change on a day with doses says what happened to that day's doses.
+  // Rule 6c: part-way through a day, only when neither version has a regular dose that day.
   const day = ukDateOf(takesEffect);
-  const dayWindow = { from: ukStartOfDay(day), to: ukEndOfDay(day) };
-  const oldToday = current ? marEntryDoses(current, dayWindow) : [];
-  const newToday = marEntryDoses(candidate, { from: takesEffect, to: dayWindow.to });
-  let changeDay: MarEntry["changeDay"] = null;
-  if (oldToday.length > 0 || newToday.length > 0) {
-    if (!meta.todaysDoses) {
+  const dayStart = ukStartOfDay(day);
+  if (takesEffect.getTime() !== dayStart.getTime()) {
+    const dayEnd = ukEndOfDay(day);
+    const before = dosesIn(live(versions), { from: dayStart, to: dayEnd });
+    const after = dosesIn([next], { from: takesEffect, to: dayEnd });
+    if (before.length > 0 || after.length > 0) {
       return fail(
-        "todays_doses_unstated",
-        "This change takes effect on a day with doses. Say whether that day's doses have all been given, or one is still due at the new times.",
+        "change_from_tomorrow",
+        "This medicine has a dose on the day the change takes effect. Start the change from 00:00 the next day, so no dose that day is given twice or dropped.",
       );
     }
-    if (meta.todaysDoses === "some_still_due" && newToday.length === 0) {
-      return fail(
-        "no_dose_left_today",
-        "The new times leave no dose for the rest of that day. Start the change the next day, or ask the prescriber when that day's dose is due.",
-      );
-    }
-    const dueBefore = oldToday.some((d) => d.dueAt.getTime() < takesEffect.getTime());
-    if (meta.todaysDoses === "all_given" && !dueBefore) {
-      return fail(
-        "nothing_given_yet",
-        "No dose was due yet that day under the current entry, so none can have been given. Say a dose is still due at the new times, or start the change the next day.",
-      );
-    }
-    changeDay = { date: day, todaysDoses: meta.todaysDoses };
   }
-  const next: MarEntry = { ...candidate, changeDay };
   return {
     ok: true,
     next,
-    replaced: current
-      ? { ...current, state: "replaced", replacedById: next.id, replacedFrom: takesEffect }
-      : null,
-    withdrawn: withdraw(
-      versions,
-      takesEffect,
-      meta.by,
-      meta.at,
-      `Replaced before it started by version ${next.version}`,
-    ),
+    replaced: { ...current, state: "replaced", replacedById: next.id, replacedFrom: takesEffect },
+    withdrawn: withdraw(later, meta.by, meta.at, meta.withdrawLaterReason),
   };
 }
 
@@ -658,13 +704,20 @@ export type MarEntryStopResult =
     }
   | { readonly ok: false; readonly issues: readonly MarEntryIssue[] };
 
+/** Why a stop withdraws the versions scheduled later, or replaces a later stop (H-553). */
+export interface StopMeta {
+  readonly withdrawLaterReason?: string | null;
+}
+
 /**
  * Stops a medicine now or later, with the reason and the source document that says so: the
- * version in force then ends, and any later version that had not started is withdrawn (rule 6b).
+ * version in force then ends (rule 6b). A stop while a later version or a later stop is scheduled
+ * is refused unless it withdraws that version, or replaces that stop, with the reason (H-553).
  */
 export function stopMarEntry(
   versions: readonly MarEntry[],
   stop: MarEntryStop,
+  meta: StopMeta = {},
 ): MarEntryStopResult {
   if (!oneMedicine(versions)) {
     return fail("not_one_medicine", "These are not the versions of one medicine for one person.");
@@ -679,20 +732,17 @@ export function stopMarEntry(
     );
   }
   const current = versionInForceAt(versions, stop.effectiveAt);
-  const withdrawn = withdraw(
-    versions,
-    stop.effectiveAt,
-    stop.by,
-    stop.at,
-    "Stopped before it started",
-  );
-  if (current === null && withdrawn.length === 0) {
+  const later = laterVersions(versions, stop.effectiveAt);
+  if (current === null && later.length === 0) {
     return fail("entry_closed", "This medicine has already stopped or ended by then.");
+  }
+  if ((later.length > 0 || current?.stop) && blank(meta.withdrawLaterReason)) {
+    return { ok: false, issues: [laterScheduled(later, current?.stop ?? null)] };
   }
   return {
     ok: true,
     stopped: current ? { ...current, state: "stopped", stop } : null,
-    withdrawn,
+    withdrawn: withdraw(later, stop.by, stop.at, meta.withdrawLaterReason),
   };
 }
 
@@ -707,20 +757,18 @@ export function marEntryEnd(entry: MarEntry): Date | null {
 
 /**
  * The regular doses an entry has on the MAR in [from, to); none for a when-required medicine or a
- * withdrawn version; none on its change day when that day's doses were all given (rule 6c).
+ * withdrawn version.
  */
 export function marEntryDoses(
   entry: MarEntry,
   window: { readonly from: Date; readonly to: Date },
 ): readonly MarDose[] {
   if (entry.directions.kind !== "regular" || entry.withdrawn !== null) return [];
-  const doses = expandSchedule(
+  return expandSchedule(
     entry.directions.schedule,
     { startsAt: entry.startsAt, endsAt: marEntryEnd(entry) },
     window,
   );
-  const skip = entry.changeDay?.todaysDoses === "all_given" ? entry.changeDay.date : null;
-  return skip === null ? doses : doses.filter((d) => d.date !== skip);
 }
 
 /** Tenant policy for entries awaiting their second check (H-550). */
@@ -734,7 +782,7 @@ export const MAR_ENTRY_NOTICES = {
   differenceFound:
     "Do not give: the check found a difference from the source document. Tell the nurse in charge, who records a corrected entry.",
   variableDose:
-    "Variable dose: give only the dose the checked dosing record gives for the day. With none, do not give: tell the nurse in charge.",
+    "Variable dose: give only the dose the checked dosing record gives for the day. With none, do not give: ask the prescriber for today's dose, record it on the dosing record for a second person to check, and tell the nurse in charge.",
 } as const;
 
 export interface MarEntryStatus {

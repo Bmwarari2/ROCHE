@@ -36,7 +36,7 @@ record). dm+d reference tables are global, with no `tenant_id` (ADR-0080, slice 
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
-| `medication` (the MAR entry; one row per version) | Versioned: each change is a new row; only the check, stop and replacement columns are set later, once each (a trigger refuses changing a set value), under `expected_version` | person, `version`, `replaces_id`, `state` (`not_yet_checked`, `checked`, `difference_found`, `stopped`, `replaced`), `origin` (`transcribed`, `reconciliation`, `import`), dm+d `vmp_id` and `amp_id` with the dm+d name at transcription, route code and name, `directions` (`regular` or `when_required`), the pattern (`every_day`, `every_n_days` with the interval and `anchor_on`, `weekly` with weekdays, interval and `anchor_on`, `monthly` with the day), the re-anchor (by, at, reason) when a version deliberately moved the day count, the change day (date and `all_given` or `some_still_due`), withdrawn (by, at, reason) for a version replaced or stopped before it started, the when-required dose, indication, special instructions as written, prescriber, `starts_at`, `stops_at`, `review_on`, source (kind, reference, document), `transcribed_by` and `_at`, second check (by, at, outcome, difference), stop (by, at, effective at, reason, source), `replaced_by_id`, `replaced_from`, CD schedule from dm+d (slice 10), `reconciliation_id`, `import_batch_id` (slice 51) | `mar_chart` |
+| `medication` (the MAR entry; one row per version) | Versioned: each change is a new row; only the check, stop and replacement columns are set later, once each (a trigger refuses changing a set value), under `expected_version` | person, `version`, `replaces_id`, `state` (`not_yet_checked`, `checked`, `difference_found`, `stopped`, `replaced`), `origin` (`transcribed`, `reconciliation`, `import`), dm+d `vmp_id` and `amp_id` with the dm+d name at transcription, route code and name, `directions` (`regular` or `when_required`), the pattern (`every_day`, `every_n_days` with the interval and `anchor_on`, `weekly` with weekdays, interval and `anchor_on`, `monthly` with the day), the re-anchor (by, at, reason) when a version deliberately moved the day count, withdrawn (by, at, reason) for a later version a change or stop withdrew, with the reason it gave, the when-required dose, indication, special instructions as written, prescriber, `starts_at`, `stops_at`, `review_on`, source (kind, reference, document), `transcribed_by` and `_at`, second check (by, at, outcome, difference), stop (by, at, effective at, reason, source), `replaced_by_id`, `replaced_from`, CD schedule from dm+d (slice 10), `reconciliation_id`, `import_batch_id` (slice 51) | `mar_chart` |
 | `medication_schedule` (section 18's name; one row per prescribed time) | As its entry (written with it) | entry, `time` (HH:MM, UK), dose kind (`amount`, `range`, `variable`), quantity or from and to (numeric, at most 3 decimal places), unit code and dm+d unit name | `mar_chart` |
 | `medication_reconciliation` | Mutable until completed, then closed | person, `trigger` (`admission`, `transfer`, `return_from_hospital`, `change`), the people-lifecycle event it answers, `triggered_at`, started by and at, the entries and versions at the start, `status` (`open`, `completed`), completed by and at, allergies compared, person involved or the reason not, the reason there is no discharge letter | `mar_chart` |
 | `medication_reconciliation_source` | Append-only | reconciliation, kind (rule 9), reference, document, received at, why it is current (`current_because`) when received before the event | `mar_chart` |
@@ -68,7 +68,7 @@ unless the tenant's own role adds it).
 | Action (slice 16 route) | Permission | Also needs (domain rule) | Scope |
 | --- | --- | --- | --- |
 | Read the person's medicines record and MAR | `care.plan.read`, or `medicines.emar.administer`, or `medicines.record.manage` (slice 16 decides whether a separate `medicines.record.read` is needed, ADR-0071) | - | The person |
-| Transcribe a new entry, or change one (a new version) | `medicines.record.manage` | A dm+d product, a route and units dm+d gives, a source document (rules 1 to 5) | The person |
+| Transcribe a new entry, or change one (a new version) | `medicines.record.manage` | A dm+d product, a route and units dm+d gives, a source document (rules 1 to 5); one entry per product; a change keeps the product (rule 6) | The person |
 | Second-check an entry | `medicines.record.manage` | Current medicines competence; not the transcriber; compared with the source (rule 6) | The person |
 | Stop an entry | `medicines.record.manage` | A reason and the source document; now or later (rule 6) | The person |
 | Start, decide and complete a reconciliation | `medicines.record.manage` | Current medicines competence to complete (rules 7 to 12) | The person |
@@ -120,7 +120,9 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    smaller unit" (H-551). **Variable doses** (HZ-005): the day doses come from a dosing record (for
    example a warfarin schedule after an INR test, with its source), second-checked like an entry,
    and a dose is given only from a checked one (rule 18, slice 3; slice 16 stores it). Slice 2 had
-   blocked every variable-dose entry until the dosing record existed.
+   blocked every variable-dose entry until the dosing record existed. With no checked record
+   for the day, the entry's notice tells staff to ask the prescriber for the day's dose and
+   record it on the dosing record for a second person to check.
 3. **Schedules** (HZ-003, HZ-009; `schedule.ts`). A regular entry has prescribed wall-clock times
    (HH:MM, UK time), each with its own dose, on a pattern: every day; every n days (2 is every other
    day) counted from the pattern's `anchorOn`, a day a dose fell or falls due; weekly on named days
@@ -152,18 +154,27 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    competence, who confirms they compared the entry with the source; it either confirms it
    (**Checked**) or records what differs (**Check found a difference**: the entry may not be given
    until a corrected version replaces it). A change (`changeMarEntry`) is a new version, Not yet
-   checked, for the same person, taking effect now or later; the person who made it cannot check
-   it. A stop (`stopMarEntry`) needs a reason and its source and takes effect now or later; doses
-   before it stay. An entry whose stop or replacement is still to come is checked, and corrected
-   by a change, like any other while it is in force (a check after it has ended is refused); a
-   stop still to come carries over to the correction, so a change never cancels a stop.
-   `marEntryStatus` gives the words (never colour alone) and whether a dose may be given: only the
-   version in force ("Not started yet" before its start; "Replaced by a newer entry", "Stopped",
-   "Ended" or "Withdrawn before it started" after); by default an entry awaiting its check may be
-   given with the notice beside it, and a tenant may choose to hold such entries until checked
-   (`UncheckedEntryPolicy`; H-550). A variable-dose entry says "Variable dose: give only the dose
-   the checked dosing record gives for the day", and a dose without a checked record is refused
-   (rule 18).
+   checked, for the same person and the same dm+d VMP (the dose, times, route, brand or AMP, dates
+   and directions may change; another VMP, so another strength or form too, is refused,
+   `different_product`: stop the entry and record the new product as a new entry). It takes
+   effect now or later, at a time a version is in force (`entry_closed` otherwise: a stopped
+   medicine is restarted as a new entry, and a correction of an entry not yet started takes effect
+   from its start); the person who made it cannot check it. A stop (`stopMarEntry`) needs a reason
+   and its source and takes effect now or later; doses before it stay. A new entry is refused while
+   an entry of the same VMP, any brand, is in force for the person then or later
+   (`same_product_in_force`: change that entry, or stop it first), so one entry per product is on
+   the MAR (H-553); another VMP with the same ingredient is its own entry. An entry whose stop or
+   replacement is still to come is checked, and corrected by a change, like any other while it is
+   in force (a check after it has ended is refused). `marEntryStatus` gives the words (never colour
+   alone) and whether a dose may be given: only the version in force ("Not started yet" before its
+   start; "Replaced by a newer entry", "Stopped", "Ended" or "Withdrawn before it started" after);
+   by default an entry awaiting its check may be given with the notice beside it, and a tenant may
+   choose to hold such entries until checked (`UncheckedEntryPolicy`; H-550). A variable-dose entry
+   says "Variable dose: give only the dose the checked dosing record gives for the day", and a
+   dose without a checked record is refused (rule 18).
+
+   The version rules refuse the sequences that are hard to get right rather than handling them
+   (H-553); each refusal says what to do instead.
 
    **Rule 6a: the day count is kept from the last dose due** (HZ-003, HZ-004; `keepsCountFrom`,
    `lastDueDose`). A new version's pattern, and a restart of a product the person had before
@@ -179,19 +190,29 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    never thrown.
 
    **Rule 6b: exactly one version in force** (HZ-004; `versionInForceAt`). A change and a stop work
-   on every version of the medicine: the version in force when they take effect ends then, and
-   any later version that had not started is withdrawn (`withdrawn`, with who, when and why; the
-   API audits it), so at no instant are two versions givable. A table-driven property test runs
-   sequences of changes and stops and checks every boundary.
+   on every version of the medicine: the version in force when they take effect ends then. A
+   change or a stop while a later version is scheduled is refused (`later_version_scheduled`,
+   naming it) unless the request withdraws that version and says why (`withdrawLaterReason`; the
+   withdrawn version records who, when and that reason, and the API audits it); a stop while a
+   later stop is recorded is refused unless it says why the earlier stop replaces it. A stop still
+   to come, on the version in force or on a version the change withdraws, carries over to the new
+   version (the earliest, when there are two), so a change never cancels a stop: a course that
+   continues past its stop is a new entry from the stop. So at no instant are two versions
+   givable, and nothing is given after a recorded stop from an entry recorded before it. A
+   property test runs random sequences of changes, stops, restarts and corrections (regular and
+   when required) and checks every boundary, every dose and every day.
 
-   **Rule 6c: a change on a day with doses** (HZ-003, HZ-004; `todaysDoses`). When either version
-   has a dose on the day the change takes effect, the change says what happened to that day's
-   doses: `all_given` (a dose was due before the change and the day's doses are done: the new
-   version gives none that day; refused if nothing was due yet, `nothing_given_yet`) or
-   `some_still_due` (a dose is still to come at the new times; refused if the new times leave none,
-   `no_dose_left_today`). So 08:00 changed to 20:00 at 09:00 gives one dose that day when the
-   08:00 was given, and 20:00 changed to 08:00 at 09:00 cannot drop that day's dose: it starts the
-   next day.
+   **Rule 6c: no change part-way through a day with doses** (HZ-003, HZ-004). A change that takes
+   effect part-way through a UK day is refused when either version has a regular dose that day
+   (`change_from_tomorrow`): it takes effect from 00:00 the next day, so that day's doses are the
+   old version's and the next day's the new one's, never given twice or dropped. That includes
+   regular to when required, and when required to regular with a dose later that day. A change on
+   a day with no regular dose under either version (when required to when required, or every 3
+   days on a day between doses) may take effect at any time. A restart (a new entry of a product
+   the person had before) that starts part-way through a day on which a dose was already due under
+   the entry that stopped is refused (`restart_from_tomorrow`); stopped before that day's first
+   dose, it may start the same day. On the days the clocks change, a change from 00:00 gives the
+   new schedule's doses for the day (rule 4).
 7. **Every medicine on the MAR is decided, on a line that says so** (HZ-121; `reconciliation.ts`).
    Each source line is recorded as written with its dm+d product and what it says: start,
    continue, change, stop or unclear (`says`). A reconciliation lists the entries in force when it
@@ -200,8 +221,10 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    by identity): a line that says something else, or names another product, never supports it,
    whatever the note (`line_does_not_support`). Harbour never infers a stop because a source leaves
    a medicine out: a stop links the line that says it stops, from a current document; with no such
-   line the decision is a query. A change links the line that says the change, about the new
-   product, from a current document. A continue needs a line that says continue from a current
+   line the decision is a query. A change keeps the entry's dm+d VMP (`change_different_product`
+   otherwise: a switch, such as warfarin to apixaban, is a stop on the old product's line and a
+   start on the new one's) and links the line that says the change, about that product, from a
+   current document. A continue needs a line that says continue from a current
    document that shows what is prescribed now (on a return from hospital with a discharge letter,
    the letter's line; otherwise a prescription, the pharmacy's MAR, a discharge or transfer letter,
    the GP record, a clinic letter or the prescriber's written instruction); one supported only by
@@ -222,23 +245,28 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    entry's source document.
 10. **Differences and duplicates by identity only** (HZ-121; `linkDifference`). Harbour never pairs
     lines with entries itself and never compares ingredients. Continuing an entry on a line that
-    names another brand of the same VMP needs a note. A start or a change whose dm+d VMP is
-    already on the MAR after the plan (an entry continued or changed, or another start) is flagged
-    as a possible duplicate and needs a note (a regular and a when-required entry of one product is
-    common); another VMP with the same ingredient is never flagged.
+    names another brand of the same VMP needs a note. One entry per dm+d VMP (rule 6): a start of a
+    VMP the MAR already holds is refused when the reconciliation completes (`start_refused`,
+    `same_product_in_force`), and so is a start beside an entry of the same VMP continued or
+    changed in the plan, or a second start of it (`duplicate_product`), even for a regular and a
+    when-required entry of one product (H-553); the existing entry is changed instead. Stopping and
+    starting the same product in one reconciliation is a change. Another VMP with the same
+    ingredient is never flagged.
 11. **Completion** (HZ-121, HZ-005; `completeReconciliation`). Refused, with every reason, while a
     query is open or a line unclear, a decision is missing, doubled or unsupported, a new entry's
-    draft fails rule 6, a change or a start fails rule 6a or 6c against the entry's versions
-    (`entryVersions`; tried when the reconciliation completes, so the question shows then:
-    `change_refused`, `start_refused`), a duplicate has no note, the completer's medicines
+    draft fails rule 6, a change, stop or start fails the MAR rules (rule 6, 6a to 6c): each change
+    and stop is tried against the entry's versions (`entryVersions`) and each start against the
+    person's earlier entries of the product, stopped ones included (`earlierEntries`), when the
+    reconciliation completes, so a refusal shows then, not when the plan is applied
+    (`change_refused`, `stop_refused`, `start_refused`), a product would be on the MAR twice, the completer's medicines
     competence (read from the workforce port, section 3) is not current, the allergies in the
     sources have not been compared with the recorded allergies by the completer (Harbour matches no
     allergen, ADR-0082 default), the person (or someone who speaks for them) was not involved and
     no reason is given, an entry belongs to someone else, or the medicines record changed since the
     reconciliation began. The result is the plan the API applies in one transaction: continued
     entries, stops with their source (`stopMarEntry`), changes (`changeMarEntry`, with the re-anchor
-    reason and the change-day answer) and starts (`transcribeMarEntry`, with the person's earlier
-    entries) made Not yet checked with origin `reconciliation`, so a second person checks each.
+    reason) and starts (`transcribeMarEntry`, with the person's earlier entries) made Not yet
+    checked with origin `reconciliation`, so a second person checks each.
 12. **Not yet reconciled** (HZ-121; `outstandingReconciliations`). Every admission, transfer and
     return from hospital without a completed reconciliation is listed for the person, oldest first,
     with "Medicines not yet reconciled since the return from hospital on 03/11/2026 14:30." A
@@ -389,16 +417,23 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   last day of a shorter month; day names and wording; the four clock changes of 2026 and 2027;
   counting from the anchor and whether a change keeps the count; schedule problems),
   `mar-entry.test.ts` (draft problems; states; second check; change; stop; status words and the
-  unchecked policy; exactly one version in force, with the review's v1, v2, v3 case and a property
-  test over random sequences of changes and stops; the count kept from the last dose due across
-  changes at 07:00 or 09:00, through every day and back, across a stop and restart, and a weekday
-  move needing a reason; a change on a dose day; a future stop or replacement still checkable and
-  correctable; variable doses not givable), `reconciliation.test.ts` (the plan; every entry and
-  line decided; lines that say what they mean, with the alendronic acid and warfarin to apixaban
-  cases; a stop citing its line; a continue shown by a current prescription, or confirmed by a
-  clinician; a June GP record not current; a change's and a restart's count and change-day
-  questions at completion; duplicates by dm+d identity, starts and changes; sources; queries;
-  the stale record; completion checks; outstanding reconciliations). Run under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York`.
+  unchecked policy; a change keeps the product, brand changes allowed; exactly one version in
+  force: a later version withdrawn only with a reason, a stop carried over (the v1, v2 with a stop,
+  correction case), a change refused with nothing in force, and a property test over random
+  sequences of changes, stops, restarts and corrections, regular and when required, checking every
+  boundary, that nothing is given after a recorded stop, and every day's doses against the
+  schedule; the count kept from the last dose due across changes, through every day and back,
+  across a stop and restart, and a weekday move needing a reason; no change part-way through a
+  day with doses, including regular to when required and back, and on the days the clocks change;
+  one entry per product and a restart from the next day; a future stop or replacement still
+  checkable and correctable; a variable-dose entry pointing to the checked dosing record; tags offered only from the
+  tenant's lists, by exact VMP (ADR-0082)),
+  `reconciliation.test.ts` (the plan; every entry and line decided; lines that say what they mean,
+  with the alendronic acid and warfarin to apixaban cases; a change into another product refused;
+  a stop citing its line; a continue shown by a current prescription, or confirmed by a
+  clinician; a June GP record not current; a change's, a stop's and a restart's MAR rules tried at
+  completion, including a medicine stopped before the reconciliation; one entry per product;
+  sources; queries; the stale record; completion checks; outstanding reconciliations). Run under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York`.
 - Domain (built, slice 3): `timing.test.ts` (windows from the table, narrower for time-critical,
   escalation sooner; outstanding never closes itself; early and late; tag notices; the
   drift-corrected clock), `intervals.test.ts` (the prescribed interval across versions; the
@@ -428,7 +463,11 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   not done, and whether a stop needs a second check too (default no: it takes effect with its
   source and reason); whether a future stop or replacement should itself be checked before it
   takes effect, and whether a stop still to come should carry over to a correction (default: yes);
-  the dosing record for variable doses and its second check (rule 2, slice 3).
+  the dosing record for variable doses and its second check (rule 2, slice 3). **Release gate:**
+  slice 2 is not released to a tenant without slice 3's dosing record; until then a variable-dose
+  entry is never givable and its notice tells staff to ask the prescriber for the day's dose and
+  record it as a new entry, stopping the variable one first (confirm that interim instruction, or
+  that the gate holds).
 - H-551 (pharmacist): the dose-writing rules in rule 2, the 3 decimal places, "0.5 tablets",
   "2 × 5 ml spoonfuls" and "12 micrograms/hour", and whether a quantity below 1 where dm+d gives a
   smaller unit (0.5 g, 500 mg) should be refused rather than transcribed as written; "ml" as dm+d
@@ -440,15 +479,22 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   line says (start, continue, change, stop, unclear) and refusing any decision a line does not say,
   starts only from a current prescriber's or pharmacy's line (no confirmation route, unlike a
   continue), who may confirm a continue that no such source shows, a stop only from a line that
-  says so, duplicates by dm+d VMP (starts and changes) with a note, "withheld until review" (not a state: stop and start again), who may complete
+  says so, one entry per dm+d VMP with no note to override it, a change keeping the VMP (a switch is a stop and a start), "withheld until review" (not a state: stop and start again), who may complete
   one, and the reading of NICE SC1 sections 1.7 and 1.14 as the master prompt cites them (the
   build environment could not reach the NICE pages).
 - H-553 (CSO with a pharmacist): the schedule patterns, written-out times instead of "every n
   hours", per-time doses, the section 18 schedule type split, both doses kept when a clock change
   brings two times together, the day count kept from the last dose due across versions and
   restarts, a weekday or day-of-month move counting as a re-anchor (even daily to weekly), and the
-  change-day answer (`all_given`, `some_still_due`) for a change on a day with doses (rules 6a to
-  6c).
+  refusals that replace handling complicated sequences (rules 6, 6b, 6c): no change part-way
+  through a day with a regular dose (it takes effect from 00:00 the next day, so a change wanted
+  for the same evening, or regular to when required that day, waits a day: is that acceptable,
+  and what should staff do meanwhile?); no restart the same day after a dose was due; no change or
+  stop while a later version is scheduled unless it withdraws that version with a reason; a stop
+  always carrying over (a course extended past its stop is a new entry); no change when nothing is
+  in force; one entry per product, so a regular and a when-required entry of the same VMP (for
+  example lorazepam at night and when required) cannot both be on the MAR: is a combined entry, or
+  an exception, needed?
 - H-554 (CSO): the dose windows (60 minutes either side, 30 for time-critical), the reason asked
   for an early or late dose, and when an outstanding dose escalates.
 - H-555 (CSO with a pharmacist): the when-required rules: the rolling 24 hours up to the dose, no

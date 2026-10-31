@@ -1,4 +1,5 @@
 import { button } from "@harbour/ui/tokens";
+import type { Ref } from "react";
 import {
   ActivityIndicator,
   type GestureResponderEvent,
@@ -27,6 +28,8 @@ export interface ButtonProps {
   readonly accessibilityLabel?: string;
   /** What will happen, for example "Deletes all care data stored on this device". */
   readonly accessibilityHint?: string;
+  /** A ref to the pressable, so a screen can move screen reader focus back to it (WCAG 2.4.3). */
+  readonly focusRef?: Ref<View>;
   /** Defaults to selection, or warning for destructive buttons. */
   readonly haptic?: ButtonHaptic;
   readonly fullWidth?: boolean;
@@ -44,6 +47,7 @@ export function Button({
   icon: Icon,
   accessibilityLabel,
   accessibilityHint,
+  focusRef,
   haptic,
   fullWidth = false,
   style,
@@ -71,6 +75,7 @@ export function Button({
 
   return (
     <Pressable
+      ref={focusRef}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}

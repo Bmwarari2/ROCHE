@@ -960,7 +960,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "done in the carer's name, but not as this move",
       { version: 6 },
-      /^We could not check whether this was saved\. Check the task on the round before recording it again\.$/,
+      /^Harbour could not check whether this was saved\. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
     ],
     [
       "marked not done by someone else",
@@ -971,7 +971,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "no longer in the list",
       { id: "another" },
-      /^We could not find this task\. Check the round before recording it again\.$/,
+      /^Harbour could not find this task\. Check with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
     ],
   ] as const)(
     "hazard HZ-006 says what happened to a task the move did not reach in time: %s",
@@ -1096,7 +1096,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
           id: MOVE,
           code: "task_unchecked",
           message:
-            "We could not check whether this was saved. Check the task on the round before recording it again.",
+            "Harbour could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
         },
       ]);
       const kept = queue.state.sql.find((x) => x.sql.startsWith("INSERT INTO upload_issue"));

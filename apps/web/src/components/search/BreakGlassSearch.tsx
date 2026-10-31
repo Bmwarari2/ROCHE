@@ -1,12 +1,13 @@
 "use client";
 
 import type { BreakGlassSearchResults } from "@harbour/contracts";
-import { Button, SelectField, Sheet, StatusChip, TextArea, TextField } from "@harbour/ui";
+import { Button, SelectField, Sheet, TextArea, TextField } from "@harbour/ui";
 import { CircleAlert, LockOpen } from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 import { runBreakGlassSearch } from "@/app/actions/search";
 import { useFieldIds } from "@/components/care/form-state";
+import { PersonStatusBadge } from "@/components/exit/ExitChip";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { formatDate, formatNhsNumber } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
@@ -166,10 +167,7 @@ export function BreakGlassSearch() {
                       .join(" · ")}
                   </p>
                   <div>
-                    <StatusChip
-                      status="neutral"
-                      label={t("platform.search.status", { status: p.status })}
-                    />
+                    <PersonStatusBadge status={p.status} always />
                   </div>
                   {p.sameName ? (
                     <p className="m-0 flex items-start gap-2 rounded-input border-s-4 border-warning bg-bg-secondary p-2 font-semibold">

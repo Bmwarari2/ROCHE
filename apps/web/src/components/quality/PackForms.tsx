@@ -65,6 +65,7 @@ export function AddRecordsForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -157,6 +158,7 @@ export function RedactForm({
   return (
     <div className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate
@@ -365,6 +367,7 @@ export function LinkIssuer({
   return (
     <section aria-labelledby="release-title" className="flex flex-col gap-4">
       <form
+        method="post"
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
         noValidate

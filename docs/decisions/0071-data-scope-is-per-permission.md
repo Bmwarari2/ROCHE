@@ -179,6 +179,22 @@ never syncs. A deletion record decides whether it needs a manager before its tra
 (L3), so the transaction runs, and is audited, in the narrowed scope; a first stage that arrives in
 between is refused as a conflict.
 
+**Handovers and their prerequisites (#50 review round 1, S-M1; #123 security review, M1).** The
+handover family follows `care.handover.manage`. Since migration 0071 a handover item carries a
+worded summary drawn from other modules' records: an incident's type, a NEWS2 score, a body-map
+mark, a task's title, the care plan action it carries out (the plan's own words) and why it was
+not done. So `care.handover.manage` reaches no further than `safety.incident.read`,
+`care.note.read`, `people.person.read` and `care.plan.read` (`PERMISSION_PREREQUISITES` in
+`packages/domain/src/platform/access.ts`).
+- A role or grant that carries it without all four is refused when it is defined
+  (`checkRoleDefinition`, `checkGrantPermissions`: `prerequisite_permission_missing`).
+- `resolveAccess` narrows one stored before this rule to where all five reach, and drops it
+  where they reach no one. The API's handover routes, the sync token's handover claims and the
+  streams therefore never show a summary to someone who could not read its source.
+- Every built-in role already carries the four.
+- Tests: `access.test.ts` and `apps/api/test/scope-per-permission.test.ts`, both under
+  `hazard HZ-011 hazard HZ-018`.
+
 **Documents (S-M2, L4, L5).** A document about a person is read with `people.person.read` and its
 category's read permission (`person_photo` and `person_document` `people.person.read`,
 `care_attachment` `care.note.read`), and found again where both reach; the list offers only the

@@ -12,13 +12,16 @@ import {
 import {
   Archive,
   Bell,
+  ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
+  FileText,
   FolderLock,
   House,
   ListChecks,
   ListTodo,
+  Lock,
   LogOut,
   Mail,
   Newspaper,
@@ -26,6 +29,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Stamp,
   TriangleAlert,
   UserPlus,
   Users,
@@ -59,6 +63,8 @@ export interface ShellFrameLabels {
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to people who take a step in a listed workflow (PLAT-011 approvals). */
+  readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
@@ -73,6 +79,12 @@ export interface ShellFrameLabels {
   readonly statementOfPurpose?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
+  /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
+  readonly tasks?: string | undefined;
+  /** Shown to staff: the organisation's documents (PLAT-009). */
+  readonly documents?: string | undefined;
+  /** Shown only to people who manage records retention (platform.retention.manage). */
+  readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
@@ -114,11 +126,15 @@ function currentSection(pathname: string): string {
   }
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/tasks")) return "tasks";
+  if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/break-glass")) return "break-glass";
@@ -229,6 +245,16 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.approvals
+      ? [
+          {
+            id: "approvals",
+            label: labels.approvals,
+            href: "/approvals",
+            icon: <Stamp {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.downtime
       ? [
           {
@@ -241,6 +267,19 @@ export function ShellFrame({
       : []),
     ...(labels.updates
       ? [{ id: "updates", label: labels.updates, href: "/updates", icon: <Newspaper {...icon} /> }]
+      : []),
+    ...(labels.tasks
+      ? [{ id: "tasks", label: labels.tasks, href: "/tasks", icon: <ClipboardCheck {...icon} /> }]
+      : []),
+    ...(labels.documents
+      ? [
+          {
+            id: "documents",
+            label: labels.documents,
+            href: "/documents",
+            icon: <FileText {...icon} />,
+          },
+        ]
       : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
@@ -282,6 +321,16 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.retention
+      ? [
+          {
+            id: "retention",
+            label: labels.retention,
+            href: "/settings/retention",
+            icon: <Lock {...icon} />,
           },
         ]
       : []),

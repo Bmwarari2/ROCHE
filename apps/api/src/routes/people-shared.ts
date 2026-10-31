@@ -78,19 +78,32 @@ export function dbCode(error: unknown): string | undefined {
   return (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
 }
 
-/** A document a record cites must be in the same person's documents (never another's). */
+/**
+ * A document a record cites must be in the same person's documents (never another's), available
+ * (not quarantined or destroyed) and, when `categories` is given, of one of those categories (a
+ * person's document, never a photo or a care attachment as evidence of an authority).
+ */
 export async function requireOwnDocument(
   tx: Transaction,
   personId: string,
   documentId: string | null | undefined,
   what: string,
+  categories?: readonly string[],
 ): Promise<void> {
   if (!documentId) return;
   const [found] = await tx
-    .select({ personId: document.personId })
+    .select({
+      personId: document.personId,
+      status: document.status,
+      category: document.category,
+    })
     .from(document)
     .where(and(eq(document.id, documentId), isNull(document.deletedAt)));
-  if (found?.personId !== personId) {
+  if (
+    found?.personId !== personId ||
+    found.status !== "available" ||
+    (categories !== undefined && !categories.includes(found.category))
+  ) {
     throw problems.invalid(`The ${what} was not found in this person's documents.`);
   }
 }

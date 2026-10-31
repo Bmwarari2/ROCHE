@@ -1391,6 +1391,76 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (#33 review round 2; H-303); and (f) a task whose evidence entry is saved on the phone shows
   "evidence recorded, waiting to upload" until the entry uploads, so it is not recorded twice
   (#36 review round 1, clinical M3; HZ-029).
+  The data for items (a), (b) and (e) is built (`feat/mobile-round-gate-data`, migration 0071;
+  ADR-0074):
+  - (a) each `handover_item` carries `summary`, a catalogue key (`handover.summary.*`, one per
+    kind; `HANDOVER_SUMMARY_KEYS`) and its parameters. The parameters are codes, the NEWS2 score,
+    for a care result's alert why it was raised (the NEWS2 threshold or the IDDSI problem, from
+    its observation's flags), and a task's title, the care plan action it carries out, whether it
+    was from an earlier plan when compiled and the reason it was not done. An alert's summary never
+    says whether anyone acknowledged it, since the item never changes once compiled (#50 review
+    round 1, clinical M1 to M3). It is compiled with the item from its source and synced with it. The phone words it from `mobile.` + key (`handover-summary.ts`), or
+    by the item's kind when it has none.
+  - (b) `task.from_earlier_plan` is the round view's notice, kept on the task by the database with
+    the same rule (`planRoundNotice`) and synced with the open tasks.
+  - (e) the sync token carries `handover_shifts`: each nation's day and night start times
+    (minutes after midnight, UK time), where the handover family reaches. A nation whose figures
+    are missing, not whole minutes of a day or not day before night is left out, and the API logs a
+    warning for the operator with the organisation's id, the nations and the rate keys (#50 review
+    round 1, clinical M4). Nothing on the phone reads it yet: the handover screen
+    (`feat/mobile-handover-screen`, a separate PR) is to work out the expected outgoing shift with
+    `shiftAt` and `previousShift`, say "not compiled yet" when no handover for it has arrived, "not
+    final" while `locked_at` is empty, and that it cannot tell when a nation is left out
+    (#123 clinical review, L5). That PR must carry tests for: each of those states; a nation left
+    out; the clock-change nights; the overlap before a shift changes (the running shift's
+    handover first); the items worded from their summaries; the acknowledgement over the items
+    shown; and the homes it lists matching the token's handover reach.
+  - The handover family needs `safety.incident.read`, `care.note.read`, `people.person.read` and
+    `care.plan.read` at the same or a wider scope than `care.handover.manage`, since the summaries
+    carry incidents, notes, the person and a care plan action's own words (ADR-0071; #50 review
+    round 1, security M1; #123 security review, M1).
+  - A route's task (`task`) tags a new entry only when this device holds that task for that person,
+    open and not already marked (`useRoundTaskFor`), and the record shows its synced title; links
+    from outside the app have `task` and `taskTitle` stripped (`+native-intent`) (#123 security
+    review, M2).
+
+  The round screen is built (`apps/mobile/src/app/(care)/round.tsx`, `care/round-view.ts`; 3(b)).
+  It covers gate items (b), (d), (f) and (g) for the round:
+  - It lists the open tasks on the phone, overdue first, then due now, then later. Each task shows
+    the person as they are known, the due time in UK time, and its status as an icon and a word.
+  - A round from an earlier plan says so (b).
+  - Before any task, the screen says what the phone holds (the open tasks due from the window's
+    first day to the end of tomorrow), when it last synced, and that tasks due earlier and changes
+    since then are not here. An empty round says the same, never "nothing due" (d).
+  - A task whose evidence entry is saved on the phone, or that was marked here, says it is waiting
+    to upload and offers nothing more (f). A task that needs evidence offers "Record the entry",
+    which opens the person's record with the task, so the entry saved there carries `task_id`.
+  - "Not done" asks why before anything is saved.
+  - The needs-attention list sits above the tasks (g).
+  - A refusal says who to tell by role: "tell the person in charge of this shift", or, for someone
+    who manages tasks (`platform.task.manage`), that they can check and change the task on the web.
+  - A task put back by a session's end as a bare row is named from its move.
+  - `useMoveTask` reads the person's home from the synced person row itself and refuses while it
+    is not there (#36 review round 2).
+  - Each card flags the person's communication needs (Accessible Information Standard) and an
+    urgent task, each as an icon and a word.
+  - The person's record tags only the first entry saved for a task from the round; once one waits
+    to upload it says so and later entries do not answer the task (HZ-029).
+  - The header counts the window's days from the last sync, since the last token fixed them.
+  - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
+  - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
+  - From the clinical review of PR #123: every task, evidence ones included, offers "Not done" with
+    a reason (H1); only the entry a task asks for completes it, never a note, and for a chart's
+    task only that chart, in the API and on the phone (`isEvidenceFor`; re-check M3, H-423); a task
+    is answered by one entry from this device, kept in the encrypted bookkeeping by member and task,
+    shown as "Sent, not marked done" when Harbour kept the entry but the task stays open, and
+    answerable again only once Harbour refuses that entry (M1 and the re-check); a task about someone whose record is not on the phone cannot be marked (M2); the
+    person's name is in each button's spoken label and their communication needs show by name (M3,
+    H-395); the header states the window from the token's own `offline_days`, in UK time, recorded
+    only once a sync with that token completes (M4; re-check M2); the
+    evidence path refuses where a move would (L1); a plan round with no earlier-plan flag says the
+    phone cannot tell (L8); the round says it is loading while it reads (L9); medicines tasks are
+    never marked here before eMAR (L10); an escalated overdue task says so (L11).
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

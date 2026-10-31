@@ -15,10 +15,14 @@
  * Allergies in the sources are compared with the recorded allergies by the person, who confirms
  * it; Harbour matches no allergen (ADR-0082 default).
  *
+ * A change keeps the same dm+d product; switching products is a stop on the old product's line and
+ * a start on the new one's. One entry of a product is on the MAR at a time.
+ *
  * New and changed medicines become MAR entries "Not yet checked", so a second person checks each
- * against its source (HZ-005); each change and start is tried against the entry's versions when
- * the reconciliation completes, so a moved day count or a change-day question shows then
- * (rule 6a, 6c). The completed reconciliation is the plan the API applies.
+ * against its source (HZ-005). Each change, stop and start is tried against the medicine's
+ * versions when the reconciliation completes (a restart against the person's earlier entries of
+ * the product), so anything the MAR rules refuse shows then, not when the plan is applied. The
+ * completed reconciliation is the plan the API applies.
  */
 
 import { formatUkDateTime } from "../shared/time";
@@ -33,7 +37,7 @@ import {
   type MarSourceDocument,
   type MarSourceKind,
   type MedicinesCompetence,
-  type TodaysDoses,
+  stopMarEntry,
   transcribeMarEntry,
 } from "./mar-entry";
 
@@ -126,15 +130,11 @@ export type EntryDecision =
   | {
       readonly kind: "change";
       readonly entryId: string;
-      /** The lines that say the change, about the new dm+d product. */
+      /** The lines that say the change, about the same dm+d product (a change keeps the VMP). */
       readonly itemIds: readonly string[];
       readonly draft: ReconciliationDraft;
       /** Why the new pattern starts a new day count, when it does (rule 6a). */
       readonly reanchorReason?: string | null;
-      /** What happened to the doses of the day the change takes effect, when it has doses (rule 6c). */
-      readonly todaysDoses?: TodaysDoses | null;
-      /** Why, when the MAR will already hold the new dm+d product (rule 10). */
-      readonly note?: string | null;
     }
   | {
       readonly kind: "stop";
@@ -150,8 +150,6 @@ export type ItemDecision =
       readonly kind: "start";
       readonly itemId: string;
       readonly draft: ReconciliationDraft;
-      /** Why it is started when the MAR will already hold the same dm+d product (rule 10). */
-      readonly note?: string | null;
       /** Why a restart of a product the person had before starts a new day count (rule 6a). */
       readonly reanchorReason?: string | null;
     }
@@ -174,8 +172,13 @@ export interface ReconciliationCompletion {
   readonly reconciliation: Reconciliation;
   /** The person's MAR entries in force now (not stopped or replaced). */
   readonly currentEntries: readonly ReconciledEntry[];
-  /** Every version of an entry's medicine, for the day count and the change-day rule. */
+  /** Every version of an entry's medicine, to try each change and stop against. */
   readonly entryVersions: (entryId: string) => readonly MarEntry[];
+  /**
+   * Every version of the person's entries of a dm+d product, stopped and withdrawn ones included,
+   * to try each start against (one entry per product; a restart's day count and day).
+   */
+  readonly earlierEntries: (product: DmdProductRef) => readonly MarEntry[];
   readonly entryDecisions: readonly EntryDecision[];
   readonly itemDecisions: readonly ItemDecision[];
   /** Read on the server from the workforce port, never from the request (section 3). */
@@ -212,17 +215,19 @@ export type ReconciliationProblem =
   | "continue_not_shown_current"
   | "continue_with_difference"
   | "change_needs_source_item"
+  | "change_different_product"
   | "change_not_shown_current"
   | "change_refused"
   | "stop_needs_source_item"
   | "stop_not_shown_current"
   | "stop_needs_reason"
+  | "stop_refused"
   | "start_not_shown_current"
   | "start_refused"
   | "not_started_needs_reason"
   | "query_open"
   | "draft_invalid"
-  | "possible_duplicate"
+  | "duplicate_product"
   | "allergies_not_compared"
   | "involvement_reason_required";
 
@@ -241,7 +246,6 @@ export interface ReconciliationPlan {
     readonly entryId: string;
     readonly draft: MarEntryDraft;
     readonly reanchorReason: string | null;
-    readonly todaysDoses: TodaysDoses | null;
   }[];
   readonly stops: readonly {
     readonly entryId: string;
@@ -350,7 +354,6 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
   const entries = new Map(input.currentEntries.map((e) => [e.entryId, e]));
   const items = new Map(rec.items.map((i) => [i.id, i]));
   const sources = new Map(rec.sources.map((s) => [s.id, s]));
-  const allVersions = input.currentEntries.flatMap((e) => input.entryVersions(e.entryId));
   const itemUses = new Map<string, number>();
   const useItem = (itemId: string) => {
     if (!items.has(itemId))
@@ -487,7 +490,13 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
       const product = decision.draft.product;
       const against = linked.find((i) => i.says !== "change" || otherProduct(i, product));
       const supporting = linked.find((i) => about(i, product) && showsCurrent(i, false));
-      if (linked.length === 0) {
+      if (product.vmpId !== entry.product.vmpId) {
+        add({
+          problem: "change_different_product",
+          entryId,
+          message: `A change keeps the same medicine. To switch from ${entry.product.name} to ${product.name}, stop ${entry.product.name} on the line that says it stops, and start ${product.name} on its own line.`,
+        });
+      } else if (linked.length === 0) {
         add({
           problem: "change_needs_source_item",
           entryId,
@@ -512,18 +521,12 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         const reanchorReason = blank(decision.reanchorReason)
           ? null
           : (decision.reanchorReason as string);
-        const todaysDoses = decision.todaysDoses ?? null;
         if (draft) {
           const tried = changeMarEntry(
             input.entryVersions(entryId),
             draft,
             input.dmdFacts(draft.product),
-            {
-              ...dryRun,
-              id: `planned-${entryId}`,
-              reanchorReason,
-              todaysDoses,
-            },
+            { ...dryRun, id: `planned-${entryId}`, reanchorReason },
           );
           if (!tried.ok) {
             add({
@@ -532,7 +535,7 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
               draftIssues: tried.issues,
               message: tried.issues.map((i) => i.message).join(" "),
             });
-          } else plan.changes.push({ entryId, draft, reanchorReason, todaysDoses });
+          } else plan.changes.push({ entryId, draft, reanchorReason });
         }
       }
     } else {
@@ -571,7 +574,21 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         const source = asMarSource(
           sources.get(supporting.sourceId) as ReconciliationSource,
         ) as MarSourceDocument;
-        plan.stops.push({ entryId, reason: decision.reason, source });
+        const tried = stopMarEntry(input.entryVersions(entryId), {
+          by: input.completer.id,
+          at: input.completedAt,
+          effectiveAt: input.completedAt,
+          reason: decision.reason,
+          source,
+        });
+        if (!tried.ok) {
+          add({
+            problem: "stop_refused",
+            entryId,
+            draftIssues: tried.issues,
+            message: tried.issues.map((i) => i.message).join(" "),
+          });
+        } else plan.stops.push({ entryId, reason: decision.reason, source });
       }
     }
   }
@@ -623,7 +640,7 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         const tried = transcribeMarEntry(draft, input.dmdFacts(draft.product), {
           ...dryRun,
           id: `planned-${itemId}`,
-          earlierEntries: allVersions,
+          earlierEntries: input.earlierEntries(draft.product),
           reanchorReason,
         });
         if (!tried.ok) {
@@ -638,42 +655,25 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     }
   }
 
-  // The same dm+d product twice on the MAR after the plan: flagged by identity (VMP), never by
-  // ingredient; a start or a change beside an entry of the same VMP needs a note (a regular and a
-  // when-required entry of one product is common).
-  const resulting = [
-    ...plan.continued.map((id) => ({ ref: id, vmpId: entries.get(id)?.product.vmpId })),
-    ...plan.changes.map((c) => ({ ref: c.entryId, vmpId: c.draft.product.vmpId })),
-    ...plan.starts.map((st) => ({ ref: st.itemId, vmpId: st.draft.product.vmpId })),
+  // One entry per dm+d product (VMP) on the MAR after the plan, by identity, never by ingredient
+  // (H-553): a start beside an entry of the same VMP that continues, changes or starts is refused.
+  const kept = [
+    ...plan.continued.map((id) => entries.get(id)?.product.vmpId),
+    ...plan.changes.map((c) => c.draft.product.vmpId),
   ];
-  const twinOf = (ref: string, vmpId: string) =>
-    resulting.some((r) => r.ref !== ref && r.vmpId === vmpId);
-  for (const start of plan.starts) {
-    const decision = input.itemDecisions.find(
-      (d) => d.kind === "start" && d.itemId === start.itemId,
-    );
-    const note = decision?.kind === "start" ? decision.note : null;
-    if (twinOf(start.itemId, start.draft.product.vmpId) && blank(note)) {
+  plan.starts.forEach((start, i) => {
+    const vmpId = start.draft.product.vmpId;
+    if (
+      kept.includes(vmpId) ||
+      plan.starts.slice(0, i).some((s) => s.draft.product.vmpId === vmpId)
+    ) {
       add({
-        problem: "possible_duplicate",
+        problem: "duplicate_product",
         itemId: start.itemId,
-        message: `${start.draft.product.name} is already on the MAR after this reconciliation. Say why a second entry is needed, or link the line to the existing entry.`,
+        message: `${start.draft.product.name} is already on the MAR after this reconciliation. Link the line to that entry and change it, rather than starting a second entry.`,
       });
     }
-  }
-  for (const change of plan.changes) {
-    const decision = input.entryDecisions.find(
-      (d) => d.kind === "change" && d.entryId === change.entryId,
-    );
-    const note = decision?.kind === "change" ? decision.note : null;
-    if (twinOf(change.entryId, change.draft.product.vmpId) && blank(note)) {
-      add({
-        problem: "possible_duplicate",
-        entryId: change.entryId,
-        message: `${change.draft.product.name} is already on the MAR after this reconciliation. Say why a second entry is needed, or stop one of them.`,
-      });
-    }
-  }
+  });
 
   for (const entry of input.currentEntries) {
     const count = decidedEntries.get(entry.entryId) ?? 0;

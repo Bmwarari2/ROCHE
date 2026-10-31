@@ -111,11 +111,37 @@ Branch `feat/meds-domain-record`.
   - Where the design call was unclear, the more restrictive behaviour was chosen and recorded as a
     CSO question (H-550, H-552, H-553): starts need a current prescriber's or pharmacy line with no
     confirmation route; daily to weekly counts as a re-anchor; a stop carries over to a correction.
+- Third clinical review (2 High, 3 Medium, Lows): the complicated sequences are now refused
+  rather than handled, and each refusal is a CSO question (H-550, H-552, H-553).
+  - H-A: a change, stop or correction while a later version is scheduled is refused unless it
+    withdraws that version and says why (`later_version_scheduled`, `withdrawLaterReason`); a stop
+    still to come always carries over, from the version in force or a version withdrawn; a change
+    needs a version in force, so it can never restart a stopped medicine (a gap the new property
+    test found).
+  - H-B: a change keeps the same dm+d VMP (`different_product`; `change_different_product` in a
+    reconciliation); a switch is a stop on the old product's line and a start on the new one's.
+  - Medium, rule 6c: `todaysDoses` and the change day are removed. A change part-way through a day
+    on which either version has a regular dose is refused and takes effect from 00:00 the next day
+    (`change_from_tomorrow`); a restart the same day after a dose was due is refused
+    (`restart_from_tomorrow`). This replaces M4 above.
+  - Medium: one entry per VMP (`same_product_in_force`); in a reconciliation a second entry is
+    refused with no note to override it (`duplicate_product`).
+  - Medium: each start is tried against the person's earlier entries of the product
+    (`earlierEntries`), so a restart of a medicine stopped before the reconciliation is checked at
+    completion; each stop is tried too (`stop_refused`).
+  - Property test: changes, stops, restarts and corrections, regular and when required; nothing
+    given after a recorded stop; every whole day's doses equal to the schedule's.
+  - Lows: regular to when required on a dose day refused; rule 6c tests on the days the clocks
+    change; the variable-dose notice says what to do instead, and slice 2's release gate is an
+    H-550 question; HZ-121 in the test name; the hazard log no longer says a change never doubles
+    or drops a dose.
+  - Merged `origin/main`, keeping both sides in STATUS, the human actions and the hazard log.
 
 ## Tests
 
 - `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`,
-  `reconciliation.test.ts`: 227 tests, passing under `TZ=UTC`, `TZ=Europe/London` and
-  `TZ=America/New_York`; medicines coverage 100% of lines. Whole domain package: 4,468 tests,
-  99.72% line coverage (`pnpm --filter @harbour/domain test:coverage`).
+  `reconciliation.test.ts`: 324 tests after the third review, passing under `TZ=UTC`,
+  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.33% of lines. Whole domain
+  package after merging `main`: 5,203 tests, 99.69% line coverage under each of the three time
+  zones (`pnpm --filter @harbour/domain test:coverage`).
 - `pnpm lint`, the domain typecheck and the markdown link check run clean.

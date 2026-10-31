@@ -152,7 +152,7 @@ export function LetterComposer({
 
   return (
     <div className="flex flex-col gap-6">
-      <form className="flex flex-col gap-4" onSubmit={onPreview} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={onPreview} noValidate>
         <SelectField
           id={ids.template}
           name="template"
@@ -280,6 +280,7 @@ export function LetterComposer({
           </p>
           {/* A new preview (new version or new words) is a new form: the tick is never carried over. */}
           <form
+            method="post"
             key={`${preview.templateVersionId}:${preview.textHash}`}
             className="flex flex-col gap-4"
             onSubmit={onSend}

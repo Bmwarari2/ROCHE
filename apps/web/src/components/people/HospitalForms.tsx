@@ -81,7 +81,7 @@ export function SendToHospitalForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <p className="m-0 max-w-prose">{t("people.transfer.send.hint")}</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
@@ -203,7 +203,7 @@ export function HandoverForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         {needsAcknowledgement ? (
           <>
             <p className="m-0 max-w-prose font-semibold">
@@ -276,7 +276,7 @@ export function ReturnForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <p className="m-0 max-w-prose">{t("people.transfer.return.hint")}</p>
         <WhenField
           name="returnedAt"

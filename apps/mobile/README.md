@@ -54,7 +54,7 @@ upload) and seeds three invented people: Ada Example (allergies recorded), Bea S
 allergies) and Cal Placeholder (allergies not recorded, two communication needs). NHS numbers come
 from the 999 test range. Care records are invented too: Ada has a DNACPR decision whose review is
 overdue, IDDSI levels, a care plan, risk assessments and a MUST result; Bea has a ReSPECT plan and
-SpO2 scale 2; Cal has no resuscitation record, so the header reads "not recorded". Entries written in
+SpO2 scale 2; Cal has no resuscitation record, so the header reads "not recorded". The round holds three demo tasks timed from the seeding (one overdue, one due now that needs its entry recorded, one later from an earlier plan); a task marked in demo mode stays "waiting to upload", since nothing uploads. Entries written in
 demo mode stay on the device and say so. The sync banner shows "Offline" with the time the demo data
 was seeded, and every screen says "Demo mode". A demo database seeded by an earlier version keeps its
 old seed; sign out and in again to see the care records.

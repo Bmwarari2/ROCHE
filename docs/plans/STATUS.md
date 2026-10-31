@@ -4,14 +4,14 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 69 `partial`, 164 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 80 `partial`, 153 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, after two clinical review rounds; slice 3 (administration, PRN, competence and CD rules, MEDS-002, 003, 005 and 013 domain only; ADR-0082; HZ-116, HZ-119) pushed on `feat/meds-domain-administration`, stacked on #135 |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, after three clinical review rounds; slice 3 (administration, PRN, competence and CD rules, MEDS-002, 003, 005 and 013 domain only; ADR-0082; HZ-116, HZ-119) pushed on `feat/meds-domain-administration`, stacked on #135 |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -81,17 +81,21 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   `packages/domain/src/medicines/` (dm+d identifiers, structured doses, schedules over the MAR cycle
   with clock changes, MAR entry states and the second check, reconciliation); HZ-121 added; HZ-003,
   HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. The overall counts above
-  were corrected to the register's (they said 60 `partial` and 173 `todo`). PR #135; the two
+  were corrected to the register's (they said 60 `partial` and 173 `todo`). PR #135; the three
   clinical review rounds added one version in force at a time, the day count kept from the last
-  dose due, the change-day rule, and source lines that say what they mean.
+  dose due, source lines that say what they mean, and refusals in place of the complicated
+  version sequences (no change part-way through a day with doses, later versions withdrawn only
+  with a reason, a change keeping the product, one entry per product).
 - `feat/meds-domain-administration` (slice 3, lane A, stacked on #135; MEDS-002, MEDS-003, MEDS-005
   and MEDS-013 `partial`): outcomes and coded reasons, dose windows and time-critical lateness,
   minimum intervals on the drift-corrected clock, the PRN maximum and last given, the dosing record
   for variable doses, competence and the override gate, round closing, the MAR row lock and
   corrections, and the controlled drugs page, balance, corrections and witness rule; ADR-0082
   (proposed); HZ-116 and HZ-119 added; HZ-003, HZ-004, HZ-009 and HZ-010 domain tests passing;
-  seven tenant-default rate rows marked to verify; human actions H-554 to H-558. Next in lane A:
-  slice 10 (dm+d reference data).
+  seven tenant-default rate rows marked to verify; human actions H-554 to H-558. Merged with
+  #135's third review and `main`: the overall counts above, and the register's Platform core and
+  Quality rows (which `main` had left at 6 and 11 `todo`), were corrected to the register's rows.
+  Next in lane A: slice 10 (dm+d reference data).
 
 **Numbering in use:** migrations: 0071 is #123; Phase 2 owns 0072 to 0110 in the plan's merge
 order ([phase-2.md](phase-2.md)). ADRs: 0074 is #123's shift-pattern ADR; 0075 to 0079 Phase 1
@@ -687,7 +691,10 @@ STATUS follow-ups below.
       H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
       waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
       clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
-      it, since "no care left without a prompt" depends on it (#37 confirmation check).
+      it, since "no care left without a prompt" depends on it (#37 confirmation check). The data
+      for (a), (b) and (e) is on `feat/mobile-round-gate-data` (migration 0056, provisional
+      number; ADR-0072); the round screen (3(b), `feat/mobile-round-screen`) closes (b), (d), (f)
+      and (g) for the round; the handover screen (3(c)) closes the rest.
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -751,6 +758,22 @@ STATUS follow-ups below.
     - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
       that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
       it waits on H-305, H-310 and the lighter way to dismiss a refused move.
+    - Follow-up (gate data): the web has no handover screen yet; when it does, it words
+      `HandoverItem.summary` from its own catalogue (`handover.summary.*`), as the phone does.
+      Items compiled before migration 0056 have no summary and are worded by kind.
+    - Follow-up (gate data): a skipped task's reason is free text staff wrote and now reaches
+      the phone with the handover item (as notes already do); the CSO and DPO confirm that
+      with H-300 and H-307.
+    - Done on `feat/mobile-round-screen` (3(b)), from the follow-ups above:
+      - `useMoveTask` reads the person's home itself and refuses while the person row is
+        missing (#36 round 2, (a)).
+      - The round names a bare task row from its move (#36 round 2, (b), the screen's part).
+      - "Tell the person in charge" is worded by role on the round (#36 round 2, (e)).
+      - `task_unchecked` and `task_not_found` point to the person in charge or the web, not
+        to the round, where a closed task no longer shows (#37 confirmation check).
+    - Follow-up (round screen): a task that needs evidence opens the person's record with the
+      task; it should open the form for the evidence the task asks for (`task.evidence_type`
+      is not synced yet).
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home

@@ -53,6 +53,7 @@ function task(id: string, tenant: string, fields: Record<string, unknown>) {
     assignee_tenant_user_id: null,
     due_at: NOW,
     status: "open",
+    from_earlier_plan: 0,
     escalation_level: 0,
     deleted_at: null,
     details: '{"entries":[]}',
@@ -93,6 +94,7 @@ const item = (id: string, tenant: string, handoverId: string, person: string | n
   at: NOW,
   late_addition: 0,
   added_at: NOW,
+  summary: JSON.stringify({ key: "handover.summary.fall", params: { source: "observation" } }),
 });
 
 const note = (id: string, handoverId: string, itemKey: string | null, person: string | null) => ({
@@ -132,7 +134,7 @@ const source: SourceRows = {
     task("t-ada-skipped", A, { person_id: "ada", status: "skipped" }),
     task("t-ada-deleted", A, { person_id: "ada", deleted_at: NOW }),
     task("t-ada-old", A, { person_id: "ada", due_at: OLD }),
-    task("t-ben", A, { person_id: "ben" }),
+    task("t-ben", A, { person_id: "ben", from_earlier_plan: 1 }),
     task("t-cara", A, { person_id: "cara", location_id: SOUTH }),
     task("t-eve", A, { person_id: "eve" }),
     task("t-dev", B, { person_id: "dev", location_id: RIVER }),
@@ -281,6 +283,28 @@ describe("hazard HZ-011 the round's open tasks follow the round view (care.plan.
     expect(row).toMatchObject({ person_id: "ada", assignee_tenant_user_id: "nurse-a", version: 1 });
     expect(row).not.toHaveProperty("details");
     expect(row).not.toHaveProperty("status_reason");
+  });
+});
+
+describe("the screens gate data reaches the phone (STATUS item 15, gate items (a) and (b))", () => {
+  it("hazard HZ-024 sends whether an open round is from an earlier plan, so the phone can say so offline", async () => {
+    const device = await syncFor(hydrated, source, manager());
+    // Booleans replicate as 1 and 0, as the device stores them.
+    expect(device.tables.task?.get("t-ben")).toMatchObject({ from_earlier_plan: 1 });
+    expect(device.tables.task?.get("t-ada")).toMatchObject({ from_earlier_plan: 0 });
+    const carer = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
+    expect(carer.tables.task?.get("t-ada")).toHaveProperty("from_earlier_plan", 0);
+  });
+
+  it("hazard HZ-018 sends each item's worded summary to whole and limited readers alike", async () => {
+    const summary = JSON.stringify({
+      key: "handover.summary.fall",
+      params: { source: "observation" },
+    });
+    const whole = await syncFor(hydrated, source, manager({ sub: "nurse-a" }));
+    expect(whole.tables.handover_item?.get("i-nobody")).toMatchObject({ summary });
+    const limited = await syncFor(hydrated, source, claims({ sub: "carer-a", tenant_id: A }));
+    expect(limited.tables.handover_item?.get("i-ada")).toMatchObject({ summary });
   });
 });
 
