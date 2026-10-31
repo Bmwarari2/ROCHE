@@ -283,7 +283,7 @@ test("hazard HZ-001 a planned discharge is worked through its checklist, returns
   // Money needs a fresh sign-in, then someone other than whoever recorded the exit.
   const money = item(page, "Personal money returned and the account closed");
   await money.getByRole("button", { name: /^Mark as done: / }).click();
-  await expect(money.getByRole("alert")).toContainText("Confirm with your passkey");
+  await expect(money.getByRole("alert")).toContainText("needs your passkey or authenticator code");
   await expectAccessible(page, "money return, step-up asked");
 
   await clickAndWait(
