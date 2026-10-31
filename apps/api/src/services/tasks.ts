@@ -14,6 +14,7 @@ import {
 import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { accessRowsOfMember } from "./access-rows";
 import {
+  COVER_TASK_KIND,
   fallbackRecipients,
   PERMISSION_ESCALATED_TASK_KINDS,
   permissionHolders,
@@ -502,7 +503,9 @@ export function anyoneMayBeGiven(row: {
   return (
     row.requiredPermission === GENERAL_TASK_PERMISSION ||
     OWNER_TASK_KINDS.includes(row.kind) ||
-    PERMISSION_ESCALATED_TASK_KINDS.includes(row.kind)
+    // A cover task routes like the sync tasks but is never given past its permission: only a
+    // rota manager at its home acts on it (security review of the cover task, finding 1).
+    (PERMISSION_ESCALATED_TASK_KINDS.includes(row.kind) && row.kind !== COVER_TASK_KIND)
   );
 }
 

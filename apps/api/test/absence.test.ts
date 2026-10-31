@@ -1,6 +1,8 @@
 import { DEMO } from "@harbour/db/seed";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { outboxHandlers } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
@@ -409,5 +411,145 @@ describe("SCHED-010 sickness, fit notes and return to work (health data)", () =>
       [sick.id],
     );
     expect(JSON.stringify(audit)).not.toMatch(/40000/);
+  });
+});
+
+describe("hazard HZ-123 a cover need raises a task for the home's rota managers", () => {
+  it("raises one task due the lead time before the shift, tells the managers and closes it on resolution", async () => {
+    const [rota] = await sql<{ id: string }>(
+      "INSERT INTO rota (location_id, starts_on, ends_on) VALUES ($1, $2, $3) RETURNING id",
+      [LOC, inDays(60), inDays(66)],
+    );
+    const [s] = await sql<{ id: string; starts_at: Date }>(
+      `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at, break_minutes)
+       VALUES ($1, $2, 'Early', 'work', $3::date + time '07:00', $3::date + time '15:00', 30)
+       RETURNING id, starts_at`,
+      [rota?.id, LOC, inDays(61)],
+    );
+    await sql(
+      "INSERT INTO shift_assignment (shift_id, location_id, worker_id) VALUES ($1, $2, $3)",
+      [s?.id, LOC, CARER],
+    );
+    const asked = (await (
+      await post("carer", "/v1/absences", {
+        locationId: LOC,
+        kind: "annual_leave",
+        startsOn: inDays(61),
+        endsOn: inDays(61),
+      })
+    ).json()) as Absence;
+    const approved = (await (
+      await post("manager", `/v1/absences/${asked.id}/decision`, {
+        version: asked.version,
+        decision: "approve",
+      })
+    ).json()) as Absence;
+    // At least this shift (the carer may be rostered at another home that day too).
+    expect(approved.coverNeeded).toBeGreaterThanOrEqual(1);
+
+    const [event] = await sql<{
+      id: string;
+      tenant_id: string;
+      event_type: string;
+      aggregate_id: string;
+      payload: { coverNeedId: string };
+    }>(
+      `SELECT id, tenant_id, event_type, aggregate_id, payload FROM outbox_event
+       WHERE event_type = 'scheduling.cover_needed' AND payload->>'shiftId' = $1`,
+      [s?.id],
+    );
+    expect(event?.payload.coverNeedId).toBeTruthy();
+    const handlers = outboxHandlers({
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: h.handle.services.db,
+      logger: createLogger("silent"),
+    });
+    const handle = handlers.get("scheduling.cover_needed");
+    expect(handle).toBeDefined();
+    const relayed = {
+      id: event?.id as string,
+      tenantId: event?.tenant_id as string,
+      eventType: event?.event_type as string,
+      aggregateId: event?.aggregate_id as string,
+      payload: event?.payload,
+    };
+    // Relayed twice (a retry): still one task.
+    await handle?.(relayed);
+    await handle?.(relayed);
+    const tasks = await sql<{
+      id: string;
+      location_id: string;
+      required_permission: string;
+      due_at: Date;
+      priority: string;
+      status: string;
+      title: string;
+      details: unknown;
+    }>(
+      `SELECT id, location_id, required_permission, due_at, priority, status, title, details
+       FROM task WHERE kind = 'scheduling.cover_needed' AND source_id = $1`,
+      [event?.payload.coverNeedId],
+    );
+    expect(tasks).toHaveLength(1);
+    const t = tasks[0];
+    expect(t?.location_id).toBe(LOC);
+    expect(t?.required_permission).toBe("scheduling.rota.manage");
+    expect(t?.status).toBe("open");
+    expect(t?.priority).toBe("routine");
+    const [lead] = await sql<{ value: string }>(
+      "SELECT value FROM rate_table WHERE key = 'scheduling.cover_task_lead_minutes' AND tenant_id IS NULL",
+    );
+    expect(t?.due_at.getTime()).toBe(
+      new Date(s?.starts_at ?? 0).getTime() - Number(lead?.value) * 60_000,
+    );
+    // The task names the shift only: never the member, the kind of absence or a reason.
+    expect(JSON.stringify(t)).not.toMatch(new RegExp(`${CARER}|annual|leave`, "i"));
+    const told = await sql<{ recipient_tenant_user_id: string }>(
+      "SELECT recipient_tenant_user_id FROM notification WHERE source_type = 'task' AND source_id = $1",
+      [t?.id],
+    );
+    expect(told.map((n) => n.recipient_tenant_user_id)).toContain(DEMO.users.manager.id);
+    expect(told.map((n) => n.recipient_tenant_user_id)).not.toContain(CARER);
+
+    // Only the rota's managers see it: a carer at the home does not, even by its id.
+    const range = `from=${encodeURIComponent(new Date().toISOString())}&to=${encodeURIComponent(
+      new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    )}`;
+    const theirs = (await (await as("carer", `/v1/tasks?${range}`)).json()) as {
+      items: { id: string }[];
+    };
+    expect(theirs.items.map((i) => i.id)).not.toContain(t?.id);
+    const [version] = await sql<{ version: number }>("SELECT version FROM task WHERE id = $1", [
+      t?.id,
+    ]);
+    const poke = await post("carer", `/v1/tasks/${t?.id}/transition`, {
+      version: version?.version,
+      to: "done",
+    });
+    expect(poke.status).toBe(404);
+    // Nobody puts it away while the shift still needs cover.
+    const early = await post("manager", `/v1/tasks/${t?.id}/transition`, {
+      version: version?.version,
+      to: "done",
+    });
+    expect(early.status).toBe(409);
+
+    // Cancelling the leave resolves the need, and the task closes with it.
+    const cancel = await post("manager", `/v1/absences/${asked.id}/cancel`, {
+      version: approved.version,
+      reason: "Leave moved",
+    });
+    expect(cancel.status).toBe(200);
+    const [closed] = await sql<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      t?.id,
+    ]);
+    expect(closed?.status).toBe("cancelled");
+    // A late relay after the resolution raises nothing.
+    await handle?.(relayed);
+    const after = await sql(
+      "SELECT 1 FROM task WHERE kind = 'scheduling.cover_needed' AND source_id = $1",
+      [event?.payload.coverNeedId],
+    );
+    expect(after).toHaveLength(1);
   });
 });

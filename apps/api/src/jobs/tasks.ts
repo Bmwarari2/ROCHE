@@ -23,6 +23,7 @@ import {
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { raiseCoverTask } from "../services/absence";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
@@ -64,6 +65,8 @@ import { errorCode, WORKER_JOB_FAILED_EVENT } from "./run-job";
  * which can see only the outbox and notifications; any work on a tenant's data runs as the
  * application role inside that tenant's row-level security context.
  */
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface TaskDeps {
   readonly workerPool: pg.Pool;
@@ -776,6 +779,17 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // A shift an absence left needing cover (scheduling.md section 15 rule 7; HZ-123): a task for
+  // the rota managers at the shift's home. A failure throws, so the relay retries; the task is
+  // raised once per need.
+  handlers.set("scheduling.cover_needed", async (event) => {
+    const coverNeedId = (event.payload as { coverNeedId?: unknown } | null)?.coverNeedId;
+    // A malformed event is dropped, never retried for ever (security review, finding 5).
+    if (typeof coverNeedId !== "string" || !UUID_PATTERN.test(coverNeedId)) return;
+    await inTenant(event.tenantId, (tx) =>
+      raiseCoverTask(tx, event.tenantId, coverNeedId, new Date()),
+    );
+  });
   handlers.set("operations.downtime_places.changed", async (event) => {
     const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
     if (typeof locationId !== "string") return;

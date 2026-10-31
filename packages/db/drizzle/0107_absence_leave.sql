@@ -422,3 +422,9 @@ $$;
 REVOKE ALL ON FUNCTION app.raise_cover_need(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.raise_cover_need(uuid, uuid) TO harbour_app;
+--> statement-breakpoint
+
+-- One cover task per cover need, whatever the worker's lock does (scheduling.md section 15 rule 7;
+-- security review of the cover task, finding 4).
+CREATE UNIQUE INDEX task_cover_need_key ON public.task (tenant_id, source_id)
+  WHERE kind = 'scheduling.cover_needed' AND source_type = 'shift_cover_need' AND deleted_at IS NULL;

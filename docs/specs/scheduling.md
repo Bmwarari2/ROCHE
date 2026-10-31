@@ -904,6 +904,15 @@ reads it.
    cover, and the check counts it as open with a warning naming the cover needs; publishing then
    needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
    removed (someone else can then be put on) or the absence is cancelled or declined.
+   Each cover need also raises a task (`scheduling.cover_needed`, from the outbox event, by the
+   worker as the system) for the holders of `scheduling.rota.manage` at the shift's home, who are
+   told at once; it is due `scheduling.cover_task_lead_minutes` before the shift starts (at once,
+   and urgent, when that has passed), escalates as any permission-routed task (to the holders of
+   its permission, else a manager elsewhere), names the shift only, and is cancelled ("cover no
+   longer needed") when its cover need resolves. Only the holders of `scheduling.rota.manage` at
+   the home and its assignee see it (with the rota, its shift would say who is away), and nobody
+   closes it by hand while the need is open and the shift has not started. One task per need
+   (`task_cover_need_key`); nothing is raised for a resolved need or a shift already started.
 8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
    approved or recorded absence is refused (`member_absent`).
 
@@ -925,7 +934,7 @@ the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNot
 `scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
 `workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
 `workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
-a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (shift, absence).
+a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (cover need, shift, absence, location; consumed by the worker).
 
 ### Test list
 

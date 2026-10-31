@@ -15,6 +15,8 @@ import {
   careNote,
   observation,
   person,
+  shift,
+  shiftCoverNeed,
   type Transaction,
   task,
   taskSeries,
@@ -48,6 +50,7 @@ import {
 } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
+import { COVER_TASK_KIND } from "../services/device-holds";
 import {
   assigneeMayComplete,
   escalationMinutes,
@@ -141,6 +144,50 @@ async function requireAssignable(
     reason: "assignee_lacks_permission",
     scope: { assigneeTenantUserId: assignee, locationId: row.locationId },
   });
+}
+
+/**
+ * A cover task (scheduling.md section 15 rule 7; HZ-123) is for the rota's managers only: matched
+ * with the rota, its shift would say which colleague is away. Anyone else at the home (who the
+ * task's row-level security lets see a task with no person) does not see it; its assignee does.
+ */
+function coverTaskHidden(
+  access: TenantAccess,
+  row: { kind: string; locationId: string | null; assigneeTenantUserId: string | null },
+): boolean {
+  if (row.kind !== COVER_TASK_KIND) return false;
+  if (row.assigneeTenantUserId === access.tenantUserId) return false;
+  if (!can(access.effective, "scheduling.rota.manage")) return true;
+  const reach = scopeFor(access.effective, "scheduling.rota.manage");
+  return !(
+    reach.scope === "tenant" ||
+    (reach.scope === "locations" &&
+      row.locationId !== null &&
+      reach.locationIds.includes(row.locationId))
+  );
+}
+
+/**
+ * A cover task closes itself when its cover need resolves (`closeCoverTasks`): nobody marks it
+ * done, skipped or cancelled while the need is open and the shift has not started, so the shift's
+ * only signal cannot be put away before cover is found (security review, finding 1).
+ */
+async function coverStillNeeded(
+  tx: Transaction,
+  row: { kind: string; sourceId: string | null },
+  now: Date,
+): Promise<boolean> {
+  if (row.kind !== COVER_TASK_KIND || !row.sourceId) return false;
+  const [need] = await tx
+    .select({ resolvedAt: shiftCoverNeed.resolvedAt, startsAt: shift.startsAt })
+    .from(shiftCoverNeed)
+    .innerJoin(
+      shift,
+      and(eq(shift.tenantId, shiftCoverNeed.tenantId), eq(shift.id, shiftCoverNeed.shiftId)),
+    )
+    .where(eq(shiftCoverNeed.id, row.sourceId));
+  // A need the reader cannot see is treated as open: closing waits for the resolution.
+  return !need || (need.resolvedAt === null && need.startsAt > now);
 }
 
 async function findTask(tx: Transaction, id: string) {
@@ -257,6 +304,11 @@ export const tasksRouter = createRouter()
         // security review round 1 of slice 17, finding 3).
         if (!access.mfaSatisfied) {
           const kept = rows.filter((r) => !taskNeedsMfa(r));
+          rows.length = 0;
+          rows.push(...kept);
+        }
+        {
+          const kept = rows.filter((r) => !coverTaskHidden(access, r));
           rows.length = 0;
           rows.push(...kept);
         }
@@ -409,7 +461,7 @@ export const tasksRouter = createRouter()
       const now = new Date();
       const item = await withTenant(c, async (tx) => {
         const row = await findTask(tx, id);
-        if (!row) throw problems.notFound();
+        if (!row || coverTaskHidden(access, row)) throw problems.notFound();
         requireMfaFor(access, row);
         if (row.version !== body.version) throw problems.conflict();
         if (TERMINAL_TASK_STATUSES.includes(asTaskStatus(row.status))) {
@@ -693,8 +745,13 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
   const item = await withAuditedRefusal(c, access, () =>
     withTenant(c, async (tx) => {
       const row = await findTask(tx, id);
-      if (!row) throw problems.notFound();
+      if (!row || coverTaskHidden(access, row)) throw problems.notFound();
       requireMfaFor(access, row);
+      if (TERMINAL_TASK_STATUSES.includes(body.to) && (await coverStillNeeded(tx, row, now))) {
+        throw problems.conflict(
+          "This shift still needs cover. The task closes when someone else is put on the shift.",
+        );
+      }
       const refused = await completionRefusal(tx, access, row, now);
       if (refused) {
         // Written after the transaction, which writes nothing, so the refusal is kept.

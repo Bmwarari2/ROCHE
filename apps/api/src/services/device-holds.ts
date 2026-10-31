@@ -101,6 +101,11 @@ export const UPLOADED_BEFORE_DELETION_TASK_KIND = "sync.entry_deleted_after_uplo
  * this one's fallback without an import cycle (#25 review round 3, low).
  */
 export const REFUSED_REVIEW_TASK_KIND = "care.refused_entry_review";
+/**
+ * A shift an absence left needing cover, for the holders of scheduling.rota.manage at its home
+ * (scheduling.md section 15 rule 7; HZ-123); defined here for the same reason as the review above.
+ */
+export const COVER_TASK_KIND = "scheduling.cover_needed";
 /** A flagged-entry task points at the deletion record it comes from. */
 export const FLAGGED_ENTRY_SOURCE = "device_discard";
 const FLAGGED_ENTRY_TASK_KINDS = [REPORTED_DELETED_TASK_KIND, UPLOADED_BEFORE_DELETION_TASK_KIND];
@@ -116,6 +121,7 @@ export const PERMISSION_ESCALATED_TASK_KINDS: readonly string[] = [
   DEVICE_HOLD_TASK_KIND,
   ...FLAGGED_ENTRY_TASK_KINDS,
   REFUSED_REVIEW_TASK_KIND,
+  COVER_TASK_KIND,
 ];
 
 /** Devices one reporter may raise a task for in a rolling day, whatever became of them (HZ-008). */

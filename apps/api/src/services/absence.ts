@@ -1,4 +1,13 @@
-import { absence, shift, shiftAssignment, shiftCoverNeed, type Transaction } from "@harbour/db";
+import {
+  absence,
+  location,
+  notification,
+  shift,
+  shiftAssignment,
+  shiftCoverNeed,
+  type Transaction,
+  task,
+} from "@harbour/db";
 import {
   type AbsenceState,
   AWAY_STATES,
@@ -9,6 +18,11 @@ import {
 } from "@harbour/domain";
 import { and, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
+import { COVER_TASK_KIND, permissionHolders } from "./device-holds";
+
+export { COVER_TASK_KIND };
+
+import { rateNumber } from "./rates";
 import { withSystemRights } from "./system-rights";
 
 /**
@@ -160,14 +174,15 @@ export async function raiseCoverNeeds(tx: Transaction, row: AbsenceRow): Promise
     const made = await tx.execute<{ id: string | null }>(
       sql`SELECT app.raise_cover_need(${n.assignmentId}::uuid, ${row.id}::uuid) AS id`,
     );
-    if (!made.rows[0]?.id) continue;
+    const coverNeedId = made.rows[0]?.id;
+    if (!coverNeedId) continue;
     raised += 1;
     await publish(tx, {
       context: "scheduling",
       aggregateType: "shift",
       aggregateId: n.shiftId,
       type: "scheduling.cover_needed",
-      payload: { shiftId: n.shiftId, absenceId: row.id, locationId: at.locationId },
+      payload: { coverNeedId, shiftId: n.shiftId, absenceId: row.id, locationId: at.locationId },
     });
   }
   return raised;
@@ -207,5 +222,151 @@ export async function resolveCoverNeeds(
     .set({ resolvedAt: new Date(), resolution })
     .where(and(...conditions, ...(ids ? [inArray(shiftCoverNeed.id, ids)] : [])))
     .returning({ id: shiftCoverNeed.id });
+  await closeCoverTasks(
+    tx,
+    done.map((d) => d.id),
+  );
   return done.length;
+}
+
+export const COVER_TASK_SOURCE = "shift_cover_need";
+export const COVER_TASK_PERMISSION = "scheduling.rota.manage";
+export const COVER_TASK_LEAD_RATE_KEY = "scheduling.cover_task_lead_minutes";
+
+const OPEN_TASK = ["open", "in_progress"];
+const coverLock = (tx: Transaction, coverNeedId: string) =>
+  tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`cover_need_task:${coverNeedId}`}))`);
+
+/**
+ * Raises the task for a cover need (rule 7; HZ-123), from the worker as the system: one per need,
+ * at the shift's home, for the holders of `scheduling.rota.manage` there, due
+ * `scheduling.cover_task_lead_minutes` before the shift starts (at once, and urgent, when that has
+ * passed), escalating as the sync tasks do (to the holders of its permission, else a manager
+ * elsewhere). The rota managers at the home are told at once. Nothing is raised for a need already
+ * resolved or a shift already started, and a lock shared with `closeCoverTasks` means a resolution
+ * racing the worker never leaves a task open. The task names the shift only, never the member or
+ * why they are away. Returns the task's id, or null.
+ */
+export async function raiseCoverTask(
+  tx: Transaction,
+  tenantId: string,
+  coverNeedId: string,
+  now: Date,
+): Promise<string | null> {
+  await coverLock(tx, coverNeedId);
+  const [need] = await tx
+    .select({
+      shiftId: shiftCoverNeed.shiftId,
+      locationId: shiftCoverNeed.locationId,
+      resolvedAt: shiftCoverNeed.resolvedAt,
+      startsAt: shift.startsAt,
+      nation: location.nation,
+    })
+    .from(shiftCoverNeed)
+    .innerJoin(
+      shift,
+      and(eq(shift.tenantId, shiftCoverNeed.tenantId), eq(shift.id, shiftCoverNeed.shiftId)),
+    )
+    .innerJoin(
+      location,
+      and(
+        eq(location.tenantId, shiftCoverNeed.tenantId),
+        eq(location.id, shiftCoverNeed.locationId),
+      ),
+    )
+    .where(eq(shiftCoverNeed.id, coverNeedId));
+  if (!need || need.resolvedAt || need.startsAt <= now) return null;
+  const [open] = await tx
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, COVER_TASK_KIND),
+        eq(task.sourceType, COVER_TASK_SOURCE),
+        eq(task.sourceId, coverNeedId),
+        isNull(task.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (open) return null;
+  const leadMinutes = await rateNumber(
+    tx,
+    tenantId,
+    COVER_TASK_LEAD_RATE_KEY,
+    need.nation,
+    ukIsoDate(now),
+  );
+  const leadDue = new Date(need.startsAt.getTime() - leadMinutes * 60_000);
+  const late = leadDue <= now;
+  const [created] = await tx
+    .insert(task)
+    .values({
+      kind: COVER_TASK_KIND,
+      title: "A rostered shift needs cover",
+      requiredPermission: COVER_TASK_PERMISSION,
+      locationId: need.locationId,
+      sourceType: COVER_TASK_SOURCE,
+      sourceId: coverNeedId,
+      dueAt: late ? now : leadDue,
+      priority: late ? "urgent" : "routine",
+      details: { shiftId: need.shiftId, shiftStartsAt: need.startsAt.toISOString() },
+    })
+    // One per need (`task_cover_need_key`), whatever a racing relay does.
+    .onConflictDoNothing()
+    .returning({ id: task.id });
+  if (!created) return null;
+  const managers = await permissionHolders(tx, COVER_TASK_PERMISSION, need.locationId, now, null, {
+    preferAtLocation: true,
+  });
+  for (const recipient of managers) {
+    await tx
+      .insert(notification)
+      .values({
+        recipientTenantUserId: recipient,
+        kind: COVER_TASK_KIND,
+        severity: late ? "urgent" : "warning",
+        title: "A rostered shift needs cover",
+        body: "A shift needs cover. Open the rota.",
+        link: "/tasks",
+        channels: late ? ["in_app", "push"] : ["in_app"],
+        sourceType: "task",
+        sourceId: created.id,
+        locationId: need.locationId,
+        dedupeKey: `cover_needed:${created.id}:${recipient}`,
+      })
+      .onConflictDoNothing();
+  }
+  return created.id;
+}
+
+/**
+ * Closes the open tasks of resolved cover needs (rule 7): with the system's rights, for those
+ * needs only, because the person resolving (a manager at the absent member's home) may not see the
+ * shift's home. Cancelled as "cover no longer needed" (nothing of why), under the lock `raiseCoverTask` takes.
+ */
+export async function closeCoverTasks(
+  tx: Transaction,
+  coverNeedIds: readonly string[],
+): Promise<number> {
+  if (coverNeedIds.length === 0) return 0;
+  for (const id of [...coverNeedIds].sort()) await coverLock(tx, id);
+  return withSystemRights(tx, async () => {
+    const closed = await tx
+      .update(task)
+      .set({
+        status: "cancelled",
+        statusReason: "Ended: cover no longer needed",
+      })
+      .where(
+        and(
+          eq(task.kind, COVER_TASK_KIND),
+          eq(task.sourceType, COVER_TASK_SOURCE),
+          inArray(task.sourceId, [...coverNeedIds]),
+          inArray(task.status, OPEN_TASK),
+          isNull(task.deletedAt),
+        ),
+      )
+      .returning({ id: task.id });
+    return closed.length;
+  });
 }
