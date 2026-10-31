@@ -816,10 +816,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
     deleted after the commit, so a failed transaction never leaves bytes gone without a
     certificate. The worker deletes them again from the outbox event (idempotent, only for a
     document recorded as destroyed, the key made from the tenant and document ids, never read
-    from the row) until the storage accepts it, backing off up to an hour. With the S3 adapter as built, a deletion counts
-    only when the batch delete reports no per-object error and a fresh listing finds no version
-    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6); the Cloud Storage adapter
-    (ADR-0098) must keep the same rule.
+    from the row) until the storage accepts it, backing off up to an hour. With the Cloud Storage
+    adapter (ADR-0098), a deletion counts only when every generation's delete succeeds and a fresh
+    listing finds no generation left (`StorageDeleteFailed` otherwise), the rule the S3 adapter
+    kept (review of #134, M2 and L6).
   - A failed deletion is detected by the worker's `worker.job.failed` line (queue
     `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
     (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
@@ -1500,9 +1500,10 @@ change in `record_version` and the audit trail.
 
 18. No client secret or private key is ever stored in the database, returned by the API or logged.
     The client authenticates to the provider with `private_key_jwt`; the key lives in the managed
-    secret store under `harbour/sso/<tenant id>/<name>` and is read only at sign-in
+    secret store under `harbour/sso/<tenant id>/<name>` (in Google Cloud, the regional Secret
+    Manager secret `harbour_sso_<tenant id>_<name>`, ADR-0098) and is read only at sign-in
     (`resolvePrivateKey`). Client-secret authentication is refused. Saving a connection checks the
-    key exists in the store (`DescribeSecret`) without reading it. Discovery runs only after these
+    key exists in the store (the latest version's metadata) without reading it. Discovery runs only after these
     checks, to public https hosts only, and fails with a generic error; identity providers are
     never trusted origins.
 19. A domain counts only once verified by a DNS TXT record `_harbour-verification.<domain>` holding

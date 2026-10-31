@@ -64,17 +64,26 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
   public address), customer-managed encryption keys (CMEK), the `cloudsql.enable_pgaudit` flag on,
   and logical decoding on (`cloudsql.logical_decoding`) for PowerSync. Forced row-level security
   and the non-owner application role (ADR-0002) are unchanged.
-- **Object storage**: Cloud Storage with CMEK, uniform bucket-level access, public access prevention
-  enforced and V4 signed URLs for downloads. Buckets: documents (quarantine and clean), exports
-  (lifecycle expiry), and the audit archive. The audit archive has a **locked** retention policy of
-  365 days, which replaces S3 Object Lock in COMPLIANCE mode; a locked policy cannot be shortened
-  or removed, so H-55's default carries over and is still irreversible.
-- **Keys**: Cloud KMS in europe-west2 (a regional key ring). Each organisation has its own key for
-  crypto-shredding (retention.md): destroying the key version shreds the data. Key destruction is
-  scheduled, not instant; the destruction certificate records the scheduled-destruction delay and
-  the date the version is destroyed.
+- **Object storage**: Cloud Storage with CMEK, uniform bucket-level access and public access
+  prevention enforced. Downloads stream through the API, so each one is authorised and audited
+  (section 5.5); there are no signed URLs, and the buckets allow no public or signed access.
+  Buckets: documents, exports (lifecycle expiry), and the audit archive. Quarantine is a document's
+  status in the database (an upload that fails the malware scan, or cannot be scanned, is kept
+  quarantined and never served), not a separate bucket. The audit archive has a **locked**
+  retention policy of 365 days, which replaces S3 Object Lock in COMPLIANCE mode; a locked policy
+  cannot be shortened or removed, so H-55's default carries over and is still irreversible.
+- **Keys**: Cloud KMS in europe-west2 (a regional key ring) holds the customer-managed keys for the
+  buckets, Cloud SQL, secrets and logs; encryption is at the bucket and instance level. The API has
+  no Cloud KMS adapter yet and no code calls a key service. Per-organisation keys for
+  crypto-shredding (retention.md) are being built separately, on `feat/platform-crypto-shred`;
+  when they land, destroying an organisation's key version shreds its data, and because Cloud KMS
+  destroys a version only after a scheduled delay, the destruction certificate records the delay
+  and the date the version is destroyed.
 - **Secrets**: Secret Manager with regional secrets in europe-west2; the API and worker read them
-  through their service accounts, never from environment files.
+  through their service accounts, never from environment files. Integration secret references must
+  name a regional secret in europe-west2. Organisations' single sign-on keys
+  ([ADR-0091](0091-single-sign-on.md)) are regional secrets too, named
+  `harbour_sso_<tenant id>_<name>`, each granted to the API's service account alone (H-751).
 - **Edge**: an external HTTPS load balancer, Cloud Armor with the OWASP Core Rule Set at pinned
   rule versions (replacing H-140's AWS managed rule versions), Cloud CDN for static files only,
   Certificate Manager for TLS (1.2 or later, through an SSL policy), and Cloud DNS.
@@ -101,10 +110,10 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
 | ClamAV task on ECS | ClamAV sidecar container on the API's Cloud Run service |
 | RDS for PostgreSQL 17, Multi-AZ, PITR | Cloud SQL for PostgreSQL 17, regional HA, PITR, private IP, CMEK |
 | RDS parameter group (pgAudit, logical replication) | Cloud SQL flags `cloudsql.enable_pgaudit`, `cloudsql.logical_decoding` |
-| S3 with SSE-KMS, presigned URLs | Cloud Storage with CMEK, uniform access, public access prevention, V4 signed URLs |
+| S3 with SSE-KMS, presigned URLs | Cloud Storage with CMEK, uniform access, public access prevention; downloads stream through the API (no signed URLs); quarantine is a document status |
 | S3 Object Lock (COMPLIANCE) for the audit archive | Locked bucket retention policy, 365 days |
-| KMS | Cloud KMS (regional key ring in europe-west2) |
-| Secrets Manager | Secret Manager (regional secrets) |
+| KMS | Cloud KMS (regional key ring in europe-west2) for CMEK; per-organisation keys and a KMS adapter follow on `feat/platform-crypto-shred` |
+| Secrets Manager (including SSO keys, ADR-0091) | Secret Manager (regional secrets, read through the europe-west2 endpoint) |
 | CloudFront | External HTTPS load balancer with Cloud CDN for static files |
 | AWS WAF with managed rules | Cloud Armor with the OWASP CRS at pinned versions |
 | ACM, Route 53 | Certificate Manager, Cloud DNS |
@@ -114,7 +123,7 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
 | CloudTrail | Cloud Audit Logs (Admin Activity always on; Data Access enabled) |
 | GuardDuty, Security Hub | Security Command Center Standard |
 | Terraform state in S3 with DynamoDB lock | Versioned Cloud Storage bucket (native state locking) |
-| Amazon SES (London) | SMTP adapter to a provider still to be chosen (H-08); production email off until then |
+| Amazon SES (London) | SMTP adapter (nodemailer) to a provider still to be chosen (H-08); production email off until then |
 
 ### Consequences
 
@@ -124,11 +133,15 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
   and Workload Identity Federation removes long-lived CI credentials.
 - Good, because a locked retention policy gives the same irreversible, tamper-evident audit archive
   as S3 Object Lock.
-- Bad, because the API's storage and email adapters are written for S3 and SES
-  (`apps/api/src/integrations/storage.ts`, `adapters.ts`) and production configuration requires S3
-  (`apps/api/src/config.ts`). A Cloud Storage adapter (signed URLs, CMEK buckets) and an SMTP
-  adapter must be built and the production configuration changed before go-live. This is an
-  engineering follow-up in STATUS; the ports do not change.
+- Good, because the ports did not change: the API's adapters were swapped behind them
+  (`feat/api-google-cloud-adapters`). Cloud Storage (`GcsDocumentStorage`) names the bucket's key
+  on every write, keeps no file name in object metadata and deletes every generation on
+  destruction; SMTP (`SmtpEmail`) sends plain text over TLS 1.2 or later; and production refuses to
+  start without the Google Cloud settings (`apps/api/src/config.ts`: `DOCUMENT_STORAGE=gcs`,
+  `GCP_PROJECT_ID`, `GCS_DOCUMENTS_BUCKET`, `GCS_EXPORTS_BUCKET`, `GCS_KMS_KEY`, SSO keys from
+  Secret Manager).
+- Bad, because per-organisation crypto-shredding is not built yet (no Cloud KMS adapter); it is a
+  gap against the retention spec until `feat/platform-crypto-shred` lands.
 - Bad, because Google Cloud, like AWS, has one UK region, so a full loss of London stops
   server-side services until Google restores it; offline mobile remains the continuity path, as
   ADR-0001 records. Cross-region backups are still not taken, because they would leave the UK.
@@ -150,7 +163,7 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
 - Neutral, because the AI gateway's model provider (ADR-0014) is not hosting and is not changed
   here; whether it moves to Google Cloud is a separate decision.
 - Neutral, because Cloud KMS destroys key versions after a scheduled delay rather than at once, so
-  crypto-shredding certificates state the delay and the date of destruction.
+  crypto-shredding certificates, once built, state the delay and the date of destruction.
 - Neutral, because the sub-processor register, DPIA, records of processing and security documents
   name Google Cloud EMEA Limited under the Cloud Data Processing Addendum instead of AWS
   (sub-processors.md); signing it and setting the organisation policy are human actions (H-1000).
@@ -170,7 +183,7 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
 ### Google Cloud europe-west2, managed services
 
 - Good, because it meets every rule with managed services and the owner chose it.
-- Bad, because of the adapter work and the email gap above.
+- Bad, because of the email gap and the crypto-shredding still to build, above.
 
 ### Google Cloud europe-west2 on GKE Autopilot for every service
 
@@ -211,3 +224,8 @@ ADR.
   and the organisation policy).
 - Revisit if Google Cloud opens a second UK region (cross-region recovery inside the UK), or if
   PowerSync cannot run on Cloud Run at the target load.
+- Amended 31/10/2026, when the three Google Cloud branches were merged (`integration/google-cloud`),
+  to match what the adapters branch built: downloads stream through the API with no signed URLs,
+  quarantine is a document status rather than a bucket, and there is no Cloud KMS adapter yet
+  (per-organisation crypto-shredding is on `feat/platform-crypto-shred`). Single sign-on keys,
+  added on `main` after the branches were cut, moved from AWS Secrets Manager to Secret Manager.

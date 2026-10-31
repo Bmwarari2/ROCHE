@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-31
 decision-makers: Thapsus engineering (Phase 2 slice 33)
 consulted: security (H-750 reviews the threat model), data protection lead (H-752)
@@ -7,6 +7,14 @@ informed: CSO (HZ-112); lane E (SSO screens, slice 67)
 ---
 
 # Single sign-on
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: AWS Secrets Manager as the key store. Each organisation's key is a regional
+> Secret Manager secret in europe-west2, named `harbour_sso_<tenant id>_<name>` (the store name
+> with `_` for `/`, since secret ids take no slashes), and granted to the API's service account
+> alone (H-751). `SSO_KEY_STORE` is `gcp` in production; the API reads the latest version through
+> the europe-west2 endpoint at sign-in, and checks that a key exists from the version's metadata,
+> never by reading it, as `DescribeSecret` did. The text below is kept as decided.
 
 ## Context and problem statement
 

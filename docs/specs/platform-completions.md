@@ -473,7 +473,7 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
   `export_already_downloaded`). The API streams the archive itself rather than minting a storage
   URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
-- Storage: the exports bucket (`S3_EXPORTS_BUCKET` as built; europe-west2 Cloud Storage with CMEK and lifecycle expiry
+- Storage: the exports bucket (`GCS_EXPORTS_BUCKET`; europe-west2 Cloud Storage with CMEK and lifecycle expiry
   under [ADR-0098](../decisions/0098-production-on-google-cloud.md)) at
   `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
   reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the

@@ -10,7 +10,8 @@ informed: Brian
 
 > **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
 > Cloud), 31/10/2026**: S3, AWS KMS and ClamAV in AWS. Documents are stored in Cloud Storage with
-> customer-managed Cloud KMS keys, uniform bucket-level access and V4 signed URLs, and ClamAV runs
+> customer-managed Cloud KMS keys and uniform bucket-level access; downloads still stream through
+> the API (no signed URLs) and quarantine is still the document's status, and ClamAV runs
 > as a sidecar container on the API's Cloud Run service. The ports, scanning rules, key layout and
 > destruction rules are unchanged; Cloud KMS destroys a key version after a scheduled delay, which
 > the destruction certificate states. The text below is kept as decided.

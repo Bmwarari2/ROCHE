@@ -60,6 +60,7 @@ Deleting rows from the live database does not remove copies from backups (Cloud 
 | Whole-tenant exit | At the end of a contract, after the tenant's free export, the organisation's Cloud KMS key version is scheduled for destruction once live data is purged; destroying the key version shreds everything still encrypted under it. Cloud KMS destroys a version only after its scheduled-destruction delay, not at once ([DPA clause 9](dpa-article-28-template.md#9-deletion-or-return-at-the-end-of-the-services-art-283g)) |
 | Mobile devices | Records leave devices through sync (eviction) and on remote wipe; device stores are SQLCipher-encrypted with device-bound keys |
 | Restore safety | A restore from backup re-applies the shredding log before the database is reopened, so shredded records cannot reappear ([restore runbook](../runbooks/restore.md)) |
+| Status | Not built yet. Encryption today is at the bucket and instance level (CMEK), the API has no Cloud KMS adapter, and per-organisation keys and the shredding above are being built on `feat/platform-crypto-shred` ([ADR-0098](../decisions/0098-production-on-google-cloud.md)) |
 
 | Search vectors | The generated `tsvector` search columns (ADR-0070, migration 0066) are plain-text copies of names, rooms, document titles and note text. Purging the row removes them, and they leave backups as the row does; but they are not encrypted, so if a source column (such as `care_note.body`) is envelope-encrypted, its vector must be dropped or redesigned in the same change, or the words outlive the key (H-380) |
 
