@@ -419,6 +419,8 @@ export const BedBoard = z
         label: z.string(),
         unitName: z.string().nullable(),
         status: z.enum(["available", "out_of_service", "awaiting_clearance"]),
+        /** The room's version, for recording its clearance after a death (rule 6). */
+        version: z.number().int(),
         beds: z.array(
           z.object({
             bed: z.number().int(),

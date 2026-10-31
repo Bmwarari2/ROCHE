@@ -21298,6 +21298,7 @@ export interface components {
         unitName: string | null;
         /** @enum {string} */
         status: "available" | "out_of_service" | "awaiting_clearance";
+        version: number;
         beds: {
           bed: number;
           occupied: boolean;

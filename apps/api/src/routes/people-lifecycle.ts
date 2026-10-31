@@ -1479,6 +1479,7 @@ export const peopleLifecycleRouter = createRouter()
             label: r.label,
             unitName: r.unitName,
             status: r.status as "available" | "out_of_service" | "awaiting_clearance",
+            version: r.version,
             beds: Array.from({ length: r.beds }, (_, i) => {
               const period = onDate.find((p) => p.roomId === r.id && p.bed === i + 1);
               const name = period ? (names.get(period.personId) ?? null) : null;

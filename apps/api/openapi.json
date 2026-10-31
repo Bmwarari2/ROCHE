@@ -2821,6 +2821,9 @@
                     "awaiting_clearance"
                   ]
                 },
+                "version": {
+                  "type": "integer"
+                },
                 "beds": {
                   "type": "array",
                   "items": {
@@ -2868,6 +2871,7 @@
                 "label",
                 "unitName",
                 "status",
+                "version",
                 "beds"
               ]
             }

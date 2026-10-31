@@ -2353,6 +2353,8 @@ describe("people.md rules 11 and 12: a death, its notifications and its correcti
       await as("manager", `/v1/locations/${DEMO.locationId}/beds`),
     );
     expect(board.rooms.find((r) => r.label === "5")?.status).toBe("awaiting_clearance");
+    // The board gives the room's version, so its clearance can be recorded from it.
+    expect(board.rooms.find((r) => r.label === "5")?.version).toBeGreaterThanOrEqual(1);
     await drainOutbox();
     const exit = (await json<ExitView>(await as("manager", `/v1/people/${resident(5)}/exit`))).exit;
     expect(exit?.kind).toBe("death");

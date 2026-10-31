@@ -24,6 +24,7 @@ export type RecordTab =
   | "activities"
   | "letters"
   | "family-updates"
+  | "leaving"
   | "history";
 
 interface TabDefinition {
@@ -51,6 +52,7 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "activities", needs: "care.note.read" },
   { tab: "letters", needs: "comms.letter.manage" },
   { tab: "family-updates", needs: "comms.feed.publish" },
+  { tab: "leaving", needs: "people.person.read" },
   { tab: "history", needs: "people.person.read" },
 ];
 
