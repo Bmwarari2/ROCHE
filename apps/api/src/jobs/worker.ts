@@ -6,7 +6,7 @@ import { createDocumentServices, createExportStorage } from "../integrations/doc
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
 import { sweepInvitations } from "../services/invitations";
-import { loadLatestDmdRelease } from "./dmd";
+import { DMD_WORK_OPTIONS, dmdLoadLimits, dmdQueueOptions, loadLatestDmdRelease } from "./dmd";
 import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
@@ -97,7 +97,15 @@ const QUEUES = {
   dmdRelease: "dmd-release-load",
 } as const;
 
-for (const name of Object.values(QUEUES)) await boss.createQueue(name);
+// The dm+d load (ADR-0080) is long and rare: its own queue holds one job, queued or running, and
+// a running load expires only after its own time limit.
+const dmdLimits = dmdLoadLimits(config);
+for (const name of Object.values(QUEUES)) {
+  await boss.createQueue(
+    name,
+    name === QUEUES.dmdRelease ? dmdQueueOptions(config.DMD_LOAD_TIMEOUT_MINUTES) : undefined,
+  );
+}
 
 /** Every job logs one structured line when it fails (`worker.job.failed`), then pg-boss retries it. */
 const work = (queue: string, job: () => Promise<unknown>) =>
@@ -199,10 +207,13 @@ await work(QUEUES.importExpiry, async () => {
 const dmdSource = createDmdReleaseSource({
   production: config.NODE_ENV === "production",
   environment: process.env.HARBOUR_ENV,
+  limits: dmdLimits,
 });
-await work(QUEUES.dmdRelease, async () => {
-  await loadLatestDmdRelease({ workerPool, logger, source: dmdSource });
-});
+await boss.work(QUEUES.dmdRelease, DMD_WORK_OPTIONS, () =>
+  runJob(logger, QUEUES.dmdRelease, () =>
+    loadLatestDmdRelease({ workerPool, logger, source: dmdSource, limits: dmdLimits }),
+  ),
+);
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");

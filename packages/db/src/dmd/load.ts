@@ -1,5 +1,6 @@
 import {
   checkDmdRelease,
+  DMD_FIXTURE_ENVIRONMENTS,
   DMD_PROBLEMS_KEPT,
   type DmdReleaseContent,
   type DmdReleaseFiles,
@@ -7,10 +8,14 @@ import {
   type DmdReleaseProblemCode,
   dmdGtinKey,
   dmdLookupKey,
+  dmdReleaseDateProblem,
   dmdReleaseOrder,
+  isDmdFixtureRelease,
+  ukDateOf,
 } from "@harbour/domain";
 import type pg from "pg";
-import { parseDmdRelease } from "./parse";
+import { DMD_LOAD_LIMITS, type DmdLoadLimits } from "./files";
+import { DmdLoadTimeout, parseDmdRelease } from "./parse";
 
 /**
  * The dm+d release loader (integrations.md section 11 rules 1 to 4; ADR-0080; HZ-113). It reads
@@ -19,7 +24,10 @@ import { parseDmdRelease } from "./parse";
  * only EXECUTE: `harbour_worker` for the job, `harbour_owner` for a manual run). Loading the same
  * release again changes nothing; an older release, a broken one or one that lacks a concept in use
  * is refused whole, recorded in the release history with its problems, and the release in use
- * stays as it was. Logs and messages carry dm+d identifiers only: dm+d holds no personal data.
+ * stays as it was. The invented fixture loads only into a database marked for development or tests
+ * (`app.database_environment`), a release dated ahead of today is refused, and the whole load runs
+ * within its limits (files, bytes, time), reading each file in chunks. Logs and messages carry dm+d
+ * identifiers only: dm+d holds no personal data.
  */
 
 export type DmdLoadStatus = "loaded" | "already_loaded" | "refused" | "failed";
@@ -40,7 +48,18 @@ export interface DmdLoadOutcome {
 export interface DmdLoadOptions {
   /** Rows per call of `app.dmd_load_rows` (default 2000). */
   readonly batchSize?: number;
+  /** Files, bytes and time (default `DMD_LOAD_LIMITS`). */
+  readonly limits?: DmdLoadLimits;
+  /** Now, for the time limit and the release date's future bound (tests). */
+  readonly now?: () => Date;
 }
+
+const LOADER_REFUSALS = new Set<DmdReleaseProblemCode>([
+  "older_than_current",
+  "concepts_missing",
+  "dated_in_future",
+  "fixture_not_allowed",
+]);
 
 type Row = Record<string, unknown>;
 
@@ -139,15 +158,23 @@ function rowsByKind(content: DmdReleaseContent): [string, Row[]][] {
 function refusalCode(error: unknown): DmdReleaseProblemCode | null {
   const hint = (error as { hint?: unknown }).hint;
   if (typeof hint !== "string" || !hint.startsWith("dmd:")) return null;
-  const code = hint.slice(4);
-  return code === "older_than_current" || code === "concepts_missing" ? code : null;
+  const code = hint.slice(4) as DmdReleaseProblemCode;
+  return LOADER_REFUSALS.has(code) ? code : null;
+}
+
+/** What this database is for (`app.database_environment`), or null when it is not marked. */
+export async function dmdDatabaseEnvironment(pool: pg.Pool): Promise<string | null> {
+  const { rows } = await pool.query<{ environment: string }>(
+    "SELECT environment FROM app.database_environment",
+  );
+  return rows[0]?.environment ?? null;
 }
 
 async function recordRefusal(
   pool: pg.Pool,
   release: DmdReleaseFiles,
   status: "refused" | "failed",
-  checksum: string,
+  checksum: string | null,
   fileCounts: Readonly<Record<string, number>>,
   problems: readonly DmdReleaseProblem[],
   problemCount: number,
@@ -175,12 +202,12 @@ export async function loadDmdRelease(
   options: DmdLoadOptions = {},
 ): Promise<DmdLoadOutcome> {
   const batchSize = options.batchSize ?? 2000;
-  const parsed = parseDmdRelease(release);
-  const base = {
-    name: release.name,
-    releasedOn: release.releasedOn,
-    fileCounts: parsed.fileCounts,
-  };
+  const limits = options.limits ?? DMD_LOAD_LIMITS;
+  const now = options.now ?? (() => new Date());
+  const deadline = now().getTime() + limits.timeoutMs;
+  let fileCounts: Readonly<Record<string, number>> = {};
+  let checksum: string | null = null;
+  const base = () => ({ name: release.name, releasedOn: release.releasedOn, fileCounts });
   const refuse = async (
     status: "refused" | "failed",
     problems: readonly DmdReleaseProblem[],
@@ -190,14 +217,62 @@ export async function loadDmdRelease(
       pool,
       release,
       status,
-      parsed.checksum,
-      parsed.fileCounts,
+      checksum,
+      fileCounts,
       problems,
       problemCount,
     );
-    return { ...base, status, releaseId, changes: {}, problems, problemCount };
+    return { ...base(), status, releaseId, changes: {}, problems, problemCount };
   };
+  const refusal = (code: DmdReleaseProblemCode, message: string): DmdReleaseProblem => ({
+    code,
+    file: null,
+    id: null,
+    message,
+  });
 
+  // The invented fixture never reaches a database where real people work (HZ-113).
+  if (isDmdFixtureRelease(release)) {
+    const environment = await dmdDatabaseEnvironment(pool);
+    if (environment === null || !DMD_FIXTURE_ENVIRONMENTS.includes(environment)) {
+      return refuse(
+        "refused",
+        [
+          refusal(
+            "fixture_not_allowed",
+            `The invented fixture loads only into a database marked dev or test; this one is marked ${environment ?? "nothing"}.`,
+          ),
+        ],
+        1,
+      );
+    }
+  }
+  const dateProblem = dmdReleaseDateProblem(release.releasedOn, ukDateOf(now()));
+  if (dateProblem === "bad_release") {
+    // The history needs a real date: a source that gives none is broken, and the job says so.
+    throw new Error(`The dm+d release ${release.name} has no real release date.`);
+  }
+  if (dateProblem === "dated_in_future") {
+    return refuse(
+      "refused",
+      [refusal("dated_in_future", "The release is dated ahead of today.")],
+      1,
+    );
+  }
+
+  let parsed: Awaited<ReturnType<typeof parseDmdRelease>>;
+  try {
+    parsed = await parseDmdRelease(release, {
+      maxFiles: limits.maxFiles,
+      maxBytes: limits.maxBytes,
+      deadline,
+    });
+  } catch (error) {
+    if (!(error instanceof DmdLoadTimeout)) throw error;
+    return refuse("failed", [refusal("timed_out", timedOut(limits))], 1);
+  }
+  fileCounts = parsed.fileCounts;
+  checksum = parsed.checksum;
   if (parsed.content === null || parsed.problemCount > 0) {
     return refuse("refused", parsed.problems, Math.max(parsed.problemCount, 1));
   }
@@ -211,76 +286,63 @@ export async function loadDmdRelease(
     release,
     loaded.map((r) => ({ name: r.name, releasedOn: r.released_on })),
   );
-  if (order === "already_loaded") {
-    return {
-      ...base,
-      status: "already_loaded",
-      releaseId: null,
-      changes: {},
-      problems: [],
-      problemCount: 0,
-    };
-  }
+  const alreadyLoaded = (): DmdLoadOutcome => ({
+    ...base(),
+    status: "already_loaded",
+    releaseId: null,
+    changes: {},
+    problems: [],
+    problemCount: 0,
+  });
+  if (order === "already_loaded") return alreadyLoaded();
   if (order === "older_than_current") {
-    const problem: DmdReleaseProblem = {
-      code: "older_than_current",
-      file: null,
-      id: null,
-      message: "The release is dated before the release in use.",
-    };
-    return refuse("refused", [problem], 1);
+    return refuse(
+      "refused",
+      [refusal("older_than_current", "The release is dated before the release in use.")],
+      1,
+    );
   }
 
   const client = await pool.connect();
+  /** Each statement may run only for the time the load has left. */
+  const timed = async <T extends pg.QueryResultRow>(text: string, values: unknown[]) => {
+    const left = deadline - now().getTime();
+    if (left <= 0) throw new DmdLoadTimeout();
+    await client.query("SELECT set_config('statement_timeout', $1, true)", [String(left)]);
+    return client.query<T>(text, values);
+  };
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query<{ id: string | null }>(
+    const { rows } = await timed<{ id: string | null }>(
       "SELECT app.dmd_begin_release($1, $2::date, $3, $4, $5::jsonb) AS id",
-      [
-        release.name,
-        release.releasedOn,
-        release.source,
-        parsed.checksum,
-        JSON.stringify(parsed.fileCounts),
-      ],
+      [release.name, release.releasedOn, release.source, checksum, JSON.stringify(fileCounts)],
     );
     const releaseId = rows[0]?.id ?? null;
     if (releaseId === null) {
       // Loaded by another run since the check above.
       await client.query("ROLLBACK");
-      return {
-        ...base,
-        status: "already_loaded",
-        releaseId: null,
-        changes: {},
-        problems: [],
-        problemCount: 0,
-      };
+      return alreadyLoaded();
     }
-    const changes: Record<string, number> = {};
-    const ids: Record<string, string[]> = {};
     for (const [kind, rowsOfKind] of rowsByKind(parsed.content)) {
-      ids[kind] = rowsOfKind.map((r) => r.id as string);
       for (let i = 0; i < rowsOfKind.length; i += batchSize) {
-        const { rows: result } = await client.query<{ counts: Record<string, number> }>(
-          "SELECT app.dmd_load_rows($1, $2, $3::jsonb) AS counts",
-          [releaseId, kind, JSON.stringify(rowsOfKind.slice(i, i + batchSize))],
-        );
-        for (const [what, n] of Object.entries(result[0]?.counts ?? {})) {
-          changes[`${kind}_${what}`] = (changes[`${kind}_${what}`] ?? 0) + n;
-        }
+        await timed("SELECT app.dmd_load_rows($1, $2, $3::jsonb)", [
+          releaseId,
+          kind,
+          JSON.stringify(rowsOfKind.slice(i, i + batchSize)),
+        ]);
       }
     }
-    const { rows: finished } = await client.query<{ changes: Record<string, number> }>(
-      "SELECT app.dmd_finish_release($1, $2::jsonb, $3::jsonb) AS changes",
-      [releaseId, JSON.stringify(ids), JSON.stringify(changes)],
+    // The database works out what the release holds and changed from the rows written.
+    const { rows: finished } = await timed<{ changes: Record<string, number> }>(
+      "SELECT app.dmd_finish_release($1) AS changes",
+      [releaseId],
     );
     await client.query("COMMIT");
     return {
-      ...base,
+      ...base(),
       status: "loaded",
       releaseId,
-      changes: finished[0]?.changes ?? changes,
+      changes: finished[0]?.changes ?? {},
       problems: [],
       problemCount: 0,
     };
@@ -290,13 +352,19 @@ export async function loadDmdRelease(
     if (code !== null) {
       const detail = (error as { detail?: unknown }).detail;
       const message = `${(error as Error).message}${typeof detail === "string" && detail ? ` ${detail}` : ""}`;
-      return refuse("refused", [{ code, file: null, id: null, message: message.slice(0, 500) }], 1);
+      return refuse("refused", [refusal(code, message.slice(0, 500))], 1);
+    }
+    const sqlState = String((error as { code?: unknown }).code ?? "unknown");
+    if (error instanceof DmdLoadTimeout || sqlState === "57014") {
+      return refuse("failed", [refusal("timed_out", timedOut(limits))], 1);
     }
     // Only the database's error code: its message could quote a row.
-    const sqlState = String((error as { code?: unknown }).code ?? "unknown");
     const message = `The load failed in the database (${sqlState}); the release in use is unchanged.`;
-    return refuse("failed", [{ code: "load_failed", file: null, id: null, message }], 1);
+    return refuse("failed", [refusal("load_failed", message)], 1);
   } finally {
     client.release();
   }
 }
+
+const timedOut = (limits: DmdLoadLimits) =>
+  `The load took longer than ${Math.round(limits.timeoutMs / 60_000)} minutes and was stopped; the release in use is unchanged.`;

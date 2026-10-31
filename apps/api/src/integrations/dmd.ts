@@ -1,17 +1,26 @@
 import { existsSync } from "node:fs";
-import { dmdFixtureReleaseDirectories, readDmdReleaseDirectory } from "@harbour/db/dmd";
+import {
+  DMD_LOAD_LIMITS,
+  type DmdLoadLimits,
+  dmdFixtureReleaseDirectories,
+  readDmdReleaseDirectory,
+} from "@harbour/db/dmd";
 import type { DmdReleaseFiles, DmdReleaseSourcePort, HealthResult } from "@harbour/domain";
 
 /**
  * Adapters for the dm+d release source port (integrations.md section 11; ADR-0080). The TRUD
  * adapter is slice 75; until it lands, development and tests use the mock (the invented fixture
  * releases) and production has no source, which the job says rather than loading nothing silently.
+ * The database itself refuses the fixture unless it is marked dev or test (migration 0110).
  */
 
 /** Serves the newest invented fixture release. Never touches the network; never in production. */
 export class MockDmdReleaseSource implements DmdReleaseSourcePort {
   readonly provider = "mock";
-  constructor(private readonly directories?: readonly string[]) {}
+  constructor(
+    private readonly directories?: readonly string[],
+    private readonly limits: Pick<DmdLoadLimits, "maxFiles" | "maxBytes"> = DMD_LOAD_LIMITS,
+  ) {}
 
   private releases(): readonly string[] {
     try {
@@ -24,7 +33,7 @@ export class MockDmdReleaseSource implements DmdReleaseSourcePort {
 
   async latest(): Promise<DmdReleaseFiles | null> {
     const newest = this.releases().at(-1);
-    return newest === undefined ? null : readDmdReleaseDirectory(newest, "fixture");
+    return newest === undefined ? null : readDmdReleaseDirectory(newest, "fixture", this.limits);
   }
 
   async health(): Promise<HealthResult> {
@@ -60,9 +69,10 @@ const NO_FIXTURE_ENVIRONMENTS = new Set(["staging", "pilot", "production", "prod
 export function createDmdReleaseSource(options: {
   production: boolean;
   environment?: string | undefined;
+  limits?: Pick<DmdLoadLimits, "maxFiles" | "maxBytes">;
 }): DmdReleaseSourcePort {
   const shared = NO_FIXTURE_ENVIRONMENTS.has(options.environment?.trim().toLowerCase() ?? "");
   return options.production || shared
     ? new UnconfiguredDmdReleaseSource()
-    : new MockDmdReleaseSource();
+    : new MockDmdReleaseSource(undefined, options.limits);
 }

@@ -1,8 +1,16 @@
-export { dmdFixtureReleaseDirectories, readDmdReleaseDirectory } from "./files";
+export {
+  DMD_LOAD_LIMITS,
+  type DmdLoadLimits,
+  DmdReleaseFileError,
+  dmdFileFromText,
+  dmdFixtureReleaseDirectories,
+  readDmdReleaseDirectory,
+} from "./files";
 export {
   type DmdLoadOptions,
   type DmdLoadOutcome,
   type DmdLoadStatus,
+  dmdDatabaseEnvironment,
   loadDmdRelease,
 } from "./load";
-export { dmdReleaseChecksum, type ParsedDmdRelease, parseDmdRelease } from "./parse";
+export { DmdLoadTimeout, type ParsedDmdRelease, parseDmdRelease } from "./parse";

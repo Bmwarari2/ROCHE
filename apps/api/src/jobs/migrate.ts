@@ -3,8 +3,10 @@ import { fileURLToPath } from "node:url";
 import {
   bootstrapRoles,
   ensureDatabase,
+  environmentToMark,
   LOCAL_ROLE_PASSWORDS,
   LOGIN_ROLES,
+  markDatabaseEnvironment,
   type RolePasswords,
   runMigrations,
 } from "@harbour/db/admin";
@@ -23,7 +25,8 @@ import { createLogger } from "../logger";
  * `pnpm db:bootstrap && pnpm db:migrate && pnpm db:seed`). Idempotent: safe to run on every deploy.
  *
  * 1. As the RDS master user: create or update the Harbour roles and the database.
- * 2. As harbour_owner: apply migrations, then load the statutory figures and retention schedule.
+ * 2. As harbour_owner: apply migrations, mark what the database is for (`HARBOUR_ENV`), then load
+ *    the statutory figures and retention schedule.
  * 3. On the PowerSync bucket-storage instance: create its login role.
  *
  * The admin connection arrives as parts (DATABASE_HOST, DATABASE_ADMIN_USER, ...) because RDS rotates
@@ -106,6 +109,15 @@ try {
   const bundledMigrations = fileURLToPath(new URL("./drizzle", import.meta.url));
   await runMigrations(owner, existsSync(bundledMigrations) ? bundledMigrations : undefined);
   logger.info("migrations applied");
+  // What this database is for (ADR-0080, HZ-113): only dev and test accept the invented dm+d
+  // fixture; a database once marked anything else is never marked dev or test again.
+  const environment = environmentToMark({
+    harbourEnv: env.HARBOUR_ENV,
+    nodeEnv: env.NODE_ENV,
+    ownerUrl,
+  });
+  await markDatabaseEnvironment(owner, environment);
+  logger.info({ environment }, "database marked");
   const rates = parseRates(referenceDocument("rates.md"));
   const overlaps = findOverlaps(rates);
   if (overlaps.length > 0)

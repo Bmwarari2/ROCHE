@@ -7,8 +7,9 @@ import { ownerUrl } from "./env";
  * A manual dm+d load (integrations.md section 11; ADR-0080), as harbour_owner:
  *   pnpm --filter @harbour/db dmd:load <release directory>   a release a person downloaded
  *   pnpm --filter @harbour/db dmd:load                       the invented fixture releases
- * The fixture is never loaded in production, staging or pilot (HZ-113). The monthly job (slice 75)
- * runs the same loader as the worker. Prints the outcome with dm+d identifiers only.
+ * The fixture is never loaded in production, staging or pilot (HZ-113): this script refuses it
+ * there, and the database refuses it, under any name or source, unless it is marked dev or test
+ * (`app.database_environment`). The monthly job (slice 75) runs the same loader as the worker. Prints the outcome with dm+d identifiers only.
  */
 
 const directory = process.argv[2];
@@ -25,8 +26,10 @@ if (directory !== undefined && !existsSync(directory)) {
 }
 const releases =
   directory === undefined
-    ? dmdFixtureReleaseDirectories().map((d) => readDmdReleaseDirectory(d, "fixture"))
-    : [readDmdReleaseDirectory(directory, "manual")];
+    ? await Promise.all(
+        dmdFixtureReleaseDirectories().map((d) => readDmdReleaseDirectory(d, "fixture")),
+      )
+    : [await readDmdReleaseDirectory(directory, "manual")];
 
 const pool = new pg.Pool({ connectionString: ownerUrl(), max: 2 });
 try {

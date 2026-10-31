@@ -1,7 +1,20 @@
-import type { DmdReleaseFiles } from "@harbour/domain";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { DmdReleaseFileSource, DmdReleaseFiles } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { dmdFixtureReleaseDirectories, loadDmdRelease, readDmdReleaseDirectory } from "../src/dmd";
+import { markDatabaseEnvironment } from "../src/admin/environment";
+import {
+  DMD_LOAD_LIMITS,
+  DmdReleaseFileError,
+  dmdDatabaseEnvironment,
+  dmdFileFromText,
+  dmdFixtureReleaseDirectories,
+  loadDmdRelease,
+  parseDmdRelease,
+  readDmdReleaseDirectory,
+} from "../src/dmd";
 import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
@@ -33,21 +46,39 @@ const ID = {
   gtinBrandoprofen: "02001234500050",
 } as const;
 
+async function textOf(file: DmdReleaseFileSource): Promise<string> {
+  let text = "";
+  for await (const chunk of file.chunks()) text += chunk;
+  return text;
+}
+
 /** A release made from a fixture release with another name and some files changed. */
-function variant(
-  base: DmdReleaseFiles,
+async function variant(
+  base: Promise<DmdReleaseFiles>,
   name: string,
   edit: (file: string, content: string) => string | null,
-): DmdReleaseFiles {
+): Promise<DmdReleaseFiles> {
+  const release = await base;
+  const files = await Promise.all(
+    release.files.map(async (f) => {
+      const content = edit(f.name, await textOf(f));
+      return content === null ? null : dmdFileFromText(f.name, content);
+    }),
+  );
   return {
-    ...base,
+    ...release,
     name,
     releasedOn: `${name.slice(-14, -10)}-${name.slice(-10, -8)}-${name.slice(-8, -6)}`,
-    files: base.files.flatMap((f) => {
-      const content = edit(f.name, f.content);
-      return content === null ? [] : [{ name: f.name, content }];
-    }),
+    files: files.filter((f): f is DmdReleaseFileSource => f !== null),
   };
+}
+
+/** A UK date some days from today, as YYYY-MM-DD and as a release name's stamp. */
+function daysFromToday(days: number): { date: string; stamp: string } {
+  const date = new Date(Date.now() + days * 86_400_000).toLocaleDateString("en-CA", {
+    timeZone: "Europe/London",
+  });
+  return { date, stamp: `${date.replaceAll("-", "")}000001` };
 }
 
 /** A fingerprint of every dm+d row, so "unchanged" means unchanged. */
@@ -96,7 +127,7 @@ afterAll(async () => {
 
 describe("hazard HZ-113 the dm+d release loader loads whole, once (rules 1 to 4)", () => {
   it("loads the fixture release as the worker and reads it back", async () => {
-    const outcome = await loadDmdRelease(worker(), first(), { batchSize: 3 });
+    const outcome = await loadDmdRelease(worker(), await first(), { batchSize: 3 });
     expect(outcome).toMatchObject({ status: "loaded", problemCount: 0 });
     expect(outcome.fileCounts).toMatchObject({ vtm: 4, vmp: 6, amp: 8, vmpp: 6, ampp: 8, gtin: 9 });
     expect(outcome.changes).toMatchObject({ vmp_added: 6, amp_added: 8, gtin_added: 9 });
@@ -120,7 +151,7 @@ describe("hazard HZ-113 the dm+d release loader loads whole, once (rules 1 to 4)
 
   it("changes nothing when the same release is loaded again", async () => {
     const before = await fingerprint();
-    const again = await loadDmdRelease(worker(), first());
+    const again = await loadDmdRelease(worker(), await first());
     expect(again).toMatchObject({ status: "already_loaded", releaseId: null });
     expect(await fingerprint()).toEqual(before);
     expect(await history()).toHaveLength(1);
@@ -140,7 +171,7 @@ describe("hazard HZ-113 the dm+d release loader loads whole, once (rules 1 to 4)
 
 describe("hazard HZ-113 a release that is broken, older or shrunken is refused whole", () => {
   const later = (n: string) => `fixture_dmd_9.9.${n}_20261012000001`;
-  const cases: [string, () => DmdReleaseFiles, string][] = [
+  const cases: [string, () => Promise<DmdReleaseFiles>, string][] = [
     [
       "an AMP naming a VMP the release lacks",
       () =>
@@ -207,7 +238,7 @@ describe("hazard HZ-113 a release that is broken, older or shrunken is refused w
   it.each(cases)("refuses %s, records why and leaves the release in use", async (_, make, code) => {
     const before = await fingerprint();
     const count = (await history()).length;
-    const release = make();
+    const release = await make();
     const outcome = await loadDmdRelease(worker(), release);
     expect(outcome.status).toBe("refused");
     expect(outcome.problems.map((p) => p.code)).toContain(code);
@@ -230,7 +261,7 @@ describe("hazard HZ-113 a release that is broken, older or shrunken is refused w
 
 describe("hazard HZ-113 a newer release keeps everything in use (rules 3 and 4)", () => {
   it("adds, changes, invalidates, supersedes, discontinues and withdraws", async () => {
-    const outcome = await loadDmdRelease(worker(), second());
+    const outcome = await loadDmdRelease(worker(), await second());
     expect(outcome.status).toBe("loaded");
     expect(outcome.changes).toMatchObject({
       vmp_added: 2,
@@ -264,7 +295,7 @@ describe("hazard HZ-113 a newer release keeps everything in use (rules 3 and 4)"
   it("refuses a release that lacks a concept the newer release added", async () => {
     const outcome = await loadDmdRelease(
       worker(),
-      variant(first(), "fixture_dmd_1.0.1_20261101000001", (_f, c) => c),
+      await variant(first(), "fixture_dmd_1.0.1_20261101000001", (_f, c) => c),
     );
     expect(outcome.status).toBe("refused");
     expect(outcome.problems[0]?.code).toBe("concepts_missing");
@@ -323,7 +354,7 @@ describe("hazard HZ-113 only the loader writes dm+d data", () => {
   it("never commits a release left loading, and loads rows only into a loading release", async () => {
     await expect(
       inContext(owner(), null, (c) =>
-        c.query("SELECT app.dmd_begin_release('half', '2030-01-01', 'manual', NULL, '{}')"),
+        c.query("SELECT app.dmd_begin_release('half', current_date, 'manual', NULL, '{}')"),
       ),
     ).rejects.toThrow(/committed only once/);
     const { rows } = await owner().query<{ id: string }>(
@@ -371,5 +402,199 @@ describe("hazard HZ-113 only the loader writes dm+d data", () => {
       c.query("SELECT count(*)::int AS n FROM dmd_gtin"),
     );
     expect(read.rows[0]?.n).toBe(10);
+  });
+});
+
+describe("hazard HZ-113 a load stays within its limits (security review)", () => {
+  const later = (n: string) => `fixture_dmd_9.8.${n}_20261013000001`;
+
+  it.each([
+    ["more files than allowed", { ...DMD_LOAD_LIMITS, maxFiles: 3 }],
+    ["more bytes than allowed", { ...DMD_LOAD_LIMITS, maxBytes: 1000 }],
+  ])("refuses a release with %s before reading it", async (_, limits) => {
+    const before = await fingerprint();
+    const release = await variant(second(), later("1"), (_f, c) => c);
+    const outcome = await loadDmdRelease(worker(), release, { limits });
+    expect(outcome).toMatchObject({ status: "refused", problems: [{ code: "too_large" }] });
+    expect(await fingerprint()).toEqual(before);
+  });
+
+  it("stops a load that runs past its time limit and leaves the release in use", async () => {
+    const before = await fingerprint();
+    const release = await variant(second(), later("2"), (_f, c) => c);
+    const outcome = await loadDmdRelease(worker(), release, {
+      limits: { ...DMD_LOAD_LIMITS, timeoutMs: 0 },
+    });
+    expect(outcome).toMatchObject({ status: "failed", problems: [{ code: "timed_out" }] });
+    expect(await fingerprint()).toEqual(before);
+  });
+
+  it("reads each file in chunks and lets other work run between them", async () => {
+    let ticks = 0;
+    let running = true;
+    const tick = () => {
+      ticks += 1;
+      if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+    const parsed = await parseDmdRelease(await second(), {
+      maxFiles: 64,
+      maxBytes: 10_000_000,
+      deadline: Date.now() + 60_000,
+    });
+    running = false;
+    expect(parsed.problems).toEqual([]);
+    expect(ticks).toBeGreaterThanOrEqual(7);
+  });
+
+  it("refuses a symbolic link, in the release directory or as the directory, and over-size directories", async () => {
+    const root = mkdtempSync(join(tmpdir(), "harbour-dmd-"));
+    const outside = join(root, "outside.xml");
+    writeFileSync(outside, "<LOOKUP/>");
+    const linked = join(root, "fixture_dmd_9.7.1_20261013000001");
+    mkdirSync(linked);
+    symlinkSync(outside, join(linked, "f_lookup2_3131026.xml"));
+    await expect(readDmdReleaseDirectory(linked, "manual")).rejects.toThrow(DmdReleaseFileError);
+    await expect(readDmdReleaseDirectory(linked, "manual")).rejects.toThrow(/symbolic link/);
+    const link = join(root, "fixture_dmd_9.7.2_20261013000001");
+    symlinkSync(SECOND_DIR, link);
+    await expect(readDmdReleaseDirectory(link, "manual")).rejects.toThrow(/symbolic link/);
+    await expect(
+      readDmdReleaseDirectory(SECOND_DIR, "fixture", { maxFiles: 3, maxBytes: 10_000_000 }),
+    ).rejects.toThrow(/more than 3 files/);
+    await expect(
+      readDmdReleaseDirectory(SECOND_DIR, "fixture", { maxFiles: 64, maxBytes: 1000 }),
+    ).rejects.toThrow(/larger than 1000 bytes/);
+  });
+});
+
+describe("hazard HZ-113 a release dated ahead of today is refused (security review)", () => {
+  it("in the loader and in the database", async () => {
+    const ahead = daysFromToday(10);
+    const release = await variant(second(), `fixture_dmd_9.6.1_${ahead.stamp}`, (_f, c) => c);
+    const outcome = await loadDmdRelease(worker(), release);
+    expect(outcome).toMatchObject({ status: "refused", problems: [{ code: "dated_in_future" }] });
+    await expect(
+      inContext(worker(), null, (c) =>
+        c.query("SELECT app.dmd_begin_release('ahead', $1::date, 'manual', NULL, '{}')", [
+          ahead.date,
+        ]),
+      ),
+    ).rejects.toMatchObject({ hint: "dmd:dated_in_future" });
+  });
+});
+
+describe("hazard HZ-113 finish works out what a release holds from the rows written (security review)", () => {
+  it("never takes the caller's word, and the caller cannot write the loader's notes", async () => {
+    const client = await worker().connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query<{ id: string }>(
+        "SELECT app.dmd_begin_release('partial_dmd_1.0.0_20261031000001', current_date, 'manual', NULL, '{}') AS id",
+      );
+      const id = rows[0]?.id as string;
+      await client.query("SAVEPOINT notes");
+      await expect(
+        client.query(
+          `INSERT INTO pg_temp.dmd_seen_${id.replaceAll("-", "")} (kind, id) SELECT 'amp', id FROM dmd_amp`,
+        ),
+      ).rejects.toThrow(/permission denied/);
+      await client.query("ROLLBACK TO SAVEPOINT notes");
+      // One VTM written: everything else in use is missing from what this load wrote.
+      const vtm = await client.query(
+        "SELECT id, name, abbreviated_name, invalid, previous_id FROM dmd_vtm ORDER BY id LIMIT 1",
+      );
+      await client.query("SELECT app.dmd_load_rows($1, 'vtm', $2::jsonb)", [
+        id,
+        JSON.stringify(vtm.rows),
+      ]);
+      await expect(client.query("SELECT app.dmd_finish_release($1)", [id])).rejects.toMatchObject({
+        hint: "dmd:concepts_missing",
+      });
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
+  });
+
+  it("gives each loader function a search path ending in pg_temp", async () => {
+    const { rows } = await owner().query<{ name: string; config: string[] }>(
+      `SELECT p.proname AS name, p.proconfig AS config FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'app' AND p.prosecdef AND p.proname LIKE 'dmd\\_%' ORDER BY 1`,
+    );
+    expect(rows.map((r) => r.name)).toEqual([
+      "dmd_begin_release",
+      "dmd_finish_release",
+      "dmd_load_rows",
+      "dmd_record_refusal",
+    ]);
+    for (const row of rows) {
+      expect(row.config, row.name).toContain("search_path=pg_catalog, public, pg_temp");
+    }
+  });
+});
+
+describe("hazard HZ-113 the invented fixture loads only into a database marked dev or test (security review)", () => {
+  const fixture = () =>
+    variant(second(), `fixture_dmd_9.5.1_${daysFromToday(0).stamp}`, (_f, c) => c);
+
+  it("is marked test here, and refuses the fixture under any source once unmarked", async () => {
+    expect(await dmdDatabaseEnvironment(owner())).toBe("test");
+    await owner().query("DELETE FROM app.database_environment");
+    const before = await fingerprint();
+    const asManual = { ...(await fixture()), source: "manual" as const };
+    const outcome = await loadDmdRelease(owner(), asManual);
+    expect(outcome).toMatchObject({
+      status: "refused",
+      problems: [{ code: "fixture_not_allowed" }],
+    });
+    expect(await fingerprint()).toEqual(before);
+    await expect(
+      inContext(owner(), null, (c) =>
+        c.query(
+          "SELECT app.dmd_begin_release('fixture_dmd_x_20261031000001', current_date, 'manual', NULL, '{}')",
+        ),
+      ),
+    ).rejects.toMatchObject({ hint: "dmd:fixture_not_allowed" });
+  });
+
+  it("refuses it in a database marked for real use, which is never marked dev or test again", async () => {
+    await markDatabaseEnvironment(owner(), "production");
+    const outcome = await loadDmdRelease(worker(), await fixture());
+    expect(outcome.problems[0]?.code).toBe("fixture_not_allowed");
+    await expect(markDatabaseEnvironment(owner(), "test")).rejects.toThrow(/never marked/);
+    await expect(owner().query("DELETE FROM app.database_environment")).rejects.toThrow(
+      /never marked/,
+    );
+    await expect(
+      worker().query("UPDATE app.database_environment SET environment = 'dev'"),
+    ).rejects.toThrow(/permission denied/);
+    expect(await dmdDatabaseEnvironment(worker())).toBe("production");
+  });
+});
+
+describe("hazard HZ-113 a file that cannot be read refuses the release (security review)", () => {
+  it("refuses a file that is not UTF-8, with the release in use unchanged", async () => {
+    const before = await fingerprint();
+    const release = await variant(second(), "fixture_dmd_9.4.1_20261014000001", (_f, c) => c);
+    const broken: DmdReleaseFileSource = {
+      name: "f_vtm2_3141026.xml",
+      bytes: 3,
+      async *chunks() {
+        yield "<VIRTUAL_THERAPEUTIC_MOIETIES>";
+        throw new TypeError("The encoded data was not valid for encoding utf-8");
+      },
+    };
+    // Not the fixture by name or source: this database is marked production by now.
+    const outcome = await loadDmdRelease(worker(), {
+      ...release,
+      name: "unread_dmd_9.4.1_20261014000001",
+      source: "manual",
+      files: [...release.files.filter((f) => !f.name.startsWith("f_vtm2")), broken],
+    });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.problems.map((p) => p.code)).toContain("unreadable_xml");
+    expect(await fingerprint()).toEqual(before);
   });
 });

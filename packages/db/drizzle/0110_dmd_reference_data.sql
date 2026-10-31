@@ -249,25 +249,76 @@ CREATE CONSTRAINT TRIGGER dmd_release_committed_finished AFTER INSERT ON public.
   EXECUTE FUNCTION app.dmd_release_finished_at_commit();
 --> statement-breakpoint
 
+-- What this database is for (ADR-0080, HZ-113): one row, written by the deploy's migrate task from
+-- HARBOUR_ENV and by local and test set-up, never by a request. Only a database marked `dev` or
+-- `test` accepts the invented dm+d fixture; an unmarked one refuses it. Once marked anything else, a
+-- database is never marked `dev` or `test` again, and its mark is never removed.
+CREATE TABLE app.database_environment (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  environment text NOT NULL CHECK (environment ~ '^[a-z]{2,20}$'),
+  marked_at timestamptz NOT NULL DEFAULT now(),
+  marked_by text NOT NULL DEFAULT session_user
+);
+--> statement-breakpoint
+CREATE FUNCTION app.database_environment_guard() RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF OLD.environment NOT IN ('dev', 'test')
+     AND (TG_OP = 'DELETE' OR NEW.environment IN ('dev', 'test')) THEN
+    RAISE EXCEPTION 'A database marked % is never marked for development or tests again.',
+      OLD.environment USING ERRCODE = '42501';
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER database_environment_guard BEFORE UPDATE OR DELETE ON app.database_environment
+  FOR EACH ROW EXECUTE FUNCTION app.database_environment_guard();
+--> statement-breakpoint
+REVOKE ALL ON app.database_environment FROM PUBLIC;
+--> statement-breakpoint
+GRANT SELECT ON app.database_environment TO harbour_dmd_loader, harbour_worker;
+--> statement-breakpoint
+
 -- The loader's functions (integrations.md section 11 rules 1 to 4). The worker or the owner calls
--- them in one transaction: begin (under an advisory lock: one load at a time; refuses a release
--- dated before the one in use; a release already loaded under the same name is not loaded again),
--- load the rows file by file in batches (each row written only when new or changed), then finish
--- (identifiers dm+d changed are linked to their successors; a concept in use that the release lacks
--- refuses it; GTIN mappings it lacks are withdrawn). Any refusal raises, the caller rolls back and
+-- them in one transaction: begin (under an advisory lock: one load at a time; refuses the invented
+-- fixture outside a dev or test database, a release dated ahead of today or before the one in use;
+-- a release already loaded under the same name is not loaded again), load the rows file by file in
+-- batches (each row written only when new or changed, and every identifier noted), then finish
+-- (identifiers dm+d changed are linked to their successors; a concept in use that the rows written
+-- lack refuses the release; GTIN mappings they lack are withdrawn). What a load wrote is noted in
+-- two temporary tables named after the release, created by begin and owned by harbour_dmd_loader,
+-- so the caller can neither write them nor tell finish what the release holds; they go at commit. Any refusal raises, the caller rolls back and
 -- records the refusal with app.dmd_record_refusal in a transaction of its own, so readers see the
 -- previous release or the new one, never a mixture. Messages name dm+d identifiers only.
 CREATE FUNCTION app.dmd_begin_release(p_name text, p_released_on date, p_source text,
   p_checksum text, p_file_counts jsonb) RETURNS uuid
   LANGUAGE plpgsql
   SECURITY DEFINER
-  SET search_path = pg_catalog, public
+  SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_latest date;
   v_id uuid;
+  v_environment text;
+  v_key text;
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('harbour.dmd_release', 0));
+  -- The invented fixture never reaches a database where real people work, whatever the caller
+  -- says the source is (HZ-113).
+  SELECT environment INTO v_environment FROM app.database_environment;
+  IF (p_source = 'fixture' OR p_name LIKE 'fixture\_%')
+     AND (v_environment IS NULL OR v_environment NOT IN ('dev', 'test')) THEN
+    RAISE EXCEPTION 'The invented dm+d fixture loads only into a database marked dev or test.'
+      USING ERRCODE = 'P0001', HINT = 'dmd:fixture_not_allowed';
+  END IF;
+  -- DMD_RELEASE_FUTURE_DAYS in packages/domain: a release is never dated ahead of its publication.
+  IF p_released_on > (now() AT TIME ZONE 'Europe/London')::date + 3 THEN
+    RAISE EXCEPTION 'The dm+d release is dated %, ahead of today.', p_released_on
+      USING ERRCODE = 'P0001', HINT = 'dmd:dated_in_future';
+  END IF;
   IF EXISTS (SELECT 1 FROM public.dmd_release WHERE name = p_name AND status = 'loaded') THEN
     RETURN NULL;
   END IF;
@@ -282,6 +333,11 @@ BEGIN
   VALUES (p_name, p_released_on, p_source, 'loading', p_checksum,
     coalesce(p_file_counts, '{}'::jsonb), clock_timestamp())
   RETURNING id INTO v_id;
+  v_key := replace(v_id::text, '-', '');
+  EXECUTE format('CREATE TEMP TABLE %I (kind text NOT NULL, id text NOT NULL, '
+    'PRIMARY KEY (kind, id)) ON COMMIT DROP', 'dmd_seen_' || v_key);
+  EXECUTE format('CREATE TEMP TABLE %I (key text PRIMARY KEY, n integer NOT NULL) '
+    'ON COMMIT DROP', 'dmd_counts_' || v_key);
   RETURN v_id;
 END
 $$;
@@ -290,15 +346,22 @@ $$;
 CREATE FUNCTION app.dmd_load_rows(p_release uuid, p_kind text, p_rows jsonb) RETURNS jsonb
   LANGUAGE plpgsql
   SECURITY DEFINER
-  SET search_path = pg_catalog, public
+  SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_added integer := 0;
   v_changed integer := 0;
   v_invalidated integer := 0;
+  v_seen text := 'dmd_seen_' || replace(p_release::text, '-', '');
+  v_counts text := 'dmd_counts_' || replace(p_release::text, '-', '');
 BEGIN
-  -- A loading release is visible only to the transaction that began it.
-  IF NOT EXISTS (SELECT 1 FROM public.dmd_release WHERE id = p_release AND status = 'loading') THEN
+  -- A loading release is visible only to the transaction that began it, and its notes are this
+  -- role's own temporary tables in this session.
+  IF NOT EXISTS (SELECT 1 FROM public.dmd_release WHERE id = p_release AND status = 'loading')
+     OR (SELECT count(*) FROM pg_catalog.pg_class c
+          WHERE c.relnamespace = pg_catalog.pg_my_temp_schema() AND c.relname IN (v_seen, v_counts)
+            AND c.relowner = (SELECT r.oid FROM pg_catalog.pg_roles r
+                               WHERE r.rolname = current_user)) <> 2 THEN
     RAISE EXCEPTION 'No dm+d release is loading in this transaction.'
       USING ERRCODE = 'P0001', HINT = 'dmd:not_loading';
   END IF;
@@ -487,50 +550,43 @@ BEGIN
     RAISE EXCEPTION 'Unknown dm+d file %.', p_kind USING ERRCODE = '22023';
   END IF;
 
+  -- Every identifier this release holds, and what the load changed, noted for finish.
+  EXECUTE format('INSERT INTO pg_temp.%I (kind, id) SELECT $1, r.id '
+    'FROM jsonb_to_recordset($2) AS r(id text) ON CONFLICT DO NOTHING', v_seen)
+    USING p_kind, p_rows;
+  EXECUTE format('INSERT INTO pg_temp.%1$I AS c (key, n) VALUES ($1, $2), ($3, $4), ($5, $6) '
+    'ON CONFLICT (key) DO UPDATE SET n = c.n + EXCLUDED.n', v_counts)
+    USING p_kind || '_added', v_added, p_kind || '_changed', v_changed,
+      p_kind || '_invalidated', v_invalidated;
   RETURN jsonb_build_object('added', v_added, 'changed', v_changed,
     'invalidated', v_invalidated);
 END
 $$;
 --> statement-breakpoint
 
-CREATE FUNCTION app.dmd_finish_release(p_release uuid, p_ids jsonb, p_changes jsonb)
-  RETURNS jsonb
+CREATE FUNCTION app.dmd_finish_release(p_release uuid) RETURNS jsonb
   LANGUAGE plpgsql
   SECURITY DEFINER
-  SET search_path = pg_catalog, public
+  SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
+  v_seen text := 'dmd_seen_' || replace(p_release::text, '-', '');
+  v_counts text := 'dmd_counts_' || replace(p_release::text, '-', '');
   v_superseded integer := 0;
   v_n integer;
   v_missing text[];
   v_missing_count integer;
-  v_unknown integer;
   v_withdrawn integer;
   v_lookups_absent integer;
   v_changes jsonb;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.dmd_release WHERE id = p_release AND status = 'loading') THEN
+  IF NOT EXISTS (SELECT 1 FROM public.dmd_release WHERE id = p_release AND status = 'loading')
+     OR (SELECT count(*) FROM pg_catalog.pg_class c
+          WHERE c.relnamespace = pg_catalog.pg_my_temp_schema() AND c.relname IN (v_seen, v_counts)
+            AND c.relowner = (SELECT r.oid FROM pg_catalog.pg_roles r
+                               WHERE r.rolname = current_user)) <> 2 THEN
     RAISE EXCEPTION 'No dm+d release is loading in this transaction.'
       USING ERRCODE = 'P0001', HINT = 'dmd:not_loading';
-  END IF;
-
-  -- Every identifier the caller says the release holds was written by this load.
-  SELECT count(*) INTO v_unknown FROM (
-    SELECT jsonb_array_elements_text(p_ids -> 'vtm') EXCEPT SELECT id FROM public.dmd_vtm
-    UNION ALL
-    (SELECT jsonb_array_elements_text(p_ids -> 'vmp') EXCEPT SELECT id FROM public.dmd_vmp)
-    UNION ALL
-    (SELECT jsonb_array_elements_text(p_ids -> 'amp') EXCEPT SELECT id FROM public.dmd_amp)
-    UNION ALL
-    (SELECT jsonb_array_elements_text(p_ids -> 'vmpp') EXCEPT SELECT id FROM public.dmd_vmpp)
-    UNION ALL
-    (SELECT jsonb_array_elements_text(p_ids -> 'ampp') EXCEPT SELECT id FROM public.dmd_ampp)
-    UNION ALL
-    (SELECT jsonb_array_elements_text(p_ids -> 'gtin') EXCEPT SELECT id FROM public.dmd_gtin)
-  ) unknown;
-  IF v_unknown > 0 THEN
-    RAISE EXCEPTION 'The dm+d load names % identifiers it did not write.', v_unknown
-      USING ERRCODE = 'P0001', HINT = 'dmd:load_failed';
   END IF;
 
   -- dm+d changes an identifier by naming the old one as the new concept's previous identifier:
@@ -550,21 +606,25 @@ BEGIN
   ) SELECT count(*) INTO v_n FROM s;
   v_superseded := v_superseded + v_n;
 
-  -- Nothing disappears (rule 4): a concept in use that this release lacks, and that no concept in
-  -- it names as its previous identifier, refuses the release.
-  SELECT array_agg(id ORDER BY id), count(*) INTO v_missing, v_missing_count FROM (
-    (SELECT id FROM public.dmd_vtm WHERE superseded_by IS NULL
-     EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'vtm'))
-    UNION ALL
-    (SELECT id FROM public.dmd_vmp WHERE superseded_by IS NULL
-     EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'vmp'))
-    UNION ALL
-    (SELECT id FROM public.dmd_amp EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'amp'))
-    UNION ALL
-    (SELECT id FROM public.dmd_vmpp EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'vmpp'))
-    UNION ALL
-    (SELECT id FROM public.dmd_ampp EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'ampp'))
-  ) missing;
+  -- Nothing disappears (rule 4): a concept in use that the rows this load wrote lack, and that no
+  -- concept in it names as its previous identifier, refuses the release.
+  EXECUTE format($q$
+    SELECT array_agg(id ORDER BY id), count(*) FROM (
+      SELECT t.id FROM public.dmd_vtm t WHERE t.superseded_by IS NULL
+         AND NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'vtm' AND s.id = t.id)
+      UNION ALL
+      SELECT t.id FROM public.dmd_vmp t WHERE t.superseded_by IS NULL
+         AND NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'vmp' AND s.id = t.id)
+      UNION ALL
+      SELECT t.id FROM public.dmd_amp t
+       WHERE NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'amp' AND s.id = t.id)
+      UNION ALL
+      SELECT t.id FROM public.dmd_vmpp t
+       WHERE NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'vmpp' AND s.id = t.id)
+      UNION ALL
+      SELECT t.id FROM public.dmd_ampp t
+       WHERE NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'ampp' AND s.id = t.id)
+    ) missing $q$, v_seen) INTO v_missing, v_missing_count;
   IF v_missing_count > 0 THEN
     RAISE EXCEPTION '% dm+d concepts in use are missing from the release.', v_missing_count
       USING ERRCODE = 'P0001', HINT = 'dmd:concepts_missing',
@@ -572,18 +632,23 @@ BEGIN
   END IF;
 
   -- A GTIN mapping the release lacks is kept, withdrawn by it, and no longer matches a scan.
-  WITH w AS (
-    UPDATE public.dmd_gtin g SET withdrawn_release_id = p_release
-     WHERE g.id IN (SELECT id FROM public.dmd_gtin WHERE withdrawn_release_id IS NULL
-                    EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'gtin'))
-    RETURNING 1
-  ) SELECT count(*) INTO v_withdrawn FROM w;
+  EXECUTE format($q$
+    WITH w AS (
+      UPDATE public.dmd_gtin g SET withdrawn_release_id = $1
+       WHERE g.withdrawn_release_id IS NULL
+         AND NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'gtin' AND s.id = g.id)
+      RETURNING 1
+    ) SELECT count(*) FROM w $q$, v_seen) INTO v_withdrawn USING p_release;
 
-  SELECT count(*) INTO v_lookups_absent FROM (
-    SELECT id FROM public.dmd_lookup EXCEPT SELECT jsonb_array_elements_text(p_ids -> 'lookup')
-  ) absent;
+  EXECUTE format($q$
+    SELECT count(*) FROM public.dmd_lookup l
+     WHERE NOT EXISTS (SELECT 1 FROM pg_temp.%1$I s WHERE s.kind = 'lookup' AND s.id = l.id)
+  $q$, v_seen) INTO v_lookups_absent;
 
-  v_changes := coalesce(p_changes, '{}'::jsonb) || jsonb_build_object(
+  -- What the load changed, from the counts the loader's own calls noted.
+  EXECUTE format('SELECT coalesce(jsonb_object_agg(key, n), ''{}''::jsonb) FROM pg_temp.%I',
+    v_counts) INTO v_changes;
+  v_changes := v_changes || jsonb_build_object(
     'superseded', v_superseded, 'gtins_withdrawn', v_withdrawn,
     'lookups_absent', v_lookups_absent);
   UPDATE public.dmd_release SET status = 'loaded', finished_at = clock_timestamp(),
@@ -606,7 +671,7 @@ CREATE FUNCTION app.dmd_record_refusal(p_name text, p_released_on date, p_source
   RETURNS uuid
   LANGUAGE plpgsql
   SECURITY DEFINER
-  SET search_path = pg_catalog, public
+  SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_id uuid;
@@ -645,12 +710,19 @@ GRANT EXECUTE ON FUNCTION app.search_vector(text), app.search_terms(text), app.u
 -- Each load's outcome goes into the audit chain as a platform event (no tenant).
 GRANT INSERT ON public.audit_event TO harbour_dmd_loader;
 --> statement-breakpoint
+-- What a load wrote is noted in the loader's own temporary tables.
+DO $$
+BEGIN
+  EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO harbour_dmd_loader', current_database());
+END
+$$;
+--> statement-breakpoint
 REVOKE ALL ON FUNCTION app.dmd_begin_release(text, date, text, text, jsonb),
-  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid, jsonb, jsonb),
+  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid),
   app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.dmd_begin_release(text, date, text, text, jsonb),
-  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid, jsonb, jsonb),
+  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid),
   app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)
   TO harbour_worker;
 --> statement-breakpoint
@@ -660,7 +732,7 @@ ALTER FUNCTION app.dmd_begin_release(text, date, text, text, jsonb) OWNER TO har
 --> statement-breakpoint
 ALTER FUNCTION app.dmd_load_rows(uuid, text, jsonb) OWNER TO harbour_dmd_loader;
 --> statement-breakpoint
-ALTER FUNCTION app.dmd_finish_release(uuid, jsonb, jsonb) OWNER TO harbour_dmd_loader;
+ALTER FUNCTION app.dmd_finish_release(uuid) OWNER TO harbour_dmd_loader;
 --> statement-breakpoint
 ALTER FUNCTION app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)
   OWNER TO harbour_dmd_loader;
@@ -672,7 +744,7 @@ REVOKE CREATE ON SCHEMA app FROM harbour_dmd_loader;
 SET ROLE harbour_dmd_loader;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.dmd_begin_release(text, date, text, text, jsonb),
-  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid, jsonb, jsonb),
+  app.dmd_load_rows(uuid, text, jsonb), app.dmd_finish_release(uuid),
   app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)
   TO harbour_owner;
 --> statement-breakpoint

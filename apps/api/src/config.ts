@@ -51,6 +51,19 @@ const Env = z.object({
    * image carries no docs, so a test checks the named report exists rather than the server.
    */
   SAFETY_CASE_VERSION: z.string().trim().min(1).max(40).default("v0.0"),
+  /**
+   * The dm+d release loader's limits (ADR-0080): files and bytes in one release, read before any
+   * file is, and minutes a whole load may take. Technical bounds for a real release (H-654), not
+   * statutory figures.
+   */
+  DMD_RELEASE_MAX_FILES: z.coerce.number().int().min(7).max(1000).default(64),
+  DMD_RELEASE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024 * 1024)
+    .max(16 * 1024 ** 3)
+    .default(2 * 1024 ** 3),
+  DMD_LOAD_TIMEOUT_MINUTES: z.coerce.number().int().min(1).max(240).default(60),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */

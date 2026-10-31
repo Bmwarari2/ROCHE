@@ -15,10 +15,16 @@ import type { HealthResult } from "./ports";
 export const DMD_RELEASE_SOURCES = ["nhsbsa_trud", "fixture", "manual"] as const;
 export type DmdReleaseSourceKind = (typeof DMD_RELEASE_SOURCES)[number];
 
-/** One file of a release, as published (for example `f_vmp2_3261026.xml`). */
-export interface DmdReleaseFileContent {
+/**
+ * One file of a release, as published (for example `f_vmp2_3261026.xml`), read in chunks as the
+ * loader needs it, never whole: a real release runs to hundreds of megabytes.
+ */
+export interface DmdReleaseFileSource {
   readonly name: string;
-  readonly content: string;
+  /** Its size in bytes, checked against the loader's limits before anything is read. */
+  readonly bytes: number;
+  /** The file's text, decoded as UTF-8, in chunks; never more than `bytes`. */
+  chunks(): AsyncIterable<string>;
 }
 
 /** A release's files with its name and date, as the source publishes them. */
@@ -28,7 +34,7 @@ export interface DmdReleaseFiles {
   /** YYYY-MM-DD. */
   readonly releasedOn: string;
   readonly source: DmdReleaseSourceKind;
-  readonly files: readonly DmdReleaseFileContent[];
+  readonly files: readonly DmdReleaseFileSource[];
 }
 
 export interface DmdReleaseSourcePort {

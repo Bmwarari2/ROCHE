@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { capsuleVmp, DMD, dmdAmpp, gtin, LOOKUPS, release } from "../../test/dmd-fixtures";
 import {
   checkDmdRelease,
+  DMD_FIXTURE_ENVIRONMENTS,
   DMD_PROBLEMS_KEPT,
+  DMD_RELEASE_FUTURE_DAYS,
   DMD_SEARCH_LIMITS,
   type DmdAmp,
   type DmdAmpp,
@@ -18,9 +20,11 @@ import {
   dmdLookupKey,
   dmdProductFacts,
   dmdReleaseDateFromName,
+  dmdReleaseDateProblem,
   dmdReleaseFreshness,
   dmdReleaseOrder,
   dmdSearchQuery,
+  isDmdFixtureRelease,
   isGtin,
   toGtin14,
 } from "./dmd-release";
@@ -281,6 +285,35 @@ describe("hazard HZ-113 releases never go backwards and load once (rule 3)", () 
     ["release-2026-10-26", null],
   ])("reads the date in %s as %s", (name, date) => {
     expect(dmdReleaseDateFromName(name)).toBe(date);
+  });
+});
+
+describe("hazard HZ-113 a release dated ahead of today is refused (rule 3)", () => {
+  it.each([
+    ["today", "2026-10-31", null],
+    ["last month", "2026-09-28", null],
+    [`${DMD_RELEASE_FUTURE_DAYS} days ahead`, "2026-11-03", null],
+    [`${DMD_RELEASE_FUTURE_DAYS + 1} days ahead`, "2026-11-04", "dated_in_future"],
+    ["next year", "2027-10-31", "dated_in_future"],
+    ["an impossible date", "2026-11-31", "bad_release"],
+  ] as const)("%s", (_, releasedOn, problem) => {
+    expect(dmdReleaseDateProblem(releasedOn, "2026-10-31")).toBe(problem);
+  });
+});
+
+describe("hazard HZ-113 the invented fixture is known by its source or its name", () => {
+  it.each([
+    [{ name: "fixture_dmd_1.0.0_20261026000001", source: "fixture" }, true],
+    [{ name: "fixture_dmd_1.0.0_20261026000001", source: "manual" }, true],
+    [{ name: "nhsbsa_dmd_10.1.0_20261026000001", source: "fixture" }, true],
+    [{ name: "nhsbsa_dmd_10.1.0_20261026000001", source: "nhsbsa_trud" }, false],
+    [{ name: "nhsbsa_dmd_fixture_20261026000001", source: "manual" }, false],
+  ])("%j: %s", (release, fixture) => {
+    expect(isDmdFixtureRelease(release)).toBe(fixture);
+  });
+
+  it("is accepted only by development and test databases", () => {
+    expect([...DMD_FIXTURE_ENVIRONMENTS]).toEqual(["dev", "test"]);
   });
 });
 

@@ -147,6 +147,10 @@ export type DmdReleaseProblemCode =
   | "bad_quantity"
   | "empty_name"
   | "older_than_current"
+  | "dated_in_future"
+  | "fixture_not_allowed"
+  | "too_large"
+  | "timed_out"
   | "concepts_missing"
   | "load_failed";
 
@@ -163,6 +167,9 @@ export const DMD_PROBLEMS_KEPT = 50;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DECIMAL = /^\d{1,9}(\.\d{1,6})?$/;
+
+/** Whole days since 1970 of a YYYY-MM-DD date, for counting days between UK dates. */
+const dayNumber = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
 
 /** True when a value is a real calendar date written YYYY-MM-DD. */
 function isRealDate(value: string): boolean {
@@ -449,6 +456,38 @@ export function dmdReleaseOrder(
 }
 
 /**
+ * How far ahead of today's UK date a release may be dated: the NHSBSA dates a release on or just
+ * before its publication, so anything later is a wrong date, not an early release (HZ-113).
+ */
+export const DMD_RELEASE_FUTURE_DAYS = 3;
+
+/** Why a release's date cannot be right on today's UK date, or null. */
+export function dmdReleaseDateProblem(
+  releasedOn: string,
+  todayUk: string,
+): DmdReleaseProblemCode | null {
+  if (!isRealDate(releasedOn)) return "bad_release";
+  return dayNumber(releasedOn) - dayNumber(todayUk) > DMD_RELEASE_FUTURE_DAYS
+    ? "dated_in_future"
+    : null;
+}
+
+/**
+ * True when a release is the invented fixture: loaded only into a database marked for development
+ * or tests, never where real people work (ADR-0080, HZ-113). Fixture releases are named
+ * `fixture_...`, whatever source they are loaded as.
+ */
+export function isDmdFixtureRelease(release: {
+  readonly name: string;
+  readonly source: string;
+}): boolean {
+  return release.source === "fixture" || release.name.startsWith("fixture_");
+}
+
+/** The kinds of database that accept the invented fixture (`app.database_environment`). */
+export const DMD_FIXTURE_ENVIRONMENTS: readonly string[] = ["dev", "test"];
+
+/**
  * The release date in an NHSBSA release name (`nhsbsa_dmd_10.1.0_20261026000001` gives
  * 2026-10-26), or null when the name does not carry one.
  */
@@ -468,8 +507,6 @@ export interface DmdFreshness {
   /** Plain English for the screen, with the release date (dd/mm/yyyy). */
   readonly message: string;
 }
-
-const dayNumber = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
 
 /** dd/mm/yyyy, as every Harbour screen writes a date. */
 function ukDisplayDate(iso: string): string {

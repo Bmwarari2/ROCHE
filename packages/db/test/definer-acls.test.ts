@@ -53,7 +53,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // manual run by the owner; never the application.
   "app.dmd_begin_release(text, date, text, text, jsonb)": ["harbour_owner", "harbour_worker"],
   "app.dmd_load_rows(uuid, text, jsonb)": ["harbour_owner", "harbour_worker"],
-  "app.dmd_finish_release(uuid, jsonb, jsonb)": ["harbour_owner", "harbour_worker"],
+  "app.dmd_finish_release(uuid)": ["harbour_owner", "harbour_worker"],
   "app.dmd_record_refusal(text, date, text, text, text, jsonb, jsonb, integer)": [
     "harbour_owner",
     "harbour_worker",

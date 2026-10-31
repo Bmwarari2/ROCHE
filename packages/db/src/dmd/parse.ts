@@ -63,78 +63,99 @@ interface RecordSpec {
 
 class DmdXmlError extends Error {}
 
-/** Reads the records of one file. Fields are the text of a record's leaf elements. */
-function readRecords<K extends string>(
-  xml: string,
-  root: string,
-  specs: Record<K, RecordSpec>,
-): Record<K, RawRecord[]> {
-  const keys = Object.keys(specs) as K[];
-  const out = Object.fromEntries(keys.map((k) => [k, [] as RawRecord[]])) as Record<K, RawRecord[]>;
-  const parser = new SaxesParser({ position: true });
-  const stack: string[] = [];
-  let current: { key: K; depth: number; record: RawRecord } | null = null;
-  let group: { depth: number; record: RawRecord } | null = null;
-  let text = "";
-  let sawRoot = false;
-  const setField = (record: RawRecord, name: string, value: string) => {
-    if (!record.fields.has(name)) record.fields.set(name, value.trim());
-  };
+/**
+ * Reads the records of one file as its chunks arrive. Fields are the text of a record's leaf
+ * elements; text outside a record is never kept.
+ */
+class RecordReader<K extends string> {
+  private readonly parser = new SaxesParser({ position: true });
+  private readonly keys: K[];
+  private readonly out: Record<K, RawRecord[]>;
+  private readonly stack: string[] = [];
+  private current: { key: K; depth: number; record: RawRecord } | null = null;
+  private group: { depth: number; record: RawRecord } | null = null;
+  private text = "";
+  private sawRoot = false;
 
-  parser.on("doctype", () => {
-    throw new DmdXmlError("A document type declaration is not allowed.");
-  });
-  parser.on("opentag", (tag) => {
-    if (stack.length === 0) {
-      if (tag.name !== root) throw new DmdXmlError(`Expected <${root}>, found <${tag.name}>.`);
-      sawRoot = true;
+  constructor(
+    private readonly root: string,
+    private readonly specs: Record<K, RecordSpec>,
+  ) {
+    this.keys = Object.keys(specs) as K[];
+    this.out = Object.fromEntries(this.keys.map((k) => [k, [] as RawRecord[]])) as Record<
+      K,
+      RawRecord[]
+    >;
+    this.parser.on("doctype", () => {
+      throw new DmdXmlError("A document type declaration is not allowed.");
+    });
+    this.parser.on("opentag", (tag) => this.open(tag.name));
+    this.parser.on("text", (t) => {
+      if (this.current !== null) this.text += t;
+    });
+    this.parser.on("cdata", (t) => {
+      if (this.current !== null) this.text += t;
+    });
+    this.parser.on("closetag", (tag) => this.close(tag.name));
+  }
+
+  private open(name: string): void {
+    if (this.stack.length === 0) {
+      if (name !== this.root) throw new DmdXmlError(`Expected <${this.root}>, found <${name}>.`);
+      this.sawRoot = true;
     }
-    stack.push(tag.name);
-    text = "";
-    const depth = stack.length - 1;
-    if (current === null) {
-      for (const key of keys) {
-        const { path } = specs[key];
-        if (path.length === depth && path.every((p, i) => stack[i + 1] === p)) {
-          current = { key, depth, record: { fields: new Map(), groups: [] } };
+    this.stack.push(name);
+    this.text = "";
+    const depth = this.stack.length - 1;
+    if (this.current === null) {
+      for (const key of this.keys) {
+        const { path } = this.specs[key];
+        if (path.length === depth && path.every((p, i) => this.stack[i + 1] === p)) {
+          this.current = { key, depth, record: { fields: new Map(), groups: [] } };
           break;
         }
       }
     } else if (
-      group === null &&
-      depth === current.depth + 1 &&
-      specs[current.key].group === tag.name
+      this.group === null &&
+      depth === this.current.depth + 1 &&
+      this.specs[this.current.key].group === name
     ) {
-      group = { depth, record: { fields: new Map(), groups: [] } };
+      this.group = { depth, record: { fields: new Map(), groups: [] } };
     }
-  });
-  parser.on("text", (t) => {
-    text += t;
-  });
-  parser.on("cdata", (t) => {
-    text += t;
-  });
-  parser.on("closetag", (tag) => {
-    const depth = stack.length - 1;
+  }
+
+  private close(name: string): void {
+    const depth = this.stack.length - 1;
+    const setField = (record: RawRecord) => {
+      if (!record.fields.has(name)) record.fields.set(name, this.text.trim());
+    };
+    const current = this.current;
     if (current !== null) {
-      if (group !== null) {
-        if (depth === group.depth + 1) setField(group.record, tag.name, text);
-        else if (depth === group.depth) {
-          current.record.groups.push(group.record);
-          group = null;
+      if (this.group !== null) {
+        if (depth === this.group.depth + 1) setField(this.group.record);
+        else if (depth === this.group.depth) {
+          current.record.groups.push(this.group.record);
+          this.group = null;
         }
-      } else if (depth === current.depth + 1) setField(current.record, tag.name, text);
+      } else if (depth === current.depth + 1) setField(current.record);
       else if (depth === current.depth) {
-        out[current.key].push(current.record);
-        current = null;
+        this.out[current.key].push(current.record);
+        this.current = null;
       }
     }
-    stack.pop();
-    text = "";
-  });
-  parser.write(xml).close();
-  if (!sawRoot) throw new DmdXmlError(`No <${root}> element.`);
-  return out;
+    this.stack.pop();
+    this.text = "";
+  }
+
+  write(chunk: string): void {
+    this.parser.write(chunk);
+  }
+
+  end(): Record<K, RawRecord[]> {
+    this.parser.close();
+    if (!this.sawRoot) throw new DmdXmlError(`No <${this.root}> element.`);
+    return this.out;
+  }
 }
 
 const value = (r: RawRecord, name: string): string | null => {
@@ -162,11 +183,27 @@ const unique = (values: readonly (string | null)[]): string[] => [
   ...new Set(values.filter((v): v is string => v !== null)),
 ];
 
-function readLookups(xml: string): DmdLookupEntry[] {
-  const specs = Object.fromEntries(
-    Object.keys(LOOKUP_SECTIONS).map((s) => [s, { path: [s, "INFO"] }]),
-  ) as Record<string, RecordSpec>;
-  const records = readRecords(xml, ROOTS.lookup, specs);
+/** The records each file is read for. */
+const SPECS: Record<DmdReleaseFile, Record<string, RecordSpec>> = {
+  lookup: Object.fromEntries(Object.keys(LOOKUP_SECTIONS).map((s) => [s, { path: [s, "INFO"] }])),
+  vtm: { vtm: { path: ["VTM"] } },
+  vmp: {
+    vmp: { path: ["VMPS", "VMP"] },
+    vpi: { path: ["VIRTUAL_PRODUCT_INGREDIENT", "VPI"] },
+    form: { path: ["DRUG_FORM", "DFORM"] },
+    route: { path: ["DRUG_ROUTE", "DROUTE"] },
+    control: { path: ["CONTROL_DRUG_INFO", "CONTROL_INFO"] },
+  },
+  amp: { amp: { path: ["AMPS", "AMP"] }, route: { path: ["LICENSED_ROUTE", "LIC_ROUTE"] } },
+  vmpp: { vmpp: { path: ["VMPPS", "VMPP"] } },
+  ampp: { ampp: { path: ["AMPPS", "AMPP"] } },
+  gtin: { ampp: { path: ["AMPPS", "AMPP"], group: "GTINDATA" } },
+};
+
+type Records = Record<string, RawRecord[]>;
+const of = (records: Records, key: string): RawRecord[] => records[key] ?? [];
+
+function readLookups(records: Records): DmdLookupEntry[] {
   return Object.entries(LOOKUP_SECTIONS).flatMap(([section, kind]) =>
     (records[section] ?? []).map((r) => ({
       kind,
@@ -177,8 +214,8 @@ function readLookups(xml: string): DmdLookupEntry[] {
   );
 }
 
-function readVtms(xml: string): DmdVtm[] {
-  return readRecords(xml, ROOTS.vtm, { vtm: { path: ["VTM"] } }).vtm.map((r) => ({
+function readVtms(records: Records): DmdVtm[] {
+  return of(records, "vtm").map((r) => ({
     id: required(r, "VTMID"),
     name: required(r, "NM"),
     abbreviatedName: value(r, "ABBREVNM"),
@@ -187,19 +224,13 @@ function readVtms(xml: string): DmdVtm[] {
   }));
 }
 
-function readVmps(xml: string, problems: DmdReleaseProblem[]): DmdVmp[] {
-  const r = readRecords(xml, ROOTS.vmp, {
-    vmp: { path: ["VMPS", "VMP"] },
-    vpi: { path: ["VIRTUAL_PRODUCT_INGREDIENT", "VPI"] },
-    form: { path: ["DRUG_FORM", "DFORM"] },
-    route: { path: ["DRUG_ROUTE", "DROUTE"] },
-    control: { path: ["CONTROL_DRUG_INFO", "CONTROL_INFO"] },
-  });
-  const vpis = groupBy(r.vpi, "VPID");
-  const forms = groupBy(r.form, "VPID");
-  const routes = groupBy(r.route, "VPID");
-  const controls = groupBy(r.control, "VPID");
-  const ids = new Set(r.vmp.map((v) => required(v, "VPID")));
+function readVmps(records: Records, problems: DmdReleaseProblem[]): DmdVmp[] {
+  const vmps = of(records, "vmp");
+  const vpis = groupBy(of(records, "vpi"), "VPID");
+  const forms = groupBy(of(records, "form"), "VPID");
+  const routes = groupBy(of(records, "route"), "VPID");
+  const controls = groupBy(of(records, "control"), "VPID");
+  const ids = new Set(vmps.map((v) => required(v, "VPID")));
   for (const [section, rows] of [
     ["VIRTUAL_PRODUCT_INGREDIENT", vpis],
     ["DRUG_FORM", forms],
@@ -217,7 +248,7 @@ function readVmps(xml: string, problems: DmdReleaseProblem[]): DmdVmp[] {
       }
     }
   }
-  return r.vmp.map((v) => {
+  return vmps.map((v) => {
     const id = required(v, "VPID");
     return {
       id,
@@ -237,13 +268,10 @@ function readVmps(xml: string, problems: DmdReleaseProblem[]): DmdVmp[] {
   });
 }
 
-function readAmps(xml: string, problems: DmdReleaseProblem[]): DmdAmp[] {
-  const r = readRecords(xml, ROOTS.amp, {
-    amp: { path: ["AMPS", "AMP"] },
-    route: { path: ["LICENSED_ROUTE", "LIC_ROUTE"] },
-  });
-  const routes = groupBy(r.route, "APID");
-  const ids = new Set(r.amp.map((a) => required(a, "APID")));
+function readAmps(records: Records, problems: DmdReleaseProblem[]): DmdAmp[] {
+  const amps = of(records, "amp");
+  const routes = groupBy(of(records, "route"), "APID");
+  const ids = new Set(amps.map((a) => required(a, "APID")));
   for (const id of routes.keys()) {
     if (!ids.has(id)) {
       problems.push({
@@ -254,7 +282,7 @@ function readAmps(xml: string, problems: DmdReleaseProblem[]): DmdAmp[] {
       });
     }
   }
-  return r.amp.map((a) => {
+  return amps.map((a) => {
     const id = required(a, "APID");
     return {
       id,
@@ -268,8 +296,8 @@ function readAmps(xml: string, problems: DmdReleaseProblem[]): DmdAmp[] {
   });
 }
 
-function readVmpps(xml: string): DmdVmpp[] {
-  return readRecords(xml, ROOTS.vmpp, { vmpp: { path: ["VMPPS", "VMPP"] } }).vmpp.map((r) => ({
+function readVmpps(records: Records): DmdVmpp[] {
+  return of(records, "vmpp").map((r) => ({
     id: required(r, "VPPID"),
     vmpId: required(r, "VPID"),
     name: required(r, "NM"),
@@ -279,8 +307,8 @@ function readVmpps(xml: string): DmdVmpp[] {
   }));
 }
 
-function readAmpps(xml: string): DmdAmpp[] {
-  return readRecords(xml, ROOTS.ampp, { ampp: { path: ["AMPPS", "AMPP"] } }).ampp.map((r) => ({
+function readAmpps(records: Records): DmdAmpp[] {
+  return of(records, "ampp").map((r) => ({
     id: required(r, "APPID"),
     vmppId: required(r, "VPPID"),
     ampId: required(r, "APID"),
@@ -293,11 +321,8 @@ function readAmpps(xml: string): DmdAmpp[] {
   }));
 }
 
-function readGtins(xml: string): DmdGtin[] {
-  const records = readRecords(xml, ROOTS.gtin, {
-    ampp: { path: ["AMPPS", "AMPP"], group: "GTINDATA" },
-  });
-  return records.ampp.flatMap((r) =>
+function readGtins(records: Records): DmdGtin[] {
+  return of(records, "ampp").flatMap((r) =>
     r.groups.map((g) => {
       const raw = required(g, "GTIN");
       return {
@@ -312,32 +337,59 @@ function readGtins(xml: string): DmdGtin[] {
 }
 
 export interface ParsedDmdRelease {
-  /** Null when a file is missing or unreadable. */
+  /** Null when a file is missing, repeated or unreadable, or the release is too large. */
   readonly content: DmdReleaseContent | null;
   readonly problems: readonly DmdReleaseProblem[];
   readonly problemCount: number;
   /** Records read per file, and the files ignored (not ones Harbour reads). */
   readonly fileCounts: Readonly<Record<string, number>>;
-  /** SHA-256 over every file's name and content, in name order. */
-  readonly checksum: string;
+  /** SHA-256 over every file's name and content, in name order; null when not read. */
+  readonly checksum: string | null;
 }
 
-/** SHA-256 over the files, in name order: the same files always give the same checksum. */
-export function dmdReleaseChecksum(files: DmdReleaseFiles["files"]): string {
-  const hash = createHash("sha256");
-  for (const f of [...files].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
-    hash.update(f.name).update("\0").update(f.content).update("\0");
+/** The load ran past its time limit (`DmdLoadLimits.timeoutMs`). */
+export class DmdLoadTimeout extends Error {
+  constructor() {
+    super("The dm+d load took longer than its time limit.");
+    this.name = "DmdLoadTimeout";
   }
-  return hash.digest("hex");
 }
+
+export interface DmdParseLimits {
+  readonly maxFiles: number;
+  readonly maxBytes: number;
+  /** `Date.now()` past which the parse stops with `DmdLoadTimeout`. */
+  readonly deadline: number;
+}
+
+/** Lets the event loop run other work (the worker's other queues) between chunks. */
+const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 /**
- * Reads a release's files. Problems here (a file missing, repeated or unreadable, a section naming
- * a product the file does not hold) refuse the release before `checkDmdRelease` runs.
+ * Reads a release's files in name order, each streamed through its XML reader a chunk at a time,
+ * never whole, and checks the limits first: more files or bytes than allowed refuse the release
+ * before anything is read (`too_large`). The checksum (SHA-256 over every file's name and content,
+ * in name order) is taken as the chunks pass. Problems here (a file missing, repeated or
+ * unreadable, a section naming a product the file does not hold) refuse the release before
+ * `checkDmdRelease` runs. Throws `DmdLoadTimeout` past the deadline.
  */
-export function parseDmdRelease(release: DmdReleaseFiles): ParsedDmdRelease {
+export async function parseDmdRelease(
+  release: DmdReleaseFiles,
+  limits: DmdParseLimits,
+): Promise<ParsedDmdRelease> {
   const problems: DmdReleaseProblem[] = [];
-  const byKind = new Map<DmdReleaseFile, string>();
+  const bytes = release.files.reduce((sum, f) => sum + f.bytes, 0);
+  if (release.files.length > limits.maxFiles || bytes > limits.maxBytes) {
+    const problem: DmdReleaseProblem = {
+      code: "too_large",
+      file: null,
+      id: null,
+      message: `The release has ${release.files.length} files and ${bytes} bytes; at most ${limits.maxFiles} files and ${limits.maxBytes} bytes are read.`,
+    };
+    return { content: null, problems: [problem], problemCount: 1, fileCounts: {}, checksum: null };
+  }
+
+  const kindOf = new Map<string, DmdReleaseFile>();
   let ignored = 0;
   for (const file of release.files) {
     const match = FILE_NAME.exec(file.name);
@@ -346,18 +398,19 @@ export function parseDmdRelease(release: DmdReleaseFiles): ParsedDmdRelease {
       continue;
     }
     const kind = match[1] as DmdReleaseFile;
-    if (byKind.has(kind)) {
+    if ([...kindOf.values()].includes(kind)) {
       problems.push({
         code: "file_repeated",
         file: kind,
         id: null,
         message: `The release has more than one ${kind} file.`,
       });
+      continue;
     }
-    byKind.set(kind, file.content);
+    kindOf.set(file.name, kind);
   }
   for (const kind of DMD_RELEASE_FILES) {
-    if (!byKind.has(kind)) {
+    if (![...kindOf.values()].includes(kind)) {
       problems.push({
         code: "file_missing",
         file: kind,
@@ -367,31 +420,70 @@ export function parseDmdRelease(release: DmdReleaseFiles): ParsedDmdRelease {
     }
   }
 
-  const read = <T>(kind: DmdReleaseFile, fn: (xml: string) => T[]): T[] => {
-    const xml = byKind.get(kind);
-    if (xml === undefined) return [];
+  const records = new Map<DmdReleaseFile, Records>();
+  const hash = createHash("sha256");
+  const ordered = [...release.files].sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  );
+  for (const file of ordered) {
+    hash.update(file.name).update("\0");
+    const kind = kindOf.get(file.name);
+    const reader = kind === undefined ? null : new RecordReader(ROOTS[kind], SPECS[kind]);
+    let failed: string | null = null;
     try {
-      return fn(xml);
+      for await (const chunk of file.chunks()) {
+        if (Date.now() >= limits.deadline) throw new DmdLoadTimeout();
+        hash.update(chunk);
+        if (reader !== null && failed === null) {
+          try {
+            reader.write(chunk);
+          } catch (error) {
+            failed = (error as Error).message;
+          }
+        }
+        await yieldToEventLoop();
+      }
     } catch (error) {
+      // A file that is not UTF-8, or grows while it is read, is unreadable: the release is refused.
+      if (error instanceof DmdLoadTimeout) throw error;
+      problems.push({
+        code: "unreadable_xml",
+        file: kind ?? null,
+        id: null,
+        message: `${file.name} could not be read: ${(error as Error).message}`.slice(0, 300),
+      });
+      continue;
+    }
+    hash.update("\0");
+    if (kind === undefined || reader === null) continue;
+    if (failed === null) {
+      try {
+        records.set(kind, reader.end());
+      } catch (error) {
+        failed = (error as Error).message;
+      }
+    }
+    if (failed !== null) {
       problems.push({
         code: "unreadable_xml",
         file: kind,
         id: null,
-        message: `The ${kind} file is not readable dm+d XML: ${(error as Error).message}`.slice(
-          0,
-          300,
-        ),
+        message: `The ${kind} file is not readable dm+d XML: ${failed}`.slice(0, 300),
       });
-      return [];
     }
+  }
+
+  const take = <T>(kind: DmdReleaseFile, fn: (r: Records) => T[]): T[] => {
+    const found = records.get(kind);
+    return found === undefined ? [] : fn(found);
   };
-  const lookups = read("lookup", readLookups);
-  const vtms = read("vtm", readVtms);
-  const vmps = read("vmp", (xml) => readVmps(xml, problems));
-  const amps = read("amp", (xml) => readAmps(xml, problems));
-  const vmpps = read("vmpp", readVmpps);
-  const ampps = read("ampp", readAmpps);
-  const gtins = read("gtin", readGtins);
+  const lookups = take("lookup", readLookups);
+  const vtms = take("vtm", readVtms);
+  const vmps = take("vmp", (r) => readVmps(r, problems));
+  const amps = take("amp", (r) => readAmps(r, problems));
+  const vmpps = take("vmpp", readVmpps);
+  const ampps = take("ampp", readAmpps);
+  const gtins = take("gtin", readGtins);
 
   const fileCounts = {
     lookup: lookups.length,
@@ -403,7 +495,6 @@ export function parseDmdRelease(release: DmdReleaseFiles): ParsedDmdRelease {
     gtin: gtins.length,
     ignored,
   };
-  const checksum = dmdReleaseChecksum(release.files);
   const blocked = problems.some(
     (p) => p.code === "file_missing" || p.code === "unreadable_xml" || p.code === "file_repeated",
   );
@@ -424,6 +515,6 @@ export function parseDmdRelease(release: DmdReleaseFiles): ParsedDmdRelease {
     problems: problems.slice(0, DMD_PROBLEMS_KEPT),
     problemCount: problems.length,
     fileCounts,
-    checksum,
+    checksum: hash.digest("hex"),
   };
 }
