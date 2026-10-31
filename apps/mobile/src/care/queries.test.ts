@@ -394,6 +394,12 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
       all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [DEMO_TENANT_ID, "t-x"])[0]?.count,
     ).toBe(1);
     expect(all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [OTHER, "t-x"])[0]?.count).toBe(0);
+    // A sync replaces the entry with the server's copy, which never carries task_id: the count
+    // drops to 0, so answered-tasks.ts keeps the answer (#123 clinical review, M1).
+    db.prepare("UPDATE care_note SET task_id = NULL WHERE id = 'n-x'").run();
+    expect(
+      all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [DEMO_TENANT_ID, "t-x"])[0]?.count,
+    ).toBe(0);
     db.prepare("DELETE FROM care_note WHERE id = 'n-x'").run();
   });
 });

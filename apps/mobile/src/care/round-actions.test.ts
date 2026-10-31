@@ -168,10 +168,18 @@ describe("moving a task on the phone (the API's own transition rules)", () => {
       "mobile.round.personUnknown",
     ],
     [
+      // Refused whoever it is given to: never marked without the person's header (#123 clinical
+      // review, M2).
       "a task given to the carer about a person whose row is not here yet",
       { assignee_tenant_user_id: "user-carer" },
       { personLocationId: null },
-      null,
+      "mobile.round.personUnknown",
+    ],
+    [
+      "a medicines task, before eMAR (#123 clinical review, L10)",
+      { assignee_tenant_user_id: "user-carer", kind: "medicines.administration" },
+      {},
+      "mobile.round.medicinesOnWeb",
     ],
   ] as const)(
     "hazard HZ-006 moves a task only where the server would take it: %s (#36 review round 1, M1)",

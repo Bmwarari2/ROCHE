@@ -255,6 +255,11 @@ export interface HandoverAlertSource {
    * result (`news2_threshold`, `iddsi_unsafe_level` and the other IDDSI codes).
    */
   readonly reason?: string;
+  /**
+   * For a NEWS2 alert, the score and band of the observation that raised it, so the item says
+   * what was found, not that it "needs a response now" (#123 clinical review, M6).
+   */
+  readonly news2?: { readonly score: number; readonly band: string };
   readonly personId: string | null;
   readonly severity: Severity;
   readonly createdAt: Date;
@@ -447,6 +452,11 @@ export function compileHandover(
         // and never changes, so that would soon be untrue (#50 review round 1, clinical M1).
         alert: alertSummaryCode(alert.kind),
         reason: alertSummaryCode(alert.reason),
+        // The score and band found, as published, never "needs a response now", which an item
+        // compiled once would keep saying (#123 clinical review, M6).
+        ...(alert.news2
+          ? { scored: "yes", score: alert.news2.score, band: alert.news2.band }
+          : { scored: "no" }),
       });
     }
   }
@@ -616,6 +626,8 @@ export interface AlertNotification {
   readonly acknowledgedAt: Date | null;
   /** Why it was raised, when the source says (`HandoverAlertSource.reason`). */
   readonly reason?: string;
+  /** For a NEWS2 alert, the observation's score and band (`HandoverAlertSource.news2`). */
+  readonly news2?: { readonly score: number; readonly band: string };
 }
 
 /**
@@ -645,6 +657,25 @@ export const ALERT_REASON_CODES = [
  * The trigger code of a care result from its observation's stored flags: an IDDSI alert by its
  * problem, otherwise a NEWS2 threshold; undefined when the flags say neither.
  */
+/** NEWS2 bands as stored on an observation's flags (`news2.band`). */
+const NEWS2_BANDS: ReadonlySet<string> = new Set(["low", "low_medium", "medium", "high"]);
+
+/** The NEWS2 score and band an observation's flags hold, when both are readable. */
+export function alertNews2FromFlags(
+  flags: unknown,
+): { readonly score: number; readonly band: string } | undefined {
+  if (typeof flags !== "object" || flags === null) return undefined;
+  const news2 = (flags as { news2?: unknown }).news2;
+  if (typeof news2 !== "object" || news2 === null) return undefined;
+  const { score, band } = news2 as { score?: unknown; band?: unknown };
+  return typeof score === "number" &&
+    Number.isInteger(score) &&
+    typeof band === "string" &&
+    NEWS2_BANDS.has(band)
+    ? { score, band }
+    : undefined;
+}
+
 export function alertReasonFromFlags(flags: unknown): string | undefined {
   if (typeof flags !== "object" || flags === null) return undefined;
   const f = flags as { iddsiAlert?: unknown; iddsiProblem?: unknown; news2?: unknown };
@@ -684,10 +715,12 @@ export function alertConditions(rows: readonly AlertNotification[]): HandoverAle
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime());
     const reason = copies.find((c) => c.reason)?.reason;
+    const news2 = copies.find((c) => c.news2)?.news2;
     alerts.push({
       id: first.id,
       kind: first.kind,
       ...(reason ? { reason } : {}),
+      ...(news2 ? { news2 } : {}),
       personId: copies.find((c) => c.personId !== null)?.personId ?? null,
       severity: copies.some((c) => c.severity === "urgent") ? "urgent" : first.severity,
       createdAt: first.createdAt,

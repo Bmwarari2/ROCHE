@@ -14,6 +14,7 @@ import {
 } from "react";
 import { AuthError, type Me, parseMe } from "../auth/auth-client";
 import { authClient, platformFetch } from "../auth/clients";
+import { forgetAnswered } from "../care/answered-tasks";
 import { appEnv } from "../config/app-env";
 import {
   DEVICE_ID_ITEM,
@@ -198,6 +199,7 @@ export function SessionProvider({ children }: { readonly children: ReactNode }) 
       deletePlain(ME_ITEM),
       deletePlain(MODE_ITEM),
       clearWriteScope(),
+      Promise.resolve(forgetAnswered()),
     ]);
     setToken(null);
     setMe(null);

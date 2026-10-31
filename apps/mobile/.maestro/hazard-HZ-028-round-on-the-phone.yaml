@@ -40,9 +40,9 @@ env:
     timeout: 30000
 - setAirplaneMode: enabled
 # By the button's accessible name (Maestro's text matches the content description), which
-# names the task: "Mark Reposition done".
+# names the task and the person: "Mark Reposition done, for Ada Example".
 - tapOn:
-    text: "Mark ${HARBOUR_ROUND_TASK} done"
+    text: "Mark ${HARBOUR_ROUND_TASK} done.*"
 - extendedWaitUntil:
     visible:
       text: "Waiting to upload"

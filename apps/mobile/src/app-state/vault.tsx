@@ -111,6 +111,7 @@ import {
   readCachedHeldMaxDays,
   resolveHeldMaxDays,
 } from "../sync/held-limit";
+import { writeCachedOfflineDays } from "../sync/offline-days";
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import { setWriteScope } from "../sync/write-scope-store";
@@ -693,6 +694,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           },
           // Where the phone may record, from each token (review round 2, C2-M3).
           onWriteScope: setWriteScope,
+          // The window's days as the token gave them, for what the round says it holds (M4).
+          onOfflineDays: (days) => {
+            if (days) void writeCachedOfflineDays(opened, days).catch(() => undefined);
+          },
         });
         connectorRef.current = connector;
         connectSync(opened, connector).catch(() => undefined);
