@@ -33,11 +33,6 @@ interface StoredContent {
   readonly locationName: string;
   readonly pages: readonly Json<DowntimePersonPage>[];
   readonly warnings: readonly DowntimeWarning[];
-  /**
-   * Whether the location's paper MAR and PEEP places were confirmed when the pack was built;
-   * absent on a pack stored before it was kept (H-213).
-   */
-  readonly placesConfirmed?: boolean;
 }
 
 /**
@@ -203,9 +198,15 @@ function personLines(page: Json<DowntimePersonPage>): PdfLine[] {
 export function renderDowntimePackPdf(
   content: StoredContent,
   header: readonly string[],
+  /**
+   * Whether the location's paper MAR and PEEP places are confirmed (`downtime_places_confirmed_at`
+   * set). A change to the places builds the pack again, so the pages agree with it unless that
+   * build failed, which the header then says. Unconfirmed when not given (H-213).
+   */
+  options: { readonly placesConfirmed: boolean } = { placesConfirmed: false },
 ): Uint8Array {
   const names = new Map(content.pages.map((p) => [p.personId, printedName(p)]));
-  const placesWarning = content.placesConfirmed === false;
+  const placesWarning = !options.placesConfirmed;
   const front: PdfLine[] = [
     { text: `Downtime pack: ${content.locationName}`, bold: true, size: 14 },
     {

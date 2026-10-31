@@ -387,9 +387,7 @@ export async function buildDowntimePack(
       asAt: pack.asAt,
       validUntil: pack.validUntil,
       generatedBy: input.generatedBy,
-      // Whether the MAR and PEEP places were confirmed when it was built, for the front sheet's
-      // warning (H-213); a change to the places builds the pack again (`sourcesChangedSince`).
-      content: { ...JSON.parse(JSON.stringify(pack)), placesConfirmed: place.confirmedAt !== null },
+      content: JSON.parse(JSON.stringify(pack)),
       warnings: warningCounts(pack),
     })
     .returning();

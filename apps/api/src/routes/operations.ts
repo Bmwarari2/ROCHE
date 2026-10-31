@@ -114,6 +114,8 @@ export interface Read {
   readonly rebuildFailed: boolean;
   readonly header: readonly string[];
   readonly freshness: ReturnType<typeof downtimePackFreshness>;
+  /** The location's paper MAR and PEEP places are confirmed (H-213). */
+  readonly placesConfirmed: boolean;
 }
 
 /** The pack the reader gets now, built when none serves, with its words worked out now. */
@@ -210,6 +212,7 @@ export async function readPack(
       rebuildFailed,
       header,
       freshness: downtimePackFreshness(pack, now, context),
+      placesConfirmed: place.confirmedAt !== null,
     };
   });
 }
@@ -281,6 +284,7 @@ export const operationsRouter = createRouter()
       const bytes = renderDowntimePackPdf(
         read.row.content as Parameters<typeof renderDowntimePackPdf>[0],
         read.header,
+        { placesConfirmed: read.placesConfirmed },
       );
       // Printed only once the PDF is drawn (#46 review round 1).
       await writeAudit(c.get("services").appPool, access, {

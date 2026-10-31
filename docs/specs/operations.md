@@ -443,7 +443,8 @@ Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`)
   says photos are not printed. While the location's paper MAR and PEEP places are unconfirmed, the
   front sheet also says so once, first among the safety-critical warnings ("Where the paper MAR and
   the PEEPs are kept is not confirmed in Harbour: ask the nurse in charge before you need them.";
-  the stored pack keeps `placesConfirmed`; recommended answer to H-213, 31/10/2026). When an ADRT is held, the resuscitation section prints "ADRT also
+  read from the location when the pack is printed, since a change to the places builds the pack
+  again; recommended answer to H-213, 31/10/2026). When an ADRT is held, the resuscitation section prints "ADRT also
   held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
   reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
   change (HZ-009). "1 person" is singular.
