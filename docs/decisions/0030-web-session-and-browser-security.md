@@ -49,7 +49,12 @@ Together with it:
 3. **Reaching the API.** Pages and server actions call the API from the web server with the
    person's cookie. The browser reaches only `/api/auth/*`, passed through by a route handler that
    reads the API address when the server starts (`API_BASE_URL` or `API_URL`), so one image serves
-   every environment. `/v1` is not reachable from the browser origin.
+   every environment, and three route handlers of the web's own that call the API on the
+   person's behalf: the invitation lookup and acceptance (`/api/invitations/*`, POST, JSON) and the
+   organisation document upload (`/api/documents/upload`, a PDF body streamed to the API with the
+   title and file name in percent-encoded headers, never the address). Each takes posts from this
+   site only, judged against `PUBLIC_WEB_URL` and never against request headers, as Next.js
+   judges server actions. `/v1` is not reachable from the browser origin.
 4. **Content Security Policy.** `src/proxy.ts` sets a fresh 128-bit nonce per page with
    `'strict-dynamic'`; no `unsafe-inline` scripts; `unsafe-eval` only in development. Styles allow
    inline attributes because Radix positions menus with them. Every page renders dynamically so
