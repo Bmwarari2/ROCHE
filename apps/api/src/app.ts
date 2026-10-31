@@ -15,7 +15,7 @@ import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
-import { idleErrorLogger, type Logger } from "./logger";
+import { idleErrorLogger, type Logger, loggableError } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -304,11 +304,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }
       return response;
     }
-    // Opaque identifiers only: the error message may contain data, so log its name and stack.
-    logger.error(
-      { requestId: c.get("requestId"), err: { name: error.name, stack: error.stack } },
-      "request failed",
-    );
+    // Opaque identifiers only (section 5.3). The message, and the stack's first line that repeats
+    // it, may hold data: a database error's message holds the query and its values (names, dates
+    // of birth). So only the error's kind, the database's code and the stack's frames are logged.
+    logger.error({ requestId: c.get("requestId"), err: loggableError(error) }, "request failed");
     return problemResponse(
       c,
       new HttpProblem(500, "internal", "Something went wrong on our side. Try again in a moment."),
