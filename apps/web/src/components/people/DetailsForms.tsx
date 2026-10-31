@@ -388,7 +388,10 @@ export function ContactForm({
       setResult(collectedRefusal([{ field: "role", message: t("people.contacts.form.noChange") }]));
       return;
     }
-    send("contactSaved", () => updateContact(personId, contact.id, changes, contact.version));
+    send(
+      (saved) => (saved.suspendedDecisions > 0 ? "contactSavedSuspended" : "contactSaved"),
+      () => updateContact(personId, contact.id, changes, contact.version),
+    );
   };
 
   const open = contact
@@ -557,10 +560,12 @@ export function ContactForm({
               </Button>
             </div>
           </form>
-          <FormFeedback
+          {/* A refusal at its fields, or the step-up notice (a portal member's email address). */}
+          <ManageFeedback
             result={result}
-            success={contact ? t("people.contacts.saved") : t("people.contacts.added")}
+            path={path}
             fieldIds={ids}
+            stepUp={t("people.contacts.stepUp")}
           />
         </>
       )}

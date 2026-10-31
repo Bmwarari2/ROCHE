@@ -52,6 +52,7 @@ const DONE: Record<string, () => string> = {
   optInRecorded: () => t("people.optOut.saved", { optedOut: "no" }),
   contactAdded: () => t("people.contacts.added"),
   contactSaved: () => t("people.contacts.saved"),
+  contactSavedSuspended: () => t("people.contacts.savedSuspended"),
 };
 
 /** Labelled values; a value not recorded says so, never left blank. */

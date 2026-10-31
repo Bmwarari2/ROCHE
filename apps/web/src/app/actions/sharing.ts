@@ -22,15 +22,17 @@ import { isIsoInstant } from "@/lib/uk-time";
  */
 
 const REASON_MIN = 3;
+/** The API's limits: a decision's reason (`CloseSharingDecision`), a link's (`RevokeShareLink`). */
 const REASON_MAX = 1000;
+const LINK_REASON_MAX = 500;
 
 const isVersion = (value: unknown, min = 1): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= min;
 
-function reasonProblem(reason: string): ActionResult<never> | null {
+function reasonProblem(reason: string, max = REASON_MAX): ActionResult<never> | null {
   const trimmed = reason.trim();
-  return trimmed.length < REASON_MIN || trimmed.length > REASON_MAX
-    ? refused(t("people.sharing.reasonError"), "invalid", ["reason"])
+  return trimmed.length < REASON_MIN || trimmed.length > max
+    ? refused(t("people.sharing.reasonError", { max }), "invalid", ["reason"])
     : null;
 }
 
@@ -125,7 +127,7 @@ export async function revokeShareLink(
 ): Promise<ActionResult<AboutMeShareLinkOut>> {
   if (!isUuid(linkId)) return refused(t("errors.notFound"), "not_found");
   if (!isVersion(version)) return refused(t("care.errors.invalid"));
-  const problem = reasonProblem(reason);
+  const problem = reasonProblem(reason, LINK_REASON_MAX);
   if (problem) return problem;
   return sendForPerson(personId, (api) =>
     api.POST("/v1/people/{id}/about-me/links/{linkId}/revoke", {

@@ -20,7 +20,7 @@ import {
   SUPPORTER_MAX,
 } from "@/lib/sharing";
 import { dateBoxesOf, readDateField, ukToday } from "@/lib/uk-time";
-import { InlineSection, ReasonAction, useRecordSend } from "./RecordForms";
+import { InlineSection, LINK_REASON_MAX, ReasonAction, useRecordSend } from "./RecordForms";
 
 /**
  * About me (PEOP-003; people.md rule 9): write or change it with the person, in their words, and
@@ -316,6 +316,7 @@ export function RevokeLink({
       path={path}
       done="linkRevoked"
       destructive
+      max={LINK_REASON_MAX}
       onSend={(reason) => revokeShareLink(personId, linkId, reason, version)}
     />
   );

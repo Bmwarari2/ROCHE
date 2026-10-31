@@ -16,8 +16,10 @@ import { type ActionResult, errorFor, type FieldErrors, fieldErrors } from "@/li
  * the step-up notice with the way back to this page.
  */
 
-/** The longest reason the API takes for a suspension, withdrawal or revocation. */
+/** The longest reason the API takes for a suspension, lifting or withdrawal of a decision. */
 export const REASON_MAX = 1000;
+/** The longest reason the API takes for revoking a share link (`RevokeShareLink`). */
+export const LINK_REASON_MAX = 500;
 
 export function useRecordSend(path: string) {
   const router = useRouter();
@@ -28,7 +30,8 @@ export function useRecordSend(path: string) {
    * form on the page (a share link's code, which is shown only once).
    */
   const send = <T,>(
-    done: string,
+    /** What the page says once saved, or how to choose it from what was saved. */
+    done: string | ((data: T) => string),
     call: () => Promise<ActionResult<T>>,
     stay?: (data: T) => boolean,
   ) =>
@@ -41,7 +44,8 @@ export function useRecordSend(path: string) {
         return;
       }
       // `at` makes each save a new arrival, so a second identical save is said and focused again.
-      router.replace(`${path}?done=${done}&at=${Date.now()}`, { scroll: false });
+      const said = typeof done === "string" ? done : done(outcome.data);
+      router.replace(`${path}?done=${said}&at=${Date.now()}`, { scroll: false });
     });
   /** Problems the form found before sending, each at its field. */
   const fail = (errors: FieldErrors) => setResult(fieldErrors(errors));
@@ -63,6 +67,7 @@ export function ReasonAction({
   path,
   done,
   destructive = false,
+  max = REASON_MAX,
   onSend,
 }: {
   /** The button that opens the form, naming the action and the thing. */
@@ -74,6 +79,8 @@ export function ReasonAction({
   readonly path: string;
   readonly done: string;
   readonly destructive?: boolean;
+  /** The longest reason the API takes for this action. */
+  readonly max?: number;
   readonly onSend: (reason: string) => Promise<ActionResult<unknown>>;
 }) {
   const inline = useInlineForm<HTMLTextAreaElement>();
@@ -83,8 +90,8 @@ export function ReasonAction({
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const reason = String(new FormData(event.currentTarget).get("reason") ?? "").trim();
-    if (reason.length < 3 || reason.length > REASON_MAX) {
-      fail({ reason: t("people.sharing.reasonError") });
+    if (reason.length < 3 || reason.length > max) {
+      fail({ reason: t("people.sharing.reasonError", { max }) });
       return;
     }
     send(done, () => onSend(reason));
@@ -103,7 +110,7 @@ export function ReasonAction({
             label={label}
             rows={2}
             required
-            maxLength={REASON_MAX}
+            maxLength={max}
             formatCount={(remaining) => characterCount(remaining)}
             {...(hint ? { hint } : {})}
             {...(reasonError ? { error: reasonError } : {})}

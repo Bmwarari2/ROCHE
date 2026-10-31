@@ -2,10 +2,12 @@
 
 import type {
   ContactOut,
+  ContactSaved,
   CreateContact,
   PersonDetails,
   UpdatePersonDetails,
 } from "@harbour/contracts";
+import { problemCode } from "@/lib/api";
 import { sendForPerson } from "@/lib/care-actions";
 import { isUuid } from "@/lib/context-cookies";
 import { t } from "@/lib/i18n";
@@ -27,12 +29,17 @@ export async function updatePersonDetails(
 ): Promise<ActionResult<PersonDetails>> {
   if (!isVersion(version)) return refused(t("care.errors.invalid"));
   if (Object.keys(changes).length === 0) return refused(t("people.details.form.noChange"));
-  return sendForPerson(personId, (api) =>
-    api.PATCH("/v1/people/{id}/details", {
+  return sendForPerson(personId, async (api) => {
+    const result = await api.PATCH("/v1/people/{id}/details", {
       params: { path: { id: personId } },
       body: { ...changes, version },
-    }),
-  );
+    });
+    // Too many NHS numbers refused lately (the API limits probing): said in words, at the field.
+    if (problemCode(result.error) === "rate_limited") {
+      return { error: { code: "invalid", detail: t("people.details.form.nhsTooOften") } };
+    }
+    return result;
+  });
 }
 
 export async function addContact(
@@ -55,7 +62,7 @@ export async function updateContact(
   contactId: string,
   changes: Partial<CreateContact>,
   version: number,
-): Promise<ActionResult<ContactOut>> {
+): Promise<ActionResult<ContactSaved>> {
   if (!isUuid(contactId)) return refused(t("errors.notFound"), "not_found");
   if (!isVersion(version)) return refused(t("care.errors.invalid"));
   if (Object.keys(changes).length === 0) return refused(t("people.contacts.form.noChange"));
