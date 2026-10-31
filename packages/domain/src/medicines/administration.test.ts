@@ -11,10 +11,13 @@ import {
   checkAmendment,
   checkCorrection,
   checkRoundClose,
+  countReportedFlags,
+  GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH,
   marRowLocked,
   OUTCOME_REASONS,
   OUTCOME_WORDS,
   REASON_WORDS,
+  REPORTED_FLAGS,
   type RecordedAdministration,
   type RoundDose,
 } from "./administration";
@@ -82,6 +85,8 @@ function input(overrides: Partial<AdministrationInput> = {}): AdministrationInpu
     policy: "give_with_notice",
     alreadyRecorded: false,
     givenBeforeRecorded: null,
+    // The server's time of recording: a minute after the dose, unless a test says otherwise.
+    recordedAt: new Date((overrides.at ?? at(2, 8, 5)).getTime() + MINUTE),
     recordedDueTimes: [],
     versionIds: new Set([overrides.entry?.id ?? "entry-1"]),
     history: [],
@@ -396,7 +401,7 @@ describe("hazard HZ-005 a variable dose is given only from a checked dosing reco
   });
 });
 
-describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own window, early inside it and late after it", () => {
+describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own window, on time inside it and late after it", () => {
   const minutes = (n: number) => new Date(at(2, 8).getTime() + n * MINUTE);
   const critical = checkedEntry(entry({ tags: ["time_critical"] }));
   const morningDone = { recordedDueTimes: [at(2, 8)], history: [] };
@@ -406,16 +411,8 @@ describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own win
       { at: minutes(-rates.doseEarlyMinutes - 1) },
       ["dose_not_due_yet"],
     ],
-    [
-      "as its window opens, with no reason",
-      { at: minutes(-rates.doseEarlyMinutes) },
-      ["timing_reason_required"],
-    ],
-    [
-      "a minute before its due time, with no reason",
-      { at: minutes(-1) },
-      ["timing_reason_required"],
-    ],
+    ["as its window opens: on time", { at: minutes(-rates.doseEarlyMinutes) }, []],
+    ["a minute before its due time: on time", { at: minutes(-1) }, []],
     ["at its due time", { at: at(2, 8) }, []],
     ["at the end of its window", { at: minutes(rates.doseLateMinutes) }, []],
     [
@@ -453,7 +450,11 @@ describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own win
   });
 
   it.each<[string, Partial<AdministrationInput>, AdministrationFlag[]]>([
-    ["early, inside its window", { at: minutes(-rates.doseEarlyMinutes) }, ["early"]],
+    [
+      "inside its window, before its due time: on time, unflagged",
+      { at: minutes(-rates.doseEarlyMinutes) },
+      [],
+    ],
     ["late, after its window", { at: minutes(rates.doseLateMinutes + 1) }, ["late"]],
     [
       "time-critical, as its narrower window opens",
@@ -486,6 +487,89 @@ describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own win
     const when = minutes(rates.timeCriticalLateMinutes + 1);
     expect(problems(input({ at: when }))).toEqual([]);
     expect(problems(input({ entry: critical, at: when }))).toEqual(["timing_reason_required"]);
+  });
+});
+
+describe("hazard HZ-004 an early dose inside its window asks why only when time-critical or closer to the last dose than the schedule allows", () => {
+  // 08:00 and 18:00: ten hours apart. The window's early side is the table's figure.
+  const evening = (minutesEarly: number) => new Date(at(2, 18).getTime() - minutesEarly * MINUTE);
+  const morningAt = (when: Date) => [given("m", when, { entryId: "entry-1" })];
+  const critical = checkedEntry(entry({ tags: ["time_critical"] }));
+  const gapLimit = 10 * 60 - rates.doseEarlyMinutes;
+  it.each<[string, Partial<AdministrationInput>, AdministrationProblem[]]>([
+    [
+      "the morning dose given on time: no reason, whenever in the window",
+      { at: evening(rates.doseEarlyMinutes), history: morningAt(at(2, 8)) },
+      [],
+    ],
+    [
+      "the morning dose given late in its window, this one as its window opens: too close",
+      {
+        at: evening(rates.doseEarlyMinutes),
+        history: morningAt(new Date(at(2, 8).getTime() + rates.doseLateMinutes * MINUTE)),
+      },
+      ["timing_reason_required"],
+    ],
+    [
+      "a gap a minute short of the schedule less the window",
+      {
+        at: evening(1),
+        history: morningAt(new Date(evening(1).getTime() - (gapLimit - 1) * MINUTE)),
+      },
+      ["timing_reason_required"],
+    ],
+    [
+      "a gap of exactly the schedule less the window",
+      { at: evening(1), history: morningAt(new Date(evening(1).getTime() - gapLimit * MINUTE)) },
+      [],
+    ],
+    [
+      "at its due time, however close the last dose (not early)",
+      {
+        at: at(2, 18),
+        history: morningAt(new Date(at(2, 8).getTime() + rates.doseLateMinutes * MINUTE)),
+      },
+      [],
+    ],
+    ["no earlier dose recorded", { at: evening(rates.doseEarlyMinutes) }, []],
+    [
+      "the latest of several earlier doses decides (yesterday's on time, this morning's late)",
+      {
+        at: evening(rates.doseEarlyMinutes),
+        history: [
+          given("y", new Date(at(2, 8).getTime() - 14 * 60 * MINUTE), { entryId: "entry-1" }),
+          given("m", new Date(at(2, 8).getTime() + rates.doseLateMinutes * MINUTE), {
+            entryId: "entry-1",
+          }),
+        ],
+      },
+      ["timing_reason_required"],
+    ],
+    [
+      "a time-critical entry a minute before its due time",
+      { entry: critical, at: evening(1), history: morningAt(at(2, 8)) },
+      ["timing_reason_required"],
+    ],
+  ])("%s", (_name, overrides, expected) => {
+    expect(
+      problems(input({ dueAt: at(2, 18), recordedDueTimes: [at(2, 8)], ...overrides })),
+    ).toEqual(expected);
+  });
+
+  it("says why it asks, and flags the dose early once a reason is given", () => {
+    const close = {
+      dueAt: at(2, 18),
+      recordedDueTimes: [at(2, 8)],
+      at: evening(rates.doseEarlyMinutes),
+      history: morningAt(new Date(at(2, 8).getTime() + rates.doseLateMinutes * MINUTE)),
+    };
+    const asked = checkAdministration(input(close), rates);
+    expect(asked.ok ? "" : asked.issues[0]?.message).toBe(
+      "This dose is early and closer to the last dose than the schedule allows. Say why.",
+    );
+    expect(
+      checkAdministration(input({ ...close, timingReason: "Going out with family" }), rates),
+    ).toMatchObject({ ok: true, flags: ["early"] });
   });
 });
 
@@ -755,6 +839,22 @@ describe("hazard HZ-004 a dose the person took themselves, or their family gave,
       });
     },
   );
+
+  it("needs the amount of a variable dose the person took with no checked dose to compare it with", () => {
+    const warfarin = checkedEntry(WARFARIN);
+    expect(
+      problems(
+        input({
+          entry: warfarin,
+          versionIds: new Set(["entry-warf"]),
+          dueAt: at(2, 18),
+          at: at(2, 18),
+          outcome: "self_administered",
+          amount: null,
+        }),
+      ),
+    ).toEqual(["amount_required"]);
+  });
 
   it("records a variable dose the person took with no checked dosing record, flagged for review", () => {
     const warfarin = checkedEntry(WARFARIN);
@@ -1145,72 +1245,175 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
 });
 
 describe("hazard HZ-004 a dose staff record after giving it is recorded, flagged and escalated, never lost", () => {
-  const after = { givenBeforeRecorded: { reason: "Given before the round opened on the tablet" } };
+  const REASON = "Given before the round opened on the tablet";
+  const route = (
+    recordedBy: Partial<NonNullable<AdministrationInput["givenBeforeRecorded"]>["recordedBy"]> = {},
+    reason = REASON,
+  ) => ({
+    givenBeforeRecorded: {
+      reason,
+      recordedBy: { id: CARER, competence: "current" as const, override: null, ...recordedBy },
+    },
+  });
   const fullPrn = [given("a", at(2, 1), { quantity: 4 }), given("b", at(2, 7), { quantity: 4 })];
-  it.each<
-    [string, Partial<AdministrationInput>, AdministrationProblem[], AdministrationFlag[], string[]]
-  >([
+  const prnOver = {
+    entry: PRN,
+    dueAt: null,
+    versionIds: new Set(["entry-prn"]),
+    at: at(2, 13),
+    recordedAt: at(2, 13, 20),
+    history: fullPrn,
+  };
+  const result = (overrides: Partial<AdministrationInput>) =>
+    checkAdministration(input(overrides), rates);
+  const escalated = (r: ReturnType<typeof result>) =>
+    r.ok ? r.escalations.map((e) => `${e.severity}:${e.reason}`) : null;
+
+  it.each<[string, Partial<AdministrationInput>, AdministrationProblem[]]>([
+    ["over the 24-hour maximum, on the round", prnOver, ["prn_maximum_reached"]],
     [
-      "over the 24-hour maximum, on the round",
-      {
-        entry: PRN,
-        dueAt: null,
-        versionIds: new Set(["entry-prn"]),
-        at: at(2, 13),
-        history: fullPrn,
-      },
-      ["prn_maximum_reached"],
-      [],
-      [],
-    ],
-    [
-      "over the 24-hour maximum, recorded after giving it",
-      {
-        ...after,
-        entry: PRN,
-        dueAt: null,
-        versionIds: new Set(["entry-prn"]),
-        at: at(2, 13),
-        history: fullPrn,
-      },
-      [],
-      ["over_maximum"],
-      ["over_maximum"],
-    ],
-    [
-      "after giving it, with no reason",
-      { givenBeforeRecorded: { reason: " " } },
+      "with a reason of a full stop (the #162 probe)",
+      route({}, "."),
       ["given_before_recorded_reason_required"],
-      [],
-      [],
     ],
     [
-      "by a member whose competence has expired, recorded after giving it",
-      { ...after, administrator: { id: CARER, competence: "expired" } },
-      [],
-      ["competence_not_current"],
-      ["review"],
+      "with a reason one character short",
+      route({}, "x".repeat(GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH - 1)),
+      ["given_before_recorded_reason_required"],
     ],
     [
-      "this evening's dose given at the morning round, recorded after giving it",
+      "given at the moment it is recorded",
+      { ...route(), recordedAt: at(2, 8, 5) },
+      ["given_after_recorded"],
+    ],
+    [
+      "given after it is recorded (the dose not yet given)",
+      { ...route(), recordedAt: at(2, 8) },
+      ["given_after_recorded"],
+    ],
+    [
+      "recorded by a member never signed off (the #162 probe)",
       {
-        ...after,
+        ...route({ competence: "not_held" }),
+        administrator: { id: CARER, competence: "not_held" },
+      },
+      ["competence_not_held"],
+    ],
+    [
+      "recorded by a member whose competence has expired, with no override",
+      route({ competence: "expired" }),
+      ["competence_expired"],
+    ],
+  ])(
+    "hazard HZ-004 hazard HZ-119 refuses a dose recorded after giving it %s",
+    (_name, overrides, expected) => {
+      expect(problems(input(overrides))).toEqual(expected);
+    },
+  );
+
+  const W = checkedEntry(WARFARIN);
+  const warfarin = {
+    entry: W,
+    versionIds: new Set(["entry-warf"]),
+    dueAt: at(2, 18),
+    at: at(2, 18, 5),
+    recordedAt: at(2, 18, 30),
+    amount: { quantity: 9, unitCode: UNIT.mg.code },
+  };
+  it.each<[string, Partial<AdministrationInput>, AdministrationFlag[], string[]]>([
+    [
+      "with nothing else broken: counted, and sent for review",
+      route(),
+      ["given_before_recorded"],
+      ["warning:review"],
+    ],
+    [
+      "with a reason of exactly the shortest length",
+      route({}, "x".repeat(GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH)),
+      ["given_before_recorded"],
+      ["warning:review"],
+    ],
+    [
+      "by another member, named as the giver",
+      { ...route({ id: "member-nurse" }) },
+      ["given_before_recorded", "given_by_someone_else"],
+      ["warning:review"],
+    ],
+    [
+      "by another member whose competence had lapsed when they gave it",
+      { ...route({ id: "member-nurse" }), administrator: { id: CARER, competence: "expired" } },
+      ["given_before_recorded", "given_by_someone_else", "competence_not_current"],
+      ["urgent:review"],
+    ],
+    [
+      "over the 24-hour maximum",
+      { ...route(), ...prnOver },
+      ["given_before_recorded", "over_maximum"],
+      ["urgent:over_maximum", "urgent:review"],
+    ],
+    [
+      "this evening's dose given at the morning round",
+      {
+        ...route(),
         dueAt: at(2, 18),
         at: at(2, 8, 6),
+        recordedAt: at(2, 8, 30),
         timingReason: "Given in error with the morning dose",
         recordedDueTimes: [at(2, 8)],
       },
-      [],
-      ["before_window"],
-      ["review"],
+      ["given_before_recorded", "before_window"],
+      ["urgent:review"],
     ],
-  ])("hazard HZ-004 a dose given %s", (_name, overrides, problems, flags, escalated) => {
-    const result = checkAdministration(input(overrides), rates);
-    if (problems.length > 0) {
-      expect(result.ok ? [] : result.issues.map((i) => i.problem)).toEqual(problems);
-      return;
-    }
-    expect(result).toMatchObject({ ok: true, flags });
-    expect(result.ok ? result.escalations.map((e) => e.reason) : null).toEqual(escalated);
+    [
+      "from an entry held until it is checked",
+      { ...route(), entry: entry(), policy: "hold_until_checked" },
+      ["given_before_recorded", "entry_not_usable", "entry_not_yet_checked"],
+      ["urgent:review"],
+    ],
+    [
+      "a variable dose with no dosing record at all (the #162 probe, 9 mg)",
+      { ...route(), ...warfarin },
+      ["given_before_recorded", "no_usable_dosing_record"],
+      ["urgent:no_prescribed_dose", "urgent:review"],
+    ],
+  ])(
+    "hazard HZ-004 hazard HZ-005 records a dose given %s",
+    (_name, overrides, flags, escalations) => {
+      const r = result(overrides);
+      expect(r).toMatchObject({ ok: true, flags });
+      expect(escalated(r)).toEqual(escalations);
+    },
+  );
+
+  it("names the amount when there is no checked dose to compare it with", () => {
+    const r = result({ ...route(), ...warfarin, amount: { quantity: 50, unitCode: UNIT.mg.code } });
+    expect(r.ok ? r.escalations[0]?.message : "").toBe(
+      "A dose was given with no checked dose to compare it with: 50 mg recorded. Tell the nurse in charge now, who follows your organisation's policy and contacts the prescriber.",
+    );
+  });
+
+  it("never treats the route as used for an outcome other than given", () => {
+    expect(
+      result({
+        ...route({}, "."),
+        outcome: "refused",
+        amount: null,
+        reason: { code: "declined", note: null },
+      }),
+    ).toMatchObject({ ok: true, flags: [] });
+  });
+
+  it("counts every use of the route, and every override, per member for the override report", () => {
+    const counts = countReportedFlags([
+      { recordedBy: "a", flags: ["given_before_recorded", "over_maximum"] },
+      { recordedBy: "a", flags: ["given_before_recorded"] },
+      { recordedBy: "a", flags: ["competence_override"] },
+      { recordedBy: "b", flags: ["early"] },
+    ]);
+    expect(Object.fromEntries(counts)).toEqual({
+      a: { competence_override: 1, given_before_recorded: 2 },
+      b: { competence_override: 0, given_before_recorded: 0 },
+    });
+    expect(REPORTED_FLAGS).toEqual(["competence_override", "given_before_recorded"]);
   });
 });

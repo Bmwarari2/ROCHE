@@ -347,10 +347,15 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     before the window opens (`dose_not_due_yet`), so a later dose (this evening's, tomorrow's) is
     never recorded at the morning round and nothing is filled in ahead; a dose that has already
     happened (taken by the person, given by family, recorded after it was given, or a correction)
-    is recorded and flagged for review instead (rule 17). Given inside the window before its due time a dose is early,
-    from its due time to the end of the window on time, after it late; early and late need a
-    reason. Windows are elapsed time, so on the days the clocks change they are as long as any
-    other (#162 clinical review; H-1064 asks the CSO for an upper limit on a tenant's figures).
+    is recorded and flagged for review instead (rule 17). Anywhere inside its window a dose is on
+    time; after it, late, with a reason. Given before its due time it asks a reason (and is flagged
+    early) only for an entry tagged time-critical, or when the time since the entry's last dose is
+    shorter than the scheduled gap from the previous dose less the window's early side
+    (`earlyNeedsReason`), so doses at opposite ends of their windows are not brought closer than
+    the schedule allows unnoticed, and no reason is asked for every dose a round gives a little
+    early (#162 third clinical review, against alert fatigue). Windows are elapsed time, so on the
+    days the clocks change they are as long as any other (#162 clinical review; H-1064 asks the
+    CSO for an upper limit on a tenant's figures).
 15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
     outcome recorded" and stays outstanding until someone records what happened; nothing closes it.
     Its escalation falls due at the end of its window, so a time-critical dose escalates sooner
@@ -378,17 +383,30 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     dose staff did not give: on an entry with a 24-hour maximum they need the amount, which always
     counts towards it (one in another unit is recorded as given, never converted, and flagged as
     not counted). A dose that has already happened is a fact, so it is always recorded: such a
-    dose, a dose staff record after giving it (`givenBeforeRecorded`, with why), and every
-    correction (rule 23) are never refused by the window, an earlier dose outstanding, the entry
-    in force, the dosing record or the maximum, nor, for a record made after the event, by the
-    competence of whoever gave it then. They are flagged instead (`ReviewFlag`: before window,
-    earlier dose outstanding, entry not usable, no usable dosing record, amount in another unit,
-    competence not current) and sent to the nurse in charge to review (a `warning` escalation in
-    words); one over the maximum is flagged "over maximum" and escalated `urgent`. The API raises
-    both through the escalation chain, whose recipients and acknowledgement slice 48 sets (H-1062,
-    H-1067). On the round, about to give a dose, every one of those rules refuses it. Flags
-    carried: early, late, interval override, competence override, amount differs, other unit not
-    counted, over maximum, entry not yet checked and the review flags.
+    dose, a dose staff record after giving it (`givenBeforeRecorded`), and every correction
+    (rule 23) are never refused by the window, an earlier dose outstanding, the entry in force,
+    the dosing record or the maximum, nor, for a record made after the event, by the competence of
+    whoever gave it then. They are flagged instead (`ReviewFlag`: before window, earlier dose
+    outstanding, entry not usable, no usable dosing record, amount in another unit, competence not
+    current) and sent to the nurse in charge to review (a `warning` escalation in words); one over
+    the maximum is flagged "over maximum" and escalated `urgent`, and one with no checked dose to
+    compare it with (a variable dose with no usable dosing record) needs its amount and is
+    escalated `urgent` with that amount (`no_prescribed_dose`), never only a warning. A dose
+    recorded after it was given cannot stand in for one about to be given (#162 third clinical
+    review): it needs a reason of 20 characters or more
+    (`GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, as for break-glass search); its time given (`at`,
+    the review's `givenAt`) must be strictly before `recordedAt`, which the API sets from the
+    server's clock and never takes from the request (`given_after_recorded`); whoever records it
+    needs current competence, or an override of an expired one (rule 22, H-1061), or it is refused;
+    the member named as having given it is checked at the time given and, when not the recorder,
+    the record is flagged `given_by_someone_else`; every use is flagged `given_before_recorded`,
+    counted per member for the override report with competence overrides (`REPORTED_FLAGS`,
+    `countReportedFlags`), and escalated to the nurse in charge: `warning`, or `urgent` when it
+    broke any rule. The API raises every escalation through the escalation chain, whose recipients
+    and acknowledgement slice 48 sets (H-1062, H-1067). On the round, about to give a dose, every
+    one of those rules refuses it. Flags carried: early, late, interval override, competence
+    override, amount differs, other unit not counted, over maximum, entry not yet checked and the
+    review flags.
 18. **Variable doses** (HZ-005, HZ-116; `dosing-record.ts`). A variable-dose entry's day doses come
     from a dosing record transcribed from its source (for example the anticoagulant clinic's), for
     each day and prescribed time, and checked by a second person with current competence who
@@ -552,10 +570,13 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   gate and the override's rules), `dosing-record.test.ts` (no dose without a checked record; the
   newest record covering the day decides, never an older one; record problems; the second check),
   `administration.test.ts` (person, dose and outcome; another person's medicine; not scheduled;
-  already recorded; coded reasons; entries not givable; the amount; variable doses; the window and
+  already recorded; coded reasons; entries not givable; the amount; variable doses; an early dose
+  asking why only when time-critical or too close to the last dose; the window and
   an earlier dose outstanding, on the days the clocks change too; intervals and the override; the
   24-hour maximum; doses already taken, or given before they were recorded, counted, flagged for
-  review and escalated; competence and the override; closing a round; the row lock and
+  review and escalated; the route for a dose given before it was recorded (the reason's length, a
+  time given before the server's time of recording, the recorder's and the giver's competence,
+  every use flagged, counted and escalated, urgently when a rule is broken); competence and the override; closing a round; the row lock and
   corrections checked as records made after the event, with the corrector's competence),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
   balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
@@ -572,6 +593,12 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
     applied after midnight is not tried against a different day.
   - The API passes every version of a medicine to the rules (`versions`, `entryVersions`,
     `earlierEntries`), never a subset, so a scheduled version or stop is always seen.
+  - Slice 22 (#162 third clinical review): the API sets every administration's `recordedAt` from
+    the server's clock (for a record made offline, the drift-corrected time of recording, kept
+    beside the receipt time) and refuses a dose recorded after it was given whose time given is
+    not before it; it reads the recorder's and the named giver's competence from workforce's port,
+    never from the request; and the override report (slice 45) counts `given_before_recorded`
+    beside `competence_override` per member (`countReportedFlags`).
   - The same-day route covers only the day an entry is recorded: an admission recorded at 00:30
     shows a 23:30 dose the evening before as not due, with no way to keep it due. That is a missed
     dose, not a double one; the nurse in charge decides with the prescriber (H-553).
@@ -686,10 +713,10 @@ schema, API, web or mobile changes in this slice.
 | `schedule.ts` | `SchedulePattern`, `RegularSchedule`, `checkSchedule`, `expandSchedule`, `MarDose`, `marCycle`, `marCycleContaining`, `clockChangesIn`, `describeSchedule`, `keepsCountFrom`, `ukDateOf`, `WEEKDAY_NAMES` | Rules 3 to 5 and 6a |
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDosesFrom`, `marEntryDoses`, `marEntryTimesBeforeRecorded`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
 | `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
-| `timing.ts` | `doseWindow`, `recordedTiming` (`RecordedTiming`), `scheduledDoseState`, `SCHEDULED_DOSE_WORDS`, `escalationAt`, `doseNotices`, `isTimeCritical`, `driftCorrectedTime` | Rules 14 to 16 |
+| `timing.ts` | `doseWindow`, `recordedTiming` (`RecordedTiming`), `earlyNeedsReason`, `scheduledDoseState`, `SCHEDULED_DOSE_WORDS`, `escalationAt`, `doseNotices`, `isTimeCritical`, `driftCorrectedTime` | Rules 14 to 16 |
 | `intervals.ts` | `GivenDose`, `entryVersionIds`, `intervalConflicts`, `prnStatus`, `PRN_NOTICES`, `prnMaximumExceeded`, `prnDosesNotCounted`, `prnOutcomeDueAt`, `prnOutcomesOutstanding` | Rules 16, 19, 20 |
 | `competence.ts` | `medicinesCompetenceAt`, `checkCompetenceGate`, `CompetenceOverride` | Rules 21, 22 |
 | `dosing-record.ts` | `checkDosingRecordDraft`, `recordDosingRecord`, `checkDosingRecord`, `variableDoseFor` (`VariableDose`) | Rule 18 |
-| `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
+| `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, `REPORTED_FLAGS`, `countReportedFlags`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
 | `controlled-drugs.ts` | `cdPageKey`, `cdBalanceAfter`, `checkCdEntry`, `defaultCdWitnessPolicy`, `cdPageBalance`, `cdStockCheck`, `cdStockCheckDueAt` | Rules 24 to 27 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | Every medicines figure (cycle, windows, intervals, PRN outcome, CD stock check, competence and override) |

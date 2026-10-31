@@ -119,6 +119,30 @@ finding and nine others, now fixed:
 - Human actions H-1067 (a dose that has happened flagged, not refused; the escalations' severities;
   re-rating HZ-004, HZ-005 and HZ-119) and H-1068 (whose competence a correction checks).
 
+## #162 third clinical review (31/10/2026)
+
+The route for a dose given before it was recorded could be used before a dose was given: it rested
+on a client flag and any non-blank reason, with no recording time and no check of who recorded it.
+
+- High (HZ-004, HZ-005, HZ-119): the route now needs a reason of 20 characters or more
+  (`GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, as for break-glass search), a time given (`at`, the
+  review's `givenAt`) strictly before the new `recordedAt`, which the API sets from the server's
+  clock (`given_after_recorded`), and a recorder (`givenBeforeRecorded.recordedBy`) with current
+  competence or an override of an expired one, refused otherwise. The named giver (`administrator`)
+  is checked at the time given, and a giver other than the recorder is flagged
+  (`given_by_someone_else`). A dose that has happened with no checked dose to compare it with (a
+  variable dose with no usable dosing record) needs its amount and is escalated `urgent` with it
+  (`no_prescribed_dose`), never only a warning.
+- Medium (HZ-004): every use is flagged `given_before_recorded`, counted per member beside
+  competence overrides for the override report (`REPORTED_FLAGS`, `countReportedFlags`), and
+  escalated to the nurse in charge: `warning`, or `urgent` when it broke any rule.
+- Medium (HZ-004): asking a reason for every early dose caused alert fatigue. Anywhere inside its
+  window a dose is now on time; before its due time it asks a reason only for an entry tagged
+  time-critical, or when it comes closer to the entry's last dose than the scheduled gap less the
+  window's early side (`earlyNeedsReason`). H-1064 reworded.
+- Docs: medicines.md rules 14 and 17 and the slice 22 API notes; rates.md early-window rows; hazard
+  log HZ-004, HZ-005 and HZ-119; H-1064 and H-1067.
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -151,3 +175,5 @@ finding and nine others, now fixed:
   medicines file at 99% or more). `pnpm exec biome ci .` and `pnpm typecheck` clean.
 - After the second review: 644 medicines tests; the whole domain package 6,150 tests under the
   three time zones, 99.69% line coverage (medicines 99.45%).
+- After the third review: 675 medicines tests; the whole domain package 6,181 tests under the
+  three time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).

@@ -34,7 +34,7 @@ import {
 } from "./mar-entry";
 import type { MedicinesRates } from "./rates";
 import { type MarDose, ukDateOf } from "./schedule";
-import { doseWindow, isTimeCritical, recordedTiming } from "./timing";
+import { doseWindow, earlyNeedsReason, isTimeCritical, recordedTiming } from "./timing";
 
 export const ADMINISTRATION_OUTCOMES = [
   "given",
@@ -125,8 +125,17 @@ export interface AdministrationInput {
    */
   readonly amount: { readonly quantity: number; readonly unitCode: string } | null;
   readonly amountDifferenceReason: string | null;
-  /** Drift-corrected time the dose was given or the outcome happened. */
+  /**
+   * Drift-corrected time the dose was given (`givenAt`) or the outcome happened. Every timing,
+   * interval, maximum and competence rule reads it.
+   */
   readonly at: Date;
+  /**
+   * When the record is made, on the server's clock: the API sets it from its own time, never from
+   * the request (for a record made offline, the drift-corrected time of recording, which it keeps
+   * beside the receipt time). A dose recorded after it was given must have been given before this.
+   */
+  readonly recordedAt: Date;
   readonly timingReason: string | null;
   readonly intervalOverrideReason: string | null;
   readonly administrator: { readonly id: string; readonly competence: MedicinesCompetence };
@@ -135,12 +144,23 @@ export interface AdministrationInput {
   /** The scheduled dose already has an outcome: a change is a correction of that record. */
   readonly alreadyRecorded: boolean;
   /**
-   * Set, with why, when staff record a dose they have already given (it was given before it could
-   * be recorded): a fact, so the rules that decide whether a dose may be given flag it for the nurse
-   * in charge to review instead of refusing it, and it is never left off the record (H-1067). Null
-   * on the round, where those rules refuse the dose before it is given.
+   * Set when staff record a dose that was given before it could be recorded: a fact, so the rules
+   * that decide whether a dose may be given flag it instead of refusing it, and it is never left off
+   * the record (H-1067). It needs a reason of `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH` characters
+   * or more, a time given (`at`) strictly before `recordedAt`, and a recorder with current
+   * competence; `administrator` is the member who gave it, whose competence then is checked. Every
+   * use is flagged `given_before_recorded`, counted for the override report and escalated to the
+   * nurse in charge: urgently when it breaks a rule. Null on the round, where those rules refuse.
    */
-  readonly givenBeforeRecorded: { readonly reason: string } | null;
+  readonly givenBeforeRecorded: {
+    readonly reason: string;
+    /** Who records it now (rule 22: current competence, or an override of an expired one). */
+    readonly recordedBy: {
+      readonly id: string;
+      readonly competence: MedicinesCompetence;
+      readonly override: CompetenceOverride | null;
+    };
+  } | null;
   /**
    * The due times of this entry's scheduled doses that already have an outcome, at least those in
    * the 24 hours before the dose, so a dose is not given while an earlier one has none.
@@ -172,6 +192,7 @@ export type AdministrationProblem =
   | "amount_not_a_dose"
   | "amount_differs_needs_reason"
   | "given_before_recorded_reason_required"
+  | "given_after_recorded"
   | "no_checked_dosing_record"
   | "dosing_record_not_checked"
   | "dosing_record_differs"
@@ -199,6 +220,10 @@ export type AdministrationFlag =
  * is sent to the nurse in charge to review (`review` escalation).
  */
 export type ReviewFlag =
+  /** Recorded after it was given (`givenBeforeRecorded`): every use, counted for the report. */
+  | "given_before_recorded"
+  /** Recorded after it was given by someone other than the member who gave it. */
+  | "given_by_someone_else"
   | "before_window"
   | "earlier_dose_outstanding"
   | "entry_not_usable"
@@ -208,6 +233,8 @@ export type ReviewFlag =
 
 /** The words for each review flag, in the review escalation and wherever the record shows it. */
 export const REVIEW_FLAG_WORDS: Readonly<Record<ReviewFlag, string>> = {
+  given_before_recorded: "the dose was recorded only after it was given",
+  given_by_someone_else: "it was recorded by someone other than the member who gave it",
   before_window: "the dose was taken before its window opened",
   earlier_dose_outstanding: "an earlier dose had no outcome",
   entry_not_usable: "the entry may not be given from at that time",
@@ -216,14 +243,54 @@ export const REVIEW_FLAG_WORDS: Readonly<Record<ReviewFlag, string>> = {
   competence_not_current: "the member who gave it had no current medicines competence",
 };
 
+/** Review flags that record the route itself rather than a rule the dose broke. */
+const ROUTE_FLAGS: ReadonlySet<ReviewFlag> = new Set([
+  "given_before_recorded",
+  "given_by_someone_else",
+]);
+
+/**
+ * The shortest reason accepted for recording a dose after it was given, as for break-glass search
+ * (`SEARCH_LIMITS.breakGlassReasonMinLength`): enough to say what happened, so "." cannot pass.
+ */
+export const GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH = 20;
+
+/**
+ * Flags the override report (slice 45) counts per member and period, so a route meant for the
+ * exception cannot quietly become routine (HZ-119, H-1067).
+ */
+export const REPORTED_FLAGS = ["competence_override", "given_before_recorded"] as const;
+export type ReportedFlag = (typeof REPORTED_FLAGS)[number];
+
+/** How often each member's records carry each reported flag, for the override report. */
+export function countReportedFlags(
+  records: readonly {
+    readonly recordedBy: string;
+    readonly flags: readonly AdministrationFlag[];
+  }[],
+): ReadonlyMap<string, Readonly<Record<ReportedFlag, number>>> {
+  const counts = new Map<string, Record<ReportedFlag, number>>();
+  for (const record of records) {
+    const row = counts.get(record.recordedBy) ?? {
+      competence_override: 0,
+      given_before_recorded: 0,
+    };
+    for (const flag of REPORTED_FLAGS) if (record.flags.includes(flag)) row[flag] += 1;
+    counts.set(record.recordedBy, row);
+  }
+  return counts;
+}
+
 /**
  * An escalation the API raises through the notification centre's chain when the record is saved
  * (slice 48, which sets who receives it and its acknowledgement): `urgent` when the person has taken
- * more than the prescriber allows in 24 hours; `warning` for a record flagged for review.
+ * more than the prescriber allows in 24 hours, or a dose was given with no checked dose to compare
+ * it with; `warning` for a record flagged for review, `urgent` when a dose recorded after it was
+ * given broke a rule.
  */
 export interface AdministrationEscalation {
   readonly severity: Extract<Severity, "urgent" | "warning">;
-  readonly reason: "over_maximum" | "review";
+  readonly reason: "over_maximum" | "no_prescribed_dose" | "review";
   readonly message: string;
 }
 
@@ -398,12 +465,37 @@ function checkRecord(
       review.push(flag);
     } else add(problem, message);
   };
-  if (outcome === "given" && input.givenBeforeRecorded !== null) {
-    if (blank(input.givenBeforeRecorded.reason)) {
+  // Recorded after it was given: a reason that says what happened, a time given strictly before
+  // the server's time of recording, a recorder with current competence (rule 22, H-1061), and
+  // every use flagged and escalated (#162 third clinical review; H-1067).
+  const route = outcome === "given" ? input.givenBeforeRecorded : null;
+  if (route !== null) {
+    if (route.reason.trim().length < GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH) {
       add(
         "given_before_recorded_reason_required",
-        "Say why the dose is recorded only after it was given.",
+        `Say why the dose is recorded only after it was given, in ${GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH} characters or more.`,
       );
+    }
+    if (input.at.getTime() >= input.recordedAt.getTime()) {
+      add(
+        "given_after_recorded",
+        "A dose recorded after it was given must have been given before now. Record a dose about to be given on the round instead.",
+      );
+    }
+    const by = route.recordedBy;
+    const recorder = checkCompetenceGate(
+      by.id,
+      by.competence,
+      by.override,
+      input.recordedAt,
+      rates,
+    );
+    if (!recorder.ok) add(recorder.problem, recorder.message);
+    flags.push("given_before_recorded");
+    review.push("given_before_recorded");
+    if (by.id !== input.administrator.id) {
+      flags.push("given_by_someone_else");
+      review.push("given_by_someone_else");
     }
   }
 
@@ -419,19 +511,39 @@ function checkRecord(
         "before_window",
       );
     }
-    if (
+    // Inside its window a dose is on time. Before its due time it asks a reason only for a
+    // time-critical entry, or when it comes closer to the entry's last dose than the schedule less
+    // the window allows (#162 third clinical review, against alert fatigue).
+    const lastGiven =
+      input.history
+        .filter((d) => input.versionIds.has(d.entryId) && d.at.getTime() < input.at.getTime())
+        .sort((a, b) => b.at.getTime() - a.at.getTime())[0] ?? null;
+    const previousDue = lastGiven
+      ? (marEntryDoses(entry, {
+          from: new Date(lastGiven.at.getTime() - DAY_MS),
+          to: dose.dueAt,
+        }).at(-1) ?? null)
+      : null;
+    const early =
       DOSE_TAKEN_OUTCOMES.has(outcome) &&
-      timing !== "on_time" &&
-      (fact || timing !== "before_window")
-    ) {
+      earlyNeedsReason(window, input.at, lastGiven?.at ?? null, previousDue?.dueAt ?? null);
+    const askWhy =
+      DOSE_TAKEN_OUTCOMES.has(outcome) &&
+      (timing === "late" || early || (fact && timing === "before_window"));
+    if (askWhy) {
       if (blank(input.timingReason)) {
         add(
           "timing_reason_required",
           timing === "before_window"
             ? "This dose was taken before its window opened. Say what happened."
-            : `This dose is ${timing}. Say why.`,
+            : timing === "late"
+              ? "This dose is late. Say why."
+              : window.timeCritical
+                ? "This time-critical dose is early. Say why."
+                : "This dose is early and closer to the last dose than the schedule allows. Say why.",
         );
-      } else if (timing !== "before_window") flags.push(timing);
+      } else if (timing === "late") flags.push("late");
+      else if (early) flags.push("early");
     }
 
     // A dose is not given while an earlier dose of the medicine, in the 24 hours before it, has no
@@ -491,11 +603,18 @@ function checkRecord(
           : { kind: "amount", quantity: variableQuantity, unit: prescribedDose.unit }
         : prescribedDose;
 
-    // A dose already taken from an entry with a 24-hour maximum needs its amount, so it counts.
+    // A dose already taken from an entry with a 24-hour maximum needs its amount, so it counts;
+    // so does one with no checked dose to compare it with, so the nurse in charge sees it.
     const maximum =
       entry.directions.kind === "when_required" ? entry.directions.maxQuantityPer24Hours : null;
     const amount = input.amount;
     if (amount === null && outcome === "given") add("amount_required", "Record the amount given.");
+    if (amount === null && alreadyTaken && prescribed === null && maximum === null) {
+      add(
+        "amount_required",
+        "Record the amount taken: there is no checked dose to compare it with, so the nurse in charge reviews it.",
+      );
+    }
     if (amount === null && alreadyTaken && maximum !== null) {
       add(
         "amount_required",
@@ -571,6 +690,21 @@ function checkRecord(
         flags.push("other_unit_not_counted");
       }
     }
+
+    // A dose that has happened with no checked dose to compare it with (a variable dose with no
+    // usable dosing record) is never just a review: the amount recorded goes to the nurse in charge
+    // urgently (#162 third clinical review).
+    if (fact && prescribed === null && amount !== null && prescribedDose !== null) {
+      const recorded =
+        amount.unitCode === prescribedDose.unit.code
+          ? formatDose({ kind: "amount", quantity: amount.quantity, unit: prescribedDose.unit })
+          : "an amount in another unit";
+      escalations.push({
+        severity: "urgent",
+        reason: "no_prescribed_dose",
+        message: `A dose was given with no checked dose to compare it with: ${recorded} recorded. Tell the nurse in charge now, who follows your organisation's policy and contacts the prescriber.`,
+      });
+    }
   }
 
   // Whoever records an outcome now needs current competence (or an override of an expired one).
@@ -591,8 +725,11 @@ function checkRecord(
 
   if (review.length > 0) {
     const words = review.map((f) => REVIEW_FLAG_WORDS[f]);
+    // Recorded after it was given and breaking a rule (any flag beyond the route itself, or an
+    // urgent escalation already): urgent, never only a warning (#162 third clinical review).
+    const brokeRule = review.some((f) => !ROUTE_FLAGS.has(f)) || escalations.length > 0;
     escalations.push({
-      severity: "warning",
+      severity: route !== null && brokeRule ? "urgent" : "warning",
       reason: "review",
       message: `Recorded for the nurse in charge to review under your organisation's policy: ${listWords(words)}.`,
     });
