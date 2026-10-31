@@ -91,7 +91,7 @@ export const tenant = pgTable(
     /**
      * The staff privacy notice in force (WORK-011; slice 35; H-940): the organisation document
      * (a version in the document store) and the label members acknowledge, which is that
-     * document's id. The composite foreign key to document is added in SQL (migration 0106), as
+     * document's id. The composite foreign key to document is added in SQL (migration 0125), as
      * document refers back to tenant.
      */
     staffPrivacyNoticeVersion: text("staff_privacy_notice_version"),
