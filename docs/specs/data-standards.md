@@ -637,7 +637,7 @@ a national standard beyond those named.
 
 ## Dependency tool (Phase 2, slice 12)
 
-Code lists for [scheduling.md](scheduling.md) section 12. No national standard defines a
+Code lists for [scheduling.md](scheduling.md) section 13. No national standard defines a
 dependency scale or its categories: the scale is the organisation's own, so its keys are the
 organisation's codes, not a national code, and an export carries the scale version beside every
 category so a receiving system can read it.

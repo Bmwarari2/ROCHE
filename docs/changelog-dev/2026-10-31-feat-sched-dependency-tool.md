@@ -5,7 +5,7 @@ screen is slices 21 and 59.
 
 ## What changed
 
-- `docs/specs/scheduling.md` section 12 (spec first): the schema, the permission matrix, 12 rules
+- `docs/specs/scheduling.md` section 13 (section 12 before the slice 6 merge; spec first): the schema, the permission matrix, 12 rules
   and the test list for the organisation's own dependency scale, each person's category and the
   required care hours per shift; pointer rows in sections 2, 3, 7 and 8. `care.md` points to it.
 - `packages/domain/src/scheduling/dependency.ts` (exported from `@harbour/domain`), pure functions:

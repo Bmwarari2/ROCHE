@@ -120,6 +120,7 @@ export {
   type NightWorkerAssessment,
   nightMinutes,
 } from "./scheduling/night";
+export * from "./scheduling/pay";
 export * from "./scheduling/rates";
 export * from "./scheduling/weekly-average";
 export * from "./scheduling/working-time";

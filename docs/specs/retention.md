@@ -95,7 +95,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `evidence_pack`, `evidence_pack_item`, `evidence_pack_link`, `evidence_pack_link_code` ([quality.md](quality.md)) | evidence_pack; the rendered bundle is deleted when the link ends |
 | `evidence_pack_bundle` | deleted (content cleared) when the link ends or the pack is revoked or discarded (migration 0057); the row stays as proof of the deletion under evidence_pack |
 | `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |
-| `dependency_scale`, `dependency_scale_version` ([scheduling.md](scheduling.md) section 12) | organisation_document; a version a rota rests on is kept at least as long as that rota (rota_and_timesheet) until the DPO decides (H-711) |
+| `dependency_scale`, `dependency_scale_version` ([scheduling.md](scheduling.md) section 13) | organisation_document; a version a rota rests on is kept at least as long as that rota (rota_and_timesheet) until the DPO decides (H-711) |
 | `dependency_assessment` (a person's dependency category) | care_record |
 | `letter` | `retention_class` per row: serious_incident for an incident or candour letter about an incident graded serious, otherwise care_record (`letterRetentionClass`; migration 0059) |
 | `statement_of_purpose_version`, `letter_template`, `letter_template_version` ([comms.md](comms.md)) | organisation_document |

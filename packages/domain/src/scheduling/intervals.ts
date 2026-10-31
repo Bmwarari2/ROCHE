@@ -20,6 +20,7 @@ export const MINUTES_PER_HOUR = 60;
 export const HOURS_PER_DAY = 24;
 export const DAYS_PER_WEEK = 7;
 export const MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY;
+export const MONTHS_PER_YEAR = 12;
 
 export function minutesBetween(start: Date, end: Date): number {
   return (end.getTime() - start.getTime()) / MS_PER_MINUTE;
