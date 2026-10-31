@@ -31,6 +31,8 @@ interface FieldBase {
   readonly label: string;
   readonly hint?: string;
   readonly required?: boolean;
+  /** What to say when a required field is left empty, when "{label} is needed" does not read well. */
+  readonly requiredMessage?: string;
 }
 
 export type WorkforceField =
@@ -38,12 +40,15 @@ export type WorkforceField =
       readonly kind: "text";
       readonly maxLength?: number;
       readonly inputMode?: "numeric";
+      readonly type?: "email" | "tel";
+      readonly autoComplete?: string;
     })
   | (FieldBase & { readonly kind: "textarea"; readonly maxLength?: number })
   | (FieldBase & {
       readonly kind: "select";
       readonly options: readonly { readonly value: string; readonly label: string }[];
       readonly emptyOption?: string;
+      readonly defaultValue?: string;
     })
   | (FieldBase & { readonly kind: "date"; readonly defaultValue?: string | null })
   | (FieldBase & { readonly kind: "checkbox" });
@@ -144,4 +149,9 @@ export function nameOf(
 /** A list's entries that are there: the API names a member of staff as null when unknown. */
 export function present<T>(items: readonly (T | null | undefined)[] | undefined): T[] {
   return (items ?? []).flatMap((item) => (item ? [item] : []));
+}
+
+/** Words as one list, in British English: "A, B and C". */
+export function listOf(items: readonly string[]): string {
+  return new Intl.ListFormat("en-GB", { style: "long", type: "conjunction" }).format(items);
 }

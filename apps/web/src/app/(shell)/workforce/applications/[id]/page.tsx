@@ -16,6 +16,7 @@ import { t } from "@/lib/i18n";
 import {
   codeLabel,
   codeOptions,
+  listOf,
   present,
   recruitmentShown,
   stageChip,
@@ -121,7 +122,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             intro={t("workforce.applications.shortlistIntro")}
             path={path}
             submit={t("workforce.applications.saveShortlist")}
-            done={t("workforce.applications.shortlistSaved")}
+            done="workforce.applications.shortlistSaved"
             action={shortlistApplication.bind(
               null,
               id,
@@ -144,7 +145,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             intro={t("workforce.interviews.newIntro")}
             path={path}
             submit={t("workforce.interviews.record")}
-            done={t("workforce.interviews.recorded")}
+            done="workforce.interviews.recorded"
             action={recordInterview.bind(
               null,
               id,
@@ -205,7 +206,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             intro={t("workforce.offers.newIntro")}
             path={path}
             submit={t("workforce.offers.make")}
-            done={t("workforce.offers.made")}
+            done="workforce.offers.made"
             action={makeOffer.bind(null, id, app.version)}
             fields={[
               { kind: "date", name: "proposedStartOn", label: t("workforce.offers.proposedStart") },
@@ -224,13 +225,11 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             headingLevel={2}
             title={t("workforce.offers.response")}
             intro={t("workforce.offers.conditions", {
-              conditions: detail.offer.conditions
-                .map((c) => t(`workforce.schedule3.${c}`))
-                .join(", "),
+              conditions: listOf(detail.offer.conditions.map((c) => t(`workforce.schedule3.${c}`))),
             })}
             path={path}
             submit={t("workforce.offers.saveResponse")}
-            done={t("workforce.offers.responseSaved")}
+            done="workforce.offers.responseSaved"
             action={respondToOffer.bind(null, detail.offer.id, detail.offer.version)}
             fields={[
               {
@@ -262,9 +261,10 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           <WorkforceForm
             headingLevel={2}
             title={t("workforce.applications.close")}
+            intro={t("workforce.applications.closeIntro")}
             path={path}
             submit={t("workforce.applications.closeSubmit")}
-            done={t("workforce.applications.closed")}
+            done="workforce.applications.closed"
             destructive
             action={closeApplication.bind(null, id, app.version)}
             fields={[
@@ -275,6 +275,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                 required: true,
                 emptyOption: t("workforce.form.choose"),
                 options: codeOptions(CLOSING, "workforce.recruitment.reason", t),
+              },
+              {
+                kind: "checkbox",
+                name: "confirm",
+                label: t("workforce.applications.closeConfirm"),
+                required: true,
               },
             ]}
           />

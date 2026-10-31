@@ -87,7 +87,7 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
             intro={t("workforce.applications.newIntro")}
             path={path}
             submit={t("workforce.applications.add")}
-            done={t("workforce.applications.added")}
+            done="workforce.applications.added"
             action={addApplication.bind(null, id)}
             fields={[
               {
@@ -108,12 +108,17 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
                 kind: "text",
                 name: "email",
                 label: t("workforce.applications.email"),
+                type: "email",
+                // The applicant's details, never the signed-in user's: the browser fills nothing.
+                autoComplete: "off",
                 maxLength: 254,
               },
               {
                 kind: "text",
                 name: "phone",
                 label: t("workforce.applications.phone"),
+                type: "tel",
+                autoComplete: "off",
                 maxLength: 40,
               },
             ]}
@@ -126,7 +131,7 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
           title={t("workforce.vacancies.changeStatus")}
           path={path}
           submit={t("workforce.vacancies.saveStatus")}
-          done={t("workforce.vacancies.statusSaved")}
+          done="workforce.vacancies.statusSaved"
           action={changeVacancyStatus.bind(null, id, vacancy.version)}
           fields={[
             {
@@ -134,6 +139,7 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
               name: "status",
               label: t("workforce.vacancies.fieldStatus"),
               required: true,
+              defaultValue: vacancy.status,
               emptyOption: t("workforce.form.choose"),
               options: codeOptions(
                 ["draft", "open", "closed", "filled", "withdrawn"],
@@ -162,17 +168,21 @@ export default async function VacancyPage({ params }: { params: Promise<{ id: st
                     {codeLabel("workforce.monitoring.question", q.question, t)}
                   </dt>
                   <dd className="m-0 text-body-dense">
-                    {q.counts === null
-                      ? t("workforce.monitoring.withheld")
-                      : Object.entries(q.counts)
-                          .map(([answer, n]) =>
-                            t("workforce.monitoring.count", {
+                    {q.counts === null ? (
+                      t("workforce.monitoring.withheld")
+                    ) : (
+                      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                        {Object.entries(q.counts).map(([answer, n]) => (
+                          <li key={answer}>
+                            {t("workforce.monitoring.count", {
                               answer: codeLabel("workforce.monitoring.answer", answer, t),
                               count: n === "fewer_than_min" ? -1 : n,
                               min: counts.data.minimumShown,
-                            }),
-                          )
-                          .join(", ")}
+                            })}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </dd>
                 </div>
               ))}

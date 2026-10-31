@@ -72,7 +72,7 @@ export default async function JobTemplatesPage() {
           intro={t("workforce.templates.newIntro")}
           path="/workforce/job-templates"
           submit={t("workforce.templates.create")}
-          done={t("workforce.templates.created")}
+          done="workforce.templates.created"
           action={createJobTemplate}
           fields={[
             {
@@ -102,6 +102,7 @@ export default async function JobTemplatesPage() {
               name: "essentialCriteria",
               label: t("workforce.templates.fieldCriteria"),
               hint: t("workforce.templates.fieldCriteriaHint"),
+              requiredMessage: t("workforce.templates.criteriaRequired"),
               required: true,
               maxLength: 4000,
             },
@@ -110,6 +111,7 @@ export default async function JobTemplatesPage() {
               name: "valuesQuestions",
               label: t("workforce.templates.fieldQuestions"),
               hint: t("workforce.templates.fieldQuestionsHint"),
+              requiredMessage: t("workforce.templates.questionsRequired"),
               required: true,
               maxLength: 6000,
             },

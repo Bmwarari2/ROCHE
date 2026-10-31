@@ -22,6 +22,7 @@ import {
   caseStageChip,
   codeLabel,
   codeOptions,
+  listOf,
   nameOf,
   present,
   ukDate,
@@ -158,7 +159,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
           <p className="m-0 max-w-prose whitespace-pre-line">{c.summary}</p>
           <p className="m-0 text-body-dense text-text-secondary">
             {t("workforce.cases.myRoles", {
-              roles: c.myRoles.map((r) => codeLabel("workforce.cases.role", r, t)).join(", "),
+              roles: listOf(c.myRoles.map((r) => codeLabel("workforce.cases.role", r, t))),
             })}
           </p>
           {detail.daysAtStage !== null ? (
@@ -215,12 +216,22 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                     <WorkforceForm
                       headingLevel={3}
                       title={t("workforce.cases.removeMember", { name: named(m.tenantUserId) })}
+                      intro={t("workforce.cases.removeIntro")}
                       path={path}
-                      submit={t("workforce.cases.removeSubmit")}
-                      done={t("workforce.cases.removed")}
+                      submit={t("workforce.cases.removeSubmit", { name: named(m.tenantUserId) })}
+                      done="workforce.cases.removed"
                       destructive
                       action={removeCaseMember.bind(null, id, m.id, m.version)}
-                      fields={[]}
+                      fields={[
+                        {
+                          kind: "checkbox",
+                          name: "confirm",
+                          label: t("workforce.cases.removeConfirm", {
+                            name: named(m.tenantUserId),
+                          }),
+                          required: true,
+                        },
+                      ]}
                     />
                   ) : null}
                 </div>
@@ -236,7 +247,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
               intro={t("workforce.cases.nameMemberIntro")}
               path={path}
               submit={t("workforce.cases.nameSubmit")}
-              done={t("workforce.cases.named")}
+              done="workforce.cases.named"
               action={nameCaseMember.bind(null, id)}
               fields={[
                 {
@@ -287,10 +298,15 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                       {mayUpdate ? (
                         <WorkforceForm
                           headingLevel={3}
-                          title={t("workforce.cases.hearingRecord")}
+                          title={t("workforce.cases.hearingRecord", {
+                            kind: codeLabel("workforce.cases.hearingKind", h.kind, t),
+                            date: ukDate(h.scheduledAt),
+                          })}
                           path={path}
-                          submit={t("workforce.cases.hearingRecordSubmit")}
-                          done={t("workforce.cases.hearingRecorded")}
+                          submit={t("workforce.cases.hearingRecordSubmit", {
+                            kind: codeLabel("workforce.cases.hearingKind", h.kind, t),
+                          })}
+                          done="workforce.cases.hearingRecorded"
                           action={updateHearing.bind(null, id, h.id, h.version)}
                           fields={[
                             {
@@ -356,7 +372,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                 title={t("workforce.cases.startInvestigation")}
                 path={path}
                 submit={t("workforce.cases.startInvestigationSubmit")}
-                done={t("workforce.cases.moved")}
+                done="workforce.cases.moved"
                 action={moveCase.bind(null, id, v, "investigation")}
                 fields={[
                   { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -371,7 +387,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                 title={t("workforce.cases.toHearing")}
                 path={path}
                 submit={t("workforce.cases.toHearingSubmit")}
-                done={t("workforce.cases.moved")}
+                done="workforce.cases.moved"
                 action={moveCase.bind(null, id, v, "hearing")}
                 fields={[
                   { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -389,7 +405,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                 intro={t("workforce.cases.arrangeIntro")}
                 path={path}
                 submit={t("workforce.cases.arrangeSubmit")}
-                done={t("workforce.cases.arranged")}
+                done="workforce.cases.arranged"
                 action={arrangeHearing.bind(null, id, hearingKind)}
                 fields={[
                   {
@@ -447,7 +463,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                 title={t("workforce.cases.lodgeAppeal")}
                 path={path}
                 submit={t("workforce.cases.lodgeAppealSubmit")}
-                done={t("workforce.cases.moved")}
+                done="workforce.cases.moved"
                 action={moveCase.bind(null, id, v, "appeal")}
                 fields={[
                   { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -471,7 +487,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                     title={t("workforce.cases.reviewSuspension")}
                     path={path}
                     submit={t("workforce.cases.reviewSuspensionSubmit")}
-                    done={t("workforce.cases.suspensionSaved")}
+                    done="workforce.cases.suspensionSaved"
                     action={changeSuspension.bind(null, id, v, "review")}
                     fields={[
                       { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -488,7 +504,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                     title={t("workforce.cases.endSuspension")}
                     path={path}
                     submit={t("workforce.cases.endSuspensionSubmit")}
-                    done={t("workforce.cases.suspensionSaved")}
+                    done="workforce.cases.suspensionSaved"
                     action={changeSuspension.bind(null, id, v, "end")}
                     fields={[
                       { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -502,7 +518,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                   intro={t("workforce.cases.suspendIntro")}
                   path={path}
                   submit={t("workforce.cases.suspendSubmit")}
-                  done={t("workforce.cases.suspensionSaved")}
+                  done="workforce.cases.suspensionSaved"
                   action={changeSuspension.bind(null, id, v, "start")}
                   fields={[
                     { kind: "date", name: "on", label: t("workforce.cases.on"), required: true },
@@ -528,7 +544,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                   intro={t("workforce.cases.referralIntro")}
                   path={path}
                   submit={t("workforce.cases.referralSubmit")}
-                  done={t("workforce.cases.referralSaved")}
+                  done="workforce.cases.referralSaved"
                   action={recordReferral.bind(null, id, v, body)}
                   fields={[
                     {
@@ -570,9 +586,10 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
               <WorkforceForm
                 headingLevel={3}
                 title={t("workforce.cases.close")}
+                intro={t("workforce.cases.closeIntro")}
                 path={path}
                 submit={t("workforce.cases.closeSubmit")}
-                done={t("workforce.cases.moved")}
+                done="workforce.cases.closed"
                 destructive
                 action={moveCase.bind(null, id, v, "closed")}
                 fields={[
@@ -584,6 +601,12 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                     required: true,
                     emptyOption: t("workforce.form.choose"),
                     options: codeOptions(CLOSING[c.stage] ?? [], "workforce.cases.closing", t),
+                  },
+                  {
+                    kind: "checkbox",
+                    name: "confirm",
+                    label: t("workforce.cases.closeConfirm"),
+                    required: true,
                   },
                 ]}
               />
@@ -600,7 +623,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
             intro={t("workforce.cases.decideIntro")}
             path={path}
             submit={t("workforce.cases.decideSubmit")}
-            done={t("workforce.cases.moved")}
+            done="workforce.cases.moved"
             action={moveCase.bind(null, id, v, "outcome")}
             fields={[
               { kind: "date", name: "on", label: t("workforce.cases.decidedOn"), required: true },
@@ -637,7 +660,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
             title={t("workforce.cases.decideAppeal")}
             path={path}
             submit={t("workforce.cases.decideAppealSubmit")}
-            done={t("workforce.cases.moved")}
+            done="workforce.cases.moved"
             action={decideAppeal.bind(null, id, v)}
             fields={[
               { kind: "date", name: "on", label: t("workforce.cases.decidedOn"), required: true },
@@ -685,7 +708,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
               title={t("workforce.cases.note")}
               path={path}
               submit={t("workforce.cases.noteSubmit")}
-              done={t("workforce.cases.noteAdded")}
+              done="workforce.cases.noteAdded"
               action={addCaseNote.bind(null, id)}
               fields={[
                 {

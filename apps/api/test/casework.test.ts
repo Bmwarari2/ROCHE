@@ -83,6 +83,13 @@ beforeAll(async () => {
     "SELECT id FROM tenant_user WHERE email = 'agency@example.invalid'",
   );
   agencyId = agency?.id ?? "";
+  // Agency Ash is also employed here as a care worker, so they are a colleague to name (an
+  // agency role alone is not: slice 58).
+  await sql(
+    `INSERT INTO role_assignment (tenant_user_id, role_id)
+     SELECT $1, id FROM role WHERE key = 'care_worker'`,
+    [agencyId],
+  );
 }, 120_000);
 
 afterAll(async () => {
@@ -418,6 +425,51 @@ describe("colleagues to choose from (slice 58)", () => {
     expect(items.map((i) => i.id)).toContain(DEMO.users.nurse.id);
     expect(Object.keys(items[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
     expect((await as("carer", "/v1/workforce/colleagues")).status).toBe(403);
+  });
+
+  it("never lists anyone who is not the provider's staff, nor a role not in force", async () => {
+    // An inspector, someone whose role starts tomorrow, and someone whose only role is archived.
+    const people = await sql<{ id: string; email: string }>(
+      `INSERT INTO tenant_user (display_name, email, status) VALUES
+         ('Ivy Example', 'inspector.s58@example.invalid', 'active'),
+         ('Finn Example', 'future.s58@example.invalid', 'active'),
+         ('Arlo Example', 'archived.s58@example.invalid', 'active')
+       RETURNING id, email`,
+    );
+    const by = (prefix: string) => people.find((p) => p.email.startsWith(prefix))?.id ?? "";
+    await sql(
+      `INSERT INTO role (key, name, permissions, scope_kind, archived_at)
+       VALUES ('s58_archived', 'Archived role', ARRAY['workforce.training.manage'], 'none', now())`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, valid_from)
+       SELECT $1::uuid, id, now() FROM role WHERE key = 'inspector'
+       UNION ALL SELECT $2::uuid, id, now() + interval '1 day' FROM role WHERE key = 'care_worker'
+       UNION ALL SELECT $3::uuid, id, now() FROM role WHERE key = 's58_archived'`,
+      [by("inspector"), by("future"), by("archived")],
+    );
+    const items = (
+      await json<{ items: { id: string }[] }>(await as("quality", "/v1/workforce/colleagues"))
+    ).items.map((i) => i.id);
+    for (const id of people.map((p) => p.id)) expect(items).not.toContain(id);
+    // Nor can a request name them on a case past the picker.
+    expect((await name(by("inspector"), "note_taker")).status).toBe(422);
+    // The read is audited, with no names.
+    const events = await sql<{ scope: unknown }>(
+      `SELECT scope FROM audit_event WHERE action = 'workforce.colleague.listed'`,
+    );
+    expect(events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(events)).not.toContain("Example");
+  });
+
+  it("tells a non-member nothing about a case, its subject or its people", async () => {
+    // The member of staff it is about is never a member of it.
+    const response = await as("carer", `/v1/workforce/cases/${caseId}`);
+    expect(response.status).toBe(404);
+    const body = await response.text();
+    expect(body).not.toContain(DEMO.users.carer.name);
+    const list = await json<{ items: { id: string }[] }>(await as("carer", "/v1/workforce/cases"));
+    expect(list.items.map((i) => i.id)).not.toContain(caseId);
   });
 
   it("names the case's people on the case", async () => {

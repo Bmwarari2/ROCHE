@@ -58,7 +58,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
-import { staffNames } from "../services/staff";
+import { allColleagues, staffNames } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -535,6 +535,16 @@ export const caseworkRouter = createRouter()
             A.memberNamed,
             id,
             "self_appointment",
+          );
+        }
+        // Only the provider's own staff take a part: never an inspector, a visiting professional,
+        // an agency worker or a portal account, whatever the request names.
+        if (!(await allColleagues(tx, [body.tenantUserId]))) {
+          throw refused(
+            problems.invalid("That person cannot take this part of the case."),
+            A.memberNamed,
+            id,
+            "not_a_colleague",
           );
         }
         const check = checkMemberAppointment({

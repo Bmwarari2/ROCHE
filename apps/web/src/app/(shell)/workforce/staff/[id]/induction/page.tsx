@@ -104,8 +104,10 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                       item: codeLabel("workforce.induction.item", item.kind, t),
                     })}
                     path={path}
-                    submit={t("workforce.induction.tickSubmit")}
-                    done={t("workforce.induction.ticked")}
+                    submit={t("workforce.induction.tick", {
+                      item: codeLabel("workforce.induction.item", item.kind, t),
+                    })}
+                    done="workforce.induction.ticked"
                     action={tickInductionItem.bind(null, id, item.kind)}
                     fields={[
                       {
@@ -136,7 +138,7 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
             intro={t("workforce.induction.planIntro")}
             path={path}
             submit={t("workforce.induction.savePlan")}
-            done={t("workforce.induction.planSaved")}
+            done="workforce.induction.planSaved"
             action={setInductionPlan.bind(null, id, induction.planVersion)}
             fields={[
               {
@@ -195,7 +197,7 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                 title={t("workforce.induction.shadowNew")}
                 path={path}
                 submit={t("workforce.induction.shadowRecord")}
-                done={t("workforce.induction.shadowRecorded")}
+                done="workforce.induction.shadowRecorded"
                 action={recordShadowShift.bind(null, id)}
                 fields={[
                   {
@@ -221,7 +223,7 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                 title={t("workforce.induction.reviewNew")}
                 path={path}
                 submit={t("workforce.induction.reviewRecord")}
-                done={t("workforce.induction.reviewRecorded")}
+                done="workforce.induction.reviewRecorded"
                 action={recordProbationReview.bind(null, id)}
                 fields={[
                   {
@@ -262,7 +264,7 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                   intro={t("workforce.induction.decideIntro")}
                   path={path}
                   submit={t("workforce.induction.decideSubmit")}
-                  done={t("workforce.induction.decided")}
+                  done="workforce.induction.decided"
                   action={decideProbation.bind(null, id, induction.planVersion)}
                   fields={[
                     {
@@ -323,8 +325,8 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                       headingLevel={4}
                       title={t("workforce.careCertificate.assess", { standard: s.title })}
                       path={path}
-                      submit={t("workforce.careCertificate.assessSubmit")}
-                      done={t("workforce.careCertificate.assessed")}
+                      submit={t("workforce.careCertificate.assess", { standard: s.title })}
+                      done="workforce.careCertificate.assessed"
                       action={recordCareCertificateStep.bind(null, id, s.id, "knowledge")}
                       fields={[
                         {
@@ -341,8 +343,8 @@ export default async function InductionPage({ params }: { params: Promise<{ id: 
                       headingLevel={4}
                       title={t("workforce.careCertificate.observe", { standard: s.title })}
                       path={path}
-                      submit={t("workforce.careCertificate.observeSubmit")}
-                      done={t("workforce.careCertificate.observed")}
+                      submit={t("workforce.careCertificate.observe", { standard: s.title })}
+                      done="workforce.careCertificate.observed"
                       action={recordCareCertificateStep.bind(null, id, s.id, "observation")}
                       fields={[
                         {

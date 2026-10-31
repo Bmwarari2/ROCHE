@@ -1,9 +1,11 @@
 "use client";
 
+import type { MessageKey } from "@harbour/i18n";
 import { Button, Checkbox, DateInput, SelectField, TextArea, TextField } from "@harbour/ui";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useState, useTransition } from "react";
-import { ManageFeedback } from "@/components/safety/ManageForms";
+import { FormFeedback } from "@/components/care/FormFeedback";
+import { StepUpNotice } from "@/components/safety/ManageForms";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 import { readDateField } from "@/lib/uk-time";
@@ -12,8 +14,10 @@ import type { WorkforceField, WorkforceValues } from "@/lib/workforce";
 /**
  * One workforce form (plan slice 58): the fields it is given, checked in the browser for what is
  * required, then sent to its server action, which the API checks again. On success the page is
- * read again and a message says what was done; a refusal is said in words, each at its field, and
- * a step that needs step-up asks for the passkey or authenticator code with the way back.
+ * opened again at `?done=<key>` and WorkforceArrival says what was done, with focus on the page's
+ * heading (the house pattern, as useManageSend). The form is cleared, so an append-only entry is
+ * not sent twice by mistake. A refusal is said in words, each at its field; a step that needs
+ * step-up or a verified second factor asks for it, in the step's own words, with the way back.
  */
 export function WorkforceForm({
   title,
@@ -25,30 +29,36 @@ export function WorkforceForm({
   action,
   destructive = false,
   headingLevel = 3,
+  stepUp,
 }: {
   readonly title: string;
   readonly intro?: string;
   readonly fields: readonly WorkforceField[];
   readonly submit: string;
-  readonly done: string;
+  /** The catalogue key of what was done, said when the page opens again. */
+  readonly done: MessageKey;
   readonly path: string;
   readonly action: (values: WorkforceValues) => Promise<ActionResult<unknown>>;
   readonly destructive?: boolean;
   readonly headingLevel?: 2 | 3 | 4;
+  /** The step-up notice's words for this step, when it needs step-up. */
+  readonly stepUp?: string;
 }) {
   const router = useRouter();
   const base = useId();
-  const ids = Object.fromEntries(fields.map((f) => [f.name, `${base}-${f.name}`]));
-  const titleId = `${base}-title`;
+  // Field ids carry their own prefix, so a field named "title" never shares the heading's id.
+  const ids = Object.fromEntries(fields.map((f) => [f.name, `${base}-field-${f.name}`]));
+  const titleId = `${base}-heading`;
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
-  const [sent, setSent] = useState(false);
   const [pending, startTransition] = useTransition();
   const Heading = `h${headingLevel}` as const;
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSent(false);
-    const data = new FormData(event.currentTarget);
+    // Kept before the await: the event's currentTarget is null once the handler has returned.
+    const form = event.currentTarget;
+    if (pending) return;
+    const data = new FormData(form);
     const values: Record<string, string | boolean | null> = {};
     const errors: Record<string, string> = {};
     const parts: Record<string, readonly string[]> = {};
@@ -77,7 +87,11 @@ export function WorkforceForm({
       const text = typeof raw === "string" ? raw.trim() : "";
       values[field.name] = text === "" ? null : text;
       if (field.required && text === "") {
-        errors[field.name] = t("workforce.form.required", { field: field.label });
+        errors[field.name] =
+          field.requiredMessage ??
+          t(field.kind === "select" ? "workforce.form.chooseRequired" : "workforce.form.required", {
+            field: field.label,
+          });
       }
     }
     if (Object.keys(errors).length > 0) {
@@ -89,9 +103,9 @@ export function WorkforceForm({
       const outcome = await action(values);
       setResult(outcome);
       if (!outcome.ok) return;
-      setSent(true);
-      event.currentTarget?.reset?.();
-      router.refresh();
+      form.reset();
+      // `at` makes each save a new arrival, so a second identical save is said and focused again.
+      router.replace(`${path}?done=${encodeURIComponent(done)}&at=${Date.now()}`);
     });
   };
 
@@ -128,6 +142,8 @@ export function WorkforceForm({
                   required={field.required}
                   maxLength={field.maxLength}
                   {...(field.inputMode ? { inputMode: field.inputMode } : {})}
+                  {...(field.type ? { type: field.type } : {})}
+                  {...(field.autoComplete ? { autoComplete: field.autoComplete } : {})}
                   {...hintProps}
                   {...errorProps}
                 />
@@ -157,6 +173,7 @@ export function WorkforceForm({
                   required={field.required}
                   options={field.options}
                   emptyOption={field.emptyOption}
+                  {...(field.defaultValue ? { defaultValue: field.defaultValue } : {})}
                   {...hintProps}
                   {...errorProps}
                 />
@@ -197,19 +214,19 @@ export function WorkforceForm({
           <Button
             type="submit"
             variant={destructive ? "destructive" : "primary"}
-            disabled={pending}
             aria-disabled={pending}
           >
             {pending ? t("common.saving") : submit}
           </Button>
         </div>
       </form>
-      {sent && result?.ok ? (
-        <p role="status" className="m-0 text-body-dense">
-          {done}
-        </p>
+      {result && !result.ok ? (
+        result.code === "step_up_required" || result.code === "mfa_verification_required" ? (
+          <StepUpNotice next={path} refusal={result} body={stepUp ?? t("workforce.form.stepUp")} />
+        ) : (
+          <FormFeedback result={result} success="" fieldIds={ids} />
+        )
       ) : null}
-      <ManageFeedback result={result} path={path} fieldIds={ids} />
     </div>
   );
 }

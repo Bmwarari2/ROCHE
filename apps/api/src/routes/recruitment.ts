@@ -31,7 +31,6 @@ import {
   retentionClass,
   staffProfile,
   type Transaction,
-  tenantUser,
   vacancy,
 } from "@harbour/db";
 import {
@@ -58,6 +57,7 @@ import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { allColleagues } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -913,11 +913,7 @@ export const recruitmentRouter = createRouter()
             "held_in_future",
           );
         }
-        const members = await tx
-          .select({ id: tenantUser.id })
-          .from(tenantUser)
-          .where(inArray(tenantUser.id, body.panel));
-        if (new Set(members.map((m) => m.id)).size !== new Set(body.panel).size) {
+        if (!(await allColleagues(tx, body.panel))) {
           throw refused(
             problems.invalid("Choose the panel from this organisation's members of staff."),
             A.interview,

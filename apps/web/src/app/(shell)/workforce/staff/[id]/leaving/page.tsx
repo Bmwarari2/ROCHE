@@ -89,7 +89,7 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
               intro={t("workforce.leaving.recordIntro")}
               path={path}
               submit={t("workforce.leaving.recordSubmit")}
-              done={t("workforce.leaving.recorded")}
+              done="workforce.leaving.recorded"
               action={recordLeaving.bind(null, id)}
               fields={[
                 {
@@ -146,8 +146,10 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                           item: codeLabel("workforce.leaving.item", item.kind, t),
                         })}
                         path={path}
-                        submit={t("workforce.induction.tickSubmit")}
-                        done={t("workforce.induction.ticked")}
+                        submit={t("workforce.induction.tick", {
+                          item: codeLabel("workforce.leaving.item", item.kind, t),
+                        })}
+                        done="workforce.induction.ticked"
                         action={tickLeaverItem.bind(null, id, item.kind)}
                         fields={[
                           {
@@ -172,7 +174,8 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                 intro={t("workforce.leaving.endAccessIntro")}
                 path={path}
                 submit={t("workforce.leaving.endAccessSubmit")}
-                done={t("workforce.leaving.accessEndedNow")}
+                done="workforce.leaving.accessEndedNow"
+                stepUp={t("workforce.leaving.stepUp")}
                 destructive
                 action={endLeaverAccess.bind(null, id)}
                 fields={[
@@ -209,7 +212,7 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                   intro={t("workforce.leaving.exitIntro")}
                   path={path}
                   submit={t("workforce.leaving.exitSubmit")}
-                  done={t("workforce.leaving.exitRecorded")}
+                  done="workforce.leaving.exitRecorded"
                   action={recordExitInterview.bind(null, id, leaving.version)}
                   fields={[
                     {
@@ -288,11 +291,11 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                         </span>
                         {manages && r.state === "requested" ? (
                           <WorkforceForm
-                            headingLevel={4}
+                            headingLevel={3}
                             title={t("workforce.references.answer", { requester: r.requester })}
                             path={path}
-                            submit={t("workforce.references.answerSubmit")}
-                            done={t("workforce.references.answered")}
+                            submit={t("workforce.references.answer", { requester: r.requester })}
+                            done="workforce.references.answered"
                             action={answerReferenceRequest.bind(null, id, r.id, r.version)}
                             fields={[
                               {
@@ -340,7 +343,7 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                   intro={t("workforce.references.newIntro")}
                   path={path}
                   submit={t("workforce.references.record")}
-                  done={t("workforce.references.recorded")}
+                  done="workforce.references.recorded"
                   action={recordReferenceRequest.bind(null, id)}
                   fields={[
                     {

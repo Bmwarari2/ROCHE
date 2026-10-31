@@ -411,3 +411,16 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
 export function builtinRole(key: string): BuiltinRole | undefined {
   return BUILTIN_ROLES.find((role) => role.key === key);
 }
+
+/**
+ * Built-in roles for people who are not the provider's employees: visiting professionals,
+ * inspectors, agency workers and the portals. Nobody holding only these is a colleague to choose
+ * for an interview panel, a shadow shift or an employee relations case (workforce.md section 5).
+ */
+export const NON_STAFF_ROLE_KEYS = [
+  "external_professional",
+  "family_representative",
+  "person_receiving_care",
+  "agency_worker",
+  "inspector",
+] as const;

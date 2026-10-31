@@ -526,6 +526,42 @@ Audit actions: `workforce.induction.viewed`, `.plan_set`, `.item_ticked`, `.shad
 (by the sweep with no actor), `workforce.reference.requested`, `.answered`. The
 `leaver-access` job runs hourly at 7 past.
 
+### Screens (slice 58)
+
+Web screens for WORK-001, WORK-004, WORK-010 and WORK-013, on the routes above. Every screen checks
+the permission again in the API; the web only decides what to offer.
+
+| Screen | Path | Offered to | Does |
+| --- | --- | --- | --- |
+| Job templates | `/workforce/job-templates` | `workforce.recruitment.manage` | List and add templates: Care Workforce Pathway role, registration, essential criteria, values-based questions |
+| Vacancies | `/workforce/vacancies`, `/workforce/vacancies/{id}` | `workforce.recruitment.manage` | Add and open vacancies; the applications, each stage as an icon and a word; add an application; change status; equality counts, withheld below the minimum |
+| Application | `/workforce/applications/{id}` | `workforce.recruitment.manage` | Shortlist against each criterion, record an interview (panel from the colleagues list, each answer scored 1 to 4, the total shown, never a decision), make an offer, record the response, close it (with confirmation) |
+| Staff | `/workforce/staff` | `workforce.staff_file.read` or `.manage` | Each member's file state, with links to their induction and leaving |
+| Induction | `/workforce/staff/{id}/induction` | as Staff; assessors for the Care Certificate | Checklist ticks, plan, shadow shifts, probation reviews and decision, each Care Certificate standard assessed and observed |
+| Leaving | `/workforce/staff/{id}/leaving` | as Staff | Record a leaving, the checklist, end access now (confirmation and step-up), exit interview, references |
+| Employee relations | `/workforce/cases`, `/workforce/cases/{id}` | the case's members; opening a case to `workforce.casework.manage` | My cases; members, hearings, suspension, referrals, outcome, appeal, timeline and notes, each action offered only to the part that may take it |
+
+- **The silo in the navigation.** "Employee relations" appears only for holders of
+  `workforce.casework.manage`. The navigation never shows whether anyone is on a case, so a member
+  named on a case without the permission reaches it by its link. The list and the case page show
+  nothing to a non-member: the API answers 404, and the page answers "not found".
+- **Colleagues.** `GET /v1/workforce/colleagues` (any of `workforce.recruitment.manage`,
+  `workforce.staff_file.read`, `workforce.staff_file.manage`, `workforce.casework.manage`) lists
+  colleagues by name and job title only. A colleague is an invited or active member holding a role
+  in force (started, not ended, not archived) that is neither a portal role nor one in
+  `NON_STAFF_ROLE_KEYS` (inspector, external professional, agency worker, family, person receiving
+  care). Naming a case member or an interview panel refuses anyone else (422), so the rule holds past
+  the picker. The read is audited (`workforce.colleague.listed`) without names. It needs no verified
+  second factor: it holds staff names only, never a care record.
+- **Names on cases.** `CaseSummary.subjectName` and `CaseDetail.staff` name only the people the case
+  references, and only to its active members.
+- **After a save** the page opens again at `?done=<catalogue key>&at=…`. The status says what was
+  done and focus moves to the page's heading. Only a known `workforce.*` key is said, so the address
+  cannot put words on the page. The form is cleared, so an append-only entry is not sent twice.
+- **Destructive steps** (remove a case member, close an application, close a case, end access now)
+  say what follows and need a confirmation box; ending access also needs step-up.
+- Strings are en-GB; Welsh entries are marked untranslated. Dates are dd/mm/yyyy, times 24-hour.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -733,7 +769,6 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
 | Casework does not stop someone holding the caseworker role from being named on a case about a colleague they are close to, or a member reading a case after their own conflict arises (slice 39) | Conflicts of interest are for the case manager to manage | A declared-conflict check when naming members (slice 58) |
 | A case nobody can read once its last case manager leaves (slice 39) | The case stays, unread, until support acts under an approval ticket | The support route (H-804) |
-| Members are any member of the organisation; a portal account could be named (slice 39) | Only a case manager names members, and only staff accounts are offered in the screens | Refuse a member holding only portal roles (slice 58) |
 | Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
 | Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
 | Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
@@ -743,3 +778,8 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | A leaving date, once recorded, is not corrected (slice 29) | A wrong date needs support to correct it, with the audit trail | A correction that records the change and recomputes access and retention (slice 58) |
 | Device sessions of a leaver are not ended by the sweep (slice 29) | The member holds nothing once left (no role is counted), so the API refuses them; a Care mode device keeps their unsent entries | Revoke the leaver's devices with the sweep (with platform device management) |
 | The keep-until date is worked out once, when the leaving is recorded (slice 29) | A later change of the organisation's retention row or date of birth does not move it | The retention engine's employment triggers (with H-575) |
+| A member named on a case without `workforce.casework.manage` has no navigation entry (slice 58) | They reach the case by its link (the silo shows nothing in the navigation) | Show the entry when `GET /v1/workforce/cases` is not empty, without a count, if the CSO and DPO agree (H-933) |
+| A case manager who does not hold `workforce.casework.manage` cannot load the colleagues list (slice 58) | They cannot name members from the screen; a caseworker names them | Let active case managers read colleagues for their case (H-934) |
+| Linking a safeguarding concern to a case has no screen (slice 58) | The API route exists; the timeline shows a link made there | A picker for the safeguarding concerns the member may read (with the safety screens) |
+| The demo seed has no casework holder (slice 58) | The web journeys cover the silo (no entry, nothing shown) and recruitment; running a case is covered by the API tests | A demo caseworker in the e2e seed (H-936) |
+| Welsh copy for the workforce screens (slice 58) | Welsh shows the English words, marked untranslated | Translation (H-939) |

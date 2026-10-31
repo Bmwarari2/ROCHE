@@ -94,7 +94,7 @@ export default async function VacanciesPage() {
             title={t("workforce.vacancies.new")}
             path="/workforce/vacancies"
             submit={t("workforce.vacancies.create")}
-            done={t("workforce.vacancies.created")}
+            done="workforce.vacancies.created"
             action={createVacancy}
             fields={[
               {

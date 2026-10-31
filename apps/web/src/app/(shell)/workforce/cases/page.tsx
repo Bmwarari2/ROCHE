@@ -90,7 +90,7 @@ export default async function CasesPage() {
             intro={t("workforce.cases.newIntro")}
             path="/workforce/cases"
             submit={t("workforce.cases.open")}
-            done={t("workforce.cases.opened")}
+            done="workforce.cases.opened"
             action={openCase}
             fields={[
               {

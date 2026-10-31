@@ -1,16 +1,19 @@
 import { ColleagueList } from "@harbour/contracts";
 import { tenantUser } from "@harbour/db";
-import { PORTAL_ONLY_PERMISSIONS } from "@harbour/domain";
 import { createRoute } from "@hono/zod-openapi";
-import { and, asc, inArray, isNull, sql } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { requireAnyPermission, withTenant } from "../http/context";
+import { isColleague } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
+import { audit } from "./people-shared";
 
 /**
  * Colleagues to choose from (workforce.md section 5; plan slice 58): an interview panel, a
  * colleague shadowed, a case member. Members of staff on the staff (never a portal account: a
  * member holding a role with no portal permission), by name and job title only, never an
- * address or anything else. For holders of the workforce permissions that name colleagues.
+ * address or anything else. For holders of the workforce permissions that name colleagues. The
+ * read is audited without names. It is staff names only, never a care record, so it does not
+ * need a verified second factor (workforce.md section 5).
  */
 export const colleaguesRouter = createRouter().openapi(
   createRoute({
@@ -24,39 +27,30 @@ export const colleaguesRouter = createRouter().openapi(
     responses: { 200: jsonBody(ColleagueList, "Colleagues"), ...errorResponses },
   }),
   async (c) => {
-    await requireAnyPermission(c, [
+    const access = await requireAnyPermission(c, [
       "workforce.recruitment.manage",
       "workforce.staff_file.read",
       "workforce.staff_file.manage",
       "workforce.casework.manage",
     ]);
-    const portal = sql.raw(
-      `ARRAY[${PORTAL_ONLY_PERMISSIONS.map((p) => `'${p}'`).join(", ")}]::text[]`,
-    );
-    const items = await withTenant(c, (tx) =>
-      tx
+    const items = await withTenant(c, async (tx) => {
+      const rows = await tx
         .select({
           id: tenantUser.id,
           displayName: tenantUser.displayName,
           jobTitle: tenantUser.jobTitle,
         })
         .from(tenantUser)
-        .where(
-          and(
-            inArray(tenantUser.status, ["invited", "active"]),
-            isNull(tenantUser.deletedAt),
-            sql`EXISTS (SELECT 1 FROM role_assignment ra
-                          JOIN role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
-                         WHERE ra.tenant_id = ${tenantUser.tenantId}
-                           AND ra.tenant_user_id = ${tenantUser.id}
-                           AND ra.deleted_at IS NULL
-                           AND (ra.valid_to IS NULL OR ra.valid_to > now())
-                           AND NOT (r.permissions && ${portal}))`,
-          ),
-        )
+        .where(isColleague())
         .orderBy(asc(tenantUser.displayName), asc(tenantUser.id))
-        .limit(2000),
-    );
+        .limit(2000);
+      // Audited without names: who read the directory, never who was in it.
+      await audit(c, tx, access, {
+        action: "workforce.colleague.listed",
+        resourceType: "tenant_user",
+      });
+      return rows;
+    });
     return c.json({ items }, 200);
   },
 );
