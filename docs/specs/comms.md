@@ -672,6 +672,18 @@ Slice 11 (letters, API part 2b; `feat/comms-letters-api`): `apps/api/src/routes/
 | `POST /v1/people/{id}/letters` | As the preview, with `confirmed` and the preview's `templateVersionId` and `textHash` (SHA-256 of the subject and text): a letter that would differ from what the sender checked (a new version approved, a value changed) is refused with 409 `letter_changed`, audited `preview_changed`. ADR-0051 checked again on what was rendered. A letter is rendered to PDF by the pack PDF writer (ADR-0040; values as text) and stored as a `person_document` about the person. **Email is refused** (422, `email_sending_not_available`, audited) until the worker-based send exists (a pending letter row, a worker job keyed on the letter id, then the provider's id recorded), so an email can never be sent twice or sent unrecorded. The `letter` row keeps the field keys, never the content; `comms.letter.sent` and the outbox `comms.letter.sent` |
 | `GET /v1/people/{id}/letters` | `comms.letter.manage` with MFA (a comms permission, not only the person in scope): template version, recipient, channel, field keys, document; the incident only to holders of `safety.incident.manage`; never content; `comms.letter.listed` |
 
+Letter layout (recommended answer to H-228, 31/10/2026, reviewed at the testing phase): page 1 of a
+letter's PDF carries the provider's letterhead from its branding at the top right (the name it
+trades under, its registered name when that differs, and the address and telephone number of the
+person's home, which sends it) and the recipient's name and address placed for the window of a
+standard DL or C5 left-hand window envelope (`LETTER_LAYOUT` in `apps/api/src/services/pdf.ts`:
+20 mm from the left, 50 mm from the top, 85 by 35 mm; `letterBlocks` in
+`apps/api/src/services/letters.ts`), with nothing else in the window's band; the letter's text
+starts 100 mm from the top, and later pages are as before with "Page n of N". Emails stay plain
+text with the template's subject. Before any letter goes by post the positions are checked by a
+print test on real DL and C5 window envelopes (human action H-228). Tests:
+`apps/api/src/services/pdf-letter.test.ts` and `apps/api/test/letters.test.ts`.
+
 Not yet: duty of candour letters (refused until the candour record names the relevant person,
 rule 21); sending email (the worker-based send above); a family-facing incident summary for
 incidents involving several people. Tests:

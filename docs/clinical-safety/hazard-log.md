@@ -2391,6 +2391,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | Design | A duty of candour letter renders only for the relevant person on the candour record, and a representative only on a regulation 20(7) basis (`checkCandourRelevantPerson`); `candour.results` alone may say the results are to follow, with standard words, and the letter is marked so the follow-up stays due (`resultsToFollowText`; comms.md rule 21; wording and reading for the CSO and a solicitor, H-103) | Phase 1 (domain rules built, slice 11) |
 | Design | Letter text is passed to the PDF renderer (Typst) as data, never as markup (comms.md rule 24) | Phase 1 (API step) |
 | Design | Before sending, the sender sees the person's name and photo (HZ-001), the recipient and the flagged personal-data fields; the letter, template version and fields used are stored and audited | Phase 1 (API and web steps) |
+| Design | A posted letter shows only its recipient's name and address through the envelope's window: the address block is placed for a standard DL or C5 left-hand window and nothing else is drawn in the window's band; the provider's letterhead from its branding is at the top right (`LETTER_LAYOUT`, `letterBlocks`) | Built for the recommended answer to H-228 (31/10/2026); the print test on real envelopes is still to do before letters are posted |
 | Test | See Verification | Phase 1 |
 | Training and user documentation | Deployer control: starter wording reviewed by the provider's adviser; candour letters signed off by the Registered Manager | Phase 1 |
 
@@ -2412,6 +2413,7 @@ Tests are named in `file`: `test name` form; the Verification table below lists 
 | `apps/api`: `hazard HZ-051 a letter cannot be made with another person's details` | Covered by `letters.test.ts` (another person's contact, another person's incident) |
 | `apps/web/e2e/letter-templates.spec.ts`: `hazard HZ-051 a draft shows each problem at its field, and its author cannot approve it`, `hazard HZ-051 someone else approves it; a new draft is discarded and the version retired, each with a reason`, `hazard HZ-051 an approver edits only behind Edit draft, the form follows the stored words, and stale writes are refused` (axe on every state, including both refusals); `apps/web/src/lib/letters.test.ts` | Passing (Phase 1, slice 11 web part 1) |
 | `apps/web/e2e/letters.spec.ts`: `hazard HZ-051 hazard HZ-001 a letter is checked in a preview that shows who it is about, then made`, `hazard HZ-051 a letter changed since the preview is shown again to check, and email is refused in words` (axe on every state) | Passing (Phase 1, slice 11 web part 2) |
+| `apps/api/src/services/pdf-letter.test.ts`: `hazard HZ-051 a posted letter's letterhead and window-envelope address (H-228)` (every address line inside the window, nothing else in it, the letterhead clear of it on page 1 only, the text below it); `apps/api/test/letters.test.ts` (the sent letter carries the letterhead and the address) | Passing (31/10/2026) |
 
 ---
 

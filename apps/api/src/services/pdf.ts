@@ -402,10 +402,16 @@ interface Placed {
   readonly y: number;
 }
 
-function paginate(lines: readonly PdfLine[], withImage: boolean, headerHeight = 0): Placed[][] {
+function paginate(
+  lines: readonly PdfLine[],
+  withImage: boolean,
+  headerHeight = 0,
+  /** Where the first page's text starts, when something is drawn above it (a letter's blocks). */
+  firstTop?: number,
+): Placed[][] {
   const pages: Placed[][] = [[]];
   const top = PAGE_HEIGHT - MARGIN - headerHeight;
-  let y = top;
+  let y = firstTop ?? top;
   const imageBottom = top - IMAGE_BOX.height - 10;
   for (const line of lines) {
     const size = line.size ?? 10;
@@ -495,6 +501,83 @@ function compressedFont(font: TrueTypeFont): Buffer {
 const HEADER_SIZE = 9;
 const HEADER_GAP = 8;
 
+/** Points in a millimetre. */
+const MM = 72 / 25.4;
+
+/**
+ * Where a posted letter's blocks sit on page 1 (comms.md section 11; H-228), in millimetres from
+ * the page's top left. The recipient's address is placed for the window of a standard DL or C5
+ * left-hand window envelope (about 90 by 35 mm, 20 mm from the left), and nothing else is drawn in
+ * the window's band; the provider's letterhead is at the top right, clear of it; the letter's text
+ * starts below. The print test on real envelopes confirms the positions before letters are posted
+ * (human action H-228).
+ */
+export const LETTER_LAYOUT = {
+  addressLeftMm: 20,
+  addressTopMm: 50,
+  addressWidthMm: 85,
+  addressHeightMm: 35,
+  letterheadLeftMm: 120,
+  letterheadTopMm: 15,
+  bodyTopMm: 100,
+} as const;
+
+/** A posted letter's blocks on page 1: the provider's letterhead and the recipient's address. */
+export interface LetterBlocks {
+  readonly letterhead: readonly string[];
+  readonly address: readonly string[];
+}
+
+const LETTER_SIZE = 10;
+
+/** The letter's two blocks as placed lines, each wrapped to its width and cut to its height. */
+function letterLines(
+  letter: LetterBlocks,
+): { text: string; x: number; y: number; bold: boolean }[] {
+  const out: { text: string; x: number; y: number; bold: boolean }[] = [];
+  const step = LETTER_SIZE * LINE_FACTOR;
+  const place = (
+    lines: readonly string[],
+    leftMm: number,
+    topMm: number,
+    widthPt: number,
+    maxLines: number,
+    boldFirst: boolean,
+  ) => {
+    const pieces = lines.flatMap((text, n) =>
+      wrap(text, widthPt, LETTER_SIZE, packFont(boldFirst && n === 0 ? "bold" : "regular")).map(
+        (piece) => ({ piece, bold: boldFirst && n === 0 }),
+      ),
+    );
+    for (const [n, { piece, bold }] of pieces.slice(0, maxLines).entries()) {
+      out.push({
+        text: piece,
+        x: leftMm * MM,
+        y: PAGE_HEIGHT - topMm * MM - (n + 1) * step,
+        bold,
+      });
+    }
+  };
+  const L = LETTER_LAYOUT;
+  place(
+    letter.letterhead,
+    L.letterheadLeftMm,
+    L.letterheadTopMm,
+    PAGE_WIDTH - L.letterheadLeftMm * MM - MARGIN,
+    Math.floor(((L.addressTopMm - L.letterheadTopMm - 5) * MM) / step),
+    true,
+  );
+  place(
+    letter.address,
+    L.addressLeftMm,
+    L.addressTopMm,
+    L.addressWidthMm * MM,
+    Math.floor((L.addressHeightMm * MM) / step),
+    false,
+  );
+  return out;
+}
+
 /**
  * Builds the PDF bytes: every page carries the footer (for example the person's identity) and,
  * when given, the same header lines at the top (for example a downtime pack's freshness words).
@@ -506,6 +589,8 @@ export function renderPdf(input: {
   readonly footer: (page: number, pages: number, owner: string | undefined) => string;
   readonly image?: ImageObject | null;
   readonly header?: readonly string[];
+  /** A posted letter: the letterhead and the window-envelope address on page 1 (H-228). */
+  readonly letter?: LetterBlocks;
 }): Uint8Array {
   const image = input.image ?? null;
   const headerLines = (input.header ?? []).flatMap((text) =>
@@ -513,7 +598,13 @@ export function renderPdf(input: {
   );
   const headerHeight =
     headerLines.length === 0 ? 0 : headerLines.length * HEADER_SIZE * LINE_FACTOR + HEADER_GAP;
-  const pages = paginate(input.lines, image !== null, headerHeight);
+  const letter = input.letter ? letterLines(input.letter) : [];
+  const pages = paginate(
+    input.lines,
+    image !== null,
+    headerHeight,
+    input.letter ? PAGE_HEIGHT - LETTER_LAYOUT.bodyTopMm * MM : undefined,
+  );
   const fonts = { F1: packFont("regular"), F2: packFont("bold") } as const;
   const usage = { F1: new Usage(), F2: new Usage() };
 
@@ -548,6 +639,13 @@ export function renderPdf(input: {
       const hex = usage.F2.encode(fonts.F2, piece);
       const y = PAGE_HEIGHT - MARGIN - (n + 1) * HEADER_SIZE * LINE_FACTOR;
       content += `BT /F2 ${HEADER_SIZE} Tf ${MARGIN} ${y.toFixed(1)} Td <${hex}> Tj ET\n`;
+    }
+    if (index === 0) {
+      for (const block of letter) {
+        const key = block.bold ? "F2" : "F1";
+        const hex = usage[key].encode(fonts[key], block.text);
+        content += `BT /${key} ${LETTER_SIZE} Tf ${block.x.toFixed(1)} ${block.y.toFixed(1)} Td <${hex}> Tj ET\n`;
+      }
     }
     for (const { line, y } of placed) {
       const key = line.bold ? "F2" : "F1";

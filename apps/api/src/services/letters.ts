@@ -52,6 +52,44 @@ export interface LetterContext {
   readonly typed: Readonly<Record<string, string | number>>;
 }
 
+/**
+ * A posted letter's page-1 blocks (comms.md section 11; H-228): the provider's letterhead from its
+ * branding (the name it trades under, its registered name when that differs, and the address and
+ * telephone number of the person's home, which sends the letter) and the recipient's name and
+ * address for the window envelope (a contact's address, or the person's own, as the merge field
+ * `recipient.address` reads them). Missing parts are left out, never invented.
+ */
+export async function letterBlocks(
+  tx: Transaction,
+  ctx: Pick<LetterContext, "tenantId" | "person" | "contact">,
+): Promise<{ letterhead: string[]; address: string[] }> {
+  const [t] = await tx
+    .select({ name: tenant.name, legalName: tenant.legalName, brandName: tenant.brandName })
+    .from(tenant)
+    .where(eq(tenant.id, ctx.tenantId));
+  const [l] = await tx.select().from(location).where(eq(location.id, ctx.person.locationId));
+  const split = (text: string) => (text ? text.split("\n") : []);
+  const shown = t?.brandName?.trim() || t?.name || "";
+  const registered = t?.legalName?.trim() ?? "";
+  const letterhead = [
+    shown,
+    ...(registered && registered !== shown ? [registered] : []),
+    ...split(l ? lines(l.addressLine1, l.addressLine2, l.town, l.postcode) : ""),
+    ...(l?.phone ? [`Telephone ${l.phone}`] : []),
+  ].filter((line) => line !== "");
+  const p = ctx.person;
+  const c = ctx.contact;
+  const address = [
+    c ? `${c.givenName} ${c.familyName}` : `${p.givenName} ${p.familyName}`,
+    ...split(
+      c
+        ? lines(c.addressLine1, c.town, c.postcode)
+        : lines(p.addressLine1, p.addressLine2, p.town, p.postcode),
+    ),
+  ];
+  return { letterhead, address };
+}
+
 export async function letterValues(
   tx: Transaction,
   ctx: LetterContext,
