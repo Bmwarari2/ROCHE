@@ -114,7 +114,7 @@ export function DetailsForm({
     <InlineSection open={t("people.details.change")}>
       {(close) => (
         <>
-          <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
             <h4 className="m-0 text-body font-semibold">{t("people.details.form.title")}</h4>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TextField
@@ -402,7 +402,7 @@ export function ContactForm({
     <InlineSection open={open}>
       {(close) => (
         <>
-          <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
             <Heading className="m-0 text-body font-semibold">{open}</Heading>
             <SelectField
               {...field("role")}

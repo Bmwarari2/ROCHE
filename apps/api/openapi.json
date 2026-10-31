@@ -6849,6 +6849,191 @@
           "version"
         ]
       },
+      "WorkflowInstanceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInstanceItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "WorkflowInstanceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enteredStateAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "slaDueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "slaState": {
+            "$ref": "#/components/schemas/WorkflowSlaState"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "incident": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "closeBlocked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "closeBlocked"
+            ]
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowMoveOption"
+            }
+          },
+          "awaitingYourApproval": {
+            "type": "boolean"
+          },
+          "raisedByYou": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "definitionKey",
+          "subjectType",
+          "subjectId",
+          "personId",
+          "incidentId",
+          "locationId",
+          "state",
+          "startedAt",
+          "enteredStateAt",
+          "slaDueAt",
+          "slaState",
+          "createdBy",
+          "permissions",
+          "incident",
+          "moves",
+          "awaitingYourApproval",
+          "raisedByYou"
+        ]
+      },
+      "WorkflowSlaState": {
+        "type": "string",
+        "enum": [
+          "none",
+          "on_track",
+          "due_today",
+          "overdue",
+          "on_record"
+        ],
+        "description": "The current state's deadline: overdue once it has come, due today when later on the same UK day, on track when on a later day, none when the state has no deadline; on_record when the deadline is kept on the record and the list does not have it (open the record to check, never read as no deadline)"
+      },
+      "WorkflowMoveOption": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "approval": {
+            "type": "boolean"
+          },
+          "requiresReason": {
+            "type": "boolean"
+          },
+          "requiresStepUp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "to",
+          "approval",
+          "requiresReason",
+          "requiresStepUp"
+        ]
+      },
+      "WorkflowListView": {
+        "type": "string",
+        "enum": [
+          "approvals",
+          "all"
+        ],
+        "default": "approvals",
+        "description": "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in"
+      },
       "DocumentItem": {
         "type": "object",
         "properties": {
@@ -31545,6 +31730,76 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workflows": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Open workflows in your scope, with their deadline state and the steps open to you",
+        "description": "For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope shows the record and reaches its home (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records in a state whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/WorkflowListView"
+            },
+            "required": false,
+            "description": "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in",
+            "name": "view",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workflows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowInstanceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

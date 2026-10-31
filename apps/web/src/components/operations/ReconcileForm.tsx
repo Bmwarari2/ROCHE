@@ -68,7 +68,7 @@ export function ReconcileForm({
   const reviewIds = { ...ids, review: itemId(Math.max(firstUnticked, 0)) };
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       {items.length > 0 ? (
         <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
           <legend className="mb-2 font-semibold">{t("operations.reconcile.reviewLegend")}</legend>

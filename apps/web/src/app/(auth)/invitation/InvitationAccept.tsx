@@ -378,7 +378,7 @@ export function InvitationAccept() {
 
     return (
       <Card>
-        <form className="flex flex-col gap-4" onSubmit={createSignIn} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={createSignIn} noValidate>
           {intro}
           {problem}
           <p className="m-0">{t("invitation.form.body")}</p>
