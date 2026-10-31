@@ -12,8 +12,9 @@
  *   row (no title, due time or version; `held-work.ts`) is named from the move itself;
  * - status is always an icon and a word, never colour alone.
  */
-import { knownAsName } from "@harbour/ui-native/logic";
+import { communicationFlagLabel, knownAsName } from "@harbour/ui-native/logic";
 import { type MessageKey, t } from "../i18n/t";
+import { parseCommunicationNeeds } from "../people/person-view";
 import type { FieldError } from "./entries";
 import { parseQueuedMove, type TaskToMove } from "./round-actions";
 import { parseInstant, ukDateLabel, ukDateTimeParts } from "./time";
@@ -27,10 +28,14 @@ export interface RoundTaskRow extends TaskToMove {
   readonly preferred_name: string | null;
   readonly given_name: string | null;
   readonly family_name: string | null;
+  /** The person's communication needs (JSON), for the Accessible Information Standard flag. */
+  readonly communication_needs: string | null;
   /** The person's home, for the write scope (null when the person row is not on the device). */
   readonly person_location_id: string | null;
   /** Entries saved on this device that answer the task and have not uploaded yet. */
   readonly evidence_waiting: number | null;
+  /** Entries for the task Harbour refused, kept in "needs attention" (HZ-006). */
+  readonly evidence_refused?: number | null;
 }
 
 export type RoundTiming = "overdue" | "due" | "later";
@@ -44,6 +49,13 @@ export type RoundChip =
       readonly label: string;
     };
 
+export interface RoundFlag {
+  readonly key: "urgent" | "communication";
+  readonly icon: "triangle-alert" | "message-square-text";
+  readonly tone: "warning" | "info";
+  readonly label: string;
+}
+
 export interface RoundItem {
   readonly id: string;
   readonly title: string;
@@ -54,7 +66,9 @@ export interface RoundItem {
   readonly when: string | null;
   readonly timing: RoundTiming;
   readonly chip: RoundChip;
-  /** Words to show with the task, in order: an urgent task, an earlier plan, what waits. */
+  /** Flags beside the person, each an icon and a word: urgent, and communication needs (AIS). */
+  readonly flags: readonly RoundFlag[];
+  /** Words to show with the task, in order: an earlier plan, what waits. */
   readonly notices: readonly string[];
   /** What the carer may do here: mark it, record its evidence, or nothing (waiting to upload). */
   readonly action: "mark" | "evidence" | "none";
@@ -82,6 +96,13 @@ function personName(row: RoundTaskRow): string | null {
   return family && known !== family ? `${known} ${family}` : known;
 }
 
+/** How many communication needs to flag: unreadable needs still raise one (person-view.ts). */
+function communicationNeedsCount(row: RoundTaskRow): number {
+  if (!row.person_id) return 0;
+  const { needs, unreadable } = parseCommunicationNeeds(row.communication_needs);
+  return needs.length + (unreadable ? 1 : 0);
+}
+
 function dateTime(value: string | null): string | null {
   const instant = parseInstant(value);
   if (!instant) return null;
@@ -97,7 +118,24 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
   const timing = timingOf(row, now);
   const due = dateTime(row.due_at);
   const notices: string[] = [];
-  if (row.priority === "urgent") notices.push(t("mobile.round.urgent"));
+  const flags: RoundFlag[] = [];
+  if (row.priority === "urgent") {
+    flags.push({
+      key: "urgent",
+      icon: "triangle-alert",
+      tone: "warning",
+      label: t("mobile.round.urgent"),
+    });
+  }
+  const needs = communicationNeedsCount(row);
+  if (needs > 0) {
+    flags.push({
+      key: "communication",
+      icon: "message-square-text",
+      tone: "info",
+      label: communicationFlagLabel(needs),
+    });
+  }
   if (row.from_earlier_plan === 1) notices.push(t("mobile.round.earlierPlan"));
   let action: RoundItem["action"] = row.evidence_required === 1 ? "evidence" : "mark";
   let chip: RoundChip =
@@ -118,7 +156,11 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
     notices.push(t("mobile.round.evidenceWaiting"));
     chip = { kind: "flag", tone: "info", icon: "cloud-upload", label: t("mobile.round.waiting") };
     action = "none";
+  } else if ((row.evidence_refused ?? 0) > 0) {
+    // A refused entry for this task is tied back to it, not only listed above (HZ-006).
+    notices.push(t("mobile.round.evidenceRefused"));
   }
+  if (action === "evidence" && !row.person_id) notices.push(t("mobile.round.evidenceOnWeb"));
   return {
     id: row.id,
     title,
@@ -127,6 +169,7 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
     when: due ? t("mobile.round.dueAt", { when: due }) : null,
     timing,
     chip,
+    flags,
     notices,
     action,
     row,
@@ -168,12 +211,15 @@ export interface RoundHeaderInput {
 /** Gate item (d) and HZ-028: what the phone holds and from when, said before any task. */
 export function roundHeader(input: RoundHeaderInput): RoundHeader {
   const days = input.windowDays ?? 1;
+  // The window was fixed by the token the last sync used, so its days count from then, never from
+  // now: offline past midnight the phone holds nothing new for the next day (clinical review M2).
+  const anchor = input.lastSyncedAt ?? input.now;
   const holds =
     input.windowDays === null
       ? t("mobile.round.holdsUnknown")
       : t("mobile.round.holds", {
-          from: ukDateLabel(input.now, days - 1),
-          to: ukDateLabel(input.now, -1),
+          from: ukDateLabel(anchor, days - 1),
+          to: ukDateLabel(anchor, -1),
         });
   let synced: string;
   if (input.demo) synced = t("mobile.sync.demo");

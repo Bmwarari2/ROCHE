@@ -1,0 +1,51 @@
+# The round screen on the phone and its screens gate data (STATUS item 15, CARE-013)
+
+Branch `feat/mobile-round-screen`, PR #50. Mobile work resumed on 31/10/2026 after the owner's
+pause from 16/10/2026.
+
+## What changed
+
+- Gate data (written on 13/10/2026, moved here from the frozen `CHANGELOG-DEV.md`):
+  - (a) each handover item carries a worded summary (`handover_item.summary`: a catalogue key
+    `handover.summary.*` and its parameters, codes plus a task's title and reason, never a person's
+    name), which the phone words in English and Welsh, or by the item's kind when it has none;
+  - (b) `task.from_earlier_plan`, the round view's "From an earlier plan" notice, kept on the task
+    by the database with the same rule (`planRoundNotice`);
+  - (e) the sync token carries each nation's shift pattern (`handover_shifts`), ADR-0074.
+- Migration **0071** (was 0056, provisional): main reached 0070 during the pause, and drizzle skips
+  a migration whose journal time is older than the last one applied, so the entry was regenerated
+  after 0070 (`migration-journal.test.ts`). Its two definer functions are listed in
+  `definer-acls.test.ts`, executable by their owner only. The ADR, numbered 0072 on the branch,
+  is ADR-0074 (main took 0072 and 0073).
+- The round screen (3(b)): open tasks overdue first, status as an icon and a word, what the phone
+  holds and from when before any task (d), "From an earlier plan" (b), evidence waiting to upload
+  offers nothing more (f), the needs-attention list above the tasks (g), refusals worded by role.
+- Finished on 31/10/2026, with clinical and accessibility reviews of the screen:
+  - the communication-needs flag (Accessible Information Standard) and "Urgent" as icon plus word
+    on each card;
+  - the person's record tags only the first entry saved for a task from the round, then says one
+    is waiting (HZ-029, review M1);
+  - the header counts the window's days from the last sync, not from now (HZ-028, review M2);
+  - an entry for a task that Harbour refused is tied back to the task (HZ-006, review M3);
+  - the reason field counts characters left instead of cutting text off; focus moves to it; its
+    problem is announced; `removeClippedSubviews` removed; "Harbour could not" in place of "We";
+  - tab titles through the catalogue; demo mode seeds three round tasks and can mark them;
+  - the web handover test fixture carries the item summary.
+- Hazard log: HZ-018, HZ-024, HZ-028 and HZ-029 rows. Human actions H-395 (one-tap "Done"
+  without the compact header) and H-396 (stale-round warning age) for the CSO.
+
+## What is next
+
+- The handover screen (3(c)), which closes gate items (a) and (e) on the phone.
+- Follow-ups from the clinical review (Low): open the form for the task's evidence type
+  (`task.evidence_type` is not synced), show `escalation_level` on the chip.
+- Follow-up from the accessibility review: return focus to "Not done" after "Cancel".
+- The Maestro flow `hazard-HZ-028-round-on-the-phone.yaml` is written and parses; it has not run
+  (see `feat/mobile-gate`).
+
+## Tests
+
+- `pnpm --filter @harbour/mobile test`: 52 files, 1045 tests, passing; typecheck clean; Biome
+  clean.
+- `packages/db` (real Postgres 16 locally): 34 files, 688 tests, passing.
+- `pnpm --filter @harbour/web typecheck`: clean.

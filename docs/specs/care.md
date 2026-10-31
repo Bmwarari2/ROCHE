@@ -1405,6 +1405,13 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - A task put back by a session's end as a bare row is named from its move.
   - `useMoveTask` reads the person's home from the synced person row itself and refuses while it
     is not there (#36 review round 2).
+  - Each card flags the person's communication needs (Accessible Information Standard) and an
+    urgent task, each as an icon and a word.
+  - The person's record tags only the first entry saved for a task from the round; once one waits
+    to upload it says so and later entries do not answer the task (HZ-029).
+  - The header counts the window's days from the last sync, since the last token fixed them.
+  - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
+  - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

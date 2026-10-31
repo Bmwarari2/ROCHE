@@ -1,6 +1,6 @@
 import { Button, FlagChip, iconByName, StatusChip, Text, useTheme } from "@harbour/ui-native";
-import { useState } from "react";
-import { View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { type TextInput, View } from "react-native";
 import type { FieldError } from "../care/entries";
 import { TASK_REASON_MAX } from "../care/round-actions";
 import { type RoundItem, roundRefusalText } from "../care/round-view";
@@ -31,6 +31,12 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const reasonRef = useRef<TextInput>(null);
+  const left = TASK_REASON_MAX - reason.length;
+  // Screen reader focus follows the reason field when "Not done" opens it (WCAG 2.4.3).
+  useEffect(() => {
+    if (asking) reasonRef.current?.focus();
+  }, [asking]);
 
   const mark = async (to: "done" | "skipped") => {
     setSaving(true);
@@ -70,6 +76,19 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
       <View accessible style={{ gap: theme.space[0.5] }}>
         <Text emphasis>{item.title}</Text>
         {item.person ? <Text>{item.person}</Text> : null}
+        {item.flags.length > 0 ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
+            {item.flags.map((flag) => (
+              <FlagChip
+                key={flag.key}
+                tone={flag.tone}
+                icon={iconByName(flag.icon)}
+                label={flag.label}
+                testID={`round-${item.id}-${flag.key}`}
+              />
+            ))}
+          </View>
+        ) : null}
         {item.when ? (
           <Text variant="bodyDense" tone="secondary">
             {item.when}
@@ -126,9 +145,20 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
             value={reason}
             onChangeText={setReason}
             multiline
-            maxLength={TASK_REASON_MAX}
+            ref={reasonRef}
+            errorText={problem}
             testID={`round-${item.id}-reason`}
           />
+          <Text
+            variant="bodyDense"
+            tone={left < 0 ? "danger" : "secondary"}
+            accessibilityLiveRegion="polite"
+            testID={`round-${item.id}-reason-count`}
+          >
+            {left < 0
+              ? t("mobile.round.reasonOver", { count: -left })
+              : t("mobile.round.reasonCount", { count: left })}
+          </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: theme.space[1] }}>
             <Button
               label={t("mobile.round.saveNotDone")}
@@ -149,8 +179,13 @@ export function RoundTaskCard({ item, manager, onMark, onRecordEvidence }: Round
           </View>
         </View>
       ) : null}
-      {problem ? (
-        <Text tone="danger" accessibilityRole="alert" testID={`round-${item.id}-problem`}>
+      {problem && !asking ? (
+        <Text
+          tone="danger"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          testID={`round-${item.id}-problem`}
+        >
           {problem}
         </Text>
       ) : null}

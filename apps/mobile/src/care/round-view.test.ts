@@ -36,8 +36,10 @@ const row = (overrides: Partial<RoundTaskRow> = {}): RoundTaskRow => ({
   preferred_name: "Ada",
   given_name: "Adaline",
   family_name: "Example",
+  communication_needs: null,
   person_location_id: "loc-north",
   evidence_waiting: 0,
+  evidence_refused: 0,
   ...overrides,
 });
 
@@ -102,10 +104,43 @@ describe("what each task on the round says", () => {
     expect(roundItem(row({ from_earlier_plan: 1 }), NOW).notices).toEqual([
       "From an earlier plan: check the current plan",
     ]);
-    expect(roundItem(row({ priority: "urgent", from_earlier_plan: 1 }), NOW).notices).toEqual([
-      "Urgent",
-      "From an earlier plan: check the current plan",
+    const urgent = roundItem(row({ priority: "urgent", from_earlier_plan: 1 }), NOW);
+    expect(urgent.notices).toEqual(["From an earlier plan: check the current plan"]);
+    // Urgent is a flag, an icon and a word, never a colour alone.
+    expect(urgent.flags).toEqual([
+      { key: "urgent", icon: "triangle-alert", tone: "warning", label: "Urgent" },
     ]);
+  });
+
+  it("flags the person's communication needs, unreadable ones included (Accessible Information Standard)", () => {
+    const needs = JSON.stringify([
+      { code: "bsl", display: "British Sign Language", preferredFormat: null },
+    ]);
+    expect(roundItem(row({ communication_needs: needs }), NOW).flags).toEqual([
+      {
+        key: "communication",
+        icon: "message-square-text",
+        tone: "info",
+        label: "Communication need",
+      },
+    ]);
+    expect(roundItem(row({ communication_needs: "not json" }), NOW).flags[0]?.key).toBe(
+      "communication",
+    );
+    expect(roundItem(row(), NOW).flags).toEqual([]);
+  });
+
+  it("hazard HZ-006 ties an entry Harbour refused back to its task, and offers it again", () => {
+    const item = roundItem(row({ evidence_required: 1, evidence_refused: 1 }), NOW);
+    expect(item.action).toBe("evidence");
+    expect(item.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
+  });
+
+  it("says where to record evidence for a task about nobody", () => {
+    const item = roundItem(row({ evidence_required: 1, person_id: null }), NOW);
+    expect(item.notices).toContain(
+      "This task is not about one person. Record it in Harbour on the web.",
+    );
   });
 
   it("hazard HZ-029 says evidence saved here waits to upload, and offers nothing more (gate item (f))", () => {
@@ -126,7 +161,7 @@ describe("what each task on the round says", () => {
     [
       "not done",
       move("skipped", "Asleep"),
-      "Marked not done on this phone, because Asleep. It is recorded when it uploads.",
+      "Marked not done on this phone. It is recorded when it uploads. Reason given: Asleep",
     ],
   ])(
     "hazard HZ-029 says a move marked %s here waits to upload, and offers nothing more",
@@ -212,6 +247,18 @@ describe("hazard HZ-028 what the round on this phone holds, never read as nothin
       incomplete:
         "Tasks due before then, and changes made since the last sync, are not shown here. The whole round is in Harbour on the web.",
     });
+  });
+
+  it("counts the days from the last sync, not from now, once offline past midnight (clinical review M2)", () => {
+    const header = roundHeader({
+      now: new Date("2026-10-31T01:00:00.000Z"),
+      windowDays: 1,
+      lastSyncedAt: new Date("2026-10-30T20:00:00.000Z"), // 20:00 on 30/10, UK time (GMT after 25/10).
+      demo: false,
+    });
+    expect(header.holds).toBe(
+      "This phone holds the open tasks due from 30/10/2026 to the end of 31/10/2026.",
+    );
   });
 
   it("says it does not know the days, or has never synced, rather than guess", () => {

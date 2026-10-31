@@ -107,7 +107,6 @@ export default function RoundScreen() {
         initialNumToRender={10}
         maxToRenderPerBatch={10}
         windowSize={7}
-        removeClippedSubviews
       />
     </Screen>
   );

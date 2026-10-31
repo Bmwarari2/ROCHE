@@ -15,6 +15,7 @@ import {
   OBSERVATIONS_SQL,
   type ObservationRow,
   observationParams,
+  TASK_EVIDENCE_SQL,
 } from "../../../../care/queries";
 import { Card } from "../../../../components/Card";
 import { CarePersonHeader, useCarePerson } from "../../../../components/CarePersonHeader";
@@ -48,9 +49,14 @@ export default function PersonScreen() {
     taskTitle?: string;
   }>();
   const id = typeof personId === "string" ? personId : "";
-  // Came from the round to record the entry a task asks for: the new entry answers that task.
-  const forTask = typeof task === "string" && task ? task : null;
+  // Came from the round to record the entry a task asks for: the new entry answers that task,
+  // and only the first: once one is saved here, later entries are not tagged with it (HZ-029).
+  const askedTask = typeof task === "string" && task ? task : null;
   const tenantId = useTenantId();
+  const evidenceParams = useMemo(() => [tenantId, askedTask ?? ""], [tenantId, askedTask]);
+  const { data: evidence } = useQuery<{ count: number }>(TASK_EVIDENCE_SQL, evidenceParams);
+  const taskAnswered = askedTask !== null && Number(evidence[0]?.count ?? 0) > 0;
+  const forTask = taskAnswered ? null : askedTask;
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync
   // token says, per person for those assigned to them; the API decides either way (review rounds
@@ -115,9 +121,9 @@ export default function PersonScreen() {
             {person ? (
               <>
                 <Card title={t("mobile.person.actions")}>
-                  {forTask && mayRecord ? (
+                  {askedTask && mayRecord ? (
                     <Text testID="person-for-task">
-                      {t("mobile.person.forTask", {
+                      {t(taskAnswered ? "mobile.person.forTaskRecorded" : "mobile.person.forTask", {
                         title: typeof taskTitle === "string" ? taskTitle : "",
                       })}
                     </Text>

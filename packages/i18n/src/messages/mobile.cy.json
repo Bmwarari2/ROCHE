@@ -346,8 +346,8 @@
   "mobile.round.moveUnreadable": "This change to a task could not be read on this device.",
   "mobile.round.taskChanged": "This task changed after you marked it. Check it and mark it again.",
   "mobile.round.taskNow": "{status, select, done {This task was already marked done} skipped {This task was already marked not done} cancelled {This task was cancelled} other {This task changed}} before your change reached Harbour, so your change was not recorded. Check the round, and tell the person in charge of this shift if the record is wrong.",
-  "mobile.round.taskUnchecked": "We could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
-  "mobile.round.taskNotFound": "We could not find this task. Check with the person in charge of this shift, or in Harbour on the web, before recording it again.",
+  "mobile.round.taskUnchecked": "Harbour could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
+  "mobile.round.taskNotFound": "Harbour could not find this task. Check with the person in charge of this shift, or in Harbour on the web, before recording it again.",
   "mobile.round.move": "{to, select, done {{title}: done} skipped {{title}: not done, because {reason}} other {{title}}}",
   "mobile.handover.changed": "The handover changed before your acknowledgement reached Harbour. Open it again, read what was added, then acknowledge it.",
   "mobile.handover.acknowledgementUnreadable": "This acknowledgement could not be read on this device.",
@@ -384,7 +384,7 @@
   "mobile.round.later": "Later",
   "mobile.round.waiting": "Waiting to upload",
   "mobile.round.dueAt": "Due {when}",
-  "mobile.round.moveWaiting": "{to, select, done {Marked done on this phone} skipped {Marked not done on this phone, because {reason}} other {Marked on this phone}}. It is recorded when it uploads.",
+  "mobile.round.moveWaiting": "{to, select, done {Marked done on this phone. It is recorded when it uploads.} skipped {Marked not done on this phone. It is recorded when it uploads. Reason given: {reason}} other {Marked on this phone. It is recorded when it uploads.}}",
   "mobile.round.evidenceWaiting": "Evidence recorded, waiting to upload. Do not record it again.",
   "mobile.round.recordEvidence": "Record the entry",
   "mobile.round.recordEvidenceHint": "Opens the person's record. The entry you save there answers this task.",
@@ -399,5 +399,10 @@
   "mobile.round.saveFailed": "This could not be saved on this phone. Try again, or tell the person in charge of this shift.",
   "mobile.person.forTask": "Recording for the task “{title}”. The entry you save next answers it.",
   "mobile.tabs.people": "People",
-  "mobile.tabs.settings": "Settings"
+  "mobile.tabs.settings": "Settings",
+  "mobile.round.reasonCount": "{count, plural, one {You have # character remaining} other {You have # characters remaining}}",
+  "mobile.round.reasonOver": "{count, plural, one {# character too many} other {# characters too many}}",
+  "mobile.round.evidenceRefused": "An entry for this task was not accepted by Harbour. See “Not saved: needs attention” above, then record it again if it is still needed.",
+  "mobile.round.evidenceOnWeb": "This task is not about one person. Record it in Harbour on the web.",
+  "mobile.person.forTaskRecorded": "An entry for the task “{title}” is saved on this phone and waits to upload. Entries you save now do not answer the task."
 }

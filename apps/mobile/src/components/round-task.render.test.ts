@@ -34,6 +34,8 @@ const row = (overrides: Partial<RoundTaskRow> = {}): RoundTaskRow => ({
   family_name: "Example",
   person_location_id: "loc-north",
   evidence_waiting: 0,
+  evidence_refused: 0,
+  communication_needs: null,
   ...overrides,
 });
 
@@ -70,6 +72,22 @@ describe("a task on the round, rendered", () => {
       ]),
     );
     expect(view.find("round-task-1-status")?.props.accessibilityLabel).toBe("Due now");
+  });
+
+  it("flags urgent and the person's communication needs, each an icon and a word", async () => {
+    const needs = JSON.stringify([{ code: "bsl", display: "British Sign Language" }]);
+    const view = await render(card({ priority: "urgent", communication_needs: needs }).element);
+    expect(view.find("round-task-1-urgent")).toBeTruthy();
+    expect(view.find("round-task-1-communication")).toBeTruthy();
+    expect(view.texts()).toEqual(expect.arrayContaining(["Urgent", "Communication need"]));
+  });
+
+  it("counts the characters left in a reason rather than cutting it off", async () => {
+    const view = await render(card().element);
+    await view.press("round-task-1-not-done");
+    expect(view.find("round-task-1-reason")?.props.maxLength).toBeUndefined();
+    await view.typeInto("round-task-1-reason", "Asleep");
+    expect(view.texts()).toContain("You have 494 characters remaining");
   });
 
   it("marks it done with one press", async () => {

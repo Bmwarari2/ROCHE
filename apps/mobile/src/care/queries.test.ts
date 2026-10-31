@@ -367,4 +367,33 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
     db.prepare("DELETE FROM observation WHERE id = 'o-evidence'").run();
     db.prepare("DELETE FROM care_note WHERE id = 'n-evidence'").run();
   });
+
+  it("hazard HZ-006 counts an entry for a task Harbour refused, and never a refused move or bad JSON", () => {
+    db.prepare("DELETE FROM task").run();
+    task("t-refused", { evidence_required: 1 });
+    const issue = db.prepare(
+      "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, payload) VALUES (?, ?, ?, ?, ?)",
+    );
+    issue.run("i-1", DEMO_TENANT_ID, ADA, "observation", JSON.stringify({ task_id: "t-refused" }));
+    issue.run("i-2", DEMO_TENANT_ID, ADA, "task", JSON.stringify({ task_id: "t-refused" }));
+    issue.run("i-3", DEMO_TENANT_ID, ADA, "care_note", "not json");
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    expect(rows.map((r) => [r.id, r.evidence_refused])).toEqual([["t-refused", 1]]);
+    db.prepare("DELETE FROM upload_issue WHERE id IN ('i-1', 'i-2', 'i-3')").run();
+    db.prepare("DELETE FROM task").run();
+  });
+
+  it("hazard HZ-029 counts the entries saved here for one task (the record stops tagging after one)", () => {
+    expect(
+      all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [DEMO_TENANT_ID, "t-x"])[0]?.count,
+    ).toBe(0);
+    db.prepare(
+      "INSERT INTO care_note (id, tenant_id, person_id, occurred_at, category, body, task_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run("n-x", DEMO_TENANT_ID, ADA, "2026-10-11T10:56:00.000Z", "health", "Drink taken.", "t-x");
+    expect(
+      all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [DEMO_TENANT_ID, "t-x"])[0]?.count,
+    ).toBe(1);
+    expect(all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [OTHER, "t-x"])[0]?.count).toBe(0);
+    db.prepare("DELETE FROM care_note WHERE id = 'n-x'").run();
+  });
 });
