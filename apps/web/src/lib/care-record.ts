@@ -22,6 +22,8 @@ export type RecordTab =
   | "advance-care"
   | "capacity"
   | "activities"
+  | "reviews"
+  | "hospital"
   | "pre-admission"
   | "admission"
   | "property"
@@ -36,6 +38,7 @@ interface TabDefinition {
     | "care.plan.read"
     | "care.note.read"
     | "people.person.read"
+    | "people.movement.record"
     | "comms.letter.manage"
     | "comms.feed.publish";
 }
@@ -52,6 +55,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
+  { tab: "reviews", needs: "care.plan.read" },
+  { tab: "hospital", needs: "people.movement.record" },
   // Admission and belongings (people.md rules 4 to 7; PEOP-005, PEOP-007).
   { tab: "pre-admission", needs: "people.person.read" },
   { tab: "admission", needs: "people.person.read" },

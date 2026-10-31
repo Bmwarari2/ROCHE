@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StaffName } from "./staff";
 
 /**
  * The residential people lifecycle (slice 8; master prompt 9.2; docs/specs/people.md sections 4
@@ -1442,6 +1443,12 @@ export const BreakGlassWeeklyReportOut = z
     reviewedAt: isoDateTime.nullable(),
     actionsTaken: z.string().nullable(),
     supersedesId: uuid.nullable(),
+    /**
+     * The staff the report names (the user lines, the flags, the searchers and the reviewer), by
+     * display name and job title for attribution, since a reader such as the data protection lead
+     * may not list the organisation's members. Never an address or a reason.
+     */
+    staff: z.array(StaffName),
   })
   .meta({ id: "BreakGlassWeeklyReportOut" });
 export type BreakGlassWeeklyReportOut = z.infer<typeof BreakGlassWeeklyReportOut>;

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { PeopleTable } from "@/components/people/PeopleTable";
 import { isPreAdmissionStage, preAdmissionShown } from "@/lib/admission";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
+import { can } from "@/lib/care-record";
 import { peopleLabel, t } from "@/lib/i18n";
 import { toPersonListItem } from "@/lib/people";
 
@@ -49,11 +50,22 @@ export default async function PeoplePage() {
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
         description={t("people.list.count", { count: people.length })}
+        // Enquiries and pre-admission (PEOP-005) for those who work with them; the reviews tracker
+        // (PEOP-008) for those who read care plans.
         secondaryActions={
-          preAdmissionShown(me.permissions) ? (
-            <ButtonLink href="/people/pre-admission" variant="secondary">
-              {t("people.preAdmission.list.title")}
-            </ButtonLink>
+          preAdmissionShown(me.permissions) || can(me.permissions, "care.plan.read") ? (
+            <>
+              {preAdmissionShown(me.permissions) ? (
+                <ButtonLink href="/people/pre-admission" variant="secondary">
+                  {t("people.preAdmission.list.title")}
+                </ButtonLink>
+              ) : null}
+              {can(me.permissions, "care.plan.read") ? (
+                <ButtonLink href="/people/reviews" variant="secondary">
+                  {t("people.reviews.tracker.link")}
+                </ButtonLink>
+              ) : null}
+            </>
           ) : undefined
         }
       />
