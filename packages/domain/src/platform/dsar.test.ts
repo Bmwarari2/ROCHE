@@ -4,7 +4,10 @@ import {
   bundleReadiness,
   checkItemDecision,
   checkNewDsarCase,
+  DSAR_MEMBER_SCOPED_TABLES,
   dsarBundleStorageKey,
+  dsarNotSearched,
+  dsarNotSearchedOf,
   dsarSubjectMap,
   erasureAssessment,
   findThirdPartyNames,
@@ -341,5 +344,32 @@ describe("the issued bundle's storage key", () => {
   it("holds ids only, and refuses anything else", () => {
     expect(dsarBundleStorageKey(t, c, b)).toBe(`tenants/${t}/dsar/${c}/${b}.json`);
     expect(() => dsarBundleStorageKey(t, "../x", b)).toThrow(RangeError);
+  });
+});
+
+describe("tables not searched are named with a reason, never a silent gap", () => {
+  const map = dsarSubjectMap({
+    "public.care_note": table({ id: "exported", person_id: "exported", recorded_by: "exported" }),
+    "public.dpia_like": table({ id: "exported", signed_by: "exported" }),
+    "public.incident_answer": table({ id: "exported", incident_id: "exported" }),
+  });
+  it("lists tables with no subject column, and member-scoped tables the subject is in", () => {
+    const staff = dsarNotSearched(map, "staff", { dpia_like: "Needs platform.dpia.read" });
+    expect(staff.map((e) => [e.table, e.reason])).toEqual([
+      ["dpia_like", "member_scoped"],
+      ["incident_answer", "no_subject_column"],
+    ]);
+    expect(staff.every((e) => e.guidance.length > 20)).toBe(true);
+    // A member-scoped table not searched for this kind of subject is not listed.
+    expect(dsarNotSearched(map, "person", { dpia_like: "x" }).map((e) => e.table)).toEqual([
+      "incident_answer",
+    ]);
+  });
+  it("gives a stored table back its reason", () => {
+    expect(dsarNotSearchedOf("dpia_like", { dpia_like: "x" }).reason).toBe("member_scoped");
+    expect(dsarNotSearchedOf("incident_answer").reason).toBe("no_subject_column");
+  });
+  it("declares no member-scoped table today (kept in step with the database by a test)", () => {
+    expect(DSAR_MEMBER_SCOPED_TABLES).toEqual({});
   });
 });

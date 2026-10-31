@@ -26,6 +26,8 @@ import {
   type DsarItemDecision,
   type DsarSubjectKind,
   dsarBundleStorageKey,
+  dsarNotSearched,
+  dsarNotSearchedOf,
   erasureAssessment,
   findThirdPartyNames,
   portabilityApplies,
@@ -296,7 +298,7 @@ async function buildBundle(
     records,
     redactedCount,
     withheldCount,
-    notSearched: row.notSearched,
+    notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
     sha256,
   };
 }
@@ -594,6 +596,8 @@ export const dsarRouter = createRouter()
         return r;
       });
       const kind = row.subjectKind as DsarSubjectKind;
+      // Named with reasons on the case and the bundle's cover, never a silent gap (rule 3).
+      const notSearched = dsarNotSearched(SUBJECT_MAP, kind);
       const collected = await asOrganisation(c, access, (tx) =>
         collectRecords(tx, kind, subjectIdOf(row), DSAR_ITEM_LIMIT),
       );
@@ -612,7 +616,7 @@ export const dsarRouter = createRouter()
         }
         await tx
           .update(dsarCase)
-          .set({ collectedAt: new Date(), notSearched: [...SUBJECT_MAP.notSearched] })
+          .set({ collectedAt: new Date(), notSearched: notSearched.map((e) => e.table) })
           .where(eq(dsarCase.id, id));
         const total = (await itemsOfCase(tx, id)).length;
         await audit(c, tx, access, A.collected, id, {
@@ -626,7 +630,7 @@ export const dsarRouter = createRouter()
           added,
           total,
           tablesSearched: collected.tablesSearched,
-          notSearched: [...SUBJECT_MAP.notSearched],
+          notSearched,
           truncated: collected.truncated,
         };
       });

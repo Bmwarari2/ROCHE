@@ -32,6 +32,15 @@ export const DsarDecision = z
   .enum(["pending", "disclose", "redact", "withhold"])
   .meta({ id: "DsarDecision" });
 
+/** A table the case could not search fully, with why and what the reviewer does (rule 3). */
+export const DsarNotSearched = z
+  .object({
+    table: z.string(),
+    reason: z.enum(["no_subject_column", "member_scoped"]),
+    guidance: z.string(),
+  })
+  .meta({ id: "DsarNotSearched" });
+
 export const NewDsarCase = z
   .object({
     requestKind: DsarRequestKind,
@@ -155,7 +164,7 @@ export const DsarCase = DsarCaseSummary.extend({
   outcome: z.enum(["fulfilled", "partly_fulfilled", "refused", "withdrawn"]).nullable(),
   outcomeReason: z.string().nullable(),
   collectedAt: isoDateTime.nullable(),
-  notSearched: z.array(z.string()),
+  notSearched: z.array(DsarNotSearched),
   items: z.object({
     total: z.number().int(),
     pending: z.number().int(),
@@ -200,7 +209,7 @@ export const DsarCollectResult = z
     added: z.number().int(),
     total: z.number().int(),
     tablesSearched: z.number().int(),
-    notSearched: z.array(z.string()),
+    notSearched: z.array(DsarNotSearched),
     /** The collection stopped at the item limit; collect again after reviewing. */
     truncated: z.boolean(),
   })
@@ -266,7 +275,7 @@ export const DsarBundle = z
     ),
     redactedCount: z.number().int(),
     withheldCount: z.number().int(),
-    notSearched: z.array(z.string()),
+    notSearched: z.array(DsarNotSearched),
     /** SHA-256 of `records`, `redactedCount` and `withheldCount` as canonical JSON. */
     sha256: z.string(),
   })

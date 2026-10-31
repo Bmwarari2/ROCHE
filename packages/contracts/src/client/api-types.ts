@@ -29412,7 +29412,7 @@ export interface components {
       outcomeReason: string | null;
       /** Format: date-time */
       collectedAt: string | null;
-      notSearched: string[];
+      notSearched: components["schemas"]["DsarNotSearched"][];
       items: {
         total: number;
         pending: number;
@@ -29447,6 +29447,12 @@ export interface components {
       | "authority_checked"
       | "portal_account"
       | null;
+    DsarNotSearched: {
+      table: string;
+      /** @enum {string} */
+      reason: "no_subject_column" | "member_scoped";
+      guidance: string;
+    };
     DsarRectification: {
       table: string;
       recordId: string;
@@ -29532,7 +29538,7 @@ export interface components {
       added: number;
       total: number;
       tablesSearched: number;
-      notSearched: string[];
+      notSearched: components["schemas"]["DsarNotSearched"][];
       truncated: boolean;
     };
     DsarItemList: {
@@ -29604,7 +29610,7 @@ export interface components {
       }[];
       redactedCount: number;
       withheldCount: number;
-      notSearched: string[];
+      notSearched: components["schemas"]["DsarNotSearched"][];
       sha256: string;
     };
     DsarRespondInput: {

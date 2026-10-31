@@ -78,6 +78,14 @@ reports tables it cannot search instead of missing them.
 subject column and reports the rest), `packages/db/test/data-rights.test.ts` (tenant isolation and
 the permission), `apps/api/test/dsar.test.ts` (collection across modules, review, bundle).
 
+### Follow-up
+
+A collector that reads tables whose read policy depends on the member (today `dpia` and
+`sub_processor_response`, neither in the subject map) through a definer function owned by a
+dedicated role, so they can join the map and be searched rather than listed for a search by hand.
+Until then `DSAR_MEMBER_SCOPED_TABLES` names any such table that enters the map, and a database
+test fails if one is missed.
+
 ## More information
 
 [platform.md](../specs/platform.md) "Phase 2: the DSAR workbench"; [dsar-procedure.md](../compliance/dsar-procedure.md);

@@ -1,3 +1,4 @@
+import { DSAR_MEMBER_SCOPED_TABLES, dsarSubjectMap, EXPORT_TABLES } from "@harbour/domain";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./support/database";
@@ -336,8 +337,20 @@ describe("#149 review: organisation-wide roles only, the owner role too, guards,
     await expect(asNorthManager((c) => newCase(c))).rejects.toThrow(/row-level security/);
   });
 
-  it("L8: the owner role, with no member, sees no case either", async () => {
-    expect((await asOwner(TENANT_A, (c) => c.query("SELECT id FROM dsar_case"))).rows).toEqual([]);
+  it("L8: the owner role acting for a member without the role sees nothing", async () => {
+    const rows = await inContext(
+      db.pool("harbour_owner"),
+      ctx(TENANT_A, a.carer, "locations", [a.locationNorth]),
+      (c) => c.query("SELECT id FROM dsar_case"),
+    );
+    expect(rows.rows).toEqual([]);
+  });
+
+  it("the organisation's own system context (the full export) reads cases, and writes none", async () => {
+    const job = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
+    expect((await job((c) => c.query("SELECT id FROM dsar_case"))).rows.length).toBeGreaterThan(0);
+    await expect(job((c) => newCase(c))).rejects.toThrow(/row-level security/);
   });
 
   it("L7: a closed case cannot be changed by also setting deleted_at, but may be soft-deleted", async () => {
@@ -394,5 +407,43 @@ describe("#149 review: organisation-wide roles only, the owner role too, guards,
         ),
       ),
     ).resolves.toBeDefined();
+  });
+});
+
+describe("no table the DSAR collector searches is hidden from its organisation-wide read", () => {
+  it("names every member-dependent table in the subject map (none today), so none is a silent gap", async () => {
+    // A restrictive read policy that checks the member's permission or identity, with no
+    // organisation-wide alternative (tenant scope, or no member at all).
+    const { rows } = await db.pool("harbour_owner").query<{ table: string; qual: string }>(
+      `SELECT tablename AS table, qual FROM pg_policies
+        WHERE schemaname = 'public' AND permissive = 'RESTRICTIVE' AND cmd IN ('SELECT', 'ALL')
+          AND 'harbour_app' = ANY (roles)`,
+    );
+    const organisationWide = [
+      "current_scope() = 'tenant'",
+      "ARRAY['tenant'",
+      "current_user_id() IS NULL",
+      "handover_whole",
+      // Outside the family portal, these read through person_visible, which passes for any person
+      // the organisation-wide read can see.
+      "person_visible(",
+    ];
+    const memberDependent = [
+      ...new Set(
+        rows
+          .filter((r) =>
+            /holds_role_permission|holds_permission_at|current_user_id\(\)/.test(r.qual),
+          )
+          .filter((r) => !organisationWide.some((token) => r.qual.includes(token)))
+          .map((r) => r.table),
+      ),
+    ].sort();
+    // The rule finds the tables it should (reads that need a permission).
+    expect(memberDependent).toEqual(expect.arrayContaining(["dpia", "sub_processor_response"]));
+    const map = dsarSubjectMap(EXPORT_TABLES);
+    const searched = new Set([...map.person, ...map.contact, ...map.staff].map((e) => e.table));
+    expect(memberDependent.filter((t) => searched.has(t))).toEqual(
+      Object.keys(DSAR_MEMBER_SCOPED_TABLES).sort(),
+    );
   });
 });

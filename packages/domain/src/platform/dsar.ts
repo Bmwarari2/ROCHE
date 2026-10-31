@@ -307,3 +307,54 @@ export function dsarBundleStorageKey(tenantId: string, caseId: string, bundleId:
   }
   return `tenants/${tenantId.toLowerCase()}/dsar/${caseId.toLowerCase()}/${bundleId.toLowerCase()}.json`;
 }
+
+export type DsarNotSearchedReason = "no_subject_column" | "member_scoped";
+
+export interface DsarNotSearched {
+  readonly table: string;
+  readonly reason: DsarNotSearchedReason;
+  /** What the reviewer does about it, in plain words (case view and bundle cover). */
+  readonly guidance: string;
+}
+
+/**
+ * Tables in the subject map whose read policy depends on the member reading them, with no
+ * organisation-wide alternative: the collector's organisation-wide read may see only part of them,
+ * so each is listed for a search by hand, never left as a silent gap (#149 follow-up). Kept in step
+ * with the database by `packages/db/test/data-rights.test.ts`; empty today (the member-dependent
+ * tables, `dpia` and `sub_processor_response`, hold no personal data in the catalogue). A collector
+ * that reads them through a definer function is the follow-up (ADR-0090).
+ */
+export const DSAR_MEMBER_SCOPED_TABLES: Readonly<Record<string, string>> = {};
+
+const NOT_SEARCHED_GUIDANCE: Record<DsarNotSearchedReason, string> = {
+  no_subject_column:
+    "No column in this table names the subject. Search it by hand, following the records collected.",
+  member_scoped:
+    "Who can read this table depends on the member reading it, so the search may have missed rows. Search it by hand.",
+};
+
+/** The tables a case could not search fully, each with its reason and what to do (rule 3). */
+export function dsarNotSearched(
+  map: DsarSubjectMap,
+  kind: DsarSubjectKind,
+  memberScoped: Readonly<Record<string, string>> = DSAR_MEMBER_SCOPED_TABLES,
+): DsarNotSearched[] {
+  const scoped = [...new Set(map[kind].map((e) => e.table))].filter((t) => t in memberScoped);
+  return [
+    ...map.notSearched.map((table) => ({ table, reason: "no_subject_column" as const })),
+    ...scoped.map((table) => ({ table, reason: "member_scoped" as const })),
+  ]
+    .sort((a, b) => a.table.localeCompare(b.table))
+    .map((e) => ({ ...e, guidance: NOT_SEARCHED_GUIDANCE[e.reason] }));
+}
+
+/** The reason for a table stored on a case as not searched. */
+export function dsarNotSearchedOf(
+  table: string,
+  memberScoped: Readonly<Record<string, string>> = DSAR_MEMBER_SCOPED_TABLES,
+): DsarNotSearched {
+  const reason: DsarNotSearchedReason =
+    table in memberScoped ? "member_scoped" : "no_subject_column";
+  return { table, reason, guidance: NOT_SEARCHED_GUIDANCE[reason] };
+}

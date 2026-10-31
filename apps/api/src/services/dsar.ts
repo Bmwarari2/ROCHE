@@ -17,6 +17,7 @@ import {
   type DsarRates,
   type DsarSubjectKind,
   dsarClock,
+  dsarNotSearchedOf,
   dsarSubjectMap,
   type ErasureCandidate,
   EXPORT_TABLES,
@@ -251,7 +252,7 @@ export async function caseOf(tx: Transaction, row: CaseRow, ctx: ClockContext): 
     outcome: row.outcome as DsarCase["outcome"],
     outcomeReason: row.outcomeReason,
     collectedAt: row.collectedAt?.toISOString() ?? null,
-    notSearched: row.notSearched,
+    notSearched: row.notSearched.map((t) => dsarNotSearchedOf(t)),
     items: {
       total: counts.reduce((n, c) => n + c.n, 0),
       pending: count("pending"),

@@ -1058,8 +1058,11 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    exported tenant table with personal data, by the column that names the subject (`person_id` for a
    person, `contact_id` or the contact row itself for a contact, the staff reference columns and the
    `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
-   personal data but no subject column is listed as not searched, never silently skipped. Collecting
-   again adds only new records.
+   personal data but no subject column, and a searched table whose read policy depends on the member
+   reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
+   listed as not searched with the reason and what to do, on the case and on the bundle's cover;
+   never a silent gap. Collecting again adds only new records. The organisation's own system context
+   (the full export) reads cases and items; it never writes them.
 4. Redaction is by a person, item by item: the item's view highlights the names of everyone else
    the organisation records (staff, people supported, contacts) found in any text in the record,
    JSON fields included (`findThirdPartyNames`; #149 M5), but redacts nothing itself. Redacting

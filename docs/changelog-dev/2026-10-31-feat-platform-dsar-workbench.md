@@ -46,6 +46,16 @@ Branch `feat/platform-dsar-workbench`. PLAT-022 and WORK-011 (partial); [ADR-009
   restrictive policies cover `harbour_owner`. L9: organisation-wide reads say so in audit, and item
   views are also recorded against the subject.
 
+## After the review
+
+- Tables not searched are named with a reason (`no_subject_column`, `member_scoped`) and what to do,
+  on the case view, the collect result and the bundle's cover. `DSAR_MEMBER_SCOPED_TABLES` names
+  searched tables whose read policy depends on the member; a database test derives them from
+  `pg_policies` and fails if one enters the subject map undeclared (none today). Follow-up: a
+  definer-based collector (ADR-0090).
+- The organisation's own system context reads DSAR cases and items, so the free full export
+  includes them (export test); it writes none.
+
 ## Tests
 
 - `packages/domain/src/platform/dsar.test.ts` (37).

@@ -103,7 +103,9 @@ CREATE INDEX "dsar_case_tenant_status_idx" ON "dsar_case" USING btree ("tenant_i
 CREATE INDEX "dsar_item_case_decision_idx" ON "dsar_item" USING btree ("tenant_id","case_id","decision");--> statement-breakpoint
 -- Security (ADR-0002, ADR-0090): forced RLS, the tenant policy, and only members holding
 -- quality.dsar.manage across the whole organisation (a tenant-wide role, never a location one:
--- #149 H1) read or write a case or its items, as the application or the owner role (#149 L8). No DELETE grant for harbour_app (default
+-- #149 H1) read or write a case or its items, as the application or the owner role (#149 L8).
+-- The organisation's own system context (no member, the whole organisation) may read them, as it
+-- reads downtime packs and exports, so the free full export includes them; it never writes. No DELETE grant for harbour_app (default
 -- privileges); a case is closed or withdrawn, never deleted, and destroyed by the retention engine.
 ALTER TABLE public.dsar_case ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
@@ -114,7 +116,8 @@ CREATE POLICY tenant_isolation ON public.dsar_case AS PERMISSIVE FOR ALL TO PUBL
 --> statement-breakpoint
 CREATE POLICY dsar_case_manage ON public.dsar_case AS RESTRICTIVE FOR ALL
   TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'))
   WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 ALTER TABLE public.dsar_item ENABLE ROW LEVEL SECURITY;
@@ -126,7 +129,8 @@ CREATE POLICY tenant_isolation ON public.dsar_item AS PERMISSIVE FOR ALL TO PUBL
 --> statement-breakpoint
 CREATE POLICY dsar_item_manage ON public.dsar_item AS RESTRICTIVE FOR ALL
   TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'))
   WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 -- A closed or withdrawn case is the record of what was done: it never reopens or changes, except

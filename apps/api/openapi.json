@@ -23628,7 +23628,7 @@
           "notSearched": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DsarNotSearched"
             }
           },
           "items": {
@@ -23763,6 +23763,29 @@
           "authority_checked",
           "portal_account",
           null
+        ]
+      },
+      "DsarNotSearched": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_subject_column",
+              "member_scoped"
+            ]
+          },
+          "guidance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "reason",
+          "guidance"
         ]
       },
       "DsarRectification": {
@@ -24055,7 +24078,7 @@
           "notSearched": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DsarNotSearched"
             }
           },
           "truncated": {
@@ -24344,7 +24367,7 @@
           "notSearched": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DsarNotSearched"
             }
           },
           "sha256": {

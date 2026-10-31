@@ -37,7 +37,7 @@ type Case = {
   clock: Clock | null;
   subject: { kind: string; name: string };
   items: { total: number; pending: number; disclosed: number; withheld: number };
-  notSearched: string[];
+  notSearched: { table: string; reason: string; guidance: string }[];
   portability: { applies: boolean };
   bundleSha256: string | null;
   erasure: { held: number; retained: number; erasable: number } | null;
@@ -263,9 +263,20 @@ describe("collection, review and the bundle", () => {
     c = await newCase({});
     let r = await post(`/v1/dsar-cases/${c.id}/collect`, {});
     expect(r.status).toBe(200);
-    const first = (await r.json()) as { added: number; total: number; notSearched: string[] };
+    const first = (await r.json()) as {
+      added: number;
+      total: number;
+      notSearched: { table: string; reason: string; guidance: string }[];
+    };
     expect(first.added).toBeGreaterThan(2);
     expect(first.notSearched.length).toBeGreaterThan(0);
+    // Each is named with its reason and what to do, on the case too (rule 3).
+    for (const e of first.notSearched) {
+      expect(["no_subject_column", "member_scoped"]).toContain(e.reason);
+      expect(e.guidance).toMatch(/Search it by hand/);
+    }
+    const view = (await (await get(`/v1/dsar-cases/${c.id}`)).json()) as Case;
+    expect(view.notSearched).toEqual(first.notSearched);
     r = await post(`/v1/dsar-cases/${c.id}/collect`, {});
     expect(((await r.json()) as { added: number }).added).toBe(0);
     items = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] }).items;
@@ -347,7 +358,11 @@ describe("collection, review and the bundle", () => {
       withheldCount: number;
       redactedCount: number;
       sha256: string;
+      notSearched: { table: string; reason: string }[];
     };
+    // The bundle's cover names what was not searched, for the requester and the DPO.
+    expect(bundle.notSearched.length).toBeGreaterThan(0);
+    expect(bundle.notSearched[0]).toHaveProperty("reason");
     expect(bundle.withheldCount).toBe(1);
     expect(bundle.redactedCount).toBe(1);
     expect(bundle.records.find((x) => x.recordId === adaNote)?.fields.body).toBe("[redacted]");
