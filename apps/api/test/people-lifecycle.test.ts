@@ -21,6 +21,7 @@ import type {
   ProblemDetails,
   PropertyItemOut,
   PropertyList,
+  RecordHistory,
   ReviewSchedule,
   SharingDecisionOut,
   SharingVisibility,
@@ -1486,6 +1487,16 @@ describe("hazard HZ-023 communication needs: an empty list is not 'none'", () =>
       await as("manager", `/v1/people/${resident(2)}/transfer-pack`),
     );
     expect(pack.missingCritical).not.toContain("communication");
+    // The person's history marks what this change altered, by key only.
+    const history = await json<RecordHistory>(
+      await as("manager", `/v1/people/${resident(2)}/history`),
+    );
+    expect(history.versions.at(-1)?.data).toMatchObject({
+      communication_needs_status: "not_recorded",
+    });
+    expect(history.latestChanged).toContain("communication_needs_status");
+    expect(history.latestChanged).not.toContain("given_name");
+    expect(history).not.toHaveProperty("current");
   });
 
   it("serves 'recorded' where the needs are listed", async () => {
