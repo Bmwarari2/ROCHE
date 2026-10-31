@@ -10,6 +10,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 
 const APPEND_ONLY_TABLES = [
   "audit_event",
+  "pay_run_line",
   "record_version",
   "workflow_transition",
   "document_signature",

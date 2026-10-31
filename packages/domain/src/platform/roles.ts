@@ -56,6 +56,8 @@ const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
     p !== "insights.group.read" &&
     staffPermission(p) &&
     p !== "finance.ledger.record" &&
+    // Pay is organisation-wide (scheduling.md section 18 rule 13): Owner and Finance hold it.
+    !p.startsWith("scheduling.pay.") &&
     p !== "quality.evidence.read" &&
     // HR-only staff documents stay with HR (workforce.md section 3); a manager is granted them.
     p !== "workforce.hr_document.read",
@@ -298,6 +300,8 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "finance.ledger.approve",
       "finance.reporting.read",
       "finance.payroll.export",
+      "scheduling.pay.manage",
+      "scheduling.pay.approve",
       "insights.dashboard.read",
     ],
   },

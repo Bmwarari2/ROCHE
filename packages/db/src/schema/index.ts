@@ -13,6 +13,7 @@ export * from "./mca";
 export * from "./onboarding";
 export * from "./operations";
 export * from "./operator";
+export * from "./pay";
 export * from "./people";
 export * from "./people-lifecycle";
 export * from "./platform";

@@ -260,6 +260,12 @@ export const PERMISSIONS = {
   "scheduling.dependency.manage": {
     description: "Write, approve and archive the organisation's dependency scale",
   },
+  "scheduling.pay.manage": {
+    description: "Write pay rule sets and pay profiles; draft and calculate pay runs",
+  },
+  "scheduling.pay.approve": {
+    description: "Approve pay rule sets; check and lock pay runs; override their exceptions",
+  },
   // operations
   "operations.premises.manage": { description: "Manage assets and the statutory checks calendar" },
   "operations.catering.manage": {
