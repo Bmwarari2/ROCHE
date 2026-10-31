@@ -25,13 +25,21 @@ import { firstParam } from "@/lib/record-metadata";
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-/** The page is named after the document, so each one's tab and history entry differ (WCAG 2.4.2). */
+/**
+ * The page is named after an organisation's document, so each one's tab and history entry differ
+ * (WCAG 2.4.2). Anything else (a family portal session, a document about a person, which belongs
+ * on the person's record) gets the generic title, so no person's document title reaches the tab.
+ */
 export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const generic = { title: t("documents.details.title") };
   const { id } = await params;
-  if (!isUuid(id)) return { title: t("documents.details.title") };
+  if (!isUuid(id)) return generic;
+  const { me } = await getShellContext();
+  if (isFamilyMember(me)) return generic;
   const api = await tenantApi();
   const found = await api.GET("/v1/documents/{id}", { params: { path: { id } } }).catch(() => null);
-  return { title: found?.data?.title ?? t("documents.details.title") };
+  const doc = found?.data;
+  return doc?.category === "organisation_document" ? { title: doc.title } : generic;
 }
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
@@ -65,16 +73,15 @@ export default async function DocumentDetailsPage({
     failWith(found.error, found.response, here);
   }
   const doc = found.data;
-  const organisation = doc.category === "organisation_document";
-  const library = organisation
-    ? ((
-        await api.GET("/v1/documents", { params: { query: { category: "organisation_document" } } })
-      ).data?.items ?? [])
-    : [];
+  // Only an organisation's documents are shown here; a person's are on their record.
+  if (doc.category !== "organisation_document") notFound();
+  const library =
+    (await api.GET("/v1/documents", { params: { query: { category: "organisation_document" } } }))
+      .data?.items ?? [];
   const newer = library.find((d) => d.previousVersionId === doc.id) ?? null;
   const chain = versionChain(doc, library);
   const available = doc.status === "available";
-  const mayManage = organisation && me.permissions.includes(DOCUMENT_MANAGE);
+  const mayManage = me.permissions.includes(DOCUMENT_MANAGE);
   const done = firstParam((await searchParams).done);
   const when = (iso: string | null) => formatDateTime(iso) ?? "";
 

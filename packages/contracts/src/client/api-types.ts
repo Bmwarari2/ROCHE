@@ -22201,6 +22201,7 @@ export interface components {
     TaskList: {
       items: components["schemas"]["TaskItem"][];
       truncated?: boolean;
+      earlierOmitted?: number;
     };
     TaskItem: {
       /** Format: uuid */

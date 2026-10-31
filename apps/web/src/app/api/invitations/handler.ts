@@ -1,15 +1,4 @@
-import { isJsonMediaType, isSameOrigin } from "@/lib/invitations";
-
-/**
- * This site's origin from configuration (`PUBLIC_WEB_URL`, set per environment by Terraform). In
- * development the local web server's address; in production without it, nothing matches.
- */
-function webOrigin(): string | null {
-  return (
-    process.env.PUBLIC_WEB_URL ??
-    (process.env.NODE_ENV === "production" ? null : "http://localhost:3000")
-  );
-}
+import { isJsonMediaType, isSameOrigin, webOrigin } from "@/lib/invitations";
 
 /**
  * The invitation page's two calls (POST, JSON, same origin only). The browser reaches the API only

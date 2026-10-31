@@ -5,7 +5,9 @@ import { tenantApi } from "@/lib/api";
 import {
   checkUploadRequest,
   countingStream,
+  FILE_NAME_HEADER,
   readUploadTarget,
+  TITLE_HEADER,
   tooLargeRefusal,
   UPLOAD_MAX_BYTES,
   type UploadAnswer,
@@ -18,6 +20,12 @@ import { problemMessage } from "@/lib/outcome";
 
 const headers = { "cache-control": "no-store" } as const;
 const answer = (status: number, body: UploadAnswer) => Response.json(body, { status, headers });
+
+/** Whether Next.js threw to redirect (no session, or no organisation chosen). */
+function isRedirect(error: unknown): boolean {
+  const digest = (error as { digest?: unknown } | null)?.digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
+}
 
 function isTooLarge(error: unknown): boolean {
   for (let e: unknown = error, depth = 0; e && depth < 5; depth += 1) {
@@ -46,8 +54,26 @@ export async function POST(request: Request): Promise<Response> {
     t,
   );
   if (refusal) return answer(refusal.status, refusal.answer);
-  const target = readUploadTarget(new URL(request.url).searchParams, t);
+  const target = readUploadTarget(
+    {
+      versionOf: new URL(request.url).searchParams.get("versionOf"),
+      title: request.headers.get(TITLE_HEADER),
+      fileName: request.headers.get(FILE_NAME_HEADER),
+    },
+    t,
+  );
   if (!target.ok) return answer(target.refusal.status, target.refusal.answer);
+  // The session before the body is read: a signed-out request is answered in JSON, never sent
+  // to the sign-in page as a redirect the form cannot follow.
+  let api: Awaited<ReturnType<typeof tenantApi>>;
+  try {
+    api = await tenantApi();
+  } catch (error) {
+    if (isRedirect(error)) {
+      return answer(401, { ok: false, code: "unauthenticated", message: t("errors.forbidden") });
+    }
+    throw error;
+  }
   if (!request.body)
     return answer(411, { ok: false, code: "invalid", message: t("documents.upload.fileRequired") });
 
@@ -61,7 +87,6 @@ export async function POST(request: Request): Promise<Response> {
     duplex: "half",
   } as const;
   try {
-    const api = await tenantApi();
     const sent: { data?: DocumentItem; error?: unknown; response: Response } =
       target.target.kind === "new"
         ? await api.POST("/v1/documents", {

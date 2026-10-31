@@ -732,11 +732,18 @@ export const documentsRouter = createRouter()
       const access = await requirePermission(c, RETENTION_PERMISSION);
       const items = await withTenant(c, async (tx) => {
         const due = await eligibleDocuments(tx, access.tenantId, new Date());
-        // Titles of documents about people are shown: the list is audited like any record view.
+        // A title is shown only where the caller may read that category of document (a person's
+        // record needs its own read permissions); otherwise the page says the category alone.
+        const mayRead = (category: string) => {
+          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          if (permission === null) return true;
+          if (permission === undefined) return false;
+          return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;
+        };
         await auditInTx(tx, access, {
           action: "platform.retention_candidate.list",
           resourceType: "document",
-          scope: { count: due.length },
+          scope: { count: due.length, documentIds: due.map((d) => d.row.id) },
           requestId: c.get("requestId"),
         });
         return due.map((d) => ({
@@ -744,7 +751,7 @@ export const documentsRouter = createRouter()
           category: d.row.category as DocumentCategoryKey,
           retentionClass: d.row.retentionClass,
           eligibleSince: d.since.toISOString(),
-          title: d.row.title,
+          ...(mayRead(d.row.category) ? { title: d.row.title } : {}),
           createdAt: d.row.createdAt.toISOString(),
         }));
       });

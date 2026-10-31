@@ -6,7 +6,9 @@ import {
   onlyReviews,
   readNewTask,
   readTaskReason,
+  shownCount,
   sortTasks,
+  splitByWindow,
   taskChip,
   taskStateOf,
   tasksHref,
@@ -301,5 +303,35 @@ describe("hazard HZ-009 due times across the clock changes (UK time)", () => {
       { now: NOW, selfId: SELF },
     );
     expect(read.ok).toBe(false);
+  });
+});
+
+describe("hazard HZ-003 a long task list stays quick and keeps today's tasks in sight", () => {
+  it.each([
+    [undefined, 20],
+    ["", 20],
+    ["10", 20],
+    ["20", 20],
+    ["21", 40],
+    ["40", 40],
+    ["5000", 1000],
+    ["abc", 20],
+    [["60", "20"], 60],
+  ] as const)("renders %o as %d tasks", (value, n) => {
+    expect(shownCount(value as string | string[] | undefined)).toBe(n);
+  });
+
+  it("lists the window's own tasks apart from open tasks due before it", () => {
+    const from = "2026-12-01T00:00:00.000Z";
+    const { inWindow, earlier } = splitByWindow(
+      [
+        { id: "old", dueAt: "2026-11-20T09:00:00.000Z" },
+        { id: "edge", dueAt: from },
+        { id: "today", dueAt: "2026-12-01T09:00:00.000Z" },
+      ],
+      from,
+    );
+    expect(inWindow.map((i) => i.id)).toEqual(["edge", "today"]);
+    expect(earlier.map((i) => i.id)).toEqual(["old"]);
   });
 });

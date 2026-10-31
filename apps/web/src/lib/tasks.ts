@@ -287,3 +287,26 @@ export function readTaskReason(
   }
   return { ok: true, reason };
 }
+
+/** How many tasks a list renders at a time: a page stays quick however many are open. */
+export const TASK_PAGE_SIZE = 20;
+const MAX_SHOWN = 1000;
+
+/** How many tasks to render, from the address: whole pages, at least one, at most 1,000. */
+export function shownCount(value: string | string[] | undefined): number {
+  const n = Number(one(value));
+  if (!Number.isInteger(n) || n < TASK_PAGE_SIZE) return TASK_PAGE_SIZE;
+  return Math.min(MAX_SHOWN, Math.ceil(n / TASK_PAGE_SIZE) * TASK_PAGE_SIZE);
+}
+
+/** The window's own tasks, and the open tasks due before it (listed apart, HZ-003). */
+export function splitByWindow<T extends Pick<TaskItem, "dueAt">>(
+  items: readonly T[],
+  from: string,
+): { inWindow: T[]; earlier: T[] } {
+  const start = Date.parse(from);
+  const inWindow: T[] = [];
+  const earlier: T[] = [];
+  for (const item of items) (Date.parse(item.dueAt) < start ? earlier : inWindow).push(item);
+  return { inWindow, earlier };
+}

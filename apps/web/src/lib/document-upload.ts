@@ -1,6 +1,6 @@
 import type { Translator } from "@harbour/i18n";
 import { ORGANISATION_LIMIT, ORGANISATION_LIMIT_MB, TITLE_MAX, TITLE_MIN } from "./documents";
-import { isSameOrigin } from "./invitations";
+import { isSameOrigin, webOrigin } from "./invitations";
 
 /**
  * Organisation document uploads (PLAT-009) go through their own route handler,
@@ -32,12 +32,7 @@ export interface UploadRefusal {
   readonly answer: UploadAnswer;
 }
 
-/** This site's origin from configuration (`PUBLIC_WEB_URL`), as the invitation routes read it. */
-export function webOrigin(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): string | null {
-  return env.PUBLIC_WEB_URL ?? (env.NODE_ENV === "production" ? null : "http://localhost:3000");
-}
+export { webOrigin };
 
 function mediaType(contentType: string | null): string {
   return (contentType ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
@@ -100,12 +95,33 @@ export type UploadTarget =
   | { readonly kind: "new"; readonly title: string; readonly fileName: string | null }
   | { readonly kind: "version"; readonly id: string };
 
-/** What the query string asks for: a new document with its title, or a new version of one. */
+/**
+ * The headers that carry a new document's title and file name, percent-encoded, so neither is in
+ * the address (which reaches access logs). The version's document id, an opaque id, stays in the
+ * query string.
+ */
+export const TITLE_HEADER = "x-harbour-document-title";
+export const FILE_NAME_HEADER = "x-harbour-document-file-name";
+
+function decoded(value: string | null): string | null {
+  if (value === null) return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+/** What the request asks for: a new document with its title, or a new version of one. */
 export function readUploadTarget(
-  params: URLSearchParams,
+  request: {
+    readonly versionOf: string | null;
+    readonly title: string | null;
+    readonly fileName: string | null;
+  },
   t: Translator,
 ): { ok: true; target: UploadTarget } | { ok: false; refusal: UploadRefusal } {
-  const versionOf = params.get("versionOf");
+  const { versionOf } = request;
   if (versionOf !== null) {
     if (!UUID.test(versionOf)) {
       return {
@@ -118,7 +134,7 @@ export function readUploadTarget(
     }
     return { ok: true, target: { kind: "version", id: versionOf } };
   }
-  const title = (params.get("title") ?? "").replace(/\s+/g, " ").trim();
+  const title = (decoded(request.title) ?? "").replace(/\s+/g, " ").trim();
   if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
     const message = t("documents.upload.titleError", { min: TITLE_MIN, max: TITLE_MAX });
     return {
@@ -129,15 +145,9 @@ export function readUploadTarget(
       },
     };
   }
-  const name = params.get("fileName");
-  return {
-    ok: true,
-    target: {
-      kind: "new",
-      title,
-      fileName: name ? (name.split(/[\\/]/).at(-1) ?? "").slice(-255) || null : null,
-    },
-  };
+  const name = decoded(request.fileName);
+  const fileName = name ? (name.split(/[\\/]/).at(-1) ?? "").slice(-255) || null : null;
+  return { ok: true, target: { kind: "new", title, fileName } };
 }
 
 /** Thrown into the stream when the body is larger than allowed; the route answers 413. */

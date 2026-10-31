@@ -133,15 +133,20 @@ test("the upload route refuses another site and a file over the limit, and takes
 }) => {
   test.setTimeout(120_000);
   await signIn(page, "manager@example.invalid");
-  const route = `/api/documents/upload?title=${encodeURIComponent(`Refused ${RUN}`)}`;
+  const route = "/api/documents/upload";
+  const title = { "x-harbour-document-title": encodeURIComponent(`Refused ${RUN}`) };
   const crossSite = await page.request.post(route, {
-    headers: { "content-type": "application/pdf", origin: "https://elsewhere.example.invalid" },
+    headers: {
+      ...title,
+      "content-type": "application/pdf",
+      origin: "https://elsewhere.example.invalid",
+    },
     data: pdf("cross-site").buffer,
   });
   expect(crossSite.status()).toBe(403);
   const origin = new URL(page.url()).origin;
   const oversize = await page.request.post(route, {
-    headers: { "content-type": "application/pdf", origin },
+    headers: { ...title, "content-type": "application/pdf", origin },
     data: Buffer.alloc(25 * 1024 * 1024 + 1, 0x20),
   });
   expect(oversize.status()).toBe(413);

@@ -7,7 +7,12 @@ import { type FormEvent, useState, useTransition } from "react";
 import { signDocument } from "@/app/actions/documents";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
-import { UPLOAD_PATH, type UploadAnswer } from "@/lib/document-upload";
+import {
+  FILE_NAME_HEADER,
+  TITLE_HEADER,
+  UPLOAD_PATH,
+  type UploadAnswer,
+} from "@/lib/document-upload";
 import {
   DEFAULT_SIGNATURE_STATEMENT,
   DOCUMENTS_PAGE,
@@ -29,12 +34,24 @@ const MB = ORGANISATION_LIMIT_MB;
  * other form accepts a large body); the route checks the origin, type and size and streams it to
  * the API. Answers as a server action would, so the form says a refusal the same way.
  */
-async function sendUpload(query: Record<string, string>, file: File): Promise<UploadAnswer> {
+async function sendUpload(
+  target: { readonly versionOf: string } | { readonly title: string; readonly fileName: string },
+  file: File,
+): Promise<UploadAnswer> {
+  // The title and file name travel in headers, percent-encoded, never in the address.
+  const metadata: Record<string, string> =
+    "versionOf" in target
+      ? {}
+      : {
+          [TITLE_HEADER]: encodeURIComponent(target.title),
+          [FILE_NAME_HEADER]: encodeURIComponent(target.fileName),
+        };
+  const query = "versionOf" in target ? `?${new URLSearchParams(target).toString()}` : "";
   try {
-    const response = await fetch(`${UPLOAD_PATH}?${new URLSearchParams(query).toString()}`, {
+    const response = await fetch(`${UPLOAD_PATH}${query}`, {
       method: "POST",
       body: file,
-      headers: { "content-type": file.type || "application/pdf" },
+      headers: { "content-type": file.type || "application/pdf", ...metadata },
       credentials: "same-origin",
     });
     return (await response.json()) as UploadAnswer;

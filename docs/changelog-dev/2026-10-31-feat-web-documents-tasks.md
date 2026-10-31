@@ -66,3 +66,14 @@ Branch `feat/web-documents-tasks`.
   while streaming to the API), so the global server-action and proxy body limits go back to Next's
   defaults; unit tests for the refusals and a journey case for a cross-site post, an oversize body
   and a 12 MB upload. The CSO question is H-451.
+- Round 3 (security review of #114 and CI): the upload's title and file name travel in
+  percent-encoded headers, not the address (the API hop is unchanged; moving it is logged in
+  platform.md); the details page serves organisation documents only and names the tab after one
+  only; the task list API returns the window's tasks first, then older open tasks, counting those
+  left out (`earlierOmitted`, audited with `earlier`; a test with 1,005 old tasks; HZ-003); the
+  page lists them apart, 20 at a time with "Show more", so it stays quick (CI's journey timed out
+  in axe at hundreds of rows; with 802 open tasks locally the journey now takes 14 s); retention
+  candidates show a title only where the caller may read that category, and the listed ids are
+  audited; the upload route checks the session before the body and answers JSON; one shared
+  `webOrigin`; ADR-0030 and the security checklist list the web's own routes; the retention
+  resident is seeded for end-to-end only; both retention lists refuse a stale step-up (test).

@@ -94,23 +94,33 @@ describe("the document upload route (PLAT-009; ASVS L2 input limits)", () => {
     expect([...new Uint8Array(out)]).toEqual([1, 2, 3]);
   });
 
-  it("reads a new document's title and file name, or the document a version belongs to", () => {
+  it("reads a new document's title and file name from percent-encoded headers, or the document a version belongs to", () => {
+    const none = { versionOf: null, title: null, fileName: null };
     expect(
       readUploadTarget(
-        new URLSearchParams({ title: " Fire  policy ", fileName: "C:\\x\\fire.pdf" }),
+        {
+          ...none,
+          title: encodeURIComponent(" Fire  policy ’25 "),
+          fileName: encodeURIComponent("C:\\x\\fire.pdf"),
+        },
         t,
       ),
-    ).toEqual({ ok: true, target: { kind: "new", title: "Fire policy", fileName: "fire.pdf" } });
+    ).toEqual({
+      ok: true,
+      target: { kind: "new", title: "Fire policy ’25", fileName: "fire.pdf" },
+    });
     const id = "0194d000-0000-7000-8000-00000000000a";
-    expect(readUploadTarget(new URLSearchParams({ versionOf: id }), t)).toEqual({
+    expect(readUploadTarget({ ...none, versionOf: id }, t)).toEqual({
       ok: true,
       target: { kind: "version", id },
     });
-    expect(readUploadTarget(new URLSearchParams({ versionOf: "nope" }), t)).toMatchObject({
+    expect(readUploadTarget({ ...none, versionOf: "nope" }, t)).toMatchObject({
       ok: false,
       refusal: { status: 404 },
     });
-    expect(readUploadTarget(new URLSearchParams({ title: "x" }), t)).toMatchObject({
+    // A header that is not valid percent-encoding is no title.
+    expect(readUploadTarget({ ...none, title: "%E0%A4%A" }, t)).toMatchObject({ ok: false });
+    expect(readUploadTarget({ ...none, title: "x" }, t)).toMatchObject({
       ok: false,
       refusal: { status: 400, answer: { fields: { title: expect.any(String) } } },
     });

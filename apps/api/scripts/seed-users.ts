@@ -451,18 +451,24 @@ try {
          ON CONFLICT (id) DO NOTHING`,
         [MEWS_TWIN_A, MEWS_TWIN_B, MEWS_LOCATION],
       );
-      // Left care nine years ago: past the 8-year care-record period, so a document about them
-      // is offered for destruction (the retention journey uploads one per run).
-      await client.query(
-        `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
-                             nhs_number, allergy_status, discharged_at)
-         VALUES ($1, $2, 'discharged', 'Rhys', 'Example', '1930-05-06', '9990001537',
-                 'no_known_allergies', now() - interval '9 years')
-         ON CONFLICT (id) DO NOTHING`,
-        [MEWS_LEFT, MEWS_LOCATION],
-      );
+      // Left care nine years ago, past the care-record period, so a document about them is
+      // offered for destruction (the retention journey uploads one per run). End-to-end only.
+      if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
+        await client.query(
+          `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
+                               nhs_number, allergy_status, discharged_at)
+           VALUES ($1, $2, 'discharged', 'Rhys', 'Example', '1930-05-06', '9990001537',
+                   'no_known_allergies', now() - interval '9 years')
+           ON CONFLICT (id) DO NOTHING`,
+          [MEWS_LEFT, MEWS_LOCATION],
+        );
+      }
       await client.query("COMMIT");
-      console.log("Harbour Mews and its resident are in place for the break-glass journey");
+      console.log(
+        process.env.HARBOUR_DEMO_E2E_PASSKEY === "1"
+          ? "Harbour Mews and its residents are in place for the break-glass, search and retention journeys"
+          : "Harbour Mews and its residents are in place for the break-glass and search journeys",
+      );
     } finally {
       client.release();
     }

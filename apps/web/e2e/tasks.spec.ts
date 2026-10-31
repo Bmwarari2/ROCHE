@@ -49,11 +49,21 @@ interface Task {
   readonly details: { entries?: { clientId?: string | null; entryId?: string | null }[] } | null;
 }
 
-/** A task about the person, due in ten minutes, made through the API. */
+/** The signed-in member's own id, so this run's tasks are theirs and found under My tasks. */
+async function selfId(request: APIRequestContext): Promise<string> {
+  return (await api<{ tenantUserId: string }>(request, "GET", "/v1/me")).tenantUserId;
+}
+
+/**
+ * A task about the person, due in ten minutes, made through the API and given to the manager: a
+ * home with many open tasks (CI runs every journey first) shows a page at a time, busiest first,
+ * so the journey finds its own tasks under My tasks.
+ */
 async function personTask(request: APIRequestContext, title: string): Promise<Task> {
   return api<Task>(request, "POST", "/v1/tasks", {
     title,
     personId: PERSON,
+    assigneeTenantUserId: await selfId(request),
     dueAt: new Date(Date.now() + 10 * 60_000).toISOString(),
   });
 }
@@ -123,7 +133,7 @@ test("hazards HZ-004 and HZ-006 a review task shows the entries to review, and a
   await bothThemes(page, "review task with its entries");
 
   // The cancelled round, in the finished tasks, says its evidence arrived after it was cancelled.
-  await page.goto("/tasks?view=team&status=closed");
+  await page.goto("/tasks?view=mine&status=closed");
   const late = task(page, `Journey check cancelled ${RUN}`);
   await expect(late).toContainText("Cancelled");
   await expect(late).toContainText("Recorded after it was cancelled");
@@ -144,6 +154,13 @@ test("the manager creates a task, starts it and marks it done", async ({ page })
   await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
   // Team tasks first: reviews go to a role, not a person (HZ-006).
   await expect(page.getByRole("link", { name: "Team tasks" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  // This journey's task is the manager's own: the form and the task are under My tasks, however
+  // busy the home is (CI runs every journey first).
+  await page.getByRole("link", { name: "My tasks" }).click();
+  await expect(page.getByRole("link", { name: "My tasks" })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -204,10 +221,17 @@ test("a task not done needs a reason, and the reason is shown", async ({ page })
   const made = await api<Task>(page.request, "POST", "/v1/tasks", {
     title,
     locationId: DEMO_LOCATION,
+    assigneeTenantUserId: await selfId(page.request),
     dueAt: new Date(Date.now() + 30 * 60_000).toISOString(),
   });
   expect(made.id).toBeTruthy();
-  await page.goto("/tasks?view=team");
+  // The team list, however busy, renders a page at a time and passes axe in both themes.
+  await page.goto("/tasks");
+  await expect(main(page).locator("li[data-task-id]").first()).toBeVisible();
+  expect(await main(page).locator("li[data-task-id]").count()).toBeLessThanOrEqual(40);
+  await bothThemes(page, "team tasks");
+
+  await page.goto("/tasks?view=mine");
   const item = task(page, title);
   await item.getByRole("button", { name: "Record as not done" }).click();
   const sheet = page.getByRole("dialog", { name: `Not done: ${title}` });
@@ -221,7 +245,7 @@ test("a task not done needs a reason, and the reason is shown", async ({ page })
   await expect(
     main(page).getByRole("status").filter({ hasText: "Task recorded as not done." }),
   ).toBeVisible();
-  await page.goto("/tasks?view=team&status=closed");
+  await page.goto("/tasks?view=mine&status=closed");
   await expect(task(page, title)).toContainText("Not done");
   await expect(task(page, title)).toContainText("Fire officer visit moved");
 });

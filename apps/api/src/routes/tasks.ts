@@ -21,7 +21,7 @@ import {
   validateRecurrence,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -187,31 +187,44 @@ export const tasksRouter = createRouter()
       const to = q.to ? new Date(q.to) : new Date(now.getTime() + DAY_MS);
       if (to.getTime() - from.getTime() > 31 * DAY_MS)
         throw problems.invalid("Ask for 31 days or fewer.");
+      const earlier = q.status === "open" && q.earlier === "yes";
       const items = await withTenant(c, async (tx) => {
+        const matching = and(
+          isNull(task.deletedAt),
+          q.status === "open"
+            ? inArray(task.status, ["open", "in_progress"])
+            : q.status === "closed"
+              ? inArray(task.status, [...TERMINAL_TASK_STATUSES])
+              : undefined,
+          q.view === "mine" ? eq(task.assigneeTenantUserId, access.tenantUserId) : undefined,
+          q.personId ? eq(task.personId, q.personId) : undefined,
+          q.locationId ? eq(task.locationId, q.locationId) : undefined,
+          // Without MFA, tasks about people stay hidden (they are care records).
+          access.mfaSatisfied ? undefined : isNull(task.personId),
+        );
+        // The window's own tasks first, so old open tasks never push today's off the list (HZ-003).
         const rows = await tx
           .select()
           .from(task)
-          .where(
-            and(
-              isNull(task.deletedAt),
-              q.status === "open" && q.earlier === "yes" ? undefined : gte(task.dueAt, from),
-              lt(task.dueAt, to),
-              q.status === "open"
-                ? inArray(task.status, ["open", "in_progress"])
-                : q.status === "closed"
-                  ? inArray(task.status, [...TERMINAL_TASK_STATUSES])
-                  : undefined,
-              q.view === "mine" ? eq(task.assigneeTenantUserId, access.tenantUserId) : undefined,
-              q.personId ? eq(task.personId, q.personId) : undefined,
-              q.locationId ? eq(task.locationId, q.locationId) : undefined,
-              // Without MFA, tasks about people stay hidden (they are care records).
-              access.mfaSatisfied ? undefined : isNull(task.personId),
-            ),
-          )
+          .where(and(matching, gte(task.dueAt, from), lt(task.dueAt, to)))
           .orderBy(asc(task.dueAt))
           .limit(TASK_LIST_LIMIT + 1);
         const truncated = rows.length > TASK_LIST_LIMIT;
         if (truncated) rows.length = TASK_LIST_LIMIT;
+        // Then open tasks due before the window, however old, the most recent first, in the room
+        // left; how many did not fit is counted, so the page can say so (HZ-003, HZ-008).
+        let earlierOmitted = 0;
+        if (earlier) {
+          const before = and(matching, lt(task.dueAt, from));
+          const room = TASK_LIST_LIMIT - rows.length;
+          const older =
+            room > 0
+              ? await tx.select().from(task).where(before).orderBy(desc(task.dueAt)).limit(room)
+              : [];
+          const [all] = await tx.select({ n: count() }).from(task).where(before);
+          earlierOmitted = Math.max(0, Number(all?.n ?? 0) - older.length);
+          rows.unshift(...older.reverse());
+        }
         const minutes = await escalationMinutes(tx, access.tenantId);
         await auditInTx(tx, access, {
           action: "platform.task.list",
@@ -220,11 +233,16 @@ export const tasksRouter = createRouter()
             count: rows.length,
             personId: q.personId ?? null,
             locationId: q.locationId ?? null,
+            earlier,
           },
           requestId: c.get("requestId"),
         });
         const staff = await taskStaff(tx, rows);
-        return { items: rows.map((r) => toTaskItem(r, now, minutes, staff)), truncated };
+        return {
+          items: rows.map((r) => toTaskItem(r, now, minutes, staff)),
+          truncated,
+          ...(earlier ? { earlierOmitted } : {}),
+        };
       });
       return c.json(items, 200);
     },
