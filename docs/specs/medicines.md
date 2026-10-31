@@ -350,11 +350,12 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     is recorded and flagged for review instead (rule 17). Anywhere inside its window a dose is on
     time; after it, late, with a reason. Given before its due time it asks a reason (and is flagged
     early) only for an entry tagged time-critical (`earlyNeedsReason`). Any dose, early, on time or
-    late, asks a reason (and is flagged `close_to_last_dose`) when the time since the entry's last
-    dose is shorter than the scheduled gap from the previous dose less the window's early side
-    (`closerThanScheduled`): a late 10:30 dose followed by the 12:00 dose at 12:00 is asked about,
-    and no reason is asked for every dose a round gives a little early (#162 third clinical review
-    and its re-check, against alert fatigue). Windows are elapsed time, so on the
+    late, asks a reason when it comes closer to the entry's dose before it, or to its dose after it
+    (a dose entered later than others), than the scheduled gap less the window's early side
+    (`closerThanScheduled`; flagged `close_to_last_dose` or `close_to_next_dose`): a late 10:30
+    dose followed by the 12:00 dose at 12:00 is asked about, as is an 08:00 dose back-entered at
+    11:30 before a 12:00 dose given at 12:05; and no reason is asked for every dose a round gives
+    a little early (#162 third clinical review and its re-checks, against alert fatigue). Windows are elapsed time, so on the
     days the clocks change they are as long as any other (#162 clinical review; H-1064 asks the
     CSO for an upper limit on a tenant's figures).
 15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
@@ -372,7 +373,12 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     selected person, the medicine and (for a regular medicine) the scheduled dose, and an outcome;
     for another person's medicine; for a time the entry has no dose; for a dose already recorded (a
     correction instead); from a version not in force or not givable (rule 6); for a reason code not
-    for the outcome. Outcomes: given, refused, not given (asleep, away from the home, in hospital,
+    for the outcome; at a time later than now beyond the table's typed-time tolerance
+    (`sync.clock_drift_flag_minutes`; `recorded_in_future`); and, on the round, a dose given
+    earlier than that tolerance before it is recorded (`given_earlier_than_recorded`): a dose given
+    now cannot be dated back past an interval, the maximum, its window, a competence lapse or an
+    entry being held, and one given earlier is recorded by the route below, flagged and escalated
+    (#162 third review's second re-check). Outcomes: given, refused, not given (asleep, away from the home, in hospital,
     nil by mouth, unable to swallow, vomiting, other), not available (out of stock, not delivered,
     other), taken by the person themselves, given by family as agreed, withheld (the prescriber said
     to, outside the limits the prescriber set, other); "other" and "withheld" always need words.
@@ -389,7 +395,9 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     the dosing record or the maximum, nor, for a record made after the event, by the competence of
     whoever gave it then. They are flagged instead (`ReviewFlag`: before window, earlier dose
     outstanding, entry not usable, no usable dosing record, amount in another unit, competence not
-    current) and sent to the nurse in charge to review (a `warning` escalation in words); one over
+    current, inside the minimum interval) and sent to the nurse in charge to review in words:
+    `urgent` when any of those rules was broken, `warning` when only how it was recorded needs
+    review; one over
     the maximum is flagged "over maximum" and escalated `urgent`, and one with no checked dose to
     compare it with (a variable dose with no usable dosing record) needs its amount and is
     escalated `urgent` with that amount (`no_prescribed_dose`), never only a warning. A dose
@@ -464,8 +472,22 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     corrector's competence, the named giver checked at the time given (and flagged when not the
     corrector), and always the `given_before_recorded` flag, counted and escalated, urgently when a
     rule was broken; so recording "refused" and correcting it to "given" never gets round that
-    route (#162 third review's re-check). Only the duplicate check against the record it corrects
-    is left out, and that record is left out of the history (`checkCorrection`).
+    route (#162 third review's re-check). Every correction is a reviewable event (its second
+    re-check): it needs a reason of 20 characters or more, whatever it changes; it is flagged
+    `corrected` with what it changes (`corrected`: outcome, amount, time, giver, or a detail such
+    as a coded reason) and counted per member for the report; one that removes a dose recorded as
+    taken or lowers the amount counted (an amount in another unit counts as none) is flagged
+    `dose_removed`, and one that moves its time `dose_moved`, each escalated to the nurse in charge
+    as a `warning`, or `urgent` when the entry has a 24-hour maximum, a minimum interval or the
+    paracetamol tag, because the change frees room for another dose (a routine amount correction
+    on a regular medicine is a warning, H-1067). The 24-hour maximum over every 24 hours, the
+    intervals and the scheduled gap, both ways, are checked around the dose as the original
+    recorded it and as the correction records it, against the other doses: a breach the
+    correction creates is flagged `breach_created` and one it hides `breach_hidden`, each sent for
+    review urgently, naming the limit. The stored record keeps its outcome, amount and giver
+    (`RecordedAdministration`) so the change can be judged. Only the duplicate check against the
+    record it corrects is left out, and that record is left out of the history
+    (`checkCorrection`).
 24. **Controlled drugs register page** (`controlled-drugs.ts`). One page per person and dm+d VMP
     (drug, form and strength); entries in time order; movements receipt, administration, disposal,
     transfer out, destruction and correction. A stock check compares the count with the page and
@@ -586,8 +608,10 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   time given before the server's time of recording, the recorder's and the giver's competence,
   every use flagged, counted and escalated, urgently when a rule is broken); competence and the override; closing a round; the row lock and
   corrections checked as records made after the event, with the corrector's competence, and those
-  to a dose outcome by the rules for a dose recorded after it was given; a dose closer to the last
-  one than the schedule allows asked about, late or not),
+  to a dose outcome by the rules for a dose recorded after it was given; every correction flagged
+  with what it changes, a dose removed, lowered or moved escalated, and breaches it creates or
+  hides flagged; a dose closer to the doses either side than the schedule allows asked about, late
+  or not; a dose dated in the future, or dated back on the round, refused),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
   balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
   service; a blank witness; destruction; stock checks).
@@ -603,6 +627,10 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
     applied after midnight is not tried against a different day.
   - The API passes every version of a medicine to the rules (`versions`, `entryVersions`,
     `earlierEntries`), never a subset, so a scheduled version or stop is always seen.
+  - Slice 22 (#162 second re-check): the stored administration keeps its outcome, amount and
+    giver (`RecordedAdministration.outcome`, `amount`, `administeredBy`), which `checkCorrection`
+    compares with the correction; the override report counts `corrected`, `dose_removed` and
+    `dose_moved` with the route and overrides (`REPORTED_FLAGS`).
   - Slice 22 (#162 third clinical review): the API sets every administration's `recordedAt` from
     the server's clock (for a record made offline, the drift-corrected time of recording, kept
     beside the receipt time) and refuses a dose recorded after it was given whose time given is

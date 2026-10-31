@@ -135,7 +135,10 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   reason, a time given before the server's time of recording and a competent recorder, and every
   use is flagged, counted and escalated; an early dose inside its window asks why only when
   time-critical or too close to the last dose. Its re-check's too: a correction to a dose outcome
-  follows the same rules, and the gap check applies to every dose, late or not.
+  follows the same rules, and the gap check applies to every dose, late or not. And its second
+  re-check's: every correction is flagged, counted and, when it removes, lowers or moves a dose,
+  escalated; breaches a correction creates or hides are flagged; the gap check looks both ways;
+  a dose cannot be dated forward, or back on the round.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
