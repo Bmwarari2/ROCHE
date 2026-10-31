@@ -95,6 +95,10 @@ export const TaskDetails = z
      * recorded") until this is checked and recorded on their record.
      */
     importedAllergyStatus: z.enum(["no_known_allergies", "has_allergies"]).optional(),
+    /** A training or competence expiry reminder (slice 17): the member, and the topic or competence. */
+    memberId: uuid.optional(),
+    trainingTopic: z.string().optional(),
+    competence: z.string().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

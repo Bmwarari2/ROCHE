@@ -27,6 +27,7 @@ import {
   isPermission,
   PLAN_ACTION_SOURCE_TYPE,
   RecurrenceError,
+  requiresMfa,
   scopeFor,
   type TaskStatus,
   TERMINAL_TASK_STATUSES,
@@ -153,8 +154,22 @@ async function findTask(tx: Transaction, id: string) {
   return row;
 }
 
-function requireMfaFor(access: TenantAccess, personId: string | null) {
-  if (personId && !access.mfaSatisfied) throw mfaRefusal(access);
+/**
+ * Whether a task needs MFA to open: one about a person (a care record), or one whose required
+ * permission needs MFA (a staff file reminder; security review round 1 of slice 17, finding 3).
+ */
+function taskNeedsMfa(row: { personId: string | null; requiredPermission: string }): boolean {
+  return (
+    row.personId !== null ||
+    (isPermission(row.requiredPermission) && requiresMfa(row.requiredPermission))
+  );
+}
+
+function requireMfaFor(
+  access: TenantAccess,
+  row: { personId: string | null; requiredPermission: string },
+) {
+  if (taskNeedsMfa(row) && !access.mfaSatisfied) throw mfaRefusal(access);
 }
 
 function asTaskStatus(value: string): TaskStatus {
@@ -197,7 +212,7 @@ export const tasksRouter = createRouter()
       const access = useScopeOf(c, TASK_READ_SCOPE);
       const q = c.req.valid("query");
       const now = new Date();
-      if (q.personId) requireMfaFor(access, q.personId);
+      if (q.personId && !access.mfaSatisfied) throw mfaRefusal(access);
       const from = q.from ? new Date(q.from) : new Date(now.getTime() - DAY_MS);
       const to = q.to ? new Date(q.to) : new Date(now.getTime() + DAY_MS);
       if (to.getTime() - from.getTime() > 31 * DAY_MS)
@@ -214,7 +229,8 @@ export const tasksRouter = createRouter()
           q.view === "mine" ? eq(task.assigneeTenantUserId, access.tenantUserId) : undefined,
           q.personId ? eq(task.personId, q.personId) : undefined,
           q.locationId ? eq(task.locationId, q.locationId) : undefined,
-          // Without MFA, tasks about people stay hidden (they are care records).
+          // Without MFA, tasks about people stay hidden (they are care records), and so do staff
+          // file reminders (filtered below).
           access.mfaSatisfied ? undefined : isNull(task.personId),
         );
         // The window's own tasks first, so old open tasks never push today's off the list (HZ-003).
@@ -239,6 +255,13 @@ export const tasksRouter = createRouter()
           const [all] = await tx.select({ n: count() }).from(task).where(before);
           earlierOmitted = Math.max(0, Number(all?.n ?? 0) - older.length);
           rows.unshift(...older.reverse());
+        }
+        // Without MFA, tasks whose permission needs it stay hidden too (staff file reminders;
+        // security review round 1 of slice 17, finding 3).
+        if (!access.mfaSatisfied) {
+          const kept = rows.filter((r) => !taskNeedsMfa(r));
+          rows.length = 0;
+          rows.push(...kept);
         }
         const minutes = await escalationMinutes(tx, access.tenantId);
         await auditInTx(tx, access, {
@@ -279,7 +302,7 @@ export const tasksRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, GENERAL_TASK_PERMISSION);
       const body = c.req.valid("json");
-      requireMfaFor(access, body.personId ?? null);
+      requireMfaFor(access, { personId: body.personId ?? null, requiredPermission: "" });
       checkWindow(body.dueAt, body.windowStart, body.windowEnd);
       const now = new Date();
       const requiredPermission = body.personId ? PERSON_TASK_PERMISSION : GENERAL_TASK_PERMISSION;
@@ -390,7 +413,7 @@ export const tasksRouter = createRouter()
       const item = await withTenant(c, async (tx) => {
         const row = await findTask(tx, id);
         if (!row) throw problems.notFound();
-        requireMfaFor(access, row.personId);
+        requireMfaFor(access, row);
         if (row.version !== body.version) throw problems.conflict();
         if (TERMINAL_TASK_STATUSES.includes(asTaskStatus(row.status))) {
           throw problems.invalid("This task is already finished.");
@@ -460,7 +483,7 @@ export const tasksRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, GENERAL_TASK_PERMISSION);
       const body = c.req.valid("json");
-      requireMfaFor(access, body.personId ?? null);
+      requireMfaFor(access, { personId: body.personId ?? null, requiredPermission: "" });
       try {
         validateRecurrence({
           rule: body.recurrence,
@@ -545,7 +568,7 @@ export const tasksRouter = createRouter()
       const series = await withTenant(c, async (tx) => {
         const [row] = await tx.select().from(taskSeries).where(eq(taskSeries.id, id));
         if (!row) throw problems.notFound();
-        requireMfaFor(access, row.personId);
+        requireMfaFor(access, row);
         // The care plan says what is done and when; its rounds change only with it (care.md
         // rule 14, HZ-024).
         if (row.sourceType === PLAN_ACTION_SOURCE_TYPE) {
@@ -674,7 +697,7 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
     withTenant(c, async (tx) => {
       const row = await findTask(tx, id);
       if (!row) throw problems.notFound();
-      requireMfaFor(access, row.personId);
+      requireMfaFor(access, row);
       const refused = await completionRefusal(tx, access, row, now);
       if (refused) {
         // Written after the transaction, which writes nothing, so the refusal is kept.

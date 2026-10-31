@@ -23,6 +23,10 @@ import { type AppEnv, SCOPE_WITHOUT_PERMISSION, useScopeOf } from "../src/http/c
 const GATES = new Set(["requirePermission", "requireAnyPermission", "useScopeOf"]);
 const DATABASE = new Set(["withTenant", "withRequestContext"]);
 
+/** Employee relations casework (ADR-0089): membership of the case opens it, never a permission. */
+const CASE_MEMBER =
+  "a case member's route: MFA, and row-level security opens only the cases the member is named on (migration 0101)";
+
 const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/me": "the member's own memberships and roles; scope 'none'",
   "GET /v1/branding":
@@ -47,10 +51,31 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/sync/device-report":
     "any member reports what their device holds; written in the system's view (HZ-006)",
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
+  "GET /v1/workforce/cases": CASE_MEMBER,
+  "GET /v1/workforce/cases/{id}": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/members": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/members/{memberId}/remove": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/move": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/hearings": CASE_MEMBER,
+  "PATCH /v1/workforce/cases/{id}/hearings/{hearingId}": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/suspension": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/referrals": CASE_MEMBER,
+  "PUT /v1/workforce/cases/{id}/safeguarding-link": CASE_MEMBER,
+  "POST /v1/workforce/cases/{id}/notes": CASE_MEMBER,
   "POST /p/evidence/code":
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
   "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
+  "POST /p/speak-up/{tenantId}":
+    "an anonymous speak-up concern (ADR-0089): no member; writes one concern, reads nothing back",
+  "POST /p/speak-up/{tenantId}/thread":
+    "an anonymous speak-up concern: the reply token's hash opens that concern alone (migration 0086)",
+  "POST /p/speak-up/{tenantId}/messages":
+    "an anonymous speak-up concern: the reply token's hash opens that concern alone (migration 0086)",
+  "POST /v1/speak-up":
+    "any member raises a concern (ADR-0089); the silo's policies, not a scope, decide what it reads",
+  "GET /v1/speak-up/mine": "the member's own concerns (speak_up_reporter policy, migration 0086)",
+  "POST /v1/speak-up/mine/{id}/messages": "the member's own concern (speak_up_reporter policy)",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
   "POST /operator/sub-processor-notices":
