@@ -112,3 +112,7 @@ Branch `feat/web-incident-follow-up`, PR #120.
   escalation and finishing audited) and the task engine leaves it alone. Tests for each, the L5 times
   before the incident, a finished record's person, and the Reg 18 and candour thresholds read apart.
   H-480 (i) and (j) restated for the CSO.
+- Round 4 (clinical re-check): the stuck-incident ladder counts from the incident's first task and
+  its task cannot be ended by hand; an unrouted day reaches the operator's daily signal; the candour
+  update, step and reopen need `safety.incident.manage` where the incident is. HZ-073 and HZ-091
+  rows added; the round 3 API tests carry HZ-091 where they test its controls.

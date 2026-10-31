@@ -624,6 +624,13 @@ in words; after a save the page opens again with focus on its heading and says w
   (`safety.candour.close_blocked_raised`), each day's escalation (`..._escalated`, with the day,
   the tier and how many were told, or `..._unrouted` once a day when no one could be) and finishing
   (`..._finished`, closed by whom or no longer held) are audited with opaque ids.
+- **Round 4** (clinical re-check): the stuck-incident ladder counts from when the incident first
+  became held open (its first task), so a task ended some other way and raised again never starts
+  it over, and the task cannot be ended by hand (`POST /v1/tasks/{id}/transition` refuses anything
+  but starting it; only resolving the duty of candour finishes it) (M1); a day on which no one could
+  be told reaches the operator's daily signal (`UNROUTED_ACTIONS`) (M2); the candour update, step and
+  reopen need `safety.incident.manage` where the incident is (`requireManagesIncident`), never only
+  elsewhere for the person who raised it (M3). H-480 (d), a decision found after closing, stays open.
 - **Lows**: the API test proves told, sent and attempt times before the incident are refused; a
   finished record's relevant person cannot change (tested); the classifier tests read the Reg 18 and
   candour thresholds apart, at and below each figure, and prove the recorded decision wins either way;
