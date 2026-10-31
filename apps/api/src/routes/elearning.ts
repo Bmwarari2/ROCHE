@@ -269,7 +269,12 @@ export const elearningRouter = createRouter()
           reason: `package_${error.code}`,
           requestId: c.get("requestId"),
         });
-        throw new HttpProblem(422, "package_refused", packageProblemMessage(error.code));
+        throw new HttpProblem(
+          422,
+          "package_refused",
+          "The package cannot be used",
+          packageProblemMessage(error.code),
+        );
       }
       const { scanner } = c.get("services");
       const course = await destroyingOnFailure(c.get("services").storage, (storage) =>
@@ -288,6 +293,7 @@ export const elearningRouter = createRouter()
               new HttpProblem(
                 422,
                 "package_not_scanned",
+                "The package could not be scanned",
                 "The package could not be checked for malware just now. Try again later.",
               ),
               A.added,

@@ -12,6 +12,7 @@ import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { readNotifications } from "@/lib/dashboard-data";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
+import { elearningShown } from "@/lib/elearning";
 import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
@@ -89,6 +90,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
+        elearning: elearningShown(me.permissions) ? t("shell.nav.elearning") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,

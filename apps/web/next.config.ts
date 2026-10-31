@@ -53,7 +53,9 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n", "@harbour/domain"],
   async headers() {
     return [
-      { source: "/:path*", headers: securityHeaders },
+      // Everything but the e-learning content origin's route handler, which sets its own headers
+      // (it must be framed by the app, which X-Frame-Options DENY would forbid; ADR-0093).
+      { source: "/:path((?!learn/).*)", headers: securityHeaders },
       // The invitation page sends no Referer at all (platform.md, #43 review M1); a later rule wins.
       { source: "/invitation", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
     ];

@@ -18,6 +18,7 @@ import {
   FileLock,
   FileText,
   FolderLock,
+  GraduationCap,
   House,
   ListChecks,
   ListTodo,
@@ -94,6 +95,8 @@ export interface ShellFrameLabels {
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
   readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
+  /** Shown to staff and training leads: e-learning courses (ADR-0093). */
+  readonly elearning?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -137,6 +140,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
+  if (pathname.startsWith("/training/elearning")) return "elearning";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/retention")) return "retention";
@@ -312,6 +316,16 @@ export function ShellFrame({
             label: labels.statementOfPurpose,
             href: "/quality/statement-of-purpose",
             icon: <ScrollText {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.elearning
+      ? [
+          {
+            id: "elearning",
+            label: labels.elearning,
+            href: "/training/elearning",
+            icon: <GraduationCap {...icon} />,
           },
         ]
       : []),
