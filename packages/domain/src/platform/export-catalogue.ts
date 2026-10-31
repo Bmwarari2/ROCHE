@@ -53,6 +53,7 @@ export type ExportRetention =
   | "organisation_document"
   | "invitation"
   | "staff_file"
+  | "applicant.unsuccessful"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -4368,6 +4369,198 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.job_template": {
+    context: "workforce",
+    description:
+      "Job templates by Care Workforce Pathway role (workforce.md section 2b): the title, the essential criteria assessed at shortlisting and the values-based interview questions.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      title: { description: "The job title, as the organisation names it." },
+      pathway_category: { description: "The Care Workforce Pathway role category." },
+      registration_body: { description: "The professional register the role needs, if any." },
+      essential_criteria: { description: "The essential criteria, as a JSON array of statements." },
+      values_questions: {
+        description:
+          "The values-based interview questions: key, the value explored and the question (JSON).",
+      },
+      archived_at: { description: "When the template stopped being offered." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.vacancy": {
+    context: "workforce",
+    description:
+      "Vacancies (workforce.md section 2b): the template, where the job is, how many positions, the dates and the status.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      job_template_id: { description: "The job template (job_template.id)." },
+      location_id: { description: "Where the job is; empty for an organisation-wide role." },
+      title: { description: "The vacancy's title." },
+      positions: { description: "How many people are being recruited.", unit: "count" },
+      opens_on: { description: "The UK date applications open." },
+      closes_on: { description: "The UK date applications close, if set." },
+      status: { description: "draft, open, closed, filled or withdrawn." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.applicant": {
+    context: "workforce",
+    description:
+      "People who applied for a job (purpose B15; workforce.md section 2b): names and contact details, talent pool consent, and the date until which they are kept.",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      given_name: { description: "Given name; empty once redacted." },
+      family_name: { description: "Family name; empty once redacted." },
+      email: { description: "Email address; empty once redacted." },
+      phone: { description: "Phone number; empty once redacted." },
+      talent_pool_until: { description: "The UK date the talent pool consent runs to." },
+      talent_pool_consented_at: { description: "When the applicant agreed to the talent pool." },
+      retain_until: {
+        description:
+          "The UK date until which the applicant is kept after their last application closed.",
+      },
+      redacted_at: { description: "When the names and contact details were cleared." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.application": {
+    context: "workforce",
+    description:
+      "An applicant's application for a vacancy (workforce.md rule 11): the stage, why it closed, and the shortlisting assessment.",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      vacancy_id: { description: "The vacancy (vacancy.id)." },
+      applicant_id: { description: "The applicant (applicant.id)." },
+      stage: {
+        description:
+          "applied, shortlisted, interviewed, offered, accepted, rejected, withdrawn or declined.",
+      },
+      stage_reason: { description: "Why it closed, as a code (CLOSING_REASONS)." },
+      shortlist: {
+        description: "Each essential criterion met or not, who decided and when (JSON).",
+      },
+      closed_on: { description: "The UK date the application closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.application_event": {
+    context: "workforce",
+    description: "Each change of an application's stage, append-only (workforce.md rule 11).",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      application_id: { description: "The application (application.id)." },
+      from_stage: { description: "The stage before; empty for the first." },
+      to_stage: { description: "The stage after." },
+      reason: { description: "The closing reason code, for a closed stage." },
+      occurred_at: { description: "When the stage changed." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.interview": {
+    context: "workforce",
+    description:
+      "Values-based interviews (workforce.md rule 11): the date, the panel, each question's score, notes and the panel's recommendation. Append-only.",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      application_id: { description: "The application (application.id)." },
+      held_on: { description: "The UK date of the interview." },
+      panel: { description: "The panel members (tenant_user.id each)." },
+      scores: { description: "Each values question's score, 1 to 4 (JSON)." },
+      notes: { description: "The panel's notes (free text)." },
+      recommendation: { description: "proceed or do_not_proceed." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.job_offer": {
+    context: "workforce",
+    description:
+      "Conditional job offers (workforce.md rule 11): the Schedule 3 conditions, the proposed start, the response and the staff profile an acceptance created.",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      application_id: { description: "The application (application.id)." },
+      made_on: { description: "The UK date the offer was made." },
+      proposed_start_on: { description: "The proposed start date (UK date)." },
+      conditions: {
+        description: "The Schedule 3 items the offer depends on (JSON array of kinds).",
+      },
+      status: { description: "made, accepted, declined or withdrawn." },
+      responded_on: { description: "The UK date of the response." },
+      staff_profile_id: {
+        description: "The staff profile an acceptance created (staff_profile.id).",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.equality_monitoring": {
+    context: "workforce",
+    description:
+      "Anonymous equality monitoring forms for a vacancy (workforce.md rule 12; special category data): the answers and the UK date only, never linked to an applicant. Read in the product only as suppressed counts; exported to the organisation as its own data (H-734).",
+    treatment: "tenant_rows",
+    retention: "applicant.unsuccessful",
+    personal: true,
+    columns: {
+      id: { description: "A random id (never time-ordered)." },
+      tenant_id: "exported",
+      vacancy_id: { description: "The vacancy (vacancy.id)." },
+      answers: { description: "The answers given, by question (JSON); every answer optional." },
+      submitted_on: { description: "The UK date the form was added." },
     },
   },
   "public.statement_of_purpose_version": {

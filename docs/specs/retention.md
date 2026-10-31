@@ -41,6 +41,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | staff_file.after_leaving | 6 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Tenant option: 6 years after employment ends. The tenant selects this row or the next one for all staff files. |
 | staff_file.to_75th_birthday | 0 | years | employment_ended_or_75th_birthday | NHS Records Management Code of Practice; master prompt 5.1, 12 | Default option (section 12 rules say staff files to the 75th birthday): kept until the person's 75th birthday, so the period after that trigger is 0. Never destroyed before employment has ended. |
 | right_to_work_copy | 2 | years | record_closed | https://www.gov.uk/check-job-applicant-right-to-work (statutory guidance); master prompt 12.1 | Copies of right-to-work documents and check results, kept during employment and for 2 years after it ends (record_closed is the employment end date). |
+| applicant.unsuccessful | 6 | months | record_closed | ICO Employment Practices Code, recruitment and selection (keep only as long as needed to answer a claim); Equality Act 2010 s.123 (six-month claim window for most claims, plus early conciliation); master prompt 12.1 | Applicants whose last application closed without being hired: their details, applications, stage history, interviews and offers. Counted from the closing date of their last application (record_closed). Equality monitoring forms follow it from the vacancy's closing date. A hired applicant's record follows the staff file instead. Harbour default for the DPO to confirm (H-732). |
+| applicant.talent_pool | 12 | months | created | UK GDPR Art 6(1)(a) and 7 (consent, withdrawable at any time); Art 5(1)(e); master prompt 12.1 | The talent pool: an applicant who agreed is kept until 12 months after the consent was recorded (created), or until they withdraw it, if later than their applicant.unsuccessful date. Harbour default for the DPO to confirm (H-732). |
 | training_record | 10 | years | created | Master prompt 5.1 | From the date the training or competence sign-off was completed. |
 | rota_and_timesheet | 6 | years | created | National Minimum Wage record-keeping; master prompt 5.1, 12 | Rotas, timesheets, clock-in events, sleep-in and travel-time records, pay calculations with their inputs. Counted from the end of the pay reference period. |
 | working_time_record | 2 | years | created | Working Time Regulations 1998 (statutory minimum); master prompt 5.1, 12 | Working-time calculations and night-work assessments, counted from when the record was made. |
@@ -79,6 +81,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `medication`, `medication_schedule`, `medication_administration` | mar_chart |
 | `controlled_drug_entry` | controlled_drugs_register (and mar_chart for administrations) |
 | `staff_profile`, `compliance_item`, `er_case` | staff_file (tenant's chosen row) |
+| `applicant`, `application`, `application_event`, `interview`, `job_offer` (slice 23) | applicant.unsuccessful, or applicant.talent_pool when later; a hired applicant's records follow the staff file |
+| `equality_monitoring` (slice 23) | applicant.unsuccessful, from the vacancy's closing date |
+| `job_template`, `vacancy` (slice 23) | organisation_document |
 | `document` of category `staff_hr_document` (HR-only staff documents, slice 11) | staff_file; right to work copies `right_to_work_copy` (2 years after employment ends) |
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
 | `training_record`, `competence` | training_record |
@@ -131,7 +136,6 @@ of the record they attach to.
   human action H-106). They hold an address, a template id and a status, never update content;
   until a period is set they follow care_record with the contact. An opt-out must be remembered for
   as long as the address is held, so it is never sent to again.
-- Unsuccessful job applicants' data (Phase 2 recruitment).
 - DBS certificate information: settled for slice 11 as a spec decision ([workforce.md](workforce.md)
   section 2a), for the DPO to confirm (H-575). Following the DBS code of practice, Harbour keeps no
   copy of a certificate and nothing of what it disclosed; the record of the check (level, issue date,

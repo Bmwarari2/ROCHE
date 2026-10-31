@@ -1,6 +1,6 @@
 {
-  "id": "90e66cec-1e7a-48f0-8688-5604cfcb3073",
-  "prevId": "a63b808b-5261-4530-b6c8-b2781dbcfc03",
+  "id": "051b0aa9-b2ff-4748-b05e-354e17f097d7",
+  "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3919,6 +3919,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "summary": {
+          "name": "summary",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4001,6 +4007,10 @@
         "handover_item_source_type": {
           "name": "handover_item_source_type",
           "value": "source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')"
+        },
+        "handover_item_summary": {
+          "name": "handover_item_summary",
+          "value": "summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' IN ('handover.summary.fall', 'handover.summary.news2', 'handover.summary.incident', 'handover.summary.alert', 'handover.summary.bodyMapMark', 'handover.summary.flaggedNote', 'handover.summary.overdueTask', 'handover.summary.skippedTask', 'handover.summary.unfinishedTask', 'handover.summary.mustFollowUp', 'handover.summary.refusal') AND jsonb_typeof(summary -> 'params') = 'object' AND (summary - 'key' - 'params') = '{}'::jsonb AND NOT jsonb_path_exists(summary -> 'params', 'strict $.* ? (@.type() == \"object\" || @.type() == \"array\")') AND octet_length(summary::text) <= 4096, false)"
         }
       },
       "isRLSEnabled": false
@@ -25989,6 +25999,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "from_earlier_plan": {
+          "name": "from_earlier_plan",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "stopped_by_exit_id": {
           "name": "stopped_by_exit_id",
