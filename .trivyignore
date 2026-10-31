@@ -1,0 +1,11 @@
+# Trivy ignores, read by the CI Trivy step (.github/workflows/ci.yml). Each entry is a recorded
+# exception in docs/compliance/vulnerability-exceptions.md and expires on its review date, after
+# which the scan fails again until the exception is reviewed. Trivy may report either id.
+
+# decode-uri-component 0.2.2 via expo-router > query-string@7 (mobile only; sign-off H-397)
+CVE-2026-118664 exp:2026-11-30
+GHSA-qr28-fpjm-wq7f exp:2026-11-30
+
+# zod 3.25.76 via expo > @expo/cli (build tool only; zod 4 is pinned to 4.6.6 by pnpm.overrides)
+CVE-2023-54404 exp:2026-11-30
+GHSA-mrhx-c7xc-m3w5 exp:2026-11-30
