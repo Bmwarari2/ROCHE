@@ -12,7 +12,7 @@
  */
 
 import { clip, mergeSpans, type Span, spanMinutes, subtractSpans } from "./intervals";
-import type { TravelKind, WorkPeriod, WorkPeriodKind } from "./working-time-types";
+import type { TimeSpan, TravelKind, WorkPeriod, WorkPeriodKind } from "./working-time-types";
 
 /** How the minimum wage treats a period: all of it, only the awake times, or none of it. */
 export type NmwTreatment = "whole" | "awake_only" | "none";
@@ -122,17 +122,38 @@ export function workingMinutes(period: WorkPeriod): number {
   return netWorkingSpans(period).reduce((sum, s) => sum + spanMinutes(s), 0);
 }
 
-/**
- * Minutes that count towards the national minimum wage (slice 6 uses this per pay reference
- * period). A sleep-in counts only its awake times when sleep is permitted; overlapping awake
- * entries are counted once.
- */
-export function nmwMinutes(period: WorkPeriod): number {
+/** The parts of a period that count towards the national minimum wage. */
+function nmwSpans(period: WorkPeriod): Span[] {
   const treatment = classifyWorkingTime(period).nmw;
-  if (treatment === "none") return 0;
-  if (treatment === "whole") return workingMinutes(period);
+  if (treatment === "none") return [];
+  if (treatment === "whole") return netWorkingSpans(period);
   const awake = (period.sleepIn?.awake ?? [])
     .map((s) => clip(s, period))
     .filter((s): s is Span => s !== null);
-  return mergeSpans(awake).reduce((sum, s) => sum + spanMinutes(s), 0);
+  return mergeSpans(awake);
+}
+
+/**
+ * Minutes that count towards the national minimum wage. A sleep-in counts only its awake times
+ * when sleep is permitted; overlapping awake entries are counted once.
+ */
+export function nmwMinutes(period: WorkPeriod): number {
+  return nmwSpans(period).reduce((sum, s) => sum + spanMinutes(s), 0);
+}
+
+/**
+ * The minutes that count towards the minimum wage in a pay reference period (the hours the pay
+ * rules' `nmwCheck` takes): this employer's periods only, clipped to the period, with part
+ * minutes rounded up so the hours are never understated.
+ */
+export function nmwMinutesIn(periods: readonly WorkPeriod[], payReferencePeriod: TimeSpan): number {
+  let total = 0;
+  for (const period of periods) {
+    if ((period.employer ?? "this") !== "this") continue;
+    for (const span of nmwSpans(period)) {
+      const part = clip(span, payReferencePeriod);
+      if (part) total += spanMinutes(part);
+    }
+  }
+  return Math.ceil(total);
 }
