@@ -24,10 +24,10 @@ import {
   narrowestScope,
   type Permission,
   type PermissionScope,
+  requiresMfa,
   requiresStepUp,
   resolveAccess,
   scopeFor,
-  touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
 import { and, eq, isNull, like, lt, sql } from "drizzle-orm";
@@ -540,7 +540,7 @@ export function refusalOf(
   permission: Permission,
   now: Date = new Date(),
 ): Refusal | null {
-  if (touchesCareRecords(permission) && !access.mfaSatisfied) {
+  if (requiresMfa(permission) && !access.mfaSatisfied) {
     return access.mfaEnrolled ? "mfa_verification_required" : "mfa_enrolment_required";
   }
   // Step-up needs a second factor used on this session within the window; a member who holds the
@@ -718,7 +718,7 @@ export function usablePermissions(
       const stepUpUnenrolled =
         refused === "mfa_enrolment_required" &&
         requiresStepUp(p) &&
-        (access.mfaSatisfied || !touchesCareRecords(p));
+        (access.mfaSatisfied || !requiresMfa(p));
       return refused === null || refused === "step_up_required" || stepUpUnenrolled;
     }),
   );

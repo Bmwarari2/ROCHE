@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  boolean,
   check,
   date,
   foreignKey,
@@ -16,7 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
-import { tenantUser } from "./platform";
+import { document, tenantUser } from "./platform";
 
 /**
  * Quality: the inspector evidence pack and the statement of purpose (master prompt 11.2;
@@ -424,5 +425,131 @@ export const statementOfPurposeVersion = pgTable(
       "statement_of_purpose_version_discarded",
       sql`(state = 'discarded') = (discard_reason IS NOT NULL AND btrim(discard_reason) <> '')`,
     ),
+  ],
+);
+
+/**
+ * The policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128; plan slice 25,
+ * migration 0087): policies, their versions (one draft and at most one published at a time,
+ * publishing supersedes the last) and signatures on the version in force. The database's guards
+ * enforce publication in the publisher's own name and the second reviewer.
+ */
+
+/** `PolicyState` in packages/domain, kept in step by test/policies.test.ts. */
+export const POLICY_VERSION_STATES = ["draft", "published", "superseded", "retired"] as const;
+
+export const policy = pgTable(
+  "policy",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    policyKey: text("policy_key").notNull(),
+    title: text("title").notNull(),
+    requireSecondReviewer: boolean("require_second_reviewer").notNull().default(false),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    retiredReason: text("retired_reason"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("policy_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("policy_key_key").on(t.tenantId, t.policyKey),
+    check("policy_key_format", sql`policy_key ~ '^[a-z][a-z0-9_]{1,63}$'`),
+    check("policy_title", sql`length(btrim(title)) BETWEEN 2 AND 160`),
+    check(
+      "policy_retired",
+      sql`(retired_at IS NULL) = (retired_reason IS NULL)
+        AND (retired_reason IS NULL OR length(btrim(retired_reason)) >= 10)`,
+    ),
+  ],
+);
+
+export const policyVersion = pgTable(
+  "policy_version",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    policyId: uuid("policy_id").notNull(),
+    versionNumber: integer("version_number").notNull(),
+    state: text("state").notNull().default("draft"),
+    change: text("change").notNull(),
+    changeSummary: text("change_summary").notNull(),
+    body: text("body"),
+    documentId: uuid("document_id"),
+    roles: text("roles").array().notNull().default(sql`'{}'::text[]`),
+    reviewDueOn: date("review_due_on"),
+    authorId: uuid("author_id").notNull().default(sql`app.current_user_id()`),
+    publishedBy: uuid("published_by"),
+    publishedOn: date("published_on"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    retiredReason: text("retired_reason"),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("policy_version_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("policy_version_number_key").on(t.tenantId, t.policyId, t.versionNumber),
+    foreignKey({
+      name: "policy_version_policy_fk",
+      columns: [t.tenantId, t.policyId],
+      foreignColumns: [policy.tenantId, policy.id],
+    }),
+    foreignKey({
+      name: "policy_version_document_fk",
+      columns: [t.tenantId, t.documentId],
+      foreignColumns: [document.tenantId, document.id],
+    }),
+    staffRef("policy_version_author_fk", t, t.authorId),
+    staffRef("policy_version_published_by_fk", t, t.publishedBy),
+    uniqueIndex("policy_version_one_draft_key")
+      .on(t.tenantId, t.policyId)
+      .where(sql`state = 'draft'`),
+    uniqueIndex("policy_version_one_published_key")
+      .on(t.tenantId, t.policyId)
+      .where(sql`state = 'published'`),
+    check("policy_version_state", sql`state IN (${sqlList(POLICY_VERSION_STATES)})`),
+    check("policy_version_change", sql`change IN ('minor', 'major')`),
+    check("policy_version_number", sql`version_number >= 1`),
+    check("policy_version_summary", sql`length(btrim(change_summary)) BETWEEN 2 AND 2000`),
+    check(
+      "policy_version_content",
+      sql`(body IS NOT NULL OR document_id IS NOT NULL) AND (body IS NULL OR length(body) <= 100000)`,
+    ),
+    check(
+      "policy_version_roles",
+      sql`array_position(roles, NULL) IS NULL AND cardinality(roles) <= 40`,
+    ),
+    check(
+      "policy_version_published",
+      sql`(state IN ('published', 'superseded', 'retired') AND published_by IS NOT NULL
+             AND published_on IS NOT NULL AND published_at IS NOT NULL)
+        OR (state = 'draft' AND published_by IS NULL AND published_on IS NULL AND published_at IS NULL)`,
+    ),
+    check(
+      "policy_version_review_date",
+      sql`state = 'draft' OR published_on IS NULL OR review_due_on > published_on`,
+    ),
+  ],
+);
+
+export const policySignature = pgTable(
+  "policy_signature",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    policyVersionId: uuid("policy_version_id").notNull(),
+    signerId: uuid("signer_id").notNull().default(sql`app.current_user_id()`),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("policy_signature_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("policy_signature_once_key").on(t.tenantId, t.policyVersionId, t.signerId),
+    foreignKey({
+      name: "policy_signature_version_fk",
+      columns: [t.tenantId, t.policyVersionId],
+      foreignColumns: [policyVersion.tenantId, policyVersion.id],
+    }),
+    staffRef("policy_signature_signer_fk", t, t.signerId),
+    index("policy_signature_signer_idx").on(t.tenantId, t.signerId),
   ],
 );

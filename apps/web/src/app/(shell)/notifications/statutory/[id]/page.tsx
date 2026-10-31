@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache, type ReactNode } from "react";
+import { ExaminerPack, LederNotice } from "@/components/safety/AfterDeath";
 import { ClocksAsOf, SafetyWarning, When } from "@/components/safety/IncidentNotifications";
 import { NotificationManage } from "@/components/safety/NotificationManage";
 import { PersonNeeds } from "@/components/safety/PersonNeeds";
@@ -100,7 +101,8 @@ function EnglishList({ lines }: { readonly lines: readonly string[] }) {
  * drafted on with that record's status (#49 review round 2), its warnings, every deadline in the
  * law's terms, why Harbour drafted it, what it must include, the sources and how it ended. The
  * forms to prepare it, record that it was submitted or decide it is not required (with step-up)
- * appear only where `notificationManageView` offers them (ADR-0071).
+ * appear only where `notificationManageView` offers them (ADR-0071). A medical examiner pack lists
+ * its sections and where each is kept; a LeDeR notification links LeDeR's own form (SAFE-008).
  */
 export default async function StatutoryNotificationPage({
   params,
@@ -145,6 +147,15 @@ export default async function StatutoryNotificationPage({
   // reader cannot open at all reaches nothing. About no one, the held permissions decide.
   const reaching = item.personId ? (person ? (person.access?.reaching ?? null) : []) : null;
   const manage = notificationManageView(item, me.permissions, reaching);
+  // A duty of candour notification is recorded with the written notification's copy from the
+  // incident's candour record, never a regulator's reference (review H2).
+  const candourRead =
+    item.kind === "candour" && item.incidentId && manage.submit
+      ? await api.GET("/v1/incidents/{id}/candour", { params: { path: { id: item.incidentId } } })
+      : null;
+  const candourEvidence = candourRead
+    ? { documentId: candourRead.data?.record?.written?.documentId ?? null }
+    : null;
   const fields = contentFields(item.requiredContent);
   const shownDone = doneToShow(done, item.status);
   const names = new Map(
@@ -153,6 +164,9 @@ export default async function StatutoryNotificationPage({
   const title = notificationKindLabel(item.kind, t, threshold?.data?.value);
   const location = me.locations.find((l) => l.id === item.locationId);
   const subject = notificationSubject(item, names, t);
+  const subjectName =
+    (item.personId ? names.get(item.personId) : undefined) ??
+    t("safety.incident.unnamed", { kind: "service_user" });
   const status = notificationStatusChip(item, t);
   const waitingFor =
     incident?.classifier?.pending.find((p) => p.kind === item.kind)?.waitingFor.length ?? null;
@@ -205,6 +219,25 @@ export default async function StatutoryNotificationPage({
             </Link>
             {incident ? <SafetyChip chip={incidentStatusChip(incident.status, t)} /> : null}
           </p>
+        </Card>
+      ) : null}
+      {item.kind === "leder" && (item.status === "draft" || item.status === "ready") ? (
+        <LederNotice
+          prompt={{ kind: "drafted", notification: item }}
+          name={subjectName}
+          linked={false}
+          now={now}
+          onNotificationPage
+        />
+      ) : null}
+      {item.kind === "medical_examiner" ? (
+        <Card as="section" aria-labelledby="examiner-pack">
+          <ExaminerPack
+            personId={person ? item.personId : null}
+            incidentId={item.incidentId}
+            headingLevel={2}
+            headingId="examiner-pack"
+          />
         </Card>
       ) : null}
       <Card
@@ -263,6 +296,7 @@ export default async function StatutoryNotificationPage({
             view={manage}
             fields={fields}
             content={item.content}
+            {...(candourEvidence ? { candour: candourEvidence } : {})}
           />
         </Card>
       ) : Object.keys(item.content).length > 0 ? (

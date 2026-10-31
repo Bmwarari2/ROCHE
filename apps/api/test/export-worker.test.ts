@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ExportJobDeps, runQueuedExports, sweepExports } from "../src/jobs/exports";
 import { createLogger } from "../src/logger";
 import { held } from "../src/services/export-build";
-import { createHarness, type Harness, OTHER } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 import { unzip } from "./support/unzip";
 
 /**
@@ -78,9 +78,40 @@ describe("table-driven: which rows a legal hold keeps in the export (rule 11)", 
 
 describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
   let id = "";
+  let dsarCaseId = "";
   let files = new Map<string, Buffer>();
+  let breachId = "";
 
   it("builds a queued export into a complete archive, and tells the requester by ids only", async () => {
+    // A data subject request, which the free full export must include (#149 follow-up).
+    const client = await h.db.pool("harbour_app").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true),
+                set_config('app.scope', 'tenant', true)`,
+        [DEMO.tenantId, LODGE.qualityLeadId],
+      );
+      dsarCaseId = (
+        await client.query<{ id: string }>(
+          `INSERT INTO dsar_case (request_kind, subject_kind, subject_person_id, requester_kind, channel, received_on)
+           VALUES ('access', 'person', '0194d000-0000-7000-8600-000000000001', 'subject', 'email', current_date)
+           RETURNING id`,
+        )
+      ).rows[0]?.id as string;
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    // A breach register entry, which the free full export must include (#156 follow-up).
+    const breach = await h.request("/v1/data-protection/breaches", {
+      method: "POST",
+      body: { summary: "A letter went to the wrong address.", awareAt: new Date().toISOString() },
+      token: h.tokens.quality,
+      tenant: DEMO.tenantId,
+    });
+    expect(breach.status).toBe(201);
+    breachId = ((await breach.json()) as { id: string }).id;
     const asked = await h.request("/v1/exports", {
       method: "POST",
       body: {},
@@ -116,6 +147,14 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
     const archive = new Uint8Array(await download.arrayBuffer());
     expect(archive.length).toBe(Number(row?.bytes));
     files = unzip(archive);
+  });
+
+  it("includes data subject requests (the export reads them in the organisation's context)", () => {
+    expect(files.get("tables/dsar_case.csv")?.toString()).toContain(dsarCaseId);
+  });
+
+  it("includes the breach register (the export reads it in the organisation's context)", () => {
+    expect(files.get("tables/dp_breach.csv")?.toString()).toContain(breachId);
   });
 
   it("writes a complete manifest, the schema and one summary row per person", () => {

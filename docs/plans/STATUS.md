@@ -4,14 +4,16 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules) |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Lane C domain rules pushed: slice 5 (Working Time, SCHED-003) on `feat/sched-domain-working-time` (#136), and slice 6 (pay rules: SCHED-005, 006, 007, 009, 010; ADR-0086, ADR-0087) stacked on it on `feat/sched-pay-rules`; all six rows `partial`; [scheduling.md](../specs/scheduling.md) sections 4 and 4b; human actions H-580 to H-585. Slice 12 (dependency tool, CARE-004 and SCHED-001 `partial`) is #153 on `feat/sched-dependency-tool`: scheduling.md section 13, migration 0074, HZ-123, H-710 to H-716; clinical review round 1 fixed |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, in clinical review |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -84,6 +86,30 @@ its work in progress (`wip(...)` commits) and stop. Resume by reading this secti
 - #137 slice 7 (safety rules), #138 slice 8 (quality rules), #140 white-label branding (PLAT-002),
   #142 slice 6 (pay rules: NMW, holiday, SSP, family pay, AWR, auto-enrolment; figures verified),
   #143 body limits on the API's public routes, #144 a task completion's cited evidence is checked.
+- #150 Phase 2 slice 26, the import wizard API for people (PLAT-014, migration 0088, ADR-0092,
+  HZ-130, H-680 to H-684): security and clinical review rounds 1 and 2 fixed on the branch. It
+  adds the no-login role `harbour_import_owner`, so `pnpm db:bootstrap` runs before 0088 in each
+  environment (H-684); merge after the lower Phase 2 numbers or renumber.
+**In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
+hardening (`x-request-id` validation, property witness must be staff at the location, retention
+destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain,
+pushed, below) and slice 5 (SCHED-003 Working Time domain).
+
+**Phase 2 domain slices** (they touch only new folders, so they need not wait for the Phase 1
+gate; [phase-2.md](phase-2.md), "When it starts"):
+- `feat/meds-domain-record` (slice 2, lane A, MEDS-001 `partial`): `medicines.md` written in full;
+  `packages/domain/src/medicines/` (dm+d identifiers, structured doses, schedules over the MAR cycle
+  with clock changes, MAR entry states and the second check, reconciliation); HZ-121 added; HZ-003,
+  HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. PR #135, after five
+  clinical review rounds: one version in force at a time; the day count kept from the last dose
+  due; source lines that say what they mean; refusals in place of the complicated version
+  sequences (no change part-way through a day with doses, later versions withdrawn only with a
+  reason, a change keeping the product and its course end, one entry per product); corrections
+  that take effect at once; no dose due before an entry was recorded; and a reconciliation that
+  checks what was scheduled and lets a letter extend a course. The overall counts above, and the
+  register's Platform core and Quality rows (which `main` had left at 6 and 11 `todo`), now match
+  the register's rows. Next in lane A: slice 3 (administration, PRN and CD rules, ADR-0082), then
+  slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
@@ -92,7 +118,6 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 **In progress when paused** (branch, migration file, human actions):
 - slice 3 medicines administration, `feat/meds-domain-administration` (stacked on #135; HZ-116,
   HZ-119, ADR-0082);
-- slice 12 dependency tool, `feat/sched-dependency-tool` (0074; HZ-123; H-710 to H-719);
 - slice 13 safeguarding log, `feat/safety-safeguarding-log` (0075; HZ-126; H-595 to H-599);
 - slice 15 DSAR workbench, `feat/platform-dsar-workbench` (0077; ADR-0090; H-612 to H-619);
 - slice 17 training and competence, `feat/work-training-competence` (0079; H-690 to H-699);
@@ -122,7 +147,10 @@ trigger does not cover the branding columns, and the organisation switcher shows
 be a definer function; staff-file reminder tasks are invisible to HR's role; HR-only documents have
 no destruction rule; a complaint about a sample person blocks sample removal; list endpoints audit
 counts, not ids; the 14 UX gaps from the user guides (#128); whether archived people stay on the
-residents list.
+residents list; a "created in error" status for a person (people lifecycle: what it does to their
+tasks, phones, reports and audit trail), so a person imported or added by mistake can be marked as
+such rather than left a current resident once an import can no longer be undone (#150 review
+round 2; the CSO decides whether it must come before a real tenant imports, H-680).
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:
 - Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the

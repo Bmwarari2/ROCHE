@@ -103,3 +103,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "current_version_expiration_prefix" {
+  description = "Only objects under this key prefix expire after current_version_expiration_days (empty: every object)."
+  type        = string
+  default     = ""
+}

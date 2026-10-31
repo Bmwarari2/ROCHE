@@ -14,6 +14,7 @@ export const DocumentCategoryKey = z
     "person_document",
     "organisation_document",
     "organisation_logo",
+    "staff_hr_document",
   ])
   .meta({ id: "DocumentCategoryKey" });
 export type DocumentCategoryKey = z.infer<typeof DocumentCategoryKey>;

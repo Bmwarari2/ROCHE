@@ -342,3 +342,156 @@ export const StatementOfPurposeChanges = z
   })
   .meta({ id: "StatementOfPurposeChanges" });
 export type StatementOfPurposeChanges = z.infer<typeof StatementOfPurposeChanges>;
+
+// ------------------------------------------------------------------------------------------------
+// Policy library and read-and-sign (quality.md section 18; QUAL-008; HZ-128; slice 25)
+// ------------------------------------------------------------------------------------------------
+
+const policyRoleKey = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, "A role's key");
+
+export const PolicyVersionState = z
+  .enum(["draft", "published", "superseded", "retired"])
+  .meta({ id: "PolicyVersionState" });
+export const PolicyChange = z.enum(["minor", "major"]).meta({ id: "PolicyChange" });
+export const PolicyReviewStatus = z
+  .enum(["current", "due_soon", "overdue", "no_review_date"])
+  .meta({ id: "PolicyReviewStatus" });
+
+const policyDraftFields = {
+  change: PolicyChange,
+  changeSummary: z.string().trim().min(2).max(2000),
+  body: z.string().max(100_000).nullable(),
+  documentId: uuid.nullable(),
+  roles: z.array(policyRoleKey).max(40),
+  reviewDueOn: isoDate.nullable(),
+};
+
+export const DraftPolicyVersion = z.object(policyDraftFields).meta({ id: "DraftPolicyVersion" });
+export type DraftPolicyVersion = z.infer<typeof DraftPolicyVersion>;
+
+export const NewPolicyVersion = z
+  .object({
+    change: PolicyChange,
+    changeSummary: z.string().trim().min(2).max(2000),
+    /** Omitted: the content and roles of the version in force are copied. */
+    body: z.string().max(100_000).nullable().optional(),
+    documentId: uuid.nullable().optional(),
+    roles: z.array(policyRoleKey).max(40).optional(),
+    reviewDueOn: isoDate.nullable().optional(),
+  })
+  .meta({ id: "NewPolicyVersion" });
+export type NewPolicyVersion = z.infer<typeof NewPolicyVersion>;
+
+export const CreatePolicy = z
+  .object({
+    policyKey: policyRoleKey,
+    title: z.string().trim().min(2).max(160),
+    requireSecondReviewer: z.boolean(),
+    firstVersion: z.object({
+      changeSummary: z.string().trim().min(2).max(2000),
+      body: z.string().max(100_000).nullable(),
+      documentId: uuid.nullable(),
+      roles: z.array(policyRoleKey).max(40),
+      reviewDueOn: isoDate.nullable(),
+    }),
+  })
+  .meta({ id: "CreatePolicy" });
+export type CreatePolicy = z.infer<typeof CreatePolicy>;
+
+export const UpdatePolicyVersion = z
+  .object({ expectedVersion: version, ...policyDraftFields })
+  .meta({ id: "UpdatePolicyVersion" });
+export type UpdatePolicyVersion = z.infer<typeof UpdatePolicyVersion>;
+
+export const PublishPolicyVersion = z
+  .object({ expectedVersion: version })
+  .meta({ id: "PublishPolicyVersion" });
+
+export const RetirePolicy = z
+  .object({ expectedVersion: version, reason: z.string().trim().min(10).max(500) })
+  .meta({ id: "RetirePolicy" });
+
+export const PolicyVersionItem = z
+  .object({
+    id: uuid,
+    version: z.number().int(),
+    versionNumber: z.number().int(),
+    state: PolicyVersionState,
+    change: PolicyChange,
+    changeSummary: z.string(),
+    body: z.string().nullable(),
+    documentId: uuid.nullable(),
+    roles: z.array(z.string()),
+    reviewDueOn: isoDate.nullable(),
+    reviewStatus: PolicyReviewStatus.nullable(),
+    authorId: uuid,
+    publishedBy: uuid.nullable(),
+    publishedOn: isoDate.nullable(),
+    supersededAt: isoDateTime.nullable(),
+    /** For a superseded version: the version in force now (HZ-128). */
+    supersededBy: uuid.nullable(),
+    retiredReason: z.string().nullable(),
+  })
+  .meta({ id: "PolicyVersionItem" });
+
+export const PolicyItem = z
+  .object({
+    id: uuid,
+    version: z.number().int(),
+    policyKey: z.string(),
+    title: z.string(),
+    requireSecondReviewer: z.boolean(),
+    retiredAt: isoDateTime.nullable(),
+    inForce: PolicyVersionItem.nullable(),
+    /** Newest first: the change log. Drafts only for holders of quality.policy.manage. */
+    versions: z.array(PolicyVersionItem),
+    mustSign: z.boolean(),
+    signed: z.boolean(),
+  })
+  .meta({ id: "PolicyItem" });
+export type PolicyItem = z.infer<typeof PolicyItem>;
+
+export const PolicySummary = z
+  .object({
+    id: uuid,
+    policyKey: z.string(),
+    title: z.string(),
+    inForce: z
+      .object({
+        id: uuid,
+        versionNumber: z.number().int(),
+        change: PolicyChange,
+        publishedOn: isoDate.nullable(),
+        reviewDueOn: isoDate.nullable(),
+        reviewStatus: PolicyReviewStatus,
+      })
+      .nullable(),
+    mustSign: z.boolean(),
+    signed: z.boolean(),
+  })
+  .meta({ id: "PolicySummary" });
+
+export const PolicyList = z.object({ items: z.array(PolicySummary) }).meta({ id: "PolicyList" });
+
+export const ReadAndSignView = z
+  .object({
+    versionId: uuid,
+    required: z.number().int(),
+    signed: z.array(z.object({ memberId: uuid, displayName: z.string() })),
+    outstanding: z.array(z.object({ memberId: uuid, displayName: z.string(), dueFrom: isoDate })),
+  })
+  .meta({ id: "ReadAndSignView" });
+
+export const MyPolicies = z
+  .object({
+    items: z.array(
+      z.object({
+        policyId: uuid,
+        versionId: uuid,
+        title: z.string(),
+        versionNumber: z.number().int(),
+        dueFrom: isoDate,
+      }),
+    ),
+  })
+  .meta({ id: "MyPolicies" });
