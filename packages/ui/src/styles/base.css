@@ -4,6 +4,8 @@
   html {
     font-family: var(--font-stack);
     font-size: 100%;
+    /* What is scrolled into view or focused never lands under the sticky app bar (WCAG 2.4.11). */
+    scroll-padding-top: calc(var(--nav-height) + 8px);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
@@ -33,6 +35,15 @@
 
   a:hover {
     text-decoration: underline;
+  }
+
+  /* Phones and touch screens: a link standing on its own in a list item, definition, cell or
+     paragraph (a person's name, a document) is a 44 px target (section 8; MOB-013). Vertical
+     padding on an inline link widens what can be pressed without moving the text. */
+  @media (max-width: 734px), (pointer: coarse) {
+    :where(li, dd, dt, p, td, th) > a:only-child:not([class]) {
+      padding-block: 12px;
+    }
   }
 
   :focus-visible {

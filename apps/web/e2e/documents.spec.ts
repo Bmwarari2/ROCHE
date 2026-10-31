@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn } from "./support";
+import { expectAccessible, openModules, signIn } from "./support";
 
 /**
  * The organisation's documents (PLAT-009) against the demo tenant. The Registered Manager
@@ -36,10 +36,7 @@ test("the manager uploads a policy, signs it and replaces it with a new version"
 }) => {
   test.setTimeout(120_000);
   await signIn(page, "manager@example.invalid");
-  await page
-    .getByRole("navigation", { name: "Modules" })
-    .getByRole("link", { name: "Documents" })
-    .click();
+  await (await openModules(page)).getByRole("link", { name: "Documents" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Documents" })).toBeVisible();
 
   // Nothing chosen: each field says what to do.

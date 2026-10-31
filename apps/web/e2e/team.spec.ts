@@ -1,5 +1,11 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
+import {
+  closeModules,
+  expectAccessible,
+  openModules,
+  signIn,
+  signInWithDemoPasskey,
+} from "./support";
 
 /**
  * The managers' team and invitation screens (PLAT-004; hazard HZ-011) against the demo tenant.
@@ -41,7 +47,6 @@ async function as(page: Page, user: string) {
 
 const main = (page: Page) => page.getByRole("main");
 const alertIn = (page: Page) => main(page).getByRole("alert");
-const nav = (page: Page) => page.getByRole("navigation", { name: "Modules" });
 
 async function openTeam(page: Page) {
   await page.goto("/settings/team");
@@ -60,7 +65,8 @@ async function confirmIn(page: Page, open: string, title: RegExp, confirm: strin
 test("the carer is offered no team screens", async ({ page }) => {
   await as(page, "carer");
   await page.goto("/");
-  await expect(nav(page).getByRole("link", { name: "Team" })).toHaveCount(0);
+  await expect((await openModules(page)).getByRole("link", { name: "Team" })).toHaveCount(0);
+  await closeModules(page);
   await page.goto("/settings/team");
   await expect(main(page)).toContainText("You do not have access to this");
   await expectAccessible(page, "team refused");
@@ -69,7 +75,7 @@ test("the carer is offered no team screens", async ({ page }) => {
 test("the manager invites someone, with errors in words", async ({ page }) => {
   await as(page, "manager");
   await page.goto("/");
-  await nav(page).getByRole("link", { name: "Team" }).click();
+  await (await openModules(page)).getByRole("link", { name: "Team" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Team" })).toBeVisible();
   // Members the manager reaches, each state an icon and a word.
   const carer = page

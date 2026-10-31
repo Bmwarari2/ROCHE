@@ -6,7 +6,14 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { demoPerson, expectAccessible, settleAnimations, signIn } from "./support";
+import {
+  closeModules,
+  demoPerson,
+  expectAccessible,
+  openModules,
+  settleAnimations,
+  signIn,
+} from "./support";
 
 /**
  * Phase 1 slice 9: the incident screens, read only (register rows SAFE-001 and SAFE-002; hazard
@@ -149,14 +156,15 @@ test("hazard HZ-013 the nurse finds an incident and reads its notifications, eve
   });
 
   await page.goto("/");
-  const modules = page.getByRole("navigation", { name: "Modules" });
-  await modules.getByRole("link", { name: "Incidents" }).click();
+  await (await openModules(page)).getByRole("link", { name: "Incidents" }).click();
   await page.waitForURL((url) => url.pathname === "/incidents");
   await expect(page.getByRole("heading", { level: 1, name: "Incidents" })).toBeVisible();
+  const modules = await openModules(page);
   await expect(modules.getByRole("link", { name: "Incidents" })).toHaveAttribute(
     "aria-current",
     "page",
   );
+  await closeModules(page);
   const link = page.locator(`a[href="/incidents/${incident.id}"]`);
   const card = cardFor(page, incident.id);
   await expect(link).toHaveText(/^Behaviour, \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);

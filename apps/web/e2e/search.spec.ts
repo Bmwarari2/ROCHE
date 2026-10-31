@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn } from "./support";
+import { expectAccessible, openModules, signIn } from "./support";
 
 /**
  * Search (PLAT-013; platform-completions.md rules 1 to 8; hazards HZ-001 and HZ-011): from the
@@ -21,7 +21,7 @@ test("hazard HZ-001 hazard HZ-011 a manager finds a person by name and NHS numbe
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
-  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await (await openModules(page)).getByRole("link", { name: "Search", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Search" })).toBeVisible();
   await expectAccessible(page, "search page");
 

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Shared steps for the care record journeys. Demo accounts only: invented people, example.invalid
@@ -41,6 +41,10 @@ export async function settleAnimations(page: Page) {
 /** WCAG 2.2 AA with axe: no serious or critical violations. */
 export async function expectAccessible(page: Page, name: string) {
   await settleAnimations(page);
+  // Axe reads the whole page, but measures a target "obscured" by whatever covers it at the
+  // current scroll: from the top, nothing sits under the sticky app bar by accident of where an
+  // earlier step scrolled (MOB-013, at 360 px).
+  await page.evaluate(() => window.scrollTo(0, 0));
   const results = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
   const blocking = results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
@@ -122,4 +126,27 @@ export async function signInWithDemoPasskey(
   await page.goto("/sign-in");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
   await page.waitForURL((url) => url.pathname === "/");
+}
+
+/**
+ * The module navigation, wherever the screen puts it: the sidebar on a wide screen, or the app
+ * bar's "Menu" sheet on a phone (MOB-013), which this opens. Choosing a module closes the sheet;
+ * `closeModules` closes it otherwise.
+ */
+export async function openModules(page: Page): Promise<Locator> {
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  if (await menu.isVisible()) {
+    await menu.click();
+    return page
+      .getByRole("dialog", { name: "Modules" })
+      .getByRole("navigation", { name: "Modules" });
+  }
+  return page.getByRole("navigation", { name: "Modules" });
+}
+
+/** Closes the phone's navigation sheet if it is open; nothing on a wide screen. */
+export async function closeModules(page: Page) {
+  if (await page.getByRole("dialog", { name: "Modules" }).isVisible()) {
+    await page.keyboard.press("Escape");
+  }
 }

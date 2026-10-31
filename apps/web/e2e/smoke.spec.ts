@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { openModules } from "./support";
 
 /**
  * Phase 0 smoke journeys (Brian's acceptance: sign in and see the empty demo home), each page
@@ -72,8 +73,7 @@ test("a manager signs in, sees the dashboard, opens people and a person, and sig
   }
   await expectAccessible(page, "home");
 
-  const modules = page.getByRole("navigation", { name: "Modules" });
-  await modules.getByRole("link", { name: "Residents" }).click();
+  await (await openModules(page)).getByRole("link", { name: "Residents" }).click();
   await page.waitForURL((url) => url.pathname === "/people");
   await expect(page.getByRole("heading", { level: 1, name: "Residents" })).toBeVisible();
   const table = page.getByRole("table", { name: "Residents" });

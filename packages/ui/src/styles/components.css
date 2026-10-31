@@ -249,10 +249,34 @@
     object-fit: contain;
   }
 
-  /* On phones the logo gives way, so the switchers and account menu keep their room. */
+  /* On phones the logo gives way, so the switchers and account menu keep their room. With the
+     phone's "Menu" at the start of the bar, the product name gives way too: Home is in the menu
+     (MOB-013). The bar grows with large text rather than clip it (WCAG 1.4.4). */
   @media (max-width: 734px) {
     .hb-appbar__logo {
       display: none;
+    }
+
+    .hb-appbar {
+      height: auto;
+      min-height: var(--nav-height);
+    }
+
+    .hb-appbar__inner {
+      min-height: var(--nav-height);
+      gap: 4px;
+      padding-inline: 12px;
+    }
+
+    .hb-appbar__leading + .hb-appbar__brand {
+      display: none;
+    }
+
+    /* The names shorten to an ellipsis, never below a 44 px target. */
+    .hb-appbar__context,
+    .hb-appbar__switcher {
+      min-width: var(--touch-target);
+      padding-inline: 6px;
     }
   }
 
@@ -892,6 +916,7 @@
   @media (max-width: 734px), (pointer: coarse) {
     .hb-table__td a {
       display: inline-block;
+      min-width: var(--touch-target);
       padding-block: 12px;
       margin-block: -12px;
     }
