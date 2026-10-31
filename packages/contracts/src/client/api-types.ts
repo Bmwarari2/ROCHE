@@ -5244,7 +5244,7 @@ export interface paths {
     put?: never;
     /**
      * Lift a suspension: the sections reopen, but what happened while suspended stays closed
-     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2).
+     * @description Ends the open suspension period with the reason. The decision covers only what happened while it was in force and not suspended (decisionInForceAt; comms.md rule 2). A decision that rests on an authority is lifted only while the contact still holds it as the decision recorded (authorityHeldNow: the same kind of authority, a deputy's order of that kind, no earlier end); otherwise it is refused and the refusal audited with the reason `authority_changed` (HZ-022).
      */
     post: {
       parameters: {
@@ -20833,6 +20833,395 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/details": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Personal details: demographics and the national data opt-out (PEOP-001) */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Personal details */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonDetails"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change personal details or the national data opt-out (versioned)
+     * @description Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation: one already on the record of someone the caller can see is refused saying so; one on a record they cannot see is refused without saying whose, audited as denied (`nhs_number_in_use`, without the number), counted against an hourly limit per member, and a task asks the owner to look for a duplicate record. A person with no NHS number needs a local identifier; a date of birth is from 1900 to today; a postcode is a full UK postcode, stored upper case with one space; text with control characters is refused. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdatePersonDetails"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonDetails"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many NHS numbers refused; wait */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/people/{id}/contacts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Key contacts and legal representatives, with their authority and end date */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Contacts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add a key contact or legal representative
+     * @description A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is an available document already in this person's documents (category person_document). An end date is from 1900 to 2199; text with control characters is refused.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateContact"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/contacts/{contactId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a contact or representative (versioned)
+     * @description Only the fields sent change; null clears an optional one. A change that takes away the authority a sharing decision rests on (the contact no longer holding that kind of authority, a deputy's order no longer of that kind, the last reference or evidence removed, or the authority now ending before the decision recorded) suspends that decision in the same transaction, audited with the reason `authority_changed` and publishing people.sharing.changed (HZ-022, fail closed); the answer says how many were suspended. Changing the email address of a family member with a portal account (which the account is matched by) needs `people.sharing.manage` and a fresh sign-in. Audited with the names of the fields changed.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          contactId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateContact"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ContactSaved"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -21911,6 +22300,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
     };
     AboutMeShareLinkCreated: {
       /** Format: uuid */
@@ -21931,6 +22321,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
       token: string;
     };
     CreateAboutMeShareLink: {
@@ -27326,6 +27717,198 @@ export interface components {
         /** @enum {string|null} */
         resolution: "objection_withdrawn" | "not_used_for_tenant" | "services_ended" | null;
       }[];
+    };
+    PersonDetails: {
+      /** Format: uuid */
+      personId: string;
+      status: components["schemas"]["PersonStatus"];
+      nhsNumber: string | null;
+      localIdentifier: string | null;
+      title: string | null;
+      givenName: string;
+      familyName: string;
+      preferredName: string | null;
+      /** Format: date */
+      dateOfBirth: string | null;
+      sexCode: string | null;
+      genderIdentity: string | null;
+      ethnicCategoryCode: string | null;
+      religion: string | null;
+      firstLanguage: string | null;
+      interpreterRequired: boolean;
+      addressLine1: string | null;
+      addressLine2: string | null;
+      town: string | null;
+      postcode: string | null;
+      gpPracticeOdsCode: string | null;
+      legalStatus: string | null;
+      nationalDataOptOut: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: uuid */
+      updatedBy: string | null;
+      version: number;
+    };
+    UpdatePersonDetails: {
+      title?: string | null;
+      givenName?: string;
+      familyName?: string;
+      preferredName?: string | null;
+      /** Format: date */
+      dateOfBirth?: string | null;
+      nhsNumber?: string | null;
+      localIdentifier?: string | null;
+      sexCode?: components["schemas"]["PersonSexCode"];
+      genderIdentity?: components["schemas"]["PersonSexCode"];
+      ethnicCategoryCode?: components["schemas"]["EthnicCategoryCode"];
+      religion?: string | null;
+      firstLanguage?: string | null;
+      interpreterRequired?: boolean;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      gpPracticeOdsCode?: string | null;
+      nationalDataOptOut?: boolean;
+      version: number;
+    };
+    /** @enum {string|null} */
+    PersonSexCode: "1" | "2" | "9" | "X" | null;
+    /** @enum {string|null} */
+    EthnicCategoryCode:
+      | "99"
+      | "A"
+      | "B"
+      | "C"
+      | "D"
+      | "E"
+      | "F"
+      | "G"
+      | "H"
+      | "J"
+      | "K"
+      | "L"
+      | "M"
+      | "N"
+      | "P"
+      | "R"
+      | "S"
+      | "Z"
+      | null;
+    ContactList: {
+      items: components["schemas"]["ContactOut"][];
+    };
+    ContactOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      addressLine1: string | null;
+      town: string | null;
+      postcode: string | null;
+      isNextOfKin: boolean;
+      authorityReference: string | null;
+      /** Format: uuid */
+      authorityDocumentId: string | null;
+      /** Format: date */
+      validUntil: string | null;
+      authorityScope: components["schemas"]["AuthorityScope"];
+      notes: string | null;
+      evidenceMissing: boolean;
+      expired: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+    };
+    /** @enum {string} */
+    ContactRole:
+      | "next_of_kin"
+      | "lpa_health_welfare"
+      | "lpa_property_finance"
+      | "deputy"
+      | "imca"
+      | "advocate"
+      | "appointee"
+      | "gp"
+      | "social_worker"
+      | "other";
+    /** @enum {string|null} */
+    AuthorityScope: "personal_welfare" | "property_affairs" | "both" | null;
+    CreateContact: {
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship?: string | null;
+      phone?: string | null;
+      /** Format: email */
+      email?: string | null;
+      addressLine1?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      isNextOfKin?: boolean;
+      authorityReference?: string | null;
+      /** Format: uuid */
+      authorityDocumentId?: string | null;
+      /** Format: date */
+      validUntil?: string | null;
+      authorityScope?: components["schemas"]["AuthorityScope"];
+      notes?: string | null;
+    };
+    ContactSaved: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      addressLine1: string | null;
+      town: string | null;
+      postcode: string | null;
+      isNextOfKin: boolean;
+      authorityReference: string | null;
+      /** Format: uuid */
+      authorityDocumentId: string | null;
+      /** Format: date */
+      validUntil: string | null;
+      authorityScope: components["schemas"]["AuthorityScope"];
+      notes: string | null;
+      evidenceMissing: boolean;
+      expired: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+      suspendedDecisions: number;
+    };
+    UpdateContact: {
+      role?: components["schemas"]["ContactRole"];
+      givenName?: string;
+      familyName?: string;
+      relationship?: string | null;
+      phone?: string | null;
+      /** Format: email */
+      email?: string | null;
+      addressLine1?: string | null;
+      town?: string | null;
+      postcode?: string | null;
+      isNextOfKin?: boolean;
+      authorityReference?: string | null;
+      /** Format: uuid */
+      authorityDocumentId?: string | null;
+      /** Format: date */
+      validUntil?: string | null;
+      authorityScope?: components["schemas"]["AuthorityScope"];
+      notes?: string | null;
+      version: number;
     };
   };
   responses: never;
