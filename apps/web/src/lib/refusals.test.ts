@@ -2,6 +2,7 @@ import {
   BED_RAIL_RATE_KEYS,
   type BedRailLimits,
   type ClassifierQuestionKey,
+  candourStepProblems,
   checkActivity,
   checkAdvanceCareRecord,
   checkEntryTime,
@@ -408,5 +409,105 @@ describe("closing an incident and the notifications (HZ-013)", () => {
       code: "separation_of_duties",
       message: t("errors.separationOfDuties"),
     });
+  });
+});
+
+describe("the duty of candour record and the investigation (HZ-013, HZ-091)", () => {
+  const nothing = {
+    threshold: null,
+    verbal: null,
+    contactAttempts: [],
+    written: null,
+    enquiryResultsSharedAt: null,
+    correspondenceDocumentIds: [],
+  };
+
+  it("hazard HZ-091 knows every reason a candour step is refused, joined as the API joins them", () => {
+    const verbal = candourStepProblems("written_due", {
+      ...nothing,
+      verbal: {
+        at: new Date(),
+        byRepresentatives: [],
+        inPerson: false,
+        accountGiven: false,
+        enquiriesAdvised: false,
+        apologyGiven: false,
+        writtenRecordId: null,
+      },
+    }).join(" ");
+    expect(keysOf(verbal)).toEqual([
+      "candourInPerson",
+      "candourRepresentatives",
+      "candourAccount",
+      "candourEnquiriesAdvised",
+      "candourApology",
+      "candourWrittenRecord",
+    ]);
+    const written = candourStepProblems("closed", {
+      ...nothing,
+      written: {
+        sentAt: new Date(),
+        documentId: null,
+        includesAccount: false,
+        includesEnquiries: false,
+        includesApology: false,
+      },
+    }).join(" ");
+    expect(keysOf(written)).toEqual([
+      "candourWrittenCopy",
+      "candourWrittenAccount",
+      "candourWrittenEnquiries",
+      "candourWrittenApology",
+      "candourResults",
+      "candourCorrespondence",
+    ]);
+    expect(keysOf(candourStepProblems("verbal_due", nothing).join(" "))).toEqual([
+      "candourThreshold",
+    ]);
+    expect(keysOf(candourStepProblems("no_contact", nothing).join(" "))).toEqual([
+      "candourAttempts",
+    ]);
+    expect(keysOf(candourStepProblems("enquiries_open", nothing).join(" "))).toEqual([
+      "candourWritten",
+    ]);
+    expect(keysOf(candourStepProblems("written_due", nothing).join(" "))).toEqual([
+      "candourVerbal",
+    ]);
+    const mismatch = candourStepProblems("not_notifiable", {
+      ...nothing,
+      threshold: { notifiable: true, decidedAt: new Date(), decidedBy: "A nurse" },
+    }).join(" ");
+    expect(keysOf(mismatch)).toEqual(["candourThresholdMismatch"]);
+  });
+
+  it("knows the API's own candour and investigation checks, at their fields", () => {
+    expect(
+      problemMessage({ code: "invalid", detail: "The relevant person must be on the incident." }, t)
+        .fields,
+    ).toEqual({ personId: t("care.refusal.candourPerson") });
+    expect(
+      problemMessage({ code: "invalid", detail: "The decision cannot be dated in the future." }, t)
+        .fields,
+    ).toEqual({ decidedAt: t("care.refusal.candourDecidedInFuture") });
+    const complete = problemMessage(
+      { code: "invalid", detail: "Record the findings and the lessons before completing it." },
+      t,
+    );
+    expect(complete.fields).toEqual({
+      findings: t("care.refusal.investigationComplete"),
+      lessons: t("care.refusal.investigationComplete"),
+    });
+    expect(keysOf("The action owner was not found.")).toEqual(["investigationPerson"]);
+    expect(keysOf("The investigation lead was not found.")).toEqual(["investigationPerson"]);
+    // apps/api/src/routes/incidents.ts: an owner who could never complete the action's task.
+    const owner = problemMessage(
+      {
+        code: "invalid",
+        detail:
+          "The action's owner cannot be given its task: they do not manage incidents at this location.",
+      },
+      t,
+    );
+    expect(owner.fields).toEqual({ newOwner: t("care.refusal.investigationOwner") });
   });
 });

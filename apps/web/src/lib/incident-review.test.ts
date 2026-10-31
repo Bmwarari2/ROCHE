@@ -5,6 +5,7 @@ import {
   CONTENT_NOTES,
   contentFields,
   doneToShow,
+  followUpDoneToShow,
   incidentManageView,
   judgedNeeded,
   manageDone,
@@ -99,8 +100,29 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
         { id: "n2", kind: "riddor_death" },
       ],
       questions: 2,
+      candour: false,
     });
   });
+
+  it.each([
+    ["threshold_assessment", true],
+    ["verbal_due", true],
+    ["written_due", true],
+    ["enquiries_open", true],
+    ["not_notifiable", false],
+    ["no_contact", false],
+    ["closed", false],
+  ])(
+    "hazard HZ-013 hazard HZ-091 says the duty of candour record at %s must finish first: %s",
+    (state, open) => {
+      const view = incidentManageView(incident(), manager, state);
+      expect(view?.close).toEqual(
+        open
+          ? { kind: "blocked", notifications: [], questions: 0, candour: true }
+          : { kind: "form" },
+      );
+    },
+  );
 
   it("offers close once every notification is submitted or decided", () => {
     const view = incidentManageView(
@@ -238,6 +260,22 @@ describe("doneToShow", () => {
     expect(doneToShow("submitted", "ready")).toBeNull();
     expect(doneToShow("saved", "ready")).toBe("saved");
     expect(doneToShow(null, "open")).toBeNull();
+    // A candour or investigation form's done is never said against the incident's status.
+    expect(doneToShow("candourSaved", "open")).toBeNull();
+  });
+
+  it("hazard HZ-091 announces a candour or investigation form only while what it did holds", () => {
+    expect(followUpDoneToShow("candourSaved", "threshold_assessment", null)).toBe("candourSaved");
+    expect(followUpDoneToShow("candourSaved", null, null)).toBeNull();
+    expect(followUpDoneToShow("candourMoved", "verbal_due", null)).toBe("candourMoved");
+    expect(followUpDoneToShow("candourMoved", "threshold_assessment", null)).toBeNull();
+    expect(followUpDoneToShow("investigationSaved", null, "open")).toBe("investigationSaved");
+    expect(followUpDoneToShow("investigationCompleted", null, "completed")).toBe(
+      "investigationCompleted",
+    );
+    expect(followUpDoneToShow("investigationCompleted", null, "open")).toBeNull();
+    expect(followUpDoneToShow("investigationReopened", null, "open")).toBe("investigationReopened");
+    expect(followUpDoneToShow("closed", "closed", "completed")).toBeNull();
   });
 });
 
@@ -403,5 +441,16 @@ describe("manageDone and manageResult", () => {
     for (const done of ["reviewing", "closed", "submitted", "notRequired"] as const) {
       expect(t("safety.manage.done", { done })).not.toBe("Saved");
     }
+    for (const done of [
+      "candourSaved",
+      "investigationSaved",
+      "investigationCompleted",
+      "investigationReopened",
+    ] as const) {
+      expect(t("safety.followUp.done", { done, state: "none" })).not.toBe("Saved");
+    }
+    expect(t("safety.followUp.done", { done: "candourMoved", state: "verbal_due" })).toBe(
+      "Duty of candour: tell the person in person next",
+    );
   });
 });

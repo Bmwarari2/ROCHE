@@ -1,5 +1,10 @@
 import type { IncidentDetail, StatutoryNotificationDetail } from "@harbour/contracts";
-import { availableTransitions, INCIDENT_WORKFLOW, type IncidentState } from "@harbour/domain";
+import {
+  availableTransitions,
+  CANDOUR_WORKFLOW,
+  INCIDENT_WORKFLOW,
+  type IncidentState,
+} from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { ActionResult, FieldErrors } from "./outcome";
 import { readDateTimeField } from "./uk-time";
@@ -34,6 +39,8 @@ export type CloseOffer =
       readonly kind: "blocked";
       readonly notifications: readonly { readonly id: string; readonly kind: string }[];
       readonly questions: number;
+      /** The duty of candour record is still open (not finished or decided not notifiable). */
+      readonly candour: boolean;
     };
 
 export interface IncidentManageView {
@@ -46,9 +53,9 @@ export interface IncidentManageView {
  * The review and close forms one viewer is offered on an incident, or null for none: only to a
  * holder of `safety.incident.manage`, never on a closed incident or one they cannot see whole
  * (the API refuses both), and "close" never to the person who raised it. With a notification
- * still a draft or ready, or a question still open, the page says what to do first instead of
- * offering a form the API would refuse. The duty of candour record is not on the incident, so a
- * candour record still open is said by the API's refusal.
+ * still a draft or ready, a question still open or the duty of candour record still open (its
+ * stage, read from the candour record; null when there is none), the page says what to do first
+ * instead of offering a form the API would refuse (`incidentCloseProblems`).
  */
 export function incidentManageView(
   incident: Pick<
@@ -56,6 +63,7 @@ export function incidentManageView(
     "status" | "raisedBy" | "restricted" | "openQuestionCount" | "classifier"
   >,
   viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] },
+  candourState: string | null = null,
 ): IncidentManageView | null {
   if (!viewer.permissions.includes("safety.incident.manage")) return null;
   if (incident.restricted || incident.status === "closed") return null;
@@ -71,8 +79,11 @@ export function incidentManageView(
     .filter((n) => n.status === "draft" || n.status === "ready")
     .map((n) => ({ id: n.id, kind: n.kind }));
   const questions = incident.openQuestionCount;
-  if (notifications.length > 0 || questions > 0) {
-    return { review, close: { kind: "blocked", notifications, questions } };
+  const candour =
+    candourState !== null &&
+    !(CANDOUR_WORKFLOW.terminal as readonly string[]).includes(candourState);
+  if (notifications.length > 0 || questions > 0 || candour) {
+    return { review, close: { kind: "blocked", notifications, questions, candour } };
   }
   return { review, close: { kind: "form" } };
 }
@@ -122,6 +133,12 @@ export const MANAGE_DONE = [
   "draft",
   "submitted",
   "notRequired",
+  // The duty of candour record and the investigation on the incident page (SAFE-007, SAFE-010).
+  "candourSaved",
+  "candourMoved",
+  "investigationSaved",
+  "investigationCompleted",
+  "investigationReopened",
 ] as const;
 export type ManageDone = (typeof MANAGE_DONE)[number];
 
@@ -142,6 +159,12 @@ const DONE_STATUS: Record<ManageDone, readonly string[]> = {
   draft: ["draft"],
   submitted: ["submitted"],
   notRequired: ["not_required"],
+  // Said by `followUpDoneToShow`, against the candour record or the investigation.
+  candourSaved: [],
+  candourMoved: [],
+  investigationSaved: [],
+  investigationCompleted: [],
+  investigationReopened: [],
 };
 
 /**
@@ -150,6 +173,32 @@ const DONE_STATUS: Record<ManageDone, readonly string[]> = {
  */
 export function doneToShow(done: ManageDone | null, status: string): ManageDone | null {
   return done && DONE_STATUS[done].includes(status) ? done : null;
+}
+
+/**
+ * The `done` of a candour or investigation form to announce, only while what it did still holds:
+ * the candour record exists (and, once moved, is past its threshold assessment); the
+ * investigation exists, and is completed or open as the form left it.
+ */
+export function followUpDoneToShow(
+  done: ManageDone | null,
+  candourState: string | null,
+  investigationStatus: string | null,
+): ManageDone | null {
+  switch (done) {
+    case "candourSaved":
+      return candourState ? done : null;
+    case "candourMoved":
+      return candourState && candourState !== "threshold_assessment" ? done : null;
+    case "investigationSaved":
+      return investigationStatus ? done : null;
+    case "investigationCompleted":
+      return investigationStatus === "completed" ? done : null;
+    case "investigationReopened":
+      return investigationStatus === "open" ? done : null;
+    default:
+      return null;
+  }
 }
 
 /**

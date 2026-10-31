@@ -63,7 +63,29 @@ export type RefusalKey =
   | "notificationFinished"
   | "submittedAtMissing"
   | "submittedInFuture"
-  | "submissionReference";
+  | "submissionReference"
+  | "candourPerson"
+  | "candourDecidedInFuture"
+  | "candourThreshold"
+  | "candourThresholdMismatch"
+  | "candourVerbal"
+  | "candourInPerson"
+  | "candourRepresentatives"
+  | "candourAccount"
+  | "candourEnquiriesAdvised"
+  | "candourApology"
+  | "candourWrittenRecord"
+  | "candourAttempts"
+  | "candourWritten"
+  | "candourWrittenCopy"
+  | "candourWrittenAccount"
+  | "candourWrittenEnquiries"
+  | "candourWrittenApology"
+  | "candourResults"
+  | "candourCorrespondence"
+  | "investigationComplete"
+  | "investigationPerson"
+  | "investigationOwner";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -314,6 +336,113 @@ const RULES: readonly Rule[] = [
     key: "submissionReference",
     fields: ["externalReference"],
     found: has("Record the regulator's reference or attach the submitted form."),
+  },
+  // The duty of candour record (the API's own checks, and `candourStepProblems`, which a step
+  // runs first; regulation 20). A step's needs are said beside the step, never at a field.
+  {
+    key: "candourPerson",
+    fields: ["personId"],
+    found: has("The relevant person must be on the incident."),
+  },
+  {
+    key: "candourDecidedInFuture",
+    fields: ["decidedAt"],
+    found: has("The decision cannot be dated in the future."),
+  },
+  {
+    key: "candourThreshold",
+    fields: [],
+    found: has("Record the threshold decision and who made it."),
+  },
+  {
+    key: "candourThresholdMismatch",
+    fields: [],
+    found: has("The threshold decision does not match this step."),
+  },
+  { key: "candourVerbal", fields: [], found: has("Record the notification given in person.") },
+  {
+    key: "candourInPerson",
+    fields: [],
+    found: has("The notification must be given in person (reg 20(3)(a))."),
+  },
+  {
+    key: "candourRepresentatives",
+    fields: [],
+    found: has("Record who gave the notification (reg 20(3)(a))."),
+  },
+  {
+    key: "candourAccount",
+    fields: [],
+    found: has("Give an account of all the facts known (reg 20(3)(b))."),
+  },
+  {
+    key: "candourEnquiriesAdvised",
+    fields: [],
+    found: has("Advise what further enquiries are appropriate (reg 20(3)(c))."),
+  },
+  { key: "candourApology", fields: [], found: has("Include an apology (reg 20(3)(d)).") },
+  {
+    key: "candourWrittenRecord",
+    fields: [],
+    found: has("Keep a written record of the notification (reg 20(3)(e))."),
+  },
+  {
+    key: "candourAttempts",
+    fields: [],
+    found: has("Keep a written record of the attempts to contact or speak to the person"),
+  },
+  {
+    key: "candourWritten",
+    fields: [],
+    found: has("Record the written notification (reg 20(4))."),
+  },
+  {
+    key: "candourWrittenCopy",
+    fields: [],
+    found: has("Keep a copy of the written notification (reg 20(6))."),
+  },
+  {
+    key: "candourWrittenAccount",
+    fields: [],
+    found: has("The written notification must include the account of the facts (reg 20(4)(a))."),
+  },
+  {
+    key: "candourWrittenEnquiries",
+    fields: [],
+    found: has("The written notification must give details of the enquiries (reg 20(4)(b))."),
+  },
+  {
+    key: "candourWrittenApology",
+    fields: [],
+    found: has("The written notification must include an apology (reg 20(4)(d))."),
+  },
+  {
+    key: "candourResults",
+    fields: [],
+    found: has("Share the results of any further enquiries (reg 20(4)(c))."),
+  },
+  {
+    key: "candourCorrespondence",
+    fields: [],
+    found: has("Keep a copy of all correspondence (reg 20(6))."),
+  },
+  // The investigation (the API's own checks in apps/api/src/routes/incidents.ts).
+  {
+    key: "investigationComplete",
+    fields: ["findings", "lessons"],
+    found: has("Record the findings and the lessons before completing it."),
+  },
+  {
+    key: "investigationPerson",
+    fields: [],
+    found: (detail) =>
+      detail.includes("The action owner was not found.") ||
+      detail.includes("The investigation lead was not found."),
+  },
+  {
+    key: "investigationOwner",
+    fields: ["newOwner"],
+    found: has("The action's owner cannot be given its task"),
   },
 ];
 
