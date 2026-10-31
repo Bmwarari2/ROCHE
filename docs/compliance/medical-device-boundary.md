@@ -118,13 +118,26 @@ medicine. Allergies in the sources are compared with the recorded allergies by t
 confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
 The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
 
+**Administration, PRN and controlled drugs (Phase 2, slice 3)**: these stay inside the boundary
+(`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md) rules 13 to 27;
+ADR-0082). Harbour compares the amount recorded with the dose on the entry, or on its checked dosing
+record for a variable dose, and asks why when they differ; it never calculates a dose, suggests one
+or says whether one is safe. Time windows, the paracetamol gap and the PRN maximum are the
+prescriber's or the tenant's figures, applied to entries a person tagged; Harbour adds no interval
+of its own and matches no ingredient. A dose over the prescribed 24-hour maximum is refused and the
+prescriber decides; a dose inside an interval needs a person's reason. Late doses stay outstanding
+and are escalated; Harbour never makes a missed dose due again (a treatment decision). Competence is
+a record of an observed sign-off, not an assessment. The controlled drugs register checks
+arithmetic and signatures, not the medicine.
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built
 
 | Proposed feature | Phase | Question to answer |
 | --- | --- | --- |
-| Matching a recorded allergen to a medicine's dm+d ingredients on the administration screen (HZ-007) | 2 | Is automatic matching a decision-support function? The safe default is to display allergies beside the medicine without automated matching |
+| Matching a recorded allergen to a medicine's dm+d ingredients on the administration screen (HZ-007) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md) (proposed, CSO and a pharmacist to accept, H-514): allergies are displayed beside every medicine with no automated matching; in a reconciliation the completer confirms they compared the sources' allergies with the recorded ones |
+| Applying time-critical and minimum-interval rules (Parkinson's medicines, the paracetamol gap across products, bisphosphonates before food) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md): the rules apply to entries a person tags at transcription and a second person checks; Harbour suggests a tag only from the tenant's own list of exact dm+d VMPs, never by ingredient or name; each entry's own interval is the prescription's or PRN protocol's; the figures are the tenant's, from the rate table |
 | Dependency tool converting categories to care hours | 1 | Tenant-editable scale, not a clinical score; label as the tenant's own tool |
 | Wound photos with a ruler | 1 | Display only; no measurement from the image |
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |

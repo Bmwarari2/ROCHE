@@ -30,6 +30,8 @@ import {
   recordSecondCheck,
   type SecondCheckInput,
   stopMarEntry,
+  suggestedTags,
+  type TenantMedicineLists,
   type TodaysDoses,
   transcribeMarEntry,
   versionInForceAt,
@@ -54,6 +56,7 @@ function checked(e: MarEntry = entry()): MarEntry {
 const prn: MarEntryDraft["directions"] = {
   kind: "when_required",
   dose: { kind: "range", from: 1, to: 2, unit: UNIT.tablet },
+  maxQuantityPer24Hours: 8,
 };
 /** 00:00 UK time on a day of November 2026 (past the 30th it runs into December). */
 const midnight = (d: number) => {
@@ -145,10 +148,29 @@ describe("a MAR entry is a dm+d product with structured doses and its source doc
         directions: {
           kind: "when_required",
           dose: { kind: "amount", quantity: 10, unit: UNIT.ml },
+          maxQuantityPer24Hours: null,
         },
       },
       ["unit_not_permitted"],
     ],
+    [
+      "a 24-hour maximum that is not a number",
+      { directions: { ...prn, maxQuantityPer24Hours: 0 } },
+      ["bad_maximum"],
+    ],
+    [
+      "a 24-hour maximum below one dose",
+      { directions: { ...prn, maxQuantityPer24Hours: 1 } },
+      ["maximum_below_dose"],
+    ],
+    ["a tag given twice", { tags: ["time_critical", "time_critical"] }, ["bad_tag"]],
+    ["a tag not on the list", { tags: ["opioid" as "psychotropic"] }, ["bad_tag"]],
+    [
+      "a minimum interval in part minutes",
+      { minimumIntervalMinutes: 30.5 },
+      ["bad_minimum_interval"],
+    ],
+    ["a minimum interval of none", { minimumIntervalMinutes: 0 }, ["bad_minimum_interval"]],
     ["no prescriber", { prescriber: "" }, ["prescriber_required"]],
     ["no source reference", { source: { ...SOURCE, reference: "  " } }, ["source_required"]],
     [
@@ -1001,27 +1023,60 @@ describe("hazard HZ-004 only the version in force may be given", () => {
   });
 });
 
-describe("hazard HZ-005 no dose is given from a variable-dose entry until its dosing record exists (rule 2)", () => {
-  it.each(["give_with_notice", "hold_until_checked"] as const)(
-    "even checked, under %s",
-    (policy) => {
-      const variable = checked(
-        entry({
-          product: PRODUCT.warfarin,
-          directions: {
-            kind: "regular",
-            schedule: {
-              pattern: { kind: "every_day" },
-              times: [{ time: "18:00", dose: { kind: "variable", unit: UNIT.mg } }],
-            },
+describe("hazard HZ-005 a variable-dose entry says its dose comes from the checked dosing record (rule 18)", () => {
+  // The refusal of a dose without a checked dosing record is `checkAdministration`'s
+  // (administration.test.ts, `hazard HZ-005 a variable dose is given only from a checked dosing record`).
+  it.each(["give_with_notice", "hold_until_checked"] as const)("checked, under %s", (policy) => {
+    const variable = checked(
+      entry({
+        product: PRODUCT.warfarin,
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "every_day" },
+            times: [{ time: "18:00", dose: { kind: "variable", unit: UNIT.mg } }],
           },
-        }),
-      );
-      expect(marEntryStatus(variable, inForce, policy)).toEqual({
-        words: "Checked",
-        mayGive: false,
-        notice: MAR_ENTRY_NOTICES.variableDose,
-      });
-    },
-  );
+        },
+      }),
+    );
+    expect(marEntryStatus(variable, inForce, policy)).toEqual({
+      words: "Checked",
+      mayGive: true,
+      notice: MAR_ENTRY_NOTICES.variableDose,
+    });
+  });
+});
+
+describe("ADR-0082 tags come from a person at transcription, offered only from the tenant's own lists", () => {
+  const lists: TenantMedicineLists = {
+    time_critical: new Set([PRODUCT.levothyroxine.vmpId]),
+    paracetamol: new Set([PRODUCT.paracetamolTablets.vmpId]),
+    bisphosphonate: new Set([PRODUCT.alendronicAcid.vmpId]),
+    psychotropic: new Set(),
+  };
+
+  it("offers a tag only when the tenant's list holds the product's exact VMP", () => {
+    expect(suggestedTags(PRODUCT.paracetamolTablets, lists)).toEqual(["paracetamol"]);
+    expect(suggestedTags(PRODUCT.paracetamolBrandA, lists)).toEqual(["paracetamol"]);
+    expect(suggestedTags(PRODUCT.alendronicAcid, lists)).toEqual(["bisphosphonate"]);
+  });
+
+  it("never offers one by ingredient or name: another VMP with the same ingredient gets none", () => {
+    expect(suggestedTags(PRODUCT.paracetamolCapsules, lists)).toEqual([]);
+    expect(suggestedTags(PRODUCT.warfarin, lists)).toEqual([]);
+  });
+
+  it("a tag is part of the entry, so changing it is a new version a second person checks", () => {
+    const tagged = draft({ tags: ["time_critical"], startsAt: at(2, 12) });
+    const change = changeMarEntry(
+      [checked()],
+      tagged,
+      TABLET_FACTS,
+      meta(at(2, 12), { todaysDoses: "some_still_due" }),
+    );
+    expect(change).toMatchObject({
+      ok: true,
+      next: { tags: ["time_critical"], state: "not_yet_checked" },
+    });
+  });
 });

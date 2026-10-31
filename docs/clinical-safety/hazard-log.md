@@ -68,11 +68,13 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-116](#hz-116-a-two-person-check-done-by-one-person-or-not-genuinely-witnessed) | A two-person check (witness, second signature, transcription check) done by one person or not genuinely witnessed | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
+| [HZ-119](#hz-119-expired-competence-does-not-block-administration-or-the-manager-override-becomes-routine) | Expired competence does not block administration, or the manager override becomes routine | Major / Medium / 3 | Major / Low / 3 until the override report exists (slice 45), then Very low / 2 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 | [HZ-121](#hz-121-medicines-not-reconciled-after-admission-transfer-or-return-from-hospital) | Medicines not reconciled after admission, transfer or return from hospital | Major / Medium / 3 | Major / Low / 3 (engineering proposal; the CSO rates it, H-513) | Open | None (Phase 2) | Phase 2 |
 
-Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-121, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Sixteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-116, HZ-121, HZ-112 until its mobile control is built, and HZ-119 until its override report is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
-Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 first, with slice 2).
+Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed. HZ-113 to HZ-130 are assigned to Phase 2 slices in [phase-2.md](../plans/phase-2.md) and are added by the slice the plan names, so they arrive out of order (HZ-121 with slice 2, HZ-116 and HZ-119 with slice 3).
 
 ---
 
@@ -299,14 +301,14 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Notification centre with escalation chains used by the medicines rules | Built in Phase 0 |
-| Design | Round view by time slot lists every due dose for assigned people; a dose stays outstanding until an outcome is recorded (given, refused, omitted with coded reason, not available, self-administered, given by family, withheld with reason) | Phase 2 |
-| Design | The app refuses to record an administration without a selected person, a dose and an outcome (master prompt 10.3) | Phase 2 |
-| Design | Late warnings with time-critical rules; time-critical medicines escalate at an earlier threshold to the team leader, then the nurse in charge or on-call | Phase 2 |
-| Design | A round cannot be closed with outstanding doses without a reason; outstanding doses appear in the auto-compiled handover | Phase 2 |
+| Design | Round view by time slot lists every due dose for assigned people; a dose stays outstanding until an outcome is recorded (given, refused, omitted with coded reason, not available, self-administered, given by family, withheld with reason) | Domain rule built in Phase 2 slice 3 (`scheduledDoseState`, `OUTCOME_REASONS`); round view in slices 48 and 53 |
+| Design | The app refuses to record an administration without a selected person, a dose and an outcome (master prompt 10.3) | Domain rule built in Phase 2 slice 3 (`checkAdministration`); API in slice 22 |
+| Design | Late warnings with time-critical rules; time-critical medicines escalate at an earlier threshold to the team leader, then the nurse in charge or on-call | Windows and thresholds: domain rule built in phase 2 slice 3 (`doseWindow`, `escalationAt`, ADR-0082); escalation chain in slice 48 |
+| Design | A round cannot be closed with outstanding doses without a reason; outstanding doses appear in the auto-compiled handover | Domain rule built in Phase 2 slice 3 (`checkRoundClose`, time-critical first); handover in slice 49 |
 | Design | On-device reminders for due doses that work offline | Phase 2 |
 | Design | A dose due for a person not assigned to any staff member on the shift alerts the shift lead | Phase 2 |
 | Design | "Not available" creates a stock and ordering task | Phase 2 |
-| Design | Expired medicines competence blocks administration (manager override logged) | Phase 2 |
+| Design | Expired medicines competence blocks administration (manager override logged) | Domain rule built in Phase 2 slice 3 (HZ-119) |
 | Design | The tasks and series the people lifecycle stops carry a code (`task.cancel_code`, `task_series.inactive_code`: paused while away, ended at exit) and, when an exit stopped them, that exit (`stopped_by_exit_id`). Migration 0023 codes existing rows only from the lifecycle event that stopped them (the outbox event written in the same transaction), never from reason text. A return brings back the rounds paused while the person was away; correcting a discharge or death recorded in error brings back only what that exit ended and starts its series again ([people.md](../specs/people.md) rules 1 and 2). Whether rounds restart without a person confirming them is for the CSO (H-89) | Built in Phase 1 slice 8 |
 | Design | Of the tasks brought back (`planTaskRestore`), only those whose window ends at or after the return count. A task an entry answered while it was stopped is restored as done, never due again (`restore_code` answered_while_stopped; HZ-004; H-91). One still in its window reopens. Of those whose window passed, the latest occurrence of each series (and each one-off task) is caught up once, due now with a fresh window of its own length and its escalation reset (`restore_code` caught_up), unless a later occurrence of the series is done or open again, so two turns or doses never fall due minutes apart; a missed `medicines.*` task is never made due again, because giving a late dose is a treatment decision ([medical-device boundary](../compliance/medical-device-boundary.md)): it is listed as missed for the nurse in charge. The others stay cancelled, coded as missed (H-92, H-131). One urgent review task goes to the nurse in charge and lists every round, its due time and whether it was caught up (`task.details.missedTasks`, `listMissedRounds`): missed medicines rounds first and never dropped, then the rest newest first, at most 50 in all and the rest counted, so the latest rounds and every missed dose are always listed (review round 5, M2). Showing the list on screen, in UK time, is planned (HZ-006) | Built in Phase 1 slice 8 (review rounds 3 to 5) |
 | Design | Before planning, a return or correction makes the rounds that would have fallen due since the series stopped making tasks (`fillStoppedGap`), so a stay longer than the 48-hour materialisation horizon loses no round and a correction long after the exit adds no extra overdue one (review round 4, C5). It looks back to 00:00 UK time seven days before (`restoreLookbackStart`); when a series had rounds before that, they are not made, and the review stores the date (`task.details.missedTasksNotListedBefore`) and says "Rounds before dd/mm/yyyy are not all listed: check the record." (review round 5, M2). Whether seven days is the right limit is for the CSO (H-137) | Built in Phase 1 slice 8 (review rounds 4 and 5) |
@@ -332,10 +334,10 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-003 the count is kept from the last dose due: ...` (table: the grid, a fortnightly or weekly Monday moved to Tuesday, a monthly day moved, a missing anchor), `refuses a missing or unreadable anchor instead of throwing`, `hazard HZ-009 every-n-days and fortnightly doses keep their days and times across the clock changes`; `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-003 hazard HZ-004 a change keeps the day count ...` (`compares with the last dose actually due, through a change to every day and back`, `keeps the count when the same product is stopped and started again`, `treats moving a fortnightly / weekly Monday dose to Tuesday as a new count that needs a reason`) and `hazard HZ-003 hazard HZ-004 a change on a day with doses says what happened to that day's doses (rule 6c)` | Passing (#135 review round 2) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-003 counts every other day from its anchor ..., never from when the entry starts` and `hazard HZ-003 counts fortnights from the week of its anchor ..., never from when the entry starts`; `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-003 hazard HZ-004 a change keeps the day count of an every-n-days or fortnightly medicine` (a patch every 3 days from 02/11 changed at 07:00 or 09:00 on 03/11 is next due 05/11; a re-anchor refused without a recorded reason; a fortnightly count kept) | Passing (Phase 2 slice 2, #135 review round 1) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-003 expands every supported frequency into the correct doses across a 28-day cycle` (table-driven: every day, every other day, every 3 days, weekly on one and two days, fortnightly, monthly, with the cycle length read from the rate table; counted from each pattern's anchor date, never from when the entry starts; start and stop; each time's own dose; the last day of a shorter month) | Passing (Phase 2 slice 2) |
-| `packages/domain` (medicines): `hazard HZ-003 a dose with no recorded outcome stays outstanding after its window` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-003 time-critical medicines escalate at the earlier threshold` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-003 a round cannot close with outstanding doses without a reason` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-003 refuses an administration without person, dose and outcome` | Planned, Phase 2 |
+| `packages/domain/src/medicines/timing.test.ts`: `hazard HZ-003 a dose with no recorded outcome stays outstanding after its window` | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/timing.test.ts`: `hazard HZ-003 time-critical medicines escalate at the earlier threshold` | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/administration.test.ts`: `hazard HZ-003 a round cannot close with outstanding doses without a reason` | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/administration.test.ts`: `hazard HZ-003 refuses an administration without person, dose and outcome` | Passing (Phase 2 slice 3) |
 | `apps/api`: `hazard HZ-003 an overdue time-critical dose escalates to the nurse in charge` | Planned, Phase 2 |
 | `apps/mobile` Maestro `hazard-HZ-003-offline-round.yaml`: offline round shows due doses and fires a local reminder | Planned, Phase 2 |
 | `apps/api/test/people-lifecycle.test.ts`: `hazard HZ-003 brings back the rounds and point-of-care tasks the death ended, and cancels the exit task` (the series starts again; the safety follow-ups were never stopped) and `hazards HZ-003 and HZ-023 record the return: rounds resume, ...` | Passing (Phase 1) |
@@ -392,13 +394,13 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Point-of-care events are append-only with client-generated UUIDs and idempotent inserts, so a retried upload cannot create a second row (conflict model, ADR-0001) | Pattern built in Phase 0; applied to administrations in Phase 2 |
-| Design | Duplicate administration within the minimum interval is blocked and needs an override reason (master prompt 10.3) | Phase 2 |
-| Design | Last-given time, by whom and from which source, shown for every PRN and regular dose | Phase 2 |
-| Design | PRN maximum in 24 hours enforced from the PRN protocol | Phase 2 |
-| Design | A MAR row locks once synced; only referenced correction events are allowed | Phase 2 |
+| Design | Duplicate administration within the minimum interval is blocked and needs an override reason (master prompt 10.3): the entry's own prescribed interval across its versions, and the tenant's paracetamol rule across entries a person tagged (ADR-0082) | Domain rule built in Phase 2 slice 3 (`intervalConflicts`, `checkAdministration`) |
+| Design | Last-given time, by whom and from which source, shown for every PRN and regular dose | When-required: domain rule built in phase 2 slice 3 (`prnStatus`: when, by whom, synced or still on this device); screens in slices 53 and 69 |
+| Design | PRN maximum in 24 hours enforced from the PRN protocol: over the 24 hours up to the dose, no override on the round | Domain rule built in Phase 2 slice 3 from the entry's transcribed maximum (`prnMaximumExceeded`); PRN protocols in slice 28 |
+| Design | A MAR row locks once synced; only referenced correction events are allowed | Domain rule built in Phase 2 slice 3 (`marRowLocked`, `checkAmendment`, `checkCorrection`); grants in slice 22 |
 | Design | On sync, two administrations for the same scheduled dose from different devices go to a conflict review screen for the nurse in charge; nothing is merged silently | Phase 2 |
 | Design | Save disabled after the first tap until the result returns; the confirmation names person, medicine and dose | Phase 2 |
-| Design | Intervals measured in elapsed UTC time, drift-corrected where drift is known (HZ-009, HZ-010) | Phase 2 |
+| Design | Intervals measured in elapsed UTC time, drift-corrected where drift is known (HZ-009, HZ-010) | Domain rule built in Phase 2 slice 3 (`driftCorrectedTime`) |
 | Design | Only the version of an entry in force may be given: before its start it reads "Not started yet", after its end "Replaced by a newer entry", "Stopped" or "Withdrawn before it started", with no dose offered ([medicines.md](../specs/medicines.md) rule 6; `marEntryStatus`); a change keeps an every-n-days count (rule 6a, HZ-003) | Domain rule built in Phase 2 slice 2 (#135 review round 1) |
 | Design | Exactly one version in force at any instant: a change or a stop works on every version of the medicine, ending the version in force when it takes effect and withdrawing any later version that had not started (audited by the API) (rule 6b; `changeMarEntry`, `stopMarEntry`, `versionInForceAt`) | Domain rule built in Phase 2 slice 2 (#135 review round 2) |
 | Design | A task the people lifecycle stopped, which an entry answered while it was stopped, is restored as done when the return or correction is recorded, never reopened (HZ-003; H-91) | Built in Phase 1 slice 8 (review round 3) |
@@ -419,8 +421,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | --- | --- |
 | `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-004 only the version in force may be given` (a when-required entry changed from tomorrow: today only the old version, tomorrow only the new) and `hazard HZ-003 hazard HZ-004 a change keeps the day count of an every-n-days or fortnightly medicine` | Passing (Phase 2 slice 2, #135 review round 1) |
 | `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-004 exactly one version of a medicine is in force at any instant (rule 6b)` (the review's v1, v2, v3 case: v1 ends on 05/11 and v2 is withdrawn; a stop withdraws a version that had not started; a property test over 60 seeded random sequences of changes and stops checking every start and end boundary for two givable versions) | Passing (#135 review round 2) |
-| `packages/domain` (medicines): `hazard HZ-004 blocks a second administration within the minimum interval unless an override reason is given` | Planned, Phase 2 |
-| `packages/domain` (medicines): `hazard HZ-004 enforces the PRN maximum in 24 hours` | Planned, Phase 2 |
+| `packages/domain/src/medicines/administration.test.ts`: `hazard HZ-004 blocks a second administration within the minimum interval unless an override reason is given` (and the paracetamol rule across tagged entries; never over the 24-hour maximum), `hazard HZ-004 refuses a second record for a dose that already has one`, `hazard HZ-004 a MAR row locks once synced and changes only by a referenced correction` | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/intervals.test.ts`: `hazard HZ-004 enforces the PRN maximum in 24 hours` and `hazard HZ-004 shows the last-given time for every when-required medicine` | Passing (Phase 2 slice 3) |
 | `apps/api`: `hazard HZ-004 replaying the same client UUID does not create a second administration` | Planned, Phase 2 |
 | `apps/api`: `hazard HZ-004 two devices recording the same scheduled dose create a conflict review task` | Planned, Phase 2 |
 | `packages/db`: `hazard HZ-004 medication_administration has no UPDATE or DELETE grant` | Planned, Phase 2 |
@@ -470,7 +472,8 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Medicines started or changed by a reconciliation are new entries "Not yet checked", each with the source line's document (HZ-121) | Domain rule built in Phase 2 slice 2 |
 | Design | An entry whose stop or replacement is still to come is checked, and corrected by a change, like any other while it is in force; a stop still to come carries over to the correction; a check after it has ended is refused (`recordSecondCheck`, `changeMarEntry`; rule 6) | Domain rule built in Phase 2 slice 2 (#135 review rounds 1 and 2) |
 | Design | A measured unit is written "2 × 5 ml spoonfuls" and a compound unit in full ("12 micrograms/hour" for "mcg/hr"); a dose with more than 3 decimal places is refused with "ask the prescriber or pharmacist", never an invitation to convert (rule 2; H-551) | Domain rule built in Phase 2 slice 2 (#135 review round 1) |
-| Design | **Open control**: each new dosing instruction for a variable dose (a dosing record, for example a warfarin schedule after an INR test) is recorded with its source and second-checked before any dose is given from it. Until then a variable-dose entry is never givable: `marEntryStatus` gives `mayGive: false` with "Dose to come from the dosing record (not built yet)", checked or not, under either policy (rule 2) | Interim block built in Phase 2 slice 2 (#135 review round 2); dosing record planned: slice 3 (domain), slice 16 (storage) |
+| Design | Each new dosing instruction for a variable dose (a dosing record, for example a warfarin schedule after an INR test) is recorded with its source per day and time and second-checked by another competent person before any dose is given from it; a dose is given only from the latest checked record, and `checkAdministration` refuses one without (rule 18). Slice 2 blocked every variable-dose entry until this existed | Domain rule built in Phase 2 slice 3 (`dosing-record.ts`); storage in slice 16 |
+| Design | The amount given is compared with the entry's dose, its range, or the checked dosing record's dose, never calculated; another amount needs what happened and is flagged as a possible medication error (rule 17) | Domain rule built in Phase 2 slice 3 |
 | Design | Imported medicines arrive as "Not yet checked"; the import dry run reports unmapped units | Phase 2 |
 | Design | Pharmacy MAR import replaces manual transcription where a pharmacy is integrated | Phase 5 |
 | Design | No dose calculation or dose-range advice is offered (medical-device boundary) | All phases |
@@ -493,7 +496,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 the checker must be a different user from the transcriber` (and the author of a change; competence, the source compared, a difference described) | Passing (Phase 2 slice 2) |
 | `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 no dose is given from a variable-dose entry until its dosing record exists (rule 2)` (both policies) | Passing (#135 review round 2) |
 | `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 a future stop or replacement leaves the entry checkable and correctable while it is in force` (a stop next week; a correction after a failed check with the stop carried over; a replacement next week; refused once ended); `dose.test.ts`: the measured and compound units in `hazard HZ-005 formats doses ...` and the decimals message in `hazard HZ-005 reads a typed dose only in the form it is shown` | Passing (Phase 2 slice 2, #135 review round 1) |
-| `packages/domain` (medicines): `hazard HZ-005 a variable dose is given only from a dosing record that has been second-checked` | Planned, Phase 2 (slice 3) |
+| `packages/domain/src/medicines/dosing-record.test.ts`: `hazard HZ-005 a variable dose is given only from a dosing record that has been second-checked`; `administration.test.ts`: `hazard HZ-005 a variable dose is given only from a checked dosing record` and `hazard HZ-005 the amount given is the dose prescribed, or the difference is explained` | Passing (Phase 2 slice 3) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-005 non-daily schedules show the day on every MAR row` (every other day, weekly, fortnightly, monthly; the wording) | Passing (Phase 2 slice 2) |
 | `packages/domain/src/medicines/reconciliation.test.ts`: `hazard HZ-005 new and changed medicines from a reconciliation arrive not yet checked, for a second person` | Passing (Phase 2 slice 2) |
 | `apps/api`: `hazard HZ-005 imported medicines are created as not yet checked` | Planned, Phase 2 |
@@ -826,7 +829,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | Recorded event times (proposed; CSO to confirm `[CSO decision - human action]`): one domain rule, `resolveRecordedUkTime`, for every screen where a person types when something happened, web and mobile. A time in the skipped spring hour is refused; a time in the repeated autumn hour is asked about (BST before the clocks went back, or GMT after) when both have passed, with no default; a time ahead of the clock beyond the drift tolerance is refused and never rolled back to an earlier day. Computed times (schedules, deadlines) keep `fromUkWallClock`. The Care mode forms on the phone use it for every typed time, with the tenant's `sync.clock_drift_flag_minutes` as the tolerance, and show BST or GMT beside times on a clock-change day; a correction keeps the original instant exactly | Built in Phase 1 (domain; mobile, clinical review round 3 H1) |
 | Design | Times written on paper during an outage are resolved with the same rule (`resolvePaperTime` in `packages/domain/src/operations/outage.ts`, using `resolveRecordedUkTime`): a time in the skipped spring hour is refused, a time in the repeated autumn hour must say which one, a time ahead of the clock is refused, and the back-entry keeps the time as written beside the instant ([operations.md](../specs/operations.md) rule 11) | Phase 1 (domain rules built, slice 11) |
 | Design | The web record reads every typed event time through `resolveRecordedUkTime`, in separate day, month, year, hour and minute boxes (so the browser's language cannot swap the day and month); in the repeated hour a required question asks which time, with nothing chosen; the skipped hour and future times are refused. "Now" is the instant the form is sent, not when the page was drawn. Times on the two clock-change days show BST or GMT beside them | Built in Phase 1 slice 9 (web) |
-| Design | Minimum intervals and maximum-in-24-hours computed on elapsed time between UTC instants | Phase 2 |
+| Design | Minimum intervals and maximum-in-24-hours computed on elapsed time between UTC instants | Domain rule built in Phase 2 slice 3 |
 | Design | Times always displayed in the location's time zone, 24-hour clock; on transition days the round view states that the clocks changed (`clockChangesIn` names the days in a MAR cycle) | Phase 2 (the days: domain rule built in slice 2) |
 | Design | A device whose time zone differs from the location's shows a warning; displayed times stay in the location's zone | Phase 1 |
 | Design | Domain tests run under `TZ=UTC`, `TZ=Europe/London` and a non-UK zone in CI | Phase 1 |
@@ -845,7 +848,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/domain/src/platform/tasks.test.ts`: `hazard HZ-009 recurring tasks keep UK local times across clock changes` (daily times stay local; a time in the spring gap moves an hour later; hourly intervals count elapsed time) | Passing (Phase 1) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 a 01:30 dose on a spring-forward day moves to 02:30 BST and is flagged` (29/03/2026 and 28/03/2027; the days either side unflagged) and `a time moved onto another prescribed time keeps both doses, flagged` | Passing (Phase 2 slice 2) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 a 01:30 dose on a clocks-back day occurs once` (25/10/2026 and 31/10/2027, at the first occurrence, flagged) | Passing (Phase 2 slice 2) |
-| `packages/domain` (medicines): `hazard HZ-009 a 4-hour minimum interval spanning a clock change is measured in elapsed time` | Planned, Phase 2 |
+| `packages/domain/src/medicines/intervals.test.ts`: `hazard HZ-009 a 4-hour minimum interval spanning a clock change is measured in elapsed time` (the table's paracetamol interval across 25/10/2026 and 29/03/2026) | Passing (Phase 2 slice 3) |
 | `packages/domain/src/medicines/schedule.test.ts`: `hazard HZ-009 an 08:00 daily dose stays at 08:00 local time either side of each transition` (all four; 23 or 25 hours apart) and `the MAR names the days in a cycle when the clocks change`; the medicines tests pass under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York` | Passing (Phase 2 slice 2) |
 | `packages/domain` (platform): `hazard HZ-009 date of birth round-trips unchanged under every test time zone` | Planned, Phase 1 |
 | `apps/mobile/src/care/time.test.ts`: `hazard HZ-009 the clock changes (C4, round 3 H1)`: `hazard HZ-009 refuses a time that did not happen when the clocks went forward` (in the default mode too), `hazard HZ-009 asks BST or GMT, with no default, when both have passed`, `hazard HZ-009 asks as soon as the second occurrence has passed`, `hazard HZ-009 keeps 25 hours between the same time on the days either side of a change`, `hazard HZ-009 shows BST or GMT beside times on a clock-change day only`, `hazard HZ-009 keeps an original in the repeated autumn hour exactly, never re-reading it` | Passing (Phase 1, mobile) |
@@ -889,7 +892,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Design | A record whose device time is later than its server-received time, or far earlier, raises a manager review flag; a note written more than 2 hours after the event carries the late-entry flag | Phase 1 |
 | Design | The history view shows both device and server times | Phase 1 |
 | Design | The web sends the device's clock reading with every entry (`x-harbour-sent-at`), so the API flags an entry from a browser whose clock is wrong; the entry shows "Device clock differed" in words and an icon | Built in Phase 1 slice 9 (web) |
-| Design | Interval checks on the device use a drift-corrected clock when drift is known | Phase 2 |
+| Design | Interval checks on the device use a drift-corrected clock when drift is known | Domain rule built in Phase 2 slice 3 (`driftCorrectedTime`: device time plus the offset measured at the last sync, drift over the table's figure flagged); on the device in slice 69 |
 | Design | A held device's start is never earlier than the server first saw the device: the earliest first seen in `device_binding`, written at each sync token and report and filled from the audit trail for devices seen before ([care.md](../specs/care.md) section 6, Device integrity part 1) | Built in Phase 1 (API, Device integrity) |
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | Care worker guide: never change the device time. Deployer control: MDM policy enforces automatic network time on shared devices ([kiosk.md](../compliance/kiosk.md)) | Phase 1 |
@@ -907,7 +910,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/sync`: `hazard HZ-010 drift over 5 minutes between device and server is flagged` | Planned, Phase 1 |
 | `apps/api`: `hazard HZ-010 a device time later than server-received time creates a review flag` | Planned, Phase 1 |
 | `packages/domain` (care): `hazard HZ-010 a note written more than 2 hours after the event carries the late-entry flag` | Planned, Phase 1 |
-| `packages/domain` (medicines): `hazard HZ-010 the minimum-interval check uses the drift-corrected clock` | Planned, Phase 2 |
+| `packages/domain/src/medicines/intervals.test.ts`: `hazard HZ-010 the minimum-interval check uses the drift-corrected clock` (a fast and a slow device); `timing.test.ts`: `hazard HZ-010 times read from a device are corrected by its measured clock offset` | Passing (Phase 2 slice 3) |
 | `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-010 hazard HZ-017 sends the time it was written and the time it was sent apart`, `hazard HZ-010 stamps each retry with the time it is sent` (`deviceTime` is the time written; `x-harbour-sent-at` is stamped as each request leaves) | Passing (Phase 1, mobile) |
 | `apps/mobile/src/components/when-field.render.test.ts`: `hazard HZ-009 hazard HZ-010 hazard HZ-017 WhenField on the autumn clock change`: `hazard HZ-009 hazard HZ-017 names the time, normalised, in the question and in both options`, `has no default, and records the zone chosen`, `asks nothing for a time that happened once`; `apps/api/test/api.test.ts`: `hazard HZ-010 takes a hold's start no later than the server received the report (round 5, S-M1)` | Passing (Phase 1) |
 | `apps/mobile/src/care/time.test.ts`: `hazard HZ-010 when the event happened`: `hazard HZ-010 refuses a time later than now` (with the default day), `hazard HZ-010 never rolls a later time back to yesterday`, `hazard HZ-010 with a tolerance of %i minutes from the rate table reads %s as %s`; `notes.test.ts`: `hazard HZ-010 refuses a time still to come today rather than dating it yesterday`, `hazard HZ-010 takes the tenant's clock tolerance from the entry context`; `sync/clock-tolerance.test.ts`: `hazard HZ-010 the clock tolerance for typed times comes from the rate table` (cached for offline starts, none until known, a figure in the wrong unit or out of range ignored); `sync/held-limit.test.ts`: `hazard HZ-010 does not act on a clock earlier than the hold's start or the last server time`, `hazard HZ-010 treats a clock that jumped forward as a reason to escalate, nothing more` | Passing (Phase 1, mobile) |
@@ -2878,6 +2881,104 @@ person receiving care.
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | `apps/mobile/src/sync/session-signals.test.ts`: `classifyForbidden` reads `mfa_verification_required` as a session code; `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 mfa_verification_required from the sync token as an ended session`, `hazard HZ-006 ends the session on a 403 mfa_verification_required instead of parking the entry as refused` | Passing |
 | `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, a backup code and the five-code limit under step-up, no factor enrolled, About me links, residents' money at exit and task links over HTTP, and no API or domain source giving step-up a sign-in time; `mfa-session-factor.test.ts`: a first enrolment's code records no factor; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
+
+---
+
+## HZ-116 A two-person check done by one person or not genuinely witnessed
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-116 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module (lead engineer) |
+| Source | Master prompt 10.2 (controlled drugs: second signature, destruction with witness) and 10.3 (a witness where the tenant policy says so; "no witness available" with the reason, flagged for manager review); NICE SC1 (a second person checks a transcription, as the master prompt cites it); [phase-2.md](../plans/phase-2.md) slice 3; [medicines.md](../specs/medicines.md) rules 6, 18, 22 and 27; ADR-0083 and ADR-0084 (slice 34); related HZ-005, HZ-115 and HZ-119 |
+
+**Description**: a check that two people should make (the second check of a MAR entry or a dosing record, the witness to a controlled drugs entry, a manager's approval of a competence override) is made by one person under two names, or signed by someone who did not watch, so a transcription error, a miscount or a diversion goes unnoticed.
+
+**Causes**
+
+- One person records and signs as the second person; the person who transcribed checks their own work; a member approves their own competence override.
+- One sign-in used by two people on a shared device; a witness signs later without having watched.
+- No second member of staff on a lone visit or a night shift, and the entry recorded as witnessed anyway, or not recorded.
+- Destruction of a controlled drug done alone.
+- Pressure to finish the round; a check confirmed without the source document in hand.
+
+**Effects**: transcription errors reach the round (HZ-005); controlled drugs are miscounted or diverted unnoticed (HZ-115, slice 34); a lapsed competence is hidden (HZ-119).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The second check of a MAR entry and of a dosing record is refused from the person who wrote it, from someone whose medicines competence is not current, and without the checker confirming they compared it with the source ([medicines.md](../specs/medicines.md) rules 6 and 18) | Domain rules built in Phase 2 slices 2 and 3 |
+| Design | Every controlled drugs entry has a witness who is not the recorder; where the tenant's policy is `required` (by default residential, nursing, respite and children's homes) always; where it is `where_available` (home care, supported living, live-in, complex care, day services) a lone worker may record why there was none, and the entry is flagged for manager review; a witness and a "none" on one entry is refused; destruction is always witnessed (rule 27) | Domain rule built in Phase 2 slice 3 (`checkCdEntry`, `defaultCdWitnessPolicy`) |
+| Design | A competence override is refused when the approver is the member themselves (rule 22; HZ-119) | Domain rule built in Phase 2 slice 3 |
+| Design | The witness signs in on the same device with their own enrolled factor, re-verified by the server on sync; on the web a second step-up (ADR-0084) | Planned, slices 34 and 70 |
+| Training and user documentation | Deployer control: the tenant's witness policy per service, and what "witnessed" means (watching the dose given or the drug destroyed, not signing afterwards) (DCB0160 template) | Phase 2 (slice 81) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** (an engineering proposal; the CSO rates it, H-513).
+
+**Justification for level 3**: Harbour can make sure two different people, each competent and signed in, put their names to a check, but it cannot see whether the second person genuinely watched or compared; that sits with practice and supervision, which the tenant controls. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/mar-entry.test.ts`: `hazard HZ-005 the checker must be a different user from the transcriber` (and the author of a change, competence, the source compared) | Passing (Phase 2 slice 2) |
+| `packages/domain/src/medicines/dosing-record.test.ts`: `hazard HZ-116 a dosing record is checked by a second, competent person who compared it with its source` | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/controlled-drugs.test.ts`: `hazard HZ-116 a controlled drugs entry is witnessed by a second person, as the tenant's policy says` (the default by service type; the recorder refused as witness; no witness refused under `required`; a lone worker's reason flagged under `where_available`; destruction always witnessed; a witness and a "none" refused) | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/competence.test.ts`: `refuses an override approved by the member themselves` (in `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it`) | Passing (Phase 2 slice 3) |
+| `apps/api`: `hazard HZ-116 a witness on the same device must sign in with their own factor, and the server re-verifies it` | Planned, Phase 2 (slices 34, 70) |
+
+---
+
+## HZ-119 Expired competence does not block administration, or the manager override becomes routine
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-119 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `medicines` module with `workforce` (lead engineer) |
+| Source | Master prompt 10.2 ("staff competence annual ... blocks administration when expired, with manager override logged") and 12.2; [phase-2.md](../plans/phase-2.md) slice 3 and the Phase 2 gate ("expired competence blocks administration in tests"); ADR-0085 (competence gating across modules); [medicines.md](../specs/medicines.md) rules 21 and 22; related HZ-003, HZ-004, HZ-005 and HZ-116 |
+
+**Description**: a member whose medicines competence has lapsed, or was never signed off, gives medicines without anyone noticing; or the manager's override, meant for an exception, is used shift after shift, so the competence check means nothing.
+
+**Causes**
+
+- Competence not recorded, or its expiry worked out wrongly (time zones, the last day of a shorter month).
+- The gate checked only for "given", so a lapsed member still records refusals and omissions on the round.
+- An override approved by the member themselves, without a reason, open-ended, or for someone else.
+- Overrides never reviewed; the same member overridden every week.
+- The device holding a stale competence while offline; the API trusting a competence value sent by the client.
+
+**Effects**: medicines given by staff not assessed as safe: omissions, duplicates and wrong doses (HZ-003, HZ-004, HZ-005).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Competence is current until 00:00 UK time on the date `competence.medicines.refresh_months` (from the rate table) after the last observed sign-off, on the last day of a shorter month, never later; none before a sign-off ([medicines.md](../specs/medicines.md) rule 21; `medicinesCompetenceAt`) | Domain rule built in Phase 2 slice 3 |
+| Design | Every outcome a member records needs current competence, or an override in force recorded by someone else with a reason, for at most `medicines.competence_override.max_hours`; every overridden record is flagged for the override report (rule 22; `checkCompetenceGate`, `checkAdministration`) | Domain rule built in Phase 2 slice 3 |
+| Design | The API reads competence on the server from workforce's port and checks the approver holds `medicines.override.approve`; never from the request (ADR-0085) | Planned, slices 17 and 22 |
+| Design | The member's own competence rows sync to the device, so the gate holds offline (slice 68); the override report and its trend (slice 45) | Planned, Phase 2 |
+| Training and user documentation | Deployer control: the tenant's competence assessment programme and who may approve overrides (DCB0160 template) | Phase 2 (slice 81) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the override report is built (slice 45), then likelihood Very low, **risk 2** (an engineering proposal; the CSO rates it, H-513).
+
+**Justification for level 3 for now**: the gate is enforced in the domain rule every record passes through, but until the report exists an override that becomes routine is visible only record by record. `[CSO acceptance - human action]`
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/medicines/administration.test.ts`: `hazard HZ-119 expired medicines competence blocks an administration` (every outcome refused from a member whose competence is expired or not held; a manager's override let through and flagged) | Passing (Phase 2 slice 3) |
+| `packages/domain/src/medicines/competence.test.ts`: `hazard HZ-119 medicines competence lasts the rate table's months from its sign-off` (the day of the sign-off, the minute before it lapses, 00:00 UK time on the day it lapses, 29 February) and `hazard HZ-119 expired medicines competence blocks an administration unless someone else overrides it` (the member themselves, someone else's override, no reason, too long, not yet or no longer in force) | Passing (Phase 2 slice 3) |
+| `apps/api`: `hazard HZ-119 an administration by a member whose competence has expired is refused unless a manager override is recorded` | Planned, Phase 2 (slice 22; the gate's API test) |
 
 ---
 
