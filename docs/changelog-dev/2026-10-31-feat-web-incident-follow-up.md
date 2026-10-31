@@ -101,3 +101,14 @@ Branch `feat/web-incident-follow-up`, PR #120.
   After merging main: the approvals list's `closeBlocked` (#130) comes from the close route's own
   check, the duty of candour included (`apps/api/test/workflows.test.ts`), and the candour and
   investigation forms post (#133's `forms.test.ts`).
+- Round 3 (clinical re-check), fail safe: a finished candour record keeps its decision
+  (`candour_finished`) until it is reopened (`POST /v1/incidents/{id}/candour/reopen`, a reason of
+  at least 20 characters, audited), which takes it back to the threshold decision (or to telling the
+  person after no contact), makes a candour notification decided not required a draft again and
+  blocks closing; nothing on a closed incident's candour record changes; the web offers reopening.
+  Taking someone out of those affected needs `safety.incident.manage` and a reason whether or not a
+  decision is recorded, audited with the person. The stuck-incident task has its own ladder
+  (Registered Managers, then owners, who manage incidents, every day until resolved; raising,
+  escalation and finishing audited) and the task engine leaves it alone. Tests for each, the L5 times
+  before the incident, a finished record's person, and the Reg 18 and candour thresholds read apart.
+  H-480 (i) and (j) restated for the CSO.

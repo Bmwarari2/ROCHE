@@ -191,8 +191,11 @@ until their nation pack (Phase 7) and never a partial answer.
     notifiable) and no candour record has finished, or any person we support affected has no
     finished candour record of their own: one record covers only the person it names, whatever it
     decides (`incidentCloseProblems`, `candourCloseBlock`; #120 review H1 and H2, round 2 M1 and
-    M2). An incident the duty of candour holds open longer than `candour.close_blocked_days` days
-    after it happened gives its Registered Manager an urgent task, which escalates (round 2 M4).
+    M2). A finished record keeps its decision until it is reopened with a reason, which blocks
+    closing again; a closed incident's record never changes (round 3 H1). An incident the duty of
+    candour holds open longer than `candour.close_blocked_days` days after it happened gives its
+    Registered Manager an urgent task, told to Registered Managers and then owners who manage
+    incidents, every day until it is resolved (round 2 M4, round 3 M2).
 12. **Falls protocol**: a fall creates the post-fall checklist (injury check, observations, GP
     contact, the NG249 falls pathway, bone health) as tasks. Head injury, or current anticoagulant
     or antiplatelet treatment other than aspirin alone (NICE NG232 1.2.4), or either not yet ruled
@@ -560,8 +563,8 @@ in words; after a save the page opens again with focus on its heading and says w
   characters (`candourReasonProblems`, `CANDOUR_REASON_MIN`); the reason is kept in the audit event.
   The "not notifiable" step after Harbour drafted a candour notification needs `confirmed` and the
   same reason.
-- **Leaving the candour check** (M4): once a threshold decision is recorded, `PUT
-  /v1/incidents/{id}` refuses a change that removes someone affected, or changes their kind or role
+- **Leaving the candour check** (M4; widened in round 3 M1, below): once a threshold decision is
+  recorded, `PUT /v1/incidents/{id}` refuses a change that removes someone affected, or changes their kind or role
   so they are no longer affected, unless `candourReason` has at least 20 characters, and audits
   `safety.incident.candour_person_dropped` with the person's opaque id, the reason and the
   incident.
@@ -569,7 +572,7 @@ in words; after a save the page opens again with focus on its heading and says w
   each incident not closed, more than `candour.close_blocked_days` days after it happened (rate
   table; Harbour default 14, to verify, H-480), that the duty of candour holds open
   (`candourCloseBlock`) one urgent task (`safety.candour_close_blocked`, for `safety.incident.manage`
-  holders in the Registered Manager role), which the task engine escalates when overdue. Closing the
+  holders in the Registered Manager role), escalated on its own ladder since round 3 (M2, below). Closing the
   incident finishes it, and so does the next run once nothing holds the incident. Submitting the
   candour notification ends that notification's overdue alerts, never this task.
 - **Times** (L5): the times they were told, the letter was sent and an attempt was made cannot be
@@ -589,6 +592,42 @@ in words; after a save the page opens again with focus on its heading and says w
   which now comes from the close route's own reading and rules (`incidentCloseView`,
   `incidentCloseProblems`, the duty of candour included), so the list never offers a close the API
   would refuse.
+
+**Review round 3 (#120, clinical re-check)**, fail safe:
+
+- **A finished record keeps its decision** (H1): `PUT /v1/incidents/{id}/candour` refuses a threshold
+  decision on a record finished as not notifiable, no contact or closed (code `candour_finished`):
+  the stage would stay finished, the candour draft stay not required, and the incident close with
+  the person never told. **Reopening** (`POST /v1/incidents/{id}/candour/reopen`, `safety.incident.
+  manage`) takes a record finished as not notifiable back to the threshold decision, or one finished
+  as no contact back to telling the person (`CANDOUR_REOPEN_TO`), with a reason of at least 20
+  characters (`candourReopenProblems`), kept on the workflow transition and audited
+  (`safety.candour.reopened`). A candour notification decided not required becomes a draft again
+  with its clock (`safety.notification.reopened`), and the unfinished record blocks closing again
+  (and the stuck-incident job sees it). A record closed after the person was told and written to
+  stays closed. The web offers reopening, with the reason, on a record finished as not notifiable or
+  no contact.
+- **A closed incident's record never changes** (H1): the candour `PUT`, step and reopen are refused
+  on a closed incident. A decision found after closing has no route yet (H-480 (d)).
+- **Taking someone out of those affected** (M1): any change that removes a person we support from
+  "affected" (removed, or their kind or role changed) needs `safety.incident.manage` and
+  `candourReason` of at least 20 characters, whether or not a threshold decision is recorded, and
+  is audited with the person's opaque id (`safety.incident.candour_person_dropped`). The person who
+  raised an incident without that permission cannot do it: before a decision, a change of role would
+  otherwise drop the duty of candour from the classifier unseen.
+- **Stuck incidents go up, daily** (M2; `services/candour-blocked.ts`): the task is not the task
+  engine's to escalate (`SELF_ESCALATED_TASK_KINDS`; it tells clinical leads and team leaders first,
+  once). On the day it is raised, the Registered Managers who hold `safety.incident.manage` at the
+  location are told (with none, the owners); from the next day, every day until nothing holds the
+  incident, the Registered Managers and the owners (founder, director or Nominated Individual) who
+  hold it. Only holders of `safety.incident.manage` are told. Raising
+  (`safety.candour.close_blocked_raised`), each day's escalation (`..._escalated`, with the day,
+  the tier and how many were told, or `..._unrouted` once a day when no one could be) and finishing
+  (`..._finished`, closed by whom or no longer held) are audited with opaque ids.
+- **Lows**: the API test proves told, sent and attempt times before the incident are refused; a
+  finished record's relevant person cannot change (tested); the classifier tests read the Reg 18 and
+  candour thresholds apart, at and below each figure, and prove the recorded decision wins either way;
+  the "other" reason error says the shortest reason the form takes.
 
 Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
 sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
