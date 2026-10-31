@@ -88,7 +88,7 @@ describe("POST /v1/people (an enquiry)", () => {
     expect(await auditCount("people.person.enquiry", person.id)).toBe(1);
   });
 
-  it("returns the first copy when the same request is sent again with its id (HZ-029)", async () => {
+  it("hazard HZ-029 returns the first copy when the same request is sent again with its id", async () => {
     const id = newId();
     const first = await as("manager", "/v1/people", { method: "POST", body: enquiry({ id }) });
     expect(first.status).toBe(201);
