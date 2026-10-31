@@ -19,6 +19,7 @@ import {
   FileLock,
   FileSearch,
   FileText,
+  FileUp,
   FolderLock,
   House,
   ListChecks,
@@ -102,6 +103,7 @@ export interface ShellFrameLabels {
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly dataImport?: string | undefined;
   readonly dataProtection?: string | undefined;
   readonly dataRights?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
@@ -157,6 +159,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/import")) return "import";
   if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/data-rights")) return "data-rights";
@@ -401,6 +404,16 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataImport
+      ? [
+          {
+            id: "import",
+            label: labels.dataImport,
+            href: "/settings/import",
+            icon: <FileUp {...icon} />,
           },
         ]
       : []),

@@ -207,6 +207,10 @@ Notes:
   to read people, across the whole organisation may import, so matching never discloses a person
   at another home or one the importer could not otherwise see (HZ-130).
   The DPO confirms the staging period and that the DPIA covers the migration (H-681, R26).
+  The web wizard reads the file in the importer's browser to show its column headings and first
+  three rows beside each field (HZ-130); only the upload sends it, through the web tier's own
+  upload route (UK region only, ADR-0001) to the API, as the request body, never stored, cached or
+  logged on the web tier. Nothing in the address or a log names a person (H-890).
 - Whistleblowing and speaking up (Phase 2, slice 24; B16) sits in a silo (ADR-0089): only the Freedom to Speak Up lead and the members they name on a case read it, never the owner, the Registered Manager or anyone with a grant, and it is left out of the free full export (the lead exports it separately, H-721). An anonymous concern stores nothing that identifies who raised it: no account, IP address or device, in the record, audit, outbox or logs; its reply token is stored only as a SHA-256. What someone writes may still identify them, and the guidance to reporters says so (H-722). The DPO reviews who holds the lead role (H-720). Audit events about a concern are read only by the lead, so their times cannot be lined up with anything by a wider role. To hold back floods, public requests are counted per network: the network (an IPv6 /64 or IPv4 address) is kept only as an HMAC keyed by a managed secret and the date, for the current minute, and swept hourly. Subject access collection lists the silo as not searched; the lead answers for it separately.
 - This register is prefilled in-app from `PROCESSING_PURPOSES` in `packages/domain/src/platform/processing-register.ts`, which a test keeps in step with the B1 to B10, B15 and B16 rows above.
 
