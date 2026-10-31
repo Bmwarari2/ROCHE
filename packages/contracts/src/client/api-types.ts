@@ -4747,7 +4747,7 @@ export interface paths {
     get?: never;
     /**
      * Record an item of the exit checklist as done, or not required with a reason
-     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.
+     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.
      */
     put: {
       parameters: {
@@ -17284,7 +17284,7 @@ export interface paths {
     put?: never;
     /**
      * A short-lived token for the PowerSync service, scoped to tenant and assignments
-     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
+     * @description Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.
      */
     post: {
       parameters: {
@@ -22067,6 +22067,7 @@ export interface components {
         unitName: string | null;
         /** @enum {string} */
         status: "available" | "out_of_service" | "awaiting_clearance";
+        version: number;
         beds: {
           bed: number;
           occupied: boolean;
@@ -24945,6 +24946,12 @@ export interface components {
       lateAddition: boolean;
       /** Format: date-time */
       addedAt: string;
+      summary: {
+        key: string;
+        params: {
+          [key: string]: string | number;
+        };
+      } | null;
       seen: boolean;
     };
     /**

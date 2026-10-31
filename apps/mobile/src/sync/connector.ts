@@ -42,6 +42,7 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
+import { offlineDaysFromToken } from "./offline-days";
 import {
   isRoundWritableTable,
   type RoundMove,
@@ -302,6 +303,11 @@ export interface HarbourConnectorOptions {
    * C2-M3), so the person screen offers recording only where the server would take it.
    */
   readonly onWriteScope?: (scope: WriteScope | null) => void;
+  /**
+   * Called with the offline window's days from each new sync token, so the round and the handover
+   * say what the phone holds from them (#123 clinical review, M4); null when the token has none.
+   */
+  readonly onOfflineDays?: (days: string[] | null) => void;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -438,6 +444,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
     const credentials = parseSyncCredentials(await response.json());
     this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
+    this.options.onOfflineDays?.(offlineDaysFromToken(credentials.token));
     return credentials;
   }
 
