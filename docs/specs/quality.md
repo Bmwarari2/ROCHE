@@ -837,7 +837,7 @@ few more inferred types). Branch `feat/web-quality-framework-audits`.
 | --- | --- | --- |
 | `/quality/framework` | Anyone who works with quality evidence (section 18.2) | Framework versions, the one in force marked with an icon and a word |
 | `/quality/framework/[id]` | As above; the mapping for `quality.evidence.manage` | Key questions and statements with the source; the organisation's mapping (local title, owner role, evidence categories per statement) saved as the next version, earlier versions kept |
-| `/quality/framework/[id]/coverage` | `quality.evidence.manage` | Records per statement in the framework's order; a gap said as "No evidence" with an icon, never sorted away; a summary of how many statements have none |
+| `/quality/framework/[id]/evidence-coverage` | `quality.evidence.manage` | Records per statement in the framework's order; a gap said as "No evidence" with an icon, never sorted away; a summary of how many statements have none |
 | `/quality/framework/[id]/statements/[statementId]` | `quality.evidence.manage` | The records tagged against the statement, removed tags kept with who and why; remove a tag with a reason |
 | `/quality/evidence/tag?recordType&recordId` | `quality.evidence.manage` | A record's tags (removable with a reason) and tagging it against statements of the version in force; reached from an incident (not restricted) and from a completed audit |
 | `/quality/audits` | `quality.audit.manage` | Schedules with the next due date (overdue said with the date), audits in progress, mock inspections and completed audits with their scores |

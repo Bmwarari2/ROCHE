@@ -112,11 +112,13 @@ export function readMapping(
     if (title.length > MAPPING_TITLE_MAX) {
       errors[mappingField.title(statement.id)] = t("quality.mapping.titleTooLong", {
         max: MAPPING_TITLE_MAX,
+        statement: statement.title,
       });
     }
     if (owner.length > MAPPING_OWNER_MAX) {
       errors[mappingField.owner(statement.id)] = t("quality.mapping.ownerTooLong", {
         max: MAPPING_OWNER_MAX,
+        statement: statement.title,
       });
     }
     if (!title && !owner && chosen.length === 0) continue;
@@ -246,10 +248,23 @@ export function needsAction(
 
 /** The self-rating choices: the CQC words with their number, given by a person. */
 export function selfRatingChoices(t: Translator): { value: string; label: string }[] {
-  return Object.entries(SELF_RATING_WORDS).map(([value, word]) => ({
+  return Object.keys(SELF_RATING_WORDS).map((value) => ({
     value,
-    label: t("quality.audit.ratingChoice", { value, word }),
+    label: t("quality.audit.ratingChoice", { value }),
   }));
+}
+
+/** The score's method in words, from its weighted points (rule 9), for every language. */
+export function methodText(
+  score: { readonly achieved: number; readonly possible: number },
+  t: Translator,
+): string {
+  const round = (n: number) => String(Math.round(n * 10) / 10);
+  return t("quality.audit.method", {
+    possible: score.possible,
+    achieved: round(score.achieved),
+    total: round(score.possible),
+  });
 }
 
 export const actionField = {
@@ -295,13 +310,18 @@ export function readCompletion(
     const description = String(form.get(actionField.description(q.key)) ?? "").trim();
     const owner = String(form.get(actionField.owner(q.key)) ?? "");
     if (description.length < 3) {
-      errors[actionField.description(q.key)] = t("quality.audit.actionDescriptionMissing");
+      errors[actionField.description(q.key)] = t("quality.audit.actionDescriptionMissing", {
+        text: q.text,
+      });
     } else if (description.length > ACTION_DESCRIPTION_MAX) {
       errors[actionField.description(q.key)] = t("quality.audit.actionDescriptionTooLong", {
         max: ACTION_DESCRIPTION_MAX,
+        text: q.text,
       });
     }
-    if (!owners.includes(owner)) errors[actionField.owner(q.key)] = t("quality.audit.ownerMissing");
+    if (!owners.includes(owner)) {
+      errors[actionField.owner(q.key)] = t("quality.audit.ownerMissing", { text: q.text });
+    }
     const due = readDateField(form, actionField.due(q.key), {
       subject: t("quality.audit.actionDueSubject"),
       optional: true,

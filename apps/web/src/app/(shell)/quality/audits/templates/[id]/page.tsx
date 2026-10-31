@@ -14,7 +14,7 @@ import { readOrFail } from "@/lib/person-record";
 import { qualityDone } from "@/lib/quality-done";
 import { auditsShown, scheduleChip, statementRows } from "@/lib/quality-programme";
 
-export const metadata: Metadata = { title: t("quality.templates.title") };
+export const metadata: Metadata = { title: t("quality.templates.detailTitle") };
 
 /**
  * One audit template (QUAL-004; rules 8 and 13): its questions with their weights, the quality
@@ -63,7 +63,10 @@ export default async function TemplatePage({
       />
       {done ? <RecordedArrival message={t("quality.done", { done })} param="done" /> : null}
       <p className="m-0">
-        <Link href="/quality/audits/templates" className="underline">
+        <Link
+          href="/quality/audits/templates"
+          className="inline-flex min-h-target items-center underline"
+        >
           {t("quality.templates.backToList")}
         </Link>
       </p>

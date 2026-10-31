@@ -38,8 +38,6 @@ import {
   ANSWERS,
   actionField,
   answerField,
-  MAPPING_OWNER_MAX,
-  MAPPING_TITLE_MAX,
   mappingField,
   needsAction,
   readAnswers,
@@ -48,6 +46,7 @@ import {
   readTag,
   selfRatingChoices,
   statementRows,
+  TAG_STATEMENTS_MAX,
 } from "@/lib/quality-programme";
 import { dateBoxesOf, readDateField } from "@/lib/uk-time";
 import { QualityFeedback, QualityReasonForm, useQualitySend } from "./QualityForms";
@@ -127,7 +126,9 @@ export function MappingForm({
         />
         {detail.keyQuestions.map((question) => (
           <fieldset key={question.id} className="m-0 flex flex-col gap-4 border-0 p-0">
-            <legend className="mb-2 text-heading-3 font-semibold">{question.title}</legend>
+            <legend className="mb-2">
+              <h4 className="m-0 text-heading-3 font-semibold">{question.title}</h4>
+            </legend>
             {question.statements.map((statement) => {
               const entry = current.get(statement.id);
               return (
@@ -135,29 +136,29 @@ export function MappingForm({
                   key={statement.id}
                   className="m-0 flex flex-col gap-3 rounded-card border border-border p-4"
                 >
-                  <legend className="px-1 font-semibold">{statement.title}</legend>
+                  <legend className="px-1">
+                    <h5 className="m-0 text-body font-semibold">{statement.title}</h5>
+                  </legend>
                   <TextField
                     id={ids[mappingField.title(statement.id)]}
                     name={mappingField.title(statement.id)}
-                    label={t("quality.mapping.localTitle")}
+                    label={t("quality.mapping.localTitle", { statement: statement.title })}
                     hint={t("quality.mapping.localTitleHint")}
                     defaultValue={entry?.localTitle ?? ""}
-                    maxLength={MAPPING_TITLE_MAX}
                     error={errorFor(result, mappingField.title(statement.id))}
                   />
                   <TextField
                     id={ids[mappingField.owner(statement.id)]}
                     name={mappingField.owner(statement.id)}
-                    label={t("quality.mapping.owner")}
+                    label={t("quality.mapping.owner", { statement: statement.title })}
                     hint={t("quality.mapping.ownerHint")}
                     defaultValue={entry?.ownerRole ?? ""}
-                    maxLength={MAPPING_OWNER_MAX}
                     className="max-w-sm"
                     error={errorFor(result, mappingField.owner(statement.id))}
                   />
                   <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
                     <legend className="mb-1 text-body-dense">
-                      {t("quality.mapping.categories")}
+                      {t("quality.mapping.categories", { statement: statement.title })}
                     </legend>
                     {detail.evidenceCategories.map((category) => (
                       <Checkbox
@@ -230,31 +231,37 @@ export function TagForm({
           title={t("quality.tag.formTitle")}
           intro={t("quality.tag.intro")}
         />
-        <div
-          id={ids.statement}
-          tabIndex={-1}
-          className="flex flex-col gap-4"
-          {...(error ? { "aria-describedby": `${ids.statement}-error` } : {})}
+        <fieldset
+          className="m-0 flex flex-col gap-4 border-0 p-0"
+          aria-describedby={[`${ids.statement}-hint`, error ? `${ids.statement}-error` : ""]
+            .filter(Boolean)
+            .join(" ")}
         >
+          <legend className="mb-1 font-semibold">{t("quality.tag.statements")}</legend>
+          <p id={`${ids.statement}-hint`} className="m-0 text-body-dense text-text-secondary">
+            {t("quality.tag.hint", { max: TAG_STATEMENTS_MAX })}
+          </p>
           {error ? (
-            <p id={`${ids.statement}-error`} className="m-0 font-semibold text-status-overdue-text">
+            <p id={`${ids.statement}-error`} className="hb-field__error">
               {error}
             </p>
           ) : null}
-          {detail.keyQuestions.map((question) => (
+          {detail.keyQuestions.map((question, qi) => (
             <fieldset key={question.id} className="m-0 flex flex-col gap-2 border-0 p-0">
               <legend className="mb-1 font-semibold">{question.title}</legend>
-              {question.statements.map((statement) => (
+              {question.statements.map((statement, si) => (
                 <Checkbox
                   key={statement.id}
+                  {...(qi === 0 && si === 0 ? { id: ids.statement } : {})}
                   name="statement"
                   value={statement.id}
                   label={statement.title}
+                  {...(error ? { "aria-invalid": true } : {})}
                 />
               ))}
             </fieldset>
           ))}
-        </div>
+        </fieldset>
         <div>
           <Button type="submit" variant="primary" disabled={pending}>
             {pending ? t("common.saving") : t("quality.tag.submit")}
@@ -268,14 +275,17 @@ export function TagForm({
 
 export function UntagForm({
   link,
+  what,
   path,
 }: {
   readonly link: EvidenceLinkItem;
+  /** What the tag is, so each removal form is named apart from the others on the page. */
+  readonly what: string;
   readonly path: string;
 }) {
   return (
     <QualityReasonForm
-      title={t("quality.tag.removeTitle")}
+      title={t("quality.tag.removeTitleFor", { what })}
       intro={t("quality.tag.removeIntro")}
       label={t("quality.tag.removeReason")}
       hint={t("quality.tag.removeHint")}
@@ -340,7 +350,6 @@ export function StarterForm({ starters }: { readonly starters: readonly AuditSta
           label={t("quality.templates.key")}
           hint={t("quality.templates.keyHint")}
           className="max-w-sm"
-          maxLength={64}
           error={errorFor(result, "key")}
         />
         <div>
@@ -415,6 +424,7 @@ export function ScheduleForm({
 }) {
   const ids = useFieldIds(["locationId", "frequencyMonths", "firstDueOn"]);
   const { result, pending, send, fail } = useQualitySend(path);
+  if (locations.length === 0) return <p className="m-0">{t("quality.schedule.allScheduled")}</p>;
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);

@@ -14,7 +14,7 @@ import { readOrFail } from "@/lib/person-record";
 import { qualityDone } from "@/lib/quality-done";
 import { evidenceManaged, frameworkShown, versionChip } from "@/lib/quality-programme";
 
-export const metadata: Metadata = { title: t("quality.framework.title") };
+export const metadata: Metadata = { title: t("quality.framework.versionPageTitle") };
 
 /**
  * One framework version (QUAL-001, QUAL-002): its key questions and statements with the source,
@@ -63,7 +63,7 @@ export default async function FrameworkVersionPage({
           ? {
               primaryAction: (
                 <Link
-                  href={`${path}/coverage`}
+                  href={`${path}/evidence-coverage`}
                   className={buttonClassName({ variant: "secondary" })}
                 >
                   {t("quality.coverage.open")}
@@ -78,7 +78,12 @@ export default async function FrameworkVersionPage({
       </div>
       <p className="m-0 max-w-prose">
         {t("quality.framework.source", { name: detail.source.name })}{" "}
-        <a href={detail.source.url} className="underline" rel="noreferrer" target="_blank">
+        <a
+          href={detail.source.url}
+          className="inline-flex min-h-target items-center underline"
+          rel="noreferrer"
+          target="_blank"
+        >
           {t("quality.framework.sourceLink")}
         </a>
       </p>

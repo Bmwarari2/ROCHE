@@ -18,11 +18,12 @@ import {
   auditStateChip,
   auditsShown,
   evidenceManaged,
+  methodText,
   scoreText,
   statementRows,
 } from "@/lib/quality-programme";
 
-export const metadata: Metadata = { title: t("quality.audits.title") };
+export const metadata: Metadata = { title: t("quality.audits.detailTitle") };
 
 /**
  * One audit or mock inspection (QUAL-004; rules 4 and 9 to 14): scored against the questions and
@@ -97,7 +98,7 @@ export default async function AuditPage({
       />
       {done ? <RecordedArrival message={t("quality.done", { done })} param="done" /> : null}
       <p className="m-0">
-        <Link href="/quality/audits" className="underline">
+        <Link href="/quality/audits" className="inline-flex min-h-target items-center underline">
           {t("quality.templates.back")}
         </Link>
       </p>
@@ -118,7 +119,7 @@ export default async function AuditPage({
           <p className="m-0 text-heading-3 font-semibold">{scoreText(audit.score.percent, t)}</p>
           {/* The method speaks of answered questions; before any, it would mislead. */}
           {audit.score.possible > 0 || audit.score.complete ? (
-            <p className="m-0 max-w-prose">{audit.score.method}</p>
+            <p className="m-0 max-w-prose">{methodText(audit.score, t)}</p>
           ) : null}
           {audit.score.unanswered.length > 0 ? (
             <p className="m-0">
@@ -127,10 +128,7 @@ export default async function AuditPage({
           ) : null}
           {audit.selfRating !== null ? (
             <p className="m-0 font-semibold">
-              {t("quality.audit.selfRating", {
-                value: audit.selfRating,
-                word: audit.selfRatingWords ?? "",
-              })}
+              {t("quality.audit.selfRating", { value: String(audit.selfRating) })}
             </p>
           ) : null}
           {audit.completedAt ? (

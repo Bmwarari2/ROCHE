@@ -60,18 +60,21 @@ test("the manager maps a quality statement and reads coverage with its gaps", as
   await bothThemes(page, "framework version and mapping");
 
   const statement = main(page).getByRole("group", { name: "Learning culture" });
-  await statement.getByLabel("Your title").fill(`Learning from incidents ${RUN}`);
-  await statement.getByLabel("Owner role").fill("Registered Manager");
+  await statement
+    .getByLabel("Your title for Learning culture")
+    .fill(`Learning from incidents ${RUN}`);
+  await statement.getByLabel("Owner role for Learning culture").fill("Registered Manager");
   await statement.getByRole("checkbox").first().check();
   await main(page).getByRole("button", { name: "Save mapping" }).click();
   await arrived(page, "Mapping saved as a new version.");
-  await expect(
-    main(page).getByRole("group", { name: "Learning culture" }).getByLabel("Your title"),
-  ).toHaveValue(`Learning from incidents ${RUN}`);
+  await expect(main(page).getByLabel("Your title for Learning culture")).toHaveValue(
+    `Learning from incidents ${RUN}`,
+  );
   await bothThemes(page, "mapping saved");
 
-  await main(page).getByRole("link", { name: "Evidence coverage" }).click();
-  await expect(main(page).getByRole("status")).toContainText(/have no evidence|Every statement/);
+  await main(page).getByRole("link", { name: "View evidence coverage" }).click();
+  await expect(page).toHaveTitle(/^Evidence coverage/);
+  await expect(main(page).getByText(/have no evidence|Every statement has evidence/)).toBeVisible();
   await expect(main(page).getByText("No evidence").first()).toBeVisible();
   await bothThemes(page, "evidence coverage");
 
@@ -128,7 +131,7 @@ test("the manager runs an audit from a starter to completion and tags it as evid
   for (let i = 0; i < count; i++) {
     await questions
       .nth(i)
-      .getByRole("radio", { name: i === 0 ? "No" : "Yes", exact: true })
+      .getByRole("radio", { name: i < 2 ? "No" : "Yes", exact: true })
       .check();
   }
   await main(page).getByRole("button", { name: "Save answers" }).click();
@@ -138,19 +141,28 @@ test("the manager runs an audit from a starter to completion and tags it as evid
   ).toBeVisible();
   await bothThemes(page, "answers saved");
 
-  // Completion: refused without the action and the rating, then completed.
+  // Completion: refused without the actions and the rating, each problem its own summary link
+  // naming its question and focusing its own field; then completed.
+  await expect(page).toHaveTitle(/^Audit\b/);
   await main(page).getByRole("button", { name: "Complete audit" }).click();
   await expect(main(page).getByText("Choose your self-rating").first()).toBeVisible();
+  const ownerLinks = main(page).getByRole("link", { name: /^Choose who owns the action for: / });
+  await expect(ownerLinks).toHaveCount(2);
+  await ownerLinks.nth(1).click();
+  await expect(main(page).getByLabel("Owner", { exact: true }).nth(1)).toBeFocused();
   await bothThemes(page, "completion refused");
-  await main(page)
-    .getByLabel("What will be done", { exact: true })
-    .fill("Retrain the team on MAR charts");
-  await main(page).getByLabel("Owner", { exact: true }).selectOption({ index: 1 });
+  for (let i = 0; i < 2; i++) {
+    await main(page)
+      .getByLabel("What will be done", { exact: true })
+      .nth(i)
+      .fill("Retrain the team on MAR charts");
+    await main(page).getByLabel("Owner", { exact: true }).nth(i).selectOption({ index: 1 });
+  }
   await main(page).getByRole("radio", { name: "Good (3)" }).check();
   await main(page).getByRole("button", { name: "Complete audit" }).click();
   await arrived(page, "Audit completed.");
   await expect(main(page).getByText("Self-rating: Good (3)")).toBeVisible();
-  await expect(main(page).getByText("Retrain the team on MAR charts")).toBeVisible();
+  await expect(main(page).getByText("Retrain the team on MAR charts")).toHaveCount(2);
   await expect(main(page).getByText(/weighted points/)).toBeVisible();
   await bothThemes(page, "audit completed");
 
@@ -158,6 +170,16 @@ test("the manager runs an audit from a starter to completion and tags it as evid
   await main(page).getByRole("link", { name: "Tag as evidence" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Tag as evidence" })).toBeVisible();
   await bothThemes(page, "tag an audit");
+  // Nothing chosen: the summary link takes focus to the first statement, announced as invalid.
+  await main(page).getByRole("button", { name: "Tag as evidence" }).click();
+  await main(page).getByRole("link", { name: "Choose at least one quality statement" }).click();
+  const first = main(page)
+    .getByRole("group", { name: "Quality statements" })
+    .getByRole("checkbox")
+    .first();
+  await expect(first).toBeFocused();
+  await expect(first).toHaveAttribute("aria-invalid", "true");
+  await bothThemes(page, "tag refused");
   await main(page).getByRole("checkbox", { name: "Medicines optimisation" }).check();
   await main(page).getByRole("button", { name: "Tag as evidence" }).click();
   await arrived(page, "Tagged as evidence.");

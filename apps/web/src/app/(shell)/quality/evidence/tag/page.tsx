@@ -67,7 +67,7 @@ export default async function TagEvidencePage({
       {done ? <RecordedArrival message={t("quality.done", { done })} param="done" /> : null}
       {href ? (
         <p className="m-0">
-          <Link href={href} className="underline">
+          <Link href={href} className="inline-flex min-h-target items-center underline">
             {t("quality.tag.backToRecord")}
           </Link>
         </p>
@@ -108,7 +108,11 @@ export default async function TagEvidencePage({
                     })}
                   </span>
                 ) : (
-                  <UntagForm link={link} path={path} />
+                  <UntagForm
+                    link={link}
+                    what={link.statementIds.map((s) => titles.get(s) ?? s).join("; ")}
+                    path={path}
+                  />
                 )}
               </li>
             ))}

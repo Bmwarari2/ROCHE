@@ -30,7 +30,7 @@ export default async function StartAuditPage() {
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 break-words">
       <PageHeader title={title} description={t("quality.start.description")} />
       <p className="m-0">
-        <Link href="/quality/audits" className="underline">
+        <Link href="/quality/audits" className="inline-flex min-h-target items-center underline">
           {t("quality.templates.back")}
         </Link>
       </p>
@@ -38,7 +38,10 @@ export default async function StartAuditPage() {
         {active.length === 0 ? (
           <p className="m-0">
             {t("quality.start.noTemplates")}{" "}
-            <Link href="/quality/audits/templates" className="underline">
+            <Link
+              href="/quality/audits/templates"
+              className="inline-flex min-h-target items-center underline"
+            >
               {t("quality.audits.templates")}
             </Link>
           </p>

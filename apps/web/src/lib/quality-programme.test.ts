@@ -12,6 +12,7 @@ import {
   frameworkShown,
   isTaggable,
   mappingField,
+  methodText,
   needsAction,
   readAnswers,
   readCompletion,
@@ -266,6 +267,13 @@ describe("the audit programme", () => {
         actionField.due("a"),
       ].sort(),
     );
+  });
+
+  it("says the score's method in words from its points, in every language", () => {
+    expect(methodText({ achieved: 31.5, possible: 40 }, t)).toBe(
+      "31.5 of 40 weighted points: yes counts in full, partly counts half, no counts nothing, and not applicable is left out.",
+    );
+    expect(methodText({ achieved: 0, possible: 0 }, t)).toMatch(/^No question could be scored/);
   });
 
   it("says a score with one decimal, and no score in words", () => {

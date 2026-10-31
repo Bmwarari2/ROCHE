@@ -63,7 +63,10 @@ export default async function StatementEvidencePage({
       />
       {done ? <RecordedArrival message={t("quality.done", { done })} param="done" /> : null}
       <p className="m-0">
-        <Link href={`/quality/framework/${id}/coverage`} className="underline">
+        <Link
+          href={`/quality/framework/${id}/evidence-coverage`}
+          className="inline-flex min-h-target items-center underline"
+        >
           {t("quality.statement.back")}
         </Link>
       </p>
@@ -78,7 +81,10 @@ export default async function StatementEvidencePage({
           <ul className="m-0 flex list-none flex-col gap-6 p-0">
             {links.items.map((link) => {
               const href = recordHref(link.recordType, link.recordId);
-              const label = t("quality.tag.recordType", { type: link.recordType });
+              const label = t("quality.statement.recordLink", {
+                label: t("quality.tag.recordTypeTitle", { type: link.recordType }),
+                when: formatDateTime(link.taggedAt) ?? "",
+              });
               return (
                 <li key={link.id} className="flex flex-col gap-2 border-b border-border pb-4">
                   <h3 className="m-0 text-body font-semibold">
@@ -114,7 +120,7 @@ export default async function StatementEvidencePage({
                       })}
                     </span>
                   ) : (
-                    <UntagForm link={link} path={path} />
+                    <UntagForm link={link} what={label} path={path} />
                   )}
                 </li>
               );

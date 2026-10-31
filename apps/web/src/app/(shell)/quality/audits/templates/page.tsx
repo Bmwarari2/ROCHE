@@ -41,7 +41,7 @@ export default async function TemplatesPage({
       <PageHeader title={title} description={t("quality.templates.description")} />
       {done ? <RecordedArrival message={t("quality.done", { done })} param="done" /> : null}
       <p className="m-0">
-        <Link href="/quality/audits" className="underline">
+        <Link href="/quality/audits" className="inline-flex min-h-target items-center underline">
           {t("quality.templates.back")}
         </Link>
       </p>
