@@ -55,9 +55,12 @@ async function expectTiles(page: Page, shown: readonly string[]) {
   for (const title of shown) {
     const card = tile(page, title);
     await expect(
-      card.getByText(/^(Nothing waiting|To do|Overdue|Urgent|Could not load|Choose a location)$/),
+      card.getByText(
+        /^(Nothing waiting|To do|Overdue|Urgent|Not known|Could not load|Choose a location)$/,
+      ),
     ).toBeVisible();
-    await expect(card.locator("svg").first()).toBeVisible();
+    // The state chip carries its own icon beside the word, never colour alone.
+    await expect(card.locator(".hb-status-chip svg").first()).toBeVisible();
     await expect(card.getByRole("link")).toHaveCount(1);
   }
 }
@@ -104,6 +107,19 @@ test("the Registered Manager sees every tile, and an incident recorded now is co
   await incidents.getByRole("link", { name: "View incidents" }).click();
   await page.waitForURL((url) => url.pathname === "/incidents");
   await expect(page.locator(`a[href="/incidents/${id}"]`).first()).toBeVisible();
+
+  // Reading the counts again stays on the page and keeps the tiles.
+  await page.goto("/");
+  await page.getByRole("button", { name: "Read the counts again" }).click();
+  await expect(page.getByText(/^Counts worked out at /)).toBeVisible();
+  await expect(tile(page, "Incidents open")).toHaveCount(1);
+
+  // The tile links are reached with the keyboard, in reading order, with a visible focus.
+  const links = page.locator("main article a");
+  await links.first().focus();
+  await expect(links.first()).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(links.nth(1)).toBeFocused();
 
   await page.goto("/");
   await tile(page, "Reviews due").getByRole("link", { name: "View reviews due" }).click();
@@ -154,7 +170,7 @@ test("the carer sees their own work, without the manager's oversight tiles", asy
   await expectAccessibleBothThemes(page, "carer dashboard");
 
   // On a phone the tiles stack and the page does not scroll sideways.
-  await page.setViewportSize({ width: 375, height: 800 });
+  await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/");
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { DashboardRefresh } from "@/components/insights/DashboardRefresh";
 import { SummaryTile } from "@/components/insights/SummaryTile";
 import { getShellContext } from "@/lib/api";
-import { DASHBOARD_REFRESH_MS, type TileId, type TileSummary } from "@/lib/dashboard";
+import type { TileId, TileSummary } from "@/lib/dashboard";
 import { loadDashboard } from "@/lib/dashboard-data";
 import { isFamilyMember } from "@/lib/family-feed";
 import { formatDateTime } from "@/lib/format";
@@ -18,14 +18,13 @@ export const metadata: Metadata = { title: t("shell.nav.home") };
 const TODAY: ReadonlySet<TileId> = new Set(["alerts", "tasks", "handover"]);
 
 function TileGrid({ tiles }: { readonly tiles: readonly TileSummary[] }) {
+  // Articles with their own headings in a grid: no list, as Safari drops its semantics anyway.
   return (
-    <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 sm:grid-cols-2 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
       {tiles.map((tile) => (
-        <li key={tile.id} className="flex flex-col [&>article]:flex-1">
-          <SummaryTile tile={tile} />
-        </li>
+        <SummaryTile key={tile.id} tile={tile} />
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -59,11 +58,10 @@ export default async function HomePage() {
         <time dateTime={readAt.toISOString()}>
           {t("dashboard.asOf", {
             dateTime: formatDateTime(readAt.toISOString()) ?? "",
-            minutes: DASHBOARD_REFRESH_MS / 60_000,
           })}
         </time>
       </p>
-      <DashboardRefresh readAt={readAt.getTime()} />
+      <DashboardRefresh readAt={readAt.getTime()} label={t("dashboard.readAgain")} />
       {today.length > 0 ? (
         <section aria-labelledby="dashboard-today" className="flex flex-col gap-4">
           <h2 id="dashboard-today" className="m-0 text-eyebrow">

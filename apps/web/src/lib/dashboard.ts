@@ -139,7 +139,7 @@ function combine<T>(loads: readonly Load<T>[]): Combined<T> {
 // Summaries
 // ------------------------------------------------------------------------------------------------
 
-export type TileState = "clear" | "todo" | "overdue" | "urgent" | "failed" | "choose";
+export type TileState = "clear" | "todo" | "overdue" | "urgent" | "notKnown" | "failed" | "choose";
 
 export interface TileSummary {
   readonly id: TileId;
@@ -161,7 +161,15 @@ function summary(
   href: string,
   counts: { count: number; apart: number; partial: boolean; late: "overdue" | "urgent" | null },
 ): TileSummary {
-  const state: TileState = counts.late !== null ? counts.late : counts.count > 0 ? "todo" : "clear";
+  // Nothing found in a partial read is never "nothing waiting": it may be in the part not read.
+  const state: TileState =
+    counts.late !== null
+      ? counts.late
+      : counts.count > 0
+        ? "todo"
+        : counts.partial
+          ? "notKnown"
+          : "clear";
   return { id, state, count: counts.count, apart: counts.apart, partial: counts.partial, href };
 }
 
@@ -390,6 +398,7 @@ const STATE_CHIPS: Record<TileState, Omit<SafetyChip, "label">> = {
   todo: { status: "due", icon: "clock" },
   overdue: { status: "overdue", icon: "circle-alert" },
   urgent: { status: "overdue", icon: "triangle-alert" },
+  notKnown: { status: "due", icon: "triangle-alert" },
   failed: { status: "due", icon: "triangle-alert" },
   choose: { status: "neutral", icon: "search" },
 };

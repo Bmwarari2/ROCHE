@@ -28,7 +28,11 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
    says so ("We could not load this. Open the list to check.") with a warning icon and word, and
    shows no count. When only part of it loaded (one location of several, or a list cut at the API's
    limit), the count is shown as "at least" with a second chip saying some could not be loaded.
-   A refusal for a missing permission hides the tile, as the list page would refuse it.
+   A refusal for a missing permission hides the tile, as the list page would refuse it; so does
+   "not found" for one location, since a permission's scope can leave out a location the person
+   works at (ADR-0071). A refusal that needs the person to sign in again, confirm their second
+   factor or step up sends them there, as the list pages do, instead of warning on every tile.
+   Failed reads are logged by path, status and problem code only.
 4. **Facts only.** Counts and states come straight from the API (task time state, review state,
    statutory notification clock, outage state, handover acknowledgement). No scoring, ranking,
    weighting or prediction; tiles are in a fixed order.
@@ -36,13 +40,16 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
    shown, tiles read per location for up to three locations; past that the per-location tiles ask
    the reader to choose a location instead of fanning out, and the organisation-wide tiles
    (alerts, incidents, statutory notifications, break-glass reports) still show.
-6. **Budget.** All reads run in parallel on the server, at most 16 API calls (one alerts read shared
-   with the shell, one incidents, two statutory notifications, one break-glass, and four per
-   location for up to three locations). No client-side fetching.
+6. **Budget.** All reads run in parallel on the server: at most 17 dashboard reads (one alerts read
+   shared with the shell's unread count, one incidents, two statutory notifications, one
+   break-glass, and four per location for up to three locations) plus the shell's two
+   (`/v1/memberships`, `/v1/me`). No client-side fetching.
 7. **Family members** keep their own home (`/updates`); they never see the staff dashboard.
-8. **Never stale without saying so.** The page says when its counts were worked out, and reads
-   them again every five minutes while it is in view, and as soon as it comes back into view after
-   longer than that.
+8. **Never stale without saying so.** The page says when its counts were worked out, reads them
+   again when the person comes back to the tab after more than five minutes, and offers "Read the
+   counts again". There is no background timer: a page left open must not keep the session alive
+   (HZ-111) nor write list views to the audit log nobody made, and nothing on it moves by itself
+   (WCAG 2.2.2).
 
 ## Tiles
 
@@ -51,12 +58,12 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
 | Alerts | always (staff) | `GET /v1/notifications` (latest 100) | warning and urgent alerts not yet acknowledged; urgent ones said apart | `/notifications` | No alerts waiting for you |
 | Tasks on the round | `care.plan.read` | `GET /v1/locations/{id}/round` | open tasks overdue or escalated, and due now | `/round/{id}` or `/round` | No tasks due or overdue on this shift |
 | DoLS authorisations ending | `care.dols.manage` and `care.plan.read` | the same round views: open `care.dols_expiry` reminders (care.md rule 11) | reminders open, overdue ones said apart | `/round/{id}` or `/round` | No DoLS reminders open |
-| Handover | `care.handover.manage` | `GET /v1/locations/{id}/handovers` | handovers of the last week the incoming shift has not acknowledged; whether the shift running now has one | `/handover/{id}` or `/handover` | Every handover acknowledged |
+| Handover | `care.handover.manage` | `GET /v1/locations/{id}/handovers` | handovers of the last week the incoming shift has not acknowledged; whether the shift running now has one | `/handover/{id}` or `/handover` | Every handover this week acknowledged |
 | Reviews due | `care.plan.read` | `GET /v1/locations/{id}/reviews` | reviews due and overdue | `/people/reviews` | No reviews due or overdue |
 | Incidents open | `safety.incident.read` | `GET /v1/incidents` (latest 500) | open and under review | `/incidents` | No incidents open |
 | Statutory notifications | `safety.incident.manage` | `GET /v1/notifications/statutory` (draft, ready) | still to submit; overdue clocks said apart | `/notifications/statutory` | No notifications to submit |
 | Outages | `operations.downtime.read` or `.manage`, and `people.person.read` | `GET /v1/locations/{id}/outages` | outages under way, and closed ones still to reconcile | `/downtime/{id}` or `/downtime` | No outages under way or to reconcile |
-| Break-glass reports | `platform.audit.read` | `GET /v1/break-glass/weekly-report` (last full week) | reports not yet reviewed | `/break-glass/weekly-report` | Every report for the week reviewed |
+| Break-glass reports | `platform.audit.read` | `GET /v1/break-glass/weekly-report` (last full week) | reports not yet reviewed | `/break-glass/weekly-report` | Every report for last week reviewed |
 | People | `people.person.read` | none | none | `/people` | (always a link) |
 
 ## States
@@ -67,6 +74,7 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
 | To do | clock, "To do" | something waits, none of it late |
 | Overdue | circle with alert, "Overdue" | a task, review, reminder or notification clock is past due, or a handover was not acknowledged |
 | Urgent | triangle with alert, "Urgent" | an urgent alert is unacknowledged, or an outage is under way |
+| Not known | triangle with alert, "Not known" | nothing found, but part of it could not be read (never a green tick) |
 | Could not load | triangle with alert, "Could not load" | every source of the tile failed |
 | Some not loaded | triangle with alert, "Some not loaded" | some sources failed, or a list reached the API's limit (beside the main state) |
 | Choose a location | magnifier, "Choose a location" | more than three locations and none chosen |
@@ -105,3 +113,10 @@ to managers) in [the hazard log](../clinical-safety/hazard-log.md).
 No new data, storage or processing: every read is an existing endpoint, audited there. The page
 shows counts and the names of locations only, never a person's name or care text. No retention
 class applies.
+
+Each view of the home page therefore records up to 17 list views (round, reviews, handovers and so
+on) in the audit log, as if the person had opened each list. That is accurate (the counts are read
+from those records) but noisy for access reviews and DSAR access reports. Decision for Phase 1:
+accept it, and read only on a page view or the person's return, never on a timer. Follow-up: a
+count-only `GET /v1/insights/dashboard` summary, audited once as `insights.dashboard.view`, when
+the dashboard grows or the audit volume is a problem (logged as an open item in the changelog).

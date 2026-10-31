@@ -789,6 +789,7 @@
     "dashboard.failed",
     "dashboard.oversight",
     "dashboard.partial",
+    "dashboard.readAgain",
     "dashboard.state",
     "dashboard.tile.alerts.apart",
     "dashboard.tile.alerts.count",

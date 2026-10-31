@@ -1,29 +1,44 @@
 "use client";
 
+import { Button } from "@harbour/ui";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { DASHBOARD_REFRESH_MS } from "@/lib/dashboard";
 
 /**
- * Reads the dashboard again every few minutes while it is in view, and as soon as it comes back
- * into view after longer than that, so counts on a page left open never read as current when they
- * are not (docs/specs/insights.md rule 8). The page says when they were worked out.
+ * Keeps the counts honest without a timer (docs/specs/insights.md rule 8): the page says when they
+ * were worked out, reads them again when the person comes back to the tab after longer than a few
+ * minutes, and offers a button to read them now. No background timer, so a page left open neither
+ * keeps the session alive nor fills the audit log (security review F2, F3), and nothing moves
+ * on its own (WCAG 2.2.2). The update is silent, never announced.
  */
-export function DashboardRefresh({ readAt }: { readonly readAt: number }) {
+export function DashboardRefresh({
+  readAt,
+  label,
+}: {
+  readonly readAt: number;
+  readonly label: string;
+}) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
   useEffect(() => {
-    const stale = () => Date.now() - readAt >= DASHBOARD_REFRESH_MS;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible" && stale()) router.refresh();
-    }, DASHBOARD_REFRESH_MS);
     const onShow = () => {
-      if (document.visibilityState === "visible" && stale()) router.refresh();
+      if (document.visibilityState === "visible" && Date.now() - readAt >= DASHBOARD_REFRESH_MS) {
+        router.refresh();
+      }
     };
     document.addEventListener("visibilitychange", onShow);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onShow);
-    };
+    return () => document.removeEventListener("visibilitychange", onShow);
   }, [readAt, router]);
-  return null;
+  return (
+    <div>
+      <Button
+        variant="secondary"
+        disabled={pending}
+        onClick={() => startTransition(() => router.refresh())}
+      >
+        {label}
+      </Button>
+    </div>
+  );
 }

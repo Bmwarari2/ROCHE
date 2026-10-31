@@ -140,7 +140,7 @@ describe("alerts (HZ-008)", () => {
 
   it("says urgent apart", () => {
     const tile = alertsTile(ok({ items: [alert("urgent"), alert("warning")] })) as TileSummary;
-    expect(apartLine(tile, t)).toBe("1 of them urgent");
+    expect(apartLine(tile, t)).toBe("1 is urgent.");
   });
 
   it("says at least when the latest page of alerts is full", () => {
@@ -197,7 +197,7 @@ describe("tasks on the round (HZ-003)", () => {
     ) as TileSummary;
     expect(tile).toMatchObject({ count: 2, apart: 1, state: "overdue" });
     expect(countLine(tile, t)).toBe("2 tasks due or overdue");
-    expect(apartLine(tile, t)).toBe("1 of them overdue");
+    expect(apartLine(tile, t)).toBe("1 is overdue.");
   });
 
   it("says at least when the round could not list every open task", () => {
@@ -213,13 +213,19 @@ describe("tasks on the round (HZ-003)", () => {
   it("never says none when part of it failed", () => {
     const tile = tasksTile([ok(roundOf([]) as never), FAILED], "/round") as TileSummary;
     expect(tile.partial).toBe(true);
-    expect(countLine(tile, t)).toBe("None found in what we could load");
+    expect(countLine(tile, t)).toBe("None in the part that loaded");
+    // Never a green "Nothing waiting" beside it: what is missing may be waiting.
+    expect(tile.state).toBe("notKnown");
+    expect(tileChips(tile, t)).toEqual([
+      { status: "due", icon: "triangle-alert", label: "Not known" },
+      { status: "due", icon: "triangle-alert", label: "Some not loaded" },
+    ]);
   });
 
   it("warns, with no count, when nothing loaded", () => {
     const tile = tasksTile([FAILED, FAILED], "/round") as TileSummary;
     expect(tile).toMatchObject({ state: "failed", count: null });
-    expect(countLine(tile, t)).toBe("We could not load this. Open the list to check it.");
+    expect(countLine(tile, t)).toBe("Harbour could not load this. Open the list to check it.");
     expect(tileChips(tile, t)).toEqual([
       { status: "due", icon: "triangle-alert", label: "Could not load" },
     ]);
@@ -342,7 +348,7 @@ describe("incidents open", () => {
     const items = Array.from({ length: INCIDENT_LIST_LIMIT }, () => incident("closed"));
     const tile = incidentsTile(ok({ items })) as TileSummary;
     expect(tile.partial).toBe(true);
-    expect(countLine(tile, t)).toBe("None found in what we could load");
+    expect(countLine(tile, t)).toBe("None in the part that loaded");
   });
 
   it("warns when it could not be read, and hides when refused", () => {
@@ -378,7 +384,7 @@ describe("statutory notifications (HZ-013)", () => {
       ok({ items: [] }),
     ]) as TileSummary;
     expect(countLine(tile, t)).toBe("1 notification to submit");
-    expect(apartLine(tile, t)).toBe("1 of them overdue");
+    expect(apartLine(tile, t)).toBe("1 is overdue.");
   });
 });
 
@@ -404,7 +410,7 @@ describe("outages (operations.md)", () => {
     expect(tileChips(tile, t)).toEqual([
       { status: "overdue", icon: "triangle-alert", label: "Urgent" },
     ]);
-    expect(apartLine(tile, t)).toBe("1 of them under way");
+    expect(apartLine(tile, t)).toBe("1 is under way.");
   });
 });
 

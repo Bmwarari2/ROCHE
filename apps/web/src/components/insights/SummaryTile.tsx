@@ -56,9 +56,11 @@ export function SummaryTile({ tile }: { readonly tile: TileSummary }) {
           <SafetyChip key={chip.label} chip={chip} />
         ))}
       </div>
-      {details.length > 0 ? (
-        <p className="m-0 text-body-dense text-text-secondary">{details.join(" ")}</p>
-      ) : null}
+      {details.map((line) => (
+        <p key={line} className="m-0 text-body-dense text-text-secondary">
+          {line}
+        </p>
+      ))}
     </Tile>
   );
 }
