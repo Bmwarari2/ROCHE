@@ -45,6 +45,9 @@ Branch `feat/meds-record-schema`, from `main` with #135 (the slice 2 rules). MED
     production refuses it.
   - Each MAR dose carries its entry's status in words.
   - Only retention (a non-app role) may mark a completed reconciliation deleted, once.
+  - Weekly schedules: the contract took weekdays as full names ("monday"), which the schedule
+    rules never match, so a weekly medicine produced no doses. It now takes the domain's codes
+    ("mon"), and the casts that hid the mismatch are gone (found in slice 22).
   - Re-review: sources and lines take the person lock; documents are re-checked at completion;
     a moved replacement must name a live version replacing that row; the return task is
     evidence-only on the tasks route; refusal audits carry the person's id; history reads take
