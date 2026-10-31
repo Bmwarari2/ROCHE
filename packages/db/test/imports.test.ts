@@ -28,6 +28,9 @@ const A = {
   /** Holds platform.import.run but may not create people (#150 security review L1). */
   runOnly: "0193a000-0000-7000-8000-000000000304",
   roleRunOnly: "0193a000-0000-7000-8000-000000000604",
+  /** May import and create people but not read them: a dry run names records (round 2). */
+  createNoRead: "0193a000-0000-7000-8000-000000000305",
+  roleCreateNoRead: "0193a000-0000-7000-8000-000000000605",
 };
 const B = { roleImporter: "0193b000-0000-7000-8000-000000000601" };
 const IMPORT = "{platform.import.run,people.person.create,people.person.read}";
@@ -126,21 +129,31 @@ beforeAll(async () => {
   );
   await ownerDb(async (c) => {
     await c.query(
-      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
-       VALUES ($1, 'auth-a-run-only', 'Ray Runner', 'ray.runner@example.invalid', 'active')`,
-      [A.runOnly],
+      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status) VALUES
+         ($1, 'auth-a-run-only', 'Ray Runner', 'ray.runner@example.invalid', 'active'),
+         ($2, 'auth-a-blind', 'Bea Blind', 'bea.blind@example.invalid', 'active')`,
+      [A.runOnly, A.createNoRead],
     );
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
          ($1, 'importer', 'Importer', 'tenant', $4),
          ($2, 'north_importer', 'North importer', 'location', $4),
          ($3, 'reader', 'Reader', 'tenant', '{people.person.read,people.person.create}'),
-         ($5, 'run_only', 'Run only', 'tenant', '{platform.import.run,people.person.read}')`,
-      [A.roleImporter, A.roleNorthImporter, A.roleReader, IMPORT, A.roleRunOnly],
+         ($5, 'run_only', 'Run only', 'tenant', '{platform.import.run,people.person.read}'),
+         ($6, 'create_no_read', 'Create, no read', 'tenant',
+          '{platform.import.run,people.person.create}')`,
+      [
+        A.roleImporter,
+        A.roleNorthImporter,
+        A.roleReader,
+        IMPORT,
+        A.roleRunOnly,
+        A.roleCreateNoRead,
+      ],
     );
     await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
-         ($1, $2, NULL), ($3, $4, $5), ($6, $7, NULL), ($8, $9, NULL)`,
+         ($1, $2, NULL), ($3, $4, $5), ($6, $7, NULL), ($8, $9, NULL), ($10, $11, NULL)`,
       [
         A.importer,
         A.roleImporter,
@@ -151,6 +164,8 @@ beforeAll(async () => {
         A.roleReader,
         A.runOnly,
         A.roleRunOnly,
+        A.createNoRead,
+        A.roleCreateNoRead,
       ],
     );
   });
@@ -210,6 +225,8 @@ describe("hazard HZ-130 hazard HZ-011 the import tables (migration 0088)", () =>
       [A.noImport, "tenant", []],
       // The import permission without the right to create people reaches no batch (#150 L1).
       [A.runOnly, "tenant", []],
+      // Nor without the right to read people: a dry run names the records a row matches.
+      [A.createNoRead, "tenant", []],
     ] as const) {
       const as = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
         inContext(app(), ctx(TENANT_A, who, scope, locations), fn);
@@ -592,6 +609,31 @@ describe("hazard HZ-130 undoing an import in the database (app.undo_import_batch
     await expect(
       inContext(app(), ctx(TENANT_A, A.noImport, "tenant"), insert(staged)),
     ).rejects.toThrow(/import_batch_not_committing/);
+  });
+
+  it("hazard HZ-007 takes the commit's open allergy status checks with the people, and stops at one acted on", async () => {
+    const raise = (batch: string, personId: string, status: string) => (c: pg.PoolClient) =>
+      c.query(
+        `INSERT INTO task (kind, title, required_permission, person_id, location_id, source_type,
+                           source_id, assignee_role_key, due_at, priority, status, details)
+         VALUES ('people.allergy_status_check', 'Check the allergy status', 'people.person.update',
+                 $2, $3, 'import_batch', $1, 'registered_manager', now(), 'urgent', $4,
+                 '{"importedAllergyStatus": "has_allergies"}')`,
+        [batch, personId, ids.a.locationNorth, status],
+      );
+    const open = await committedBatch(1);
+    await ownerDb(raise(open.batch, open.created[0] ?? "", "open"));
+    const { rows } = await asImporter(undo(open.batch));
+    expect(rows).toEqual([{ removed: 1 }]);
+    const left = await ownerDb(
+      async (c) =>
+        (await c.query("SELECT id FROM task WHERE source_id = $1", [open.batch])).rows.length,
+    );
+    expect(left).toBe(0);
+    const started = await committedBatch(1);
+    await ownerDb(raise(started.batch, started.created[0] ?? "", "in_progress"));
+    await expect(asImporter(undo(started.batch))).rejects.toThrow(/referenced_since/);
+    expect(await peopleLeft(started.created)).toBe(1);
   });
 
   it("hazard HZ-130 never commits a batch past its expiry", async () => {

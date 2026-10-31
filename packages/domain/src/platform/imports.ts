@@ -142,7 +142,9 @@ export type ImportErrorCode =
   | "identifier_required"
   | "test_nhs_number"
   | "duplicate"
-  | "already_in_harbour";
+  | "already_in_harbour"
+  | "too_many_same_birth_date"
+  | "too_many_possible_duplicates";
 
 export interface ImportError {
   /** The 1-based data row; 0 for a problem with the file itself (a column). */
@@ -194,6 +196,10 @@ function message(code: ImportErrorCode, label: string): string {
       return `${label} appears on more than one row.`;
     case "already_in_harbour":
       return `${label} is already on someone's record in Harbour. Remove the row and make any change on that record.`;
+    case "too_many_same_birth_date":
+      return `More than ${label} rows share one date of birth. Check the date of birth column is the right one and holds each person's own date, then upload the file again.`;
+    case "too_many_possible_duplicates":
+      return `More than ${label} rows may be people already in Harbour or each other. The file may repeat people, or a name column may be mapped wrongly: check it and upload it again, a home at a time.`;
   }
 }
 
@@ -714,8 +720,25 @@ export interface ImportWarning {
 
 export interface PeopleMatches {
   readonly errors: readonly ImportError[];
+  /** At most `IMPORT_WARNING_LIMITS.total`; past it the file is refused instead. */
   readonly warnings: readonly ImportWarning[];
+  /** True when a row matched more existing records than are named (`recordsPerRow`). */
+  readonly recordMatchesCapped: boolean;
 }
+
+/**
+ * How many possible duplicates are worked out and shown (#150 security review round 2). Product
+ * limits that keep a dry run and a commit bounded, not statutory figures. Each row names at most
+ * one other row (the earliest it matches: rows that may be one person form a cluster around their
+ * first row) and at most `recordsPerRow` existing records; a file with more than `total` warnings,
+ * or more than `sameBirthDate` rows sharing one date of birth (a sign the date column is mapped
+ * wrongly or filled with a placeholder), is refused rather than checked pair by pair.
+ */
+export const IMPORT_WARNING_LIMITS = {
+  total: IMPORT_REPORT_MAX_ITEMS,
+  recordsPerRow: 3,
+  sameBirthDate: 50,
+} as const;
 
 const MATCH_WORDS: Readonly<Record<NameMatch, string>> = {
   same_name: "the same name and date of birth",
@@ -751,13 +774,7 @@ function comparableName(given: string, family: string): Comparable {
 const givenAgrees = (a: Comparable, b: Comparable) =>
   (a.given !== "" && a.given === b.given) || (a.firstGiven !== "" && a.firstGiven === b.firstGiven);
 
-/** How two names with the same date of birth agree, or null when they do not. */
-export function nameMatch(
-  a: { readonly given: string; readonly family: string },
-  b: { readonly given: string; readonly family: string },
-): NameMatch | null {
-  const x = comparableName(a.given, a.family);
-  const y = comparableName(b.given, b.family);
+function matchComparable(x: Comparable, y: Comparable): NameMatch | null {
   const sameFamily = x.family !== "" && x.family === y.family;
   if (sameFamily && givenAgrees(x, y)) return "same_name";
   const swapped =
@@ -770,18 +787,32 @@ export function nameMatch(
   return null;
 }
 
+/** How two names with the same date of birth agree, or null when they do not. */
+export function nameMatch(
+  a: { readonly given: string; readonly family: string },
+  b: { readonly given: string; readonly family: string },
+): NameMatch | null {
+  return matchComparable(comparableName(a.given, a.family), comparableName(b.given, b.family));
+}
+
 /**
  * Matches validated rows against the people already in the organisation (the caller passes only
  * the people the importer can see, which rule 18 makes everyone in the organisation, and never
  * another organisation's). A row whose NHS number or local identifier is already on a record is an
- * error: an import never updates, merges or attaches to an existing person. A row with the same
- * date of birth as an existing person or another row, and a name that agrees (the same, swapped,
- * the same family name, or the same given name), where either has no NHS number, is a warning that
- * names the other row or record; two different NHS numbers are two people.
+ * error naming the record: an import never updates, merges or attaches to an existing person. A
+ * row with the same date of birth as an existing person or an earlier row, and a name that agrees
+ * (the same, swapped, the same family name, or the same given name), where either has no NHS
+ * number, is a warning naming that record or row; two different NHS numbers are two people. The
+ * work and the warnings are bounded (`IMPORT_WARNING_LIMITS`): a file past them is refused.
  */
 export function matchExistingPeople(
   validation: ImportValidation,
   existing: readonly ExistingPerson[],
+  limits: {
+    readonly total: number;
+    readonly recordsPerRow: number;
+    readonly sameBirthDate: number;
+  } = IMPORT_WARNING_LIMITS,
 ): PeopleMatches {
   const byNhs = new Map(
     existing.flatMap((p) => (p.nhsNumber ? [[p.nhsNumber, p.id] as const] : [])),
@@ -789,14 +820,40 @@ export function matchExistingPeople(
   const byLocal = new Map(
     existing.flatMap((p) => (p.localIdentifier ? [[p.localIdentifier, p.id] as const] : [])),
   );
-  const existingByBirth = new Map<string, ExistingPerson[]>();
+  type Known = { readonly id: string; readonly nhs: string | null; readonly name: Comparable };
+  const existingByBirth = new Map<string, Known[]>();
   for (const p of existing) {
-    if (p.dateOfBirth)
-      existingByBirth.set(p.dateOfBirth, [...(existingByBirth.get(p.dateOfBirth) ?? []), p]);
+    if (!p.dateOfBirth) continue;
+    const list = existingByBirth.get(p.dateOfBirth) ?? [];
+    list.push({ id: p.id, nhs: p.nhsNumber, name: comparableName(p.givenName, p.familyName) });
+    existingByBirth.set(p.dateOfBirth, list);
   }
+  const rowsPerBirth = new Map<string, number>();
+  for (const stored of validation.rows) {
+    if (stored.date_of_birth) {
+      rowsPerBirth.set(stored.date_of_birth, (rowsPerBirth.get(stored.date_of_birth) ?? 0) + 1);
+    }
+  }
+  const crowded = new Set(
+    [...rowsPerBirth].filter(([, n]) => n > limits.sameBirthDate).map(([birth]) => birth),
+  );
   const errors: ImportError[] = [];
+  if (crowded.size > 0) {
+    errors.push({
+      row: 0,
+      column: "date_of_birth",
+      code: "too_many_same_birth_date",
+      message: message("too_many_same_birth_date", String(limits.sameBirthDate)),
+    });
+  }
   const warnings: ImportWarning[] = [];
+  let tooMany = false;
+  let recordMatchesCapped = false;
   const warn = (row: number, match: NameMatch, other: { row: number } | { personId: string }) => {
+    if (warnings.length >= limits.total) {
+      tooMany = true;
+      return;
+    }
     const otherRow = "row" in other ? other.row : null;
     const personId = "personId" in other ? other.personId : null;
     warnings.push({
@@ -813,10 +870,7 @@ export function matchExistingPeople(
           : `Someone already in Harbour has ${MATCH_WORDS[match]}, and one of them has no NHS number. Open that record and check it is not the same person.`,
     });
   };
-  const rowsByBirth = new Map<
-    string,
-    { row: number; stored: Readonly<Record<string, string>> }[]
-  >();
+  const rowsByBirth = new Map<string, { row: number; nhs: string | null; name: Comparable }[]>();
   validation.rows.forEach((stored, index) => {
     const row = index + 1;
     const nhsHolder = stored.nhs_number ? byNhs.get(stored.nhs_number) : undefined;
@@ -840,31 +894,47 @@ export function matchExistingPeople(
       });
     }
     const birth = stored.date_of_birth;
-    if (!birth || !stored.given_name || !stored.family_name) return;
-    const name = { given: stored.given_name, family: stored.family_name };
+    if (tooMany || !birth || crowded.has(birth) || !stored.given_name || !stored.family_name) {
+      return;
+    }
+    const name = comparableName(stored.given_name, stored.family_name);
     const mine = stored.nhs_number ?? null;
+    let named = 0;
     for (const p of existingByBirth.get(birth) ?? []) {
       // Two NHS numbers: the same is an error above; different ones are two people.
-      if (mine !== null && p.nhsNumber !== null) continue;
-      const match = nameMatch(name, { given: p.givenName, family: p.familyName });
-      if (match) warn(row, match, { personId: p.id });
+      if (mine !== null && p.nhs !== null) continue;
+      const match = matchComparable(name, p.name);
+      if (!match) continue;
+      if (named >= limits.recordsPerRow) {
+        recordMatchesCapped = true;
+        break;
+      }
+      warn(row, match, { personId: p.id });
+      named += 1;
     }
-    for (const earlier of rowsByBirth.get(birth) ?? []) {
-      const theirs = earlier.stored.nhs_number ?? null;
-      if (mine !== null && theirs !== null) continue;
-      const match = nameMatch(name, {
-        given: earlier.stored.given_name ?? "",
-        family: earlier.stored.family_name ?? "",
-      });
+    // The earliest row this one may be: rows that may be one person cluster around their first.
+    const earlierRows = rowsByBirth.get(birth) ?? [];
+    for (const earlier of earlierRows) {
+      if (mine !== null && earlier.nhs !== null) continue;
+      const match = matchComparable(name, earlier.name);
       if (!match) continue;
       warn(row, match, { row: earlier.row });
-      warn(earlier.row, match, { row });
+      break;
     }
-    rowsByBirth.set(birth, [...(rowsByBirth.get(birth) ?? []), { row, stored }]);
+    earlierRows.push({ row, nhs: mine, name });
+    rowsByBirth.set(birth, earlierRows);
   });
+  if (tooMany) {
+    errors.push({
+      row: 0,
+      column: "date_of_birth",
+      code: "too_many_possible_duplicates",
+      message: message("too_many_possible_duplicates", String(limits.total)),
+    });
+  }
   errors.sort(byRowThenColumn);
   warnings.sort((a, b) => a.row - b.row || a.key.localeCompare(b.key));
-  return { errors, warnings };
+  return { errors, warnings, recordMatchesCapped };
 }
 
 export interface DryRunReport {
@@ -918,13 +988,18 @@ export interface PeopleDryRun extends DryRunReport {
    * stays false until the commit lists every warning's key (#150 clinical M3).
    */
   readonly needsAcknowledgement: boolean;
-  /** The first `IMPORT_REPORT_MAX_ITEMS` errors and warnings, by row. */
+  /** The first `IMPORT_REPORT_MAX_ITEMS` errors, and every warning (never more than the limit). */
   readonly errors: readonly ImportError[];
   readonly warnings: readonly ImportWarning[];
-  /** Every warning's key: what the commit's acknowledgement must list, exactly. */
+  /**
+   * The keys of exactly the warnings listed: what the commit's acknowledgement must list. Warnings
+   * are never cut off (a file with more is refused), so nobody acknowledges one they never saw.
+   */
   readonly warningKeys: readonly string[];
-  /** True when more errors or warnings were found than are listed. */
+  /** True when more errors were found than are listed (the counts by code cover them all). */
   readonly truncated: boolean;
+  /** True when a row matched more existing records than its warnings name. */
+  readonly recordMatchesCapped: boolean;
   /**
    * HZ-007: every person's allergy status is imported as unknown ("not recorded") whatever the
    * file says, until a member of staff checks it on the record. These say what the file stated,
@@ -933,6 +1008,11 @@ export interface PeopleDryRun extends DryRunReport {
   readonly allergyStatusNotStatedRows: readonly number[];
   readonly noKnownAllergiesStatedRows: readonly number[];
   readonly hasAllergiesStatedRows: readonly number[];
+  /**
+   * Phones are in use in the organisation (a sync token carrying people within the offline
+   * window), so a commit cannot be undone and must be accepted as such (#150 clinical M-B).
+   */
+  readonly phonesInUse: boolean;
   /** What committing does, in plain words (#150 clinical M3). */
   readonly whatHappens: readonly string[];
 }
@@ -944,6 +1024,8 @@ export function importOutcomeWords(report: {
   readonly warningCount: number;
   readonly noKnownAllergiesStatedRows: readonly number[];
   readonly hasAllergiesStatedRows: readonly number[];
+  readonly phonesInUse: boolean;
+  readonly recordMatchesCapped?: boolean;
 }): string[] {
   const people = (n: number) => (n === 1 ? "1 person" : `${n} people`);
   const words: string[] = [];
@@ -954,14 +1036,22 @@ export function importOutcomeWords(report: {
   }
   words.push(
     `Committing creates ${people(report.validRows)} at the chosen home as current residents. Nobody already in Harbour is changed.`,
-    "They appear for staff at once: on the web straight away, and on phones at their next sync. Once a phone may have received them, the import can no longer be undone.",
-    `Every person's allergy status is imported as not recorded, whatever the file says, until a member of staff checks it and records it on the person's record. The file said no known allergies for ${people(report.noKnownAllergiesStatedRows.length)} and that ${people(report.hasAllergiesStatedRows.length)} ${report.hasAllergiesStatedRows.length === 1 ? "has" : "have"} allergies: check those first.`,
+    "They appear for staff at once: on the web straight away, and on phones at their next sync.",
+    report.phonesInUse
+      ? "Phones are in use in this organisation, so treat this import as one that cannot be undone once it is committed: phones can receive the people within minutes, and then it cannot be undone. A person imported by mistake can then only have their details corrected on their record: they cannot be removed. Confirm you accept this before committing."
+      : "It can be undone until a phone may have received the people, and within the undo window; after that a person imported by mistake can only have their details corrected on their record.",
+    `Every person's allergy status is imported as not recorded, whatever the file says, until a member of staff checks it and records it on the person's record. The file said no known allergies for ${people(report.noKnownAllergiesStatedRows.length)} and that ${people(report.hasAllergiesStatedRows.length)} ${report.hasAllergiesStatedRows.length === 1 ? "has" : "have"} allergies: each gets a task to check it.`,
     "Allergies themselves are not imported. Record each allergy on the person's record.",
     "Imported people have no photo, room or placement. Add them before staff rely on the record at the point of care.",
   );
   if (report.warningCount > 0) {
     words.push(
       `Check each possible duplicate (${report.warningCount}) and confirm you have checked them before committing.`,
+    );
+  }
+  if (report.recordMatchesCapped) {
+    words.push(
+      "Some rows match more people already in Harbour than are listed: check everyone with that date of birth.",
     );
   }
   return words;
@@ -976,6 +1066,8 @@ export interface PeopleImportOptions {
    * environments only, never for a real organisation's records (#150 clinical L).
    */
   readonly allowTestNhsNumbers: boolean;
+  /** Phones are in use in the organisation (see `PeopleDryRun.phonesInUse`); false if omitted. */
+  readonly phonesInUse?: boolean;
 }
 
 /** Validation and matching together: what the dry run reports and the commit checks again. */
@@ -993,12 +1085,15 @@ export function peopleDryRun(
   const stated = (status: string) =>
     validation.rows.flatMap((r, i) => ((r.allergy_status ?? "unknown") === status ? [i + 1] : []));
   const base = dryRunReport(validation);
+  const phonesInUse = options.phonesInUse ?? false;
   const counts = {
     validRows: base.validRows,
     errorCount: base.errorCount,
     warningCount: matches.warnings.length,
     noKnownAllergiesStatedRows: stated("no_known_allergies"),
     hasAllergiesStatedRows: stated("has_allergies"),
+    phonesInUse,
+    recordMatchesCapped: matches.recordMatchesCapped,
   };
   return {
     validation,
@@ -1008,14 +1103,14 @@ export function peopleDryRun(
       needsAcknowledgement: base.mayCommit && matches.warnings.length > 0,
       warningCount: matches.warnings.length,
       errors: validation.errors.slice(0, IMPORT_REPORT_MAX_ITEMS),
-      warnings: matches.warnings.slice(0, IMPORT_REPORT_MAX_ITEMS),
+      warnings: matches.warnings,
       warningKeys: matches.warnings.map((w) => w.key),
-      truncated:
-        validation.errors.length > IMPORT_REPORT_MAX_ITEMS ||
-        matches.warnings.length > IMPORT_REPORT_MAX_ITEMS,
+      truncated: validation.errors.length > IMPORT_REPORT_MAX_ITEMS,
+      recordMatchesCapped: matches.recordMatchesCapped,
       allergyStatusNotStatedRows: stated("unknown"),
       noKnownAllergiesStatedRows: counts.noKnownAllergiesStatedRows,
       hasAllergiesStatedRows: counts.hasAllergiesStatedRows,
+      phonesInUse,
       whatHappens: importOutcomeWords(counts),
     },
   };
@@ -1027,7 +1122,8 @@ export type CommitProblem =
   | "dry_run_first"
   | "empty"
   | "has_errors"
-  | "possible_duplicates_unacknowledged";
+  | "possible_duplicates_unacknowledged"
+  | "no_undo_not_accepted";
 
 const COMMIT_MESSAGES: Readonly<Record<CommitProblem, string>> = {
   not_staged: "This import can no longer be committed: it was committed, discarded or expired.",
@@ -1039,13 +1135,16 @@ const COMMIT_MESSAGES: Readonly<Record<CommitProblem, string>> = {
     "Correct every error in the file first: nothing is imported until all rows are valid.",
   possible_duplicates_unacknowledged:
     "Some rows may be people already in Harbour or each other. Check each one the dry run lists, then confirm exactly those before committing. Run the dry run again if anything has changed.",
+  no_undo_not_accepted:
+    "Phones are in use in this organisation, so this import cannot be undone once committed. Confirm you accept that before committing.",
 };
 
 /**
  * Whether a batch may commit now (rules 13, 21 and 23): staged and not past its expiry, with a dry
- * run behind it, every row valid when checked again, and the acknowledgement listing exactly the
- * possible duplicates found now: one more, one fewer or a different one is refused, so nobody
- * confirms warnings they never saw (#150 clinical M2, security L3).
+ * run behind it, every row valid when checked again, the acknowledgement listing exactly the
+ * possible duplicates found now (one more, one fewer or a different one is refused, so nobody
+ * confirms warnings they never saw; #150 clinical M2, security L3), and, where phones are in use
+ * so that the import cannot be undone, the importer's acceptance of that (#150 clinical M-B).
  */
 export function checkPeopleCommit(input: {
   readonly status: ImportBatchStatus;
@@ -1054,6 +1153,8 @@ export function checkPeopleCommit(input: {
   readonly dryRunAt: Date | null;
   readonly report: PeopleDryRun;
   readonly acknowledgedWarnings: readonly string[];
+  /** The importer accepts that the import cannot be undone (needed while phones are in use). */
+  readonly acceptNoUndo?: boolean;
 }):
   | { readonly ok: true }
   | { readonly ok: false; readonly problem: CommitProblem; readonly message: string } {
@@ -1071,6 +1172,7 @@ export function checkPeopleCommit(input: {
     input.acknowledgedWarnings.length === acknowledged.size &&
     [...found].every((key) => acknowledged.has(key));
   if (!same) return refuse("possible_duplicates_unacknowledged");
+  if (input.report.phonesInUse && !input.acceptNoUndo) return refuse("no_undo_not_accepted");
   return { ok: true };
 }
 

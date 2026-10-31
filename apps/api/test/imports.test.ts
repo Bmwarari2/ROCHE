@@ -342,10 +342,12 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
     const result = (await committed.json()) as {
       records: number;
       replayed: boolean;
+      undoAvailable: boolean;
       undoClosesAt: string;
-      allergyStatusToConfirm: { personId: string; stated: string }[];
+      allergyStatusToConfirm: { personId: string; taskId: string; stated: string }[];
     };
-    expect(result).toMatchObject({ records: 3, replayed: false });
+    expect(result).toMatchObject({ records: 3, replayed: false, undoAvailable: true });
+    expect(typeof result.undoClosesAt).toBe("string");
     const people = await ownerSql<{
       id: string;
       given_name: string;
@@ -371,20 +373,60 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
       ["active", DEMO.locationId, "unknown", null],
     ]);
     expect(people.every((p) => p.import_batch_id === id)).toBe(true);
+    // HZ-007 (#150 clinical M-A): what the file said is kept, on a task for each person whose
+    // status it stated, paired by NHS number (Ida) or local identifier (Jo), not by row order.
     const byName = new Map(people.map((p) => [p.given_name, p.id]));
-    expect(result.allergyStatusToConfirm).toEqual([
-      { personId: byName.get("Ida"), stated: "no_known_allergies" },
-      { personId: byName.get("Jo"), stated: "has_allergies" },
-    ]);
+    const checks = await ownerSql<{
+      id: string;
+      person_id: string;
+      kind: string;
+      required_permission: string;
+      assignee_role_key: string;
+      priority: string;
+      status: string;
+      location_id: string;
+      details: Json;
+    }>(
+      `SELECT id, person_id, kind, required_permission, assignee_role_key, priority, status,
+              location_id, details
+         FROM task WHERE source_type = 'import_batch' AND source_id = $1`,
+      [id],
+    );
+    const checkFor = (name: string) => checks.find((t) => t.person_id === byName.get(name));
+    expect(checks).toHaveLength(2);
+    expect(checkFor("Ida")).toMatchObject({
+      kind: "people.allergy_status_check",
+      required_permission: "people.person.update",
+      assignee_role_key: "registered_manager",
+      priority: "routine",
+      status: "open",
+      location_id: DEMO.locationId,
+      details: { importedAllergyStatus: "no_known_allergies" },
+    });
+    expect(checkFor("Jo")).toMatchObject({
+      priority: "urgent",
+      details: { importedAllergyStatus: "has_allergies" },
+    });
+    expect(checkFor("Hal")).toBeUndefined();
+    const toConfirm = [
+      { personId: byName.get("Ida"), taskId: checkFor("Ida")?.id, stated: "no_known_allergies" },
+      { personId: byName.get("Jo"), taskId: checkFor("Jo")?.id, stated: "has_allergies" },
+    ].sort((a, b) => String(a.personId).localeCompare(String(b.personId)));
+    expect(result.allergyStatusToConfirm).toEqual(toConfirm);
     // Another organisation's person with the same number is untouched and still its own.
     expect(
       await ownerSql("SELECT id FROM person WHERE nhs_number = '9990000085'", [], OTHER.tenantId),
     ).toEqual([{ id: OTHER.personId }]);
     expect(await stagedRowCount(id)).toBe(0);
 
-    // Again: the same commit, nobody created twice.
+    // Again: the same commit and checks, nobody created twice.
     const again = await send(`/v1/imports/${id}/commit`, "POST", {});
-    expect(await json(again)).toMatchObject({ records: 3, replayed: true });
+    expect(await json(again)).toMatchObject({
+      records: 3,
+      replayed: true,
+      undoAvailable: true,
+      allergyStatusToConfirm: toConfirm,
+    });
     const count = await ownerSql<{ n: number }>(
       "SELECT count(*)::int AS n FROM person WHERE nhs_number = ANY ($1) OR local_identifier = 'R-2'",
       [numbers],
@@ -394,16 +436,27 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
     expect(shown).toMatchObject({
       status: "committed",
       records: 3,
+      undoAvailable: true,
       undoClosesAt: result.undoClosesAt,
     });
 
-    // Undo removes them, once; the same file may then be imported afresh.
+    // Undo removes them and their open checks, once; the same file may then be imported afresh.
     const undone = await send(`/v1/imports/${id}/undo`, "POST");
     expect(undone.status).toBe(200);
     expect(await json(undone)).toMatchObject({ batchId: id, records: 3 });
     expect(
       await ownerSql("SELECT id FROM person WHERE id = ANY ($1)", [people.map((p) => p.id)]),
     ).toEqual([]);
+    expect(
+      await ownerSql("SELECT id FROM task WHERE source_type = 'import_batch' AND source_id = $1", [
+        id,
+      ]),
+    ).toEqual([]);
+    expect(await json(await send(`/v1/imports/${id}`, "GET"))).toMatchObject({
+      status: "undone",
+      undoAvailable: false,
+      undoClosesAt: null,
+    });
     const twice = await send(`/v1/imports/${id}/undo`, "POST");
     expect([twice.status, (await json(twice)).code]).toEqual([409, "already_undone"]);
     const retry = await stagedAndChecked(csv);
@@ -479,10 +532,11 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
     expect(warnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ row: 1, match: "same_name", personId: nia?.id }),
-        expect.objectContaining({ row: 1, match: "names_swapped", otherRow: 2 }),
         expect.objectContaining({ row: 2, match: "names_swapped", otherRow: 1 }),
       ]),
     );
+    // A pair of rows is warned of once, on the later row (#150 security M: bounded warnings).
+    expect(warnings.filter((w) => w.otherRow != null)).toHaveLength(1);
     const keys = second.report.warningKeys as string[];
     expect(keys).toHaveLength(warnings.length);
     const refused = await send(`/v1/imports/${second.id}/commit`, "POST", {});
@@ -544,16 +598,48 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
   // Last in this block: the sync token it issues stays in the organisation's audit trail, so no
   // later undo here would be allowed.
   it("hazard HZ-130 refuses an undo once a phone may hold the imported people", async () => {
-    const { id } = await stagedAndChecked(`${HEADER}\n${line("Ivy", nextNhs())},unknown`);
-    expect((await send(`/v1/imports/${id}/commit`, "POST", {})).status).toBe(200);
+    const { id, report } = await stagedAndChecked(`${HEADER}\n${line("Ivy", nextNhs())},unknown`);
+    expect(report).toMatchObject({ phonesInUse: false });
+    const pending = await send(`/v1/imports/${id}/commit`, "POST", {});
+    expect(await json(pending)).toMatchObject({ undoAvailable: true });
     // The manager's phone asks for a sync token carrying the home's people.
     const token = await h.request("/v1/sync/token", { method: "POST", ...as("manager") });
     expect(token.status).toBe(200);
+    // #150 clinical M-C: the batch no longer offers an undo it would refuse.
+    expect(await json(await send(`/v1/imports/${id}`, "GET"))).toMatchObject({
+      status: "committed",
+      undoAvailable: false,
+      undoClosesAt: null,
+    });
     const refused = await send(`/v1/imports/${id}/undo`, "POST");
     expect([refused.status, (await json(refused)).code]).toEqual([409, "sent_to_devices"]);
     expect(await ownerSql("SELECT id FROM person WHERE import_batch_id = $1", [id])).toHaveLength(
       1,
     );
+
+    // #150 clinical M-B: with phones in use, the dry run says an import cannot be undone, and
+    // the commit needs that accepted.
+    const next = await stagedAndChecked(`${HEADER}\n${line("Wyn", nextNhs())},unknown`);
+    expect(next.report).toMatchObject({ phonesInUse: true, mayCommit: true });
+    expect((next.report.whatHappens as string[]).join(" ")).toMatch(
+      /Phones are in use .*cannot be undone once it is committed.*Confirm you accept this/,
+    );
+    const unaccepted = await send(`/v1/imports/${next.id}/commit`, "POST", {});
+    expect([unaccepted.status, (await json(unaccepted)).code]).toEqual([
+      409,
+      "no_undo_not_accepted",
+    ]);
+    expect(await ownerSql("SELECT id FROM person WHERE import_batch_id = $1", [next.id])).toEqual(
+      [],
+    );
+    const accepted = await send(`/v1/imports/${next.id}/commit`, "POST", { acceptNoUndo: true });
+    expect(accepted.status).toBe(200);
+    expect(await json(accepted)).toMatchObject({ records: 1, replayed: false });
+    const [committedAudit] = await ownerSql<{ scope: Json }>(
+      "SELECT scope FROM audit_event WHERE action = 'platform.import.committed' AND resource_id = $1 AND outcome = 'success'",
+      [next.id],
+    );
+    expect(committedAudit?.scope).toMatchObject({ records: 1, noUndoAccepted: true });
     // The database looks back one sync token's lifetime before the commit.
     const [fn] = await ownerSql<{ def: string }>(
       "SELECT pg_get_functiondef('app.undo_import_batch(uuid, text)'::regprocedure) AS def",

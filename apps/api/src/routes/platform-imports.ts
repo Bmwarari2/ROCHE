@@ -14,7 +14,6 @@ import {
   IMPORT_LIMITS,
   type ImportLimits,
   importStagingExpiresAt,
-  importUndoClosesAt,
   importUndoEligibility,
   mapImportColumns,
   type ParsedImportFile,
@@ -45,15 +44,22 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
+  allergyStatusChecks,
   batchOut,
   dryRunNow,
   findBatch,
   findCommit,
   ImportWriteFailed,
   importRates,
+  latestPeopleToken,
+  mayBeOnPhones,
   openLocation,
+  phonesInUse,
+  raiseAllergyStatusChecks,
   sqlState,
+  statedAllergyStatusByIdentifier,
   unchangedPeople,
+  undoState,
   writingImported,
 } from "../services/platform-imports";
 import {
@@ -67,8 +73,9 @@ import {
 
 /**
  * The import wizard's API (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-007). Every
- * route needs platform.import.run and people.person.create across the whole organisation (rule 18:
- * an import by someone who sees only some homes could tell them a person they cannot see exists),
+ * route needs platform.import.run, people.person.create and people.person.read across the whole
+ * organisation (rule 18: an import by someone who sees only some homes, or no one, could tell them
+ * a person they cannot see exists; a warning names the existing record a row matched),
  * refused with one answer, before anything is read, to anyone who holds them only somewhere. A
  * batch is staged in quarantine, dry-run, committed whole (with a fresh step-up) or discarded, and
  * undone once within the window. No response, problem, log line or audit event carries an imported
@@ -99,13 +106,15 @@ const ORGANISATION_WIDE = new HttpProblem(
 );
 
 /**
- * Rule 18: both permissions, each reaching the whole organisation, with MFA (care-record
- * permissions). Anyone else is refused, audited, before the request's batch or file is read; the
- * request then runs scoped to the whole organisation.
+ * Rule 18: platform.import.run, people.person.create and people.person.read (a dry run names the
+ * existing records a row matches; #150 security review round 2), each reaching the whole
+ * organisation, with MFA (care-record permissions). Anyone else is refused, audited, before the
+ * request's batch or file is read; the request then runs scoped to the whole organisation.
  */
 async function requireImporter(c: Context<AppEnv>, action: string): Promise<TenantAccess> {
   await requirePermission(c, "platform.import.run");
-  const access = await requirePermission(c, "people.person.create");
+  await requirePermission(c, "people.person.create");
+  const access = await requirePermission(c, "people.person.read");
   if (access.context.scope !== "tenant") {
     await writeAudit(c.get("services").appPool, access, {
       action,
@@ -235,6 +244,8 @@ function reportOut(batchId: string, report: PeopleDryRun): ImportDryRunReport {
     allergyStatusNotStatedRows: [...report.allergyStatusNotStatedRows],
     noKnownAllergiesStatedRows: [...report.noKnownAllergiesStatedRows],
     hasAllergiesStatedRows: [...report.hasAllergiesStatedRows],
+    recordMatchesCapped: report.recordMatchesCapped,
+    phonesInUse: report.phonesInUse,
     whatHappens: [...report.whatHappens],
   };
 }
@@ -290,7 +301,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Upload a file to import",
       description:
-        "platform.import.run and people.person.create, both across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).",
+        "platform.import.run, people.person.create and people.person.read, all across the whole organisation (403 organisation_wide_required otherwise, whatever the file holds). Takes a record type (people), a location of the organisation and either CSV text or JSON rows, matches each column to a Harbour field by the mapping or by its field key or label, and stages the matched cells in quarantine, never in anyone's record, until a dry run and a commit. A column that matches nothing, a mapping to no field or two columns for one field refuse the upload (422 columns_not_mapped); every problem names a row or column by number, never a heading or value. The batch expires import.staging_expiry_days after upload. Audited (platform.import.uploaded: batch id, rows and columns).",
       security,
       request: { body: { content: { "application/json": { schema: UploadImport } } } },
       responses: { 201: jsonBody(ImportBatch, "Staged"), ...errorResponses },
@@ -353,7 +364,7 @@ export const platformImportsRouter = createRouter()
           },
           requestId: c.get("requestId"),
         });
-        return batchOut(batch, undefined, rates.undoWindowDays);
+        return batchOut(batch, undefined, rates.undoWindowDays, null);
       });
       return c.json(out, 201);
     },
@@ -365,7 +376,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "The organisation's imports",
       description:
-        "platform.import.run and people.person.create across the whole organisation. The latest 100 batches, newest first: ids, counts and times, never a value. Audited (platform.import.read, the count).",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation. The latest 100 batches, newest first: ids, counts and times, never a value, and whether each commit can still be undone (undoAvailable: false once a phone may hold its people). Audited (platform.import.read, the count).",
       security,
       responses: { 200: jsonBody(ImportBatchList, "Batches"), ...errorResponses },
     }),
@@ -383,6 +394,7 @@ export const platformImportsRouter = createRouter()
             ? await tx.select().from(importCommit).where(inArray(importCommit.batchId, ids))
             : [];
         const byBatch = new Map(commits.map((m) => [m.batchId, m]));
+        const latestToken = await latestPeopleToken(tx);
         // The undo window is read once per location (its nation's rate).
         const windows = new Map<string, number>();
         const out = [];
@@ -392,7 +404,7 @@ export const platformImportsRouter = createRouter()
             window = (await importRates(tx, access.tenantId, batch.locationId)).undoWindowDays;
             windows.set(batch.locationId, window);
           }
-          out.push(batchOut(batch, byBatch.get(batch.id), window));
+          out.push(batchOut(batch, byBatch.get(batch.id), window, latestToken));
         }
         await auditInTx(tx, access, {
           action: READ,
@@ -412,7 +424,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "One import",
       description:
-        "platform.import.run and people.person.create across the whole organisation. A batch of another organisation, or none, is 404 alike. Audited (platform.import.read, the batch id).",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation. A batch of another organisation, or none, is 404 alike. Says whether the commit can still be undone (undoAvailable). Audited (platform.import.read, the batch id).",
       security,
       request: { params: BatchParam },
       responses: {
@@ -434,7 +446,12 @@ export const platformImportsRouter = createRouter()
           resourceId: batch.id,
           requestId: c.get("requestId"),
         });
-        return batchOut(batch, await findCommit(tx, batch.id), rates.undoWindowDays);
+        return batchOut(
+          batch,
+          await findCommit(tx, batch.id),
+          rates.undoWindowDays,
+          await latestPeopleToken(tx),
+        );
       });
       return c.json(out, 200);
     },
@@ -446,7 +463,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Dry run an import",
       description:
-        "platform.import.run and people.person.create across the whole organisation. Checks every staged row against data-standards.md and against the people already in the organisation, committing nothing: rows, valid rows, errors by code, each error and warning by row and field key with a code and plain words (never a value or whose record matched), the rows imported with allergy status unknown (HZ-007) and the rows with allergies to record. A row whose NHS number or local identifier is already on a record is an error (already_in_harbour); the same name and date of birth where either has no NHS number is a warning (possible_duplicate). Only a staged batch (409 not_staged). Recorded on the batch; audited (platform.import.dry_run: counts).",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation. Checks every staged row against data-standards.md and against the people already in the organisation, committing nothing: rows, valid rows, errors by code, each error and warning by row and field key with a code and plain words (never a value), naming the matched record or row, what the file stated for allergy status (HZ-007), whether phones are in use (then the commit cannot be undone and needs acceptNoUndo) and what committing does in words. A row whose NHS number or local identifier is already on a record is an error (already_in_harbour); the same date of birth with agreeing names where either has no NHS number is a warning (possible_duplicate). A file with more than 500 possible duplicates, or more than 50 rows sharing one date of birth, is refused rather than listed in part. Only a staged batch (409 not_staged). Recorded on the batch; audited (platform.import.dry_run: counts).",
       security,
       request: { params: BatchParam },
       responses: {
@@ -464,7 +481,10 @@ export const platformImportsRouter = createRouter()
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
           if (batch.status !== "staged") stateRefusal(DRY_RUN, batch.id, "not_staged", NOT_STAGED);
-          const { report } = await dryRunNow(tx, batch.id, testNumbersAllowed(c));
+          const { report } = await dryRunNow(tx, batch.id, {
+            allowTestNhsNumbers: testNumbersAllowed(c),
+            phonesInUse: await phonesInUse(tx, access.tenantId, batch.locationId),
+          });
           await tx
             .update(importBatch)
             .set({
@@ -500,7 +520,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Commit an import, whole",
       description:
-        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only while it is staged and unexpired (409 not_staged, expired), has had a dry run (409 dry_run_first), has no error (409 has_errors) and acknowledgedWarnings lists exactly the possible duplicates found now (409 possible_duplicates_unacknowledged, also when one is new); otherwise nothing is created. Each row becomes a person at the batch's location (status active), tied to the batch, with allergy status not recorded whatever the file stated (HZ-007; the people whose status the file stated are returned to check). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only while it is staged and unexpired (409 not_staged, expired), has had a dry run (409 dry_run_first), has no error (409 has_errors), acknowledgedWarnings lists exactly the possible duplicates found now (409 possible_duplicates_unacknowledged, also when one is new) and, while phones are in use in the organisation (a sync token carrying people within mobile.offline_window_days), acceptNoUndo is true (409 no_undo_not_accepted): such an import cannot be undone. Otherwise nothing is created. Each row becomes a person at the batch's location (status active), tied to the batch, with allergy status not recorded whatever the file stated (HZ-007): each person whose status the file stated gets a task (people.allergy_status_check, for the registered manager, due now, urgent when it said they have allergies) carrying what it said, paired by NHS number or local identifier, and is returned with it. The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit and its checks (replayed). undoAvailable says whether it can be undone now. Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (counts) and people.person.imported per person.",
       security,
       request: {
         params: BatchParam,
@@ -533,16 +553,28 @@ export const platformImportsRouter = createRouter()
               scope: { records: done.recordCount, replayed: true },
               requestId: c.get("requestId"),
             });
+            const undo = undoState(
+              batch.status,
+              done,
+              rates.undoWindowDays,
+              await latestPeopleToken(tx),
+              new Date(),
+            );
             return {
               batchId: batch.id,
               records: done.recordCount,
               committedAt: done.committedAt.toISOString(),
-              undoClosesAt: importUndoClosesAt(done.committedAt, rates).toISOString(),
+              undoAvailable: undo.available,
+              undoClosesAt: undo.closesAt,
               replayed: true,
-              allergyStatusToConfirm: [],
+              // Kept on the checks the commit raised, so a replay lists them too (#150 M-A).
+              allergyStatusToConfirm: await allergyStatusChecks(tx, batch.id),
             };
           }
-          const { validation, report } = await dryRunNow(tx, batch.id, testNumbersAllowed(c));
+          const { validation, report } = await dryRunNow(tx, batch.id, {
+            allowTestNhsNumbers: testNumbersAllowed(c),
+            phonesInUse: await phonesInUse(tx, access.tenantId, batch.locationId),
+          });
           const check = checkPeopleCommit({
             status: batch.status as "staged",
             expiresAt: batch.expiresAt,
@@ -550,9 +582,14 @@ export const platformImportsRouter = createRouter()
             dryRunAt: batch.dryRunAt,
             report,
             acknowledgedWarnings: body.acknowledgedWarnings,
+            acceptNoUndo: body.acceptNoUndo,
           });
           if (!check.ok) stateRefusal(COMMITTED, batch.id, check.problem, check.message);
-          const created: string[] = [];
+          const created: {
+            id: string;
+            nhsNumber: string | null;
+            localIdentifier: string | null;
+          }[] = [];
           try {
             const values = validation.rows.map((row) =>
               personValues(row, batch.locationId, batch.id),
@@ -561,8 +598,12 @@ export const platformImportsRouter = createRouter()
               const made = await tx
                 .insert(person)
                 .values(values.slice(start, start + 500))
-                .returning({ id: person.id });
-              created.push(...made.map((m) => m.id));
+                .returning({
+                  id: person.id,
+                  nhsNumber: person.nhsNumber,
+                  localIdentifier: person.localIdentifier,
+                });
+              created.push(...made);
             }
           } catch (error) {
             const code = sqlState(error);
@@ -594,15 +635,25 @@ export const platformImportsRouter = createRouter()
               }
               throw error;
             });
+          const createdIds = created.map((p) => p.id);
           const [commit] = await tx
             .insert(importCommit)
-            .values({ batchId: batch.id, recordIds: created, recordCount: created.length })
+            .values({ batchId: batch.id, recordIds: createdIds, recordCount: createdIds.length })
             .returning();
           if (!closed || !commit) throw new Error("import commit not recorded");
+          // HZ-007 (#150 clinical review M-A): what the file said is kept on a task for each person
+          // whose status it stated, paired by their identifier (never by row order), so it
+          // outlives this response; their own status reads "not recorded" until it is checked.
+          const allergyStatusToConfirm = await raiseAllergyStatusChecks(
+            tx,
+            batch,
+            statedAllergyStatusByIdentifier(validation.rows),
+            created,
+          );
           await auditManyInTx(
             tx,
             access,
-            created.map((personId) => ({
+            createdIds.map((personId) => ({
               action: IMPORTED,
               resourceType: "person",
               resourceId: personId,
@@ -614,29 +665,27 @@ export const platformImportsRouter = createRouter()
             action: COMMITTED,
             resourceType: "import_batch",
             resourceId: batch.id,
-            scope: { records: created.length, possibleDuplicatesAcknowledged: report.warningCount },
+            scope: {
+              records: createdIds.length,
+              possibleDuplicatesAcknowledged: report.warningCount,
+              allergyStatusChecks: allergyStatusToConfirm.length,
+              noUndoAccepted: report.phonesInUse,
+            },
             requestId: c.get("requestId"),
           });
-          // HZ-007: the people whose allergy status the file stated, now "not recorded", to check.
-          const allergyStatusToConfirm = validation.rows.flatMap(
-            (
-              row,
-              index,
-            ): { personId: string; stated: "no_known_allergies" | "has_allergies" }[] => {
-              const stated = row.allergy_status;
-              const personId = created[index];
-              if (!personId) return [];
-              if (stated === "no_known_allergies" || stated === "has_allergies") {
-                return [{ personId, stated }];
-              }
-              return [];
-            },
+          const undo = undoState(
+            "committed",
+            commit,
+            rates.undoWindowDays,
+            await latestPeopleToken(tx),
+            new Date(),
           );
           return {
             batchId: batch.id,
-            records: created.length,
+            records: createdIds.length,
             committedAt: commit.committedAt.toISOString(),
-            undoClosesAt: importUndoClosesAt(commit.committedAt, rates).toISOString(),
+            undoAvailable: undo.available,
+            undoClosesAt: undo.closesAt,
             replayed: false,
             allergyStatusToConfirm,
           };
@@ -652,7 +701,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Undo a committed import, once",
       description:
-        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the batch created (and only those) through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed, checked by the database too), before any phone may hold them (409 sent_to_devices: a sync token carrying people was issued in the organisation since a token's lifetime before the commit, so a phone may have recorded care for them offline), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation, with a fresh step-up. Removes every person the batch created (and only those), with the allergy status checks the commit raised that are still open, through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed, checked by the database too), before any phone may hold them (409 sent_to_devices: a sync token carrying people was issued in the organisation since a token's lifetime before the commit, so a phone may have recorded care for them offline; the batch's undoAvailable turns false then), and only while none has been changed or soft-deleted (409 changed_since) and nothing else refers to any of them (409 referenced_since, also for a check someone has started); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
       security,
       request: { params: BatchParam },
       responses: {
@@ -688,6 +737,8 @@ export const platformImportsRouter = createRouter()
               changedSinceCommit: unchanged < commit.recordIds.length,
               // Decided by the database, which sees every record that refers to them.
               referencedSinceCommit: false,
+              // Decided again by the database, from the same audit events.
+              sentToDevices: mayBeOnPhones(commit.committedAt, await latestPeopleToken(tx)),
             },
             rates,
             new Date(),
@@ -722,7 +773,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Discard a staged import",
       description:
-        "platform.import.run and people.person.create across the whole organisation. Discards a staged batch: its staged rows are deleted in the same transaction and the batch is kept as the record that it was discarded. Only a staged batch (409 not_staged). Audited (platform.import.discarded: the batch id and row count).",
+        "platform.import.run, people.person.create and people.person.read across the whole organisation. Discards a staged batch: its staged rows are deleted in the same transaction and the batch is kept as the record that it was discarded. Only a staged batch (409 not_staged). Audited (platform.import.discarded: the batch id and row count).",
       security,
       request: { params: BatchParam },
       responses: {
@@ -755,7 +806,7 @@ export const platformImportsRouter = createRouter()
             requestId: c.get("requestId"),
           });
           const rates = await importRates(tx, access.tenantId, batch.locationId);
-          return batchOut(closed, undefined, rates.undoWindowDays);
+          return batchOut(closed, undefined, rates.undoWindowDays, null);
         }),
       );
       return c.json(out, 200);

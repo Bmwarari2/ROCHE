@@ -68,7 +68,12 @@ export const ImportBatch = z
     /** Records the commit created; null until committed. */
     records: count.nullable(),
     committedAt: isoDateTime.nullable(),
-    /** The last moment the commit may be undone (`import.undo_window_days`); null otherwise. */
+    /**
+     * Whether the commit can be undone now: committed, not undone, within the window, and no phone
+     * may hold the people yet (a sync token carrying people since the commit). False otherwise.
+     */
+    undoAvailable: z.boolean(),
+    /** While `undoAvailable`, the last moment within `import.undo_window_days`; null otherwise. */
     undoClosesAt: isoDateTime.nullable(),
     undoneAt: isoDateTime.nullable(),
   })
@@ -132,6 +137,13 @@ export const ImportDryRunReport = z
     allergyStatusNotStatedRows: rowNumbers,
     noKnownAllergiesStatedRows: rowNumbers,
     hasAllergiesStatedRows: rowNumbers,
+    /** True when a row matched more existing records than its warnings name. */
+    recordMatchesCapped: z.boolean(),
+    /**
+     * Phones are in use in the organisation, so the import cannot be undone once committed: the
+     * commit needs `acceptNoUndo`.
+     */
+    phonesInUse: z.boolean(),
     /** What committing does, in plain words. */
     whatHappens: z.array(z.string()),
   })
@@ -148,7 +160,14 @@ export const CommitImport = z
      * run's `warningKeys`. A warning found now that is not listed, or one listed that is no longer
      * found, refuses the commit.
      */
-    acknowledgedWarnings: z.array(z.string().max(120)).max(5000).default([]),
+    // A dry run never lists more than 500 warnings (`IMPORT_WARNING_LIMITS.total`): a file with
+    // more is refused, so every warning shown can be acknowledged.
+    acknowledgedWarnings: z.array(z.string().max(120)).max(500).default([]),
+    /**
+     * True once the person committing accepts that the import cannot be undone: needed while
+     * phones are in use in the organisation (the dry run's `phonesInUse`).
+     */
+    acceptNoUndo: z.boolean().default(false),
   })
   .meta({ id: "CommitImport" });
 export type CommitImport = z.infer<typeof CommitImport>;
@@ -158,15 +177,21 @@ export const ImportCommitResult = z
     batchId: uuid,
     records: count,
     committedAt: isoDateTime,
-    undoClosesAt: isoDateTime,
+    /** Whether it can be undone now (see `ImportBatch.undoAvailable`). */
+    undoAvailable: z.boolean(),
+    undoClosesAt: isoDateTime.nullable(),
     /** True when the batch was already committed: the same commit, nothing created again. */
     replayed: z.boolean(),
     /**
-     * HZ-007: the people whose allergy status the file stated, imported as not recorded: check
-     * and record each. Empty on a replay.
+     * HZ-007: the people whose allergy status the file stated, imported as not recorded, each with
+     * the task raised to check and record it (kept on the task, so a replay lists them too).
      */
     allergyStatusToConfirm: z.array(
-      z.object({ personId: uuid, stated: z.enum(["no_known_allergies", "has_allergies"]) }),
+      z.object({
+        personId: uuid,
+        taskId: uuid,
+        stated: z.enum(["no_known_allergies", "has_allergies"]),
+      }),
     ),
   })
   .meta({ id: "ImportCommitResult" });

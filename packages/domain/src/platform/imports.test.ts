@@ -12,6 +12,7 @@ import {
   IMPORT_LIMITS,
   IMPORT_RATE_KEYS,
   IMPORT_REPORT_MAX_ITEMS,
+  IMPORT_WARNING_LIMITS,
   importOutcomeWords,
   importStagingExpiresAt,
   importUndoClosesAt,
@@ -611,26 +612,71 @@ describe("hazard HZ-130 matching rows against people already in Harbour", () => 
     );
   });
 
-  it("hazard HZ-130 warns of two rows that may be one person, each naming the other", () => {
+  it("hazard HZ-130 warns of rows that may be one person once, the later naming the earliest", () => {
     const result = match(
       [
         person({ nhs_number: "", local_identifier: "R-1" }),
         person({ nhs_number: "9990001502", local_identifier: "R-2" }),
         person({ nhs_number: "9990000034", given_name: "Cara", family_name: "Placeholder" }),
+        person({ nhs_number: "", local_identifier: "R-4", given_name: "Ada Jane" }),
       ],
       [ada()],
     );
+    // Rows 1, 2 and 4 may be one person: each later row names the first (a cluster), never all.
     expect(
       result.warnings.map((w) => [w.row, w.otherRow, w.personId === null ? null : "record"]),
     ).toEqual([
       [1, null, "record"],
-      [1, 2, null],
       [2, null, "record"],
       [2, 1, null],
+      [4, null, "record"],
+      [4, 1, null],
     ]);
-    expect(result.warnings.find((w) => w.row === 1 && w.otherRow === 2)?.message).toMatch(/row 2/);
-    expect(new Set(result.warnings.map((w) => w.key)).size).toBe(4);
+    expect(result.warnings.find((w) => w.row === 2 && w.otherRow === 1)?.message).toMatch(/row 1/);
+    expect(new Set(result.warnings.map((w) => w.key)).size).toBe(5);
     expect(JSON.stringify(result.warnings)).not.toMatch(/Ada|Example|R-1/);
+  });
+
+  it("hazard HZ-130 bounds the warnings: a file with too many is refused, never half-listed", () => {
+    const limits = { total: 3, recordsPerRow: 2, sameBirthDate: 10 };
+    const rows = Array.from({ length: 6 }, (_, i) =>
+      person({ nhs_number: "", local_identifier: `R-${i + 1}` }),
+    );
+    const result = matchExistingPeople(validatePersonImport(rows, OPTIONS), [], limits);
+    expect(result.warnings).toHaveLength(3);
+    expect(result.errors).toEqual([
+      expect.objectContaining({ row: 0, code: "too_many_possible_duplicates" }),
+    ]);
+    // A row matching more records than it may name says so.
+    const many = matchExistingPeople(
+      validatePersonImport([person({ nhs_number: "", local_identifier: "R-1" })], OPTIONS),
+      [1, 2, 3].map((n) => ada({ id: `0193a000-0000-7000-8000-00000000050${n}` })),
+      limits,
+    );
+    expect(many.warnings).toHaveLength(2);
+    expect(many.recordMatchesCapped).toBe(true);
+  });
+
+  it("hazard HZ-130 refuses a file where too many rows share a date of birth, without comparing them", () => {
+    const rows = Array.from({ length: IMPORT_WARNING_LIMITS.sameBirthDate + 1 }, (_, i) =>
+      person({ nhs_number: "", local_identifier: `R-${i + 1}`, given_name: `Name${i}` }),
+    );
+    const { report } = peopleDryRun(rows, [], OPTIONS);
+    expect(report.byCode).toMatchObject({ too_many_same_birth_date: 1 });
+    expect(report.warnings).toEqual([]);
+    expect(report.mayCommit).toBe(false);
+  });
+
+  it("hazard HZ-130 stays bounded for 5000 rows that all share a date of birth and family name", () => {
+    const rows = Array.from({ length: IMPORT_LIMITS.rows }, (_, i) =>
+      person({ nhs_number: "", local_identifier: `R-${i + 1}` }),
+    );
+    const started = Date.now();
+    const { report } = peopleDryRun(rows, [ada()], OPTIONS);
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(report.warnings.length).toBeLessThanOrEqual(IMPORT_WARNING_LIMITS.total);
+    expect(report.warningKeys).toEqual(report.warnings.map((w) => w.key));
+    expect(report.mayCommit).toBe(false);
   });
 
   it("hazard HZ-130 two rows with different NHS numbers are two people", () => {
@@ -748,10 +794,34 @@ describe("PLAT-014 the people dry run report", () => {
         warningCount: 3,
         noKnownAllergiesStatedRows: [],
         hasAllergiesStatedRows: [1],
+        phonesInUse: false,
+        recordMatchesCapped: true,
       }).join(" "),
     ).toMatch(
-      /Nothing can be committed .*2 found.*creates 1 person.*1 person has allergies.*possible duplicate \(3\)/,
+      /Nothing can be committed .*2 found.*creates 1 person.*can be undone until a phone.*1 person has allergies.*possible duplicate \(3\).*more people already in Harbour/,
     );
+  });
+
+  it("hazard HZ-130 says, and the commit needs accepting, that an import cannot be undone once phones are in use", () => {
+    const { report } = peopleDryRun([person()], [], { ...OPTIONS, phonesInUse: true });
+    expect(report.phonesInUse).toBe(true);
+    expect(report.whatHappens.join(" ")).toMatch(
+      /cannot be undone once it is committed.*cannot be removed/,
+    );
+    const base = {
+      status: "staged" as const,
+      now: new Date("2026-10-31T11:00:00Z"),
+      expiresAt: new Date("2026-11-07T10:00:00Z"),
+      dryRunAt: new Date("2026-10-31T10:00:00Z"),
+      report,
+      acknowledgedWarnings: [],
+    };
+    expect(checkPeopleCommit(base)).toMatchObject({ ok: false, problem: "no_undo_not_accepted" });
+    expect(checkPeopleCommit({ ...base, acceptNoUndo: false })).toMatchObject({ ok: false });
+    expect(checkPeopleCommit({ ...base, acceptNoUndo: true })).toEqual({ ok: true });
+    // Without phones in use nothing needs accepting.
+    const quiet = peopleDryRun([person()], [], OPTIONS).report;
+    expect(checkPeopleCommit({ ...base, report: quiet })).toEqual({ ok: true });
   });
 
   it("counts every error by code and lists at most the report's limit", () => {
@@ -759,8 +829,13 @@ describe("PLAT-014 the people dry run report", () => {
       person({ nhs_number: "", given_name: "" }),
     );
     const { report } = peopleDryRun(rows, [], OPTIONS);
-    expect(report.errorCount).toBe(2 * rows.length);
-    expect(report.byCode).toEqual({ required: rows.length, identifier_required: rows.length });
+    // Two errors a row, and one for the file: more rows share one date of birth than are compared.
+    expect(report.errorCount).toBe(2 * rows.length + 1);
+    expect(report.byCode).toEqual({
+      required: rows.length,
+      identifier_required: rows.length,
+      too_many_same_birth_date: 1,
+    });
     expect(report.errors).toHaveLength(IMPORT_REPORT_MAX_ITEMS);
     expect(report.truncated).toBe(true);
     expect(report.mayCommit).toBe(false);

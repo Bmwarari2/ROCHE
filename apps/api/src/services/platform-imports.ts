@@ -7,6 +7,7 @@ import {
   location,
   person,
   type Transaction,
+  task,
 } from "@harbour/db";
 import {
   type ExistingPerson,
@@ -19,6 +20,7 @@ import {
   peopleDryRun,
   ukIsoDate,
 } from "@harbour/domain";
+import { OFFLINE_WINDOW_RATE_KEY, SYNC_TOKEN_TTL_SECONDS } from "@harbour/sync/streams";
 import { and, asc, count, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { rateNumber } from "./rates";
 
@@ -74,8 +76,14 @@ export function batchOut(
   batch: BatchRow,
   commit: CommitRow | undefined,
   undoWindowDays: number,
+  /** The latest sync token carrying people issued in the organisation, if any. */
+  latestPeopleToken: Date | null,
+  now: Date = new Date(),
 ): ImportBatch {
   const committed = batch.status === "committed" || batch.status === "undone";
+  const undo = commit
+    ? undoState(batch.status as ImportBatchStatus, commit, undoWindowDays, latestPeopleToken, now)
+    : { available: false, closesAt: null };
   return {
     id: batch.id,
     recordType: batch.recordType as ImportRecordType,
@@ -91,12 +99,76 @@ export function batchOut(
     closedAt: batch.closedAt?.toISOString() ?? null,
     records: committed && commit ? commit.recordCount : null,
     committedAt: committed && commit ? commit.committedAt.toISOString() : null,
-    undoClosesAt:
-      batch.status === "committed" && commit
-        ? importUndoClosesAt(commit.committedAt, { undoWindowDays }).toISOString()
-        : null,
+    undoAvailable: undo.available,
+    undoClosesAt: undo.closesAt,
     undoneAt: commit?.undoneAt?.toISOString() ?? null,
   };
+}
+
+/**
+ * Whether a commit can be undone now, and until when (#150 clinical review M-C): committed and not
+ * undone, within `import.undo_window_days`, and no phone may hold the people yet: no sync token
+ * carrying people issued since one token's lifetime before the commit. The database decides again
+ * when an undo is asked for (`app.undo_import_batch`).
+ */
+export function undoState(
+  status: ImportBatchStatus,
+  commit: Pick<CommitRow, "committedAt" | "undoneAt">,
+  undoWindowDays: number,
+  latestPeopleToken: Date | null,
+  now: Date,
+): { readonly available: boolean; readonly closesAt: string | null } {
+  const closes = importUndoClosesAt(commit.committedAt, { undoWindowDays });
+  const available =
+    status === "committed" &&
+    commit.undoneAt === null &&
+    now.getTime() <= closes.getTime() &&
+    !mayBeOnPhones(commit.committedAt, latestPeopleToken);
+  return { available, closesAt: available ? closes.toISOString() : null };
+}
+
+/**
+ * Whether phones may hold a commit's people: a sync token carrying people was issued from one
+ * token's lifetime before the commit (a token issued just before it can still fetch them).
+ */
+export function mayBeOnPhones(committedAt: Date, latestPeopleToken: Date | null): boolean {
+  return (
+    latestPeopleToken !== null &&
+    latestPeopleToken.getTime() >= committedAt.getTime() - SYNC_TOKEN_TTL_SECONDS * 1000
+  );
+}
+
+/**
+ * The latest sync token carrying people at any home issued in the organisation (the
+ * `sync.token.issue` audit event), or null: phones may hold whatever was in Harbour then.
+ */
+export async function latestPeopleToken(tx: Transaction): Promise<Date | null> {
+  const { rows } = await tx.execute<{ at: string | Date | null }>(
+    sql`SELECT max(a.occurred_at) AS at FROM audit_event a
+         WHERE a.tenant_id = app.current_tenant_id() AND a.action = 'sync.token.issue'
+           AND coalesce(a.scope ->> 'peopleLocations', '0') ~ '^[0-9]+$'
+           AND (a.scope ->> 'peopleLocations')::integer > 0`,
+  );
+  const at = rows[0]?.at;
+  return at ? new Date(at) : null;
+}
+
+/**
+ * Whether phones are in use in the organisation (#150 clinical review M-B): a sync token carrying
+ * people was issued within the offline window (`mobile.offline_window_days` for the batch's home).
+ * Then an import cannot be undone once committed, and the importer must accept that.
+ */
+export async function phonesInUse(
+  tx: Transaction,
+  tenantId: string,
+  locationId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const latest = await latestPeopleToken(tx);
+  if (!latest) return false;
+  const nation = await nationOf(tx, locationId);
+  const windowDays = await rateNumber(tx, tenantId, OFFLINE_WINDOW_RATE_KEY, nation);
+  return latest.getTime() >= now.getTime() - windowDays * 86_400_000;
 }
 
 /** One batch the request can reach, locked for the rest of the transaction when asked; or null. */
@@ -177,16 +249,147 @@ export async function peopleToMatch(
 export async function dryRunNow(
   tx: Transaction,
   batchId: string,
-  allowTestNhsNumbers: boolean,
+  options: { readonly allowTestNhsNumbers: boolean; readonly phonesInUse: boolean },
 ): Promise<{
   readonly rows: Record<string, string>[];
   readonly validation: ReturnType<typeof peopleDryRun>["validation"];
   readonly report: PeopleDryRun;
 }> {
-  const options = { today: ukIsoDate(new Date()), allowTestNhsNumbers };
+  const today = ukIsoDate(new Date());
+  const checks = { today, ...options };
   const rows = await stagedRows(tx, batchId);
-  const existing = await peopleToMatch(tx, rows, options);
-  return { rows, ...peopleDryRun(rows, existing, options) };
+  const existing = await peopleToMatch(tx, rows, checks);
+  return { rows, ...peopleDryRun(rows, existing, checks) };
+}
+
+export type StatedAllergyStatus = "no_known_allergies" | "has_allergies";
+
+export interface AllergyStatusToConfirm {
+  readonly personId: string;
+  readonly taskId: string;
+  readonly stated: StatedAllergyStatus;
+}
+
+export const ALLERGY_STATUS_CHECK = "people.allergy_status_check";
+
+/** Plain words naming what the file said; never anything else from it. */
+const ALLERGY_CHECK_TITLES: Readonly<Record<StatedAllergyStatus, string>> = {
+  has_allergies:
+    "Record this person's allergies: the previous system said they have allergies, which were not imported",
+  no_known_allergies:
+    "Check this person's allergy status: the previous system said no known allergies, which was not imported",
+};
+
+/**
+ * The identifier a committed person is paired with their row by (#150 clinical review M-A): their
+ * NHS number, else their local identifier. Every committed row has one (`identifier_required`) and
+ * no two rows of a committed file share either (`duplicate`), so each person pairs with exactly
+ * their own row whatever order the database returns them in.
+ */
+function pairingKey(
+  nhsNumber: string | null | undefined,
+  localIdentifier: string | null | undefined,
+): string | null {
+  if (nhsNumber) return `nhs:${nhsNumber}`;
+  if (localIdentifier) return `local:${localIdentifier}`;
+  return null;
+}
+
+/** What each validated row's file said about allergy status, by identifier, when not unknown. */
+export function statedAllergyStatusByIdentifier(
+  rows: readonly Readonly<Record<string, string>>[],
+): ReadonlyMap<string, StatedAllergyStatus> {
+  const stated = new Map<string, StatedAllergyStatus>();
+  for (const row of rows) {
+    const status = row.allergy_status;
+    if (status !== "no_known_allergies" && status !== "has_allergies") continue;
+    const key = pairingKey(row.nhs_number, row.local_identifier);
+    if (key === null || stated.has(key)) throw new Error("import row without its own identifier");
+    stated.set(key, status);
+  }
+  return stated;
+}
+
+/**
+ * HZ-007 (#150 clinical review M-A): one task per person whose file stated an allergy status, for
+ * whoever records it on their record (people.person.update, assigned to the registered manager,
+ * due now; urgent when the file said they have allergies), carrying what the file said as a code
+ * (`TaskDetails.importedAllergyStatus`). Every stated status must pair with a person created, or
+ * the whole commit fails. Ordered by person id.
+ */
+export async function raiseAllergyStatusChecks(
+  tx: Transaction,
+  batch: Pick<BatchRow, "id" | "locationId">,
+  stated: ReadonlyMap<string, StatedAllergyStatus>,
+  created: readonly {
+    readonly id: string;
+    readonly nhsNumber: string | null;
+    readonly localIdentifier: string | null;
+  }[],
+  now: Date = new Date(),
+): Promise<AllergyStatusToConfirm[]> {
+  const pairs = created.flatMap((p) => {
+    const key = pairingKey(p.nhsNumber, p.localIdentifier);
+    const status = key === null ? undefined : stated.get(key);
+    return status ? [{ personId: p.id, stated: status }] : [];
+  });
+  if (pairs.length !== stated.size) throw new Error("import allergy statuses not all paired");
+  const raised: AllergyStatusToConfirm[] = [];
+  for (let start = 0; start < pairs.length; start += 500) {
+    const chunk = pairs.slice(start, start + 500);
+    const made = await tx
+      .insert(task)
+      .values(
+        chunk.map((p) => ({
+          kind: ALLERGY_STATUS_CHECK,
+          title: ALLERGY_CHECK_TITLES[p.stated],
+          requiredPermission: "people.person.update",
+          personId: p.personId,
+          locationId: batch.locationId,
+          sourceType: "import_batch",
+          sourceId: batch.id,
+          assigneeRoleKey: "registered_manager",
+          dueAt: now,
+          priority: p.stated === "has_allergies" ? "urgent" : "routine",
+          details: { importedAllergyStatus: p.stated },
+        })),
+      )
+      .returning({ id: task.id, personId: task.personId });
+    const statedFor = new Map(chunk.map((p) => [p.personId, p.stated]));
+    for (const t of made) {
+      const status = t.personId ? statedFor.get(t.personId) : undefined;
+      if (!t.personId || !status) throw new Error("import allergy check without its person");
+      raised.push({ personId: t.personId, taskId: t.id, stated: status });
+    }
+  }
+  return raised.sort((a, b) => a.personId.localeCompare(b.personId));
+}
+
+/** The allergy status checks a commit raised that are still there (a replay lists them again). */
+export async function allergyStatusChecks(
+  tx: Transaction,
+  batchId: string,
+): Promise<AllergyStatusToConfirm[]> {
+  const rows = await tx
+    .select({ id: task.id, personId: task.personId, details: task.details })
+    .from(task)
+    .where(
+      and(
+        eq(task.kind, ALLERGY_STATUS_CHECK),
+        eq(task.sourceType, "import_batch"),
+        eq(task.sourceId, batchId),
+        isNull(task.deletedAt),
+      ),
+    );
+  return rows
+    .flatMap((t): AllergyStatusToConfirm[] => {
+      const stated = (t.details as { importedAllergyStatus?: unknown } | null)
+        ?.importedAllergyStatus;
+      return t.personId && (stated === "no_known_allergies" || stated === "has_allergies")
+        ? [{ personId: t.personId, taskId: t.id, stated }]
+        : [];
+    })
+    .sort((a, b) => a.personId.localeCompare(b.personId));
 }
 
 /**

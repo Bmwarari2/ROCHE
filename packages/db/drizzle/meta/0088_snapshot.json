@@ -1,5 +1,5 @@
 {
-  "id": "14a8c179-8fbc-4268-a424-dab1faafff0c",
+  "id": "fc33087b-b30c-46ad-9c45-cbc440ef7a64",
   "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
   "version": "7",
   "dialect": "postgresql",
@@ -17990,6 +17990,33 @@
             },
             {
               "expression": "resource_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_event_tenant_action_idx": {
+          "name": "audit_event_tenant_action_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

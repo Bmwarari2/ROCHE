@@ -73,6 +73,7 @@ ALTER TABLE "import_row" ADD CONSTRAINT "import_row_batch_fk" FOREIGN KEY ("tena
 CREATE INDEX "import_batch_staged_idx" ON "import_batch" USING btree ("tenant_id","expires_at") WHERE status = 'staged';--> statement-breakpoint
 ALTER TABLE "person" ADD CONSTRAINT "person_import_batch_fk" FOREIGN KEY ("tenant_id","import_batch_id") REFERENCES "public"."import_batch"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "person_import_batch_idx" ON "person" USING btree ("tenant_id","import_batch_id") WHERE import_batch_id IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "audit_event_tenant_action_idx" ON "audit_event" USING btree ("tenant_id","action","occurred_at");--> statement-breakpoint
 
 -- The import wizard (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-011). A batch,
 -- its staged rows and its commit record are reached only in a request scoped to the whole
@@ -104,9 +105,10 @@ CREATE POLICY tenant_isolation ON public.import_commit AS PERMISSIVE FOR ALL TO 
 --> statement-breakpoint
 
 -- Who reaches an import (rule 18). Invoker rights: it reads the caller's own roles and grants. A
--- member needs platform.import.run and the permission to create the batch's records (people:
--- people.person.create), both across the organisation, for every command: reading, the dry run,
--- the commit and discarding alike (#150 security review L1).
+-- member needs platform.import.run and the permissions to create and to read the batch's records
+-- (people: people.person.create and people.person.read; a dry run names the existing records a row
+-- matches), all across the organisation, for every command: reading, the dry run, the commit and
+-- discarding alike (#150 security review L1 and round 2).
 CREATE OR REPLACE FUNCTION app.import_reachable(p_record_type text) RETURNS boolean
 LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
   SELECT app.current_scope() = 'tenant' AND (
@@ -114,6 +116,7 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
     OR (app.holds_permission_at('platform.import.run', NULL)
         AND CASE p_record_type
               WHEN 'people' THEN app.holds_permission_at('people.person.create', NULL)
+                AND app.holds_permission_at('people.person.read', NULL)
               ELSE false
             END))
 $$;
@@ -257,8 +260,9 @@ CREATE TRIGGER person_import_batch_guard BEFORE INSERT OR UPDATE ON public.perso
   FOR EACH ROW EXECUTE FUNCTION app.person_import_batch_guard();
 --> statement-breakpoint
 
--- Undo (rules 14 and 24): a holder of platform.import.run and people.person.create across the
--- organisation, in a request scoped to the whole organisation, undoes a committed batch once:
+-- Undo (rules 14 and 24): a holder of platform.import.run, people.person.create and
+-- people.person.read across the organisation, in a request scoped to the whole organisation, undoes
+-- a committed batch once:
 -- - within `import.undo_window_days` of the commit, read here from the rate table for the
 --   batch's home as the API reads it (`app.location_rate`), failing closed when there is none;
 -- - before any phone may hold its people (#150 clinical review H2): refused once a sync token
@@ -270,7 +274,10 @@ CREATE TRIGGER person_import_batch_guard BEFORE INSERT OR UPDATE ON public.perso
 -- Only people created by this batch are removed (`person.import_batch_id`), and they must be
 -- exactly the commit's record ids, the whole batch or nothing: the check is made again by the
 -- DELETE itself, so a save that lands first makes the count fall short and the undo is refused.
--- Audited with the count only; audit events about the people stay.
+-- The allergy status checks the commit raised for them (HZ-007) go with them while still open
+-- (escalating an overdue one is the system's, not a person's); one someone has started or done
+-- refers to its person and refuses the undo. Audited with the count only; audit events about the
+-- people stay.
 CREATE OR REPLACE FUNCTION app.undo_import_batch(p_batch uuid, p_request_id text)
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -287,7 +294,8 @@ DECLARE
 BEGIN
   IF v_me IS NULL OR app.current_scope() IS DISTINCT FROM 'tenant'
      OR NOT app.holds_permission_at('platform.import.run', NULL)
-     OR NOT app.holds_permission_at('people.person.create', NULL) THEN
+     OR NOT app.holds_permission_at('people.person.create', NULL)
+     OR NOT app.holds_permission_at('people.person.read', NULL) THEN
     RAISE EXCEPTION 'missing_permission' USING ERRCODE = 'insufficient_privilege';
   END IF;
   SELECT c.id, c.record_ids, c.undone_at, c.committed_at INTO v_commit, v_ids, v_undone, v_committed
@@ -315,6 +323,10 @@ BEGIN
     RAISE EXCEPTION 'sent_to_devices' USING ERRCODE = 'check_violation';
   END IF;
   BEGIN
+    DELETE FROM public.task t
+     WHERE t.tenant_id = v_tenant AND t.kind = 'people.allergy_status_check'
+       AND t.source_type = 'import_batch' AND t.source_id = p_batch
+       AND t.status = 'open' AND t.deleted_at IS NULL;
     DELETE FROM public.person p
      WHERE p.tenant_id = v_tenant AND p.import_batch_id = p_batch AND p.id = ANY (v_ids)
        AND p.version = 1 AND p.deleted_at IS NULL;
@@ -342,6 +354,9 @@ GRANT USAGE ON SCHEMA public, app TO harbour_import_owner;
 --> statement-breakpoint
 GRANT SELECT (tenant_id, id, version, deleted_at, import_batch_id), DELETE ON public.person
   TO harbour_import_owner;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, id, kind, source_type, source_id, status, deleted_at), DELETE
+  ON public.task TO harbour_import_owner;
 --> statement-breakpoint
 GRANT SELECT (tenant_id, batch_id), DELETE ON public.import_row TO harbour_import_owner;
 --> statement-breakpoint
