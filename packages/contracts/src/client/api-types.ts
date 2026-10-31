@@ -16740,6 +16740,2156 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/quality/frameworks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Compliance framework versions
+     * @description Global reference data: every framework version (CQC's single assessment framework now, KLOE-based and devolved-nation frameworks as later versions), each marked when it is the one in force today for its regulator. For anyone who works with quality evidence.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Framework versions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FrameworkVersionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/frameworks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A framework version's key questions, statements and evidence categories */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The framework version */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FrameworkVersionDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/frameworks/{id}/mapping": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's mapping of a framework version
+     * @description quality.evidence.manage. The latest mapping version, or the one in force at `at` (rule 5), so a past audit is read with the mapping of its time; version 0 with no entries when the organisation has not mapped it.
+     */
+    get: {
+      parameters: {
+        query?: {
+          at?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The mapping */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FrameworkMappingView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Save a new version of the organisation's mapping
+     * @description quality.evidence.manage. A new mapping version, the one read plus one (409 otherwise), naming only statements and evidence categories of a published framework version, each statement once (rule 5). Earlier versions stay. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveFrameworkMapping"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FrameworkMappingView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/frameworks/{id}/coverage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * How many records evidence each statement, and the gaps
+     * @description quality.evidence.manage. Each statement of the version with the number of records tagged against it (each record once), and the statements with none (rule 7). Removed tags do not count.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Coverage */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidenceCoverage"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Evidence links for a record, or for a statement
+     * @description quality.evidence.manage. By record (`recordType` and `recordId`) or by statement (`frameworkVersionId` and `statementId`); removed links are included, marked, so the history is visible. Newest first, at most 500.
+     */
+    get: {
+      parameters: {
+        query?: {
+          recordType?: string;
+          recordId?: string;
+          frameworkVersionId?: string;
+          statementId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Evidence links */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidenceLinkList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Tag a record as evidence
+     * @description quality.evidence.manage. The record is read in your own scope (one you cannot see reads as not found); its statements must be in the named framework version, which must be the published one (rule 6). Restricted records (speak-up, employee relations casework, legal advice) are never evidence. Record types whose tables later slices add (audits, compliments, policies, surveys) are accepted once those slices register them. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateEvidenceLink"];
+        };
+      };
+      responses: {
+        /** @description Tagged */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidenceLinkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/evidence-links/{id}/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove an evidence tag
+     * @description quality.evidence.manage, with a reason, against the version you read. The link stays, marked removed with who and why; it no longer counts as evidence. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RemoveEvidenceLink"];
+        };
+      };
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EvidenceLinkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-starters": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Harbour's starter audit templates
+     * @description quality.audit.manage. Global reference data: the starter templates (medication, care plans, IPC, environment, dignity, night visit, mock inspection) mapped to the framework, for the organisation to copy and make its own.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Starter templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditStarterList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's audit templates
+     * @description quality.audit.manage. Active and retired, by key.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Audit templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Add an audit template, from a starter or your own
+     * @description quality.audit.manage. From a Harbour starter (`starterKey`; the other fields default to the starter's) or your own (kind, title, framework version and questions). The questions are checked against the framework version, which must be published (rule 8); the key is unique in the organisation. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Change an audit template
+     * @description quality.audit.manage, against the version read. Title, framework version and questions (rule 8); the key and kind stay. Audits already started keep the questions and framework version they started with. A retired template does not change. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-templates/{id}/retire": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retire an audit template
+     * @description quality.audit.manage, against the version read. No new audits start from it; its audits and schedules stay readable. Retiring is final. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RetireAuditTemplate"];
+        };
+      };
+      responses: {
+        /** @description Retired */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audit-schedules": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Audit schedules, with when each is next due
+     * @description quality.audit.manage, at the locations where you hold it. Each schedule with its last completed audit, when the next is due (the schedule's own frequency in calendar months after the last, or the first due date) and whether it is overdue on today's UK date (rule 13).
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Schedules */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditScheduleList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Schedule an audit template at a location
+     * @description quality.audit.manage at the location. One schedule per template and location, every 1 to 60 months from the first due date. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAuditSchedule"];
+        };
+      };
+      responses: {
+        /** @description Scheduled */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditScheduleItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Audits and mock inspections
+     * @description quality.audit.manage, at the locations where you hold it. Newest first, at most 500, by location, kind or state.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          kind?: string;
+          state?: "in_progress" | "completed";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Audits */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start an audit or mock inspection
+     * @description quality.audit.manage at the location. Starts from an active template, copying its questions, version and framework version, which the audit keeps (rule 4). A mock inspection starts only when its template is mapped to the framework version in force (409 otherwise). The audit date is today or earlier. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["StartAudit"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An audit with its score, method, findings and actions
+     * @description quality.audit.manage at the audit's location. Scored against the questions and framework version it started with, whatever the template now says (rule 4); the method in words beside the score; the answers that fell short by quality statement (rule 14); whether its framework version is still the one in force.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The audit */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}/answers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Save answers to an audit in progress
+     * @description quality.audit.manage at the audit's location, against the version read. Answers (yes, partial, no, not applicable, or null to clear) are merged into those saved, for the audit's own questions only. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveAuditAnswers"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/audits/{id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Complete an audit with the self-rating and actions
+     * @description quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner who is an active member running audits at the location and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CompleteAudit"];
+        };
+      };
+      responses: {
+        /** @description Completed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AuditRecordDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/ipc-criteria": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The IPC Code of Practice criteria
+     * @description safety.outbreak.manage or quality.audit.manage. Global reference data: the 10 criteria of the Code of Practice on the prevention and control of infections, in Harbour's summary, that IPC audit questions are mapped to.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Criteria */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IpcCriterionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/ipc-audits/{id}/criteria": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An IPC audit read against the Code of Practice criteria
+     * @description quality.audit.manage at the audit's location. Each criterion with the questions mapped to it, the audit's own weighted score over them and the answers that fell short; a criterion no question covers has no score, so a gap shows. Only for audits of kind `ipc` (409 otherwise). Read from the questions the audit started with.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Criteria results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IpcAuditCriteria"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Outbreaks
+     * @description safety.outbreak.manage, at the locations where you hold it. Newest first, at most 200, by location or state.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          state?: "declared" | "closed";
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Outbreaks */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Declare an outbreak
+     * @description safety.outbreak.manage at the location, in England (other nations wait for their nation pack; 409). One open outbreak per illness at a location (409 otherwise). Drafts the outbreak's own UKHSA report, due without delay, so its clock shows in the notification centre (HZ-013). Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DeclareOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Declared */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An outbreak with its line list, report fields and report clock
+     * @description safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields counted from every row, whoever is reading (people ever positive or in hospital counted once), with what is still missing, to copy into the report; the outbreak's own report with its clock; how many cases are still unwell; how many rows about residents you cannot see are counted but not listed. The view is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The outbreak */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Record the organism or the health protection team's reference
+     * @description safety.outbreak.manage at the outbreak's location, against the version read; an open outbreak only. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}/cases": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a case to the line list, or update one
+     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordOutbreakCase"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safety/outbreaks/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Close an outbreak
+     * @description safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the outbreak's own UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the day it was declared or the last case's symptoms started (counted from every row), nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseOutbreak"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OutbreakDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/p/evidence/code": {
     parameters: {
       query?: never;
@@ -28341,6 +30491,598 @@ export interface components {
         kind: string;
         message: string;
       }[];
+    };
+    FrameworkVersionList: {
+      items: components["schemas"]["FrameworkVersionSummary"][];
+    };
+    FrameworkVersionSummary: {
+      /** Format: uuid */
+      id: string;
+      frameworkKey: string;
+      /** @enum {string} */
+      regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
+      versionNumber: number;
+      /** @enum {string} */
+      state: "draft" | "published" | "retired";
+      /** Format: date */
+      publishedOn: string | null;
+      /** Format: date */
+      retiredOn: string | null;
+      source: {
+        name: string;
+        provision: string;
+        url: string;
+      };
+      inForce: boolean;
+    };
+    FrameworkVersionDetail: {
+      /** Format: uuid */
+      id: string;
+      frameworkKey: string;
+      /** @enum {string} */
+      regulator: "cqc" | "ciw" | "care_inspectorate" | "rqia";
+      versionNumber: number;
+      /** @enum {string} */
+      state: "draft" | "published" | "retired";
+      /** Format: date */
+      publishedOn: string | null;
+      /** Format: date */
+      retiredOn: string | null;
+      source: {
+        name: string;
+        provision: string;
+        url: string;
+      };
+      inForce: boolean;
+      keyQuestions: {
+        id: string;
+        title: string;
+        statements: {
+          id: string;
+          title: string;
+        }[];
+      }[];
+      evidenceCategories: {
+        id: string;
+        title: string;
+      }[];
+    };
+    FrameworkMappingView: {
+      /** Format: uuid */
+      frameworkVersionId: string;
+      mappingVersion: number;
+      entries: components["schemas"]["FrameworkMappingEntry"][];
+      /** Format: uuid */
+      madeBy: string | null;
+      /** Format: date-time */
+      madeAt: string | null;
+    };
+    FrameworkMappingEntry: {
+      statementId: string;
+      localTitle: string | null;
+      ownerRole: string | null;
+      evidenceCategoryIds: string[];
+    };
+    SaveFrameworkMapping: {
+      mappingVersion: number;
+      entries: components["schemas"]["FrameworkMappingEntry"][];
+    };
+    EvidenceCoverage: {
+      /** Format: uuid */
+      frameworkVersionId: string;
+      statements: {
+        statementId: string;
+        keyQuestionId: string;
+        records: number;
+      }[];
+      gaps: string[];
+    };
+    EvidenceLinkList: {
+      items: components["schemas"]["EvidenceLinkItem"][];
+    };
+    EvidenceLinkItem: {
+      /** Format: uuid */
+      id: string;
+      recordType: string;
+      /** Format: uuid */
+      recordId: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      statementIds: string[];
+      /** Format: uuid */
+      taggedBy: string;
+      /** Format: date-time */
+      taggedAt: string;
+      /** Format: date-time */
+      removedAt: string | null;
+      /** Format: uuid */
+      removedBy: string | null;
+      removalReason: string | null;
+      version: number;
+    };
+    CreateEvidenceLink: {
+      recordType: string;
+      /** Format: uuid */
+      recordId: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      statementIds: string[];
+    };
+    RemoveEvidenceLink: {
+      reason: string;
+      version: number;
+    };
+    AuditStarterList: {
+      items: components["schemas"]["AuditStarter"][];
+    };
+    AuditStarter: {
+      key: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+      source: string;
+    };
+    AuditQuestion: {
+      key: string;
+      text: string;
+      weight: number;
+      statementIds: string[];
+      actionRequired: boolean;
+      ipcCriteria?: string[];
+    };
+    AuditTemplateList: {
+      items: components["schemas"]["AuditTemplateItem"][];
+    };
+    AuditTemplateItem: {
+      /** Format: uuid */
+      id: string;
+      key: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+      starterKey: string | null;
+      /** @enum {string} */
+      state: "active" | "retired";
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+    };
+    CreateAuditTemplate: {
+      key: string;
+      starterKey?: string;
+      /** @enum {string} */
+      kind?:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title?: string;
+      /** Format: uuid */
+      frameworkVersionId?: string;
+      questions?: components["schemas"]["AuditQuestion"][];
+    };
+    UpdateAuditTemplate: {
+      version: number;
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      questions: components["schemas"]["AuditQuestion"][];
+    };
+    RetireAuditTemplate: {
+      version: number;
+    };
+    AuditScheduleList: {
+      items: components["schemas"]["AuditScheduleItem"][];
+    };
+    AuditScheduleItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      templateTitle: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      /** Format: uuid */
+      locationId: string;
+      frequencyMonths: number;
+      /** Format: date */
+      firstDueOn: string;
+      /** Format: date */
+      lastCompletedOn: string | null;
+      /** Format: date */
+      nextDueOn: string;
+      overdue: boolean;
+      version: number;
+    };
+    CreateAuditSchedule: {
+      /** Format: uuid */
+      templateId: string;
+      /** Format: uuid */
+      locationId: string;
+      frequencyMonths: number;
+      /** Format: date */
+      firstDueOn: string;
+    };
+    AuditRecordList: {
+      items: components["schemas"]["AuditRecordSummary"][];
+    };
+    AuditRecordSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+      /** @enum {string} */
+      state: "in_progress" | "completed";
+      scorePercent: number | null;
+      selfRating: number | null;
+      version: number;
+    };
+    AuditRecordDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      templateId: string;
+      /** @enum {string} */
+      kind:
+        | "medication"
+        | "care_plans"
+        | "ipc"
+        | "environment"
+        | "dignity"
+        | "night_visit"
+        | "mock_inspection"
+        | "other";
+      title: string;
+      /** Format: uuid */
+      frameworkVersionId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+      /** @enum {string} */
+      state: "in_progress" | "completed";
+      scorePercent: number | null;
+      selfRating: number | null;
+      version: number;
+      templateVersion: number;
+      frameworkInForce: boolean;
+      questions: components["schemas"]["AuditQuestion"][];
+      answers: {
+        [key: string]: "yes" | "partial" | "no" | "not_applicable" | null;
+      };
+      score: {
+        percent: number | null;
+        achieved: number;
+        possible: number;
+        complete: boolean;
+        unanswered: string[];
+        method: string;
+      };
+      selfRatingWords: string | null;
+      findings: {
+        statementId: string;
+        questionKeys: string[];
+      }[];
+      actions: components["schemas"]["AuditActionItem"][];
+      /** Format: uuid */
+      startedBy: string;
+      /** Format: uuid */
+      completedBy: string | null;
+      /** Format: date-time */
+      completedAt: string | null;
+    };
+    AuditActionItem: {
+      /** Format: uuid */
+      id: string;
+      questionKey: string;
+      description: string;
+      /** Format: uuid */
+      ownerId: string;
+      /** Format: date */
+      dueOn: string;
+      /** Format: uuid */
+      taskId: string | null;
+    };
+    StartAudit: {
+      /** Format: uuid */
+      templateId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      auditedOn: string;
+    };
+    SaveAuditAnswers: {
+      version: number;
+      answers: {
+        [key: string]: "yes" | "partial" | "no" | "not_applicable" | null;
+      };
+    };
+    CompleteAudit: {
+      version: number;
+      selfRating: number;
+      actions: {
+        questionKey: string;
+        description: string;
+        /** Format: uuid */
+        ownerId: string;
+        /** Format: date */
+        dueOn?: string;
+      }[];
+    };
+    IpcCriterionList: {
+      items: components["schemas"]["IpcCriterionItem"][];
+    };
+    IpcCriterionItem: {
+      id: string;
+      number: number;
+      title: string;
+      source: string;
+    };
+    IpcAuditCriteria: {
+      /** Format: uuid */
+      auditId: string;
+      criteria: {
+        id: string;
+        number: number;
+        title: string;
+        questionKeys: string[];
+        percent: number | null;
+        achieved: number;
+        possible: number;
+        fellShort: string[];
+      }[];
+      method: string;
+    };
+    OutbreakList: {
+      items: components["schemas"]["OutbreakSummary"][];
+    };
+    OutbreakSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** @enum {string} */
+      state: "declared" | "closed";
+      /** Format: date-time */
+      declaredAt: string;
+      /** Format: uuid */
+      declaredBy: string;
+      /** Format: uuid */
+      notificationId: string | null;
+      hptReference: string | null;
+      /** Format: date */
+      closedOn: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      /** Format: uuid */
+      closedBy: string | null;
+      closureReason: string | null;
+      version: number;
+    };
+    OutbreakDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** @enum {string} */
+      state: "declared" | "closed";
+      /** Format: date-time */
+      declaredAt: string;
+      /** Format: uuid */
+      declaredBy: string;
+      /** Format: uuid */
+      notificationId: string | null;
+      hptReference: string | null;
+      /** Format: date */
+      closedOn: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      /** Format: uuid */
+      closedBy: string | null;
+      closureReason: string | null;
+      version: number;
+      cases: components["schemas"]["OutbreakCaseItem"][];
+      report: components["schemas"]["UkhsaReportFields"];
+      notification: components["schemas"]["StatutoryNotificationSummary"] &
+        (Record<string, never> | null);
+      stillUnwell: number;
+      rowsNotShown: number;
+    };
+    OutbreakCaseItem: {
+      /** @enum {string} */
+      caseType: "resident" | "staff";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      tenantUserId: string | null;
+      /** Format: date */
+      onsetOn: string;
+      symptoms: (
+        | "fever"
+        | "cough"
+        | "sore_throat"
+        | "shortness_of_breath"
+        | "loss_of_taste_or_smell"
+        | "diarrhoea"
+        | "vomiting"
+        | "new_confusion"
+        | "other"
+      )[];
+      /** @enum {string|null} */
+      testType: "lateral_flow" | "pcr" | "stool_sample" | "other" | null;
+      /** Format: date */
+      testedOn: string | null;
+      /** @enum {string} */
+      testResult: "not_tested" | "pending" | "positive" | "negative";
+      /** @enum {string} */
+      fluVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      covidVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      outcome: "unwell" | "recovered" | "hospitalised" | "died";
+      /** Format: date */
+      outcomeOn: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      /** Format: uuid */
+      id: string;
+      current: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: uuid */
+      createdBy: string | null;
+    };
+    UkhsaReportFields: {
+      settingName: string;
+      postcode: string | null;
+      cqcLocationId: string | null;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism: string | null;
+      /** Format: date */
+      declaredOn: string;
+      residentCases: number;
+      staffCases: number;
+      /** Format: date */
+      firstOnsetOn: string | null;
+      /** Format: date */
+      latestOnsetOn: string | null;
+      tested: number;
+      positive: number;
+      pending: number;
+      hospitalised: number;
+      died: number;
+      fluVaccination: {
+        yes: number;
+        no: number;
+        unknown: number;
+      };
+      covidVaccination: {
+        yes: number;
+        no: number;
+        unknown: number;
+      };
+      missing: string[];
+      source: {
+        source: string;
+        provision: string;
+        url: string;
+      };
+    };
+    DeclareOutbreak: {
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      syndrome: "acute_respiratory" | "flu" | "covid_19" | "diarrhoea_vomiting" | "other";
+      organism?: string;
+      hptReference?: string;
+    };
+    UpdateOutbreak: {
+      version: number;
+      organism: string | null;
+      hptReference: string | null;
+    };
+    RecordOutbreakCase: {
+      /** @enum {string} */
+      caseType: "resident" | "staff";
+      /** Format: uuid */
+      personId: string | null;
+      /** Format: uuid */
+      tenantUserId: string | null;
+      /** Format: date */
+      onsetOn: string;
+      symptoms: (
+        | "fever"
+        | "cough"
+        | "sore_throat"
+        | "shortness_of_breath"
+        | "loss_of_taste_or_smell"
+        | "diarrhoea"
+        | "vomiting"
+        | "new_confusion"
+        | "other"
+      )[];
+      /** @enum {string|null} */
+      testType: "lateral_flow" | "pcr" | "stool_sample" | "other" | null;
+      /** Format: date */
+      testedOn: string | null;
+      /** @enum {string} */
+      testResult: "not_tested" | "pending" | "positive" | "negative";
+      /** @enum {string} */
+      fluVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      covidVaccinated: "yes" | "no" | "unknown";
+      /** @enum {string} */
+      outcome: "unwell" | "recovered" | "hospitalised" | "died";
+      /** Format: date */
+      outcomeOn: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+    };
+    CloseOutbreak: {
+      version: number;
+      /** Format: date */
+      closedOn: string;
+      reason: string;
     };
     /** @description Whether the email with the code was sent */
     EvidenceLinkCodeSent: {

@@ -82,6 +82,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.advance_care_record",
   "public.person_care_profile",
   "public.observation",
+  "public.outbreak_case",
   "public.care_note",
   "public.body_map_mark",
   "public.assessment",
@@ -627,6 +628,134 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       hash: {
         description: "SHA-256 of this event chained to the previous one; check with prev_hash.",
       },
+    },
+  },
+  "public.audit_action": {
+    context: "quality",
+    description:
+      "Actions raised on a completed audit for answers that fell short (quality.md rule 10): the question, what is to be done, the owner and the due date. Append-only.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      audit_id: { description: "The audit the action came from (audit_record.id)." },
+      question_key: { description: "The audit question the action answers." },
+      description: { description: "What is to be done." },
+      owner_id: { description: "Who owns the action (tenant_user.id)." },
+      due_on: { description: "When the action is due (UK calendar date)." },
+      task_id: { description: "The task raised for the owner (task.id)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.audit_record": {
+    context: "quality",
+    description:
+      "Audits and mock inspections carried out at a location (quality.md rules 8 to 14): the questions and framework version they were scored against, the answers, the score with its points, the self-rating given by a person and who completed it.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      template_id: { description: "The audit template used (audit_template.id)." },
+      template_version: {
+        description: "The template's version when the audit started.",
+        unit: "version number",
+      },
+      kind: { description: "The kind of audit (medication, IPC, mock inspection and so on)." },
+      title: { description: "The audit's title, copied from its template." },
+      questions: {
+        description:
+          "The questions as they stood when the audit started: key, text, weight, quality statements and whether a shortfall needs an action.",
+      },
+      framework_version_id: { description: "The framework version the audit was scored against." },
+      location_id: "exported",
+      audited_on: { description: "When the audit was carried out (UK calendar date)." },
+      answers: { description: "Each question's answer: yes, partial, no or not applicable." },
+      state: { description: "In progress or completed." },
+      score_percent: {
+        description: "The weighted score, 0 to 100; empty when nothing could be scored.",
+        unit: "percent",
+      },
+      achieved: { description: "Weighted points achieved.", unit: "points" },
+      possible: { description: "Weighted points possible.", unit: "points" },
+      self_rating: {
+        description:
+          "The self-rating on the CQC rating scale in the rate table, given by a person.",
+        unit: "rating scale point",
+      },
+      started_by: { description: "Who started the audit (tenant_user.id)." },
+      completed_by: { description: "Who completed the audit (tenant_user.id)." },
+      completed_at: { description: "When the audit was completed (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.audit_schedule": {
+    context: "quality",
+    description:
+      "How often each audit template is carried out at each location (quality.md rule 13).",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      template_id: { description: "The audit template (audit_template.id)." },
+      location_id: "exported",
+      frequency_months: { description: "How often the audit is due.", unit: "months" },
+      first_due_on: { description: "When the first audit is due (UK calendar date)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.audit_starter_template": {
+    context: "quality",
+    description: "Harbour's starter audit templates mapped to the compliance framework.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: Harbour's starter audit templates (migration 0081); an organisation's own templates are exported.",
+    columns: {},
+  },
+  "public.audit_template": {
+    context: "quality",
+    description:
+      "The organisation's scored audit templates (quality.md rule 8): questions with weights, the quality statements each evidences and whether a shortfall needs an action.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      key: { description: "The template's key, unique in the organisation." },
+      kind: { description: "The kind of audit (medication, IPC, mock inspection and so on)." },
+      title: { description: "The template's title." },
+      framework_version_id: { description: "The framework version the questions are mapped to." },
+      questions: {
+        description:
+          "The questions: key, text, weight, quality statements and whether a shortfall needs an action.",
+      },
+      starter_key: { description: "The Harbour starter template it was copied from, if any." },
+      state: { description: "Active or retired." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
     },
   },
   "public.bank_holiday": {
@@ -2020,6 +2149,35 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.evidence_link": {
+    context: "quality",
+    description:
+      "Records tagged as evidence against quality statements of one framework version (quality.md rule 6): the record's type and id only, never its content.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_type: {
+        description: "The kind of record tagged (care_note, incident, audit and so on).",
+      },
+      record_id: { description: "The record's id in its own table." },
+      framework_version_id: { description: "The framework version the statements belong to." },
+      statement_ids: { description: "The quality statements the record is evidence for." },
+      tagged_by: { description: "Who tagged it (tenant_user.id)." },
+      tagged_at: "exported",
+      removed_at: { description: "When the tag was removed, if it was." },
+      removed_by: { description: "Who removed it (tenant_user.id)." },
+      removal_reason: { description: "Why the tag was removed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.evidence_pack": {
     context: "quality",
     description:
@@ -2603,6 +2761,72 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.framework_evidence_category": {
+    context: "quality",
+    description: "Evidence categories of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_key_question": {
+    context: "quality",
+    description: "Key questions of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_mapping": {
+    context: "quality",
+    description:
+      "The organisation's versioned mapping of a compliance framework version (quality.md rule 5): local titles, owner roles and expected evidence categories per statement.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      framework_version_id: { description: "The framework version mapped." },
+      mapping_version: {
+        description: "The mapping's version for this framework version.",
+        unit: "version",
+      },
+      entries: {
+        description:
+          "Per statement: the statement id, the organisation's own title, the owner role and the evidence categories expected.",
+      },
+      made_by: { description: "Who made this version (tenant_user.id)." },
+      made_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.framework_statement": {
+    context: "quality",
+    description: "Quality statements of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_version": {
+    context: "quality",
+    description:
+      "Compliance framework versions (CQC's single assessment framework now; KLOEs when published).",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
   "public.handed_over_entry": {
     context: "care",
     description:
@@ -3055,6 +3279,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       version: "exported",
       deleted_at: "exported",
     },
+  },
+  "public.ipc_code_criterion": {
+    context: "safety",
+    description:
+      "The infection prevention and control Code of Practice criteria IPC audits are read against.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the Code of Practice criteria (migration 0093).",
+    columns: {},
   },
   "public.invitation": {
     context: "platform",
@@ -3634,6 +3869,72 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.outbreak": {
+    context: "safety",
+    description:
+      "Outbreaks declared at a location (safety.md section 11): the illness, who declared it and when, the UKHSA report it runs on, the health protection team's reference and the closure.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      syndrome: {
+        description:
+          "The illness: acute respiratory, flu, COVID-19, diarrhoea and vomiting or other.",
+      },
+      organism: { description: "The organism a test named, as staff recorded it." },
+      state: { description: "Declared or closed." },
+      declared_at: { description: "When the outbreak was declared (instant, UTC)." },
+      declared_by: { description: "Who declared it (tenant_user.id)." },
+      notification_id: { description: "The UKHSA report it runs on (statutory_notification.id)." },
+      hpt_reference: { description: "The health protection team's reference." },
+      closed_on: { description: "When the outbreak was closed (UK calendar date)." },
+      closed_at: { description: "When the closure was recorded (instant, UTC)." },
+      closed_by: { description: "Who closed it (tenant_user.id)." },
+      closure_reason: { description: "Why it was closed, in the closer's words." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.outbreak_case": {
+    context: "safety",
+    description:
+      "An outbreak's case line list (safety.md section 11): residents and staff with symptoms, onset, tests, vaccination and outcome. Append-only: an update supersedes the person's last row.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      outbreak_id: { description: "The outbreak (outbreak.id)." },
+      case_type: { description: "Resident or staff." },
+      person_id: "exported",
+      tenant_user_id: { description: "The member of staff, for a staff case (tenant_user.id)." },
+      onset_on: { description: "When symptoms started (UK calendar date)." },
+      symptoms: { description: "Symptoms observed, as codes (cough, fever, diarrhoea and so on)." },
+      test_type: { description: "The test taken: lateral flow, PCR, stool sample or other." },
+      tested_on: { description: "When the test was taken (UK calendar date)." },
+      test_result: { description: "Not tested, pending, positive or negative." },
+      flu_vaccinated: {
+        description: "Whether the person had this season's flu vaccine: yes, no or unknown.",
+      },
+      covid_vaccinated: {
+        description: "Whether the person had a current COVID-19 vaccine: yes, no or unknown.",
+      },
+      outcome: { description: "Unwell, recovered, hospitalised or died." },
+      outcome_on: { description: "When the outcome happened (UK calendar date)." },
+      supersedes_id: "exported",
+      correction_reason: "exported",
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.outbox_event": {

@@ -99,6 +99,17 @@ Approved phrases say what happened, never how the person is. Notifications carry
 generic line and a link only. Nothing interprets, scores or predicts
 ([comms.md](../specs/comms.md) rules 7 to 13).
 
+**Outbreaks and IPC audits (Phase 2, slice 31)**: these stay inside the boundary and add no score
+about a person. The outbreak's illness is declared by a person, never derived; Harbour's
+detection only applies UKHSA's published reporting thresholds to recorded cases and drafts the
+report (section 4 rule 7 of [safety.md](../specs/safety.md)). The case line list stores what
+staff observed and what tests reported (symptoms as codes, test results, vaccination answers,
+outcomes); the UKHSA report fields are counts and dates over those records, with missing values
+listed rather than guessed. An IPC audit is read against the Code of Practice criteria with the
+audit's own arithmetic over the organisation's answers, which measures the service, not a person.
+Nothing labels a person as infected or likely infected, predicts spread or recommends isolation
+or treatment ([safety.md](../specs/safety.md) section 11).
+
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 
 ## 6. Grey areas that need an ADR and CSO review before they are built

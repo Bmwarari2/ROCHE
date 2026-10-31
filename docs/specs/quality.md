@@ -698,3 +698,130 @@ Table-driven, in `packages/domain/src/quality/` beside each module, at 90% line 
 `quality-indicators.test.ts` (16 to 22, the last as `rule 22 missing data is never shown as
 good`), `quality-pir.test.ts` (23, 24), `policies.test.ts` (25 to 28), `quality-data-security.test.ts`
 (29 to 31) and `quality-rates.test.ts` (the rows resolve from rates.md; a missing row fails loudly).
+
+## 18. Compliance framework and evidence library (slice 14: QUAL-001, QUAL-002; migration 0076)
+
+Schema and API for rules 1 to 7 (section 17), with [ADR-0096](../decisions/0096-compliance-framework-content.md).
+Spec, schema, permission matrix and test list before the code; the screens are slice 64.
+
+### 18.1 Schema (migration 0076)
+
+| Table | Kind | Key columns | Security | Retention class |
+| --- | --- | --- | --- | --- |
+| `framework_version` | Global reference, fixed once published | id, framework key, regulator (`cqc`, `ciw`, `care_inspectorate`, `rqia`), version number, state (`draft`, `published`, `retired`), published and retired dates, source name, provision and https link | No tenant; forced RLS, read by every role, written only by the owner role in migrations; a guard allows only draft to published to retired | Not exported (global) |
+| `framework_key_question`, `framework_statement`, `framework_evidence_category` | Global reference | framework version, id (the evidence pack's id pattern), position, title; a statement names its key question | As above; content of a published version never changes, even for the owner role | Not exported (global) |
+| `framework_mapping` | Append-only, tenant | framework version, mapping version (next, set by the database's check), entries (statement id, local title, owner role, evidence categories), made by and at | Tenant policy; restrictive: `quality.evidence.manage` anywhere or a job; entries must name the version's statements and categories, each statement once | `tenant_configuration` |
+| `evidence_link` | Mutable aggregate (only to remove), tenant | record type and id, framework version, statement ids (1 to 20), tagged by and at, removed at, by and reason | Tenant policy; restrictive as above; statements must be in a published version; afterwards only removal, once, in the remover's name; no delete | `tenant_configuration` |
+
+Version 1 (CQC's single assessment framework: 5 key questions, 34 quality statements, 6 evidence
+categories, with the CQC page as source) is seeded by the migration; titles and date to be
+confirmed (H-606).
+
+### 18.2 Permissions
+
+| Permission | Allows | Held by |
+| --- | --- | --- |
+| Any of `quality.evidence.manage`, `quality.audit.manage`, `quality.policy.manage`, `quality.evidence_pack.compose`, `.release` | Read framework versions and their content | Owner, Registered Manager, deputy, nurse in charge (audits), quality lead |
+| `quality.evidence.manage` | Read and change the organisation's mapping; tag records as evidence, list and remove tags; coverage | Owner, Registered Manager, deputy, quality lead |
+
+### 18.3 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/frameworks` | Every version, the one in force today for each regulator marked (rule 3) |
+| `GET /v1/quality/frameworks/{id}` | Key questions with their statements, and evidence categories |
+| `GET /v1/quality/frameworks/{id}/mapping[?at=]` | The latest mapping, or the one in force at a moment; version 0 when none |
+| `PUT /v1/quality/frameworks/{id}/mapping` | A new mapping version (the read one plus one; 409 when stale), checked by `checkMappingChange`; `quality.framework.mapping_changed` |
+| `GET /v1/quality/frameworks/{id}/coverage` | Records per statement and the gaps (rule 7), removed tags not counted |
+| `GET /v1/evidence-links?recordType&recordId` or `?frameworkVersionId&statementId` | Links for a record or a statement, removed ones marked |
+| `POST /v1/evidence-links` | Tag a record read in the tagger's scope (anything else is 404) against a published version's statements (`checkEvidenceTag`); record types are the evidence pack's until audits, compliments, policies and surveys register theirs (422 `record_type_not_available` until then); `quality.evidence.tagged` |
+| `POST /v1/evidence-links/{id}/remove` | With a reason and the read version; `quality.evidence.untagged` |
+
+Refusals decided in the API and those the database raises are audited as denied. The evidence pack
+(compose and add items) now takes its quality statement ids from the CQC version in force: a key
+question id (as the screens send) or a statement id; an unknown id is refused with the ids named
+(422). Where no version is in force (a nation not yet loaded) the ids stay opaque.
+
+### 18.4 Tests
+
+- `packages/db/test/quality-framework.test.ts`: the seeded counts and ids; global tables
+  read-only to the application; a published version's content fixed; mappings append-only,
+  numbered next, naming real statements once; links naming real statements of a published version,
+  in the tagger's name, removed once, never deleted, versioned; cross-tenant denial and denial to
+  anyone without `quality.evidence.manage` (HZ-011). `rls-coverage.test.ts` lists
+  `framework_mapping` as append-only.
+- `apps/api/test/quality-framework.test.ts`: the framework in force; mappings by version and by
+  moment, stale and unknown refused and audited; tags in scope, refusals (unknown statement, record
+  type not yet available, never evidence, missing record), lists, coverage and removal; the
+  evidence pack taking statement and key question ids and refusing others.
+- The evidence pack's API tests use statement ids from version 1.
+
+## 19. Audit programme and mock inspections (slice 19: QUAL-004; migration 0081)
+
+Schema and API for rules 8 to 15 (section 17). Spec, schema, permission matrix and test list
+before the code; the screens are slice 64. Builds on the framework library (section 18).
+
+### 19.1 Schema (migration 0081)
+
+| Table | Kind | Key columns | Security | Retention class |
+| --- | --- | --- | --- | --- |
+| `audit_starter_template` | Global reference | key, kind, title, framework version, questions, source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
+| `audit_template` | Mutable aggregate, tenant | key (unique in the organisation), kind, title, framework version, questions (1 to 200: key, text, weight, statement ids, whether a shortfall needs an action), starter key, state (`active`, `retired`) | Tenant policy; restrictive: `quality.audit.manage` anywhere or a job; the framework version published; the key fixed; retired is final; no delete | `organisation_document` |
+| `audit_schedule` | Mutable aggregate, tenant | template, location (one schedule each), frequency (1 to 60 months), first due date | Tenant policy; restrictive: `quality.audit.manage` at the location; the location the organisation's own (foreign key); no delete | `tenant_configuration` |
+| `audit_record` | Mutable aggregate until completed, tenant | template and its version, kind, title, questions and framework version (copied by the database from the template at the start), location, audit date, answers, state (`in_progress`, `completed`), score percent, points achieved and possible, self-rating, started by, completed by and at | Tenant policy; restrictive: `quality.audit.manage` at the location; starts in progress in the starter's name; the template, framework, place and date never change; the location the organisation's own (foreign key); only completion records the self-rating and the score, which must be the score of the saved answers (points worked out by the database, the percentage within 0.001), with every question answered; a completed audit never changes; no delete | `organisation_document` |
+| `audit_action` | Append-only, tenant | audit, question key, description (3 to 1000 characters), owner, due date, task | Tenant policy; restrictive through the audit's location; only on a question of a completed audit, by the person who completed it, due on or after the audit; the owner a member of the organisation (foreign key; the task points back through its source) | `organisation_document` |
+
+Seven starter templates are seeded (medication, care plans, IPC, environment, dignity, night visit,
+mock inspection; 36 questions in all), mapped to statements of framework version 1; the IPC one is
+the template slice 31 uses. They are Harbour's drafting, to be reviewed (H-760).
+
+### 19.2 Permissions
+
+| Permission | Allows | Held by |
+| --- | --- | --- |
+| `quality.audit.manage` (anywhere) | Read the starters; add, change and retire the organisation's templates | Owner, group executive (read), quality lead, and any role given it |
+| `quality.audit.manage` (at a location) | Schedule audits there; start, answer and complete audits there; read them, their scores, findings and actions | As above |
+| `quality.evidence.manage` | Tag a completed audit as evidence (record type `audit`), read in the tagger's scope | As in section 18 |
+
+Action owners get a task (`quality.audit_action`) that needs `quality.audit.manage` to complete, so
+an owner must be an active member who holds it at the audit's location (`mayBeAssigned`, as the
+task engine requires of any assignee). Whether owners without it should complete their own actions
+is H-762.
+
+### 19.3 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/audit-starters` | The starter templates |
+| `GET /v1/quality/audit-templates` | The organisation's templates |
+| `POST /v1/quality/audit-templates` | From a starter (`starterKey`) or the organisation's own; `checkAuditTemplate` against a published framework version (422 with the problems, 409 for a used key); `quality.audit.template_saved` |
+| `PUT /v1/quality/audit-templates/{id}` | Title, framework version and questions against the read version; audits already started keep theirs; `quality.audit.template_saved` |
+| `POST /v1/quality/audit-templates/{id}/retire` | Final; `quality.audit.template_retired` |
+| `GET /v1/quality/audit-schedules[?locationId]` | Each schedule with its last completed audit, next due date (`nextAuditDue`, or the first due date) and whether it is overdue on today's UK date |
+| `POST /v1/quality/audit-schedules` | An active template at a visible location; `quality.audit.scheduled` |
+| `GET /v1/quality/audits[?locationId&kind&state]` | Newest first, at most 500 |
+| `GET /v1/quality/audits/{id}` | Score (`scoreAudit`) with its method in words, findings by statement (`auditFindingsByStatement`), actions, the self-rating with its CQC words, and whether its framework version is still in force |
+| `POST /v1/quality/audits` | Start from an active template at a visible location, dated today or earlier; a mock inspection only when its template is mapped to the framework version in force (409 otherwise); `quality.audit.started` |
+| `PUT /v1/quality/audits/{id}/answers` | Merge answers for the audit's own questions against the read version; `quality.audit.answered` |
+| `POST /v1/quality/audits/{id}/complete` | `checkAuditCompletion` with the rating scale from the rate table; a missing action due date takes `quality.audit.action_due_days` after the audit (`defaultActionDueOn`); owners must be active members who run audits at the location (422 otherwise); stores the score and points, the actions and a task for each owner; `quality.audit.completed` |
+
+Refusals decided in the API and those the database raises are audited as denied. No route works
+out a rating from a score (rule 15).
+
+### 19.4 Tests
+
+- `packages/db/test/quality-audits.test.ts`: the seven starters, read-only to the application and
+  in step with the domain's kinds; an audit copies its template's questions and framework version
+  whatever was sent; the template, framework and place fixed; only completion records the
+  self-rating; a completed audit never changes or goes; actions only on a completed audit's own
+  questions, due on or after it, append-only; a retired template fixed; audits seen only at
+  locations where the member runs audits; nothing to a care worker or another organisation
+  (HZ-011). `rls-coverage.test.ts` lists `audit_action` as append-only.
+- `apps/api/test/quality-audits.test.ts`: starters to a quality lead, refused to a care worker;
+  templates from a starter, once per key, refused with an unknown statement or duplicate keys;
+  schedules with their next due date; an audit keeping its questions after its template changes; a
+  future date refused; answers scored with the method and findings, stale and unknown answers
+  refused; completion refused without an action or with a rating off the scale; completion with the
+  default due date and the owner's task; the schedule counting it; a completed audit tagged as
+  evidence; mock inspections refused once a later framework version is in force while past audits
+  keep theirs; every change and refusal audited.

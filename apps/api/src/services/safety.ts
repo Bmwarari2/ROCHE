@@ -431,16 +431,23 @@ function latestYesNoUnsure(
 }
 
 /**
- * The infection cases at a location with symptoms that started after its last outbreak report was
- * decided (submitted or marked not required); outbreak.ts counts from there. Cases behind a draft
- * still being prepared keep counting, so the same threshold keeps the same draft.
+ * The infection cases at a location with symptoms that started after the last outbreak report
+ * detection drafted for the same illness was decided (submitted or marked not required);
+ * outbreak.ts counts from there. Respiratory cases count from the last decided respiratory or flu
+ * report, diarrhoea and vomiting cases from the last decided one of theirs, so deciding one
+ * illness's report never resets detection of another (HZ-013). Reports drafted when a person
+ * declared an outbreak (source key `outbreak:<outbreak id>`) never reset detection. Cases behind a
+ * draft still being prepared keep counting, so the same threshold keeps the same draft.
  */
 export async function locationInfectionCases(
   tx: Transaction,
   locationId: string,
 ): Promise<InfectionCase[]> {
-  const [lastReport] = await tx
-    .select({ decidedAt: statutoryNotification.updatedAt })
+  const decided = await tx
+    .select({
+      decidedAt: statutoryNotification.updatedAt,
+      sourceKey: statutoryNotification.sourceKey,
+    })
     .from(statutoryNotification)
     .where(
       and(
@@ -449,9 +456,22 @@ export async function locationInfectionCases(
         inArray(statutoryNotification.status, ["submitted", "not_required"]),
         isNull(statutoryNotification.deletedAt),
       ),
-    )
-    .orderBy(desc(statutoryNotification.updatedAt))
-    .limit(1);
+    );
+  // Detection's key is `outbreak:<location>:<signal kind>:<threshold time>` (outbreakKey below).
+  const lastDecided = (kinds: readonly string[]) =>
+    Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...decided
+        .filter((r) => {
+          const [prefix, place, kind] = r.sourceKey.split(":");
+          return prefix === "outbreak" && place === locationId && kinds.includes(kind ?? "");
+        })
+        .map((r) => r.decidedAt.getTime()),
+    );
+  const since: Record<InfectionCase["syndrome"], number> = {
+    acute_respiratory: lastDecided(["acute_respiratory", "flu"]),
+    diarrhoea_vomiting: lastDecided(["diarrhoea_vomiting"]),
+  };
   const rows = await tx
     .select({ id: incidentPerson.id, infection: incidentPerson.infection })
     .from(incidentPerson)
@@ -465,7 +485,6 @@ export async function locationInfectionCases(
         isNotNull(incidentPerson.infection),
       ),
     );
-  const since = lastReport?.decidedAt.getTime() ?? Number.NEGATIVE_INFINITY;
   return rows
     .map((r) => {
       const i = r.infection as {
@@ -484,7 +503,7 @@ export async function locationInfectionCases(
         link: i.link ?? null,
       } satisfies InfectionCase;
     })
-    .filter((c) => c.onsetAt.getTime() > since);
+    .filter((c) => c.onsetAt.getTime() > since[c.syndrome]);
 }
 
 const outbreakKey = (locationId: string, signal: OutbreakSignal) =>
