@@ -34,7 +34,36 @@ export function rolePermissionMix(permissions: readonly string[]): RolePermissio
   return portal === permissions.length ? "portal" : "mixed";
 }
 
-export type RoleDefinitionProblem = "portal_and_staff_permissions_mixed" | "unknown_permission";
+/**
+ * Permissions whose records show what other permissions read, so they reach no further than those
+ * do (ADR-0071, family list; #50 review round 1, S-M1). A handover item's summary carries an
+ * incident's type, a NEWS2 score, a body-map mark, a task's title, the care plan action it carries
+ * out (the plan's own words) and why it was not done: whoever reads handovers
+ * (`care.handover.manage`) must also read incidents, notes, the person and care plans, at the same
+ * or a wider scope (#123 security review, M1). A role or grant that carries one without the others is refused when it
+ * is defined, and `resolveAccess` narrows it to where they all reach if one is ever stored.
+ */
+export const PERMISSION_PREREQUISITES: Readonly<
+  Partial<Record<Permission, readonly Permission[]>>
+> = {
+  "care.handover.manage": [
+    "safety.incident.read",
+    "care.note.read",
+    "people.person.read",
+    "care.plan.read",
+  ],
+};
+
+function missingPrerequisites(permissions: readonly string[]): boolean {
+  return permissions.some((p) =>
+    (PERMISSION_PREREQUISITES[p as Permission] ?? []).some((r) => !permissions.includes(r)),
+  );
+}
+
+export type RoleDefinitionProblem =
+  | "portal_and_staff_permissions_mixed"
+  | "unknown_permission"
+  | "prerequisite_permission_missing";
 
 /** Checks a role (built-in, cloned or tenant-designed) before it is saved. */
 export function checkRoleDefinition(permissions: readonly string[]): RoleDefinitionProblem[] {
@@ -42,16 +71,24 @@ export function checkRoleDefinition(permissions: readonly string[]): RoleDefinit
   if (permissions.some((p) => !isPermission(p))) problems.push("unknown_permission");
   if (rolePermissionMix(permissions) === "mixed")
     problems.push("portal_and_staff_permissions_mixed");
+  if (missingPrerequisites(permissions)) problems.push("prerequisite_permission_missing");
   return problems;
 }
 
-export type GrantProblem = "portal_permission_in_grant" | "unknown_permission";
+export type GrantProblem =
+  | "portal_permission_in_grant"
+  | "unknown_permission"
+  | "prerequisite_permission_missing";
 
-/** Grants are time-boxed delegation and acting-up for staff; they never carry portal access. */
+/**
+ * Grants are time-boxed delegation and acting-up for staff; they never carry portal access, and a
+ * grant reaches its own place, so it carries a permission's prerequisites itself.
+ */
 export function checkGrantPermissions(permissions: readonly string[]): GrantProblem[] {
   const problems: GrantProblem[] = [];
   if (permissions.some((p) => !isPermission(p))) problems.push("unknown_permission");
   if (permissions.some(isPortalOnly)) problems.push("portal_permission_in_grant");
+  if (missingPrerequisites(permissions)) problems.push("prerequisite_permission_missing");
   return problems;
 }
 
@@ -290,6 +327,17 @@ export function resolveAccess(
   const scopes = new Map<Permission, PermissionScope>(
     [...sources].map(([p, places]) => [p, withBreakGlass(p, widestScope(places))]),
   );
+  // A permission reaches no further than its prerequisites (S-M1): stored roles or grants that
+  // carry it alone are narrowed here, so the API and the sync token never widen it.
+  for (const [p, required] of Object.entries(PERMISSION_PREREQUISITES) as Array<
+    [Permission, readonly Permission[]]
+  >) {
+    const own = scopes.get(p);
+    if (!own) continue;
+    const narrowed = narrowestScope([own, ...required.map((r) => scopes.get(r) ?? NO_SCOPE)]);
+    if (narrowed.scope === "none") scopes.delete(p);
+    else scopes.set(p, narrowed);
+  }
   return {
     permissions: new Set(scopes.keys()),
     scopes,
@@ -378,6 +426,17 @@ export function placesHoldingPermission(
 export function placesCover(places: PermissionPlaces, locationId: string | null): boolean {
   if (places.organisationWide) return true;
   return locationId !== null && places.locationIds.includes(locationId);
+}
+
+/**
+ * Whether one permission's scope reaches a home: across the organisation, or at that location.
+ * A scope of assigned people, or of none, reaches no home. Deciding by the record's location, not
+ * by whether row-level security shows it, keeps a permission from acting where it is not held
+ * (an incident shows to its raiser anywhere; #130 review round 2, M1).
+ */
+export function scopeReachesLocation(scope: PermissionScope, locationId: string): boolean {
+  if (scope.scope === "tenant") return true;
+  return scope.scope === "locations" && scope.locationIds.includes(locationId);
 }
 
 export function can(access: EffectiveAccess, permission: Permission): boolean {

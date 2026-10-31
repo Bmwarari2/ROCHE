@@ -740,6 +740,48 @@ describe("rounds and closed records", () => {
     });
   });
 
+  it("hazard HZ-029 completes a task that needs evidence only with the entry it asks for, never a note (#123 clinical review re-check, M3)", async () => {
+    const make = async (kind: string) => {
+      const t = await json<TaskItem>(
+        await as("manager", "/v1/tasks", {
+          method: "POST",
+          body: { title: "Reposition", personId: resident(2), dueAt: new Date().toISOString() },
+        }),
+      );
+      await asDemoTenant((c) =>
+        c.query("UPDATE task SET evidence_required = true, kind = $2 WHERE id = $1", [t.id, kind]),
+      );
+      return t.id;
+    };
+    const statusOf = async (id: string) =>
+      asDemoTenant(
+        async (c) =>
+          (await c.query<{ status: string }>("SELECT status FROM task WHERE id = $1", [id])).rows[0]
+            ?.status,
+      );
+    // A note, even one about the task, is kept but never completes it: "Not done" says that.
+    const forNote = await make("care.plan_action");
+    expect((await note(2, { body: "Declined, asleep", taskId: forNote })).status).toBe(201);
+    expect(await statusOf(forNote)).toBe("open");
+    // A chart's task: another chart is kept but does not complete it; that chart does.
+    const forChart = await make("repositioning");
+    expect(
+      (await observe(2, { chart: "fluid_intake", ml: 100, iddsiLevel: "0" }, { taskId: forChart }))
+        .status,
+    ).toBe(201);
+    expect(await statusOf(forChart)).toBe("open");
+    expect(
+      (
+        await observe(
+          2,
+          { chart: "repositioning", position: "left", skinChecked: true },
+          { taskId: forChart },
+        )
+      ).status,
+    ).toBe(201);
+    expect(await statusOf(forChart)).toBe("done");
+  });
+
   it("hazard HZ-006 accepts entries from before a discharge, flagged, and refuses later ones except post-event notes", async () => {
     // Discharged an hour ago (people.md rule 3): the trigger keeps status_changed_at in step.
     await asDemoTenant((c) =>

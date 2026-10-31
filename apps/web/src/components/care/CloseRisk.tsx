@@ -55,7 +55,7 @@ export function CloseRisk({
   return (
     <div className="flex flex-col gap-2">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
           <p className="m-0 font-semibold">{t("care.risk.close.consequence")}</p>
           <TextField
             ref={inline.firstField}
