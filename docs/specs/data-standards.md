@@ -101,7 +101,7 @@ names below are the concepts this contract carries and must be kept in step with
 | `tenant_id` | UUIDv7 | - | - | Ignored on import (see conventions). |
 | `location_id` | UUIDv7 | - | - | The location currently responsible for the person. |
 | `status` | enum | - | `enquiry`, `pre_admission`, `active`, `on_leave`, `in_hospital`, `discharged`, `deceased`, `archived`, `not_admitted` | Harbour lifecycle (section 9.2; [people.md](people.md) rule 1). `pre_admission` and `not_admitted` arrive with the Phase 1 schema step. `discharged` and `deceased` make the record read-only except post-event records. |
-| `status_changed_at` | timestamp | - | ISO 8601 UTC | When the current status began (Phase 1). For `discharged` and `deceased` it equals `discharged_at` or `deceased_at`. |
+| `status_changed_at` | timestamp | - | ISO 8601 UTC | When the current status began (Phase 1). For `discharged` and `deceased` it equals `discharged_at` or `deceased_at`. For `enquiry` it is when the enquiry came in (`POST /v1/people` `receivedAt`, never later than now; the request time when left out). |
 | `nhs_number` | 10 digits | NHS Data Dictionary NHS NUMBER; MODS person identifier | Modulus 11 check (below); stored without spaces, shown as `999 000 0018` | The consistent identifier (Health and Social Care (Safety and Quality) Act 2015) but never the only one. PDS verification arrives in Phase 5. |
 | `local_identifier` | text | MODS local identifier | Tenant's own reference | Required when there is no NHS number. |
 | `title` | text | MODS person name | Free text (Mr, Mrs, Ms, Mx, Dr and others) | |

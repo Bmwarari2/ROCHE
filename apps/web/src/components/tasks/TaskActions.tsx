@@ -89,7 +89,7 @@ function ReasonSheet({
         title={t("tasks.reason.title", { purpose, task: task.title })}
         closeLabel={t("common.close")}
       >
-        <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+        <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
           <TextArea
             id={reasonId}
             name="reason"

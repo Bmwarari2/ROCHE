@@ -2988,6 +2988,125 @@
           "version"
         ]
       },
+      "EnquiryRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonStatus"
+          },
+          "statusChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "status",
+          "statusChangedAt",
+          "version",
+          "replayed"
+        ]
+      },
+      "CreateEnquiry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "givenName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "familyName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "preferredName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "locationId",
+          "givenName",
+          "familyName",
+          "dateOfBirth"
+        ],
+        "description": "A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record."
+      },
+      "ServiceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ServiceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "serviceType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "name",
+          "serviceType",
+          "status"
+        ]
+      },
       "PropertyList": {
         "type": "object",
         "properties": {
@@ -25242,6 +25361,92 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Record an enquiry: a new person record at enquiry (people.md rule 1)",
+        "description": "people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnquiry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded (or the first copy of the same request sent again)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnquiryRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/people/{id}": {
@@ -27210,6 +27415,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/services": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "The services run at a location, for an assessment or an admission",
+        "description": "Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Services, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
