@@ -1,4 +1,6 @@
+import { MINUTES_PER_HOUR, MONTHS_PER_YEAR } from "../intervals";
 import { canonicalInput, formatPounds, type WorkingLine } from "./money";
+import type { GrossPay } from "./pay-rules";
 import type { PayRates } from "./rates";
 
 /**
@@ -6,8 +8,9 @@ import type { PayRates } from "./rates";
  * Minimum Wage Regulations 2015). The band is decided by age on the first day of the period; the
  * apprentice rate applies under the apprentice age limit, or above it within the first year. Pay
  * that counts is the pay for the period less premiums above the basic rate, less deductions for the
- * employer's own use, less accommodation charges above the offset. Hours that count are the working
- * time given, which slice 5 decides (travel between visits, time awake for work on a sleep-in).
+ * employer's own use, less accommodation charges above the offset; free accommodation adds the
+ * offset. Hours that count are slice 5's `nmwMinutesIn` over the period (travel between visits,
+ * time awake for work on a sleep-in; never home to the first visit or time asleep).
  */
 
 export type NmwBand = "21_plus" | "18_to_20" | "under_18" | "apprentice";
@@ -25,7 +28,11 @@ export interface NmwInput {
   readonly premiumPence: number;
   /** Deductions or payments for the employer's own use (a uniform the worker pays for). */
   readonly employerUseDeductionsPence: number;
-  /** Accommodation the employer provides: what it charges and for how many days. */
+  /**
+   * Accommodation the employer provides: what it charges and for how many days. Free
+   * accommodation (a charge of 0) adds the offset to pay; a charge up to the offset changes
+   * nothing; a charge above it takes the excess off (gov.uk, accommodation offset).
+   */
   readonly accommodation: { readonly chargePence: number; readonly days: number } | null;
 }
 
@@ -53,7 +60,7 @@ export function ageOn(dateOfBirth: string, on: string): number {
 function monthsBetween(from: string, to: string): number {
   const [fy, fm, fd] = from.split("-").map(Number) as [number, number, number];
   const [ty, tm, td] = to.split("-").map(Number) as [number, number, number];
-  return (ty - fy) * 12 + (tm - fm) - (td < fd ? 1 : 0);
+  return (ty - fy) * MONTHS_PER_YEAR + (tm - fm) - (td < fd ? 1 : 0);
 }
 
 export function nmwBand(
@@ -97,20 +104,23 @@ export function nmwCheck(input: NmwInput, rates: PayRates): NmwResult {
       pence: -input.employerUseDeductionsPence,
     },
   ];
-  let accommodationExcess = 0;
+  let accommodationEffect = 0;
   if (input.accommodation) {
     const allowed = rates.accommodationOffsetDaily * input.accommodation.days;
-    accommodationExcess = Math.max(0, input.accommodation.chargePence - allowed);
+    const free = input.accommodation.chargePence === 0;
+    accommodationEffect = free ? allowed : -Math.max(0, input.accommodation.chargePence - allowed);
     working.push({
-      step: `Less accommodation charged above the offset (${input.accommodation.days} days at ${formatPounds(rates.accommodationOffsetDaily)})`,
-      pence: -accommodationExcess,
+      step: free
+        ? `Plus the offset for free accommodation (${input.accommodation.days} days at ${formatPounds(rates.accommodationOffsetDaily)})`
+        : `Less accommodation charged above the offset (${input.accommodation.days} days at ${formatPounds(rates.accommodationOffsetDaily)})`,
+      pence: accommodationEffect,
       rateKey: "nmw.accommodation_offset.daily",
     });
   }
   const counted =
-    input.payPence - input.premiumPence - input.employerUseDeductionsPence - accommodationExcess;
+    input.payPence - input.premiumPence - input.employerUseDeductionsPence + accommodationEffect;
   // What the hours must earn, rounded up to the penny: never in the employer's favour.
-  const required = Math.ceil((ratePence * input.minutesCounted) / 60);
+  const required = Math.ceil((ratePence * input.minutesCounted) / MINUTES_PER_HOUR);
   const shortfall = Math.max(0, required - counted);
   working.push(
     { step: "Pay that counts", pence: counted },
@@ -129,5 +139,18 @@ export function nmwCheck(input: NmwInput, rates: PayRates): NmwResult {
     compliant: shortfall === 0,
     working,
     canonicalInput: canonicalInput({ input, ratePence }),
+  };
+}
+
+/**
+ * The pay the minimum wage check takes from gross pay: basic pay, premiums (taken out again by the
+ * check) and sleep-in allowances, which are pay for the sleep-in. Mileage is an expense and an
+ * on-call allowance for time at home is not pay for time work, so neither is counted (gov.uk
+ * "Calculating the minimum wage"; H-529).
+ */
+export function nmwPayFromGross(gross: GrossPay): Pick<NmwInput, "payPence" | "premiumPence"> {
+  return {
+    payPence: gross.basicPence + gross.premiumPence + gross.sleepInPence,
+    premiumPence: gross.premiumPence,
   };
 }

@@ -1,3 +1,4 @@
+import { MINUTES_PER_HOUR } from "../intervals";
 import { canonicalInput, formatPounds, percentOf, type WorkingLine } from "./money";
 
 /**
@@ -48,6 +49,10 @@ export interface GrossPay {
   readonly premiumPence: number;
   /** Sleep-in allowances, on-call and mileage. */
   readonly allowancePence: number;
+  /** The parts of the allowances: sleep-in counts for NMW; on-call and mileage do not. */
+  readonly sleepInPence: number;
+  readonly onCallPence: number;
+  readonly mileagePence: number;
   readonly working: readonly WorkingLine[];
   readonly canonicalInput: string;
 }
@@ -57,14 +62,16 @@ export class PayRuleError extends Error {}
 function enhancementPence(e: Enhancement, basicPence: number, minutes: number): number {
   return e.mode === "percent"
     ? percentOf(basicPence, e.value)
-    : Math.floor((e.value * minutes) / 60);
+    : Math.floor((e.value * minutes) / MINUTES_PER_HOUR);
 }
 
 export function grossPay(set: PayRuleSet, entries: readonly TimesheetEntry[]): GrossPay {
   const working: WorkingLine[] = [{ step: `Pay rule set ${set.id}, version ${set.version}` }];
   let basic = 0;
   let premium = 0;
-  let allowance = 0;
+  let sleepIn = 0;
+  let onCall = 0;
+  let mileage = 0;
   for (const entry of entries) {
     switch (entry.kind) {
       case "work": {
@@ -73,7 +80,7 @@ export function grossPay(set: PayRuleSet, entries: readonly TimesheetEntry[]): G
         if (!Number.isInteger(entry.minutes) || entry.minutes < 0) {
           throw new PayRuleError("Minutes worked must be a whole number of zero or more.");
         }
-        const pay = Math.floor((rate * entry.minutes) / 60);
+        const pay = Math.floor((rate * entry.minutes) / MINUTES_PER_HOUR);
         basic += pay;
         working.push({
           step: `${entry.minutes} minutes as ${entry.role} at ${formatPounds(rate)} an hour (rounded down to the penny)`,
@@ -101,16 +108,16 @@ export function grossPay(set: PayRuleSet, entries: readonly TimesheetEntry[]): G
         break;
       }
       case "sleep_in":
-        allowance += set.sleepInFlatPence;
+        sleepIn += set.sleepInFlatPence;
         working.push({ step: "Sleep-in allowance (flat)", pence: set.sleepInFlatPence });
         break;
       case "on_call":
-        allowance += set.onCallFlatPence;
+        onCall += set.onCallFlatPence;
         working.push({ step: "On-call allowance (flat)", pence: set.onCallFlatPence });
         break;
       case "mileage": {
         const pence = Math.floor(set.mileagePencePerMile * entry.miles);
-        allowance += pence;
+        mileage += pence;
         working.push({
           step: `${entry.miles} miles at ${set.mileagePencePerMile}p a mile`,
           pence,
@@ -119,6 +126,7 @@ export function grossPay(set: PayRuleSet, entries: readonly TimesheetEntry[]): G
       }
     }
   }
+  const allowance = sleepIn + onCall + mileage;
   const total = basic + premium + allowance;
   working.push({ step: "Gross pay", pence: total });
   return {
@@ -126,6 +134,9 @@ export function grossPay(set: PayRuleSet, entries: readonly TimesheetEntry[]): G
     basicPence: basic,
     premiumPence: premium,
     allowancePence: allowance,
+    sleepInPence: sleepIn,
+    onCallPence: onCall,
+    mileagePence: mileage,
     working,
     canonicalInput: canonicalInput({ set, entries }),
   };

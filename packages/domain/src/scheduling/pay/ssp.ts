@@ -1,12 +1,23 @@
-import { canonicalInput, formatPounds, percentOf, type WorkingLine } from "./money";
+import { DAYS_PER_WEEK } from "../intervals";
+import {
+  BASIS_POINTS_IN_WHOLE,
+  basisPoints,
+  canonicalInput,
+  formatPounds,
+  roundUpPence,
+  type WorkingLine,
+} from "./money";
 import type { PayRates } from "./rates";
 
 /**
- * Statutory Sick Pay (scheduling.md 4b rule 4; Employment Rights Act 2025 changes from 6 April 2026).
+ * Statutory Sick Pay (scheduling.md 4b rule 4; Social Security Contributions and Benefits Act 1992
+ * ss 152 to 157 as amended by the Employment Rights Act 2025 from 6 April 2026, S.I. 2026/373).
  * From the first qualifying day after the waiting days (none from April 2026), at the lower of the
- * earnings percentage of average weekly earnings and the weekly rate, divided over the qualifying
- * days in the week, for at most the maximum weeks in a period of incapacity for work. No lower
- * earnings limit. Not applied where the nation has no rows (H-529).
+ * earnings percentage of normal weekly earnings and the weekly rate (s 157(1)), divided over the
+ * qualifying days in the week (s 157(3)), up to the entitlement limit of the maximum weeks times
+ * the weekly rate (s 155(4)). No lower earnings limit. The payment is the exact amount rounded up
+ * to the next penny once (SSP (General) Regulations 1982 reg 11). Not applied where the nation has
+ * no rows (H-529).
  */
 
 export type SspResult =
@@ -39,11 +50,13 @@ export function sickPay(
     return { applies: false, reason: "no_rate_for_nation" };
   }
   const q = input.qualifyingDaysPerWeek;
-  if (!Number.isInteger(q) || q < 1 || q > 7) {
+  if (!Number.isInteger(q) || q < 1 || q > DAYS_PER_WEEK) {
     throw new RangeError("Qualifying days a week must be 1 to 7.");
   }
-  const fromEarnings = percentOf(input.averageWeeklyEarningsPence, sspEarningsPercent);
-  const weekly = Math.min(fromEarnings, sspWeekly);
+  // The weekly rate exactly, in ten-thousandths of a penny: 80% of earnings may not be whole pence.
+  const fromEarnings = input.averageWeeklyEarningsPence * basisPoints(sspEarningsPercent);
+  const exactWeekly = Math.min(fromEarnings, sspWeekly * BASIS_POINTS_IN_WHOLE);
+  const weekly = roundUpPence(exactWeekly, BASIS_POINTS_IN_WHOLE);
   const entitlement = rates.sspMaxWeeks * q;
   const waiting =
     input.daysAlreadyPaid > 0 ? 0 : Math.min(sspWaitingDays, input.sickQualifyingDays);
@@ -51,18 +64,18 @@ export function sickPay(
     0,
     Math.min(input.sickQualifyingDays - waiting, entitlement - input.daysAlreadyPaid),
   );
-  // Daily rate times days, rounded down to the penny once for the spell.
-  const pay = Math.floor((weekly * payable) / q);
+  // The daily rate times the days, rounded up to the penny once for the payment (reg 11).
+  const pay = roundUpPence(exactWeekly * payable, q * BASIS_POINTS_IN_WHOLE);
   const working: WorkingLine[] = [
     {
-      step: `${sspEarningsPercent}% of average weekly earnings of ${formatPounds(input.averageWeeklyEarningsPence)}`,
-      pence: fromEarnings,
+      step: `${sspEarningsPercent}% of average weekly earnings of ${formatPounds(input.averageWeeklyEarningsPence)} (rounded up to the penny)`,
+      pence: roundUpPence(fromEarnings, BASIS_POINTS_IN_WHOLE),
       rateKey: "ssp.earnings_percentage",
     },
     { step: "The weekly rate", pence: sspWeekly, rateKey: "ssp.weekly" },
     { step: "SSP a week: the lower of the two", pence: weekly },
     {
-      step: `${payable} qualifying days at ${q} days a week (waiting days ${waiting}; rounded down to the penny)`,
+      step: `${payable} qualifying days at ${q} days a week (waiting days ${waiting}; rounded up to the penny)`,
       pence: pay,
     },
   ];

@@ -1,20 +1,41 @@
+import { DAYS_PER_WEEK, plusDays } from "../intervals";
 import type { PayRates } from "./rates";
 
 /**
- * The Agency Workers Regulations clock (scheduling.md 4b rule 6; AWR 2010 regulation 7). Calendar
- * weeks, in order, from the first assignment with a hirer in a role. A week with any work in it
- * counts. A run of ordinary breaks longer than the reset limit resets the clock; shorter runs pause
- * it. Sickness or injury pauses it for up to its own limit, after which the weeks count as an
- * ordinary break. Pregnancy, maternity, paternity and adoption leave, annual leave and the hirer's
- * shutdown pause it with no limit. A substantively different role starts it again.
+ * The Agency Workers Regulations clock (scheduling.md 4b rule 6; AWR 2010 regulation 7, read on
+ * legislation.gov.uk on 31 October 2026). Calendar weeks, in order, from the first assignment with
+ * a hirer in a role; a week with any work in it counts (reg 7(4)). A break keeps the weeks before
+ * it only if the break as a whole is covered by reg 7(8): any break of up to the reset limit; or a
+ * break wholly for sickness or injury of up to its own limit (reg 7(9)), for protected leave, annual
+ * or other leave, the hirer's shutdown or industrial action, or for several of those reasons. A
+ * break with any uncovered week that runs past the reset limit, or a sickness break past its limit,
+ * resets the clock, as does a substantively different role (reg 7(3)). Pregnancy, maternity,
+ * adoption and paternity leave within the assignment's original or likely length count as weeks
+ * worked (reg 7(6)); the caller marks those weeks `deemedWorking`.
  */
+
+export type AwrBreakReason =
+  /** No reason that reg 7(8)(b) to (g) covers. */
+  | "none"
+  /** Incapable of working through sickness or injury (reg 7(8)(b), (9)). */
+  | "sickness"
+  /** Pregnancy, childbirth or maternity in the protected period; maternity, adoption or paternity leave (reg 7(8)(c), (d)(i) to (iii)). */
+  | "protected_leave"
+  /** Other statutory or contractual leave the worker is entitled to (reg 7(8)(d)(iv)). */
+  | "annual_leave"
+  /** The hirer's customary shutdown (reg 7(8)(f)). */
+  | "shutdown"
+  /** A strike, lock-out or other industrial action at the hirer (reg 7(8)(g)). */
+  | "industrial_action";
 
 export type AwrWeek =
   | { readonly week: string; readonly kind: "worked"; readonly newRole?: boolean }
   | {
       readonly week: string;
       readonly kind: "break";
-      readonly reason: "none" | "sickness" | "protected_leave" | "annual_leave" | "shutdown";
+      readonly reason: AwrBreakReason;
+      /** Protected leave within the assignment's original or likely length (reg 7(6)). */
+      readonly deemedWorking?: boolean;
     };
 
 export interface AwrClock {
@@ -24,18 +45,17 @@ export interface AwrClock {
   readonly resets: readonly { readonly week: string; readonly reason: "break" | "new_role" }[];
 }
 
-function nextWeek(isoMonday: string): string {
-  const d = new Date(`${isoMonday}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 7);
-  return d.toISOString().slice(0, 10);
-}
-
 export function awrClock(weeks: readonly AwrWeek[], rates: PayRates): AwrClock {
   let count = 0;
-  let ordinaryRun = 0;
-  let sicknessRun = 0;
   let qualifiedFromWeek: string | null = null;
   const resets: { week: string; reason: "break" | "new_role" }[] = [];
+  let run = { weeks: 0, sickness: 0, uncovered: false, reset: false };
+  const countWeek = (week: string) => {
+    run = { weeks: 0, sickness: 0, uncovered: false, reset: false };
+    if (qualifiedFromWeek !== null) return;
+    count++;
+    if (count >= rates.awrQualifyingWeeks) qualifiedFromWeek = plusDays(week, DAYS_PER_WEEK);
+  };
   const sorted = [...weeks].sort((a, b) => (a.week < b.week ? -1 : 1));
   for (const w of sorted) {
     if (w.kind === "worked") {
@@ -44,25 +64,27 @@ export function awrClock(weeks: readonly AwrWeek[], rates: PayRates): AwrClock {
         qualifiedFromWeek = null;
         resets.push({ week: w.week, reason: "new_role" });
       }
-      ordinaryRun = 0;
-      sicknessRun = 0;
-      if (qualifiedFromWeek === null) {
-        count++;
-        if (count >= rates.awrQualifyingWeeks) qualifiedFromWeek = nextWeek(w.week);
-      }
+      countWeek(w.week);
       continue;
     }
-    let ordinary = w.reason === "none";
-    if (w.reason === "sickness") {
-      sicknessRun++;
-      ordinary = sicknessRun > rates.awrSicknessPauseMaxWeeks;
+    if (w.deemedWorking) {
+      if (w.reason !== "protected_leave") {
+        throw new RangeError("Only protected leave can be deemed working (AWR reg 7(6)).");
+      }
+      countWeek(w.week);
+      continue;
     }
-    if (!ordinary) continue;
-    ordinaryRun++;
-    if (ordinaryRun > rates.awrBreakResetWeeks && count > 0) {
-      // Qualified or not, a long break means the next assignment counts from nothing again.
+    run.weeks++;
+    if (w.reason === "none") run.uncovered = true;
+    if (w.reason === "sickness") run.sickness++;
+    const covered =
+      run.weeks <= rates.awrBreakResetWeeks ||
+      (!run.uncovered && run.sickness <= rates.awrSicknessPauseMaxWeeks);
+    if (!covered && !run.reset && count > 0) {
+      // Qualified or not, the next assignment counts from nothing again.
       count = 0;
       qualifiedFromWeek = null;
+      run.reset = true;
       resets.push({ week: w.week, reason: "break" });
     }
   }

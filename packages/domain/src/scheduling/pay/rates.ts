@@ -11,6 +11,7 @@ import {
   type RateRow,
   resolveRate,
 } from "../../platform/rates";
+import { PENCE_PER_POUND } from "./money";
 
 const MONEY = {
   nmw21Plus: "nmw.hourly.21_plus",
@@ -20,6 +21,7 @@ const MONEY = {
   accommodationOffsetDaily: "nmw.accommodation_offset.daily",
   sspWeekly: "ssp.weekly",
   familyPayStandardWeekly: "family_pay.standard_weekly",
+  smpStandardWeekly: "smp.standard_weekly",
   aeTriggerWeekly: "auto_enrolment.earnings_trigger.weekly",
   aeTriggerMonthly: "auto_enrolment.earnings_trigger.monthly",
   aeLowerWeekly: "auto_enrolment.qualifying_earnings.lower.weekly",
@@ -68,9 +70,15 @@ export type PayRates = {
   readonly [K in MoneyName | FigureName]: K extends Optional ? number | null : number;
 };
 
+/**
+ * Figures a tenant may set for itself (tenant defaults). Every other figure is statutory, so a
+ * tenant row never replaces it: a lower minimum wage or a shorter AWR clock cannot be configured.
+ */
+const TENANT_DEFAULTS = new Set<string>(["bradfordWindowWeeks"]);
+
 /** Pounds as written in the rate table to whole pence, without floating-point drift. */
 export function toPence(pounds: string | number): number {
-  return Math.round(Number(pounds) * 100);
+  return Math.round(Number(pounds) * PENCE_PER_POUND);
 }
 
 export function resolvePayRates(
@@ -81,7 +89,8 @@ export function resolvePayRates(
 ): PayRates {
   const read = (name: string, key: string): number | null => {
     try {
-      return resolveRate(rows, key, nation, on, tenantId).value;
+      const tenant = TENANT_DEFAULTS.has(name) ? tenantId : null;
+      return resolveRate(rows, key, nation, on, tenant).value;
     } catch (error) {
       if (NATION_ONLY.has(name) && error instanceof RateNotFoundError) return null;
       throw error;

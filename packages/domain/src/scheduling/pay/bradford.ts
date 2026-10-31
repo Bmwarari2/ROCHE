@@ -1,3 +1,4 @@
+import { DAYS_PER_WEEK, plusDays } from "../intervals";
 import type { PayRates } from "./rates";
 
 /**
@@ -14,27 +15,21 @@ export interface BradfordScore {
   readonly windowStart: string;
 }
 
-function addDays(iso: string, days: number): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 export function bradfordFactor(
   absenceDays: readonly string[],
   nonWorkingDays: ReadonlySet<string>,
   today: string,
   rates: PayRates,
 ): BradfordScore {
-  const windowStart = addDays(today, -rates.bradfordWindowWeeks * 7 + 1);
+  const windowStart = plusDays(today, 1 - rates.bradfordWindowWeeks * DAYS_PER_WEEK);
   const days = [...new Set(absenceDays)].filter((d) => d >= windowStart && d <= today).sort();
   let spells = 0;
   let previous: string | null = null;
   for (const day of days) {
     let joined = false;
     if (previous) {
-      let cursor = addDays(previous, 1);
-      while (cursor < day && nonWorkingDays.has(cursor)) cursor = addDays(cursor, 1);
+      let cursor = plusDays(previous, 1);
+      while (cursor < day && nonWorkingDays.has(cursor)) cursor = plusDays(cursor, 1);
       joined = cursor === day;
     }
     if (!joined) spells++;

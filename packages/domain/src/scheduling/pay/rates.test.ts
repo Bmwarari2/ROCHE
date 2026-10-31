@@ -40,6 +40,31 @@ describe("pay rates come from the rate table (ADR-0086)", () => {
     );
   });
 
+  it("lets a tenant set its own Bradford window but never a statutory figure", () => {
+    const tenantRow = (key: string, value: string) => ({
+      key,
+      value,
+      unit: "x",
+      nation: "all",
+      validFrom: "2026-01-01",
+      validTo: null,
+      tenantId: "tenant-a",
+      verificationStatus: "tenant",
+      source: "tenant policy",
+    });
+    const withTenant = [
+      ...rows,
+      tenantRow(PAY_RATE_KEYS.nmw21Plus, "10.00"),
+      tenantRow(PAY_RATE_KEYS.awrQualifyingWeeks, "20"),
+      tenantRow(PAY_RATE_KEYS.bradfordWindowWeeks, "26"),
+    ];
+    const table = resolvePayRates(rows, "england", "2026-10-31", "tenant-a");
+    const tenant = resolvePayRates(withTenant, "england", "2026-10-31", "tenant-a");
+    expect(tenant.nmw21Plus).toBe(table.nmw21Plus);
+    expect(tenant.awrQualifyingWeeks).toBe(table.awrQualifyingWeeks);
+    expect(tenant.bradfordWindowWeeks).toBe(26);
+  });
+
   it("turns pounds into pence without floating-point drift", () => {
     expect(toPence("12.71")).toBe(1271);
     expect(toPence("0.29")).toBe(29);

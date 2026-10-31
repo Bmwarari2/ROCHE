@@ -43,7 +43,24 @@ describe("SSP from day one (scheduling.md 4b rule 4)", () => {
       rates,
     );
     if (!result.applies) throw new Error("expected to apply");
-    expect(result.payPence).toBe(Math.floor(weekly / 3));
+    expect(result.payPence).toBe(Math.ceil(weekly / 3));
+  });
+
+  it("rounds the payment up to the next penny, once (SSP (General) Regulations 1982 reg 11)", () => {
+    // 80% of 123.46 is 98.768: three days of a five-day week is 59.2608, paid as 59.27.
+    const awe = 12_346;
+    const result = sickPay(
+      {
+        averageWeeklyEarningsPence: awe,
+        qualifyingDaysPerWeek: 5,
+        sickQualifyingDays: 3,
+        daysAlreadyPaid: 0,
+      },
+      rates,
+    );
+    if (!result.applies) throw new Error("expected to apply");
+    expect(result.weeklyPence).toBe(Math.ceil((awe * percent) / 100));
+    expect(result.payPence).toBe(Math.ceil((awe * percent * 3) / (100 * 5)));
   });
 
   it("stops at the maximum weeks of entitlement", () => {

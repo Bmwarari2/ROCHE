@@ -1,4 +1,11 @@
-import { canonicalInput, formatPounds, percentOf, type WorkingLine } from "./money";
+import {
+  BASIS_POINTS_IN_WHOLE,
+  basisPoints,
+  canonicalInput,
+  formatPounds,
+  percentOf,
+  type WorkingLine,
+} from "./money";
 import type { PayRates } from "./rates";
 
 /**
@@ -39,7 +46,9 @@ export function irregularHoursHoliday(
     return { applies: false, reason: "leave_year_before_reform" };
   }
   // Minutes rounded down to the minute: accrual is shown in hours and minutes.
-  const accruedMinutes = Math.floor((input.minutesWorked * Math.round(percent * 100)) / 10_000);
+  const accruedMinutes = Math.floor(
+    (input.minutesWorked * basisPoints(percent)) / BASIS_POINTS_IN_WHOLE,
+  );
   const working: WorkingLine[] = [
     {
       step: `Holiday accrued: ${percent}% of ${input.minutesWorked} minutes worked (rounded down to the minute)`,

@@ -44,6 +44,21 @@ describe("statutory family pay (scheduling.md 4b rule 5)", () => {
     expect(result.working.some((w) => w.rateKey === "smp.total_weeks")).toBe(true);
   });
 
+  it("rounds each week's payment up to the next penny (SMP (General) Regulations 1986 reg 28)", () => {
+    // 90% of 150.01 is 135.009, paid as 135.01.
+    const result = familyPay("paternity", 15_001, 1, rates);
+    expect(result.weeks).toEqual([Math.ceil((15_001 * rates.familyPayEarningsPercent) / 100)]);
+  });
+
+  it("uses maternity pay's own rate, which starts a day before the others' (gov.uk, 2026 to 2027)", () => {
+    const sunday = resolvePayRates(readRateTable(), "england", "2026-04-05", null);
+    expect(sunday.smpStandardWeekly).toBe(rates.smpStandardWeekly);
+    expect(sunday.familyPayStandardWeekly).toBeLessThan(sunday.smpStandardWeekly);
+    const maternity = familyPay("maternity", high, sunday.smpHigherRateWeeks + 1, sunday);
+    expect(maternity.weeks.at(-1)).toBe(sunday.smpStandardWeekly);
+    expect(familyPay("paternity", high, 1, sunday).weeks).toEqual([sunday.familyPayStandardWeekly]);
+  });
+
   it("refuses part weeks", () => {
     expect(() => familyPay("paternity", high, 1.5, rates)).toThrow(RangeError);
   });

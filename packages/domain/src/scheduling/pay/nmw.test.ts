@@ -58,6 +58,14 @@ describe("NMW per pay reference period", () => {
       0,
     ],
     [
+      "free accommodation adds the offset to pay",
+      {
+        payPence: rates.nmw21Plus * 100 - rates.accommodationOffsetDaily * 7,
+        accommodation: { chargePence: 0, days: 7 },
+      },
+      0,
+    ],
+    [
       "accommodation above the offset does",
       { accommodation: { chargePence: rates.accommodationOffsetDaily * 7 + 700, days: 7 } },
       700,
