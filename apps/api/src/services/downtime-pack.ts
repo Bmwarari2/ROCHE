@@ -189,6 +189,7 @@ async function packPeople(
       givenName: p.givenName,
       familyName: p.familyName,
       preferredName: p.preferredName,
+      sample: p.isSample,
       dateOfBirth: p.dateOfBirth,
       nhsNumber: p.nhsNumber,
       roomLabel: p.roomLabel,

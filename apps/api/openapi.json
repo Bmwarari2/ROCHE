@@ -282,6 +282,35 @@
           "none"
         ]
       },
+      "AccountDeletionRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "already_requested"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "respondBy": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "routedToManager": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "requestedAt",
+          "respondBy",
+          "routedToManager"
+        ]
+      },
       "Branding": {
         "type": "object",
         "properties": {
@@ -1432,12 +1461,22 @@
             "items": {
               "$ref": "#/components/schemas/RecordVersion"
             }
+          },
+          "latestChanged": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "table",
           "recordId",
-          "versions"
+          "versions",
+          "latestChanged"
         ],
         "description": "Human-readable history of a mutable record"
       },
@@ -6340,6 +6379,13 @@
             "items": {
               "$ref": "#/components/schemas/TaskItem"
             }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "earlierOmitted": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -7236,6 +7282,13 @@
           "eligibleSince": {
             "type": "string",
             "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -7246,28 +7299,19 @@
         ],
         "description": "A document past retention with no legal hold"
       },
-      "DestructionResult": {
+      "DestructionCertificateList": {
         "type": "object",
         "properties": {
-          "certificates": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DestructionCertificateItem"
             }
-          },
-          "skipped": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         },
         "required": [
-          "certificates",
-          "skipped"
-        ],
-        "description": "Certificates per record class; skipped ids were held, not yet due or not found"
+          "items"
+        ]
       },
       "DestructionCertificateItem": {
         "type": "object",
@@ -7305,6 +7349,29 @@
           "method",
           "executedAt"
         ]
+      },
+      "DestructionResult": {
+        "type": "object",
+        "properties": {
+          "certificates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DestructionCertificateItem"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "certificates",
+          "skipped"
+        ],
+        "description": "Certificates per record class; skipped ids were held, not yet due or not found"
       },
       "DestroyDocuments": {
         "type": "object",
@@ -18366,6 +18433,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -18378,7 +18448,8 @@
           "revocationReason",
           "failedCodeAttempts",
           "locked",
-          "lastOpenedAt"
+          "lastOpenedAt",
+          "version"
         ]
       },
       "ComposeEvidencePack": {
@@ -20050,6 +20121,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "sample": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -20057,7 +20131,8 @@
               "fullName",
               "preferredName",
               "roomLabel",
-              "photoUrl"
+              "photoUrl",
+              "sample"
             ]
           },
           "channel": {
@@ -23667,6 +23742,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/account-deletion-request": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Ask for your own account to be deleted (MOB-011; App Store and Google Play)",
+        "description": "Any member, for their own account. Staff accounts belong to the care provider, so this raises one task for a Registered Manager (else whoever holds platform.user.manage) due within `account_deletion.confirmation_days`, notifies them and audits the request. Nothing is deleted, and care records never are by this route. A second request while the first is open returns the first (`already_requested`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Already requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionRequest"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeletionRequest"
                 }
               }
             }
@@ -30554,6 +30698,19 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "default": "no"
+            },
+            "required": false,
+            "name": "earlier",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "date-time"
             },
             "required": false,
@@ -31952,6 +32109,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RetentionCandidateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/destruction-certificates": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Destruction certificates, newest first",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Certificates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestructionCertificateList"
                 }
               }
             }
@@ -37467,6 +37682,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/dols": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "DoLS requests and authorisations needing attention at a location, soonest first",
+        "description": "Requests waiting for an outcome, authorisations inside their first expiry reminder window and authorisations past their end, for the people the caller may see there (row-level security; HZ-020). For the role dashboards (INSI-001). Ending soonest first; requests, which have no end yet, last, oldest request first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorisations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DolsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

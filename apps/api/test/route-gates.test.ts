@@ -28,6 +28,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "GET /v1/branding":
     "the organisation's white-label name, accent and logo id (PLAT-002); no personal data",
   "GET /v1/branding/logo": "the organisation's logo (PLAT-002); about no one; scope 'none'",
+  "POST /v1/me/account-deletion-request":
+    "the member's own account (MOB-011); raises a task as the system, no personal data read",
   "GET /v1/forms/templates": "the organisation's form templates; no personal data; scope 'none'",
   "GET /v1/rates/{key}": "a rate-table figure; no personal data; scope 'none'",
   "GET /v1/notifications": "the member's own notifications (notification_recipient policy)",

@@ -12,16 +12,21 @@ import {
 import {
   Archive,
   Bell,
+  ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
+  FileText,
+  FolderLock,
   House,
   ListChecks,
   ListTodo,
+  Lock,
   LogOut,
   Mail,
   Newspaper,
   Palette,
+  ScrollText,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -66,8 +71,18 @@ export interface ShellFrameLabels {
   readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
+  /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
+  readonly evidencePacks?: string | undefined;
+  /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
+  readonly statementOfPurpose?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
+  /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
+  readonly tasks?: string | undefined;
+  /** Shown to staff: the organisation's documents (PLAT-009). */
+  readonly documents?: string | undefined;
+  /** Shown only to people who manage records retention (platform.retention.manage). */
+  readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
@@ -114,10 +129,13 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/tasks")) return "tasks";
+  if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings/branding")) return "branding";
@@ -247,8 +265,41 @@ export function ShellFrame({
     ...(labels.updates
       ? [{ id: "updates", label: labels.updates, href: "/updates", icon: <Newspaper {...icon} /> }]
       : []),
+    ...(labels.tasks
+      ? [{ id: "tasks", label: labels.tasks, href: "/tasks", icon: <ClipboardCheck {...icon} /> }]
+      : []),
+    ...(labels.documents
+      ? [
+          {
+            id: "documents",
+            label: labels.documents,
+            href: "/documents",
+            icon: <FileText {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
+      : []),
+    ...(labels.evidencePacks
+      ? [
+          {
+            id: "evidence-packs",
+            label: labels.evidencePacks,
+            href: "/quality/evidence-packs",
+            icon: <FolderLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.statementOfPurpose
+      ? [
+          {
+            id: "statement-of-purpose",
+            label: labels.statementOfPurpose,
+            href: "/quality/statement-of-purpose",
+            icon: <ScrollText {...icon} />,
+          },
+        ]
       : []),
     ...(labels.team
       ? [
@@ -267,6 +318,16 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.retention
+      ? [
+          {
+            id: "retention",
+            label: labels.retention,
+            href: "/settings/retention",
+            icon: <Lock {...icon} />,
           },
         ]
       : []),

@@ -27,6 +27,7 @@ import {
   consentRecord,
   dolsAuthorisation,
   dolsLegalChangeReview,
+  location,
   statutoryNotification,
   type Transaction,
 } from "@harbour/db";
@@ -110,6 +111,18 @@ import { moveOrRefuse } from "./workflow-shared";
 const ConsentParams = PersonParam.extend({ consentId: z.uuid() });
 const DolsParams = PersonParam.extend({ dolsId: z.uuid() });
 const ReviewParams = z.object({ authorisationId: z.uuid() });
+const LocationParam = z.object({ id: z.uuid() });
+
+/**
+ * The DoLS states a location's list shows (INSI-001 dashboards): a request waiting for its
+ * outcome, an authorisation inside its first reminder window, and one past its end with nothing
+ * recorded since (HZ-020). Active, ended, withdrawn and refused authorisations need nothing now.
+ */
+const DOLS_NEEDING_ATTENTION: ReadonlySet<DolsItem["status"]> = new Set([
+  "requested",
+  "expiring",
+  "expired",
+]);
 
 type ConsentRow = typeof consentRecord.$inferSelect;
 type CapacityRow = typeof capacityAssessment.$inferSelect;
@@ -1289,6 +1302,62 @@ export const mcaRouter = createRouter()
         return out;
       });
       return c.json(item, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/locations/{id}/dols",
+      tags: ["care"],
+      summary: "DoLS requests and authorisations needing attention at a location, soonest first",
+      description:
+        "Requests waiting for an outcome, authorisations inside their first expiry reminder window and authorisations past their end, for the people the caller may see there (row-level security; HZ-020). For the role dashboards (INSI-001). Ending soonest first; requests, which have no end yet, last, oldest request first.",
+      security,
+      request: { params: LocationParam },
+      responses: {
+        200: jsonBody(DolsList, "Authorisations"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "care.plan.read");
+      const { id: locationId } = c.req.valid("param");
+      const now = new Date();
+      const items = await withTenant(c, async (tx) => {
+        const [loc] = await tx
+          .select({ id: location.id })
+          .from(location)
+          .where(eq(location.id, locationId));
+        if (!loc) throw problems.notFound();
+        const rows = await tx
+          .select()
+          .from(dolsAuthorisation)
+          .where(
+            and(
+              eq(dolsAuthorisation.locationId, locationId),
+              inArray(dolsAuthorisation.outcome, ["pending", "granted"]),
+              isNull(dolsAuthorisation.endedAt),
+              isNull(dolsAuthorisation.deletedAt),
+            ),
+          );
+        const listed = (await dolsItems(tx, access.tenantId, rows, now)).filter((item) =>
+          DOLS_NEEDING_ATTENTION.has(item.status),
+        );
+        const order = (item: DolsItem) =>
+          item.endsAt ? Date.parse(item.endsAt) : Number.MAX_SAFE_INTEGER;
+        listed.sort(
+          (a, b) => order(a) - order(b) || Date.parse(a.requestedAt) - Date.parse(b.requestedAt),
+        );
+        await audit(c, tx, access, {
+          action: "care.dols.location_list",
+          resourceType: "location",
+          resourceId: locationId,
+          scope: { count: listed.length },
+        });
+        return listed;
+      });
+      return c.json({ items }, 200);
     },
   )
   .openapi(

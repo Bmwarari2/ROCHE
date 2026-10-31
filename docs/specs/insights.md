@@ -1,0 +1,132 @@
+# Insights: role dashboards (INSI-001)
+
+Bounded context `insights` (master prompt section 15.2). This file covers the Phase 1 role
+dashboards on the web home page (`/`); the report builder, benchmarks and statutory outputs
+(INSI-002 to INSI-004) follow in later phases and get their own sections here.
+
+## Purpose
+
+The home page tells each member of staff, in plain English, what is waiting for them across the
+modules already built, and takes them to the list that holds it. Section 15.2 asks for: carer,
+today's tasks and alerts; manager, safety, staffing, overdue items and occupancy; executive,
+cross-location quality and finance; quality lead, framework coverage and audit status. In Phase 1
+only tasks, alerts, safety and overdue items have data behind them; staffing, occupancy, finance and
+audits arrive with their modules (Phases 2 to 4) and are not shown as empty placeholders.
+
+## Rules
+
+1. **Permission decides the tile, not the role name.** A tile appears only when the reader holds
+   the permission the page it links to checks (the same helper the navigation uses), so the
+   carer, nurse, manager and owner views follow from the built-in roles in
+   [permissions.md](permissions.md) and from any tenant role. Scope is the API's: every count comes
+   from an existing endpoint called as the reader, so row-level security, attribute scope, MFA and
+   audit apply exactly as on the list page.
+2. **A count in words with a link.** Each tile says how many things are waiting in a sentence
+   ("2 tasks overdue", "No incidents open"), with its state as an icon and a word (never colour
+   alone), and links to the list it summarises.
+3. **A failure is a warning, never a zero.** When the data behind a tile cannot be loaded, the tile
+   says so ("We could not load this. Open the list to check.") with a warning icon and word, and
+   shows no count. When only part of it loaded (one location of several, or a list cut at the API's
+   limit), the count is shown as "at least" with a second chip saying some could not be loaded.
+   A refusal for a missing permission hides the tile, as the list page would refuse it. "Not
+   found" for one location (a permission's scope can leave out a location the person works at,
+   ADR-0071) is a failure for that location, never a hidden tile, so safety work never disappears
+   because of scope (HZ-073). A partial read that found nothing is "Not known", never the
+   all-clear. A refusal that needs the person to sign in again, confirm their second
+   factor or step up sends them there, as the list pages do, instead of warning on every tile.
+   Failed reads are logged by path, status and problem code only.
+4. **Facts only.** Counts and states come straight from the API (task time state, review state,
+   statutory notification clock, outage state, handover acknowledgement). No scoring, ranking,
+   weighting or prediction; tiles are in a fixed order.
+5. **Location.** With a location chosen, every tile is for that location. With every location
+   shown, tiles read per location for up to three locations; past that the per-location tiles ask
+   the reader to choose a location instead of fanning out, and the organisation-wide tiles
+   (alerts, incidents, statutory notifications, break-glass reports) still show.
+6. **Budget.** All reads run in parallel on the server: at most 18 dashboard reads (one alerts read
+   shared with the shell's unread count, two incidents (open, under review), two statutory notifications, one
+   break-glass, and four per location for up to three locations) plus the shell's two
+   (`/v1/memberships`, `/v1/me`). No client-side fetching.
+7. **Family members** keep their own home (`/updates`); they never see the staff dashboard.
+8. **Never stale without saying so.** The page says when its counts were worked out, reads them
+   again when the person comes back to the tab after more than five minutes, and offers "Read the
+   counts again". There is no background timer: a page left open must not keep the session alive
+   (HZ-111) nor write list views to the audit log nobody made, and nothing on it moves by itself
+   (WCAG 2.2.2).
+
+## Tiles
+
+| Tile | Shown when the reader holds | Source | Counts | Link | Empty state |
+| --- | --- | --- | --- | --- | --- |
+| Alerts | always (staff) | `GET /v1/notifications` (latest 100) | warning and urgent alerts not yet acknowledged; urgent ones said apart | `/notifications` | No alerts waiting for you |
+| Tasks on the round | `care.plan.read` | `GET /v1/locations/{id}/round` | open tasks overdue or escalated, and due now | `/round/{id}` or `/round` | No tasks due or overdue on this shift |
+| DoLS expiry reminders | `care.dols.manage` and `care.plan.read` | the same round views: open `care.dols_expiry` reminders (care.md rule 11) | reminders open, overdue ones said apart; none open is said neutrally ("None open"), never with the tick, as an ended authorisation raises no reminder | `/round/{id}` or `/round` | No DoLS reminders open |
+| Handover | `care.handover.manage` | `GET /v1/locations/{id}/handovers` | handovers of ended shifts in the last week the incoming shift has not acknowledged, or with a late addition still to be seen ("To do"; how long the shift has is H-410); "Not known" for a view limited to the reader's people; whether the shift running now has one | `/handover/{id}` or `/handover` | Every handover this week acknowledged |
+| Reviews due | `care.plan.read` | `GET /v1/locations/{id}/reviews` | reviews due and overdue (paused ones left out) | `/people/reviews` | No reviews due or overdue |
+| Incidents open | `safety.incident.read` | `GET /v1/incidents` (status open, status under review; 500 each) | open and under review | `/incidents` | No incidents open |
+| Statutory notifications | `safety.incident.manage` | `GET /v1/notifications/statutory` (draft, ready) | still to submit; overdue clocks said apart; the soonest due time | `/notifications/statutory` | No notifications to submit |
+| Outages | `operations.downtime.read` or `.manage`, and `people.person.read` | `GET /v1/locations/{id}/outages` | outages under way, and closed ones still to reconcile | `/downtime/{id}` or `/downtime` | No outages under way or to reconcile |
+| Break-glass reports | `platform.audit.read` | `GET /v1/break-glass/weekly-report` (last full week) | reports not yet reviewed | `/break-glass/weekly-report` | Every report for last week reviewed |
+| People | `people.person.read` | none | none | `/people` | (always a link) |
+
+## States
+
+| State | Icon and word | When |
+| --- | --- | --- |
+| Nothing waiting | circle with tick, "Nothing waiting" | the count is zero and everything loaded |
+| To do | clock, "To do" | something waits, none of it late |
+| None open | circle with minus, "None open" | DoLS only: no reminder open (not an all-clear) |
+| Overdue | circle with alert, "Overdue" | a task, review, reminder or notification clock is past due |
+| Urgent | triangle with alert, "Urgent" | an urgent alert is unacknowledged, or an outage is under way |
+| Not known | triangle with alert, "Not known" | nothing found, but part of it could not be read (never a green tick) |
+| Could not load | triangle with alert, "Could not load" | every source of the tile failed |
+| Some not loaded | triangle with alert, "Some not loaded" | some sources failed, or a list reached the API's limit (beside the main state) |
+| Choose a location | magnifier, "Choose a location" | more than three locations and none chosen |
+
+## Permission matrix
+
+| Role (built-in) | Alerts | Tasks | DoLS | Handover | Reviews | Incidents | Notifications | Outages | Break-glass | People |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Owner | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| Registered Manager | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |
+| Clinical lead or nurse | yes | yes | by role bundle | yes | yes | yes | by role bundle | by role bundle | no | yes |
+| Care worker | yes | yes (assigned people) | no | no | by role bundle | by role bundle | no | by role bundle | no | yes (assigned) |
+
+"By role bundle" means the tile follows the permission in the tenant's version of the role; the
+code never names a role.
+
+## Test list
+
+- `apps/web/src/lib/dashboard.test.ts` (table-driven): which tiles each permission set sees; each
+  summariser's count, state and link for empty, due, overdue, partial and failed inputs; a failed
+  source is never a zero; a refusal hides the tile; the location limit; a state the web does not
+  know warns.
+- `apps/web/e2e/dashboard.spec.ts`: the manager, nurse, carer and owner see their tiles with counts
+  in words and links that open; an incident recorded in the run shows in the manager's incidents
+  tile; axe with no serious violations in light and dark themes.
+
+## Hazards
+
+The dashboard is a pointer to lists, never the list itself. Its controls are recorded against
+HZ-002 (counts say when they were read), HZ-008 (alert fatigue: urgent alerts said apart, no
+colour-only state, never a false all-clear), HZ-013 (statutory notification overdue shown, a failed
+read never reads as none), HZ-018 (handover not acknowledged or not known), HZ-020 (DoLS reminders,
+never an all-clear), HZ-024 (reviews) and HZ-073 (scope never hides a tile) in
+[the hazard log](../clinical-safety/hazard-log.md). Residual risks and open decisions are H-410.
+
+Known gaps, for follow-up: the DoLS tile counts reminders, not authorisations (a location-level
+DoLS register endpoint is in another PR; when it merges the tile should use it); the location
+review tracker does not say when a nation has no review figures; alerts beyond the newest 100 are
+not read (an API count of unacknowledged alerts would close it).
+
+## Audit and data protection
+
+No new data, storage or processing: every read is an existing endpoint, audited there. The page
+shows counts and the names of locations only, never a person's name or care text. No retention
+class applies.
+
+Each view of the home page therefore records up to 17 list views (round, reviews, handovers and so
+on) in the audit log, as if the person had opened each list. That is accurate (the counts are read
+from those records) but noisy for access reviews and DSAR access reports. Decision for Phase 1:
+accept it, and read only on a page view or the person's return, never on a timer. Follow-up: a
+count-only `GET /v1/insights/dashboard` summary, audited once as `insights.dashboard.view`, when
+the dashboard grows or the audit volume is a problem (logged as an open item in the changelog).

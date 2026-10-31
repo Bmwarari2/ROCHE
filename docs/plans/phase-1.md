@@ -32,7 +32,7 @@ integrations, documentation) and lands as its own pull request stacked on the pr
 
 | # | Slice | Register rows | Content |
 | --- | --- | --- | --- |
-| 1 | Plan and specs | - | This plan; `care.md`, `safety.md`, `mca.md` specs; `people.md` lifecycle; new hazards; data-standards and records-of-processing rows for every new field |
+| 1 | Plan and specs | - | This plan; `care.md` (capacity and consent: [section 4 rule 9](../specs/care.md#4-rules-that-are-easy-to-get-wrong)), `safety.md` specs; `people.md` lifecycle; new hazards; data-standards and records-of-processing rows for every new field |
 | 2 | Platform engines | PLAT-009, PLAT-011, PLAT-012 | Task and workflow engine (owner, due, recurrence, evidence, states, approvals, SLA escalation); versioned document store with categories, retention class and typed-name e-signature; retention engine core (soft delete, legal hold, destruction certificate) |
 | 3 | Validated tools and chart rules (domain) | CARE-003, CARE-006, CARE-007, CARE-010 | Waterlow, Braden, MUST, NEWS2 and the NG249 falls question as coded calculators with table-driven tests against the published instruments; fluid targets and running totals, IDDSI levels, repositioning intervals, Bristol scale, weight frequency, late-entry rule |
 | 4 | Care record schema and API | CARE-001, CARE-002, CARE-009, CARE-010, CARE-012, CARE-014, CARE-015 | `care_plan`, `care_plan_item`, `risk_assessment`, `assessment`, append-only `care_note` and `observation`, `body_map_mark`, `activity_record`, `visit_log`, `advance_care_record`; RLS and isolation tests; history and audit |
