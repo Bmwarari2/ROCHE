@@ -323,7 +323,33 @@ describe("an unexpected failure is logged without personal data (section 5.3)", 
     expect(loggableError("a string thrown").frames).toEqual([]);
   });
 
-  it("logs no name or date of birth when the insert fails", async () => {
+  it("drops a value shaped like a stack frame with the message it came in (review round 2)", () => {
+    const error = Object.assign(
+      new Error(
+        "Failed query: update pre_admission_assessment\nparams: Logcheck\n    at 12 Acacia Road, born 1938-02-01 (home.ts:1:1),2",
+      ),
+      { name: "DrizzleQueryError", cause: { code: "P0001" } },
+    );
+    error.stack = `${error.name}: ${error.message}\n    at update (people-lifecycle.ts:20:3)\n    at 12 Acacia Road\n    at async Promise.all (index 0)`;
+    const logged = loggableError(error);
+    expect(logged.frames).toEqual(["    at update (people-lifecycle.ts:20:3)"]);
+    expect(JSON.stringify(logged)).not.toMatch(/Acacia|1938|Logcheck/);
+  });
+
+  it("refuses a line break in a name (422), so a name never starts a line anywhere", async () => {
+    for (const field of ["givenName", "familyName", "preferredName"]) {
+      const response = await post(
+        "manager",
+        enquiry({ [field]: "Example\n    at 12 Acacia Road, born 1938-02-01" }),
+      );
+      expect(response.status).toBe(422);
+    }
+    // Free text keeps its line breaks, never other control characters.
+    expect((await post("manager", enquiry({ givenName: "Ivy\u0007" }))).status).toBe(422);
+  });
+
+  /** An app whose log lines are kept for the test to read. */
+  function capturingApp() {
     const lines: string[] = [];
     const sink = new Writable({
       write(chunk, _encoding, done) {
@@ -342,6 +368,21 @@ describe("an unexpected failure is logged without personal data (section 5.3)", 
       }),
       createLogger("error", sink),
     );
+    const request = (path: string, method: string, body: object) =>
+      handle.app.request(path, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${h.tokens.manager}`,
+          [TENANT_HEADER]: DEMO.tenantId,
+        },
+        body: JSON.stringify(body),
+      });
+    return { lines, handle, request };
+  }
+
+  it("logs no name or date of birth when the insert fails", async () => {
+    const { lines, handle, request } = capturingApp();
     // A database refusal the route does not expect, for this test's name only.
     await h.db.pool("harbour_owner").query(`
       CREATE FUNCTION app.test_refuse_logcheck() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -354,17 +395,11 @@ describe("an unexpected failure is logged without personal data (section 5.3)", 
       CREATE TRIGGER test_refuse_logcheck BEFORE INSERT ON public.person
         FOR EACH ROW EXECUTE FUNCTION app.test_refuse_logcheck();`);
     try {
-      const response = await handle.app.request("/v1/people", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${h.tokens.manager}`,
-          [TENANT_HEADER]: DEMO.tenantId,
-        },
-        body: JSON.stringify(
-          enquiry({ givenName: "Logcheck", familyName: "Quietly", dateOfBirth: "1937-03-14" }),
-        ),
-      });
+      const response = await request(
+        "/v1/people",
+        "POST",
+        enquiry({ givenName: "Logcheck", familyName: "Quietly", dateOfBirth: "1937-03-14" }),
+      );
       expect(response.status).toBe(500);
       const log = lines.join("");
       for (const detail of ["Logcheck", "Quietly", "1937-03-14", "refused for the log test"]) {
@@ -376,6 +411,64 @@ describe("an unexpected failure is logged without personal data (section 5.3)", 
       await h.db.pool("harbour_owner").query(`
         DROP TRIGGER test_refuse_logcheck ON public.person;
         DROP FUNCTION app.test_refuse_logcheck();`);
+      await handle.close();
+    }
+  });
+
+  it("logs no line of a value shaped like a stack frame when an update fails (review round 2)", async () => {
+    const made = await json<EnquiryRecorded>(await post("manager", enquiry({ givenName: "Wren" })));
+    const services = await json<ServiceList>(
+      await as("manager", `/v1/locations/${DEMO.locationId}/services`),
+    );
+    expect(
+      (
+        await as("manager", `/v1/people/${made.id}/status`, {
+          method: "POST",
+          body: {
+            to: "pre_admission",
+            effectiveAt: new Date().toISOString(),
+            serviceId: services.items[0]?.id,
+            placementTypeSought: "permanent",
+            version: made.version,
+          },
+        })
+      ).status,
+    ).toBe(200);
+    const view = await json<PreAdmissionView>(
+      await as("manager", `/v1/people/${made.id}/pre-admission`),
+    );
+    const { lines, handle, request } = capturingApp();
+    await h.db.pool("harbour_owner").query(`
+      CREATE FUNCTION app.test_refuse_logcheck_reason() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.involvement_reason LIKE 'Logcheck%' THEN
+          RAISE EXCEPTION 'refused for the log test' USING ERRCODE = 'P0001';
+        END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER test_refuse_logcheck_reason BEFORE UPDATE ON public.pre_admission_assessment
+        FOR EACH ROW EXECUTE FUNCTION app.test_refuse_logcheck_reason();`);
+    try {
+      // Free text keeps its line breaks: this one carries a line shaped like a stack frame.
+      const response = await request(`/v1/people/${made.id}/pre-admission`, "PUT", {
+        sections: {},
+        personInvolvement: {
+          involved: false,
+          reason: "Logcheck\n    at 12 Acacia Road, born 1938-02-01 (home.ts:1:1)",
+        },
+        version: view.assessment?.version ?? 1,
+      });
+      expect(response.status).toBe(500);
+      const log = lines.join("");
+      for (const detail of ["Logcheck", "Acacia", "1938-02-01", "refused for the log test"]) {
+        expect(log).not.toContain(detail);
+      }
+      expect(log).toContain("request failed");
+      expect(log).toContain("P0001");
+    } finally {
+      await h.db.pool("harbour_owner").query(`
+        DROP TRIGGER test_refuse_logcheck_reason ON public.pre_admission_assessment;
+        DROP FUNCTION app.test_refuse_logcheck_reason();`);
       await handle.close();
     }
   });

@@ -15,7 +15,24 @@ const uuid = z.uuid();
 const isoDateTime = z.iso.datetime({ offset: true });
 const isoDate = z.iso.date();
 const version = z.number().int().min(1);
-const text = (max: number) => z.string().trim().max(max);
+/**
+ * Control characters other than those `allowed`: they can forge a line in a log or on a printed page
+ * (#118 review round 2, L1).
+ */
+const hasControl = (value: string, allowed: string) =>
+  [...value].some((ch) => {
+    const code = ch.charCodeAt(0);
+    return (code < 32 || code === 127) && !allowed.includes(ch);
+  });
+const text = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .refine((v) => !hasControl(v, "\t\n\r"), "Remove control characters.");
+/** A name: one line, never a line break. */
+const nameText = (max: number) =>
+  text(max).refine((v) => !hasControl(v, "\t"), "A name is one line, with no line breaks.");
 
 export const PersonStatus = z
   .enum([
@@ -149,9 +166,9 @@ export const CreateEnquiry = z
     id: uuid.optional(),
     /** The home the enquiry is about: one at a location the caller manages enquiries for. */
     locationId: uuid,
-    givenName: text(100).min(1),
-    familyName: text(100).min(1),
-    preferredName: text(100).optional(),
+    givenName: nameText(100).min(1),
+    familyName: nameText(100).min(1),
+    preferredName: nameText(100).optional(),
     /** From 1900-01-01 to today (UK). */
     dateOfBirth: isoDate
       .refine((d) => d >= ENQUIRY_EARLIEST_DATE, "The date of birth cannot be before 1900.")
