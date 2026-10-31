@@ -57,7 +57,7 @@ export function WithdrawAdvanceCare({
   return (
     <div className="flex flex-col gap-2">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
           <p className="m-0 font-semibold">
             {changesHeader
               ? t("care.advance.withdraw.consequenceCpr")

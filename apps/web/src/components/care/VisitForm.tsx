@@ -106,7 +106,7 @@ export function VisitForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <RadioGroup<Kind>
           id={ids.kind}
           error={errorFor(result, "kind")}

@@ -73,6 +73,7 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { workflowsRouter } from "./routes/workflows";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
@@ -247,6 +248,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", auditRouter);
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
+  app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
