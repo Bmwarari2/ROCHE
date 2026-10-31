@@ -8,21 +8,7 @@ import { ManageFeedback } from "@/components/safety/ManageForms";
 import { END_REASON_MAX, readEndReason } from "@/lib/evidence-packs";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, type FieldErrors, fieldErrors } from "@/lib/outcome";
-
-/** What a quality form did, for the page's address: the page says it when it opens again. */
-export const QUALITY_DONE = [
-  "composed",
-  "added",
-  "redacted",
-  "revoked",
-  "discarded",
-  "drafted",
-  "saved",
-  "approved",
-  "sopDiscarded",
-  "notified",
-] as const;
-export type QualityDone = (typeof QUALITY_DONE)[number];
+import type { QualityDone } from "@/lib/quality-done";
 
 /**
  * Sends one quality form and, on success, opens `path` again with `done`, which says what was done
@@ -42,19 +28,14 @@ export function useQualitySend(path: string) {
       setResult(outcome);
       if (!outcome.ok) return;
       const target =
-        typeof done === "function" ? done(outcome.data) : `${path}?done=${done}&at=${Date.now()}`;
+        typeof done === "function"
+          ? done(outcome.data)
+          : `${path}${path.includes("?") ? "&" : "?"}done=${done}&at=${Date.now()}`;
       router.replace(target);
     });
   const fail = (errors: FieldErrors, parts?: Readonly<Record<string, readonly string[]>>) =>
     setResult({ ...fieldErrors(errors), ...(parts ? { parts } : {}) });
   return { result, setResult, pending, send, fail };
-}
-
-/** The `done` value from a page's address, when it is one of these. */
-export function qualityDone(value: string | string[] | undefined): QualityDone | null {
-  return typeof value === "string" && (QUALITY_DONE as readonly string[]).includes(value)
-    ? (value as QualityDone)
-    : null;
 }
 
 /** A refusal (a summary linked to its fields) or the step-up notice, after sending. */

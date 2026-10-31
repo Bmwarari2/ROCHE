@@ -1723,7 +1723,7 @@
   "quality.packs.made": "{hasReleased, select, true {Composed {composed}. Released {released}.} other {Composed {composed}.}}",
   "quality.compose.title": "Compose an evidence pack",
   "quality.compose.description": "Say who the pack is for and why, and choose exactly the people and places they need. Nobody else's details go in it.",
-  "quality.compose.formTitle": "What the pack is for",
+  "quality.compose.formTitle": "About this pack",
   "quality.compose.recipient": "Who the pack is for",
   "quality.compose.recipientName": "Their full name",
   "quality.compose.recipientNameHint": "The inspector or commissioner who asked for the evidence.",

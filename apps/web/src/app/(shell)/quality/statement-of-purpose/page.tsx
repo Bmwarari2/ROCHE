@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { QualityChip } from "@/components/quality/QualityChip";
-import { qualityDone } from "@/components/quality/QualityForms";
 import {
   ApproveStatement,
   DiscardStatement,
@@ -24,6 +23,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { readOrFail } from "@/lib/person-record";
+import { qualityDone } from "@/lib/quality-done";
 import {
   approveBlock,
   awaitingNotification,

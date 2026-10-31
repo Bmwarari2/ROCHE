@@ -189,12 +189,14 @@ function IssuedLink({
   issued,
   recipientEmail,
   origin,
+  onDone,
 }: {
   readonly issued: LinkIssued;
   readonly recipientEmail: string;
   readonly origin: string;
+  /** The releaser has the link: forget it, and move focus to the page's heading. */
+  readonly onDone: () => void;
 }) {
-  const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => ref.current?.focus(), []);
@@ -233,7 +235,7 @@ function IssuedLink({
           <Copy size={16} strokeWidth={1.5} aria-hidden="true" />
           {t("quality.link.copy")}
         </Button>
-        <Button type="button" onClick={() => router.refresh()}>
+        <Button type="button" onClick={onDone}>
           {t("quality.link.done")}
         </Button>
         <span aria-live="polite" className="text-body-dense">
@@ -280,7 +282,21 @@ export function LinkIssuer({
   const [issued, setIssued] = useState<LinkIssued | null>(null);
   const [days, setDays] = useState<number | null>(defaultDays);
   const [pending, startTransition] = useTransition();
-  if (issued) return <IssuedLink issued={issued} recipientEmail={recipientEmail} origin={origin} />;
+  const router = useRouter();
+  if (issued) {
+    const done = () => {
+      // The token is dropped from memory here; it was never stored or put in a URL.
+      setIssued(null);
+      setResult(null);
+      router.refresh();
+      const heading = document.querySelector("h1");
+      heading?.setAttribute("tabindex", "-1");
+      heading?.focus();
+    };
+    return (
+      <IssuedLink issued={issued} recipientEmail={recipientEmail} origin={origin} onDone={done} />
+    );
+  }
   if (!mode) return null;
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {

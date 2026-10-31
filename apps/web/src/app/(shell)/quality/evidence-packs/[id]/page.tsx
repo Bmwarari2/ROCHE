@@ -15,7 +15,6 @@ import {
   RedactForm,
 } from "@/components/quality/PackForms";
 import { QualityChip } from "@/components/quality/QualityChip";
-import { qualityDone } from "@/components/quality/QualityForms";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -40,6 +39,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { incidentTitle } from "@/lib/incidents";
 import { readOrFail } from "@/lib/person-record";
+import { qualityDone } from "@/lib/quality-done";
 import { getPeopleNames, webOrigin } from "@/lib/quality-server";
 
 type Params = Promise<{ id: string }>;
