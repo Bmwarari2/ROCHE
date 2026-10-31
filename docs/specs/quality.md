@@ -873,3 +873,49 @@ Retention: interim `audit_event` (8 years from creation) until the DPO sets peri
   table (missing, current, due soon, expired, DSPT due and submitted), assertion rules (met needs
   evidence, notes for not met), evidence refusals (a person's document, unknown, already linked),
   stale versions, audit without text, and the renewal tasks raised once.
+
+## 21. Web screens: policies and data security (slice 65; QUAL-008, QUAL-012)
+
+Branch `feat/web-policies-data-security`, built on the policy library API (section 18, slice 25)
+with the data security evidence API (the second section 18, slice 32) merged in. The dashboard and
+PIR screens wait for slice 47. Spec, permission matrix and test list came before the code (section
+20 rule 3). The web holds no rules of its own: the API checks every one again, and the screens put
+its decisions into words. Status is shown as an icon plus a word, every form posts (`method="post"`), and the strings are
+`quality.policies.*` and `quality.dataSecurity.*`. Online only.
+
+### Screens
+
+| Route | Shows | Who sees it |
+| --- | --- | --- |
+| `/policies` | "To read and sign" (from `/v1/me/policies`: the versions in force the reader's role must sign and has not), then the library: each policy's version in force, its review status (current, due soon, overdue, no review date) and whether the reader has signed | Every member (sidebar "Policies") |
+| `/policies/new` | A new policy: title, short name, whether someone else must publish it, and its first draft | `quality.policy.manage` |
+| `/policies/[id]` | The version in force (text or organisation document, roles who must sign, review date) with the sign form; for managers, who has read and signed; the draft (edit, publish); every version with its state, where a superseded one says "Superseded: version N is in force" (HZ-128); retire | Every member; the manager parts to `quality.policy.manage` |
+| `/quality/data-security` | The DSPT for this financial year (submitted, due, due soon, overdue, with the deadline), Cyber Essentials, Cyber Essentials Plus and the ICO registration (current, due soon, expired, or "Missing: no record", never current), and counts of assertions by status with "met without evidence" counted apart | `quality.dsar.manage` across the organisation (sidebar "Data security") |
+| `/quality/data-security/assertions?year=` | The year's assertions with their status and evidence; add an assertion, change its status (notes for not met and not applicable), link and unlink organisation documents | As above |
+| `/quality/data-security/submissions` | One submission per financial year; record this year's, correct an earlier one (the earlier values stay in its history) | As above |
+| `/quality/data-security/certificates` | Every certificate and registration newest first; record one (expiry after issue) | As above |
+
+The data security API refuses a location-scoped holder (`requireOrganisationWide`), so the pages
+tell that holder the screens are for whoever handles data protection for the whole organisation.
+
+### Actions
+
+| Action | Permission (API) | The screen |
+| --- | --- | --- |
+| Add a policy, start a draft (minor or major), save a draft | `quality.policy.manage` | A minor change keeps signatures and a major one asks everyone to sign again, so the form says which is which. A new draft copies the text and roles but needs its own review date before it is published |
+| Publish | `quality.policy.manage`; another person when the policy needs a second reviewer | The author of such a draft sees a notice saying someone else must publish it, not the form; the publisher ticks "I have checked this draft" |
+| Retire | `quality.policy.manage` | A reason and a confirm box |
+| Sign | Any member asked to sign the version in force | "I have read this version" must be ticked |
+| Assertions, evidence, submissions, certificates | `quality.dsar.manage` (organisation-wide) | Refusals the API names in its own words (evidence required for met, notes required) are shown in those words |
+
+### Tests
+
+- Unit: `apps/web/src/lib/policies.test.ts` (chips, the version in force for a superseded one, the
+  draft and new-policy readers) and `apps/web/src/lib/data-security.test.ts` (a missing certificate
+  is never current, met without evidence, the assertion, submission and certificate readers).
+- Journey with axe in light and dark themes: `apps/web/e2e/policies-data-security.spec.ts`. HZ-128:
+  the manager drafts a policy that needs a second reviewer and is told someone else must publish
+  it; the owner publishes it; the manager signs (refused until the box is ticked); a minor change is
+  published by the owner, and version 1 then names version 2 as in force. Data security: the owner
+  adds an assertion, met is refused without evidence, not applicable needs notes, and the owner
+  records a certificate and this year's submission.
