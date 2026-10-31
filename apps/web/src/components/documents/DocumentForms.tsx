@@ -104,7 +104,7 @@ export function UploadDocumentForm() {
     );
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <TextField
         id={ids.title}
         name="title"
@@ -152,7 +152,7 @@ export function NewVersionForm({ id }: { readonly id: string }) {
     );
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose text-body-dense">{t("documents.version.about")}</p>
       <TextField
         id={ids.file}
@@ -194,7 +194,7 @@ export function SignDocumentForm({ id, sha256 }: { readonly id: string; readonly
     );
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <p className="m-0 max-w-prose">
         {t("documents.sign.statement", { statement: DEFAULT_SIGNATURE_STATEMENT })}
       </p>

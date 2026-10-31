@@ -67,7 +67,7 @@ export function AboutMeForm({
     <InlineSection open={t("people.aboutMe.edit", { written: written ? "yes" : "no" })}>
       {(close) => (
         <>
-          <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
             <h4 className="m-0 text-body font-semibold">
               {t("people.aboutMe.edit", { written: written ? "yes" : "no" })}
             </h4>
@@ -253,7 +253,7 @@ export function ShareLinkForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <SelectField
           id={ids.sharingDecisionId}
           name="sharingDecisionId"
