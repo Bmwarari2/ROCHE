@@ -179,6 +179,13 @@ const FLAG_WORDS: Readonly<Record<string, string>> = {
   over_maximum: "more than the most allowed in 24 hours was taken",
   given_before_recorded: "recorded after it was given",
   clock_drift: "the device clock was far from Harbour's",
+  corrected: "this record corrects an earlier one",
+  dose_removed: "a dose recorded as taken was corrected away or reduced",
+  dose_moved: "the time of a dose recorded as taken was corrected",
+  breach_created: "the correction breaks a limit the record kept",
+  breach_hidden: "the correction hides a limit the record broke",
+  close_to_next_dose: "given closer to the next dose than the schedule allows",
+  inside_minimum_interval: "given inside the minimum interval",
 };
 
 export function flagWords(flags: readonly string[]): string[] {
@@ -261,6 +268,14 @@ const ESCALATION_TASKS: Readonly<
   review: {
     kind: REVIEW_TASK,
     title: "Review a medicines record flagged for the nurse in charge",
+  },
+  dose_removed: {
+    kind: "medicines.administration.dose_removed",
+    title: "A dose recorded as taken has been corrected away: review it",
+  },
+  dose_moved: {
+    kind: "medicines.administration.dose_moved",
+    title: "The time of a dose recorded as taken has been corrected: review it",
   },
 };
 export const OUTSTANDING_DOSE_TASK = "medicines.dose.outstanding";

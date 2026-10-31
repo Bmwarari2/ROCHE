@@ -629,6 +629,12 @@ export const medicineAdministrationsRouter = createRouter()
               entryId: original.medicationId,
               dueAt: original.dueAt,
               at: original.givenAt,
+              outcome: original.outcome as AdministrationOutcome,
+              amount:
+                original.quantity !== null && original.unitCode !== null
+                  ? { quantity: Number(original.quantity), unitCode: original.unitCode }
+                  : null,
+              administeredBy: original.administeredBy,
               recordedBy: original.recordedBy,
               serverReceivedAt: original.recordedAt,
               supersededById: corrected.get(original.id) ?? null,

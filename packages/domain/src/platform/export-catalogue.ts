@@ -44,6 +44,7 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
  */
 export type ExportRetention =
   | "care_record"
+  | "controlled_drugs_register"
   | "complaint"
   | "audit_event"
   | "dpia"
@@ -117,6 +118,10 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.medication_dosing_record",
   "public.medication_administration",
   "public.medication_administration_witness",
+  "public.controlled_drug_page",
+  "public.controlled_drug_entry",
+  "public.controlled_drug_witness_assertion",
+  "public.controlled_drug_stock_check",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -1481,6 +1486,114 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       witness_id: { description: "Who witnessed it (tenant_user.id)." },
       witnessed_at: { description: "When they signed (instant, UTC)." },
       method: { description: "How they signed: step_up on the web, device_factor on a device." },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_page": {
+    context: "medicines",
+    description:
+      "A controlled drugs register page (MEDS-005; medicines.md rule 24): one per person and dm+d product (drug, form and strength).",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      vmp_id: { description: "The dm+d VMP (drug, form and strength)." },
+      product_name: { description: "The product as dm+d words it." },
+      unit_code: { description: "The dm+d unit the page counts in." },
+      unit_name: { description: "The unit in words." },
+      opened_by: { description: "Who opened the page (tenant_user.id)." },
+      opened_at: { description: "When it was opened (instant, UTC)." },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_entry": {
+    context: "medicines",
+    description:
+      "A controlled drugs register entry (rules 24 to 27): append-only, with the balance after it; a mistake is a correction entry naming the entry it puts right.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      seq: { description: "Its place on the page.", unit: "position (from 1)" },
+      movement: {
+        description: "receipt, administration, disposal, transfer_out, destruction or correction.",
+      },
+      quantity: {
+        description:
+          "The amount moved; for a quantity correction, the signed change; 0 for a detail correction.",
+        unit: "the page's dm+d unit",
+      },
+      balance_after: { description: "The balance after this entry.", unit: "the page's dm+d unit" },
+      corrects_id: { description: "The entry a correction puts right (controlled_drug_entry.id)." },
+      corrects: { description: "What a correction puts right: quantity or detail." },
+      reason: { description: "Why, for a correction." },
+      counterparty: { description: "Who it came from or went to (for example the pharmacy)." },
+      reference: { description: "The delivery note, returns or destruction reference." },
+      occurred_at: { description: "When it happened (instant, UTC)." },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When Harbour stored it (instant, UTC)." },
+      witness_id: { description: "Who witnessed it (tenant_user.id)." },
+      witness_assertion_id: {
+        description: "The witness's signed assertion (controlled_drug_witness_assertion.id).",
+      },
+      no_witness_reason: { description: "Why no witness was available, where policy allows." },
+      flags: { description: "no_witness_for_review when there was no witness." },
+      administration_id: {
+        description: "The administration this entry records (medication_administration.id).",
+      },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_witness_assertion": {
+    context: "medicines",
+    description:
+      "What a witness signed for, with their own step-up, before the entry or stock check that used it.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      movement: { description: "The movement witnessed, or stock_check." },
+      quantity: { description: "The quantity witnessed.", unit: "the page's dm+d unit" },
+      administration_id: { description: "The administration witnessed, for a dose." },
+      witness_id: { description: "Who signed (tenant_user.id)." },
+      asserted_at: { description: "When they signed (instant, UTC)." },
+      expires_at: { description: "When the signature stopped being usable (instant, UTC)." },
+      used_at: { description: "When an entry or stock check used it (instant, UTC)." },
+      created_at: "exported",
+    },
+  },
+  "public.controlled_drug_stock_check": {
+    context: "medicines",
+    description:
+      "A stock count against a register page: any difference raises a medication incident.",
+    treatment: "tenant_rows",
+    retention: "controlled_drugs_register",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      page_id: { description: "The page (controlled_drug_page.id)." },
+      counted: { description: "The count.", unit: "the page's dm+d unit" },
+      expected: { description: "The page's balance at the count.", unit: "the page's dm+d unit" },
+      difference: { description: "The count less the balance.", unit: "the page's dm+d unit" },
+      reason: { description: "Why it did not balance, when it did not." },
+      checked_by: { description: "Who counted (tenant_user.id)." },
+      checked_at: { description: "When (instant, UTC)." },
+      witness_id: { description: "Who witnessed the count (tenant_user.id)." },
+      witness_assertion_id: { description: "The witness's signed assertion." },
+      no_witness_reason: { description: "Why no witness was available, where policy allows." },
       created_at: "exported",
     },
   },

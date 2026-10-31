@@ -575,6 +575,13 @@
       "when": 1793490000000,
       "tag": "0123_medicine_administrations",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0128_controlled_drugs_register",
+      "breakpoints": true
     }
   ]
 }

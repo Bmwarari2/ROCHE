@@ -731,7 +731,9 @@ export const medicationAdministration = pgTable(
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
         'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
-        'given_by_someone_else', 'close_to_last_dose', 'clock_drift']::text[]`,
+        'given_by_someone_else', 'close_to_last_dose', 'clock_drift', 'corrected',
+        'dose_removed', 'dose_moved', 'breach_created', 'breach_hidden', 'close_to_next_dose',
+        'inside_minimum_interval']::text[]`,
     ),
   ],
 );
@@ -763,5 +765,257 @@ export const medicationAdministrationWitness = pgTable(
     }),
     memberRef("medication_administration_witness_member_fk", t.tenantId, t.witnessId),
     check("medication_administration_witness_method", sql`method IN ('step_up', 'device_factor')`),
+  ],
+);
+
+/**
+ * A controlled drugs register page (rule 24; slice 34; ADR-0083): one per person and dm+d VMP
+ * (drug, form and strength), with dm+d's name and the unit its entries count in. Never changes.
+ */
+export const controlledDrugPage = pgTable(
+  "controlled_drug_page",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    vmpId: text("vmp_id").notNull(),
+    productName: text("product_name").notNull(),
+    unitCode: text("unit_code").notNull(),
+    unitName: text("unit_name").notNull(),
+    openedBy: uuid("opened_by").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("controlled_drug_page_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("controlled_drug_page_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    unique("controlled_drug_page_person_vmp_key").on(t.tenantId, t.personId, t.vmpId),
+    personRef("controlled_drug_page_person_fk", t),
+    memberRef("controlled_drug_page_opened_by_fk", t.tenantId, t.openedBy),
+    check("controlled_drug_page_vmp", dmdShape("vmp_id")),
+    check(
+      "controlled_drug_page_names",
+      sql`length(btrim(product_name)) > 0 AND length(btrim(unit_code)) > 0 AND length(btrim(unit_name)) > 0`,
+    ),
+  ],
+);
+
+/**
+ * What a witness signed for (ADR-0084 on the web): the movement and quantity they saw on a page,
+ * with their own fresh step-up; used once, before it expires, by the entry or stock check it
+ * matches.
+ */
+export const controlledDrugWitnessAssertion = pgTable(
+  "controlled_drug_witness_assertion",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    pageId: uuid("page_id").notNull(),
+    /** The movement witnessed, or `stock_check` for a count. */
+    movement: text("movement").notNull(),
+    quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
+    /** The administration witnessed, for a dose. */
+    administrationId: uuid("administration_id"),
+    witnessId: uuid("witness_id").notNull(),
+    assertedAt: timestamp("asserted_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("controlled_drug_witness_assertion_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("controlled_drug_witness_assertion_tenant_person_id_key").on(
+      t.tenantId,
+      t.personId,
+      t.id,
+    ),
+    foreignKey({
+      name: "controlled_drug_witness_assertion_page_fk",
+      columns: [t.tenantId, t.personId, t.pageId],
+      foreignColumns: [
+        controlledDrugPage.tenantId,
+        controlledDrugPage.personId,
+        controlledDrugPage.id,
+      ],
+    }),
+    memberRef("controlled_drug_witness_assertion_witness_fk", t.tenantId, t.witnessId),
+    check(
+      "controlled_drug_witness_assertion_movement",
+      sql`movement IN ('receipt', 'administration', 'disposal', 'transfer_out', 'destruction', 'correction', 'stock_check')`,
+    ),
+    check("controlled_drug_witness_assertion_expiry", sql`expires_at > asserted_at`),
+  ],
+);
+
+/**
+ * One register entry (rules 24 to 27): append-only, its place on the page (`seq`) and the balance
+ * after it checked against the entry before by the database as well as the rules. A mistake is a
+ * correction entry naming the entry it puts right (a margin correction).
+ */
+export const controlledDrugEntry = pgTable(
+  "controlled_drug_entry",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    pageId: uuid("page_id").notNull(),
+    seq: integer("seq").notNull(),
+    movement: text("movement").notNull(),
+    /** The amount moved; a quantity correction's signed change; 0 for a detail correction. */
+    quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
+    balanceAfter: numeric("balance_after", { precision: 12, scale: 3 }).notNull(),
+    correctsId: uuid("corrects_id"),
+    corrects: text("corrects"),
+    reason: text("reason"),
+    /** Who it came from (a receipt) or went to (a disposal, transfer or destruction). */
+    counterparty: text("counterparty"),
+    /** The delivery note, returns book or destruction reference. */
+    reference: text("reference"),
+    /** When it happened. */
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    recordedBy: uuid("recorded_by").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    witnessId: uuid("witness_id"),
+    witnessAssertionId: uuid("witness_assertion_id"),
+    noWitnessReason: text("no_witness_reason"),
+    flags: text("flags").array().notNull().default(sql`'{}'::text[]`),
+    /** The administration this entry records (slice 22's hook). */
+    administrationId: uuid("administration_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("controlled_drug_entry_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("controlled_drug_entry_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    unique("controlled_drug_entry_page_id_key").on(t.tenantId, t.pageId, t.id),
+    unique("controlled_drug_entry_seq_key").on(t.tenantId, t.pageId, t.seq),
+    unique("controlled_drug_entry_assertion_key").on(t.tenantId, t.witnessAssertionId),
+    foreignKey({
+      name: "controlled_drug_entry_page_fk",
+      columns: [t.tenantId, t.personId, t.pageId],
+      foreignColumns: [
+        controlledDrugPage.tenantId,
+        controlledDrugPage.personId,
+        controlledDrugPage.id,
+      ],
+    }),
+    // A correction names an entry on the same page.
+    foreignKey({
+      name: "controlled_drug_entry_corrects_fk",
+      columns: [t.tenantId, t.pageId, t.correctsId],
+      foreignColumns: [t.tenantId, t.pageId, t.id],
+    }),
+    foreignKey({
+      name: "controlled_drug_entry_assertion_fk",
+      columns: [t.tenantId, t.personId, t.witnessAssertionId],
+      foreignColumns: [
+        controlledDrugWitnessAssertion.tenantId,
+        controlledDrugWitnessAssertion.personId,
+        controlledDrugWitnessAssertion.id,
+      ],
+    }),
+    foreignKey({
+      name: "controlled_drug_entry_administration_fk",
+      columns: [t.tenantId, t.personId, t.administrationId],
+      foreignColumns: [
+        medicationAdministration.tenantId,
+        medicationAdministration.personId,
+        medicationAdministration.id,
+      ],
+    }),
+    memberRef("controlled_drug_entry_recorded_by_fk", t.tenantId, t.recordedBy),
+    memberRef("controlled_drug_entry_witness_fk", t.tenantId, t.witnessId),
+    uniqueIndex("controlled_drug_entry_administration_key")
+      .on(t.tenantId, t.administrationId)
+      .where(sql`administration_id IS NOT NULL AND movement = 'administration'`),
+    check(
+      "controlled_drug_entry_movement",
+      sql`movement IN ('receipt', 'administration', 'disposal', 'transfer_out', 'destruction', 'correction')`,
+    ),
+    check("controlled_drug_entry_seq", sql`seq >= 1`),
+    check("controlled_drug_entry_balance", sql`balance_after >= 0`),
+    check(
+      "controlled_drug_entry_quantity",
+      sql`(movement <> 'correction' AND quantity > 0)
+       OR (movement = 'correction' AND corrects = 'quantity' AND quantity <> 0)
+       OR (movement = 'correction' AND corrects = 'detail' AND quantity = 0)`,
+    ),
+    check(
+      "controlled_drug_entry_correction",
+      sql`(movement = 'correction' AND corrects_id IS NOT NULL AND corrects IN ('quantity', 'detail')
+           AND length(btrim(coalesce(reason, ''))) > 0)
+       OR (movement <> 'correction' AND corrects_id IS NULL AND corrects IS NULL)`,
+    ),
+    check(
+      "controlled_drug_entry_witness",
+      sql`(witness_id IS NOT NULL AND witness_assertion_id IS NOT NULL AND no_witness_reason IS NULL
+           AND witness_id <> recorded_by)
+       OR (witness_id IS NULL AND witness_assertion_id IS NULL
+           AND length(btrim(coalesce(no_witness_reason, ''))) > 0 AND movement <> 'destruction')`,
+    ),
+    check(
+      "controlled_drug_entry_administration",
+      sql`administration_id IS NULL OR movement IN ('administration', 'correction')`,
+    ),
+    check("controlled_drug_entry_flags", sql`flags <@ ARRAY['no_witness_for_review']::text[]`),
+  ],
+);
+
+/** A stock count against a page (rule 24): any difference raises an incident (HZ-115). */
+export const controlledDrugStockCheck = pgTable(
+  "controlled_drug_stock_check",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    pageId: uuid("page_id").notNull(),
+    counted: numeric("counted", { precision: 12, scale: 3 }).notNull(),
+    expected: numeric("expected", { precision: 12, scale: 3 }).notNull(),
+    difference: numeric("difference", { precision: 12, scale: 3 }).notNull(),
+    reason: text("reason"),
+    checkedBy: uuid("checked_by").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    witnessId: uuid("witness_id"),
+    witnessAssertionId: uuid("witness_assertion_id"),
+    noWitnessReason: text("no_witness_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("controlled_drug_stock_check_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("controlled_drug_stock_check_assertion_key").on(t.tenantId, t.witnessAssertionId),
+    foreignKey({
+      name: "controlled_drug_stock_check_page_fk",
+      columns: [t.tenantId, t.personId, t.pageId],
+      foreignColumns: [
+        controlledDrugPage.tenantId,
+        controlledDrugPage.personId,
+        controlledDrugPage.id,
+      ],
+    }),
+    foreignKey({
+      name: "controlled_drug_stock_check_assertion_fk",
+      columns: [t.tenantId, t.personId, t.witnessAssertionId],
+      foreignColumns: [
+        controlledDrugWitnessAssertion.tenantId,
+        controlledDrugWitnessAssertion.personId,
+        controlledDrugWitnessAssertion.id,
+      ],
+    }),
+    memberRef("controlled_drug_stock_check_checked_by_fk", t.tenantId, t.checkedBy),
+    memberRef("controlled_drug_stock_check_witness_fk", t.tenantId, t.witnessId),
+    index("controlled_drug_stock_check_page_idx").on(t.tenantId, t.pageId, t.checkedAt),
+    check("controlled_drug_stock_check_counted", sql`counted >= 0 AND expected >= 0`),
+    check("controlled_drug_stock_check_difference", sql`difference = counted - expected`),
+    check(
+      "controlled_drug_stock_check_reason",
+      sql`difference = 0 OR length(btrim(coalesce(reason, ''))) > 0`,
+    ),
+    check(
+      "controlled_drug_stock_check_witness",
+      sql`(witness_id IS NOT NULL AND witness_assertion_id IS NOT NULL AND no_witness_reason IS NULL
+           AND witness_id <> checked_by)
+       OR (witness_id IS NULL AND witness_assertion_id IS NULL
+           AND length(btrim(coalesce(no_witness_reason, ''))) > 0)`,
+    ),
   ],
 );
