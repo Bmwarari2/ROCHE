@@ -86,8 +86,20 @@ function summaryFor(row: ReportRow, organisationWide: boolean): Record<string, u
   return rest;
 }
 
+/**
+ * The staff this reader is told the names of: everyone the report counts, as far as the reader
+ * may see it, and its reviewer. A report stored before the organisation-wide section existed (no
+ * `unplacedSearches` key) has searches that showed no one at any location mixed into its own
+ * searches, so a reader who does not reach the whole organisation is told only the names of those
+ * on its opening lines and flags, never its searchers (security re-review L-1). Separation of
+ * duties always uses the full set (`reportStaffIds(row, true)`).
+ */
 function namedIds(row: ReportRow, organisationWide: boolean): string[] {
-  const ids = reportStaffIds(row, organisationWide);
+  const summary = (row.summary ?? {}) as SummaryIds & Record<string, unknown>;
+  const ids =
+    organisationWide || "unplacedSearches" in summary
+      ? reportStaffIds(row, organisationWide)
+      : [...new Set([...idsOf(summary.byUser), ...idsOf(summary.flagged)])];
   return row.reviewedBy && !ids.includes(row.reviewedBy) ? [...ids, row.reviewedBy] : ids;
 }
 
@@ -169,6 +181,8 @@ export const breakGlassReportRouter = createRouter()
             weekStart: week.start.toISOString(),
             count: rows.length,
             reportIds: rows.map((r) => r.id),
+            // Whether the organisation-wide section and its searchers' names were shown.
+            organisationWide: scope === "tenant",
           },
         });
         return reportsOut(tx, rows, scope === "tenant");

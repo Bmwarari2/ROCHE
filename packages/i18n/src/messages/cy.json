@@ -1858,7 +1858,7 @@
   "breakGlassReport.review.title": "Review",
   "breakGlassReport.review.intro": "Look at what the report flags and at the reasons in the audit log, then record what you did, for example speaking to a member of staff or changing their access. You can record the review once.",
   "breakGlassReport.review.label": "Actions taken",
-  "breakGlassReport.review.hint": "Between {min} and {max, number} characters. Do not include anyone's health details.",
+  "breakGlassReport.review.hint": "Between {min} and {max, number} characters. Everyone who reads this location's report, including its Registered Manager, will see what you write. Do not include anyone's health details.",
   "breakGlassReport.review.submit": "Record the review",
   "breakGlassReport.review.problem": "{problem, select, tooLong {Shorten the actions taken to {max, number} characters or fewer} other {Enter what you did, using at least {min} characters}}",
   "breakGlassReport.review.conflict": "Someone else has already recorded the review of this report. Reload the page to see it.",

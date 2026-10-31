@@ -89,8 +89,23 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   and names its searchers, only to readers whose access reaches the whole organisation. Each
   report carries `staff`, the `StaffName` of every member it counts (as far as the reader may see)
   and of its reviewer (display name and job title only), so a reader who cannot list the members
-  (the quality lead, a group executive) still sees who used break-glass. Each view is audited with
-  the ids of the reports shown.
+  (the quality lead, a group executive) still sees who used break-glass. A report stored before the
+  organisation-wide section (no `unplacedSearches`) names to a location's reader only the members
+  on its opening lines and flags, never its searchers, since its searches may include ones that
+  showed no one at any location; separation of duties still counts everyone. Each view is audited
+  with the ids of the reports shown and whether the organisation-wide section was. The
+  organisation-wide section's warning on the alert goes only to data protection leads whose
+  `platform.audit.read` reaches the whole organisation.
+  - **Accepted risk (security re-review L-2).** Row-level security does not restrict
+    `unplacedSearches`: it is a key in the summary of every location's row, and only the route's
+    `summaryFor` withholds it (and its searchers' names) from a reader who does not reach the whole
+    organisation. Any other read of `break_glass_weekly_report` under a location scope would see
+    it. Moving it to an organisation-level row (`location_id` null) that row-level security limits
+    to organisation-wide readers needs a migration (nullable `location_id`, its policies and the
+    `break_glass_weekly_report_once` unique index); not done.
+  - **Known limit (security re-review L-3).** The organisation-wide section has no review state of
+    its own: it is reviewed with each location's report, and the "Actions taken" written there is
+    read by that location's readers, so the form says so.
 - Break-glass report screen (web, `apps/web/src/app/(shell)/break-glass/weekly-report`): "Break-glass
   report" in the side bar for `platform.audit.read` only (anyone else opening the address is told
   they do not have access). The list shows one UK week (Monday to Sunday, dd/mm/yyyy in a `<time>`

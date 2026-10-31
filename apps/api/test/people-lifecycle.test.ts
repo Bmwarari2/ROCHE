@@ -3883,7 +3883,7 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     expect(demoForQuality?.staff.map((s) => s.id)).toContain(DEMO.users.owner.id);
     // The view is audited with the ids of the reports shown (review round 1).
     const viewed = await asDemoTenant((c) =>
-      c.query<{ scope: { reportIds: string[] } }>(
+      c.query<{ scope: { reportIds: string[]; organisationWide: boolean } }>(
         `SELECT scope FROM audit_event WHERE action = 'platform.break_glass_report.view'
          ORDER BY chain_position DESC LIMIT 1`,
       ),
@@ -3891,6 +3891,8 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     expect([...(viewed.rows[0]?.scope.reportIds ?? [])].sort()).toEqual(
       quality.items.map((r) => r.id).sort(),
     );
+    // And whether the organisation-wide section was shown (security re-review I-3).
+    expect(viewed.rows[0]?.scope.organisationWide).toBe(true);
     expect((await as("carer", "/v1/break-glass/weekly-report")).status).toBe(403);
   });
 
@@ -3987,6 +3989,49 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
       expect((await as("quality", path, { method: "POST", body })).status).toBe(201);
     },
   );
+
+  it("names a report's searchers to a location's reader only when it keeps the searches that showed no one apart (security re-review L-1)", async () => {
+    // A report stored before the organisation-wide section: its searches may include some that
+    // showed no one at any location, so a location's manager is not told who searched.
+    const { unplacedSearches: _none, ...oldShape } = quiet;
+    const path = await storedReport("2026-01-26T00:00:00Z", {
+      ...oldShape,
+      totalEvents: 1,
+      byUser: [
+        {
+          tenantUserId: DEMO.users.nurse.id,
+          events: 1,
+          people: 1,
+          unreviewed: 1,
+          flags: [],
+          eventIds: [],
+        },
+      ],
+      searches: {
+        total: 1,
+        distinctUsers: 1,
+        byUser: [{ tenantUserId: DEMO.users.owner.id, searches: 1, flags: [], eventIds: [] }],
+        byReason: [],
+      },
+    });
+    const read = async (user: "manager" | "quality") =>
+      (
+        await json<BreakGlassWeeklyReportList>(
+          await as(user, "/v1/break-glass/weekly-report?week=2026-01-28"),
+        )
+      ).items.find((r) => r.locationId === DEMO.locationId && r.supersedesId === null);
+    const manager = await read("manager");
+    expect(manager?.staff.map((s) => s.id)).toEqual([DEMO.users.nurse.id]);
+    // Across the organisation, everyone it counts is named.
+    const quality = await read("quality");
+    expect(quality?.staff.map((s) => s.id).sort()).toEqual(
+      [DEMO.users.nurse.id, DEMO.users.owner.id].sort(),
+    );
+    // Separation of duties still counts the searcher.
+    const own = await as("owner", path, { method: "POST", body });
+    expect(own.status).toBe(403);
+    expect(await code(own)).toBe("separation_of_duties");
+  });
 
   it("refuses a review of a location outside the reviewer's access as not found", async () => {
     const all = await json<BreakGlassWeeklyReportList>(

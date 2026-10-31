@@ -102,3 +102,26 @@ Security and accessibility reviewers' findings, all addressed except where noted
   `PLAT-006` (9: three new separation-of-duties cases, the organisation-wide section and the view
   audit); `packages/domain/src/people/break-glass-report.test.ts` (16);
   `apps/web/e2e/break-glass-report.spec.ts` (3, passing twice in a row).
+
+## Review round 2
+
+Security re-review of 0dfd2dae (fine to merge; Low and informational items):
+
+- L-1: a report stored before the organisation-wide section (no `unplacedSearches`) names to a
+  location's reader only the members on its opening lines and flags, not its searchers;
+  separation of duties still counts everyone. API test with a stored row in the old shape.
+- L-4: the local-database guard (`demo-seed-guard.ts`, used by the demo seed and both run
+  scripts) refuses a URL whose server is set by a `host` or `hostaddr` query parameter (in any
+  case), a socket path, a `socket:` URL, a URL with no host (PGHOST would decide) and any other
+  protocol, instead of reading the URL's host alone. CI's URLs (`localhost`) and the CI service
+  host still pass. Nine new cases in `apps/api/test/demo-seed-guard.test.ts`.
+- I-1: the organisation-wide section's warning on the weekly alert goes only to data protection
+  leads whose `platform.audit.read` reaches the whole organisation.
+- I-3: the view audit records `organisationWide`.
+- L-2 (logged as accepted risk in platform.md): row-level security does not restrict
+  `unplacedSearches`; only the route withholds it. An organisation-level row needs a migration.
+- L-3 (logged in platform.md): the organisation-wide section has no review state of its own; the
+  review form's hint now says the location's readers, including its Registered Manager, will see
+  what is written.
+- Tests: `apps/api/test/people-lifecycle.test.ts` `PLAT-006` (10);
+  `apps/api/test/demo-seed-guard.test.ts` (29); the web unit tests and the journey again.

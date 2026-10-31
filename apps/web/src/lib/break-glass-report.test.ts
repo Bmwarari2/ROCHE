@@ -305,6 +305,9 @@ describe("the weekly break-glass report screens", () => {
       "Shorten the actions taken to 2,000 characters or fewer",
     );
     expect(actionsHint(t)).toContain("Between 3 and 2,000 characters");
+    // The review has no state of its own for the organisation-wide section: whatever is written
+    // is read by the location's readers too (security re-review L-3).
+    expect(actionsHint(t)).toContain("including its Registered Manager, will see what you write");
   });
 
   it("says a refused review in the page's words", () => {
