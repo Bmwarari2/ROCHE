@@ -49,3 +49,14 @@ Branch `feat/mobile-gate`, from `feat/mobile-round-screen` (PR #50).
 - Not run: the Gradle release build, the Android emulator and every Maestro flow (no Android SDK
   or KVM in the sandbox). The Maestro and workflow YAML parse; no Maestro or actionlint linter was
   available.
+
+## Review rounds
+
+- Security review (no High): `app.config.ts` now refuses `EXPO_PUBLIC_E2E_LOOPBACK` without
+  `HARBOUR_E2E_BUILD=1`, and either under `EAS_BUILD` or `EAS_BUILD_PROFILE` (EAS evaluates the
+  config on its servers, so dashboard variables are caught too); `eas-build` installs dependencies
+  before the Expo token enters its environment and refuses the loopback flags. Left open: a
+  network security config allowing cleartext to loopback only (today the e2e APK allows it to any
+  host, Low), pinning actions to commit SHAs, `eas-version` and the Maestro installer (Low,
+  existing), demo mode accepting http to any host in release (Low, existing), and whether every
+  rc tag should submit the production profile (owner, with H-397).

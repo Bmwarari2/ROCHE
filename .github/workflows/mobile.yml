@@ -196,13 +196,21 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Installed before the Expo token enters the job's environment, so no dependency's install
+      # script can read it (security review of the mobile gate, M3).
+      - if: steps.creds.outputs.available == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Refuse the end-to-end loopback build
+        if: steps.creds.outputs.available == 'true'
+        run: |
+          if [ -n "${EXPO_PUBLIC_E2E_LOOPBACK:-}" ] || [ -n "${HARBOUR_E2E_BUILD:-}" ]; then
+            echo "The end-to-end loopback flags must never reach a store build."; exit 1
+          fi
       - uses: expo/expo-github-action@v8
         if: steps.creds.outputs.available == 'true'
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - if: steps.creds.outputs.available == 'true'
-        run: pnpm install --frozen-lockfile
       - name: Build for both stores and submit to internal testing
         if: steps.creds.outputs.available == 'true'
         working-directory: apps/mobile

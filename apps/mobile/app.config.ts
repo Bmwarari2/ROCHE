@@ -28,8 +28,14 @@ const FACE_ID_REASON =
  * but loopback (`src/config/env.ts`). Never in an EAS build: no store or tester binary carries it.
  */
 const E2E_BUILD = process.env.HARBOUR_E2E_BUILD === "1";
-if (E2E_BUILD && process.env.EAS_BUILD) {
-  throw new Error("HARBOUR_E2E_BUILD is for the CI emulator build only, never an EAS build");
+const E2E_LOOPBACK = Boolean(process.env.EXPO_PUBLIC_E2E_LOOPBACK?.trim());
+if ((E2E_BUILD || E2E_LOOPBACK) && (process.env.EAS_BUILD || process.env.EAS_BUILD_PROFILE)) {
+  throw new Error("The end-to-end loopback build is for the CI emulator only, never an EAS build");
+}
+// The JavaScript flag only with the native build it was made for, so it never rides into a bundle
+// built for anything else (security review of the mobile gate, M1).
+if (E2E_LOOPBACK && !E2E_BUILD) {
+  throw new Error("EXPO_PUBLIC_E2E_LOOPBACK needs HARBOUR_E2E_BUILD=1 (the CI emulator build)");
 }
 const withE2eLoopbackCleartext: ConfigPlugin = (expoConfig) =>
   withAndroidManifest(expoConfig, (mod) => {
