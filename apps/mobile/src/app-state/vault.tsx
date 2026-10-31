@@ -112,7 +112,7 @@ import {
   readCachedHeldMaxDays,
   resolveHeldMaxDays,
 } from "../sync/held-limit";
-import { writeCachedOfflineDays } from "../sync/offline-days";
+import { commitOfflineDays, type PendingWindow, windowToCommit } from "../sync/offline-days";
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import { setWriteScope } from "../sync/write-scope-store";
@@ -407,6 +407,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
   const sessionEndedRef = useRef<(revoked?: boolean) => Promise<void>>(async () => undefined);
   const afterSyncRef = useRef<() => Promise<void>>(async () => undefined);
+  // The window a token carried, waiting for a sync with it to complete (M2).
+  const pendingWindowRef = useRef<PendingWindow | null>(null);
   const meRef = useRef<Me | null>(session.me);
   meRef.current = session.me;
   const heldRef = useRef<HeldWork | null>(session.held);
@@ -536,6 +538,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           const at = next.lastSyncedAt?.getTime() ?? null;
           if (at !== null && at !== lastSynced) {
             lastSynced = at;
+            // A sync completed: the window of the token it used is now what the phone holds.
+            const days = windowToCommit(pendingWindowRef.current, at);
+            if (days) {
+              pendingWindowRef.current = null;
+              void commitOfflineDays(database, days);
+            }
             void afterSyncRef.current();
           }
         },
@@ -700,9 +708,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           onHandoverConfig: (config) => {
             void writeCachedHandoverConfig(opened, config).catch(() => undefined);
           },
-          // The window's days as the token gave them, for what the round says it holds (M4).
+          // The window's days as the token gave them, recorded only once a sync with that token
+          // completes (M4; #123 clinical review re-check, M2).
           onOfflineDays: (days) => {
-            if (days) void writeCachedOfflineDays(opened, days).catch(() => undefined);
+            pendingWindowRef.current = days ? { days, fetchedAt: Date.now() } : null;
           },
         });
         connectorRef.current = connector;

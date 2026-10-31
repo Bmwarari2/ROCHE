@@ -253,6 +253,7 @@ export const careRouter = createRouter()
               personId,
               times.occurredAt,
               author,
+              { table: "care_note" },
             );
             const [inserted] = await tx
               .insert(careNote)
@@ -505,6 +506,7 @@ export const careRouter = createRouter()
               personId,
               times.occurredAt,
               author,
+              { table: "observation", chart: body.values.chart },
             );
             // Who an urgent alert reaches is worked out before the entry is written and kept on
             // it (`alertRoute`), so the record says what actually happened: the nurse in charge,
@@ -940,6 +942,7 @@ export const careRouter = createRouter()
               personId,
               times.occurredAt,
               author,
+              { table: "body_map_mark" },
             );
             const [inserted] = await tx
               .insert(bodyMapMark)
@@ -1286,7 +1289,8 @@ function chartRules(
               recipient: "nurse_in_charge",
               reason:
                 IDDSI_ALERT_REASONS[check.problem ?? ""] ??
-                "IDDSI level differs from the prescribed level",
+                // As the handover words it (#123 clinical review, M5).
+                "Food or a drink was given at an IDDSI level other than the one prescribed, which may not be safe",
               code: check.problem ? `iddsi_${check.problem}` : "iddsi_unsafe_level",
             },
           ]

@@ -1449,11 +1449,14 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
   - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
   - From the clinical review of PR #123: every task, evidence ones included, offers "Not done" with
-    a reason (H1; until `task.evidence_type` syncs the API takes an entry of any kind as a task's
-    evidence, H-423); a task is answered by one entry from this device, remembered after the entry
-    uploads (M1); a task about someone whose record is not on the phone cannot be marked (M2); the
+    a reason (H1); only the entry a task asks for completes it, never a note, and for a chart's
+    task only that chart, in the API and on the phone (`isEvidenceFor`; re-check M3, H-423); a task
+    is answered by one entry from this device, kept in the encrypted bookkeeping by member and task,
+    shown as "Sent, not marked done" when Harbour kept the entry but the task stays open, and
+    answerable again only once Harbour refuses that entry (M1 and the re-check); a task about someone whose record is not on the phone cannot be marked (M2); the
     person's name is in each button's spoken label and their communication needs show by name (M3,
-    H-395); the header states the window from the token's own `offline_days`, in UK time (M4); the
+    H-395); the header states the window from the token's own `offline_days`, in UK time, recorded
+    only once a sync with that token completes (M4; re-check M2); the
     evidence path refuses where a move would (L1); a plan round with no earlier-plan flag says the
     phone cannot tell (L8); the round says it is loading while it reads (L9); medicines tasks are
     never marked here before eMAR (L10); an escalated overdue task says so (L11).

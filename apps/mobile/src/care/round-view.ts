@@ -16,6 +16,7 @@ import { knownAsName } from "@harbour/ui-native/logic";
 import { type MessageKey, t } from "../i18n/t";
 import { parseCommunicationNeeds } from "../people/person-view";
 import { offlineWindowBounds } from "../sync/offline-days";
+import type { AnsweredState } from "./answered-tasks";
 import type { FieldError } from "./entries";
 import { parseQueuedMove, type TaskToMove } from "./round-actions";
 import { parseInstant, ukDateTimeParts } from "./time";
@@ -41,6 +42,11 @@ export interface RoundTaskRow extends TaskToMove {
   readonly evidence_refused?: number | null;
   /** How many times the overdue task has been escalated (0 or null when never). */
   readonly escalation_level?: number | null;
+  /**
+   * Whether an entry saved here by this member answers the task (`answered-tasks.ts`): `answered`
+   * while it waits or once Harbour has it, `refused` once Harbour refused it.
+   */
+  readonly answered_state?: AnsweredState | null;
 }
 
 export type RoundTiming = "overdue" | "due" | "later";
@@ -186,7 +192,15 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
     notices.push(t("mobile.round.evidenceWaiting"));
     chip = { kind: "flag", tone: "info", icon: "cloud-upload", label: t("mobile.round.waiting") };
     action = "none";
-  } else if ((row.evidence_refused ?? 0) > 0) {
+  } else if (row.answered_state === "answered") {
+    // The entry reached Harbour but the task is still open: Harbour kept it without completing
+    // the task (the carer may not complete it, or it was not the evidence asked for), or the
+    // task's own change has not synced yet. Never offered again, and never "Not done" over
+    // evidence already given (#123 clinical review re-check, M1).
+    notices.push(t("mobile.round.sentNotDone"));
+    chip = { kind: "flag", tone: "info", icon: "clock", label: t("mobile.round.sent") };
+    action = "none";
+  } else if ((row.evidence_refused ?? 0) > 0 || row.answered_state === "refused") {
     // A refused entry for this task is tied back to it, not only listed above (HZ-006).
     notices.push(t("mobile.round.evidenceRefused"));
   }

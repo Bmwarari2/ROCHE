@@ -114,3 +114,18 @@ whether it was from an earlier plan). Finished on 31/10/2026:
   docs. Logged for the CSO: L2 (H-396 reframed around the 15-minute banner), L6 (H-424), L7 (H-425),
   splitting the screens gate (H-426), free text on phones (H-427).
 
+## PR #123 clinical re-check
+
+- M1: the answered state is kept in the encrypted bookkeeping (`sync_meta`), by member and task, in
+  the entry's own transaction; it survives a restart, the hold clears it, a refusal of that entry
+  makes the task answerable again, the round reads it ("Sent, not marked done", nothing offered),
+  and the record's banner follows (waiting, sent, or normal after a refusal). Tests for each case.
+- M2: a token's `offline_days` are recorded only once a sync that finished after the token was
+  fetched completes; a failed write removes the old window, so the round says it cannot tell.
+- M3: only the entry a task asks for completes it, in the domain (`isEvidenceFor`), the API (every
+  entry route says what it is) and on the phone: never a note, and for a chart's task only that
+  chart; anything else is kept and reviewed. H-423 stays open for the CSO.
+- Lows: the 23:30 UTC test computes its days as the API does; the API's unsafe-texture reason
+  matches the handover's words; NEWS2 low-medium says "because a single parameter scored 3"; the
+  trigger-code doc comment is back on its function.
+

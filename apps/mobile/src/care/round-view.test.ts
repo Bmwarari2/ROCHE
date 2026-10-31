@@ -1,3 +1,4 @@
+import { offlineWindowDays } from "@harbour/sync/client";
 import { describe, expect, it } from "vitest";
 import {
   managesTasks,
@@ -283,7 +284,8 @@ describe("hazard HZ-028 what the round on this phone holds, never read as nothin
       // A sync at 23:30 UTC in BST is 00:30 UK time the next day: the token's days are still the
       // UTC ones, so the phone never claims the UK day it does not hold (#123 clinical review, M4).
       "a sync at 23:30 UTC in British Summer Time",
-      ["2026-10-19", "2026-10-20", "2026-10-21"],
+      // The days as the API mints them at 23:30 UTC on 20/10 (00:30 on 21/10, UK time).
+      offlineWindowDays(new Date("2026-10-20T23:30:00Z"), 2).sort(),
       "This phone holds the open tasks due from 19/10/2026 at 01:00 to 22/10/2026 at 00:59.",
     ],
     [
