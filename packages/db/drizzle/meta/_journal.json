@@ -512,6 +512,13 @@
       "when": 1793466037912,
       "tag": "0074_dependency_tool",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793467189141,
+      "tag": "0075_safeguarding_log",
+      "breakpoints": true
     }
   ]
 }

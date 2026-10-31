@@ -17507,6 +17507,786 @@
           "dueOn"
         ]
       },
+      "SafeguardingRaised": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SafeguardingState"
+          },
+          "referralDueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "referralDueAt",
+          "version"
+        ]
+      },
+      "SafeguardingState": {
+        "type": "string",
+        "enum": [
+          "concern",
+          "no_referral",
+          "referred",
+          "enquiry",
+          "outcome",
+          "closed"
+        ]
+      },
+      "RaiseSafeguardingConcern": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "abuseTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeguardingAbuseType"
+            },
+            "minItems": 1,
+            "maxItems": 10
+          },
+          "description": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 4000
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notificationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decisionGuideTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "protectiveMeasures": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "personId",
+          "abuseTypes",
+          "description"
+        ]
+      },
+      "SafeguardingAbuseType": {
+        "type": "string",
+        "enum": [
+          "physical",
+          "domestic",
+          "sexual",
+          "psychological",
+          "financial_or_material",
+          "modern_slavery",
+          "discriminatory",
+          "organisational",
+          "neglect",
+          "self_neglect"
+        ]
+      },
+      "SafeguardingList": {
+        "type": "object",
+        "properties": {
+          "concerns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeguardingSummary"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "concerns",
+          "truncated"
+        ]
+      },
+      "SafeguardingSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SafeguardingState"
+          },
+          "abuseTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeguardingAbuseType"
+            }
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/SafeguardingClock"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "state",
+          "abuseTypes",
+          "raisedAt",
+          "clock",
+          "version"
+        ]
+      },
+      "SafeguardingClock": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/SafeguardingClockStatus"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wording": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "dueAt",
+          "wording"
+        ]
+      },
+      "SafeguardingClockStatus": {
+        "type": "string",
+        "enum": [
+          "due",
+          "overdue",
+          "referred",
+          "not_referred"
+        ]
+      },
+      "SafeguardingDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "incidentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "notification": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "ready",
+                  "submitted",
+                  "not_required"
+                ]
+              },
+              "dueAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "dueAt"
+            ]
+          },
+          "decisionGuideTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SafeguardingState"
+          },
+          "abuseTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeguardingAbuseType"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "raisedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "raisedByYou": {
+            "type": "boolean"
+          },
+          "clock": {
+            "$ref": "#/components/schemas/SafeguardingClock"
+          },
+          "noReferralReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referral": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "localAuthority": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 200
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "phone",
+                  "online_form",
+                  "email",
+                  "in_person"
+                ]
+              },
+              "referredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "localAuthority",
+              "method",
+              "referredAt",
+              "reference"
+            ]
+          },
+          "enquiry": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "s42_local_authority",
+                  "s42_caused_to_provider"
+                ]
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "kind",
+              "openedAt"
+            ]
+          },
+          "finding": {
+            "$ref": "#/components/schemas/SafeguardingFinding"
+          },
+          "personalOutcomes": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "asked": {
+                "type": "boolean"
+              },
+              "notAskedReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "desiredOutcomes": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "achieved": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "fully",
+                  "partly",
+                  "not",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "asked",
+              "notAskedReason",
+              "desiredOutcomes",
+              "achieved"
+            ]
+          },
+          "staffHarm": {
+            "$ref": "#/components/schemas/SafeguardingStaffHarm"
+          },
+          "dbsReferral": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "referred",
+                  "not_required"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "decision",
+              "reason",
+              "at"
+            ]
+          },
+          "protectiveMeasures": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protectiveMeasuresUpdatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "measuresOutcome": {
+            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextSteps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "$ref": "#/components/schemas/SafeguardingState"
+                },
+                "needs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "to",
+                "needs"
+              ]
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "incidentId",
+          "notification",
+          "decisionGuideTaskId",
+          "state",
+          "abuseTypes",
+          "description",
+          "raisedAt",
+          "raisedByYou",
+          "clock",
+          "noReferralReason",
+          "referral",
+          "enquiry",
+          "finding",
+          "personalOutcomes",
+          "staffHarm",
+          "dbsReferral",
+          "protectiveMeasures",
+          "protectiveMeasuresUpdatedAt",
+          "measuresOutcome",
+          "closedAt",
+          "closedReason",
+          "nextSteps",
+          "warnings",
+          "version"
+        ]
+      },
+      "SafeguardingFinding": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "substantiated",
+          "partly_substantiated",
+          "not_substantiated",
+          "inconclusive",
+          "no_s42_enquiry",
+          null
+        ]
+      },
+      "SafeguardingStaffHarm": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "removed",
+          "would_have_removed",
+          "not_removed",
+          "no_staff_involved",
+          null
+        ]
+      },
+      "SafeguardingMeasuresOutcome": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "carried_into_care_plan",
+          "no_longer_needed",
+          null
+        ]
+      },
+      "UpdateSafeguardingConcern": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "abuseTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafeguardingAbuseType"
+            },
+            "minItems": 1,
+            "maxItems": 10
+          },
+          "referral": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "localAuthority": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 200
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "phone",
+                  "online_form",
+                  "email",
+                  "in_person"
+                ]
+              },
+              "referredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "localAuthority",
+              "method",
+              "referredAt",
+              "reference"
+            ]
+          },
+          "enquiry": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "s42_local_authority",
+                  "s42_caused_to_provider"
+                ]
+              },
+              "openedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "kind",
+              "openedAt"
+            ]
+          },
+          "finding": {
+            "$ref": "#/components/schemas/SafeguardingFinding"
+          },
+          "personalOutcomes": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "asked": {
+                "type": "boolean"
+              },
+              "notAskedReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "desiredOutcomes": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "achieved": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "fully",
+                  "partly",
+                  "not",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "asked",
+              "notAskedReason",
+              "desiredOutcomes",
+              "achieved"
+            ]
+          },
+          "staffHarm": {
+            "$ref": "#/components/schemas/SafeguardingStaffHarm"
+          },
+          "dbsReferral": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "referred",
+                  "not_required"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "decision",
+              "reason",
+              "at"
+            ]
+          },
+          "protectiveMeasures": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000
+          },
+          "measuresOutcome": {
+            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "SafeguardingStep": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/SafeguardingState"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "SafeguardingMeasures": {
+        "type": "object",
+        "properties": {
+          "measures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "text",
+                "updatedAt"
+              ]
+            }
+          },
+          "openWithoutMeasures": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "measures",
+          "openWithoutMeasures"
+        ]
+      },
       "StatutoryNotificationList": {
         "type": "object",
         "properties": {
@@ -42454,6 +43234,524 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safeguarding/concerns": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Raise a safeguarding concern about a person (Care Act 2014 s.42)",
+        "description": "Anyone who may report an incident about the person may raise one. The referral clock starts at raisedAt (safeguarding.referral_hours, a tenant target; the law says without delay). A client id makes a replay return the same concern. From a Phase 1 safeguarding_s42 draft, the person, location and incident come from the draft.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseSafeguardingConcern"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Raised (or the earlier copy of a replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingRaised"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The safeguarding log in scope, open concerns first, with each referral clock",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/SafeguardingState"
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "personId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The log",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safeguarding/concerns/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One safeguarding concern, its clock, the linked draft and what each next step needs",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The concern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record the referral, enquiry, finding, Making Safeguarding Personal, DBS decision and protective measures",
+        "description": "Expected version. A concern that is closed or not referred cannot be changed. The workflow moves through /step.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSafeguardingConcern"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/safeguarding/concerns/{id}/step": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Move the concern (safeguardingStepProblems says what each step needs)",
+        "description": "Not referring and closing need a reason. Referring or deciding not to refer stops the overdue alerts.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafeguardingStep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/people/{id}/safeguarding/measures": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The protective measures of the person's open safeguarding concerns (HZ-126)",
+        "description": "For staff caring for the person: the measures only, never the allegation or who raised it. Open concerns with no measures recorded are counted.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The measures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeguardingMeasures"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

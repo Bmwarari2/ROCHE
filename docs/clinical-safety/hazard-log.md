@@ -70,8 +70,11 @@
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
+| [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Low / 3 until the open questions in H-599 are settled, then Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
 
 Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-112 until its mobile control is built, and HZ-123 until the rota shows the staffing comparison) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+
+Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-112 until its mobile control is built, and HZ-126 until the questions in H-599 are settled) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed.
 
@@ -2998,6 +3001,24 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 
 **Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
 
+## HZ-126 A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-126 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `safety` module (lead engineer) |
+| Source | Phase 2 plan slice 13 (SAFE-006; migration 0075); [safety.md](../specs/safety.md) "Safeguarding log" and Phase 2 rule 1; Care Act 2014 s.42 and the Care and support statutory guidance chapter 14; Making Safeguarding Personal; Safeguarding Vulnerable Groups Act 2006 s.35; related to HZ-013 (statutory notification missed or late) and HZ-073 (work hidden by scope) |
+
+**Description**: a safeguarding concern is raised but nobody refers it to the local authority, or decides with a reason not to, so an adult at risk stays unprotected; a concern is closed without the person's own outcomes or without the DBS referral decision when a member of staff was removed for harm; or the measures agreed to keep the person safe (two staff for personal care, no visits from a named visitor) are recorded where the staff caring for the person cannot see them.
+
+**Causes**: no clock on the referral, or a clock nobody is told about; an overdue alert acknowledged in the notification centre and never repeated; the alert sent to the managers of a home the person has left; a concern dropped silently by closing it, by a decision not to refer that one manager (perhaps the one implicated) takes alone and unseen, or by a soft delete; the staff question never asked because it defaults to no, so the DBS duty is skipped; Making Safeguarding Personal left until the end; the protective measures vanishing when a concern ends without anyone carrying them into the care plan, or not reaching staff who work from the phone; the log restricted to managers so carers cannot see what to do; the allegation written into the measures; nobody active at the location holding the permission to manage the log; a concern opened from a Phase 1 s.42 draft whose draft is then left open.
+
+**Effects**: continued abuse or neglect of the person; the local authority unable to make a s.42 enquiry; a person who harmed others moving to another care role; CQC enforcement for a failure to protect (Regulation 13).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**. Organisational abuse, or a member of staff who harms and moves on, can harm several people (Catastrophic by the matrix): the CSO decides whether that severity applies (H-595).
+
 **Controls**
 
 | Type | Control | When |
@@ -3009,6 +3030,15 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
 
 **Target residual risk**: `[CSO rating - human action]`.
+| Design | Every concern carries a referral target (`safeguarding.referral_hours` after it was raised, a tenant target; the view says the law says without delay); it stays overdue until it is referred or a reason not to refer is recorded, and never clears by itself (`safeguardingClock`) | Built in Phase 2 slice 13 |
+| Design | The worker tells the holders of `safety.safeguarding.manage` at the home where the person lives now, urgently, in app and by push, through the tenant's escalation chain (default: the owner role), and again each day while the concern waits, so acknowledging an alert never silences it; referring or deciding not to refer acknowledges the alerts; an overdue concern nobody active can manage is audited daily and counted in the operator's unrouted signal (`escalateOverdueSafeguardingReferrals`; review round 1) | Built in Phase 2 slice 13 |
+| Design | A concern cannot be dropped silently: not referring needs a reason and who decided, and the person who raised it cannot decide it alone or close it; the other managers at the person's home are told of a decision not to refer; Making Safeguarding Personal is recorded before the referral decision and whether it was achieved before closing; closing needs the finding and a reason; the staff question has no default and is answered before the outcome and before the concern ends, and the DBS referral decision is needed when a member of staff was removed or would have been; only an ended concern may be soft-deleted. The API checks `safeguardingStepProblems` and `safeguardingLogProblems`, the database checks the same rules, and there is no DELETE grant | Built in Phase 2 slice 13 (migration 0075; review round 1) |
+| Design | Anyone who may report an incident about the person may raise a concern (a client id makes a retried request return the same concern) | Built in Phase 2 slice 13 |
+| Design | Staff caring for the person (`care.plan.read`) read the protective measures of every open concern, newest first, without the allegation; blank measures count as none; an open concern with no measures is counted, and the manager's view warns, so a screen never shows nothing when measures are missing (`protectiveMeasuresFor`); before a concern ends, a manager records whether its measures were carried into the care plan or risk assessment or are no longer needed | Built in Phase 2 slice 13 (API); the record header shows them with slice 62. On the phone at the point of care: open (H-599) |
+| Design | A concern opened from a Phase 1 s.42 draft shows the draft's status and warns while the concern is referred and the draft is still open, so the two are not confused | Built in Phase 2 slice 13 |
+| Training and user documentation | The user guide for the safeguarding log (slice 62) says the target is Harbour's and the law says without delay; staff raise a concern and tell the person in charge at once, whatever the screen shows; managers write protective measures as what staff do, never what is alleged. Deployer control: the organisation's safeguarding policy and the local authority's procedures | Phase 2 (slice 62) |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the questions in H-599 are settled (a second person for a decision not to refer, whether "DBS referral not required" may be recorded when the s.35 conditions are met, and protective measures on the phone), then Very low, **risk 2**. Further reduction now is impractical because each of those is a clinical or legal decision, not an engineering one (an engineering proposal; the CSO rates it, H-595).
 
 **Verification**
 
@@ -3017,6 +3047,10 @@ leaving a gap or an overlap; a requirement computed over a narrower scope than t
 | `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
 | `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
 | Rota tests (planning and on the day) | Planned, slices 21 and 27 |
+| `packages/domain/src/safety/safeguarding.test.ts`: `hazard HZ-126 shows a ... concern at ... as ...` (due, overdue at and after the target, referred, not referred), `hazard HZ-126 is due the target's elapsed hours after the concern, across the spring change` and `... the autumn change`, `hazard HZ-126 shows the protective measures of every open concern, newest first`, `hazard HZ-126 counts an open concern with no measures, so the screen never shows nothing`, `hazard HZ-126 refuses ... while ...` and `allows ...` (`safeguardingLogProblems`: Making Safeguarding Personal before the referral decision, the staff question, the measures' outcome), `hazard HZ-126 asks for the DBS decision when the staff answer is ...`, `hazard HZ-126 refuses no_referral` and `closed by whoever raised the concern` | Passing |
+| `packages/db/test/safeguarding-log.test.ts`: `hazard HZ-126 a safeguarding concern is never dropped or closed without its records` (code lists in step with the domain; an unknown or empty abuse type, not referring without a reason, referring without the local authority, closing without Making Safeguarding Personal, a referral decision before it, ending before the staff question or with staff removed and no DBS decision, ending with measures not carried on, and soft-deleting an open concern are refused; every change versioned) and `hazard HZ-011 the safeguarding log is isolated by tenant and scoped as incidents` (including a raiser writing about a person they cannot see) | Passing |
+| `apps/api/test/safeguarding.test.ts`: `hazard HZ-126 anyone who works with the person can raise a concern, and only managers run the log`, `hazard HZ-126 a concern is never dropped or closed without its records` (including the raiser refused, the other managers told, the description kept), `hazard HZ-126 the log shows only the people the manage permission reaches (ADR-0071)`, `hazard HZ-126 a concern opened from a Phase 1 s.42 draft`, `hazard HZ-126 staff caring for the person see the protective measures, never the allegation`, `hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)` (again each day after a manual acknowledgement; to the person's current home) | Passing |
+| The audit of an overdue concern nobody active can manage (`safety.safeguarding.unrouted`) runs only when no owner or manager holds the permission; the test checks it is counted in the daily signal, not the audit itself | Gap: needs a fixture organisation with no manager (with slice 62) |
 
 ---
 
