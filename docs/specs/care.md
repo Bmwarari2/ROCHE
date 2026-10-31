@@ -1412,6 +1412,28 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   - The header counts the window's days from the last sync, since the last token fixed them.
   - An entry for a task that Harbour refused is tied back to the task on the round (HZ-006).
   - Demo mode seeds three round tasks and its member may mark them (a demo write scope).
+
+  The handover screen is built (`apps/mobile/src/app/(care)/handover.tsx`, `care/handover-view.ts`;
+  3(c)). It covers gate items (a), (d) and (e) for the handover:
+  - The tab shows only for members with `care.handover.manage`, whose phones the handover streams
+    reach, so the phone never says "not compiled yet" for a handover it could never receive.
+  - The connector reads `handover_shifts` from every sync token and keeps it in `sync_meta`, so it
+    is known offline (`sync/handover-shifts.ts`). A nation whose figures are missing or unreadable
+    is left out.
+  - For each home on the phone, the outgoing handover is the shift before the one running now, by
+    the home's nation's pattern (`shiftAt`, `previousShift`). The screen says its state as an icon
+    and a word before any item: "Not compiled yet" when no handover for that shift is on the phone
+    (nobody compiled it, or it came after the last sync), "Not final" while `locked_at` is empty,
+    or final (e). With no pattern for the home's nation it says "Cannot tell" and shows the latest
+    handover on the phone, labelled as such, never as the expected one (H-303).
+  - Items are listed in compiled order, worded from their summaries or by kind (a), with the person
+    as they are known, their communication needs, and "Added late" and "New since you
+    acknowledged" as icon and word.
+  - What the phone holds (handovers for shifts ending on the window's days, counted from the last
+    sync), when it last synced and that items added since are not here are said first; an empty
+    handover never reads as nothing to hand over (d). The needs-attention list sits above.
+  - "I have read this handover" saves an acknowledgement over the items shown (the seen token) and
+    says it is waiting to upload; with items added since, "I have read the new items" asks again.
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

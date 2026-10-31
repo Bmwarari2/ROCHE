@@ -296,3 +296,37 @@ export const TASK_EVIDENCE_SQL = `SELECT
   + (SELECT COUNT(*) FROM body_map_mark WHERE tenant_id = ?1 AND task_id = ?2)
   + (SELECT COUNT(*) FROM activity_record WHERE tenant_id = ?1 AND task_id = ?2)
   + (SELECT COUNT(*) FROM visit_log WHERE tenant_id = ?1 AND task_id = ?2) AS count`;
+
+/** The homes on this device, with their nation for the shift pattern (handover screen). */
+export const HANDOVER_LOCATIONS_SQL = `SELECT id, name, nation FROM location
+WHERE tenant_id = ? ORDER BY name COLLATE NOCASE, id`;
+
+/** The handovers on this device, newest shift first (handover screen; HZ-018). */
+export const HANDOVERS_SQL = `SELECT id, tenant_id, location_id, shift_name, shift_start, shift_end,
+  compiled_at, locked_at
+FROM handover WHERE tenant_id = ? ORDER BY shift_start DESC, id`;
+
+/**
+ * A handover's items as this reader may see them (the streams send only those), in compiled
+ * order, with each person's names and communication needs as the phone holds them.
+ */
+export const HANDOVER_ITEMS_SQL = `SELECT i.id, i.handover_id, i.item_key, i.position, i.kind,
+  i.person_id, i.at, i.late_addition, i.added_at, i.summary,
+  p.preferred_name, p.given_name, p.family_name, p.communication_needs
+FROM handover_item i
+LEFT JOIN person p ON p.id = i.person_id AND p.tenant_id = i.tenant_id
+WHERE i.tenant_id = ? AND i.handover_id = ?
+ORDER BY i.position, i.item_key`;
+
+/**
+ * The reader's own acknowledgement of a handover: one made here and waiting to upload first (it
+ * carries a seen token), else the server's latest.
+ */
+export const MY_ACKNOWLEDGEMENT_SQL = `SELECT handover_id, item_keys, acknowledged_at, seen_token
+FROM handover_acknowledgement
+WHERE tenant_id = ? AND handover_id = ? AND tenant_user_id = ?
+ORDER BY (seen_token IS NOT NULL) DESC, acknowledged_at DESC
+LIMIT 1`;
+
+/** The shift pattern the last sync token carried (`sync/handover-shifts.ts`). */
+export const HANDOVER_SHIFTS_SQL = "SELECT value FROM sync_meta WHERE id = ?";
