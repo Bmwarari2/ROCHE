@@ -100,6 +100,14 @@ beforeAll(async () => {
               ($2, $3, 'enquiry', 'Jude', 'Enquirer', '1939-03-03')`,
       [NEWCOMER, ENQUIRY, DEMO.locationId],
     );
+    // The demo staff were in post before the residents came in on 1 September: the seed starts
+    // their roles when it runs, and a property witness's role is judged when they witnessed
+    // (review of #134, L2), so items signed for yesterday need roles in force then.
+    await c.query(
+      `UPDATE role_assignment SET valid_from = $2
+        WHERE tenant_user_id = ANY($1::uuid[]) AND valid_from > $2`,
+      [Object.values(DEMO.users).map((u) => u.id), "2026-01-01T00:00:00Z"],
+    );
   });
 }, 120_000);
 
