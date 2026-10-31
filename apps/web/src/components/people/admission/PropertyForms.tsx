@@ -138,7 +138,7 @@ export function AddPropertyForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <TextField
           id={ids.description}
           name="description"
@@ -437,6 +437,7 @@ export function ReturnPropertyForm(
       fieldIds={ids}
     >
       <form
+        method="post"
         className="flex flex-col gap-4 border-s-4 border-border ps-4"
         onSubmit={submit}
         noValidate
@@ -551,10 +552,12 @@ export function DisposePropertyForm(props: ItemRef) {
       fieldIds={ids}
     >
       <form
+        method="post"
         className="flex flex-col gap-4 border-s-4 border-border ps-4"
         onSubmit={submit}
         noValidate
       >
+        <p className="m-0 font-semibold">{t("people.property.dispose.consequence")}</p>
         <DateField
           id={ids.on}
           name="on"
@@ -636,10 +639,12 @@ export function LosePropertyForm(
       fieldIds={ids}
     >
       <form
+        method="post"
         className="flex flex-col gap-4 border-s-4 border-border ps-4"
         onSubmit={submit}
         noValidate
       >
+        <p className="m-0 font-semibold">{t("people.property.lose.consequence")}</p>
         <DateField
           id={ids.on}
           name="on"
@@ -726,7 +731,7 @@ export function IssueKeyForm({
   };
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <TextField
           id={ids.label}
           name="label"
@@ -827,10 +832,14 @@ export function CloseKeyForm({
       fieldIds={ids}
     >
       <form
+        method="post"
         className="flex flex-col gap-4 border-s-4 border-border ps-4"
         onSubmit={submit}
         noValidate
       >
+        {how === "lost" ? (
+          <p className="m-0 font-semibold">{t("people.keys.close.lostConsequence")}</p>
+        ) : null}
         <DateField
           id={ids.on}
           name="on"

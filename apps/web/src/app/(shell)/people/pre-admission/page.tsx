@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TemplateArrival } from "@/components/comms/TemplateArrival";
 import { PersonStatusChip } from "@/components/people/admission/StatusChips";
+import { CommunicationStatus } from "@/components/people/CommunicationStatus";
 import { SampleBadge } from "@/components/people/SampleBadge";
 import {
   ENQUIRY_MANAGE,
@@ -16,7 +17,7 @@ import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { peopleLabel, t } from "@/lib/i18n";
-import { personNames } from "@/lib/people";
+import { communicationSummary, personNames } from "@/lib/people";
 import { firstParam } from "@/lib/record-metadata";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -63,6 +64,15 @@ function PersonRow({
           since: formatDateTime(person.statusChangedAt) ?? "",
         })}
         {locationName ? ` ${locationName}` : null}
+      </span>
+      {/* Communication needs wherever a person is shown (Accessible Information Standard). */}
+      <span className="flex flex-wrap items-center gap-2 text-body-dense">
+        <span>{t("people.header.communicationNeeds")}</span>
+        <CommunicationStatus
+          summary={communicationSummary(person, t)}
+          flagLabel={t("people.header.communicationNeeds")}
+          compact
+        />
       </span>
     </li>
   );

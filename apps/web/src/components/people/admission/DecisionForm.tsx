@@ -148,7 +148,13 @@ export function DecisionForm({
   return (
     <div className="flex flex-col gap-4">
       {open ? (
-        <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+        <form
+          method="post"
+          key={round}
+          className="flex flex-col gap-4"
+          onSubmit={submit}
+          noValidate
+        >
           {replaces ? (
             <TextArea
               id={ids.correctionReason}

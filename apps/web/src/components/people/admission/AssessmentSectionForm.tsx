@@ -105,6 +105,7 @@ export function AssessmentSectionForm({
     <div className="flex flex-col gap-3">
       {inline.open ? (
         <form
+          method="post"
           className="flex flex-col gap-4 border-s-4 border-border ps-4"
           onSubmit={submit}
           noValidate

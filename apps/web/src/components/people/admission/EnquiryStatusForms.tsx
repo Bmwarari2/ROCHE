@@ -60,7 +60,7 @@ export function StartAssessmentForm({
   };
   return (
     <div className="flex flex-col gap-4">
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <SelectField
           id={ids.serviceId}
           name="serviceId"
@@ -135,7 +135,7 @@ export function EnquiryReasonForm({
   return (
     <div className="flex flex-col gap-3">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
           {to === "not_admitted" ? (
             <p className="m-0 font-semibold">{t("people.preAdmission.close.consequence")}</p>
           ) : null}

@@ -69,9 +69,9 @@ function Section({
     <li className="border-b border-border py-4 last:border-b-0">
       <article aria-labelledby={headingId} className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 id={headingId} className="m-0 text-body font-semibold">
+          <h5 id={headingId} className="m-0 text-body font-semibold">
             {title}
-          </h4>
+          </h5>
           <StatusChip
             status={sectionChip(section)}
             label={t("people.preAdmission.section.state", { state: section.state })}
@@ -161,14 +161,18 @@ function Decision({
   me,
   confirm,
   replacedBy,
+  headingLevel,
 }: {
   readonly decision: AdmissionDecisionItem;
   readonly personId: string;
   readonly me: string;
   readonly confirm: boolean;
   readonly replacedBy: AdmissionDecisionItem | null;
+  /** The level of the conditions' heading: one below the heading the decision sits under. */
+  readonly headingLevel: 4 | 5;
 }) {
   const struck = decision.superseded;
+  const ConditionsHeading = headingLevel === 4 ? "h4" : "h5";
   return (
     <article
       aria-label={t("people.decision.label", {
@@ -231,7 +235,9 @@ function Decision({
       </dl>
       {decision.conditions.length > 0 ? (
         <section aria-label={t("people.decision.conditionsTitle")} className="flex flex-col gap-2">
-          <h4 className="m-0 text-body font-semibold">{t("people.decision.conditionsTitle")}</h4>
+          <ConditionsHeading className="m-0 text-body font-semibold">
+            {t("people.decision.conditionsTitle")}
+          </ConditionsHeading>
           <ol className="m-0 flex flex-col gap-3 ps-5">
             {decision.conditions.map((condition, index) => (
               <li key={condition.id} className="flex flex-col gap-1">
@@ -456,6 +462,7 @@ async function PreAdmissionTab({
               me={me.tenantUserId}
               confirm={manage.canWrite && atPreAdmission}
               replacedBy={null}
+              headingLevel={4}
             />
           ) : (
             <p className="m-0">{t("people.decision.none")}</p>
@@ -500,6 +507,7 @@ async function PreAdmissionTab({
                   me={me.tenantUserId}
                   confirm={false}
                   replacedBy={replacedBy(decision)}
+                  headingLevel={5}
                 />
               ))}
             </section>

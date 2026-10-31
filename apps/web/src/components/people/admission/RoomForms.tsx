@@ -68,6 +68,7 @@ export function BedMoveForm({
     <div className="flex flex-col gap-3">
       {inline.open ? (
         <form
+          method="post"
           className="flex flex-col gap-4 border-s-4 border-border ps-4"
           onSubmit={submit}
           noValidate
@@ -192,7 +193,7 @@ export function ChecklistItemActions({
   return (
     <div className="flex flex-col gap-2">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
           <TextArea
             ref={inline.firstField}
             id={ids.reason}
