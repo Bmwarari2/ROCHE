@@ -24,6 +24,7 @@ import {
   type PropertyProblem,
   type PropertySignature,
   propertyToSendWithPerson,
+  ukEndOfDay,
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
@@ -38,7 +39,7 @@ import {
   requireVersion,
   requireWrite,
 } from "../services/people";
-import { mayWitnessAt } from "../services/role-holders";
+import { mayWitnessAt } from "../services/witness";
 import {
   conflictResponse,
   createRouter,
@@ -86,21 +87,23 @@ function refuse(issues: readonly PropertyProblem[]): never {
 
 /**
  * A named witness must be a second member of staff at the person's home who may manage property
- * there themselves: active, holding `people.property.manage` through a staff role in force at
- * that home, never a family portal account (`mayWitnessAt`). The record is an attestation the
- * witness does not sign in to give, so a direct call could otherwise name a relative with portal
- * access, a suspended account, staff at another home, or a visiting professional or inspector
- * (security reviews, 31 October 2026 and of #134, M3).
+ * there themselves: active now, and holding `people.property.manage` at that home when they
+ * witnessed (`witnessedAt`, never later than now), through a staff role or an acting-up grant,
+ * never a family portal account (`mayWitnessAt`). The record is an attestation the witness does
+ * not sign in to give, so a direct call could otherwise name a relative with portal access, a
+ * suspended account, staff at another home, or a visiting professional or inspector (security
+ * reviews, 31 October 2026 and of #134, M3, L1 and L2).
  */
 async function requireWitness(
   tx: Transaction,
   witnessedBy: string | null | undefined,
   locationId: string,
+  witnessedAt: Date,
 ): Promise<void> {
   if (!witnessedBy) return;
-  if (await mayWitnessAt(tx, witnessedBy, "people.property.manage", locationId, new Date())) {
-    return;
-  }
+  const now = new Date();
+  const at = witnessedAt.getTime() < now.getTime() ? witnessedAt : now;
+  if (await mayWitnessAt(tx, witnessedBy, "people.property.manage", locationId, at, now)) return;
   throw problems.invalid(
     "The witness must be a member of staff at this person's home who can manage residents' property, with an active account.",
   );
@@ -312,7 +315,8 @@ export const peoplePropertyRouter = createRouter()
           witnessedBy: body.witnessedBy ?? null,
         });
         if (!check.ok) refuse(check.problems);
-        await requireWitness(tx, body.witnessedBy, p.locationId);
+        // Witnessed as the item was signed for.
+        await requireWitness(tx, body.witnessedBy, p.locationId, acknowledgement.signedAt);
         if (body.photoDocumentIds.length > 0) {
           const photos = await tx
             .select({ id: document.id, personId: document.personId })
@@ -400,7 +404,8 @@ export const peoplePropertyRouter = createRouter()
           p.status as PersonStatus,
         );
         if (!check.ok) refuse(check.problems);
-        await requireWitness(tx, body.witnessedBy, p.locationId);
+        // Witnessed as the recipient signed for it.
+        await requireWitness(tx, body.witnessedBy, p.locationId, sig.signedAt);
         const [updated] = await tx
           .update(propertyItem)
           .set({
@@ -465,7 +470,14 @@ export const peoplePropertyRouter = createRouter()
           witnessedBy: body.witnessedBy,
         });
         if (!check.ok) refuse(check.problems);
-        await requireWitness(tx, body.witnessedBy, p.locationId);
+        // A disposal has a date, not a signature: the witness's role is judged at the last moment
+        // of that UK day (now, for today).
+        await requireWitness(
+          tx,
+          body.witnessedBy,
+          p.locationId,
+          new Date(ukEndOfDay(body.on).getTime() - 1),
+        );
         const [updated] = await tx
           .update(propertyItem)
           .set({

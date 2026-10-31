@@ -751,6 +751,11 @@ describe("people.md rule 7: property and keys", () => {
     const VISITING_GP = uid("300", 0xe9);
     const INSPECTOR = uid("300", 0xea);
     const STAFF_WITH_PORTAL_ROLE = uid("300", 0xeb);
+    const ACTING_UP = uid("300", 0xec);
+    const GRANT_REVOKED = uid("300", 0xed);
+    const GRANT_ELSEWHERE = uid("300", 0xee);
+    const NEW_STARTER = uid("300", 0xf0);
+    const LEFT_SINCE = uid("300", 0xf1);
     const NOT_A_MEMBER = uid("300", 0xef);
     const MEMBERS = [
       SUSPENDED,
@@ -764,6 +769,11 @@ describe("people.md rule 7: property and keys", () => {
       VISITING_GP,
       INSPECTOR,
       STAFF_WITH_PORTAL_ROLE,
+      ACTING_UP,
+      GRANT_REVOKED,
+      GRANT_ELSEWHERE,
+      NEW_STARTER,
+      LEFT_SINCE,
     ];
 
     beforeAll(async () => {
@@ -780,20 +790,36 @@ describe("people.md rule 7: property and keys", () => {
              ($8, 'Cara Worker', 'cara@example.invalid', 'active'),
              ($9, 'Dr Gil Visiting', 'gil@example.invalid', 'active'),
              ($10, 'Ines Inspector', 'ines@example.invalid', 'active'),
-             ($11, 'Tess Twohats', 'tess@example.invalid', 'active')`,
+             ($11, 'Tess Twohats', 'tess@example.invalid', 'active'),
+             ($12, 'Ari Actingup', 'ari@example.invalid', 'active'),
+             ($13, 'Rex Revoked', 'rex@example.invalid', 'active'),
+             ($14, 'Gus Granted', 'gus@example.invalid', 'active'),
+             ($15, 'Nia Newstarter', 'nia@example.invalid', 'active'),
+             ($16, 'Lee Leftrole', 'lee@example.invalid', 'active')`,
           MEMBERS,
         );
-        /** A role at a location (or none), from 30 days ago, ending when given. */
+        /** A role at a location (or none), from 30 days ago unless given, ending when given. */
         const roleAt = (
           member: string,
           key: string,
           location: string | null,
           validTo: string | null = null,
+          validFrom: string = ago(30 * DAY),
         ) =>
           c.query(
             `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
-             SELECT $1, id, $2, now() - interval '30 days', $3::timestamptz FROM role WHERE key = $4`,
-            [member, location, validTo, key],
+             SELECT $1, id, $2, $5::timestamptz, $3::timestamptz FROM role WHERE key = $4`,
+            [member, location, validTo, key, validFrom],
+          );
+        /** An acting-up grant of the property permission, for the day either side of now. */
+        const actingUp = (member: string, location: string, revoked: boolean) =>
+          c.query(
+            `INSERT INTO access_grant
+               (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by,
+                revoked_at)
+             VALUES ($1, '{people.property.manage}', $2, now() - interval '1 day',
+                     now() + interval '1 day', 'Acting up as team leader', $3, $4)`,
+            [member, location, DEMO.users.manager.id, revoked ? new Date() : null],
           );
         const nextWeek = new Date(Date.now() + 7 * DAY).toISOString();
         // A team leader holds people.property.manage at their home; each refusal below has one
@@ -810,6 +836,17 @@ describe("people.md rule 7: property and keys", () => {
         await roleAt(STAFF_WITH_PORTAL_ROLE, "team_leader", DEMO.locationId);
         await roleAt(STAFF_WITH_PORTAL_ROLE, "family_representative", null);
         await roleAt(PORTAL, "family_representative", null);
+        // Acting up (review of #134, L1): care workers holding the permission by a grant.
+        for (const member of [ACTING_UP, GRANT_REVOKED, GRANT_ELSEWHERE]) {
+          await roleAt(member, "care_worker", DEMO.locationId);
+        }
+        await actingUp(ACTING_UP, DEMO.locationId, false);
+        await actingUp(GRANT_REVOKED, DEMO.locationId, true);
+        await actingUp(GRANT_ELSEWHERE, LODGE.locationId, false);
+        // When the role was in force (review of #134, L2): one started an hour ago, the other's
+        // ended an hour ago.
+        await roleAt(NEW_STARTER, "team_leader", DEMO.locationId, null, ago(HOUR));
+        await roleAt(LEFT_SINCE, "team_leader", DEMO.locationId, ago(HOUR));
         const [contact] = (
           await c.query<{ id: string }>("SELECT id FROM contact WHERE person_id = $1 LIMIT 1", [
             resident(1),
@@ -832,6 +869,10 @@ describe("people.md rule 7: property and keys", () => {
           [MEMBERS],
         );
         await c.query(
+          "UPDATE access_grant SET revoked_at = now() WHERE tenant_user_id = ANY($1::uuid[]) AND revoked_at IS NULL",
+          [MEMBERS],
+        );
+        await c.query(
           `UPDATE family_portal_user SET revoked_at = now(), revoked_by = $2,
              revoked_reason = 'Test accounts removed' WHERE tenant_user_id = ANY($1::uuid[])`,
           [MEMBERS, DEMO.users.manager.id],
@@ -839,15 +880,16 @@ describe("people.md rule 7: property and keys", () => {
       });
     });
 
-    const itemIn = (witnessedBy: string) =>
+    /** A valuable signed for (and so witnessed) at `signedAt`, received that UK day. */
+    const itemIn = (witnessedBy: string, signedAt = ago(HOUR)) =>
       as("nurse", `/v1/people/${resident(1)}/property`, {
         method: "POST",
         body: {
           description: "Gold wedding ring",
           category: "jewellery",
           quantity: 1,
-          receivedOn: today(),
-          acknowledgement: { signer: "person", name: "Signed", signedAt: ago(HOUR) },
+          receivedOn: ukIsoDate(new Date(signedAt)),
+          acknowledgement: { signer: "person", name: "Signed", signedAt },
           witnessedBy,
         },
       });
@@ -862,6 +904,8 @@ describe("people.md rule 7: property and keys", () => {
       ["a care worker there, who may not manage property", CARE_WORKER],
       ["a visiting professional there", VISITING_GP],
       ["an inspector", INSPECTOR],
+      ["a care worker whose acting-up grant was revoked", GRANT_REVOKED],
+      ["a care worker acting up at another home", GRANT_ELSEWHERE],
       ["a suspended member of staff", SUSPENDED],
       ["an invited member who has not signed in", INVITED],
       ["staff at another home", ELSEWHERE],
@@ -872,6 +916,27 @@ describe("people.md rule 7: property and keys", () => {
       const response = await itemIn(witness);
       expect(response.status).toBe(422);
       expect(await detail(response)).toContain(WORDS);
+    });
+
+    it("accepts a care worker acting up with the property permission there (review of #134, L1)", async () => {
+      const created = await itemIn(ACTING_UP);
+      expect(created.status).toBe(201);
+      expect((await json<PropertyItemOut>(created)).witnessedBy).toBe(ACTING_UP);
+    });
+
+    it("judges the witness's role when they witnessed, and their account now (review of #134, L2)", async () => {
+      const yesterday = ago(DAY);
+      // A team leader since an hour ago was not one when the item was signed for yesterday.
+      const early = await itemIn(NEW_STARTER, yesterday);
+      expect(early.status).toBe(422);
+      expect(await detail(early)).toContain(WORDS);
+      expect((await itemIn(NEW_STARTER, ago(MIN))).status).toBe(201);
+      // One whose role ended an hour ago was one yesterday, and is still an active member now.
+      expect((await itemIn(LEFT_SINCE, yesterday)).status).toBe(201);
+      const late = await itemIn(LEFT_SINCE, ago(MIN));
+      expect(late.status).toBe(422);
+      // A suspended member is refused even for an item signed for while their role was in force.
+      expect((await itemIn(SUSPENDED, yesterday)).status).toBe(422);
     });
 
     it("refuses them as the witness to a return or a disposal, and accepts a colleague there", async () => {
