@@ -594,8 +594,23 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
     person lifecycle is a record's status, not work, so it is not listed.
   - An instance about nobody is listed only when its record is visible under row-level security, and
     an unknown subject type never is.
-  - Any holder of a listed step's permission may read the list (MFA as for care records). It holds at
-    most 300 records (`truncated`) and is audited by view and count only.
+  - Any holder of a listed step's permission may read the list (MFA as for care records). Each
+    permission counts only where its own scope sees the record, without break-glass (ADR-0071). The
+    record is looked up under each permission's scope, and each item returns the permissions that
+    reach it. Managing an incident, or its candour record, needs the incident seen whole
+    (`managesIncident`). The page offers steps from those permissions alone.
+  - Deadlines: a workflow may keep its deadline on the record (`deadlineOnRecord`: statutory
+    notifications and candour). The module writes it onto the instance (`setWorkflowDeadline`) and
+    the engine keeps it across moves. An instance without one reads `on_record`, a warning sorted
+    first (HZ-013).
+  - The list filters by workflow and view state in SQL, then pages until 300 visible records
+    (`truncated` counts visible ones, and the empty states say so). It leaves out removed records
+    and is audited by view and count only. Reading each incident that waits for the reader is
+    audited as a view, as on its own page (#130 review L4).
+  - Open (#130 review): L2, each module should own a resolver for "which of these subjects can the
+    reader see", instead of this route querying module tables. L5, a holder of
+    `safety.notification.submit` alone may be asked for a fresh sign-in just to read the list,
+    because that permission needs step-up.
   - The web page `/approvals` ("Approvals" in the side bar for the same readers) groups the records:
     waiting for your approval, raised by you (said in words), and other open work. Each shows its
     state and deadline as an icon and words and links to its own page. An incident waiting for the

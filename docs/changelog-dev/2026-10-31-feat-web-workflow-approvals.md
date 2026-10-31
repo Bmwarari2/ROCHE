@@ -35,6 +35,29 @@ Branch `feat/web-workflow-approvals`.
 - Docs: `platform.md` (task and workflow engine), a HZ-091 control and verification row, and the
   feature register row.
 
+## Review round 1 (#130)
+
+- H1 (ADR-0071): each listed permission is judged in its own scope (without break-glass). A record
+  gets only the permissions whose scope sees it, and managing an incident needs it seen whole. Each
+  item returns those permissions, and the page offers steps from them alone. Tests cover a deputy at
+  one home with a submission grant at another, and a team leader at one home who is a clinical lead
+  at another.
+- H2 (HZ-013): statutory notification and candour deadlines now reach the list. The safety module
+  writes them onto the workflow (`deadlineOnRecord`, `setWorkflowDeadline`,
+  `candourStateDeadline`), the engine keeps them across moves, and one not yet written reads "Deadline
+  kept on the record: open it to check" and comes first. HZ-013 is updated.
+- M1: the list filters in SQL, then pages until 300 visible records. `truncated` counts visible ones,
+  and the empty states say when the list was cut.
+- L1: removed records and instances are left out. L3: the page makes one `view=all` call.
+- L6, A3: "Incident closed: <incident>" and "Sent back to open: <incident>" show only while the
+  incident's status still matches.
+- A1: each item is headed "Incident, raised 31/10/2026 12:16" (no names), with its forms at level 4.
+  A2: waiting states show a clock and "due", in-progress states a magnifying glass.
+- The 320 px title fix no longer hyphenates, so names are not split.
+- Logged in `platform.md`, not done: L2 (module-owned visibility resolvers), L4 (reading an incident
+  that waits for you is audited as a view) and L5 (step-up asked of holders of notification
+  submission alone).
+
 ## What is next
 
 - Steps for the other workflows are still taken on each record's own page. Approving them in place
