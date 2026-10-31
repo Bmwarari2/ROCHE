@@ -44,13 +44,23 @@ describe("working time figures come from the rate table", () => {
 });
 
 /**
- * Section 18: no statutory figure as a literal. Outside `intervals.ts`, which defines the calendar
- * units (minutes in an hour, hours in a day, days in a week), the scheduling source may use no
- * number but 0, 1 and 2; every working time figure must come through `WorkingTimeRates`.
+ * Section 18 and the Phase 2 gate: no statutory figure as a literal. The calendar units live in
+ * `intervals.ts` (minutes in an hour, hours in a day, days in a week, months in a year) and the
+ * money units in `pay/money.ts` (pence in a pound, basis points); elsewhere in the scheduling
+ * source, working time and pay alike, no number but 0, 1 and 2 may appear, so every working time,
+ * NMW, holiday, SSP and other pay figure must come through the rate table.
  */
-describe("no working time figure is a literal in the scheduling source", () => {
+describe("no working time or pay figure is a literal in the scheduling source", () => {
   const folder = fileURLToPath(new URL(".", import.meta.url));
-  const sources = readdirSync(folder).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+  const sources = ["", "pay/"].flatMap((sub) =>
+    readdirSync(`${folder}${sub}`)
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .map((f) => `${sub}${f}`),
+  );
+  const UNITS: Readonly<Record<string, readonly number[]>> = {
+    "intervals.ts": [7, 12, 24, 60, 1000],
+    "pay/money.ts": [100],
+  };
 
   function numbersIn(code: string): number[] {
     const stripped = code
@@ -62,8 +72,12 @@ describe("no working time figure is a literal in the scheduling source", () => {
     );
   }
 
+  it("scans the pay folder too", () => {
+    expect(sources).toEqual(expect.arrayContaining(["pay/nmw.ts", "pay/ssp.ts", "pay/holiday.ts"]));
+  });
+
   it.each(sources)("%s", (file) => {
-    const allowed = new Set(file === "intervals.ts" ? [0, 1, 2, 7, 24, 60, 1000] : [0, 1, 2]);
+    const allowed = new Set([0, 1, 2, ...(UNITS[file] ?? [])]);
     const found = numbersIn(readFileSync(`${folder}${file}`, "utf8")).filter(
       (n) => !allowed.has(n),
     );
