@@ -339,6 +339,39 @@ resource "aws_cloudwatch_metric_alarm" "worker_job_failed" {
   ok_actions          = local.actions
 }
 
+# The nightly downtime pack (operations.md rule 8; HZ-021): a location whose pack could not be built
+# writes `worker.job.failed` with queue `downtime-packs` (and the job itself, when it throws). Its
+# own alarm, at any one line, names the runbook step so Thapsus's on-call is told rather than
+# finding it in the worker logs (recommended answer to H-214); the location's Registered Manager
+# still gets `operations.downtime_pack_missing` when no pack is in date. Kept beside the general
+# failed job alarm, whose threshold an operator may raise.
+resource "aws_cloudwatch_log_metric_filter" "downtime_pack_failed" {
+  name           = "${var.name_prefix}-downtime-pack-failed"
+  log_group_name = var.worker_log_group_name
+  pattern        = "{ ($.event = \"worker.job.failed\") && ($.queue = \"downtime-packs\") }"
+
+  metric_transformation {
+    name      = "DowntimePackFailed"
+    namespace = local.worker_metric_namespace
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "downtime_pack_failed" {
+  alarm_name          = "${var.name_prefix}-downtime-pack-failed"
+  alarm_description   = "A location's nightly downtime pack could not be built (worker.job.failed, queue downtime-packs): staff may have no pack in date in an outage (HZ-021). Act the same day: docs/runbooks/on-call.md."
+  namespace           = local.worker_metric_namespace
+  metric_name         = aws_cloudwatch_log_metric_filter.downtime_pack_failed.metric_transformation[0].name
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.actions
+  ok_actions          = local.actions
+}
 
 # An export met a row of another organisation (`security.export.foreign_rows`; PLAT-015, HZ-070):
 # row-level security has failed somewhere. The export is failed and never offered; any line is a

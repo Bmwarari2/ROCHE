@@ -137,6 +137,10 @@ describe("hazard HZ-021 the downtime pack", () => {
       expect(text).toMatch(/Information as at .* Use until /);
     }
     expect(pages.slice(1).every((lines) => lines.join(" ").match(/NHS number 999/))).toBe(true);
+    // The demo home's MAR and PEEP places are unconfirmed: the front sheet says so once (H-213).
+    expect(pages[0]?.join(" ")).toMatch(
+      /paper MAR and the PEEPs are kept is not confirmed in Harbour/,
+    );
   });
 
   it("hazard HZ-072 prints Sample beside an invented sample person's name, on their page and its footer", async () => {

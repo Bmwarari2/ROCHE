@@ -114,6 +114,23 @@ run "dev_defaults" {
     )
     error_message = "The failed job alarm must fire on one or more worker.job.failed lines in 15 minutes."
   }
+
+  # A location's nightly downtime pack that could not be built alarms on its own, on any one line
+  # (H-214, HZ-021).
+  assert {
+    condition     = module.observability.log_metric_filter_patterns.downtime_pack_failed == "{ ($.event = \"worker.job.failed\") && ($.queue = \"downtime-packs\") }"
+    error_message = "The downtime pack alarm must match the worker's worker.job.failed event for the downtime-packs queue."
+  }
+
+  assert {
+    condition = (
+      module.observability.log_alarm_rules.downtime_pack_failed.statistic == "Sum" &&
+      module.observability.log_alarm_rules.downtime_pack_failed.threshold == 1 &&
+      module.observability.log_alarm_rules.downtime_pack_failed.comparison_operator == "GreaterThanOrEqualToThreshold" &&
+      module.observability.log_alarm_rules.downtime_pack_failed.treat_missing_data == "notBreaching"
+    )
+    error_message = "The downtime pack alarm must fire on any one failed downtime pack line (HZ-021)."
+  }
 }
 
 run "flagsmith_and_route53" {
