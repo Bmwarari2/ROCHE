@@ -3,7 +3,8 @@
 Master prompt sections 12.1, 12.2 and 12.4, with section 4 (roles) and 18 (data model). Phase 2
 builds the whole employee file from application to leaving ([phase-2.md](../plans/phase-2.md),
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
-slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9);
+slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9)
+and slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9);
 sections 5 to 8 grow with the schema, API and screen slices. Status per
 feature: [feature register](feature-register.md).
 
@@ -87,6 +88,26 @@ Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `right_to_work_copy`; `training_record` for training and competence. The gaps (unsuccessful
 applicants, DBS certificate information) are listed there.
 
+### 2b. Applicant tracking (slice 23, migration 0085)
+
+WORK-001: job templates, vacancies, applicants and their applications, shortlisting, values-based
+interviews, conditional offers and the talent pool; an accepted offer creates the staff profile
+(section 2a) and hands its conditions to the pre-employment file. Eight tenant tables with forced
+row-level security. Applicants are people who may never be employed: their data is purpose B15,
+kept for a short period after an unsuccessful application (retention class
+`applicant.unsuccessful`), or for the talent pool period they agreed to (`applicant.talent_pool`).
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `job_template` | `title`, `pathway_category` (Care Workforce Pathway role category, `PATHWAY_CATEGORIES`), `registration_body` (as the staff profile), `essential_criteria` (2 to 20 short statements), `values_questions` (2 to 12: a key, the value it explores from `RECRUITMENT_VALUES` and the question), `archived_at` | Mutable; a template in use by an open vacancy is not archived |
+| `vacancy` | `job_template_id`, `location_id` (or empty for organisation-wide), `title`, `positions` (1 to 50), `opens_on`, `closes_on`, `status` (`draft`, `open`, `closed`, `filled`, `withdrawn`) | Mutable; `closes_on` on or after `opens_on`; applications only while `open` |
+| `applicant` | `given_name`, `family_name`, `email`, `phone`, `talent_pool_until` and `talent_pool_consented_at` (set together, consent only), `retain_until` (set when their last application ends unsuccessfully), `redacted_at` | Mutable; names and contact details are cleared (redacted) after `retain_until` by the retention engine, never deleted by hand |
+| `application` | `vacancy_id`, `applicant_id` (one each per vacancy), `stage` (`APPLICATION_STAGES`), `stage_reason` (a code, `CLOSING_REASONS`), `shortlist` (each essential criterion met or not, with who decided and when), `closed_on` | Mutable; the stage moves only as `checkApplicationMove` allows |
+| `application_event` | `application_id`, `from_stage`, `to_stage`, `reason`, `occurred_at` | Append-only: the stage history |
+| `interview` | `application_id`, `held_on`, `panel` (1 to 5 members of staff), `scores` (each values question 1 to 4), `notes`, `recommendation` (`proceed`, `do_not_proceed`) | Append-only; a later interview is a new row |
+| `job_offer` | `application_id` (one each), `made_on`, `proposed_start_on`, `conditions` (the Schedule 3 items the role needs, `requiredItems`), `status` (`made`, `accepted`, `declined`, `withdrawn`), `responded_on`, `staff_profile_id` | Mutable; accepted only with the member of staff the profile is for |
+| `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`), `submitted_on` | Insert only; never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
+
 ## 3. Permissions
 
 In the catalogue since Phase 0 ([permissions.md](permissions.md)): `workforce.recruitment.manage`,
@@ -114,6 +135,12 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 | `workforce.hr_document.read` | Open and add HR-only staff documents; every view is audited | Owner, HR (a manager is given it by a grant or a role change) |
 | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
 | `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
+
+Slice 23 adds no permission: applicant tracking uses `workforce.recruitment.manage` (Owner,
+Registered Manager, deputy manager and HR in the built-in roles), as section 12.1 intends, and the
+database holds it organisation-wide as it does the staff file permissions
+(`app.holds_staff_permission`). Accepting an offer also needs `workforce.staff_file.manage`, which
+creates the staff profile; nobody records their own application or offer.
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
 are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
@@ -203,6 +230,29 @@ whatever the clock change.
     needs a justification, is logged and reported, and never covers a missing right to work (illegal
     working cannot be overridden).
 
+11. **Applications** (`recruitment.ts`, `checkApplicationMove`). Stages: `applied`, `shortlisted`,
+    `interviewed`, `offered`, `accepted`, and the closed stages `rejected`, `withdrawn`, `declined`.
+    An application is shortlisted only when every essential criterion of its template has been
+    assessed and met; a criterion recorded as not met allows only rejection (with a reason code).
+    An interview is recorded only once shortlisted, by a panel of 1 to 5 members of staff, with
+    every values question scored 1 to 4; the scores are the panel's and the total is shown with
+    them, never used to decide (section 5.1: no solely automated significant decision). An offer
+    is made only after an interview whose panel recommended proceeding; it is conditional on the
+    Schedule 3 items the role needs (`requiredItems`), which the staff profile then lists as
+    outstanding. Accepting needs the member of staff (invited through the usual invitation) and
+    creates their staff profile; declining or withdrawing closes the application. Closed stages
+    never reopen; a new application is made instead.
+12. **Equality monitoring** (`equalityMonitoringSummary`). Special category data, kept apart from
+    the application and reported only as counts for a vacancy, each count below
+    `EQUALITY_MONITORING_MIN_COUNT` (5) shown as "fewer than 5", and a whole question withheld
+    when fewer than that many answered it, so no applicant can be picked out. Answers are
+    optional, and `prefer_not_to_say` is always offered.
+13. **Keeping applicants' data** (`applicantRetainUntil`). While any application is open the
+    applicant is kept. When the last one closes unsuccessfully, the applicant is kept until the
+    closing date plus the `applicant.unsuccessful` period (retention.md), or the end of the
+    talent pool period they agreed to, whichever is later; withdrawing talent pool consent ends
+    that period at once. A hired applicant's details move to the staff file and follow it.
+
 Rate keys in use: `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
 `document_expiry.reminder_days.first`, `.second`, `.third`, `nmc.revalidation.cycle_years`,
@@ -245,6 +295,31 @@ item. Recording the item again with a new date cancels its open reminder tasks (
 for that item only), and the new date's reminders follow. Competence changes are published for
 medicines and scheduling (ADR-0085, slice 17).
 
+Slice 23 (applicant tracking). Permission `workforce.recruitment.manage` throughout (MFA: the
+records are about job applicants, special category for equality monitoring); changes take
+`expectedVersion` where the record is mutable; refusals are audited; audit events carry opaque ids
+and codes only, never names or answers.
+
+| Route | Does |
+| --- | --- |
+| `GET`, `POST /v1/workforce/job-templates`; `PATCH /v1/workforce/job-templates/{id}` | Templates by Care Workforce Pathway role |
+| `GET`, `POST /v1/workforce/vacancies`; `PATCH /v1/workforce/vacancies/{id}` | Vacancies and their status |
+| `GET`, `POST /v1/workforce/vacancies/{id}/applications` | Applications to a vacancy; posting records the applicant (or finds them by email) and the application |
+| `GET /v1/workforce/applications/{id}` | The application with its applicant, stage history, interviews and offer |
+| `POST /v1/workforce/applications/{id}/shortlist` | Record each essential criterion met or not, and shortlist or reject |
+| `POST /v1/workforce/applications/{id}/close` | Reject or record a withdrawal, with a reason code |
+| `POST /v1/workforce/applications/{id}/interviews` | Record an interview |
+| `POST /v1/workforce/applications/{id}/offer` | Make the conditional offer |
+| `POST /v1/workforce/offers/{id}/response` | Accepted (with the member of staff: creates the staff profile), declined or withdrawn |
+| `PUT /v1/workforce/applicants/{id}/talent-pool` | Record or withdraw talent pool consent |
+| `POST /v1/workforce/vacancies/{id}/equality-monitoring` | Add one anonymous equality monitoring form |
+| `GET /v1/workforce/vacancies/{id}/equality-monitoring` | The counts (rule 12) |
+
+Audit actions: `workforce.job_template.created`, `.updated`, `workforce.vacancy.created`,
+`.updated`, `workforce.application.created`, `.viewed`, `.shortlisted`, `.closed`,
+`workforce.interview.recorded`, `workforce.offer.made`, `.responded`, `workforce.applicant.talent_pool`,
+`workforce.equality_monitoring.added`, `.summarised`.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -279,6 +354,20 @@ number, clear or disclosed, and the risk assessment decision; the DBS code of pr
 codes; no health details, only the declaration; HR-only documents behind their own permission with
 every view audited. Retention: the staff file row the tenant chose; right to work copies
 `right_to_work_copy` ([retention.md](retention.md)).
+
+Applicants (slice 23) are purpose B15: people who apply and may never be employed. Lawful basis
+Article 6(1)(b) (steps at the applicant's request before a contract) and 6(1)(f) for running the
+recruitment; the talent pool only with the applicant's consent (Article 6(1)(a)), recorded with
+its date and end, and withdrawn at once. Equality monitoring answers are special category data:
+voluntary, with `prefer_not_to_say` on every question, Article 9(2)(g) with DPA 2018 Schedule 1
+paragraph 8 (equality of opportunity or treatment), under the appropriate policy document (H-576);
+they are kept apart from the application with no link back to the applicant, read by nobody row
+by row, and reported only as suppressed counts per vacancy (rule 12; DPIA risk R29). Applicants'
+data is used only for the recruitment it was given for: interview notes, scores and the stage
+history are never copied into the staff file, which receives only the job, the role's Schedule 3
+conditions and the start date. Retention: `applicant.unsuccessful` and `applicant.talent_pool`
+([retention.md](retention.md)); equality monitoring rows follow `applicant.unsuccessful` from the
+vacancy's closing date.
 
 ## 9. Acceptance criteria and tests
 
@@ -325,11 +414,30 @@ Slice 11:
 API, web and mobile tests come with slices 17, 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
 
+Slice 23:
+
+- `recruitment.test.ts` (domain, table-driven): every allowed and refused stage move; shortlisting
+  only with every criterion met, rejection with a criterion not met; interviews only once
+  shortlisted, with every question scored 1 to 4 and a panel of 1 to 5; offers only after a
+  recommendation to proceed, with the role's Schedule 3 conditions; closed stages never reopen;
+  the equality monitoring counts with small numbers suppressed and a question withheld; the
+  applicant's keep-until date with and without the talent pool, and with an open application.
+- `packages/db/test/applicant-tracking.test.ts`: another organisation's templates, vacancies,
+  applicants, applications, interviews, offers and monitoring never seen or written; only holders
+  of `workforce.recruitment.manage` read or write; equality monitoring rows never read by anyone,
+  only counted through `app.equality_monitoring_counts`; interviews and stage events never
+  changed or deleted.
+- `apps/api/test/recruitment.test.ts`: the routes' permission and audited refusals; the whole
+  path from template to accepted offer creating the staff profile with the offer's conditions
+  outstanding; stale `expectedVersion`; the counts suppressed; the keep-until date set when the
+  last application closes and extended by talent pool consent.
+
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
-H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579).
+H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 23:
+H-730 to H-735).
 
 ## 11. Known gaps
 

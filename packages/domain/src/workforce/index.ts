@@ -3,6 +3,7 @@ export * from "./dbs";
 export * from "./employment-history";
 export * from "./expiry";
 export * from "./rates";
+export * from "./recruitment";
 export * from "./registration";
 export * from "./right-to-work";
 export * from "./rostering";
