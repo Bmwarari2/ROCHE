@@ -8,6 +8,7 @@ export const appEnv = parseEnv(
   {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_DEMO_MODE: process.env.EXPO_PUBLIC_DEMO_MODE,
+    EXPO_PUBLIC_E2E_LOOPBACK: process.env.EXPO_PUBLIC_E2E_LOOPBACK,
   },
   { allowInsecure: __DEV__ },
 );

@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 
 /**
  * Harbour mobile app configuration (Expo SDK 57).
@@ -20,7 +21,24 @@ const BUILD_NUMBER = process.env.HARBOUR_BUILD_NUMBER ?? "1";
 const FACE_ID_REASON =
   "Harbour uses Face ID to unlock the encrypted care records stored on this device.";
 
-export default ({ config }: ConfigContext): ExpoConfig => ({
+/**
+ * The CI emulator build (`.github/workflows/mobile.yml`, HARBOUR_E2E_BUILD=1) talks to the runner's
+ * API and PowerSync over the phone's loopback (`adb reverse`), in plain http, so Android's release
+ * default that blocks cleartext is lifted for that build alone. The app still refuses any http URL
+ * but loopback (`src/config/env.ts`). Never in an EAS build: no store or tester binary carries it.
+ */
+const E2E_BUILD = process.env.HARBOUR_E2E_BUILD === "1";
+if (E2E_BUILD && process.env.EAS_BUILD) {
+  throw new Error("HARBOUR_E2E_BUILD is for the CI emulator build only, never an EAS build");
+}
+const withE2eLoopbackCleartext: ConfigPlugin = (expoConfig) =>
+  withAndroidManifest(expoConfig, (mod) => {
+    const application = mod.modResults.manifest.application?.[0];
+    if (application) application.$["android:usesCleartextTraffic"] = "true";
+    return mod;
+  });
+
+const appConfig = ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Harbour",
   slug: "harbour",
@@ -134,3 +152,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
   },
 });
+
+export default (context: ConfigContext): ExpoConfig => {
+  const expoConfig = appConfig(context);
+  return E2E_BUILD ? withE2eLoopbackCleartext(expoConfig) : expoConfig;
+};
