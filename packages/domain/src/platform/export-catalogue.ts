@@ -1030,6 +1030,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
     columns: {},
   },
+  "public.speak_up_intake": {
+    context: "safety",
+    description:
+      "Counts of public speak-up requests per network, per organisation per minute and per day, so a flood cannot bury a real concern.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Operational rate-limit counters (ADR-0089): a network is held only as a keyed hash that changes daily, and windows that have passed are swept hourly.",
+    columns: {},
+  },
   "public.candour_record": {
     context: "safety",
     description:

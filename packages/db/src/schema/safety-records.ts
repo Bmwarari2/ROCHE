@@ -5,8 +5,10 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -221,6 +223,8 @@ export const speakUpConcern = pgTable(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     /** SHA-256 of an anonymous reporter's reply token (hex); null when they left no way to reply. */
     replyTokenHash: text("reply_token_hash"),
+    /** When the reply token stops opening the concern (`speak_up.reply_token_days` from receipt). */
+    replyTokenExpiresAt: timestamp("reply_token_expires_at", { withTimezone: true }),
     retentionClass: text("retention_class").notNull().default("complaint"),
     ...mutableColumns(),
   },
@@ -235,6 +239,10 @@ export const speakUpConcern = pgTable(
     check(
       "speak_up_concern_token",
       sql`reply_token_hash IS NULL OR (identity = 'anonymous' AND reply_token_hash ~ '^[0-9a-f]{64}$')`,
+    ),
+    check(
+      "speak_up_concern_token_expiry",
+      sql`(reply_token_hash IS NULL) = (reply_token_expires_at IS NULL)`,
     ),
     check("speak_up_concern_retention_class", sql`retention_class = 'complaint'`),
     check(
@@ -328,5 +336,29 @@ export const speakUpMessage = pgTable(
     check("speak_up_message_author", sql`from_reporter = (author_tenant_user_id IS NULL)`),
     check("speak_up_message_body", sql`length(btrim(body)) BETWEEN 1 AND 10000`),
     index("speak_up_message_concern_idx").on(t.tenantId, t.concernId, t.createdAt),
+  ],
+);
+
+/**
+ * Counts of public speak-up requests, so a flood cannot bury a real concern (ADR-0089, security
+ * review H1). A bucket is a client network's HMAC (keyed by a secret from the managed store and
+ * the day, so it cannot be reversed or followed across days), the organisation's own minute
+ * bucket, or the organisation's daily count of anonymous concerns. No personal data; windows
+ * that have passed are removed.
+ */
+export const speakUpIntake = pgTable(
+  "speak_up_intake",
+  {
+    tenantId: tenantId(),
+    bucket: text("bucket").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    windowEnd: timestamp("window_end", { withTimezone: true }).notNull(),
+    hits: integer("hits").notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ name: "speak_up_intake_pkey", columns: [t.tenantId, t.bucket, t.windowStart] }),
+    check("speak_up_intake_bucket", sql`bucket ~ '^(net:[0-9a-f]{64}|tenant|day)$'`),
+    check("speak_up_intake_window", sql`window_end > window_start`),
+    index("speak_up_intake_end_idx").on(t.tenantId, t.windowEnd),
   ],
 );

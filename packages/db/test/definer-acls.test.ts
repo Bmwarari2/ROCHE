@@ -44,6 +44,11 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // The speak-up silo (ADR-0089, migration 0086).
+  "app.raise_speak_up(uuid, text, text, text)": ["harbour_app"],
+  "app.set_speak_up_lead(uuid, boolean)": ["harbour_app"],
+  // Runs as harbour_silo_owner so speak-up events hidden from the reader still verify.
+  "app.verify_audit_chain()": ["harbour_app", "harbour_owner"],
 };
 
 let db: TestDatabase;
