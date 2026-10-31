@@ -123,6 +123,17 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| safeguarding.referral_hours | 24 | hours | 2000-01-01 | - | all | Tenant target: Care Act 2014 s.42 sets no time; the local authority's procedures usually say the same day (phase-2.md slice 7; H-590) | to-verify |
+| complaint.acknowledge_working_days | 3 | working_days | 2000-01-01 | - | all | Tenant target: Regulation 16 sets none for independent providers (phase-2.md decisions; H-590) | to-verify |
+| complaint.response_working_days | 20 | working_days | 2000-01-01 | - | all | Tenant target, as above | to-verify |
+| lgsco.time_limit_months | 12 | months | 2010-10-01 | - | england | Local Government Act 1974 s.34D(4) (a complaint to the Ombudsman within 12 months of the person knowing of the matter, unless the Ombudsman decides otherwise) | to-verify |
+| whistleblowing.acknowledge_working_days | 5 | working_days | 2000-01-01 | - | all | Tenant target: no statutory figure (H-590) | to-verify |
+| mortality_review.due_days | 28 | days | 2000-01-01 | - | all | Tenant target: no statutory figure for care providers (H-590) | to-verify |
+| missing_person.police_call_minutes | 30 | minutes | 2000-01-01 | - | all | Tenant target: the tenant's missing person policy and risk assessment; call at once when they say so (H-591) | to-verify |
+| herbert_protocol.review_months | 6 | months | 2000-01-01 | - | all | Tenant target: the Herbert Protocol forms ask for regular updates but set no interval (H-591) | to-verify |
+| ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
+| ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(a) (21 days where the record was made in the 40 days before the application) | to-verify |
+| ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(a) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
