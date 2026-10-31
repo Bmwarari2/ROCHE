@@ -1,9 +1,11 @@
-# Terraform for infra/: static checks on every pull request that touches infrastructure, a
-# dev plan posted to the pull request, and a dev apply from main.
+# Terraform for infra/ (Google Cloud, europe-west2; ADR-0098): static checks on every pull request
+# that touches infrastructure, a dev plan posted to the pull request, a dev apply from main, and
+# the dev images built, pushed to Artifact Registry and released after the apply.
 #
-# AWS access is by GitHub OIDC only (no long-lived keys). Until Brian provisions the dev
-# account and stores the AWS_DEPLOY_ROLE_ARN secret, the plan and apply jobs skip cleanly.
-# See infra/README.md for the secrets and repository variables this workflow reads.
+# Google Cloud access is by Workload Identity Federation only (no JSON keys): pull requests
+# impersonate the read-only plan account, pushes to main the deploy account. Until Brian creates
+# the dev project and sets the GCP_* repository variables, the plan, apply and release jobs skip
+# cleanly. See infra/README.md for the variables this workflow reads.
 
 name: Terraform
 
@@ -27,7 +29,7 @@ env:
   TFLINT_VERSION: "v0.64.0"
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
-  AWS_REGION: eu-west-2
+  GCP_REGION: europe-west2
 
 jobs:
   static:
@@ -93,77 +95,76 @@ jobs:
           docker run --rm -v "$PWD:/src" -w /src aquasec/trivy:0.67.2 config \
             --severity HIGH,CRITICAL --exit-code 1 infra
 
-  aws-gate:
-    name: Check for AWS access
+  gcp-gate:
+    name: Check for Google Cloud access
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
     steps:
       - id: check
         env:
-          DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          DEPLOY_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT_DEV }}
         run: |
-          if [ -n "${DEPLOY_ROLE_ARN}" ]; then
+          if [ -n "${PROVIDER}" ] && [ -n "${DEPLOY_ACCOUNT}" ]; then
             echo "enabled=true" >> "${GITHUB_OUTPUT}"
           else
             echo "enabled=false" >> "${GITHUB_OUTPUT}"
-            echo "::notice::AWS_DEPLOY_ROLE_ARN is not set, so plan and apply are skipped. Brian provisions the dev account and OIDC role (docs/plans/human-actions.md)."
+            echo "::notice::GCP_WORKLOAD_IDENTITY_PROVIDER_DEV or GCP_DEPLOY_SERVICE_ACCOUNT_DEV is not set, so plan, apply and release are skipped. Brian creates the dev project and runs the bootstrap (infra/README.md; docs/plans/human-actions.md)."
           fi
 
   plan-dev:
     name: Plan dev
-    if: github.event_name == 'pull_request' && needs.aws-gate.outputs.enabled == 'true'
-    needs: [static, security, aws-gate]
+    if: github.event_name == 'pull_request' && needs.gcp-gate.outputs.enabled == 'true'
+    needs: [static, security, gcp-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
       pull-requests: write
     env:
-      AWS_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID_DEV }}
       DOMAIN_NAME: ${{ vars.DEV_DOMAIN_NAME }}
       STATE_BUCKET: ${{ vars.TF_STATE_BUCKET_DEV }}
-      STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN_DEV }}
-      ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
+      DNS_ZONE_NAME: ${{ vars.DEV_DNS_ZONE_NAME }}
       ALERT_EMAILS: ${{ vars.DEV_ALERT_EMAILS }}
-      BUDGET_EMAILS: ${{ vars.DEV_BUDGET_EMAILS }}
+      BILLING_ACCOUNT_ID: ${{ vars.GCP_BILLING_ACCOUNT_ID }}
     steps:
-      - name: Check for the plan role
-        id: role
+      - name: Check for the plan account
+        id: account
         env:
-          PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+          PLAN_ACCOUNT: ${{ vars.GCP_PLAN_SERVICE_ACCOUNT_DEV }}
         run: |
-          if [ -n "${PLAN_ROLE_ARN}" ]; then
+          if [ -n "${PLAN_ACCOUNT}" ]; then
             echo "present=true" >> "${GITHUB_OUTPUT}"
           else
             echo "present=false" >> "${GITHUB_OUTPUT}"
-            echo "::notice::AWS_PLAN_ROLE_ARN is not set (terraform output plan_role_arn after the first apply), so the plan is skipped."
+            echo "::notice::GCP_PLAN_SERVICE_ACCOUNT_DEV is not set (terraform output plan_service_account after the first apply), so the plan is skipped."
           fi
 
       - uses: actions/checkout@v5
-        if: steps.role.outputs.present == 'true'
+        if: steps.account.outputs.present == 'true'
 
       - uses: hashicorp/setup-terraform@v3
-        if: steps.role.outputs.present == 'true'
+        if: steps.account.outputs.present == 'true'
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      # Pull requests assume the read-only plan role, which trusts only the pull_request
-      # subject of this repository and cannot read secrets or data.
-      - uses: aws-actions/configure-aws-credentials@v5
-        if: steps.role.outputs.present == 'true'
+      # Pull requests impersonate the read-only plan account, which trusts only the
+      # pull_request subject of this repository and cannot read secrets or data.
+      - uses: google-github-actions/auth@v2
+        if: steps.account.outputs.present == 'true'
         with:
-          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
-          role-session-name: harbour-plan-${{ github.run_id }}
-          aws-region: ${{ env.AWS_REGION }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_PLAN_SERVICE_ACCOUNT_DEV }}
 
       - name: Prepare dev backend and inputs
-        if: steps.role.outputs.present == 'true'
+        if: steps.account.outputs.present == 'true'
         run: bash infra/scripts/ci-terraform-env.sh dev
 
       - name: terraform plan
-        if: steps.role.outputs.present == 'true'
+        if: steps.account.outputs.present == 'true'
         working-directory: infra/envs/dev
         run: |
           terraform init -backend-config=backend.hcl -lockfile=readonly
@@ -171,7 +172,7 @@ jobs:
           terraform show -no-color tfplan > plan.txt
 
       - name: Post the plan to the pull request
-        if: steps.role.outputs.present == 'true'
+        if: steps.account.outputs.present == 'true'
         uses: actions/github-script@v8
         with:
           script: |
@@ -195,11 +196,11 @@ jobs:
 
   apply-dev:
     name: Apply dev
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.aws-gate.outputs.enabled == 'true'
-    needs: [static, security, aws-gate]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gcp-gate.outputs.enabled == 'true'
+    needs: [static, security, gcp-gate]
     runs-on: ubuntu-latest
-    # No GitHub `environment:` here on purpose: it would change the OIDC subject to
-    # repo:<owner>/<repo>:environment:dev, which the deploy role does not trust.
+    # No GitHub `environment:` here on purpose: it would change the token subject to
+    # repo:<owner>/<repo>:environment:dev, which the deploy account does not trust.
     concurrency:
       group: terraform-apply-dev
       cancel-in-progress: false
@@ -207,13 +208,12 @@ jobs:
       contents: read
       id-token: write
     env:
-      AWS_ACCOUNT_ID: ${{ vars.AWS_DEV_ACCOUNT_ID }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID_DEV }}
       DOMAIN_NAME: ${{ vars.DEV_DOMAIN_NAME }}
       STATE_BUCKET: ${{ vars.TF_STATE_BUCKET_DEV }}
-      STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN_DEV }}
-      ROUTE53_ZONE_ID: ${{ vars.DEV_ROUTE53_ZONE_ID }}
+      DNS_ZONE_NAME: ${{ vars.DEV_DNS_ZONE_NAME }}
       ALERT_EMAILS: ${{ vars.DEV_ALERT_EMAILS }}
-      BUDGET_EMAILS: ${{ vars.DEV_BUDGET_EMAILS }}
+      BILLING_ACCOUNT_ID: ${{ vars.GCP_BILLING_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v5
 
@@ -222,11 +222,10 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: google-github-actions/auth@v2
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: harbour-apply-${{ github.run_id }}
-          aws-region: ${{ env.AWS_REGION }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT_DEV }}
 
       - name: Prepare dev backend and inputs
         run: bash infra/scripts/ci-terraform-env.sh dev
@@ -237,3 +236,54 @@ jobs:
           terraform init -backend-config=backend.hcl -lockfile=readonly
           terraform plan -no-color -out=tfplan
           terraform apply -no-color tfplan
+
+  # Builds the api and web images, pushes them to Artifact Registry under the commit SHA (tags
+  # are immutable), runs the migration job with the new api image, then releases the services.
+  # Terraform ignores images after the first apply, so this job owns them from then on.
+  release-dev:
+    name: Build, push and release dev
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gcp-gate.outputs.enabled == 'true'
+    needs: [apply-dev, gcp-gate]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-dev
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID_DEV }}
+      PREFIX: harbour-dev
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT_DEV }}
+          token_format: access_token
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Log in to Artifact Registry
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: printf '%s' "${TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://${GCP_REGION}-docker.pkg.dev"
+
+      - name: Build and push the api and web images
+        run: |
+          repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
+          for app in api web; do
+            docker build -f "apps/${app}/Dockerfile" -t "${repo}/${app}:${GITHUB_SHA}" .
+            docker push "${repo}/${app}:${GITHUB_SHA}"
+          done
+
+      - name: Run the migrations, then release
+        run: |
+          repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
+          gcloud run jobs update "${PREFIX}-migrate" --region "${GCP_REGION}" --image "${repo}/api:${GITHUB_SHA}" --quiet
+          gcloud run jobs execute "${PREFIX}-migrate" --region "${GCP_REGION}" --wait
+          gcloud run services update "${PREFIX}-api" --region "${GCP_REGION}" --container main --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
+          gcloud run services update "${PREFIX}-worker" --region "${GCP_REGION}" --container main --image "${repo}/api:${GITHUB_SHA}" --update-env-vars "APP_VERSION=${GITHUB_SHA}" --quiet
+          gcloud run services update "${PREFIX}-web" --region "${GCP_REGION}" --container main --image "${repo}/web:${GITHUB_SHA}" --quiet

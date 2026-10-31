@@ -1,9 +1,10 @@
 # ---------------------------------------------------------------------------------------------
 # Secrets
 #
-# Terraform creates the secret containers only. Values are generated inside AWS by
+# Terraform creates empty regional secrets only. Values are generated inside Google Cloud by
 # infra/scripts/seed-secrets.sh (once per environment) so that no password ever appears in
-# Terraform state or plan output, and the plan role never needs secretsmanager:GetSecretValue.
+# Terraform state or plan output, and the plan account never needs secretAccessor. Each secret
+# holds one value: Cloud Run reads a whole secret version into one variable or file.
 # ---------------------------------------------------------------------------------------------
 
 locals {
@@ -11,26 +12,53 @@ locals {
   db_login_roles = ["harbour_owner", "harbour_app", "harbour_auth", "harbour_sync", "harbour_operator", "harbour_worker"]
 
   secret_definitions = merge(
-    { for r in local.db_login_roles : "db/${r}" => "username, password and url of the ${r} role on the main database" },
+    merge([
+      for r in concat(local.db_login_roles, ["powersync_storage"]) : {
+        "db-${r}-password" = "Password of the ${r} database role"
+        "db-${r}-url"      = "Connection URL of the ${r} database role (TLS, server CA verified)"
+      }
+    ]...),
     {
-      "db/powersync_storage" = "username, password and url of the powersync_storage role on the bucket-storage database"
-      "api"                  = "API runtime secrets: Better Auth secret and the PowerSync JWT signing key and key ID"
-      "powersync/api-token"  = "Token for the PowerSync admin API"
+      "db-admin-password"        = "Password of the postgres user on the main instance (used by the migrate job only)"
+      "db-sync-admin-password"   = "Password of the postgres user on the sync-storage instance"
+      "db-server-ca"             = "The Cloud SQL server CA certificates (PEM) the services verify"
+      "api-auth-secret"          = "Better Auth secret"
+      "api-evidence-link-secret" = "HMAC key for evidence pack codes and link sessions (ADR-0050)"
+      "api-sync-signing-key-pem" = "Private key that signs PowerSync tokens"
+      "api-sync-signing-key-id"  = "Key ID of the PowerSync signing key"
+      "powersync-api-token"      = "Token for the PowerSync admin API"
+      "smtp-password"            = "Password for the SMTP relay"
     },
-    var.enable_flagsmith ? { "flagsmith" = "Flagsmith Django secret key and database password" } : {},
+    var.enable_flagsmith ? {
+      "flagsmith-django-secret-key" = "Flagsmith Django secret key"
+      "flagsmith-database-password" = "Flagsmith database password"
+    } : {},
   )
 
-  secret_arns = { for k, v in aws_secretsmanager_secret.this : k => v.arn }
+  # Full ids built from known names, so a plan can count every grant before the secrets exist.
+  secret = {
+    for k in keys(local.secret_definitions) :
+    k => "projects/${var.project_id}/locations/${var.region}/secrets/${local.name_prefix}-${k}"
+  }
+
+  # The server CA is mounted as a file; connection URLs name it (sslrootcert).
+  db_ca_volume = {
+    db-ca = { secret = local.secret["db-server-ca"], mount_path = "/secrets/db-ca", file = "server-ca.pem" }
+  }
+  db_ca_file = "/secrets/db-ca/server-ca.pem"
 }
 
-resource "aws_secretsmanager_secret" "this" {
-  #checkov:skip=CKV2_AWS_57:Rotation is yearly and scripted (infra/scripts/seed-secrets.sh --rotate, section 5.3); RDS master credentials rotate automatically.
-  for_each = local.secret_definitions
+module "secrets" {
+  source = "../secret_manager"
 
-  name                    = "${local.name_prefix}/${each.key}"
-  description             = each.value
-  kms_key_id              = module.kms.key_arns["secrets"]
-  recovery_window_in_days = var.environment == "prod" ? 30 : 7
+  project_id  = var.project_id
+  region      = var.region
+  name_prefix = local.name_prefix
+  secrets     = local.secret_definitions
+  kms_key_id  = module.kms.key_ids["secrets"]
+  labels      = local.labels
+
+  depends_on = [module.kms]
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -38,67 +66,131 @@ resource "aws_secretsmanager_secret" "this" {
 # ---------------------------------------------------------------------------------------------
 
 module "db_main" {
-  source = "../rds_postgres"
+  source = "../cloud_sql_postgres"
 
-  identifier            = "${local.name_prefix}-main"
-  instance_class        = var.main_db_instance_class
-  allocated_storage     = var.main_db_allocated_storage
-  max_allocated_storage = var.main_db_max_allocated_storage
-  multi_az              = var.main_db_multi_az
-  db_name               = "harbour"
-  master_username       = "harbour_admin"
+  project_id    = var.project_id
+  region        = var.region
+  name          = "${local.name_prefix}-main"
+  database_name = "harbour"
+  tier          = var.main_db_tier
+  edition       = var.db_edition
+  disk_size_gb  = var.main_db_disk_gb
 
-  vpc_id     = module.network.vpc_id
-  subnet_ids = module.network.data_subnet_ids
-  allowed_security_group_ids = {
-    api       = module.svc_api.security_group_id
-    worker    = module.svc_worker.security_group_id
-    migrate   = module.task_migrate.security_group_id
-    powersync = module.svc_powersync.security_group_id
-  }
+  high_availability              = var.db_high_availability
+  transaction_log_retention_days = var.db_pitr_days
+  deletion_protection            = var.db_deletion_protection
 
-  kms_key_arn         = module.kms.key_arns["rds"]
-  secrets_kms_key_arn = module.kms.key_arns["secrets"]
-  logs_kms_key_arn    = module.kms.key_arns["logs"]
-  log_retention_days  = var.log_retention_days
+  network_id                  = module.network.network_id
+  private_services_connection = module.network.private_services_connection
+  kms_key_id                  = module.kms.key_ids["sql"]
 
   # PowerSync streams changes from this database.
-  logical_replication = true
+  logical_decoding = true
+  labels           = local.labels
 
-  deletion_protection                 = var.db_deletion_protection
-  skip_final_snapshot                 = var.db_skip_final_snapshot
-  performance_insights_retention_days = var.db_performance_insights_retention_days
+  depends_on = [module.kms]
 }
 
 # PowerSync bucket storage: holds per-bucket copies of synced rows, so it is personal data and
 # gets the same hardening. It can be rebuilt from the main database by a PowerSync resync.
+# Flagsmith's database, when enabled, also lives here (tenant identifiers only).
 module "db_sync_storage" {
-  source = "../rds_postgres"
+  source = "../cloud_sql_postgres"
 
-  identifier            = "${local.name_prefix}-sync-storage"
-  instance_class        = var.sync_storage_db_instance_class
-  allocated_storage     = var.sync_storage_db_allocated_storage
-  max_allocated_storage = var.sync_storage_db_allocated_storage * 4
-  multi_az              = var.sync_storage_db_multi_az
-  db_name               = "powersync_storage"
-  master_username       = "powersync_admin"
+  project_id    = var.project_id
+  region        = var.region
+  name          = "${local.name_prefix}-sync-storage"
+  database_name = "powersync_storage"
+  tier          = var.sync_storage_db_tier
+  edition       = var.db_edition
+  disk_size_gb  = var.sync_storage_db_disk_gb
 
-  vpc_id     = module.network.vpc_id
-  subnet_ids = module.network.data_subnet_ids
-  allowed_security_group_ids = merge(
-    {
-      powersync = module.svc_powersync.security_group_id
-      migrate   = module.task_migrate.security_group_id
-    },
-    var.enable_flagsmith ? { flagsmith = module.svc_flagsmith[0].security_group_id } : {},
-  )
+  high_availability              = var.db_high_availability
+  transaction_log_retention_days = var.db_pitr_days
+  deletion_protection            = var.db_deletion_protection
 
-  kms_key_arn         = module.kms.key_arns["rds"]
-  secrets_kms_key_arn = module.kms.key_arns["secrets"]
-  logs_kms_key_arn    = module.kms.key_arns["logs"]
-  log_retention_days  = var.log_retention_days
+  network_id                  = module.network.network_id
+  private_services_connection = module.network.private_services_connection
+  kms_key_id                  = module.kms.key_ids["sql"]
+  labels                      = local.labels
 
-  deletion_protection                 = var.db_deletion_protection
-  skip_final_snapshot                 = var.db_skip_final_snapshot
-  performance_insights_retention_days = var.db_performance_insights_retention_days
+  depends_on = [module.kms]
+}
+
+# ---------------------------------------------------------------------------------------------
+# Buckets
+# ---------------------------------------------------------------------------------------------
+
+# Usage logs of the other buckets. Only Cloud Storage's own logging account may write here.
+module "bucket_logs" {
+  source = "../gcs_bucket"
+
+  project_id                   = var.project_id
+  name                         = "${var.project_id}-bucket-logs"
+  kms_key_id                   = module.kms.key_ids["storage"]
+  delete_after_days            = 400
+  noncurrent_delete_after_days = 30
+  force_destroy                = var.force_destroy_buckets
+  labels                       = local.labels
+
+  depends_on = [module.kms]
+}
+
+resource "google_storage_bucket_iam_member" "usage_logs_writer" {
+  bucket = module.bucket_logs.name
+  role   = "roles/storage.objectCreator"
+  member = "group:cloud-storage-analytics@google.com"
+}
+
+# Care documents, photos and attachments (signed uploads from web and mobile).
+module "bucket_documents" {
+  source = "../gcs_bucket"
+
+  project_id        = var.project_id
+  name              = "${var.project_id}-documents"
+  kms_key_id        = module.kms.key_ids["storage"]
+  cors_origins      = ["https://${local.hosts.web}"]
+  access_log_bucket = module.bucket_logs.name
+  force_destroy     = var.force_destroy_buckets
+  labels            = local.labels
+
+  depends_on = [module.kms]
+}
+
+# Generated exports. Tenant data exports and inspector PDFs (under tenants/) expire after 30
+# days; issued DSAR bundles (under dsar/) are kept with their case for its retention class
+# (data_rights_case) and destroyed by the retention engine with it.
+module "bucket_exports" {
+  source = "../gcs_bucket"
+
+  project_id                   = var.project_id
+  name                         = "${var.project_id}-exports"
+  kms_key_id                   = module.kms.key_ids["storage"]
+  delete_after_days            = 30
+  delete_after_days_prefix     = ["tenants/"]
+  noncurrent_delete_after_days = 7
+  access_log_bucket            = module.bucket_logs.name
+  force_destroy                = var.force_destroy_buckets
+  labels                       = local.labels
+
+  depends_on = [module.kms]
+}
+
+# Write-once archive of audit_event batches and destruction certificates (section 5.5): a
+# retention policy keeps every object for audit_archive_retention_days, locked in prod.
+module "bucket_audit_archive" {
+  source = "../gcs_bucket"
+
+  project_id                   = var.project_id
+  name                         = "${var.project_id}-audit-archive"
+  kms_key_id                   = module.kms.key_ids["storage"]
+  retention_days               = var.audit_archive_retention_days
+  lock_retention_policy        = local.lock_audit_archive
+  noncurrent_delete_after_days = null
+  soft_delete_days             = 0
+  access_log_bucket            = module.bucket_logs.name
+  force_destroy                = var.force_destroy_buckets && !local.lock_audit_archive
+  labels                       = local.labels
+
+  depends_on = [module.kms, terraform_data.locks_only_in_prod]
 }

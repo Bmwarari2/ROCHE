@@ -1,18 +1,20 @@
-# The Harbour platform for one environment (one AWS account), composed from the modules in
-# infra/modules. dev, staging and prod all call this module and differ only in sizing and
-# protection settings, so that staging is a faithful rehearsal of prod.
+# The Harbour platform for one environment (one Google Cloud project), composed from the modules
+# in infra/modules. dev, staging and prod all call this module and differ only in sizing and
+# protection settings, so that staging is a faithful rehearsal of prod (ADR-0098).
 #
-# Residency: every resource that stores or processes personal data is created in eu-west-2.
-# Only the CloudFront certificate and the CloudFront-scope WAF web ACL are created in
-# us-east-1 (an AWS requirement); neither stores personal data.
-
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
+# Residency: everything that stores or processes personal data is created in europe-west2, and
+# the gcp.resourceLocations organisation policy refuses anything else. The load balancer, its
+# certificates, Cloud Armor, Cloud CDN (static files only) and Cloud DNS are global services that
+# hold no personal data.
 
 locals {
   name_prefix = "harbour-${var.environment}"
-  account_id  = data.aws_caller_identity.current.account_id
-  region      = data.aws_region.current.region
+  is_prod     = var.environment == "prod"
+  labels = merge(var.labels, {
+    project     = "harbour"
+    environment = var.environment
+    managed_by  = "terraform"
+  })
 
   hosts = {
     web   = "app.${var.domain_name}"
@@ -22,149 +24,98 @@ locals {
   }
 
   default_sizes = {
-    api       = { cpu = 512, memory = 1024, min = 1, max = 4 }
-    worker    = { cpu = 512, memory = 1024, min = 1, max = 2 }
-    web       = { cpu = 512, memory = 1024, min = 1, max = 4 }
-    powersync = { cpu = 1024, memory = 2048, min = 1, max = 1 }
-    migrate   = { cpu = 512, memory = 1024, min = 0, max = 0 }
-    flagsmith = { cpu = 512, memory = 1024, min = 1, max = 1 }
+    api       = { cpu = "1", memory = "1Gi", min = 1, max = 4 }
+    worker    = { cpu = "1", memory = "1Gi", min = 1, max = 2 }
+    web       = { cpu = "1", memory = "1Gi", min = 1, max = 4 }
+    powersync = { cpu = "1", memory = "2Gi", min = 1, max = 1 }
+    migrate   = { cpu = "1", memory = "1Gi", min = 0, max = 0 }
+    flagsmith = { cpu = "1", memory = "1Gi", min = 1, max = 1 }
   }
   sizes = merge(local.default_sizes, var.service_sizes)
+
+  ports = {
+    api       = 4000
+    web       = 3000
+    powersync = 8080
+    flagsmith = 8000
+  }
+
+  # Write-once locks are irreversible, so they are on in prod only unless set otherwise.
+  lock_audit_archive = coalesce(var.lock_audit_archive, local.is_prod)
+  lock_security_logs = coalesce(var.lock_security_logs, local.is_prod)
 }
 
-check "region_is_london" {
-  assert {
-    condition     = local.region == "eu-west-2"
-    error_message = "The Harbour stack must be deployed to eu-west-2 (London); personal data may not leave the UK."
+# A lock outside prod would make a dev or staging bucket impossible to delete for a year.
+resource "terraform_data" "locks_only_in_prod" {
+  input = { audit = local.lock_audit_archive, security_logs = local.lock_security_logs }
+
+  lifecycle {
+    precondition {
+      condition     = local.is_prod || (!local.lock_audit_archive && !local.lock_security_logs)
+      error_message = "Retention locks are irreversible and are set in prod only."
+    }
   }
 }
 
 # ---------------------------------------------------------------------------------------------
-# Keys and network
+# Project, keys and network
 # ---------------------------------------------------------------------------------------------
+
+module "project" {
+  source = "../project_baseline"
+
+  project_id                 = var.project_id
+  region                     = var.region
+  enforce_resource_locations = var.enforce_resource_locations
+}
 
 module "kms" {
   source = "../kms"
 
+  project_id  = var.project_id
+  region      = var.region
   name_prefix = local.name_prefix
+
+  keys = {
+    sql       = ["serviceAccount:${module.project.service_agents.sql}"]
+    storage   = ["serviceAccount:${module.project.service_agents.storage}"]
+    secrets   = ["serviceAccount:${module.project.service_agents.secrets}"]
+    artifacts = ["serviceAccount:${module.project.service_agents.artifacts}"]
+  }
 }
 
 module "network" {
   source = "../network"
 
-  name_prefix                   = local.name_prefix
-  cidr_block                    = var.vpc_cidr_block
-  nat_gateway_per_az            = var.nat_gateway_per_az
-  interface_endpoint_az_count   = var.interface_endpoint_az_count
-  flow_log_kms_key_arn          = module.kms.key_arns["logs"]
-  flow_log_retention_days       = var.log_retention_days
-  log_group_deletion_protection = var.protect_log_groups
+  project_id  = var.project_id
+  region      = var.region
+  name_prefix = local.name_prefix
+  subnet_cidr = var.subnet_cidr
 }
 
 # ---------------------------------------------------------------------------------------------
-# Buckets
+# Container images
 # ---------------------------------------------------------------------------------------------
 
-# Access logs for the other buckets and the ALB. S3 server access logs and ALB access logs can
-# only be delivered to SSE-S3 (AES-256) buckets, so this one bucket does not use the CMK.
-#trivy:ignore:AVD-AWS-0132
-#trivy:ignore:AVD-AWS-0089
-module "bucket_logs" {
-  source = "../s3_bucket"
+module "registry" {
+  source = "../artifact_registry"
 
-  bucket_name                        = "${local.name_prefix}-logs-${local.account_id}"
-  kms_key_arn                        = null
-  access_logging                     = false
-  allow_alb_access_logs              = true
-  allow_s3_access_logs_from_account  = true
-  current_version_expiration_days    = 400
-  noncurrent_version_expiration_days = 30
-  force_destroy                      = var.force_destroy_buckets
-}
+  project_id    = var.project_id
+  region        = var.region
+  repository_id = "harbour"
+  kms_key_id    = module.kms.key_ids["artifacts"]
 
-# Care documents, photos and attachments (presigned uploads from web and mobile).
-module "bucket_documents" {
-  source = "../s3_bucket"
-
-  bucket_name          = "${local.name_prefix}-documents-${local.account_id}"
-  kms_key_arn          = module.kms.key_arns["s3"]
-  access_log_bucket    = module.bucket_logs.bucket_id
-  cors_allowed_origins = ["https://${local.hosts.web}"]
-  force_destroy        = var.force_destroy_buckets
-}
-
-# Generated exports. Tenant data exports and inspector PDFs (under tenants/) are short-lived and
-# expire after 30 days; issued DSAR bundles (under dsar/) are kept with their case for its
-# retention class (data_rights_case) and destroyed by the retention engine with it (#149 re-check M1).
-module "bucket_exports" {
-  source = "../s3_bucket"
-
-  bucket_name                        = "${local.name_prefix}-exports-${local.account_id}"
-  kms_key_arn                        = module.kms.key_arns["s3"]
-  access_log_bucket                  = module.bucket_logs.bucket_id
-  current_version_expiration_days    = 30
-  current_version_expiration_prefix  = "tenants/"
-  noncurrent_version_expiration_days = 7
-  force_destroy                      = var.force_destroy_buckets
-}
-
-# Write-once archive of audit_event batches and destruction certificates (section 5.5).
-module "bucket_audit_archive" {
-  source = "../s3_bucket"
-
-  bucket_name                        = "${local.name_prefix}-audit-archive-${local.account_id}"
-  kms_key_arn                        = module.kms.key_arns["s3"]
-  access_log_bucket                  = module.bucket_logs.bucket_id
-  object_lock_enabled                = true
-  object_lock_mode                   = var.audit_archive_lock_mode
-  object_lock_days                   = var.audit_archive_lock_days
-  noncurrent_version_expiration_days = max(var.audit_archive_lock_days, 90)
-  force_destroy                      = var.force_destroy_buckets
-}
-
-# ---------------------------------------------------------------------------------------------
-# Container images and release pointers
-# ---------------------------------------------------------------------------------------------
-
-module "ecr" {
-  source = "../ecr"
-
-  name_prefix = "harbour"
-  # The worker and the migration task run the api image with a different command.
-  repositories = ["api", "web", "powersync-service", "flagsmith"]
-  kms_key_arn  = module.kms.key_arns["ecr"]
+  depends_on = [module.kms]
 }
 
 locals {
-  release_services = toset(["api", "web"])
-}
-
-# The deploy workflow writes the tag it has just pushed here and then runs terraform apply.
-# Terraform reads the pointer but never resets it, so an infrastructure-only change cannot
-# roll an application back. var.image_tags overrides a pointer for a single apply.
-resource "aws_ssm_parameter" "release" {
-  #checkov:skip=CKV2_AWS_34:Holds a public image tag, not a secret; String keeps it readable by the plan role, which has no kms:Decrypt.
-  for_each = local.release_services
-
-  name           = "/harbour/${var.environment}/release/${each.key}"
-  description    = "Image tag of ${each.key} currently released to ${var.environment}"
-  type           = "String"
-  insecure_value = var.initial_image_tag
-
-  lifecycle {
-    ignore_changes = [insecure_value]
-  }
-}
-
-locals {
-  image_tags = {
-    for s in local.release_services : s => lookup(var.image_tags, s, aws_ssm_parameter.release[s].insecure_value)
-  }
+  repo = module.registry.repository_url
 
   images = {
-    api       = "${module.ecr.repository_urls["api"]}:${local.image_tags["api"]}"
-    web       = "${module.ecr.repository_urls["web"]}:${local.image_tags["web"]}"
-    powersync = coalesce(var.powersync_image, "${module.ecr.repository_urls["powersync-service"]}:${var.powersync_version}")
-    flagsmith = "${module.ecr.repository_urls["flagsmith"]}:${var.flagsmith_version}"
+    api       = "${local.repo}/api:${var.initial_image_tag}"
+    web       = "${local.repo}/web:${var.initial_image_tag}"
+    powersync = "${local.repo}/powersync-service:${var.powersync_version}"
+    flagsmith = "${local.repo}/flagsmith:${var.flagsmith_version}"
+    clamav    = coalesce(var.clamav_image, "${local.repo}/clamav:${var.clamav_version}")
   }
 }

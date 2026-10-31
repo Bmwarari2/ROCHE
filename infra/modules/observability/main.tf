@@ -1,372 +1,241 @@
-# Alarms for the load balancer, ECS services, RDS and the worker's own log lines, all sent to
-# one KMS-encrypted SNS topic. Alarm names and descriptions never include personal data.
+# Logs and alerts in London. Security logs (audit logs, including Data Access, and Cloud Armor
+# requests) go to their own bucket kept for at least 400 days, optionally locked; application
+# logs to another. The worker's structured events (pino JSON) drive the alerts the on-call runbook
+# names (docs/runbooks/on-call.md; HZ-070, HZ-073).
 
-data "aws_caller_identity" "current" {}
-
-resource "aws_sns_topic" "alerts" {
-  name              = "${var.name_prefix}-alerts"
-  kms_master_key_id = var.alerts_kms_key_arn
+resource "google_logging_project_bucket_config" "security" {
+  project        = var.project_id
+  location       = var.region
+  bucket_id      = "${var.name_prefix}-security"
+  retention_days = var.security_log_retention_days
+  locked         = var.lock_security_logs
+  description    = "Audit logs and Cloud Armor requests"
 }
 
-data "aws_iam_policy_document" "alerts" {
-  statement {
-    sid       = "AllowAccountOwner"
-    actions   = ["sns:Publish", "sns:Subscribe", "sns:GetTopicAttributes", "sns:SetTopicAttributes", "sns:ListSubscriptionsByTopic"]
-    resources = [aws_sns_topic.alerts.arn]
-
-    principals {
-      type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
-    }
-  }
-
-  statement {
-    sid       = "AllowAlarmAndBudgetPublishers"
-    actions   = ["sns:Publish"]
-    resources = [aws_sns_topic.alerts.arn]
-
-    principals {
-      type        = "Service"
-      identifiers = ["cloudwatch.amazonaws.com", "budgets.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
-    }
-  }
-
-  statement {
-    sid       = "DenyInsecureTransport"
-    effect    = "Deny"
-    actions   = ["sns:Publish"]
-    resources = [aws_sns_topic.alerts.arn]
-
-    principals {
-      type        = "*"
-      identifiers = ["*"]
-    }
-
-    condition {
-      test     = "Bool"
-      variable = "aws:SecureTransport"
-      values   = ["false"]
-    }
-  }
+resource "google_logging_project_bucket_config" "app" {
+  project        = var.project_id
+  location       = var.region
+  bucket_id      = "${var.name_prefix}-app"
+  retention_days = var.app_log_retention_days
+  description    = "Cloud Run and Cloud SQL logs (opaque ids only)"
 }
 
-resource "aws_sns_topic_policy" "alerts" {
-  arn    = aws_sns_topic.alerts.arn
-  policy = data.aws_iam_policy_document.alerts.json
+locals {
+  security_filter = "logName:\"cloudaudit.googleapis.com\" OR (resource.type=\"http_load_balancer\" AND jsonPayload.enforcedSecurityPolicy.name:*)"
+  app_filter      = "resource.type=(\"cloud_run_revision\" OR \"cloud_run_job\" OR \"cloudsql_database\") AND NOT logName:\"cloudaudit.googleapis.com\""
 }
 
-resource "aws_sns_topic_subscription" "email" {
+resource "google_logging_project_sink" "security" {
+  project                = var.project_id
+  name                   = "${var.name_prefix}-security"
+  destination            = "logging.googleapis.com/${google_logging_project_bucket_config.security.id}"
+  filter                 = local.security_filter
+  unique_writer_identity = true
+}
+
+resource "google_logging_project_sink" "app" {
+  project                = var.project_id
+  name                   = "${var.name_prefix}-app"
+  destination            = "logging.googleapis.com/${google_logging_project_bucket_config.app.id}"
+  filter                 = local.app_filter
+  unique_writer_identity = true
+}
+
+# ---------------------------------------------------------------------------------------------
+# Notification channels
+# ---------------------------------------------------------------------------------------------
+
+resource "google_monitoring_notification_channel" "email" {
   for_each = toset(var.alert_email_addresses)
 
-  topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "email"
-  endpoint  = each.key
+  project      = var.project_id
+  display_name = "Harbour alerts ${each.key}"
+  type         = "email"
+
+  labels = {
+    email_address = each.key
+  }
 }
 
 locals {
-  actions = [aws_sns_topic.alerts.arn]
+  channels = [for c in google_monitoring_notification_channel.email : c.id]
+
+  # The worker logs JSON (pino), so each metric matches the structured `event` field.
+  worker_events = {
+    escalation_unrouted_daily = {
+      event       = "escalation.unrouted.daily"
+      period      = 3600
+      description = "Escalations with nobody to route them to (HZ-073). Any line alerts, over an hour, so each daily run alerts again."
+    }
+    worker_job_failed = {
+      event       = "worker.job.failed"
+      period      = 900
+      description = "One or more worker jobs failed in 15 minutes."
+    }
+    export_foreign_rows = {
+      event       = "security.export.foreign_rows"
+      period      = 900
+      description = "An export met rows of another organisation (HZ-070)."
+    }
+  }
+
+  log_metric_filters = {
+    for k, v in local.worker_events :
+    k => "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"${var.worker_service_name}\" AND jsonPayload.event=\"${v.event}\""
+  }
 }
 
-# ---------------------------------------------------------------------------------------------
-# Load balancer
-# ---------------------------------------------------------------------------------------------
+resource "google_logging_metric" "worker" {
+  for_each = local.worker_events
 
-resource "aws_cloudwatch_metric_alarm" "elb_5xx" {
-  alarm_name          = "${var.name_prefix}-alb-elb-5xx"
-  alarm_description   = "The load balancer itself is returning 5xx responses (no healthy targets, timeouts)."
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "HTTPCode_ELB_5XX_Count"
-  dimensions          = { LoadBalancer = var.alb_arn_suffix }
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = var.elb_5xx_threshold
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
+  project = var.project_id
+  name    = "${var.name_prefix}-${replace(each.key, "_", "-")}"
+  filter  = local.log_metric_filters[each.key]
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
 }
-
-resource "aws_cloudwatch_metric_alarm" "target_5xx" {
-  for_each = var.target_group_arn_suffixes
-
-  alarm_name          = "${var.name_prefix}-${each.key}-target-5xx"
-  alarm_description   = "The ${each.key} service is returning 5xx responses."
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "HTTPCode_Target_5XX_Count"
-  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = each.value }
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = var.target_5xx_threshold
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-resource "aws_cloudwatch_metric_alarm" "unhealthy_targets" {
-  for_each = var.target_group_arn_suffixes
-
-  alarm_name          = "${var.name_prefix}-${each.key}-unhealthy-targets"
-  alarm_description   = "At least one ${each.key} task is failing load balancer health checks."
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "UnHealthyHostCount"
-  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = each.value }
-  statistic           = "Maximum"
-  period              = 60
-  evaluation_periods  = 5
-  threshold           = 1
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-# ---------------------------------------------------------------------------------------------
-# ECS services (Container Insights metrics)
-# ---------------------------------------------------------------------------------------------
-
-resource "aws_cloudwatch_metric_alarm" "ecs_running_tasks" {
-  for_each = var.ecs_services
-
-  alarm_name          = "${var.name_prefix}-${each.key}-running-tasks"
-  alarm_description   = "Fewer ${each.key} tasks are running than the minimum."
-  namespace           = "ECS/ContainerInsights"
-  metric_name         = "RunningTaskCount"
-  dimensions          = { ClusterName = var.ecs_cluster_name, ServiceName = each.key }
-  statistic           = "Minimum"
-  period              = 60
-  evaluation_periods  = 5
-  threshold           = each.value.min_running_tasks
-  comparison_operator = "LessThanThreshold"
-  treat_missing_data  = "breaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-resource "aws_cloudwatch_metric_alarm" "ecs_cpu" {
-  for_each = var.ecs_services
-
-  alarm_name          = "${var.name_prefix}-${each.key}-cpu-high"
-  alarm_description   = "${each.key} CPU has stayed above 90 per cent despite autoscaling."
-  namespace           = "AWS/ECS"
-  metric_name         = "CPUUtilization"
-  dimensions          = { ClusterName = var.ecs_cluster_name, ServiceName = each.key }
-  statistic           = "Average"
-  period              = 300
-  evaluation_periods  = 3
-  threshold           = 90
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-resource "aws_cloudwatch_metric_alarm" "ecs_memory" {
-  for_each = var.ecs_services
-
-  alarm_name          = "${var.name_prefix}-${each.key}-memory-high"
-  alarm_description   = "${each.key} memory has stayed above 90 per cent despite autoscaling."
-  namespace           = "AWS/ECS"
-  metric_name         = "MemoryUtilization"
-  dimensions          = { ClusterName = var.ecs_cluster_name, ServiceName = each.key }
-  statistic           = "Average"
-  period              = 300
-  evaluation_periods  = 3
-  threshold           = 90
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-# ---------------------------------------------------------------------------------------------
-# RDS
-# ---------------------------------------------------------------------------------------------
-
-resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
-  for_each = var.rds_instances
-
-  alarm_name          = "${var.name_prefix}-${each.key}-db-cpu"
-  alarm_description   = "Database ${each.value.identifier} CPU is high."
-  namespace           = "AWS/RDS"
-  metric_name         = "CPUUtilization"
-  dimensions          = { DBInstanceIdentifier = each.value.identifier }
-  statistic           = "Average"
-  period              = 300
-  evaluation_periods  = 3
-  threshold           = var.rds_cpu_threshold_percent
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-resource "aws_cloudwatch_metric_alarm" "rds_storage" {
-  for_each = var.rds_instances
-
-  alarm_name          = "${var.name_prefix}-${each.key}-db-free-storage"
-  alarm_description   = "Database ${each.value.identifier} is running out of storage."
-  namespace           = "AWS/RDS"
-  metric_name         = "FreeStorageSpace"
-  dimensions          = { DBInstanceIdentifier = each.value.identifier }
-  statistic           = "Minimum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = var.rds_free_storage_threshold_bytes
-  comparison_operator = "LessThanThreshold"
-  treat_missing_data  = "breaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-# Multi-AZ instances replicate synchronously and publish no replica lag. For the main
-# database the lag that matters is the PowerSync logical replication slot; a read replica,
-# if one is added, is watched with ReplicaLag.
-resource "aws_cloudwatch_metric_alarm" "rds_replication_slot_lag" {
-  for_each = { for k, v in var.rds_instances : k => v if v.logical_replication }
-
-  alarm_name          = "${var.name_prefix}-${each.key}-db-replication-slot-lag"
-  alarm_description   = "The PowerSync logical replication slot on ${each.value.identifier} is falling behind; mobile devices are not receiving changes."
-  namespace           = "AWS/RDS"
-  metric_name         = "OldestReplicationSlotLag"
-  dimensions          = { DBInstanceIdentifier = each.value.identifier }
-  statistic           = "Maximum"
-  period              = 300
-  evaluation_periods  = 2
-  threshold           = var.replication_slot_lag_threshold_bytes
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-resource "aws_cloudwatch_metric_alarm" "rds_replica_lag" {
-  for_each = { for k, v in var.rds_instances : k => v if v.read_replica }
-
-  alarm_name          = "${var.name_prefix}-${each.key}-db-replica-lag"
-  alarm_description   = "Read replica ${each.value.identifier} is lagging behind the primary."
-  namespace           = "AWS/RDS"
-  metric_name         = "ReplicaLag"
-  dimensions          = { DBInstanceIdentifier = each.value.identifier }
-  statistic           = "Maximum"
-  period              = 300
-  evaluation_periods  = 2
-  threshold           = var.replica_lag_threshold_seconds
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
-
-# ---------------------------------------------------------------------------------------------
-# Worker log lines (structured JSON from pino; ADR-0071 review round 5, C5-M1)
-# ---------------------------------------------------------------------------------------------
 
 locals {
-  worker_metric_namespace = "Harbour/${var.name_prefix}/worker"
-}
-
-# Once a day the worker writes one `escalation.unrouted.daily` line per organisation where safety
-# work reached no one who could act (an overdue task, an escalation chain step, an urgent review
-# or alert, a break-glass alert). Any such line alarms (docs/runbooks/on-call.md). The period is an
-# hour, not a day, so the alarm returns to OK within the hour after each daily run and every run
-# with a line notifies again: an organisation that stays unrouted for weeks never holds the alarm
-# in ALARM and hides another organisation's first line (review round 5 check, HZ-073).
-resource "aws_cloudwatch_log_metric_filter" "escalation_unrouted_daily" {
-  name           = "${var.name_prefix}-escalation-unrouted-daily"
-  log_group_name = var.worker_log_group_name
-  pattern        = "{ $.event = \"escalation.unrouted.daily\" }"
-
-  metric_transformation {
-    name      = "EscalationUnroutedDaily"
-    namespace = local.worker_metric_namespace
-    value     = "1"
-    unit      = "Count"
+  log_alert_rules = {
+    for k, v in local.worker_events : k => {
+      metric      = "logging.googleapis.com/user/${google_logging_metric.worker[k].name}"
+      aligner     = "ALIGN_SUM"
+      period      = v.period
+      threshold   = 0
+      comparison  = "COMPARISON_GT"
+      description = v.description
+    }
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "escalation_unrouted_daily" {
-  alarm_name          = "${var.name_prefix}-escalation-unrouted"
-  alarm_description   = "Safety work in at least one organisation reached no one who could act (escalation.unrouted.daily). Tell the organisation the same working day: docs/runbooks/on-call.md."
-  namespace           = local.worker_metric_namespace
-  metric_name         = aws_cloudwatch_log_metric_filter.escalation_unrouted_daily.metric_transformation[0].name
-  statistic           = "Sum"
-  period              = 3600
-  evaluation_periods  = 1
-  threshold           = 1
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
+resource "google_monitoring_alert_policy" "worker_events" {
+  for_each = local.log_alert_rules
 
-# Every worker job that throws writes one `worker.job.failed` line (the queue's name and the
-# error's kind only); pg-boss then retries it. Reminders, escalations and notification clocks may
-# be late while it fails (HZ-003, HZ-008, HZ-013).
-resource "aws_cloudwatch_log_metric_filter" "worker_job_failed" {
-  name           = "${var.name_prefix}-worker-job-failed"
-  log_group_name = var.worker_log_group_name
-  pattern        = "{ $.event = \"worker.job.failed\" }"
+  project               = var.project_id
+  display_name          = "${var.name_prefix} ${each.key}"
+  combiner              = "OR"
+  notification_channels = local.channels
 
-  metric_transformation {
-    name      = "WorkerJobFailed"
-    namespace = local.worker_metric_namespace
-    value     = "1"
-    unit      = "Count"
+  documentation {
+    content   = "${each.value.description} See docs/runbooks/on-call.md."
+    mime_type = "text/markdown"
+  }
+
+  conditions {
+    display_name = each.key
+
+    condition_threshold {
+      filter          = "metric.type=\"${each.value.metric}\" AND resource.type=\"cloud_run_revision\""
+      comparison      = each.value.comparison
+      threshold_value = each.value.threshold
+      duration        = "0s"
+
+      aggregations {
+        alignment_period   = "${each.value.period}s"
+        per_series_aligner = each.value.aligner
+      }
+
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  alert_strategy {
+    auto_close = "86400s"
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "worker_job_failed" {
-  alarm_name          = "${var.name_prefix}-worker-job-failed"
-  alarm_description   = "A worker job failed (worker.job.failed): reminders, escalations or notification clocks may be late. See docs/runbooks/on-call.md."
-  namespace           = local.worker_metric_namespace
-  metric_name         = aws_cloudwatch_log_metric_filter.worker_job_failed.metric_transformation[0].name
-  statistic           = "Sum"
-  period              = var.worker_job_failure_period_seconds
-  evaluation_periods  = 1
-  threshold           = var.worker_job_failure_threshold
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
-}
+# The API answering with server errors.
+resource "google_monitoring_alert_policy" "api_5xx" {
+  project               = var.project_id
+  display_name          = "${var.name_prefix} api 5xx"
+  combiner              = "OR"
+  notification_channels = local.channels
 
+  conditions {
+    display_name = "API server errors"
 
-# An export met a row of another organisation (`security.export.foreign_rows`; PLAT-015, HZ-070):
-# row-level security has failed somewhere. The export is failed and never offered; any line is a
-# security incident (docs/runbooks/on-call.md).
-resource "aws_cloudwatch_log_metric_filter" "export_foreign_rows" {
-  name           = "${var.name_prefix}-export-foreign-rows"
-  log_group_name = var.worker_log_group_name
-  pattern        = "{ $.event = \"security.export.foreign_rows\" }"
+    condition_threshold {
+      filter          = "metric.type=\"run.googleapis.com/request_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"${var.api_service_name}\" AND metric.label.response_code_class=\"5xx\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 10
+      duration        = "300s"
 
-  metric_transformation {
-    name      = "ExportForeignRows"
-    namespace = local.worker_metric_namespace
-    value     = "1"
-    unit      = "Count"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "export_foreign_rows" {
-  alarm_name          = "${var.name_prefix}-export-foreign-rows"
-  alarm_description   = "A full export met another organisation's row (security.export.foreign_rows): treat as a security incident. See docs/runbooks/on-call.md."
-  namespace           = local.worker_metric_namespace
-  metric_name         = aws_cloudwatch_log_metric_filter.export_foreign_rows.metric_transformation[0].name
-  statistic           = "Sum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = 1
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.actions
-  ok_actions          = local.actions
+# Databases: CPU and disk.
+resource "google_monitoring_alert_policy" "sql" {
+  for_each = var.sql_instances
+
+  project               = var.project_id
+  display_name          = "${var.name_prefix} ${each.key} database"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "CPU above 80%"
+
+    condition_threshold {
+      filter          = "metric.type=\"cloudsql.googleapis.com/database/cpu/utilization\" AND resource.type=\"cloudsql_database\" AND resource.label.database_id=\"${var.project_id}:${each.value}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.8
+      duration        = "900s"
+
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+
+  conditions {
+    display_name = "Disk above 85%"
+
+    condition_threshold {
+      filter          = "metric.type=\"cloudsql.googleapis.com/database/disk/utilization\" AND resource.type=\"cloudsql_database\" AND resource.label.database_id=\"${var.project_id}:${each.value}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0.85
+      duration        = "900s"
+
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MEAN"
+      }
+    }
+  }
+}
+
+# The worker and PowerSync must always run: no instance for 10 minutes alerts.
+resource "google_monitoring_alert_policy" "always_on" {
+  for_each = toset(var.always_on_services)
+
+  project               = var.project_id
+  display_name          = "${var.name_prefix} ${each.key} not running"
+  combiner              = "OR"
+  notification_channels = local.channels
+
+  conditions {
+    display_name = "No instances"
+
+    condition_absent {
+      filter   = "metric.type=\"run.googleapis.com/container/instance_count\" AND resource.type=\"cloud_run_revision\" AND resource.label.service_name=\"${each.key}\""
+      duration = "600s"
+
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
 }

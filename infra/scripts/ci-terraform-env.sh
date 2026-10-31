@@ -5,17 +5,16 @@
 #
 #   infra/scripts/ci-terraform-env.sh <env>
 #
-# Reads: AWS_ACCOUNT_ID, DOMAIN_NAME, STATE_BUCKET (required); STATE_KMS_KEY_ARN,
-# ROUTE53_ZONE_ID, ALERT_EMAILS and BUDGET_EMAILS (JSON lists), all optional. The safety case
-# version is the newest report in docs/clinical-safety/safety-case/ unless SAFETY_CASE_VERSION
-# names one.
+# Reads: GCP_PROJECT_ID, DOMAIN_NAME, STATE_BUCKET (required); STATE_KMS_KEY, DNS_ZONE_NAME,
+# ALERT_EMAILS (a JSON list) and BILLING_ACCOUNT_ID, all optional. The safety case version is
+# the newest report in docs/clinical-safety/safety-case/ unless SAFETY_CASE_VERSION names one.
 
 set -euo pipefail
 
 ENVIRONMENT="${1:?usage: $0 <env>}"
 DIR="$(cd "$(dirname "$0")/../envs/${ENVIRONMENT}" && pwd)"
 
-for name in AWS_ACCOUNT_ID DOMAIN_NAME STATE_BUCKET; do
+for name in GCP_PROJECT_ID DOMAIN_NAME STATE_BUCKET; do
   if [[ -z "${!name:-}" ]]; then
     echo "::error::Repository variable for ${name} is not set for ${ENVIRONMENT}; see infra/README.md."
     exit 1
@@ -23,13 +22,10 @@ for name in AWS_ACCOUNT_ID DOMAIN_NAME STATE_BUCKET; do
 done
 
 {
-  echo "bucket       = \"${STATE_BUCKET}\""
-  echo "key          = \"${ENVIRONMENT}/terraform.tfstate\""
-  echo "region       = \"eu-west-2\""
-  echo "encrypt      = true"
-  echo "use_lockfile = true"
-  if [[ -n "${STATE_KMS_KEY_ARN:-}" ]]; then
-    echo "kms_key_id   = \"${STATE_KMS_KEY_ARN}\""
+  echo "bucket = \"${STATE_BUCKET}\""
+  echo "prefix = \"${ENVIRONMENT}\""
+  if [[ -n "${STATE_KMS_KEY:-}" ]]; then
+    echo "kms_encryption_key = \"${STATE_KMS_KEY}\""
   fi
 } >"${DIR}/backend.hcl"
 
@@ -45,13 +41,12 @@ fi
 
 out="${GITHUB_ENV:-/dev/stdout}"
 {
-  echo "TF_VAR_aws_account_id=${AWS_ACCOUNT_ID}"
+  echo "TF_VAR_project_id=${GCP_PROJECT_ID}"
   echo "TF_VAR_domain_name=${DOMAIN_NAME}"
   echo "TF_VAR_state_bucket_name=${STATE_BUCKET}"
   echo "TF_VAR_safety_case_version=${SAFETY_CASE_VERSION}"
-  [[ -n "${STATE_KMS_KEY_ARN:-}" ]] && echo "TF_VAR_state_kms_key_arn=${STATE_KMS_KEY_ARN}"
-  [[ -n "${ROUTE53_ZONE_ID:-}" ]] && echo "TF_VAR_route53_zone_id=${ROUTE53_ZONE_ID}"
+  [[ -n "${DNS_ZONE_NAME:-}" ]] && echo "TF_VAR_dns_zone_name=${DNS_ZONE_NAME}"
   [[ -n "${ALERT_EMAILS:-}" ]] && echo "TF_VAR_alert_email_addresses=${ALERT_EMAILS}"
-  [[ -n "${BUDGET_EMAILS:-}" ]] && echo "TF_VAR_budget_email_addresses=${BUDGET_EMAILS}"
+  [[ -n "${BILLING_ACCOUNT_ID:-}" ]] && echo "TF_VAR_billing_account_id=${BILLING_ACCOUNT_ID}"
   true
 } >>"${out}"

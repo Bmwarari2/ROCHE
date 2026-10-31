@@ -1,34 +1,24 @@
-output "vpc_id" {
-  description = "VPC ID."
-  value       = aws_vpc.this.id
+output "network_id" {
+  value = google_compute_network.this.id
 }
 
-output "vpc_cidr_block" {
-  description = "VPC IPv4 CIDR block."
-  value       = aws_vpc.this.cidr_block
+output "network_self_link" {
+  value = google_compute_network.this.self_link
 }
 
-output "public_subnet_ids" {
-  description = "Public subnet IDs, one per availability zone."
-  value       = [for az in var.availability_zones : aws_subnet.public[az].id]
+output "subnet_id" {
+  value = google_compute_subnetwork.run.id
 }
 
-output "private_subnet_ids" {
-  description = "Private subnet IDs, one per availability zone."
-  value       = [for az in var.availability_zones : aws_subnet.private[az].id]
+output "subnet_region" {
+  value = google_compute_subnetwork.run.region
 }
 
-output "data_subnet_ids" {
-  description = "Isolated data subnet IDs, one per availability zone."
-  value       = [for az in var.availability_zones : aws_subnet.data[az].id]
+output "subnet_cidr" {
+  value = google_compute_subnetwork.run.ip_cidr_range
 }
 
-output "nat_public_ips" {
-  description = "Elastic IP addresses of the NAT gateways (useful for allow-lists at third parties)."
-  value       = [for eip in aws_eip.nat : eip.public_ip]
-}
-
-output "s3_gateway_endpoint_id" {
-  description = "ID of the S3 gateway endpoint (usable in bucket policies with aws:SourceVpce)."
-  value       = aws_vpc_endpoint.s3.id
+output "private_services_connection" {
+  description = "Depend on this before creating a Cloud SQL instance with a private IP."
+  value       = google_service_networking_connection.private_services.id
 }
