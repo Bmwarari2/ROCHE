@@ -41,3 +41,46 @@ export file is slice 76 (only its port is here).
 - **Data protection:** records of processing, data standards, retention and the export catalogue.
 - **Hazard log:** HZ-011 tests; there is no new clinical hazard, because pay does not touch care.
 - **Human actions:** H-1100 to H-1109.
+
+## Review fixes
+
+I ran the security and clinical-safety reviewers and fixed what they found.
+
+### Pay calculation
+
+- An entry is counted in the period it starts, for pay and for minimum wage hours alike.
+- A day a night shift touches is never an SSP sick day. That includes the first day of a period
+  when the previous period's night ran into it.
+- SSP is worked out at each day's rate, so days either side of 6 April use their own rate.
+- New exception: `no_qualifying_days`.
+- Bank holidays are loaded past the period's end, for nights that run into a bank holiday.
+
+### Exceptions and overrides
+
+- A line's hash now covers the rates as well as the inputs, so an override no longer carries
+  forward after the rate table changes.
+- An override carries forward only from the previous calculation, and only with the line's own
+  hash.
+- An override's time is set by the database. Its creator and soft delete are fixed.
+- Only a missing rate-table figure becomes `rate_missing`.
+
+### Access
+
+- The pay permissions need MFA.
+- The API checks pay is held organisation-wide with the database's own function, and a test
+  covers a manager holding pay permissions at one location only.
+- A run's creator is set by the database.
+- A member reads their own lines with `workforce.self.read` or `scheduling.timesheet.self`.
+
+### Migrations
+
+- The 0109 opt-out record-version policy fix now lives in 0116, so a database that already applied
+  0109 gets it. 0109 is unchanged from slice 30.
+
+### Docs
+
+- Records of processing: pay holds special category data.
+- Medical-device boundary: the slice 36 re-check.
+- Human actions: H-1101, H-1102, H-1104 and H-1106 extended.
+- New domain tests for the clock-change nights.
+

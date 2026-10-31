@@ -51,6 +51,7 @@ import {
   calculateLine,
   figuresOf,
   type LineRow,
+  lineHash,
   lineInputs,
   type Nation,
   nationOfTenant,
@@ -59,9 +60,9 @@ import {
   priorOverride,
   type RuleSetRow,
   type RunRow,
+  ratesByDay,
   ruleSetFull,
   ruleSetInForce,
-  sha256,
 } from "../services/pay";
 import { payrollExportNotConfigured } from "../services/payroll-export";
 import { withSystemRights } from "../services/system-rights";
@@ -120,7 +121,15 @@ async function requirePay(
     permissions.length === 1
       ? await requirePermission(c, permissions[0])
       : await requireAnyPermission(c, permissions);
-  if (access.context.scope !== "tenant" && access.context.scope !== "none") {
+  // The database's own test (rule 13): a tenant-wide role or one with no location scope.
+  const wide = await withTenant(c, async (tx) => {
+    for (const p of permissions) {
+      const r = await tx.execute<{ ok: boolean }>(sql`SELECT app.holds_pay_permission(${p}) AS ok`);
+      if (r.rows[0]?.ok === true) return true;
+    }
+    return false;
+  });
+  if (!wide) {
     await writeAudit(c.get("services").appPool, access, {
       action: "scheduling.pay.refused",
       outcome: "denied",
@@ -820,7 +829,11 @@ export const payRouter = createRouter()
         const nation: Nation = await nationOfTenant(tx);
         const rows = await payRateRows(tx);
         const rates = payRatesOrNull(rows, nation, r.periodStart, access.tenantId);
-        const holidays = await bankHolidaysIn(tx, nation, r.periodStart, r.periodEnd);
+        // A night may run past the period's end: its hours there are paid in this run (rule 3).
+        const lastDay = new Date(Date.parse(`${r.periodEnd}T12:00:00Z`) + 2 * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+        const holidays = await bankHolidaysIn(tx, nation, r.periodStart, lastDay);
         const set = ruleSetFull(setRow, holidays);
         const inputs = await lineInputs(tx, r, set, rows, nation, access.tenantId, rates);
         const [next] = await tx
@@ -837,8 +850,8 @@ export const payRouter = createRouter()
           .returning();
         if (!next) throw stale();
         for (const input of inputs) {
-          const line = calculateLine(input, rates);
-          const hash = sha256(line.canonicalInput);
+          const line = calculateLine(input, rates, ratesByDay(rows, nation, access.tenantId));
+          const hash = lineHash(line.canonicalInput, rates);
           await tx.insert(payRunLine).values({
             runId: id,
             calculation: next.calculation,
@@ -1143,11 +1156,16 @@ export const payRouter = createRouter()
           r.periodStart,
           access.tenantId,
         );
-        const again = calculateLine(payLineInputFromJson(l.inputs), rates);
-        const hash = sha256(again.canonicalInput);
-        const stored = figuresOf(l);
+        const stored = r.rateRows as RateRow[];
+        const again = calculateLine(
+          payLineInputFromJson(l.inputs),
+          rates,
+          ratesByDay(stored, r.nation as Nation, access.tenantId),
+        );
+        const hash = lineHash(again.canonicalInput, rates);
+        const was = figuresOf(l);
         const fresh = figuresOf(again);
-        const differences = Object.keys(stored).filter((k) => stored[k] !== fresh[k]);
+        const differences = Object.keys(was).filter((k) => was[k] !== fresh[k]);
         await audit(c, tx, access, {
           action: A.runViewed,
           resourceType: "pay_run",
@@ -1175,7 +1193,10 @@ export const payRouter = createRouter()
       responses: { 200: jsonBody(MyPayLines, "Lines"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, "scheduling.timesheet.self");
+      const access = await requireAnyPermission(c, [
+        "workforce.self.read",
+        "scheduling.timesheet.self",
+      ]);
       const items = await withTenant(c, async (tx) => {
         const rows = await tx
           .select({ l: payRunLine, r: payRun })

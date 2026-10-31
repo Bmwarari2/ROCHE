@@ -20,6 +20,7 @@ import {
   awrClock,
   awrWeeksFromShifts,
   payRunLine as calculateLine,
+  canonicalInput,
   type Enhancement,
   PAY_RATE_KEYS,
   type PayEntry,
@@ -31,13 +32,15 @@ import {
   periodsOfIncapacity,
   qualifyingDaysIn,
   type RateNation,
+  RateNotFoundError,
   type RateRow,
   resolveAbsenceRates,
   resolvePayRates,
   ukEndOfDay,
+  ukIsoDate,
   ukStartOfDay,
 } from "@harbour/domain";
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { rateRows } from "./rates";
 import { withSystemRights } from "./system-rights";
 
@@ -109,8 +112,10 @@ export function payRatesOrNull(
 ): PayRates | null {
   try {
     return resolvePayRates(rows, nation, on, tenantId);
-  } catch {
-    return null;
+  } catch (error) {
+    // Only a missing figure is an exception to put right; anything else is a fault.
+    if (error instanceof RateNotFoundError) return null;
+    throw error;
   }
 }
 
@@ -156,6 +161,20 @@ export async function lineInputs(
         and(
           gte(timesheetEntry.startedAt, range.start),
           lt(timesheetEntry.startedAt, range.end),
+          isNull(timesheetEntry.deletedAt),
+        ),
+      );
+    // Approved entries that started before the period (up to the longest entry) but run into it:
+    // their days are worked days, never sick days, in this period (rule 6).
+    const earlier = await tx
+      .select()
+      .from(timesheetEntry)
+      .where(
+        and(
+          gte(timesheetEntry.startedAt, new Date(range.start.getTime() - 2 * 86_400_000)),
+          lt(timesheetEntry.startedAt, range.start),
+          gt(timesheetEntry.endedAt, range.start),
+          eq(timesheetEntry.status, "approved"),
           isNull(timesheetEntry.deletedAt),
         ),
       );
@@ -316,6 +335,23 @@ export async function lineInputs(
         profile,
         entries: current,
         unapprovedEntryIds: drafts,
+        alsoWorkedOn: [
+          ...new Set(
+            earlier
+              .filter((e) => e.workerId === memberId)
+              .flatMap((e) => {
+                const out: string[] = [];
+                for (
+                  let d = ukIsoDate(range.start);
+                  d <= ukIsoDate(new Date(e.endedAt.getTime() - 1)) && d <= run.periodEnd;
+                  d = ukIsoDate(new Date(ukStartOfDay(d).getTime() + 36 * 3_600_000))
+                ) {
+                  out.push(d);
+                }
+                return out;
+              }),
+          ),
+        ].sort(),
         sickness,
         awr,
         previousTotalPence: previous === null ? null : (previous.get(memberId) ?? 0),
@@ -390,3 +426,24 @@ export async function priorOverride(
 }
 
 export { calculateLine };
+
+/**
+ * A line's input hash: its canonical inputs and the rates they were calculated at, so an override
+ * never outlives a change in the rate table (rule 9; clinical review).
+ */
+export function lineHash(canonical: string, rates: PayRates | null): string {
+  return sha256(`${canonical}\n${canonicalInput(rates)}`);
+}
+
+/** The rates in force on each day, for SSP (whose rate changes by day). */
+export function ratesByDay(
+  rows: readonly RateRow[],
+  nation: Nation,
+  tenantId: string,
+): (date: string) => PayRates | null {
+  const cache = new Map<string, PayRates | null>();
+  return (date) => {
+    if (!cache.has(date)) cache.set(date, payRatesOrNull(rows, nation, date, tenantId));
+    return cache.get(date) ?? null;
+  };
+}

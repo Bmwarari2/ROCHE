@@ -74,6 +74,7 @@ const input = (over: Partial<PayLineInput> = {}): PayLineInput => ({
   profile: PROFILE,
   entries: [entry("e1", "2026-11-02 08:00", "2026-11-02 16:00")],
   unapprovedEntryIds: [],
+  alsoWorkedOn: [],
   sickness: null,
   awr: null,
   previousTotalPence: null,
@@ -136,11 +137,33 @@ describe("paid time split at midnight and the night window (rule 3)", () => {
     expect(minutes(paidPieces(e, SET))).toEqual(expected);
   });
 
-  it("hazard HZ-010 counts the night the clocks go back by the instants worked (13 hours)", () => {
-    const pieces = paidPieces(entry("g", "2026-10-24 20:00", "2026-10-25 08:00"), SET);
-    expect(
-      pieces.reduce((n, p) => n + (p.span.end.getTime() - p.span.start.getTime()) / MIN, 0),
-    ).toBe(780);
+  it.each([
+    // Saturday 24 to Sunday 25 October 2026: clocks go back at 02:00 BST; 13 hours, 9 at night.
+    [
+      "the autumn change",
+      "2026-10-24 20:00",
+      "2026-10-25 08:00",
+      [
+        [120, "weekend"],
+        [120, "night+weekend"],
+        [420, "night+weekend"],
+        [120, "weekend"],
+      ],
+    ],
+    // 28 March 2027: clocks go forward at 01:00 GMT; 11 hours, 7 of them in the night window.
+    [
+      "the spring change",
+      "2027-03-27 20:00",
+      "2027-03-28 08:00",
+      [
+        [120, "weekend"],
+        [120, "night+weekend"],
+        [300, "night+weekend"],
+        [120, "weekend"],
+      ],
+    ],
+  ] as const)("splits a night over %s by the instants worked", (_, from, to, expected) => {
+    expect(minutes(paidPieces(entry("g", from, to), SET))).toEqual(expected);
   });
 
   it.each([
@@ -235,6 +258,51 @@ describe("a member's line (rules 3 to 9)", () => {
     expect(fresh.working.some((w) => /2 qualifying days/.test(w.step))).toBe(true);
     const exhausted = sick(rates.sspMaxWeeks * 5);
     expect(exhausted.sspPence).toBe(0);
+  });
+
+  it("counts a night across the period's end whole, for pay and the minimum wage alike", () => {
+    const line = payRunLine(
+      input({ entries: [entry("x", "2026-11-08 22:00", "2026-11-09 08:00")] }),
+      rates,
+    );
+    expect(line.paidMinutes).toBe(600);
+    expect(line.nmwMinutes).toBe(600);
+  });
+
+  it("never pays SSP for a day a night shift touched, or one worked from the last period", () => {
+    const line = payRunLine(
+      input({
+        profile: { ...PROFILE, sspAverageWeeklyEarningsPence: 50_000 },
+        entries: [entry("n", "2026-11-03 20:00", "2026-11-04 08:00")],
+        alsoWorkedOn: ["2026-11-02"],
+        sickness: { days: ["2026-11-02", "2026-11-04", "2026-11-05"], daysAlreadyPaid: 0 },
+      }),
+      rates,
+    );
+    expect(line.working.some((w) => /^1 qualifying days/.test(w.step))).toBe(true);
+  });
+
+  it("raises an exception for sickness with no qualifying days on the profile", () => {
+    const line = payRunLine(
+      input({
+        profile: { ...PROFILE, qualifyingWeekdays: [], sspAverageWeeklyEarningsPence: 50_000 },
+        sickness: { days: ["2026-11-04"], daysAlreadyPaid: 0 },
+      }),
+      rates,
+    );
+    expect(line.exceptions.map((e) => e.kind)).toEqual(["no_qualifying_days"]);
+  });
+
+  it("works out SSP at each day's rate when the rate changes in the period", () => {
+    const later = { ...rates, sspWeekly: (rates.sspWeekly as number) + 1_000 };
+    const sick = { days: ["2026-11-04", "2026-11-05"], daysAlreadyPaid: 0 };
+    const profile = { ...PROFILE, sspAverageWeeklyEarningsPence: 100_000 };
+    const one = payRunLine(input({ profile, sickness: sick }), rates, () => rates);
+    const split = payRunLine(input({ profile, sickness: sick }), rates, (d) =>
+      d >= "2026-11-05" ? later : rates,
+    );
+    expect(split.sspPence).toBeGreaterThan(one.sspPence);
+    expect(split.working.filter((w) => /qualifying days at/.test(w.step))).toHaveLength(2);
   });
 
   it("accrues holiday for an irregular-hours worker and adds rolled-up pay as its own line", () => {

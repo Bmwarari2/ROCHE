@@ -179,10 +179,9 @@ describe("runs: drafted, checked by a second person and locked (rules 9, 11 and 
     await asFinance(async (c) => {
       await calculate(c, a.manager);
       await line(c, 1);
+      await line(c, 1, a.northManager);
     });
-    await expect(asFinance((c) => line(c, 2, a.northManager))).rejects.toThrow(
-      /row-level security/,
-    );
+    await expect(asFinance((c) => line(c, 2, PAYA))).rejects.toThrow(/row-level security/);
     await expect(
       asFinance((c) => c.query("UPDATE pay_run_line SET total_pence = 1 WHERE run_id = $1", [RUN])),
     ).rejects.toThrow();
@@ -217,6 +216,18 @@ describe("runs: drafted, checked by a second person and locked (rules 9, 11 and 
     );
   });
 
+  it("never carries an override whose hash is not the line's", async () => {
+    await expect(
+      asFinance((c) =>
+        c.query(
+          `INSERT INTO pay_run_exception (run_id, calculation, member_id, kind, line_input_hash)
+           VALUES ($1, 1, $2, 'rate_missing', $3)`,
+          [RUN, a.carer, "b".repeat(64)],
+        ),
+      ),
+    ).rejects.toThrow(/line's input hash/);
+  });
+
   it("refuses the person who created or calculated it locking it", async () => {
     await expect(asFinance((c) => lock(c, a.manager))).rejects.toThrow(/neither created/);
   });
@@ -227,6 +238,9 @@ describe("runs: drafted, checked by a second person and locked (rules 9, 11 and 
   });
 
   it("lets the member read their own locked line, never the others", async () => {
+    expect(await asOwner(TENANT_A, (o) => count(o, "SELECT count(*) AS n FROM pay_run_line"))).toBe(
+      2,
+    );
     expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM pay_run_line"))).toBe(1);
     expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM pay_run_exception"))).toBe(0);
     expect(await asCarer((c) => count(c, "SELECT count(*) AS n FROM pay_run"))).toBe(1);

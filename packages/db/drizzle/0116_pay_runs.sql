@@ -122,7 +122,7 @@ CREATE TABLE "pay_run_exception" (
 	"version" integer DEFAULT 1 NOT NULL,
 	"deleted_at" timestamp with time zone,
 	CONSTRAINT "pay_run_exception_tenant_id_id_key" UNIQUE("tenant_id","id"),
-	CONSTRAINT "pay_run_exception_kind" CHECK (kind IN ('unapproved_timesheet', 'no_pay_profile', 'no_role_rate', 'no_date_of_birth', 'below_nmw', 'ssp_earnings_missing', 'rate_missing')),
+	CONSTRAINT "pay_run_exception_kind" CHECK (kind IN ('unapproved_timesheet', 'no_pay_profile', 'no_role_rate', 'no_date_of_birth', 'below_nmw', 'ssp_earnings_missing', 'no_qualifying_days', 'rate_missing')),
 	CONSTRAINT "pay_run_exception_status" CHECK (status IN ('open', 'overridden')),
 	CONSTRAINT "pay_run_exception_override" CHECK ((status = 'overridden') = (overridden_by IS NOT NULL AND overridden_at IS NOT NULL AND override_reason IS NOT NULL)
         AND (override_reason IS NULL OR char_length(btrim(override_reason)) BETWEEN 3 AND 500)
@@ -377,9 +377,12 @@ DECLARE
   v_target public.pay_run%ROWTYPE;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    IF NEW.status <> 'draft' OR NEW.calculation <> 0 OR NEW.locked_by IS NOT NULL THEN
+    IF NEW.status <> 'draft' OR NEW.calculation <> 0 OR NEW.locked_by IS NOT NULL
+       OR NEW.locked_at IS NOT NULL OR NEW.calculated_by IS NOT NULL OR NEW.calculated_at IS NOT NULL THEN
       RAISE EXCEPTION 'A pay run starts as an uncalculated draft' USING ERRCODE = 'check_violation';
     END IF;
+    -- Who created it is who inserts it: the lock check relies on it (security review L1).
+    NEW.created_by := v_me;
     IF NOT EXISTS (SELECT 1 FROM public.pay_rule_set s WHERE s.tenant_id = NEW.tenant_id
                      AND s.id = NEW.rule_set_id AND s.status = 'approved') THEN
       RAISE EXCEPTION 'A pay run uses an approved pay rule set' USING ERRCODE = 'check_violation';
@@ -486,7 +489,7 @@ BEGIN
     IF NEW.status <> 'open' AND NOT EXISTS (
          SELECT 1 FROM public.pay_run_exception e
          WHERE e.tenant_id = NEW.tenant_id AND e.run_id = NEW.run_id
-           AND e.calculation < NEW.calculation AND e.member_id = NEW.member_id
+           AND e.calculation = NEW.calculation - 1 AND e.member_id = NEW.member_id
            AND e.kind = NEW.kind AND e.ref IS NOT DISTINCT FROM NEW.ref
            AND e.line_input_hash = NEW.line_input_hash AND e.status = 'overridden'
            AND e.overridden_by IS NOT DISTINCT FROM NEW.overridden_by
@@ -494,17 +497,26 @@ BEGIN
       RAISE EXCEPTION 'An exception starts open, unless carried from an override of the same inputs'
         USING ERRCODE = 'check_violation';
     END IF;
+    -- Its hash is the line's, when the line is written (they share a calculation).
+    IF EXISTS (SELECT 1 FROM public.pay_run_line l
+               WHERE l.tenant_id = NEW.tenant_id AND l.run_id = NEW.run_id
+                 AND l.calculation = NEW.calculation AND l.member_id = NEW.member_id
+                 AND l.input_hash <> NEW.line_input_hash) THEN
+      RAISE EXCEPTION 'An exception carries its line''s input hash' USING ERRCODE = 'check_violation';
+    END IF;
     RETURN NEW;
   END IF;
   IF OLD.status <> 'open' OR NEW.status <> 'overridden'
-     OR (NEW.run_id, NEW.calculation, NEW.member_id, NEW.kind, NEW.ref, NEW.line_input_hash)
+     OR (NEW.run_id, NEW.calculation, NEW.member_id, NEW.kind, NEW.ref, NEW.line_input_hash,
+         NEW.created_by, NEW.deleted_at)
         IS DISTINCT FROM (OLD.run_id, OLD.calculation, OLD.member_id, OLD.kind, OLD.ref,
-          OLD.line_input_hash)
+          OLD.line_input_hash, OLD.created_by, NULL::timestamptz)
      OR app.pay_run_status(OLD.run_id) IS DISTINCT FROM 'draft'
      OR OLD.calculation IS DISTINCT FROM app.pay_run_calculation(OLD.run_id) THEN
     RAISE EXCEPTION 'An open exception of a draft''s latest calculation is overridden once, and nothing else changes'
       USING ERRCODE = 'check_violation';
   END IF;
+  NEW.overridden_at := now();
   IF v_me IS NULL OR NEW.overridden_by IS DISTINCT FROM v_me OR v_me = OLD.member_id THEN
     RAISE EXCEPTION 'An exception is overridden in the approver''s own name, never on their own line'
       USING ERRCODE = 'insufficient_privilege';
@@ -551,3 +563,17 @@ CREATE POLICY record_version_pay ON public.record_version AS RESTRICTIVE FOR SEL
   USING (table_name NOT IN ('pay_rule_set', 'pay_profile', 'pay_run', 'pay_run_exception')
     OR app.reads_pay()
     OR (table_name = 'pay_profile' AND (data->>'member_id')::uuid = app.current_user_id()));
+--> statement-breakpoint
+-- Earlier versions of opt-outs follow the opt-out table's own read rule (approvers of the member's
+-- time, migration 0109's reads_worker_time), not approvers anywhere. Replaces 0109's policy here,
+-- so a database that applied 0109 gets it too (security review L7).
+DROP POLICY record_version_time ON public.record_version;
+--> statement-breakpoint
+CREATE POLICY record_version_time ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app
+  USING (table_name NOT IN ('clock_setting', 'timesheet_entry', 'working_time_opt_out')
+    OR (table_name = 'clock_setting' AND app.reads_rota((data->>'location_id')::uuid))
+    OR (table_name = 'timesheet_entry' AND ((data->>'worker_id')::uuid = app.current_user_id()
+      OR app.reads_time_records((data->>'location_id')::uuid)))
+    OR (table_name = 'working_time_opt_out' AND ((data->>'worker_id')::uuid = app.current_user_id()
+      OR app.reads_worker_time((data->>'worker_id')::uuid))));

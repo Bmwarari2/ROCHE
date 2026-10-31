@@ -1174,7 +1174,8 @@ the rows it used, so it reproduces whatever the table says later.
    workplace and travel between assignments, less breaks; each stretch is split at UK midnight and
    at the rule set's night window, and gets the night, weekend (Saturday or Sunday, UK date) and
    bank holiday enhancements that apply (the nation's bank holidays from the calendar, plus the rule
-   set's extra days); minutes past `overtime_after_minutes` in the period get
+   set's extra days); an entry belongs to the period it starts in, so a night across the period's
+   end is paid, and counted for the minimum wage, whole in that run; minutes past `overtime_after_minutes` in the period get
    the overtime enhancement. A sleep-in pays the flat allowance, on-call away the on-call
    allowance, travel entries their mileage. Gross pay is the slice 6 rule (`grossPay`).
 4. **Minimum wage** (slice 6 rule 2): the hours that count are `nmwMinutesIn` over the period
@@ -1187,17 +1188,22 @@ the rows it used, so it reproduces whatever the table says later.
    mileage). The yearly ledger (28 days, rounding) is H-1103.
 6. **SSP** (slice 6 rule 4): qualifying days of sickness in the period that fall in a period of
    incapacity for work (section 17 rule 6), less days the member worked; the days already paid in
-   that period of incapacity before this pay period count towards the limit. With no average
-   weekly earnings on the profile, an `ssp_earnings_missing` exception.
+   that period of incapacity before this pay period count towards the limit. A day is worked if any
+   approved entry touches it (a night counts on both dates, and one from the previous period too).
+   SSP's rate is the one in force on each sick day (it changes on 6 April), so days at different
+   rates are worked out apart. With no average weekly earnings on the profile, an
+   `ssp_earnings_missing` exception; with no qualifying days, `no_qualifying_days`.
 7. **AWR** (slice 6 rule 6): for an agency worker, the clock from their bookings (section 15), shown
    on their line; qualifying is said, never acted on.
 8. **Auto-enrolment** (slice 6 rule 7): the category from age, state pension age and earnings
    (gross less mileage) for a weekly or monthly period, and qualifying earnings; a flag only.
 9. **Exceptions**: `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`,
-   `below_nmw`, `ssp_earnings_missing`, `rate_missing`. Each blocks locking until the cause is put
+   `below_nmw`, `ssp_earnings_missing`, `no_qualifying_days`, `rate_missing` (a missing rate-table
+   figure only; any other fault fails the calculation). Each blocks locking until the cause is put
    right and the run recalculated, or a holder of `scheduling.pay.approve` overrides it with a
-   reason (never their own line's). An override carries to a recalculation only while the line's
-   inputs are unchanged.
+   reason (never their own line's). An override carries to the next calculation only while the
+   line's input hash is unchanged; the hash covers the inputs and the rates they were worked at,
+   so a change in the rate table reopens it.
 10. **Reproducible**: each line stores its canonical inputs and their SHA-256, and the run the rate
     rows; recalculating a line from what is stored gives the same figures (`verify`).
 11. **Draft, check and lock**: a holder of `scheduling.pay.manage` drafts and calculates; a holder
@@ -1207,8 +1213,10 @@ the rows it used, so it reproduces whatever the table says later.
     approved time; each line shows the difference from the locked run it corrects (or that run's
     latest locked correction). A locked run is never edited. One open correction per run.
 13. **Organisation-wide**: pay is the employer's, so the pay permissions count only when held for
-    the whole organisation (a tenant-wide role or one with no location scope, such as Finance); a
-    location's manager sees no pay. A member reads their own locked lines.
+    the whole organisation (a tenant-wide role or one with no location scope, such as Finance), as
+    the API and the database both check (`app.holds_pay_permission`); a location's manager sees no
+    pay, even holding the pay permissions there. Both permissions need MFA (pay holds the staff
+    file's date of birth and sickness dates). A member reads their own locked lines.
 14. **Export port**: a locked run's lines are offered to the payroll export (slice 76) through the
     `scheduling.pay_run_locked` outbox event and the `PayrollExport` port; nothing is sent here.
 
@@ -1231,7 +1239,7 @@ the rows it used, so it reproduces whatever the table says later.
 | `POST /v1/pay-runs/{id}/lock` | Check and lock |
 | `POST /v1/pay-runs/{id}/corrections` | A correction run |
 | `GET /v1/pay-runs/{id}/lines/{lineId}/verify` | Recalculate a line from its stored inputs |
-| `GET /v1/me/pay-lines` | Own lines in locked runs |
+| `GET /v1/me/pay-lines` | Own lines in locked runs (`workforce.self.read` or `scheduling.timesheet.self`) |
 
 Audit events carry ids only (never figures): `scheduling.pay_rule_set.created`, `.changed`,
 `.approved`; `scheduling.pay_profile.changed`, `.viewed`; `scheduling.pay_run.created`,

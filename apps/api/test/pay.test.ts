@@ -127,9 +127,20 @@ describe("pay rule sets (rule 1)", () => {
     expect(other.status).toBe(200);
   });
 
-  it("hazard HZ-011 shows a location's manager no pay", async () => {
+  it("hazard HZ-011 shows a location's manager no pay, even holding the pay permissions there", async () => {
     expect((await as("manager", "/v1/pay-rule-sets")).status).toBe(403);
-    expect((await as("manager", "/v1/pay-runs")).status).toBe(403);
+    await sql(
+      `INSERT INTO role (key, name, scope_kind, permissions)
+       VALUES ('local_pay', 'Local pay', 'location', '{scheduling.pay.manage,scheduling.pay.approve}')`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'local_pay'`,
+      [DEMO.users.manager.id, LOC],
+    );
+    const runs = await as("manager", "/v1/pay-runs");
+    expect(runs.status).toBe(403);
+    expect(((await runs.json()) as { code: string }).code).toBe("pay_not_organisation_wide");
   });
 });
 
@@ -225,6 +236,10 @@ describe("a run: approved time only, checked by a second person and locked (rule
     const items = ((await mine.json()) as { items: { line: { memberId: string } }[] }).items;
     expect(items.map((i) => i.line.memberId)).toEqual([CARER]);
     expect((await as("carer", `/v1/pay-runs/${runId}`)).status).toBe(403);
+    const detail = (await (await as("quality", `/v1/pay-runs/${runId}`)).json()) as Detail;
+    expect(
+      (await as("carer", `/v1/pay-runs/${runId}/lines/${detail.lines[0]?.id}/verify`)).status,
+    ).toBe(403);
   });
 });
 
@@ -255,6 +270,11 @@ describe("corrections and overrides (rules 9 and 12)", () => {
     expect(detail.lines[0]?.differencePence).toBe(-1_350);
     const exception = detail.exceptions[0];
     expect(exception?.kind).toBe("unapproved_timesheet");
+    const byCarer = await as("carer", `/v1/pay-run-exceptions/${exception?.id}/override`, {
+      method: "POST",
+      body: { version: exception?.version, reason: "Not mine to say" },
+    });
+    expect(byCarer.status).toBe(403);
     const overridden = await as("quality", `/v1/pay-run-exceptions/${exception?.id}/override`, {
       method: "POST",
       body: { version: exception?.version, reason: "Paid next week once approved" },

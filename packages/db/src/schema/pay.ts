@@ -35,6 +35,7 @@ export const PAY_EXCEPTION_KIND_CODES = [
   "no_date_of_birth",
   "below_nmw",
   "ssp_earnings_missing",
+  "no_qualifying_days",
   "rate_missing",
 ] as const;
 

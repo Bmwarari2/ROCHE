@@ -3381,7 +3381,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       name: { description: "The rule set's name." },
-      version_number: { description: "Its version." },
+      version_number: { description: "Its version.", unit: "version" },
       effective_from: { description: "The first UK date it applies." },
       role_rates: { description: "Basic hourly rates by role key.", unit: "pence an hour" },
       enhancements: { description: "Enhancements: kind, percent or flat an hour, value." },

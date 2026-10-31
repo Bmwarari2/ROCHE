@@ -44,6 +44,7 @@ export const PAY_EXCEPTION_KINDS = [
   "no_date_of_birth",
   "below_nmw",
   "ssp_earnings_missing",
+  "no_qualifying_days",
   "rate_missing",
 ] as const;
 export type PayExceptionKind = (typeof PAY_EXCEPTION_KINDS)[number];
@@ -55,6 +56,8 @@ export const PAY_EXCEPTION_MESSAGES: Readonly<Record<PayExceptionKind, string>> 
   no_date_of_birth: "The staff file has no date of birth, so the minimum wage band is unknown.",
   below_nmw: "Pay is below the minimum wage: a top-up line was added. Check the rule set.",
   ssp_earnings_missing: "Sickness in the period, but no average weekly earnings for SSP.",
+  no_qualifying_days:
+    "Sickness in the period, but the pay profile names no qualifying days for SSP.",
   rate_missing: "The rate table has no figure the calculation needs for this date.",
 };
 
@@ -116,6 +119,11 @@ export interface PayLineInput {
   readonly entries: readonly PayEntry[];
   /** Draft entries starting in the period. */
   readonly unapprovedEntryIds: readonly string[];
+  /**
+   * UK dates in the period the member worked on an approved entry that started before it (a night
+   * from the previous period): never a sick day for SSP.
+   */
+  readonly alsoWorkedOn: readonly string[];
   /** Sickness in the period that falls in a period of incapacity, with what was paid before. */
   readonly sickness: {
     readonly days: readonly string[];
@@ -252,7 +260,12 @@ function workPeriodOf(e: PayEntry): WorkPeriod {
 }
 
 /** Rules 3 to 9: one member's line for a period. `rates` null: the rate table had no figure. */
-export function payRunLine(input: PayLineInput, rates: PayRates | null): PayLine {
+export function payRunLine(
+  input: PayLineInput,
+  rates: PayRates | null,
+  /** The rates in force on a day, for SSP, whose rate changes by day; the period's otherwise. */
+  ratesOn?: (date: string) => PayRates | null,
+): PayLine {
   const exceptions: PayException[] = input.unapprovedEntryIds.map((ref) => ({
     kind: "unapproved_timesheet",
     ref,
@@ -283,7 +296,16 @@ export function payRunLine(input: PayLineInput, rates: PayRates | null): PayLine
   });
   if (!p) return empty([{ kind: "no_pay_profile", ref: null }]);
   if (!rates) return empty([{ kind: "rate_missing", ref: null }]);
-  const range = ukDays(input.period.start, input.period.end);
+  // An entry belongs to the period it starts in: its pay and its minimum wage hours alike, so
+  // a night across the period's end is counted whole here and never in the next run.
+  const lastEnd = input.entries.reduce(
+    (t, e) => (e.end.getTime() > t ? e.end.getTime() : t),
+    ukDays(input.period.start, input.period.end).end.getTime(),
+  );
+  const range = {
+    start: ukDays(input.period.start, input.period.end).start,
+    end: new Date(lastEnd),
+  };
   const pieces = withOvertime(
     input.entries.flatMap((e) => paidPieces(e, input.ruleSet)),
     input.ruleSet.overtimeAfterMinutes,
@@ -379,29 +401,49 @@ export function payRunLine(input: PayLineInput, rates: PayRates | null): PayLine
   // Rule 6: SSP, never for a day the member worked.
   let ssp = 0;
   if (input.sickness && input.sickness.days.length > 0) {
-    const worked = new Set(input.entries.map((e) => ukDateOf(e.start)));
+    const worked = new Set([
+      ...input.alsoWorkedOn,
+      ...input.entries.flatMap((e) =>
+        datesFrom(ukDateOf(e.start), ukDateOf(plusMinutes(e.end, -1))),
+      ),
+    ]);
     const weekdays = new Set(p.qualifyingWeekdays);
     const days = input.sickness.days.filter((d) => {
       const weekday = new Date(`${d}T12:00:00Z`).getUTCDay() || DAYS_PER_WEEK;
       return weekdays.has(weekday) && !worked.has(d);
     });
-    if (p.sspAverageWeeklyEarningsPence === null) {
+    if (weekdays.size === 0) {
+      exceptions.push({ kind: "no_qualifying_days", ref: null });
+    } else if (p.sspAverageWeeklyEarningsPence === null) {
       exceptions.push({ kind: "ssp_earnings_missing", ref: null });
-    } else if (days.length > 0 && weekdays.size > 0) {
-      const result = sickPay(
-        {
-          averageWeeklyEarningsPence: p.sspAverageWeeklyEarningsPence,
-          qualifyingDaysPerWeek: weekdays.size,
-          sickQualifyingDays: days.length,
-          daysAlreadyPaid: input.sickness.daysAlreadyPaid,
-        },
-        rates,
-      );
-      if (result.applies) {
-        ssp = result.payPence;
-        working.push(...result.working);
-      } else {
-        working.push({ step: "SSP not applied (no rate for the nation)" });
+    } else if (days.length > 0) {
+      // SSP's rate changes by day (6 April): each run of days at one rate is worked out alone.
+      const groups = new Map<string, { rates: PayRates; days: string[] }>();
+      for (const d of days) {
+        const r = ratesOn?.(d) ?? rates;
+        const key = `${r.sspWeekly}:${r.sspEarningsPercent}:${r.sspWaitingDays}`;
+        const g = groups.get(key) ?? { rates: r, days: [] };
+        g.days.push(d);
+        groups.set(key, g);
+      }
+      let paidBefore = input.sickness.daysAlreadyPaid;
+      for (const g of groups.values()) {
+        const result = sickPay(
+          {
+            averageWeeklyEarningsPence: p.sspAverageWeeklyEarningsPence,
+            qualifyingDaysPerWeek: weekdays.size,
+            sickQualifyingDays: g.days.length,
+            daysAlreadyPaid: paidBefore,
+          },
+          g.rates,
+        );
+        if (result.applies) {
+          ssp += result.payPence;
+          paidBefore += result.daysPaid;
+          working.push(...result.working);
+        } else {
+          working.push({ step: "SSP not applied (no rate for the nation)" });
+        }
       }
     }
   }

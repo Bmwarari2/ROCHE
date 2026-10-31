@@ -390,4 +390,4 @@ CREATE POLICY record_version_time ON public.record_version AS RESTRICTIVE FOR SE
     OR (table_name = 'timesheet_entry' AND ((data->>'worker_id')::uuid = app.current_user_id()
       OR app.reads_time_records((data->>'location_id')::uuid)))
     OR (table_name = 'working_time_opt_out' AND ((data->>'worker_id')::uuid = app.current_user_id()
-      OR app.reads_worker_time((data->>'worker_id')::uuid))));
+      OR app.holds_permission_anywhere('scheduling.rota.approve'))));

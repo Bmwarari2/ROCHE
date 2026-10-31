@@ -22,6 +22,7 @@ export const PayExceptionKind = z
     "no_date_of_birth",
     "below_nmw",
     "ssp_earnings_missing",
+    "no_qualifying_days",
     "rate_missing",
   ])
   .meta({ id: "PayExceptionKind" });

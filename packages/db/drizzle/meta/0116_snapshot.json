@@ -920,1244 +920,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.pay_profile": {
-      "name": "pay_profile",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "frequency": {
-          "name": "frequency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employment": {
-          "name": "employment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'staff'"
-        },
-        "role_key": {
-          "name": "role_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "apprenticeship_started_on": {
-          "name": "apprenticeship_started_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "irregular_hours": {
-          "name": "irregular_hours",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "leave_year_start": {
-          "name": "leave_year_start",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "qualifying_weekdays": {
-          "name": "qualifying_weekdays",
-          "type": "integer[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'"
-        },
-        "ssp_average_weekly_earnings_pence": {
-          "name": "ssp_average_weekly_earnings_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "state_pension_age_on": {
-          "name": "state_pension_age_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "pay_profile_member_fk": {
-          "name": "pay_profile_member_fk",
-          "tableFrom": "pay_profile",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pay_profile_tenant_id_id_key": {
-          "name": "pay_profile_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        },
-        "pay_profile_member_key": {
-          "name": "pay_profile_member_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "member_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pay_profile_frequency": {
-          "name": "pay_profile_frequency",
-          "value": "frequency IN ('weekly', 'monthly')"
-        },
-        "pay_profile_employment": {
-          "name": "pay_profile_employment",
-          "value": "employment IN ('staff', 'bank', 'agency')"
-        },
-        "pay_profile_role": {
-          "name": "pay_profile_role",
-          "value": "role_key IS NULL OR role_key ~ '^[a-z][a-z0-9_]{0,59}$'"
-        },
-        "pay_profile_weekdays": {
-          "name": "pay_profile_weekdays",
-          "value": "qualifying_weekdays <@ ARRAY[1, 2, 3, 4, 5, 6, 7]"
-        },
-        "pay_profile_earnings": {
-          "name": "pay_profile_earnings",
-          "value": "ssp_average_weekly_earnings_pence IS NULL OR ssp_average_weekly_earnings_pence BETWEEN 0 AND 10000000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.pay_rule_set": {
-      "name": "pay_rule_set",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version_number": {
-          "name": "version_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role_rates": {
-          "name": "role_rates",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "enhancements": {
-          "name": "enhancements",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "stack_enhancements": {
-          "name": "stack_enhancements",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "sleep_in_flat_pence": {
-          "name": "sleep_in_flat_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "mileage_pence_per_mile": {
-          "name": "mileage_pence_per_mile",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "on_call_flat_pence": {
-          "name": "on_call_flat_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "night_start_minute": {
-          "name": "night_start_minute",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "night_end_minute": {
-          "name": "night_end_minute",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "extra_bank_holidays": {
-          "name": "extra_bank_holidays",
-          "type": "date[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'"
-        },
-        "overtime_after_minutes": {
-          "name": "overtime_after_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rolled_up_holiday": {
-          "name": "rolled_up_holiday",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "contributor_ids": {
-          "name": "contributor_ids",
-          "type": "uuid[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::uuid[]"
-        },
-        "approved_by": {
-          "name": "approved_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "pay_rule_set_one_draft_key": {
-          "name": "pay_rule_set_one_draft_key",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "status = 'draft'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pay_rule_set_approved_by_fk": {
-          "name": "pay_rule_set_approved_by_fk",
-          "tableFrom": "pay_rule_set",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "approved_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pay_rule_set_tenant_id_id_key": {
-          "name": "pay_rule_set_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        },
-        "pay_rule_set_version_key": {
-          "name": "pay_rule_set_version_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "version_number"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pay_rule_set_status": {
-          "name": "pay_rule_set_status",
-          "value": "status IN ('draft', 'approved')"
-        },
-        "pay_rule_set_version": {
-          "name": "pay_rule_set_version",
-          "value": "version_number >= 1"
-        },
-        "pay_rule_set_name": {
-          "name": "pay_rule_set_name",
-          "value": "char_length(btrim(name)) BETWEEN 1 AND 120"
-        },
-        "pay_rule_set_json": {
-          "name": "pay_rule_set_json",
-          "value": "jsonb_typeof(role_rates) = 'object' AND jsonb_typeof(enhancements) = 'array'"
-        },
-        "pay_rule_set_amounts": {
-          "name": "pay_rule_set_amounts",
-          "value": "sleep_in_flat_pence >= 0 AND mileage_pence_per_mile >= 0 AND on_call_flat_pence >= 0\n        AND (overtime_after_minutes IS NULL OR overtime_after_minutes >= 0)"
-        },
-        "pay_rule_set_night": {
-          "name": "pay_rule_set_night",
-          "value": "(night_start_minute IS NULL) = (night_end_minute IS NULL)\n        AND (night_start_minute IS NULL OR (night_start_minute BETWEEN 0 AND 1439\n          AND night_end_minute BETWEEN 0 AND 1439 AND night_start_minute <> night_end_minute))"
-        },
-        "pay_rule_set_approved": {
-          "name": "pay_rule_set_approved",
-          "value": "(status = 'approved') = (approved_by IS NOT NULL AND approved_at IS NOT NULL)\n        AND (approved_by IS NULL OR NOT approved_by = ANY (contributor_ids))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.pay_run": {
-      "name": "pay_run",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "frequency": {
-          "name": "frequency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_start": {
-          "name": "period_start",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "period_end": {
-          "name": "period_end",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'regular'"
-        },
-        "corrects_run_id": {
-          "name": "corrects_run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rule_set_id": {
-          "name": "rule_set_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nation": {
-          "name": "nation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rate_rows": {
-          "name": "rate_rows",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "calculation": {
-          "name": "calculation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "calculated_at": {
-          "name": "calculated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "calculated_by": {
-          "name": "calculated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "locked_by": {
-          "name": "locked_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "locked_at": {
-          "name": "locked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "pay_run_one_regular_key": {
-          "name": "pay_run_one_regular_key",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "frequency",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "kind = 'regular'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "pay_run_one_open_correction_key": {
-          "name": "pay_run_one_open_correction_key",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "corrects_run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "kind = 'correction' AND status = 'draft'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pay_run_rule_set_fk": {
-          "name": "pay_run_rule_set_fk",
-          "tableFrom": "pay_run",
-          "tableTo": "pay_rule_set",
-          "columnsFrom": [
-            "tenant_id",
-            "rule_set_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_corrects_fk": {
-          "name": "pay_run_corrects_fk",
-          "tableFrom": "pay_run",
-          "tableTo": "pay_run",
-          "columnsFrom": [
-            "tenant_id",
-            "corrects_run_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_calculated_by_fk": {
-          "name": "pay_run_calculated_by_fk",
-          "tableFrom": "pay_run",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "calculated_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_locked_by_fk": {
-          "name": "pay_run_locked_by_fk",
-          "tableFrom": "pay_run",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "locked_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pay_run_tenant_id_id_key": {
-          "name": "pay_run_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pay_run_frequency": {
-          "name": "pay_run_frequency",
-          "value": "frequency IN ('weekly', 'monthly')"
-        },
-        "pay_run_kind": {
-          "name": "pay_run_kind",
-          "value": "(kind = 'correction') = (corrects_run_id IS NOT NULL) AND kind IN ('regular', 'correction')"
-        },
-        "pay_run_period": {
-          "name": "pay_run_period",
-          "value": "period_end >= period_start AND period_end - period_start <= 30"
-        },
-        "pay_run_status": {
-          "name": "pay_run_status",
-          "value": "status IN ('draft', 'locked')"
-        },
-        "pay_run_nation": {
-          "name": "pay_run_nation",
-          "value": "nation IN ('england', 'wales', 'scotland', 'northern_ireland')"
-        },
-        "pay_run_locked": {
-          "name": "pay_run_locked",
-          "value": "(status = 'locked') = (locked_by IS NOT NULL AND locked_at IS NOT NULL)\n        AND (status = 'draft' OR calculation >= 1)"
-        },
-        "pay_run_rate_rows": {
-          "name": "pay_run_rate_rows",
-          "value": "jsonb_typeof(rate_rows) = 'array'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.pay_run_exception": {
-      "name": "pay_run_exception",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "calculation": {
-          "name": "calculation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ref": {
-          "name": "ref",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "line_input_hash": {
-          "name": "line_input_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'open'"
-        },
-        "override_reason": {
-          "name": "override_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "overridden_by": {
-          "name": "overridden_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "overridden_at": {
-          "name": "overridden_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "pay_run_exception_run_idx": {
-          "name": "pay_run_exception_run_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "calculation",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pay_run_exception_run_fk": {
-          "name": "pay_run_exception_run_fk",
-          "tableFrom": "pay_run_exception",
-          "tableTo": "pay_run",
-          "columnsFrom": [
-            "tenant_id",
-            "run_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_exception_member_fk": {
-          "name": "pay_run_exception_member_fk",
-          "tableFrom": "pay_run_exception",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_exception_overridden_by_fk": {
-          "name": "pay_run_exception_overridden_by_fk",
-          "tableFrom": "pay_run_exception",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "overridden_by"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pay_run_exception_tenant_id_id_key": {
-          "name": "pay_run_exception_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pay_run_exception_kind": {
-          "name": "pay_run_exception_kind",
-          "value": "kind IN ('unapproved_timesheet', 'no_pay_profile', 'no_role_rate', 'no_date_of_birth', 'below_nmw', 'ssp_earnings_missing', 'rate_missing')"
-        },
-        "pay_run_exception_status": {
-          "name": "pay_run_exception_status",
-          "value": "status IN ('open', 'overridden')"
-        },
-        "pay_run_exception_override": {
-          "name": "pay_run_exception_override",
-          "value": "(status = 'overridden') = (overridden_by IS NOT NULL AND overridden_at IS NOT NULL AND override_reason IS NOT NULL)\n        AND (override_reason IS NULL OR char_length(btrim(override_reason)) BETWEEN 3 AND 500)\n        AND (overridden_by IS NULL OR overridden_by <> member_id)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.pay_run_line": {
-      "name": "pay_run_line",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "app.uuid_v7()"
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "app.current_tenant_id()"
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "calculation": {
-          "name": "calculation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "member_id": {
-          "name": "member_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "paid_minutes": {
-          "name": "paid_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nmw_minutes": {
-          "name": "nmw_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "basic_pence": {
-          "name": "basic_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "premium_pence": {
-          "name": "premium_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sleep_in_pence": {
-          "name": "sleep_in_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "on_call_pence": {
-          "name": "on_call_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mileage_pence": {
-          "name": "mileage_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "nmw_top_up_pence": {
-          "name": "nmw_top_up_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rolled_up_holiday_pence": {
-          "name": "rolled_up_holiday_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ssp_pence": {
-          "name": "ssp_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_pence": {
-          "name": "total_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "difference_pence": {
-          "name": "difference_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "holiday_accrued_minutes": {
-          "name": "holiday_accrued_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nmw_band": {
-          "name": "nmw_band",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ae_category": {
-          "name": "ae_category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "qualifying_earnings_pence": {
-          "name": "qualifying_earnings_pence",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "working": {
-          "name": "working",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inputs": {
-          "name": "inputs",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "input_hash": {
-          "name": "input_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "app.current_user_id()"
-        }
-      },
-      "indexes": {
-        "pay_run_line_member_idx": {
-          "name": "pay_run_line_member_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "member_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "pay_run_line_run_fk": {
-          "name": "pay_run_line_run_fk",
-          "tableFrom": "pay_run_line",
-          "tableTo": "pay_run",
-          "columnsFrom": [
-            "tenant_id",
-            "run_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "pay_run_line_member_fk": {
-          "name": "pay_run_line_member_fk",
-          "tableFrom": "pay_run_line",
-          "tableTo": "tenant_user",
-          "columnsFrom": [
-            "tenant_id",
-            "member_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pay_run_line_tenant_id_id_key": {
-          "name": "pay_run_line_tenant_id_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        },
-        "pay_run_line_member_key": {
-          "name": "pay_run_line_member_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "run_id",
-            "calculation",
-            "member_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pay_run_line_calculation": {
-          "name": "pay_run_line_calculation",
-          "value": "calculation >= 1"
-        },
-        "pay_run_line_json": {
-          "name": "pay_run_line_json",
-          "value": "jsonb_typeof(working) = 'array' AND jsonb_typeof(inputs) = 'object'"
-        },
-        "pay_run_line_hash": {
-          "name": "pay_run_line_hash",
-          "value": "input_hash ~ '^[0-9a-f]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.agency": {
       "name": "agency",
       "schema": "",
@@ -14848,6 +13610,1244 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pay_profile": {
+      "name": "pay_profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employment": {
+          "name": "employment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'staff'"
+        },
+        "role_key": {
+          "name": "role_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "apprenticeship_started_on": {
+          "name": "apprenticeship_started_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "irregular_hours": {
+          "name": "irregular_hours",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "leave_year_start": {
+          "name": "leave_year_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qualifying_weekdays": {
+          "name": "qualifying_weekdays",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "ssp_average_weekly_earnings_pence": {
+          "name": "ssp_average_weekly_earnings_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state_pension_age_on": {
+          "name": "state_pension_age_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pay_profile_member_fk": {
+          "name": "pay_profile_member_fk",
+          "tableFrom": "pay_profile",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_profile_tenant_id_id_key": {
+          "name": "pay_profile_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "pay_profile_member_key": {
+          "name": "pay_profile_member_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "member_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pay_profile_frequency": {
+          "name": "pay_profile_frequency",
+          "value": "frequency IN ('weekly', 'monthly')"
+        },
+        "pay_profile_employment": {
+          "name": "pay_profile_employment",
+          "value": "employment IN ('staff', 'bank', 'agency')"
+        },
+        "pay_profile_role": {
+          "name": "pay_profile_role",
+          "value": "role_key IS NULL OR role_key ~ '^[a-z][a-z0-9_]{0,59}$'"
+        },
+        "pay_profile_weekdays": {
+          "name": "pay_profile_weekdays",
+          "value": "qualifying_weekdays <@ ARRAY[1, 2, 3, 4, 5, 6, 7]"
+        },
+        "pay_profile_earnings": {
+          "name": "pay_profile_earnings",
+          "value": "ssp_average_weekly_earnings_pence IS NULL OR ssp_average_weekly_earnings_pence BETWEEN 0 AND 10000000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_rule_set": {
+      "name": "pay_rule_set",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_rates": {
+          "name": "role_rates",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enhancements": {
+          "name": "enhancements",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "stack_enhancements": {
+          "name": "stack_enhancements",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sleep_in_flat_pence": {
+          "name": "sleep_in_flat_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "mileage_pence_per_mile": {
+          "name": "mileage_pence_per_mile",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "on_call_flat_pence": {
+          "name": "on_call_flat_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "night_start_minute": {
+          "name": "night_start_minute",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "night_end_minute": {
+          "name": "night_end_minute",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extra_bank_holidays": {
+          "name": "extra_bank_holidays",
+          "type": "date[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "overtime_after_minutes": {
+          "name": "overtime_after_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rolled_up_holiday": {
+          "name": "rolled_up_holiday",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "contributor_ids": {
+          "name": "contributor_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "pay_rule_set_one_draft_key": {
+          "name": "pay_rule_set_one_draft_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "status = 'draft'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_rule_set_approved_by_fk": {
+          "name": "pay_rule_set_approved_by_fk",
+          "tableFrom": "pay_rule_set",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "approved_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_rule_set_tenant_id_id_key": {
+          "name": "pay_rule_set_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "pay_rule_set_version_key": {
+          "name": "pay_rule_set_version_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "version_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pay_rule_set_status": {
+          "name": "pay_rule_set_status",
+          "value": "status IN ('draft', 'approved')"
+        },
+        "pay_rule_set_version": {
+          "name": "pay_rule_set_version",
+          "value": "version_number >= 1"
+        },
+        "pay_rule_set_name": {
+          "name": "pay_rule_set_name",
+          "value": "char_length(btrim(name)) BETWEEN 1 AND 120"
+        },
+        "pay_rule_set_json": {
+          "name": "pay_rule_set_json",
+          "value": "jsonb_typeof(role_rates) = 'object' AND jsonb_typeof(enhancements) = 'array'"
+        },
+        "pay_rule_set_amounts": {
+          "name": "pay_rule_set_amounts",
+          "value": "sleep_in_flat_pence >= 0 AND mileage_pence_per_mile >= 0 AND on_call_flat_pence >= 0\n        AND (overtime_after_minutes IS NULL OR overtime_after_minutes >= 0)"
+        },
+        "pay_rule_set_night": {
+          "name": "pay_rule_set_night",
+          "value": "(night_start_minute IS NULL) = (night_end_minute IS NULL)\n        AND (night_start_minute IS NULL OR (night_start_minute BETWEEN 0 AND 1439\n          AND night_end_minute BETWEEN 0 AND 1439 AND night_start_minute <> night_end_minute))"
+        },
+        "pay_rule_set_approved": {
+          "name": "pay_rule_set_approved",
+          "value": "(status = 'approved') = (approved_by IS NOT NULL AND approved_at IS NOT NULL)\n        AND (approved_by IS NULL OR NOT approved_by = ANY (contributor_ids))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_run": {
+      "name": "pay_run",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_start": {
+          "name": "period_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_end": {
+          "name": "period_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'regular'"
+        },
+        "corrects_run_id": {
+          "name": "corrects_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rule_set_id": {
+          "name": "rule_set_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nation": {
+          "name": "nation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_rows": {
+          "name": "rate_rows",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "calculation": {
+          "name": "calculation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "calculated_at": {
+          "name": "calculated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calculated_by": {
+          "name": "calculated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "locked_by": {
+          "name": "locked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked_at": {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "pay_run_one_regular_key": {
+          "name": "pay_run_one_regular_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "frequency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_start",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "kind = 'regular'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pay_run_one_open_correction_key": {
+          "name": "pay_run_one_open_correction_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "corrects_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "kind = 'correction' AND status = 'draft'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_run_rule_set_fk": {
+          "name": "pay_run_rule_set_fk",
+          "tableFrom": "pay_run",
+          "tableTo": "pay_rule_set",
+          "columnsFrom": [
+            "tenant_id",
+            "rule_set_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_corrects_fk": {
+          "name": "pay_run_corrects_fk",
+          "tableFrom": "pay_run",
+          "tableTo": "pay_run",
+          "columnsFrom": [
+            "tenant_id",
+            "corrects_run_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_calculated_by_fk": {
+          "name": "pay_run_calculated_by_fk",
+          "tableFrom": "pay_run",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "calculated_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_locked_by_fk": {
+          "name": "pay_run_locked_by_fk",
+          "tableFrom": "pay_run",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "locked_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_run_tenant_id_id_key": {
+          "name": "pay_run_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pay_run_frequency": {
+          "name": "pay_run_frequency",
+          "value": "frequency IN ('weekly', 'monthly')"
+        },
+        "pay_run_kind": {
+          "name": "pay_run_kind",
+          "value": "(kind = 'correction') = (corrects_run_id IS NOT NULL) AND kind IN ('regular', 'correction')"
+        },
+        "pay_run_period": {
+          "name": "pay_run_period",
+          "value": "period_end >= period_start AND period_end - period_start <= 30"
+        },
+        "pay_run_status": {
+          "name": "pay_run_status",
+          "value": "status IN ('draft', 'locked')"
+        },
+        "pay_run_nation": {
+          "name": "pay_run_nation",
+          "value": "nation IN ('england', 'wales', 'scotland', 'northern_ireland')"
+        },
+        "pay_run_locked": {
+          "name": "pay_run_locked",
+          "value": "(status = 'locked') = (locked_by IS NOT NULL AND locked_at IS NOT NULL)\n        AND (status = 'draft' OR calculation >= 1)"
+        },
+        "pay_run_rate_rows": {
+          "name": "pay_run_rate_rows",
+          "value": "jsonb_typeof(rate_rows) = 'array'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_run_exception": {
+      "name": "pay_run_exception",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation": {
+          "name": "calculation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref": {
+          "name": "ref",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "line_input_hash": {
+          "name": "line_input_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "override_reason": {
+          "name": "override_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overridden_by": {
+          "name": "overridden_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "overridden_at": {
+          "name": "overridden_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "pay_run_exception_run_idx": {
+          "name": "pay_run_exception_run_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "calculation",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_run_exception_run_fk": {
+          "name": "pay_run_exception_run_fk",
+          "tableFrom": "pay_run_exception",
+          "tableTo": "pay_run",
+          "columnsFrom": [
+            "tenant_id",
+            "run_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_exception_member_fk": {
+          "name": "pay_run_exception_member_fk",
+          "tableFrom": "pay_run_exception",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_exception_overridden_by_fk": {
+          "name": "pay_run_exception_overridden_by_fk",
+          "tableFrom": "pay_run_exception",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "overridden_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_run_exception_tenant_id_id_key": {
+          "name": "pay_run_exception_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pay_run_exception_kind": {
+          "name": "pay_run_exception_kind",
+          "value": "kind IN ('unapproved_timesheet', 'no_pay_profile', 'no_role_rate', 'no_date_of_birth', 'below_nmw', 'ssp_earnings_missing', 'no_qualifying_days', 'rate_missing')"
+        },
+        "pay_run_exception_status": {
+          "name": "pay_run_exception_status",
+          "value": "status IN ('open', 'overridden')"
+        },
+        "pay_run_exception_override": {
+          "name": "pay_run_exception_override",
+          "value": "(status = 'overridden') = (overridden_by IS NOT NULL AND overridden_at IS NOT NULL AND override_reason IS NOT NULL)\n        AND (override_reason IS NULL OR char_length(btrim(override_reason)) BETWEEN 3 AND 500)\n        AND (overridden_by IS NULL OR overridden_by <> member_id)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pay_run_line": {
+      "name": "pay_run_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation": {
+          "name": "calculation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_minutes": {
+          "name": "paid_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nmw_minutes": {
+          "name": "nmw_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "basic_pence": {
+          "name": "basic_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "premium_pence": {
+          "name": "premium_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sleep_in_pence": {
+          "name": "sleep_in_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "on_call_pence": {
+          "name": "on_call_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mileage_pence": {
+          "name": "mileage_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nmw_top_up_pence": {
+          "name": "nmw_top_up_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rolled_up_holiday_pence": {
+          "name": "rolled_up_holiday_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ssp_pence": {
+          "name": "ssp_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_pence": {
+          "name": "total_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "difference_pence": {
+          "name": "difference_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "holiday_accrued_minutes": {
+          "name": "holiday_accrued_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nmw_band": {
+          "name": "nmw_band",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ae_category": {
+          "name": "ae_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qualifying_earnings_pence": {
+          "name": "qualifying_earnings_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "working": {
+          "name": "working",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inputs": {
+          "name": "inputs",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input_hash": {
+          "name": "input_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "pay_run_line_member_idx": {
+          "name": "pay_run_line_member_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pay_run_line_run_fk": {
+          "name": "pay_run_line_run_fk",
+          "tableFrom": "pay_run_line",
+          "tableTo": "pay_run",
+          "columnsFrom": [
+            "tenant_id",
+            "run_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pay_run_line_member_fk": {
+          "name": "pay_run_line_member_fk",
+          "tableFrom": "pay_run_line",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pay_run_line_tenant_id_id_key": {
+          "name": "pay_run_line_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "pay_run_line_member_key": {
+          "name": "pay_run_line_member_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "run_id",
+            "calculation",
+            "member_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pay_run_line_calculation": {
+          "name": "pay_run_line_calculation",
+          "value": "calculation >= 1"
+        },
+        "pay_run_line_json": {
+          "name": "pay_run_line_json",
+          "value": "jsonb_typeof(working) = 'array' AND jsonb_typeof(inputs) = 'object'"
+        },
+        "pay_run_line_hash": {
+          "name": "pay_run_line_hash",
+          "value": "input_hash ~ '^[0-9a-f]{64}$'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.about_me": {
