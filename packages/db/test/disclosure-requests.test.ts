@@ -170,6 +170,29 @@ describe("hazard HZ-011 disclosure requests (migration 0103)", () => {
     ).resolves.toMatchObject({ rowCount: 0 });
   });
 
+  it("keeps a request's history from those who may not read the request", async () => {
+    const { rows } = await asHome((c) =>
+      c.query<{ id: string }>(LOG, [a.personAda, a.locationNorth]),
+    );
+    await asHome((c) =>
+      c.query("UPDATE disclosure_request SET requester_reference = 'REF-1' WHERE id = $1", [
+        rows[0]?.id,
+      ]),
+    );
+    const history =
+      "SELECT id FROM record_version WHERE table_name = 'disclosure_request' AND record_id = $1";
+    expect((await asHome((c) => c.query(history, [rows[0]?.id]))).rowCount).toBe(1);
+    expect((await asLead((c) => c.query(history, [rows[0]?.id]))).rowCount).toBe(1);
+    expect((await asCarer((c) => c.query(history, [rows[0]?.id]))).rowCount).toBe(0);
+    // Other history stays readable as before.
+    const people = await asCarer((c) =>
+      c.query(
+        "SELECT count(*)::int AS n FROM record_version WHERE table_name <> 'disclosure_request'",
+      ),
+    );
+    expect(people.rows).toHaveLength(1);
+  });
+
   it("needs a stated purpose for police and solicitors before it moves on", async () => {
     const { rows } = await asHome((c) =>
       c.query<{ id: string }>(

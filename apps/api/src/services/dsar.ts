@@ -268,7 +268,10 @@ export async function caseOf(tx: Transaction, row: CaseRow, ctx: ClockContext): 
   };
 }
 
-/** Runs `fn` in the organisation's own context, after the route has authorised the member. */
+/**
+ * Runs `fn` in the organisation's own context, after the route has authorised the member. The
+ * transaction is read-only, so nothing is ever written in a context that has no member.
+ */
 export function asOrganisation<T>(
   c: Context<AppEnv>,
   access: TenantAccess,
@@ -277,7 +280,10 @@ export function asOrganisation<T>(
   return withRequestContext(
     c.get("services").db,
     { tenantId: access.tenantId, userId: null, scope: "tenant", locationIds: [] },
-    fn,
+    async (tx) => {
+      await tx.execute(sql`SET TRANSACTION READ ONLY`);
+      return fn(tx);
+    },
   );
 }
 

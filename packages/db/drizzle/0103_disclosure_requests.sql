@@ -226,3 +226,13 @@ CREATE TRIGGER capture_version AFTER UPDATE ON public.disclosure_item
 GRANT SELECT, INSERT, UPDATE ON public.disclosure_item TO harbour_app;
 --> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.disclosure_item FROM harbour_app;
+--> statement-breakpoint
+-- The history of a disclosure request or item holds who asked and why: it is read only by those who
+-- may read the request itself (its own policy decides, through the subquery), or by the system.
+CREATE POLICY record_version_disclosure_read ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner
+  USING (table_name NOT IN ('disclosure_request', 'disclosure_item')
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant')
+    OR EXISTS (SELECT 1 FROM public.disclosure_request r
+      WHERE r.id = CASE WHEN table_name = 'disclosure_request' THEN record_id
+        ELSE (data ->> 'request_id')::uuid END));

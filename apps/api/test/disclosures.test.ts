@@ -255,6 +255,12 @@ describe("SAFE-016 rules 42 and 43: release with step-up, the pack as issued", (
     try {
       const r = await post(`/v1/disclosures/${req.id}/release`, { expectedVersion: req.version });
       expect(r.status).toBe(403);
+      const [item] = (
+        (await (await get(`/v1/disclosures/${req.id}/items`)).json()) as { items: Item[] }
+      ).items;
+      expect((await get(`/v1/disclosures/${req.id}/items/${item?.id}`)).status).toBe(403);
+      // Reading the request itself discloses no records.
+      expect((await get(`/v1/disclosures/${req.id}`)).status).toBe(200);
     } finally {
       await ageSession(auth, session, 0);
     }

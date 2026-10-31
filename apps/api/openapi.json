@@ -52435,7 +52435,7 @@
           "safety"
         ],
         "summary": "Issue the pack (with a fresh step-up)",
-        "description": "safety.incident.manage reaching the person's location, with a fresh step-up, once approved. Builds the pack from the decisions in date order (the chronology for a review), redacted fields reading [redacted] and withheld records counted, hashes it and stores it as sent (exports bucket, opaque key). A record changed since review returns it for review (409 disclosure_records_changed). Audited (safety.disclosure.released) with counts and the hash.",
+        "description": "safety.incident.manage reaching the person's location, with a fresh step-up, once approved. Builds the pack from the decisions in date order (the chronology for a review), redacted fields reading [redacted] and withheld records counted, hashes it and stores it as sent (exports bucket, opaque key). A record changed since review stops the release (409 disclosure_records_changed): withdraw and log the request again. Audited (safety.disclosure.released) with counts and the hash.",
         "security": [
           {
             "bearerAuth": []

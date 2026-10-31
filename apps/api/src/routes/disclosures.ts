@@ -43,7 +43,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray, max } from "drizzle-orm";
+import { and, desc, eq, max } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -102,18 +102,27 @@ const unprocessable = (code: string, title: string) => new HttpProblem(422, code
 const stale = () => problems.conflict();
 
 /** The member holds `permission` across the organisation or at `locationId` (rule 38). */
-function requireReach(access: TenantAccess, permission: Permission, locationId: string) {
+function reaches(access: TenantAccess, permission: Permission, locationId: string): boolean {
   const scope = scopeFor(access.effective, permission);
-  const reaches =
+  return (
     scope.scope === "tenant" ||
-    (scope.scope === "locations" && scope.locationIds.includes(locationId));
-  if (!reaches) {
+    (scope.scope === "locations" && scope.locationIds.includes(locationId))
+  );
+}
+
+function requireReach(access: TenantAccess, permission: Permission, locationId: string) {
+  if (!reaches(access, permission, locationId)) {
     throw new HttpProblem(
       403,
       "missing_permission",
       "This request is about someone at a home you do not manage.",
     );
   }
+}
+
+/** Either disclosure permission reaches the location (reads: the request, items, the pack). */
+function requireReachAny(access: TenantAccess, locationId: string) {
+  if (!reaches(access, MANAGE, locationId)) requireReach(access, APPROVE, locationId);
 }
 
 function requireStepUp(access: TenantAccess) {
@@ -367,6 +376,16 @@ export const disclosuresRouter = createRouter()
       }
       // The person's home and status, read as the organisation (the member's own care-record
       // scope does not decide this: their disclosure permission's reach does, checked next).
+      const home = await asOrganisation(c, access, async (tx) => {
+        const [p] = await tx
+          .select({ locationId: person.locationId })
+          .from(person)
+          .where(eq(person.id, body.personId));
+        return p ?? null;
+      });
+      // A person at a home the member does not reach reads as not found, as one who does not exist.
+      if (!home) throw problems.notFound();
+      if (!reaches(access, MANAGE, home.locationId)) throw problems.notFound();
       const subject = await asOrganisation(c, access, async (tx) => {
         const [p] = await tx
           .select({ locationId: person.locationId, status: person.status })
@@ -455,6 +474,7 @@ export const disclosuresRouter = createRouter()
       const { id } = c.req.valid("param");
       const out = await inTx(c, async (tx) => {
         const row = await loadRequest(tx, id);
+        requireReachAny(access, row.locationId);
         await audit(c, tx, access, "viewed", id);
         return requestOut(tx, access, row);
       });
@@ -546,7 +566,7 @@ export const disclosuresRouter = createRouter()
       const access = await requireAnyPermission(c, [MANAGE, APPROVE]);
       const { id } = c.req.valid("param");
       const body = await inTx(c, async (tx) => {
-        await loadRequest(tx, id);
+        requireReachAny(access, (await loadRequest(tx, id)).locationId);
         const rows = (await itemsOf(tx, id)).sort(
           (a, b) => a.tableName.localeCompare(b.tableName) || a.recordId.localeCompare(b.recordId),
         );
@@ -578,6 +598,7 @@ export const disclosuresRouter = createRouter()
       const { id, itemId } = c.req.valid("param");
       const { row, item } = await inTx(c, async (tx) => {
         const r = await loadRequest(tx, id);
+        requireReachAny(access, r.locationId);
         const [i] = await tx
           .select()
           .from(disclosureItem)
@@ -646,32 +667,38 @@ export const disclosuresRouter = createRouter()
       const access = await requirePermission(c, MANAGE);
       const { id, itemId } = c.req.valid("param");
       const input = c.req.valid("json");
+      const loaded = await inTx(c, async (tx) => {
+        const row = await loadRequest(tx, id);
+        requireReach(access, MANAGE, row.locationId);
+        const [item] = await tx
+          .select()
+          .from(disclosureItem)
+          .where(and(eq(disclosureItem.id, itemId), eq(disclosureItem.requestId, id)));
+        if (!item) throw problems.notFound();
+        return item;
+      });
+      const check = checkItemDecision(input, disclosableColumns(loaded.tableName));
+      if (!check.ok) throw problems.invalid(check.problem);
+      // The record as it is now, read as the organisation outside the member's transaction (one
+      // connection at a time); the version check below binds the decision to the item read here.
+      const current = await asOrganisation(c, access, async (otx) =>
+        (await recordsOf(otx, loaded.tableName, [loaded.recordId])).get(loaded.recordId),
+      );
+      if (!current || recordSha256(current) !== input.contentSha256) {
+        throw new HttpProblem(
+          409,
+          "disclosure_record_changed",
+          "This record changed after you opened it.",
+          "Open it again and review what it says now.",
+        );
+      }
       const out = await inTx(c, async (tx) => {
         const row = await loadRequest(tx, id);
         requireReach(access, MANAGE, row.locationId);
         if (row.state !== "requested") {
           throw new HttpProblem(409, "disclosure_wrong_state", `This request is ${row.state}.`);
         }
-        const [item] = await tx
-          .select()
-          .from(disclosureItem)
-          .where(and(eq(disclosureItem.id, itemId), eq(disclosureItem.requestId, id)));
-        if (!item) throw problems.notFound();
-
-        const check = checkItemDecision(input, disclosableColumns(item.tableName));
-        if (!check.ok) throw problems.invalid(check.problem);
-        if (item.version !== input.expectedVersion) throw stale();
-        const current = await asOrganisation(c, access, async (otx) =>
-          (await recordsOf(otx, item.tableName, [item.recordId])).get(item.recordId),
-        );
-        if (!current || recordSha256(current) !== input.contentSha256) {
-          throw new HttpProblem(
-            409,
-            "disclosure_record_changed",
-            "This record changed after you opened it.",
-            "Open it again and review what it says now.",
-          );
-        }
+        if (loaded.version !== input.expectedVersion) throw stale();
         const [saved] = await tx
           .update(disclosureItem)
           .set({
@@ -809,7 +836,7 @@ export const disclosuresRouter = createRouter()
       tags,
       summary: "Issue the pack (with a fresh step-up)",
       description:
-        "safety.incident.manage reaching the person's location, with a fresh step-up, once approved. Builds the pack from the decisions in date order (the chronology for a review), redacted fields reading [redacted] and withheld records counted, hashes it and stores it as sent (exports bucket, opaque key). A record changed since review returns it for review (409 disclosure_records_changed). Audited (safety.disclosure.released) with counts and the hash.",
+        "safety.incident.manage reaching the person's location, with a fresh step-up, once approved. Builds the pack from the decisions in date order (the chronology for a review), redacted fields reading [redacted] and withheld records counted, hashes it and stores it as sent (exports bucket, opaque key). A record changed since review stops the release (409 disclosure_records_changed): withdraw and log the request again. Audited (safety.disclosure.released) with counts and the hash.",
       security,
       request: versioned(DisclosureVersioned),
       responses: requestResponses,
@@ -857,21 +884,9 @@ export const disclosuresRouter = createRouter()
           }
         }
       });
+      // An approved request's decisions are fixed (row-level security), so nothing is reset here:
+      // the approver approved what was reviewed, and a changed record needs a new request.
       if (changed.length > 0) {
-        await inTx(c, async (tx) => {
-          await tx
-            .update(disclosureItem)
-            .set({
-              decision: "pending",
-              redactedFields: [],
-              reason: null,
-              reviewedBy: null,
-              reviewedAt: null,
-              contentSha256: null,
-            })
-            .where(and(eq(disclosureItem.requestId, id), inArray(disclosureItem.id, changed)));
-          await audit(c, tx, access, "items_reset", id, { items: changed.length });
-        }).catch(() => undefined);
         throw new HttpProblem(
           409,
           "disclosure_records_changed",
@@ -954,6 +969,7 @@ export const disclosuresRouter = createRouter()
       const { id } = c.req.valid("param");
       const row = await inTx(c, async (tx) => {
         const r = await loadRequest(tx, id);
+        requireReachAny(access, r.locationId);
         if (!r.packStorageKey) throw problems.notFound();
         await audit(c, tx, access, "pack_fetched", id, { sha256: r.packSha256 });
         return r;
