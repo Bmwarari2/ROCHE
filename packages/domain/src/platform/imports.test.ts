@@ -7,21 +7,26 @@ import {
   dryRunReport,
   type ExistingPerson,
   hasControlCharacter,
+  hasLoneSurrogate,
   IMPORT_FIELDS,
   IMPORT_LIMITS,
   IMPORT_RATE_KEYS,
   IMPORT_REPORT_MAX_ITEMS,
+  importOutcomeWords,
   importStagingExpiresAt,
   importUndoClosesAt,
   importUndoEligibility,
   mapImportColumns,
   matchExistingPeople,
+  nameMatch,
   normaliseUkPostcode,
   PERSON_IMPORT_FIELDS,
   parseImportCsv,
   peopleDryRun,
   stagedCells,
   UNDO_MESSAGES,
+  unstorableText,
+  uploadCellProblem,
   validateImportRows,
   validatePersonImport,
 } from "./imports";
@@ -291,7 +296,7 @@ describe("PLAT-014 reading an import file", () => {
   it.each([
     ["an empty file", "", "empty", 0],
     ["only blank lines", "\n\n", "empty", 0],
-    ["a quote never closed in a row", 'a,b\nx,"Ada Example\n', "unclosed_quote", 1],
+    ["a quote never closed in a row", 'a,b\nx,"Ada Ex\n', "unclosed_quote", 1],
     ["a quote never closed in the header", '"a,b\nx,y\n', "unclosed_quote", 0],
     ["a row with more cells than the header", "a,b\nx,y\n1,2,3\n", "too_many_cells", 2],
     ["too many rows", "a\n1\n2\n3\n", "too_many_rows", 0],
@@ -311,6 +316,26 @@ describe("PLAT-014 reading an import file", () => {
     expect(IMPORT_LIMITS.rows).toBeGreaterThan(1000);
     const header = Array.from({ length: IMPORT_LIMITS.columns }, (_, i) => `c${i}`).join(",");
     expect(parseImportCsv(`${header}\n`)).toMatchObject({ ok: true });
+  });
+
+  it("stops reading at the first row, cell or column past a limit, never building the rest", () => {
+    const small = { rows: 2, columns: 3, cellCharacters: 10 };
+    // A million rows, a five-million-character cell and a thousand columns are each refused as
+    // soon as the limit is passed (the scan holds no more than the limits allow).
+    expect(parseImportCsv(`a\n${"1\n".repeat(1_000_000)}`, small)).toMatchObject({
+      ok: false,
+      problem: "too_many_rows",
+    });
+    expect(parseImportCsv(`a\n${"x".repeat(5_000_000)}`, small)).toMatchObject({
+      ok: false,
+      problem: "cell_too_long",
+      row: 1,
+    });
+    expect(parseImportCsv(`${"c,".repeat(1000)}c\n`, small)).toMatchObject({
+      ok: false,
+      problem: "too_many_columns",
+      row: 0,
+    });
   });
 });
 
@@ -372,8 +397,11 @@ describe("PLAT-014 matching columns", () => {
   });
 });
 
+/** Tests use 999-range numbers (fixtures never hold real ones), as a demonstration would. */
+const OPTIONS = { today: TODAY, allowTestNhsNumbers: true } as const;
+
 describe("PLAT-014 person import rules", () => {
-  const errorsFor = (rows: Record<string, string>[]) => validatePersonImport(rows, TODAY).errors;
+  const errorsFor = (rows: Record<string, string>[]) => validatePersonImport(rows, OPTIONS).errors;
 
   it.each([
     [
@@ -387,6 +415,12 @@ describe("PLAT-014 person import rules", () => {
       "a control character in a name",
       { given_name: "Ad\u0000a" },
       "given_name",
+      "control_character",
+    ],
+    [
+      "a lone surrogate in a name",
+      { family_name: "Ex\uD800ample" },
+      "family_name",
       "control_character",
     ],
     [
@@ -404,7 +438,7 @@ describe("PLAT-014 person import rules", () => {
   it("takes 1 January 1900 and stores a postcode upper case with one space", () => {
     const result = validatePersonImport(
       [person({ date_of_birth: "01/01/1900", postcode: " zz99 3zz " })],
-      TODAY,
+      OPTIONS,
     );
     expect(result.errors).toEqual([]);
     expect(result.rows[0]).toMatchObject({ date_of_birth: "1900-01-01", postcode: "ZZ99 3ZZ" });
@@ -423,6 +457,20 @@ describe("PLAT-014 person import rules", () => {
     ]);
   });
 
+  it.each([
+    ["a 999-range test number", "9990000018", false, ["test_nhs_number"]],
+    ["0000000000, which passes the check digit", "0000000000", false, ["test_nhs_number"]],
+    ["a test number in a demonstration", "9990000018", true, []],
+  ])("for a real organisation, refuses %s", (_name, nhs, allowTestNhsNumbers, codes) => {
+    const result = validatePersonImport([person({ nhs_number: nhs })], {
+      today: TODAY,
+      allowTestNhsNumbers,
+    });
+    expect(result.errors.map((e) => e.code)).toEqual(codes);
+    if (codes.length > 0) expect(result.rows[0]?.nhs_number).toBeUndefined();
+    expect(JSON.stringify(result.errors)).not.toContain(nhs);
+  });
+
   it("refuses a local identifier on two rows", () => {
     expect(
       errorsFor([
@@ -435,15 +483,35 @@ describe("PLAT-014 person import rules", () => {
     ]);
   });
 
-  it("knows a control character from a tab or line break", () => {
+  it("knows a control character from a tab or line break, and a lone surrogate from a pair", () => {
     expect(hasControlCharacter("Ada\tExample\r\n")).toBe(false);
     expect(hasControlCharacter("Ada\u0007")).toBe(true);
     expect(hasControlCharacter("Ada\u009b")).toBe(true);
+    expect(hasLoneSurrogate("Ada \u{1F600}")).toBe(false);
+    expect(hasLoneSurrogate("Ada \uD83D")).toBe(true);
+    expect(hasLoneSurrogate("\uDE00 Ada")).toBe(true);
+    expect(unstorableText("Zoë O'Brien-Smith")).toBe(false);
+  });
+
+  it("hazard HZ-130 finds a cell that cannot be stored before anything is written, by row and field only", () => {
+    expect(uploadCellProblem([{ given_name: "Ada" }], PERSON_IMPORT_FIELDS)).toBeNull();
+    const problem = uploadCellProblem(
+      [{ given_name: "Ada" }, { given_name: "Bo", family_name: "Exa\u0000mple" }],
+      PERSON_IMPORT_FIELDS,
+    );
+    expect(problem).toMatchObject({ row: 2, column: "family_name" });
+    expect(problem?.message).toMatch(/Row 2: Family name/);
+    expect(JSON.stringify(problem)).not.toMatch(/Exa|mple|Bo/);
+    expect(uploadCellProblem([{ nhs_number: "\uDC00" }], PERSON_IMPORT_FIELDS)).toMatchObject({
+      row: 1,
+      column: "nhs_number",
+    });
   });
 });
 
 describe("hazard HZ-130 matching rows against people already in Harbour", () => {
   const someone = (o: Partial<ExistingPerson> = {}): ExistingPerson => ({
+    id: "0193a000-0000-7000-8000-000000000402",
     nhsNumber: "9990000026",
     localIdentifier: null,
     givenName: "Ben",
@@ -451,16 +519,29 @@ describe("hazard HZ-130 matching rows against people already in Harbour", () => 
     dateOfBirth: "1941-07-15",
     ...o,
   });
+  const ada = (o: Partial<ExistingPerson> = {}) =>
+    someone({
+      nhsNumber: null,
+      givenName: "Ada",
+      familyName: "Example",
+      dateOfBirth: "1930-05-06",
+      ...o,
+    });
   const match = (rows: Record<string, string>[], existing: ExistingPerson[]) =>
-    matchExistingPeople(validatePersonImport(rows, TODAY), existing);
+    matchExistingPeople(validatePersonImport(rows, OPTIONS), existing);
 
-  it("hazard HZ-130 refuses a row whose NHS number is already on a record, never merging", () => {
+  it("hazard HZ-130 refuses a row whose NHS number is already on a record, naming the record, never merging", () => {
     const result = match(
       [person(), person({ nhs_number: "9990000026", given_name: "Bo" })],
       [someone()],
     );
     expect(result.errors).toEqual([
-      expect.objectContaining({ row: 2, column: "nhs_number", code: "already_in_harbour" }),
+      expect.objectContaining({
+        row: 2,
+        column: "nhs_number",
+        code: "already_in_harbour",
+        personId: someone().id,
+      }),
     ]);
     expect(JSON.stringify(result)).not.toMatch(/9990000026|Ben|Sample/);
   });
@@ -477,67 +558,78 @@ describe("hazard HZ-130 matching rows against people already in Harbour", () => 
 
   it.each([
     [
-      "the row has no NHS number",
+      "the same name, the row with no NHS number",
       { nhs_number: "", local_identifier: "R-1" },
       someone({ givenName: " ada ", familyName: "EXAMPLE", dateOfBirth: "1930-05-06" }),
-      true,
+      "same_name",
     ],
+    ["the same name, the record with no NHS number", {}, ada(), "same_name"],
     [
-      "the existing person has no NHS number",
-      {},
-      someone({
-        nhsNumber: null,
-        givenName: "Ada",
-        familyName: "Example",
-        dateOfBirth: "1930-05-06",
-      }),
-      true,
+      "an apostrophe and a hyphen",
+      { family_name: "O'Brien-Smith" },
+      ada({ familyName: "obrien smith" }),
+      "same_name",
     ],
+    ["a middle name", { given_name: "Ada Mary" }, ada(), "same_name"],
+    ["an accent", { given_name: "Adà" }, ada(), "same_name"],
+    ["the names swapped", { given_name: "Example", family_name: "Ada" }, ada(), "names_swapped"],
+    ["the same family name only", { given_name: "Adeline" }, ada(), "same_family_name"],
     [
-      "both have NHS numbers, and they differ",
-      {},
-      someone({ givenName: "Ada", familyName: "Example", dateOfBirth: "1930-05-06" }),
-      false,
+      "the same given name only (a changed family name)",
+      { family_name: "Maiden" },
+      ada(),
+      "same_given_name",
     ],
+    ["both with NHS numbers that differ", {}, ada({ nhsNumber: "9990000026" }), null],
     [
-      "the date of birth differs",
+      "a different date of birth",
       { nhs_number: "", local_identifier: "R-1" },
-      someone({
-        nhsNumber: null,
-        givenName: "Ada",
-        familyName: "Example",
-        dateOfBirth: "1930-05-07",
-      }),
-      false,
+      ada({ dateOfBirth: "1930-05-07" }),
+      null,
     ],
-  ])(
-    "hazard HZ-130 warns of a possible duplicate when %s: %s",
-    (_name, change, existing, warned) => {
-      const result = match([person(change)], [existing]);
-      expect(result.errors).toEqual([]);
-      expect(result.warnings).toEqual(
-        warned ? [expect.objectContaining({ row: 1, code: "possible_duplicate" })] : [],
-      );
-    },
-  );
+    [
+      "nothing in common but the date of birth",
+      { given_name: "Cara", family_name: "Placeholder" },
+      ada(),
+      null,
+    ],
+  ])("hazard HZ-130 warns of a possible duplicate for %s", (_name, change, existing, expected) => {
+    const result = match([person(change)], [existing]);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual(
+      expected
+        ? [
+            expect.objectContaining({
+              row: 1,
+              code: "possible_duplicate",
+              match: expected,
+              personId: existing.id,
+              otherRow: null,
+            }),
+          ]
+        : [],
+    );
+  });
 
-  it("hazard HZ-130 warns of two rows that may be one person, once each", () => {
+  it("hazard HZ-130 warns of two rows that may be one person, each naming the other", () => {
     const result = match(
       [
         person({ nhs_number: "", local_identifier: "R-1" }),
         person({ nhs_number: "9990001502", local_identifier: "R-2" }),
-        person({ nhs_number: "9990000034", given_name: "Cara" }),
+        person({ nhs_number: "9990000034", given_name: "Cara", family_name: "Placeholder" }),
       ],
-      [
-        someone({
-          nhsNumber: null,
-          givenName: "Ada",
-          familyName: "Example",
-          dateOfBirth: "1930-05-06",
-        }),
-      ],
+      [ada()],
     );
-    expect(result.warnings.map((w) => w.row)).toEqual([1, 2]);
+    expect(
+      result.warnings.map((w) => [w.row, w.otherRow, w.personId === null ? null : "record"]),
+    ).toEqual([
+      [1, null, "record"],
+      [1, 2, null],
+      [2, null, "record"],
+      [2, 1, null],
+    ]);
+    expect(result.warnings.find((w) => w.row === 1 && w.otherRow === 2)?.message).toMatch(/row 2/);
+    expect(new Set(result.warnings.map((w) => w.key)).size).toBe(4);
     expect(JSON.stringify(result.warnings)).not.toMatch(/Ada|Example|R-1/);
   });
 
@@ -545,63 +637,59 @@ describe("hazard HZ-130 matching rows against people already in Harbour", () => 
     expect(match([person(), person({ nhs_number: "9990001502" })], []).warnings).toEqual([]);
   });
 
-  it("hazard HZ-130 commits only a staged, dry-run, clean batch with duplicates acknowledged", () => {
-    const clean = peopleDryRun([person()], [], TODAY).report;
+  it("hazard HZ-130 commits only a staged, unexpired, dry-run, clean batch with exactly the warnings seen acknowledged", () => {
+    const clean = peopleDryRun([person()], [], OPTIONS).report;
     const warned = peopleDryRun(
       [person({ nhs_number: "", local_identifier: "R-1" })],
-      [
-        someone({
-          nhsNumber: null,
-          givenName: "Ada",
-          familyName: "Example",
-          dateOfBirth: "1930-05-06",
-        }),
-      ],
-      TODAY,
+      [ada()],
+      OPTIONS,
     ).report;
-    const failing = peopleDryRun([person({ given_name: "" })], [], TODAY).report;
-    const empty = peopleDryRun([], [], TODAY).report;
+    const twoWarnings = peopleDryRun(
+      [person({ nhs_number: "", local_identifier: "R-1" })],
+      [ada(), ada({ id: "0193a000-0000-7000-8000-000000000499" })],
+      OPTIONS,
+    ).report;
+    const failing = peopleDryRun([person({ given_name: "" })], [], OPTIONS).report;
+    const empty = peopleDryRun([], [], OPTIONS).report;
     const ran = new Date("2026-10-31T10:00:00Z");
+    const now = new Date("2026-10-31T11:00:00Z");
+    const expiresAt = new Date("2026-11-07T10:00:00Z");
+    const base = {
+      status: "staged" as const,
+      now,
+      expiresAt,
+      dryRunAt: ran,
+      acknowledgedWarnings: [] as string[],
+    };
+    const seen = warned.warningKeys;
     const table: [string, Parameters<typeof checkPeopleCommit>[0], string | null][] = [
+      ["clean", { ...base, report: clean }, null],
+      ["already committed", { ...base, status: "committed", report: clean }, "not_staged"],
+      ["discarded", { ...base, status: "discarded", report: clean }, "not_staged"],
+      ["past its expiry", { ...base, now: expiresAt, report: clean }, "expired"],
+      ["never dry-run", { ...base, dryRunAt: null, report: clean }, "dry_run_first"],
+      ["empty", { ...base, report: empty }, "empty"],
+      ["with errors", { ...base, report: failing }, "has_errors"],
       [
-        "clean",
-        { status: "staged", dryRunAt: ran, report: clean, acknowledgePossibleDuplicates: false },
-        null,
+        "duplicates not acknowledged",
+        { ...base, report: warned },
+        "possible_duplicates_unacknowledged",
       ],
+      ["duplicates acknowledged", { ...base, report: warned, acknowledgedWarnings: seen }, null],
       [
-        "already committed",
-        { status: "committed", dryRunAt: ran, report: clean, acknowledgePossibleDuplicates: false },
-        "not_staged",
-      ],
-      [
-        "expired",
-        { status: "expired", dryRunAt: ran, report: clean, acknowledgePossibleDuplicates: false },
-        "not_staged",
-      ],
-      [
-        "never dry-run",
-        { status: "staged", dryRunAt: null, report: clean, acknowledgePossibleDuplicates: false },
-        "dry_run_first",
-      ],
-      [
-        "empty",
-        { status: "staged", dryRunAt: ran, report: empty, acknowledgePossibleDuplicates: false },
-        "empty",
-      ],
-      [
-        "with errors",
-        { status: "staged", dryRunAt: ran, report: failing, acknowledgePossibleDuplicates: true },
-        "has_errors",
-      ],
-      [
-        "possible duplicates not acknowledged",
-        { status: "staged", dryRunAt: ran, report: warned, acknowledgePossibleDuplicates: false },
+        "a warning that is not there acknowledged",
+        { ...base, report: clean, acknowledgedWarnings: seen },
         "possible_duplicates_unacknowledged",
       ],
       [
-        "possible duplicates acknowledged",
-        { status: "staged", dryRunAt: ran, report: warned, acknowledgePossibleDuplicates: true },
-        null,
+        "a new warning since the dry run",
+        { ...base, report: twoWarnings, acknowledgedWarnings: seen },
+        "possible_duplicates_unacknowledged",
+      ],
+      [
+        "the same warning counted twice",
+        { ...base, report: warned, acknowledgedWarnings: [...seen, ...seen] },
+        "possible_duplicates_unacknowledged",
       ],
     ];
     for (const [name, input, problem] of table) {
@@ -609,11 +697,20 @@ describe("hazard HZ-130 matching rows against people already in Harbour", () => 
       expect([name, result.ok ? null : result.problem]).toEqual([name, problem]);
       if (!result.ok) expect(result.message.length).toBeGreaterThan(20);
     }
+    expect(warned).toMatchObject({ mayCommit: false, needsAcknowledgement: true });
+    expect(clean).toMatchObject({ mayCommit: true, needsAcknowledgement: false });
+  });
+
+  it("names how two names agree, and when they do not", () => {
+    expect(
+      nameMatch({ given: "Ada", family: "Example" }, { given: "ADA", family: "example" }),
+    ).toBe("same_name");
+    expect(nameMatch({ given: "", family: "" }, { given: "", family: "" })).toBeNull();
   });
 });
 
 describe("PLAT-014 the people dry run report", () => {
-  it("hazard HZ-007 the dry run lists rows imported with allergy status unknown, and allergies to record", () => {
+  it("hazard HZ-007 the dry run says every allergy status is imported as not recorded, listing what the file stated", () => {
     const { report } = peopleDryRun(
       [
         person({ allergy_status: "" }),
@@ -622,7 +719,7 @@ describe("PLAT-014 the people dry run report", () => {
         person({ nhs_number: "9990000042", allergy_status: "unknown" }),
       ],
       [],
-      TODAY,
+      OPTIONS,
     );
     expect(report).toMatchObject({
       rows: 4,
@@ -630,16 +727,38 @@ describe("PLAT-014 the people dry run report", () => {
       errorCount: 0,
       warningCount: 0,
       mayCommit: true,
-      allergyStatusUnknownRows: [1, 4],
-      allergiesToRecordRows: [2],
+      allergyStatusNotStatedRows: [1, 4],
+      noKnownAllergiesStatedRows: [3],
+      hasAllergiesStatedRows: [2],
     });
+    const words = report.whatHappens.join(" ");
+    expect(words).toMatch(/creates 4 people/);
+    expect(words).toMatch(/allergy status is imported as not recorded/);
+    expect(words).toMatch(/no known allergies for 1 person/);
+    expect(words).toMatch(/Allergies themselves are not imported/);
+    expect(words).toMatch(/phones at their next sync/);
+    expect(words).toMatch(/no photo, room or placement/);
+  });
+
+  it("says nothing can be committed while there are errors, and asks for duplicates to be checked", () => {
+    expect(
+      importOutcomeWords({
+        validRows: 1,
+        errorCount: 2,
+        warningCount: 3,
+        noKnownAllergiesStatedRows: [],
+        hasAllergiesStatedRows: [1],
+      }).join(" "),
+    ).toMatch(
+      /Nothing can be committed .*2 found.*creates 1 person.*1 person has allergies.*possible duplicate \(3\)/,
+    );
   });
 
   it("counts every error by code and lists at most the report's limit", () => {
     const rows = Array.from({ length: IMPORT_REPORT_MAX_ITEMS + 5 }, () =>
       person({ nhs_number: "", given_name: "" }),
     );
-    const { report } = peopleDryRun(rows, [], TODAY);
+    const { report } = peopleDryRun(rows, [], OPTIONS);
     expect(report.errorCount).toBe(2 * rows.length);
     expect(report.byCode).toEqual({ required: rows.length, identifier_required: rows.length });
     expect(report.errors).toHaveLength(IMPORT_REPORT_MAX_ITEMS);
@@ -650,6 +769,7 @@ describe("PLAT-014 the people dry run report", () => {
   it("counts matches with existing people among the errors that stop a commit", () => {
     const existing: ExistingPerson[] = [
       {
+        id: "0193a000-0000-7000-8000-000000000401",
         nhsNumber: "9990000018",
         localIdentifier: null,
         givenName: "X",
@@ -657,12 +777,33 @@ describe("PLAT-014 the people dry run report", () => {
         dateOfBirth: null,
       },
     ];
-    const { report } = peopleDryRun([person()], existing, TODAY);
+    const { report } = peopleDryRun([person()], existing, OPTIONS);
     expect(report).toMatchObject({
       validRows: 0,
       errorCount: 1,
       byCode: { already_in_harbour: 1 },
       mayCommit: false,
+    });
+  });
+});
+
+describe("PLAT-014 undoing: phones may hold the people", () => {
+  it("hazard HZ-130 refuses an undo once a phone may hold the imported people", () => {
+    const refused = importUndoEligibility(
+      {
+        committedAt: new Date("2026-10-20T10:00:00Z"),
+        undoneAt: null,
+        changedSinceCommit: false,
+        referencedSinceCommit: false,
+        sentToDevices: true,
+      },
+      { undoWindowDays: rateFromTable(IMPORT_RATE_KEYS.undoWindowDays) },
+      new Date("2026-10-20T10:05:00Z"),
+    );
+    expect(refused).toEqual({
+      ok: false,
+      problem: "sent_to_devices",
+      message: UNDO_MESSAGES.sent_to_devices,
     });
   });
 });

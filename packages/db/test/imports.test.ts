@@ -25,6 +25,9 @@ const A = {
   roleImporter: "0193a000-0000-7000-8000-000000000601",
   roleNorthImporter: "0193a000-0000-7000-8000-000000000602",
   roleReader: "0193a000-0000-7000-8000-000000000603",
+  /** Holds platform.import.run but may not create people (#150 security review L1). */
+  runOnly: "0193a000-0000-7000-8000-000000000304",
+  roleRunOnly: "0193a000-0000-7000-8000-000000000604",
 };
 const B = { roleImporter: "0193b000-0000-7000-8000-000000000601" };
 const IMPORT = "{platform.import.run,people.person.create,people.person.read}";
@@ -81,9 +84,10 @@ async function commit(c: pg.PoolClient, batch: string, people = 2): Promise<stri
   const created: string[] = [];
   for (let n = 0; n < people; n += 1) {
     const { rows } = await c.query<{ id: string }>(
-      `INSERT INTO person (location_id, status, nhs_number, given_name, family_name, date_of_birth)
-       VALUES ($1, 'active', $2, 'Ida', 'Example', '1940-02-01') RETURNING id`,
-      [ids.a.locationNorth, nextNhs()],
+      `INSERT INTO person (location_id, status, nhs_number, given_name, family_name, date_of_birth,
+                           import_batch_id)
+       VALUES ($1, 'active', $2, 'Ida', 'Example', '1940-02-01', $3) RETURNING id`,
+      [ids.a.locationNorth, nextNhs(), batch],
     );
     created.push(rows[0]?.id ?? "");
   }
@@ -113,17 +117,30 @@ const stagedRows = (batch: string) =>
 beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
+  // The undo window as rates.md holds it (the function reads the rate table, as the API does).
+  await inContext(db.pool("harbour_owner"), null, (c) =>
+    c.query(
+      `INSERT INTO rate_table (key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ('import.undo_window_days', 7, 'days', 'all', '2000-01-01', 'rates.md', 'to-verify')`,
+    ),
+  );
   await ownerDb(async (c) => {
+    await c.query(
+      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+       VALUES ($1, 'auth-a-run-only', 'Ray Runner', 'ray.runner@example.invalid', 'active')`,
+      [A.runOnly],
+    );
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
          ($1, 'importer', 'Importer', 'tenant', $4),
          ($2, 'north_importer', 'North importer', 'location', $4),
-         ($3, 'reader', 'Reader', 'tenant', '{people.person.read,people.person.create}')`,
-      [A.roleImporter, A.roleNorthImporter, A.roleReader, IMPORT],
+         ($3, 'reader', 'Reader', 'tenant', '{people.person.read,people.person.create}'),
+         ($5, 'run_only', 'Run only', 'tenant', '{platform.import.run,people.person.read}')`,
+      [A.roleImporter, A.roleNorthImporter, A.roleReader, IMPORT, A.roleRunOnly],
     );
     await c.query(
       `INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES
-         ($1, $2, NULL), ($3, $4, $5), ($6, $7, NULL)`,
+         ($1, $2, NULL), ($3, $4, $5), ($6, $7, NULL), ($8, $9, NULL)`,
       [
         A.importer,
         A.roleImporter,
@@ -132,6 +149,8 @@ beforeAll(async () => {
         ids.a.locationNorth,
         A.noImport,
         A.roleReader,
+        A.runOnly,
+        A.roleRunOnly,
       ],
     );
   });
@@ -189,6 +208,8 @@ describe("hazard HZ-130 hazard HZ-011 the import tables (migration 0088)", () =>
       // Even a request claiming the whole organisation: the holding is checked, not the claim.
       [A.northImporter, "tenant", []],
       [A.noImport, "tenant", []],
+      // The import permission without the right to create people reaches no batch (#150 L1).
+      [A.runOnly, "tenant", []],
     ] as const) {
       const as = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
         inContext(app(), ctx(TENANT_A, who, scope, locations), fn);
@@ -497,5 +518,116 @@ describe("hazard HZ-130 undoing an import in the database (app.undo_import_batch
     await expect(
       asImporter((c) => c.query("DELETE FROM person WHERE id = $1", [ids.a.personAda])),
     ).rejects.toThrow(/permission denied/);
+  });
+
+  it("hazard HZ-130 removes only people its own batch created, whatever the commit record lists", async () => {
+    const batch = await asImporter((c) => upload(c, 1));
+    await asImporter(dryRun(batch));
+    const created = await asImporter(async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO person (location_id, status, nhs_number, given_name, family_name,
+                             date_of_birth, import_batch_id)
+         VALUES ($1, 'active', $2, 'Ida', 'Example', '1940-02-01', $3) RETURNING id`,
+        [ids.a.locationNorth, nextNhs(), batch],
+      );
+      await c.query(
+        "UPDATE import_batch SET status = 'committed', closed_at = now(), closed_by = $2 WHERE id = $1",
+        [batch, A.importer],
+      );
+      // A commit record that also lists someone the batch never created.
+      await c.query(
+        "INSERT INTO import_commit (batch_id, record_ids, record_count) VALUES ($1, $2, 2)",
+        [batch, [rows[0]?.id, ids.a.personAda]],
+      );
+      return rows[0]?.id ?? "";
+    });
+    await expect(asImporter(undo(batch))).rejects.toThrow(/changed_since/);
+    expect(await peopleLeft([created, ids.a.personAda])).toBe(2);
+  });
+
+  it("hazard HZ-130 refuses an undo past the window, read from the rate table in the database", async () => {
+    const { batch, created } = await committedBatch(1);
+    // The organisation's own window of no days at all: the commit is already outside it.
+    await ownerDb((c) =>
+      c.query(
+        `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source,
+                                 verification_status)
+         VALUES ($1, 'import.undo_window_days', 0, 'days', 'all', '2000-01-01', 'test', 'tenant')`,
+        [TENANT_A],
+      ),
+    );
+    try {
+      await expect(asImporter(undo(batch))).rejects.toThrow(/window_passed/);
+      expect(await peopleLeft(created)).toBe(1);
+    } finally {
+      await ownerDb((c) =>
+        c.query(
+          "UPDATE rate_table SET valid_to = '2000-01-02' WHERE tenant_id = $1 AND key = 'import.undo_window_days'",
+          [TENANT_A],
+        ),
+      );
+    }
+  });
+
+  it("hazard HZ-130 ties a person to an import batch only as the batch commits, and never changes it", async () => {
+    const staged = await asImporter((c) => upload(c, 1));
+    const insert = (batch: string) => (c: pg.PoolClient) =>
+      c.query(
+        `INSERT INTO person (location_id, status, nhs_number, given_name, family_name,
+                             date_of_birth, import_batch_id)
+         VALUES ($1, 'active', $2, 'Ida', 'Example', '1940-02-01', $3)`,
+        [ids.a.locationNorth, nextNhs(), batch],
+      );
+    // Not dry-run yet, then closed: no person may claim the batch.
+    await expect(asImporter(insert(staged))).rejects.toThrow(/import_batch_not_committing/);
+    const { batch: done } = await committedBatch(1);
+    await expect(asImporter(insert(done))).rejects.toThrow(/import_batch_not_committing/);
+    await expect(
+      asImporter((c) =>
+        c.query("UPDATE person SET import_batch_id = $2 WHERE id = $1", [ids.a.personAda, done]),
+      ),
+    ).rejects.toThrow(/import_batch_fixed/);
+    // Nor may someone who cannot reach imports name a batch.
+    await asImporter(dryRun(staged));
+    await expect(
+      inContext(app(), ctx(TENANT_A, A.noImport, "tenant"), insert(staged)),
+    ).rejects.toThrow(/import_batch_not_committing/);
+  });
+
+  it("hazard HZ-130 never commits a batch past its expiry", async () => {
+    const batch = await asImporter((c) => upload(c, 1, "-1 minute"));
+    await asImporter(dryRun(batch));
+    await expect(
+      asImporter((c) =>
+        c.query(
+          "UPDATE import_batch SET status = 'committed', closed_at = now(), closed_by = $2 WHERE id = $1",
+          [batch, A.importer],
+        ),
+      ),
+    ).rejects.toThrow(/import_expired/);
+  });
+
+  // Last: the sync token it records stays in the organisation's audit trail.
+  it("hazard HZ-130 refuses an undo once a phone may hold the people (a people sync token since the commit)", async () => {
+    const { batch, created } = await committedBatch(1);
+    // A token for a phone that syncs no people at any home does not count.
+    await asImporter((c) =>
+      c.query(
+        `INSERT INTO audit_event (tenant_id, action, scope)
+         VALUES ($1, 'sync.token.issue', '{"peopleLocations": 0, "peopleAssigned": true}')`,
+        [TENANT_A],
+      ),
+    );
+    const second = await committedBatch(1);
+    await asImporter((c) =>
+      c.query(
+        `INSERT INTO audit_event (tenant_id, action, scope)
+         VALUES ($1, 'sync.token.issue', '{"peopleLocations": 1, "peopleAssigned": false}')`,
+        [TENANT_A],
+      ),
+    );
+    await expect(asImporter(undo(batch))).rejects.toThrow(/sent_to_devices/);
+    await expect(asImporter(undo(second.batch))).rejects.toThrow(/sent_to_devices/);
+    expect(await peopleLeft([...created, ...second.created])).toBe(2);
   });
 });

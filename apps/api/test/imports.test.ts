@@ -1,9 +1,12 @@
 import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SYNC_TOKEN_TTL_SECONDS } from "@harbour/sync/streams";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { loadConfig } from "../src/config";
 import { expireImportsJob } from "../src/jobs/tasks";
-import { createLogger } from "../src/logger";
-import { ageSession, createHarness, type Harness, OTHER } from "./support/harness";
+import { createLogger, loggableError } from "../src/logger";
+import { ImportWriteFailed, writingImported } from "../src/services/platform-imports";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The import wizard over HTTP (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-007,
@@ -91,8 +94,12 @@ async function stagedAndChecked(csv: string, extra: Json = {}) {
 }
 
 const HEADER = "given_name,family_name,date_of_birth,nhs_number,local_identifier,allergy_status";
+/**
+ * One person's row: a family name of their own ("Example-Ida"), so rows that share the date of
+ * birth are not possible duplicates of each other unless a test means them to be.
+ */
 const line = (given: string, nhs: string, extra = "") =>
-  `${given},Example,06/05/1930,${nhs},${extra}`;
+  `${given},Example-${given},06/05/1930,${nhs},${extra}`;
 
 const stagedRowCount = async (batchId: string) =>
   Number(
@@ -281,10 +288,16 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
       errorCount: 1,
       warningCount: 0,
       mayCommit: false,
-      errors: [{ row: 2, column: "nhs_number", code: "already_in_harbour" }],
-      allergyStatusUnknownRows: [2, 4],
-      allergiesToRecordRows: [3],
+      needsAcknowledgement: false,
+      // The owner can see Gwen's record, so the error names it (rule 18: nothing new to them).
+      errors: [
+        { row: 2, column: "nhs_number", code: "already_in_harbour", personId: LODGE.personId },
+      ],
+      allergyStatusNotStatedRows: [2, 4],
+      noKnownAllergiesStatedRows: [1],
+      hasAllergiesStatedRows: [3],
     });
+    expect((report.whatHappens as string[]).join(" ")).toMatch(/Nothing can be committed/);
     expect(JSON.stringify(report)).not.toMatch(/9990000077|9990000085|Gwen|Outofscope|Lodge/);
     // Nothing commits with an error, and nothing was created.
     const refused = await send(`/v1/imports/${id}/commit`, "POST", {});
@@ -303,7 +316,19 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
       `${line("Jo", "", "R-2")},has_allergies`,
     ].join("\n");
     const { id, report } = await stagedAndChecked(csv);
-    expect(report).toMatchObject({ errorCount: 0, mayCommit: true, allergyStatusUnknownRows: [2] });
+    expect(report).toMatchObject({
+      errorCount: 0,
+      warningCount: 0,
+      mayCommit: true,
+      allergyStatusNotStatedRows: [2],
+      noKnownAllergiesStatedRows: [1],
+      hasAllergiesStatedRows: [3],
+    });
+    const words = (report.whatHappens as string[]).join(" ");
+    expect(words).toMatch(/creates 3 people/);
+    expect(words).toMatch(/allergy status is imported as not recorded/);
+    expect(words).toMatch(/Allergies themselves are not imported/);
+    expect(words).toMatch(/no photo, room or placement/);
 
     // Commit and undo need a fresh second factor.
     const tokenSession = (h.tokens.owner ?? "").split(".")[0] ?? "";
@@ -318,29 +343,38 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
       records: number;
       replayed: boolean;
       undoClosesAt: string;
+      allergyStatusToConfirm: { personId: string; stated: string }[];
     };
     expect(result).toMatchObject({ records: 3, replayed: false });
     const people = await ownerSql<{
       id: string;
+      given_name: string;
       status: string;
       location_id: string;
       allergy_status: string;
       allergy_status_confirmed_by: string | null;
+      import_batch_id: string;
     }>(
-      `SELECT id, status, location_id, allergy_status, allergy_status_confirmed_by FROM person
+      `SELECT id, given_name, status, location_id, allergy_status, allergy_status_confirmed_by,
+              import_batch_id
+         FROM person
         WHERE nhs_number = ANY ($1) OR local_identifier = 'R-2' ORDER BY given_name`,
       [numbers],
     );
-    expect(people.map((p) => [p.status, p.location_id, p.allergy_status])).toEqual([
-      ["active", DEMO.locationId, "unknown"],
-      ["active", DEMO.locationId, "no_known_allergies"],
-      ["active", DEMO.locationId, "has_allergies"],
+    // HZ-007: whatever the file stated, every status is not recorded, confirmed by no one, until
+    // staff check it; the people the file stated a status for are returned to check first.
+    expect(
+      people.map((p) => [p.status, p.location_id, p.allergy_status, p.allergy_status_confirmed_by]),
+    ).toEqual([
+      ["active", DEMO.locationId, "unknown", null],
+      ["active", DEMO.locationId, "unknown", null],
+      ["active", DEMO.locationId, "unknown", null],
     ]);
-    // HZ-007: a stated status is confirmed by the member who committed it; unknown by no one.
-    expect(people.map((p) => p.allergy_status_confirmed_by)).toEqual([
-      null,
-      DEMO.users.owner.id,
-      DEMO.users.owner.id,
+    expect(people.every((p) => p.import_batch_id === id)).toBe(true);
+    const byName = new Map(people.map((p) => [p.given_name, p.id]));
+    expect(result.allergyStatusToConfirm).toEqual([
+      { personId: byName.get("Ida"), stated: "no_known_allergies" },
+      { personId: byName.get("Jo"), stated: "has_allergies" },
     ]);
     // Another organisation's person with the same number is untouched and still its own.
     expect(
@@ -418,24 +452,53 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
     );
   });
 
-  it("hazard HZ-130 needs possible duplicates acknowledged before committing", async () => {
+  it("hazard HZ-130 needs exactly the possible duplicates seen acknowledged, each naming the record or row", async () => {
     const first = await stagedAndChecked(`${HEADER}\n${line("Nia", "", "R-30")},unknown`);
     expect((await send(`/v1/imports/${first.id}/commit`, "POST", {})).status).toBe(200);
-    // Same name and date of birth, no NHS number on either: perhaps the same person.
-    const second = await stagedAndChecked(`${HEADER}\n${line("NIA", "", "R-31")},unknown`);
+    const [nia] = await ownerSql<{ id: string }>(
+      "SELECT id FROM person WHERE local_identifier = 'R-30'",
+    );
+    // The same name and date of birth, written differently, with no NHS number: perhaps the same
+    // person. A second row with the names the other way round is a possible duplicate of row 1.
+    const second = await stagedAndChecked(
+      [HEADER, `${line("NIA", "", "R-31")},unknown`, "Example-Nia,Nia,06/05/1930,,R-32,"].join(
+        "\n",
+      ),
+    );
     expect(second.report).toMatchObject({
       errorCount: 0,
-      warningCount: 1,
-      mayCommit: true,
-      warnings: [{ row: 1, code: "possible_duplicate" }],
+      mayCommit: false,
+      needsAcknowledgement: true,
     });
+    const warnings = second.report.warnings as {
+      row: number;
+      match: string;
+      personId: string | null;
+      otherRow: number | null;
+    }[];
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ row: 1, match: "same_name", personId: nia?.id }),
+        expect.objectContaining({ row: 1, match: "names_swapped", otherRow: 2 }),
+        expect.objectContaining({ row: 2, match: "names_swapped", otherRow: 1 }),
+      ]),
+    );
+    const keys = second.report.warningKeys as string[];
+    expect(keys).toHaveLength(warnings.length);
     const refused = await send(`/v1/imports/${second.id}/commit`, "POST", {});
     expect([refused.status, (await json(refused)).code]).toEqual([
       409,
       "possible_duplicates_unacknowledged",
     ]);
+    // One fewer than found, or one never shown, is refused too.
+    for (const acknowledgedWarnings of [keys.slice(1), [...keys, "9:same_name:row-1"]]) {
+      const partial = await send(`/v1/imports/${second.id}/commit`, "POST", {
+        acknowledgedWarnings,
+      });
+      expect((await json(partial)).code).toBe("possible_duplicates_unacknowledged");
+    }
     const accepted = await send(`/v1/imports/${second.id}/commit`, "POST", {
-      acknowledgePossibleDuplicates: true,
+      acknowledgedWarnings: keys,
     });
     expect(accepted.status).toBe(200);
   });
@@ -458,6 +521,91 @@ describe("hazard HZ-130 dry run, commit and undo (rules 21 to 24)", () => {
     const commit = await send(`/v1/imports/${id}/commit`, "POST", {});
     expect([commit.status, (await json(commit)).code]).toEqual([409, "not_staged"]);
   });
+
+  it("refuses 999-range test NHS numbers and 0000000000 where the organisation's people are real", async () => {
+    const config = h.handle.services.config as { importTestNhsNumbers: boolean };
+    config.importTestNhsNumbers = false;
+    try {
+      const { id, report } = await stagedAndChecked(
+        `${HEADER}\n${line("Ida", nextNhs())},unknown\n${line("Bo", "0000000000")},unknown`,
+      );
+      expect(report).toMatchObject({ errorCount: 2, byCode: { test_nhs_number: 2 } });
+      expect(JSON.stringify(report)).not.toMatch(/\b999\d{7}\b|0000000000/);
+      expect((await send(`/v1/imports/${id}`, "DELETE")).status).toBe(200);
+    } finally {
+      config.importTestNhsNumbers = true;
+    }
+    expect(loadConfig({ NODE_ENV: "test" }).importTestNhsNumbers).toBe(true);
+    expect(
+      loadConfig({ NODE_ENV: "test", IMPORT_TEST_NHS_NUMBERS: "off" }).importTestNhsNumbers,
+    ).toBe(false);
+  });
+
+  // Last in this block: the sync token it issues stays in the organisation's audit trail, so no
+  // later undo here would be allowed.
+  it("hazard HZ-130 refuses an undo once a phone may hold the imported people", async () => {
+    const { id } = await stagedAndChecked(`${HEADER}\n${line("Ivy", nextNhs())},unknown`);
+    expect((await send(`/v1/imports/${id}/commit`, "POST", {})).status).toBe(200);
+    // The manager's phone asks for a sync token carrying the home's people.
+    const token = await h.request("/v1/sync/token", { method: "POST", ...as("manager") });
+    expect(token.status).toBe(200);
+    const refused = await send(`/v1/imports/${id}/undo`, "POST");
+    expect([refused.status, (await json(refused)).code]).toEqual([409, "sent_to_devices"]);
+    expect(await ownerSql("SELECT id FROM person WHERE import_batch_id = $1", [id])).toHaveLength(
+      1,
+    );
+    // The database looks back one sync token's lifetime before the commit.
+    const [fn] = await ownerSql<{ def: string }>(
+      "SELECT pg_get_functiondef('app.undo_import_batch(uuid, text)'::regprocedure) AS def",
+    );
+    expect(fn?.def).toContain(`'${SYNC_TOKEN_TTL_SECONDS} seconds'`);
+  });
+});
+
+describe("hazard HZ-130 an imported value never reaches a log", () => {
+  it("hazard HZ-130 refuses a cell that cannot be stored at upload, by row and field, logging nothing personal", async () => {
+    const logged: unknown[] = [];
+    const logger = h.handle.services.logger;
+    const spies = (["error", "warn", "info"] as const).map((level) =>
+      vi.spyOn(logger, level).mockImplementation(((...args: unknown[]) => {
+        logged.push(args);
+      }) as never),
+    );
+    try {
+      const nul = await upload(`${HEADER}\nAda,Exa\u0000mple,06/05/1930,9990001502,,unknown\n`);
+      expect(nul.status).toBe(422);
+      const body = await json(nul);
+      expect(String(body.detail)).toMatch(/Row 1: Family name/);
+      const surrogate = await send("/v1/imports", "POST", {
+        recordType: "people",
+        locationId: DEMO.locationId,
+        rows: [{ given_name: "Ada\uD800", family_name: "Example", date_of_birth: "06/05/1930" }],
+      });
+      expect(surrogate.status).toBe(422);
+      expect(String((await json(surrogate)).detail)).toMatch(/Row 1: Given name/);
+      expect(JSON.stringify([body, logged])).not.toMatch(/Ada|Exa|mple|9990001502|1930/);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it("hazard HZ-130 rethrows a failed write of imported values as its database code alone", async () => {
+    const failing = Object.assign(
+      new Error('Failed query: insert into "person" ... params: Ada,Example,1930-05-06,9990001502'),
+      { cause: Object.assign(new Error("unsupported Unicode escape sequence"), { code: "22P05" }) },
+    );
+    const thrown = await writingImported(() => Promise.reject(failing)).catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(ImportWriteFailed);
+    expect((thrown as ImportWriteFailed).code).toBe("22P05");
+    const asLogged = JSON.stringify({
+      message: (thrown as Error).message,
+      stack: (thrown as Error).stack,
+      cause: (thrown as { cause?: unknown }).cause ?? null,
+      loggable: loggableError(thrown),
+    });
+    expect(asLogged).not.toMatch(/Ada|Example|1930|9990001502/);
+    expect(loggableError(thrown)).toMatchObject({ type: "ImportWriteFailed", code: "22P05" });
+  });
 });
 
 describe("staged rows go when a batch expires (rule 25)", () => {
@@ -472,6 +620,10 @@ describe("staged rows go when a batch expires (rule 25)", () => {
       const res = await upload(`${HEADER}\n${line("Ida", nextNhs())},unknown`);
       const { id } = (await res.json()) as { id: string };
       expect(await stagedRowCount(id)).toBe(1);
+      // Past its time, a batch is never committed, even before the sweep reaches it (#150 L2).
+      expect((await send(`/v1/imports/${id}/dry-run`, "POST")).status).toBe(200);
+      const late = await send(`/v1/imports/${id}/commit`, "POST", {});
+      expect([late.status, (await json(late)).code]).toEqual([409, "expired"]);
       const expired = await expireImportsJob({
         workerPool: h.db.pool("harbour_worker"),
         appDb: createDatabase(h.db.pool("harbour_app")),
@@ -489,7 +641,7 @@ describe("staged rows go when a batch expires (rule 25)", () => {
       expect(audits).toEqual([{ actor: null, scope: { rows: 1, job: "import-expiry" } }]);
     } finally {
       await ownerSql(
-        "DELETE FROM rate_table WHERE tenant_id = $1 AND key = 'import.staging_expiry_days'",
+        "UPDATE rate_table SET valid_to = '2000-01-02' WHERE tenant_id = $1 AND key = 'import.staging_expiry_days'",
         [DEMO.tenantId],
       );
     }

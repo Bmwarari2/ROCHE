@@ -3538,6 +3538,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       sample_batch_id: {
         description: "The sample batch an invented person came with (empty here).",
       },
+      import_batch_id: {
+        description:
+          "The import batch that created the person (import_batch.id), or empty for someone added any other way.",
+      },
       nhs_number: {
         description: "NHS number, 10 digits without spaces, check digit validated (MODS).",
       },

@@ -15,6 +15,7 @@ import {
   type ImportRecordType,
   importUndoClosesAt,
   type PeopleDryRun,
+  type PeopleImportOptions,
   peopleDryRun,
   ukIsoDate,
 } from "@harbour/domain";
@@ -142,10 +143,10 @@ export async function stagedRows(
 export async function peopleToMatch(
   tx: Transaction,
   rows: readonly Readonly<Record<string, string>>[],
-  today: string,
+  options: PeopleImportOptions,
 ): Promise<ExistingPerson[]> {
   // The rows' own identifiers as they will be stored (`peopleDryRun` normalises the same way).
-  const { validation } = peopleDryRun(rows, [], today);
+  const { validation } = peopleDryRun(rows, [], options);
   const nhs = [...new Set(validation.rows.flatMap((r) => (r.nhs_number ? [r.nhs_number] : [])))];
   const local = [
     ...new Set(validation.rows.flatMap((r) => (r.local_identifier ? [r.local_identifier] : []))),
@@ -161,6 +162,7 @@ export async function peopleToMatch(
   if (conditions.length === 0) return [];
   return tx
     .select({
+      id: person.id,
       nhsNumber: person.nhsNumber,
       localIdentifier: person.localIdentifier,
       givenName: person.givenName,
@@ -175,15 +177,44 @@ export async function peopleToMatch(
 export async function dryRunNow(
   tx: Transaction,
   batchId: string,
+  allowTestNhsNumbers: boolean,
 ): Promise<{
   readonly rows: Record<string, string>[];
   readonly validation: ReturnType<typeof peopleDryRun>["validation"];
   readonly report: PeopleDryRun;
 }> {
-  const today = ukIsoDate(new Date());
+  const options = { today: ukIsoDate(new Date()), allowTestNhsNumbers };
   const rows = await stagedRows(tx, batchId);
-  const existing = await peopleToMatch(tx, rows, today);
-  return { rows, ...peopleDryRun(rows, existing, today) };
+  const existing = await peopleToMatch(tx, rows, options);
+  return { rows, ...peopleDryRun(rows, existing, options) };
+}
+
+/**
+ * A database failure while writing imported values, carrying only the database's code (#150
+ * security review H1): a failed query's message holds its parameters (names, dates of birth, NHS
+ * numbers), so the original error, and with it its message and cause, never travels further.
+ */
+export class ImportWriteFailed extends Error {
+  constructor(readonly code: string | null) {
+    super(`An import write failed (SQLSTATE ${code ?? "unknown"}).`);
+    this.name = "ImportWriteFailed";
+  }
+}
+
+/** The database's code of an error from the driver, or its query builder's wrapper. */
+export function sqlState(error: unknown): string | null {
+  const e = error as { code?: unknown; cause?: { code?: unknown } };
+  const code = typeof e.cause?.code === "string" ? e.cause.code : e.code;
+  return typeof code === "string" && /^[0-9A-Z]{5}$/.test(code) ? code : null;
+}
+
+/** Runs a write of imported values; any database failure is rethrown as its code alone. */
+export async function writingImported<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    throw new ImportWriteFailed(sqlState(error));
+  }
 }
 
 /** How many of a commit's people are still exactly as imported (version 1, not soft-deleted). */

@@ -89,9 +89,22 @@ export const ImportFinding = z
     code: z.string(),
     /** Plain words naming the field, never the value. */
     message: z.string(),
+    /**
+     * The existing record the row matched (already in Harbour, or a possible duplicate). The
+     * importer can see everyone in the organisation (rule 18), so this tells them nothing new.
+     */
+    personId: uuid.nullable().optional(),
+    /** A possible duplicate's other row in the file. */
+    otherRow: z.number().int().min(1).nullable().optional(),
+    /** How the names agree: same_name, names_swapped, same_family_name, same_given_name. */
+    match: z.string().optional(),
+    /** A warning's key, listed back in the commit's acknowledgement. */
+    key: z.string().optional(),
   })
   .meta({ id: "ImportFinding", description: "An error or warning at a row and field" });
 export type ImportFinding = z.infer<typeof ImportFinding>;
+
+const rowNumbers = z.array(z.number().int().min(1));
 
 export const ImportDryRunReport = z
   .object({
@@ -102,16 +115,25 @@ export const ImportDryRunReport = z
     warningCount: count,
     /** Every error, counted by code. */
     byCode: z.record(z.string(), count),
-    /** True when the batch may be committed (warnings still need acknowledging). */
+    /** True only with no errors and no possible duplicates left to acknowledge. */
     mayCommit: z.boolean(),
+    /** True when the only thing left is to acknowledge the possible duplicates listed. */
+    needsAcknowledgement: z.boolean(),
     errors: z.array(ImportFinding),
     warnings: z.array(ImportFinding),
+    /** Every warning's key: the commit's `acknowledgedWarnings` must list exactly these. */
+    warningKeys: z.array(z.string()),
     /** True when more errors or warnings were found than are listed. */
     truncated: z.boolean(),
-    /** HZ-007: rows imported with allergy status unknown ("not recorded" until someone records it). */
-    allergyStatusUnknownRows: z.array(z.number().int().min(1)),
-    /** Rows marked as having allergies: record each allergy on the person after the import. */
-    allergiesToRecordRows: z.array(z.number().int().min(1)),
+    /**
+     * HZ-007: every person's allergy status is imported as not recorded, whatever the file says,
+     * until staff check it on the record. What the file stated, so those are checked first.
+     */
+    allergyStatusNotStatedRows: rowNumbers,
+    noKnownAllergiesStatedRows: rowNumbers,
+    hasAllergiesStatedRows: rowNumbers,
+    /** What committing does, in plain words. */
+    whatHappens: z.array(z.string()),
   })
   .meta({
     id: "ImportDryRunReport",
@@ -121,8 +143,12 @@ export type ImportDryRunReport = z.infer<typeof ImportDryRunReport>;
 
 export const CommitImport = z
   .object({
-    /** True once the person committing has checked each possible duplicate the dry run listed. */
-    acknowledgePossibleDuplicates: z.boolean().default(false),
+    /**
+     * The keys of the possible duplicates the person committing has checked: exactly the dry
+     * run's `warningKeys`. A warning found now that is not listed, or one listed that is no longer
+     * found, refuses the commit.
+     */
+    acknowledgedWarnings: z.array(z.string().max(120)).max(5000).default([]),
   })
   .meta({ id: "CommitImport" });
 export type CommitImport = z.infer<typeof CommitImport>;
@@ -135,6 +161,13 @@ export const ImportCommitResult = z
     undoClosesAt: isoDateTime,
     /** True when the batch was already committed: the same commit, nothing created again. */
     replayed: z.boolean(),
+    /**
+     * HZ-007: the people whose allergy status the file stated, imported as not recorded: check
+     * and record each. Empty on a replay.
+     */
+    allergyStatusToConfirm: z.array(
+      z.object({ personId: uuid, stated: z.enum(["no_known_allergies", "has_allergies"]) }),
+    ),
   })
   .meta({ id: "ImportCommitResult" });
 export type ImportCommitResult = z.infer<typeof ImportCommitResult>;

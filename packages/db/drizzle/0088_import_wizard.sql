@@ -58,6 +58,7 @@ CREATE TABLE "import_row" (
 	CONSTRAINT "import_row_cells" CHECK (jsonb_typeof(cells) = 'object')
 );
 --> statement-breakpoint
+ALTER TABLE "person" ADD COLUMN "import_batch_id" uuid;--> statement-breakpoint
 ALTER TABLE "import_batch" ADD CONSTRAINT "import_batch_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "import_batch" ADD CONSTRAINT "import_batch_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "import_batch" ADD CONSTRAINT "import_batch_uploaded_by_fk" FOREIGN KEY ("tenant_id","uploaded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -70,6 +71,8 @@ ALTER TABLE "import_commit" ADD CONSTRAINT "import_commit_undone_by_fk" FOREIGN 
 ALTER TABLE "import_row" ADD CONSTRAINT "import_row_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "import_row" ADD CONSTRAINT "import_row_batch_fk" FOREIGN KEY ("tenant_id","batch_id") REFERENCES "public"."import_batch"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "import_batch_staged_idx" ON "import_batch" USING btree ("tenant_id","expires_at") WHERE status = 'staged';--> statement-breakpoint
+ALTER TABLE "person" ADD CONSTRAINT "person_import_batch_fk" FOREIGN KEY ("tenant_id","import_batch_id") REFERENCES "public"."import_batch"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "person_import_batch_idx" ON "person" USING btree ("tenant_id","import_batch_id") WHERE import_batch_id IS NOT NULL;--> statement-breakpoint
 
 -- The import wizard (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-011). A batch,
 -- its staged rows and its commit record are reached only in a request scoped to the whole
@@ -100,26 +103,28 @@ CREATE POLICY tenant_isolation ON public.import_commit AS PERMISSIVE FOR ALL TO 
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 
--- Who reaches an import (rule 18). Invoker rights: it reads the caller's own roles and grants.
-CREATE OR REPLACE FUNCTION app.import_reachable() RETURNS boolean
+-- Who reaches an import (rule 18). Invoker rights: it reads the caller's own roles and grants. A
+-- member needs platform.import.run and the permission to create the batch's records (people:
+-- people.person.create), both across the organisation, for every command: reading, the dry run,
+-- the commit and discarding alike (#150 security review L1).
+CREATE OR REPLACE FUNCTION app.import_reachable(p_record_type text) RETURNS boolean
 LANGUAGE sql STABLE SET search_path = pg_catalog, public AS $$
   SELECT app.current_scope() = 'tenant' AND (
     app.current_user_id() IS NULL
-    OR app.holds_permission_at('platform.import.run', NULL))
+    OR (app.holds_permission_at('platform.import.run', NULL)
+        AND CASE p_record_type
+              WHEN 'people' THEN app.holds_permission_at('people.person.create', NULL)
+              ELSE false
+            END))
 $$;
 --> statement-breakpoint
 CREATE POLICY import_batch_reach ON public.import_batch AS RESTRICTIVE FOR ALL TO harbour_app
-  USING (app.import_reachable()) WITH CHECK (app.import_reachable());
+  USING (app.import_reachable(record_type)) WITH CHECK (app.import_reachable(record_type));
 --> statement-breakpoint
--- A batch is uploaded staged, in the uploader's own name, by a member who may also create the
--- records it holds across the organisation (people: people.person.create).
+-- A batch is uploaded staged, in the uploader's own name.
 CREATE POLICY import_batch_upload ON public.import_batch AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (status = 'staged' AND uploaded_by = app.current_user_id()
-    AND dry_run_at IS NULL AND closed_at IS NULL AND closed_by IS NULL
-    AND CASE record_type
-          WHEN 'people' THEN app.holds_permission_at('people.person.create', NULL)
-          ELSE false
-        END);
+    AND dry_run_at IS NULL AND closed_at IS NULL AND closed_by IS NULL);
 --> statement-breakpoint
 -- Staged rows and the commit record follow their batch; rows go only into a staged batch, by its
 -- uploader; a commit record only for a committed batch, in the committer's own name.
@@ -186,6 +191,10 @@ BEGIN
     IF NEW.status = 'committed' AND NEW.dry_run_at IS NULL THEN
       RAISE EXCEPTION 'dry_run_first' USING ERRCODE = 'integrity_constraint_violation';
     END IF;
+    -- A batch past its expiry is never committed: its rows are due to be deleted (#150 L2).
+    IF NEW.status = 'committed' AND OLD.expires_at <= now() THEN
+      RAISE EXCEPTION 'import_expired' USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
     IF NEW.status = 'expired' AND (NEW.closed_by IS NOT NULL OR OLD.expires_at > now()) THEN
       RAISE EXCEPTION 'import_not_expired' USING ERRCODE = 'integrity_constraint_violation';
     END IF;
@@ -221,14 +230,47 @@ CREATE TRIGGER import_batch_closed AFTER UPDATE OF status ON public.import_batch
   EXECUTE FUNCTION app.import_batch_closed();
 --> statement-breakpoint
 
+-- Imported people are tied to the batch that created them (#150 security review M1): a person is
+-- given an import batch only as it is created, only while that batch is staged after its dry run
+-- (the commit creates people before it closes the batch), and the import batch never changes after.
+-- Invoker rights: under the application's row-level security only an importer sees the batch.
+CREATE OR REPLACE FUNCTION app.person_import_batch_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.import_batch_id IS DISTINCT FROM OLD.import_batch_id THEN
+      RAISE EXCEPTION 'import_batch_fixed' USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.import_batch_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM public.import_batch b
+        WHERE b.id = NEW.import_batch_id AND b.tenant_id = NEW.tenant_id
+          AND b.status = 'staged' AND b.dry_run_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'import_batch_not_committing' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER person_import_batch_guard BEFORE INSERT OR UPDATE ON public.person
+  FOR EACH ROW EXECUTE FUNCTION app.person_import_batch_guard();
+--> statement-breakpoint
+
 -- Undo (rules 14 and 24): a holder of platform.import.run and people.person.create across the
--- organisation, in a request scoped to the whole organisation, undoes a committed batch once, only
--- while every person it created is unchanged (version 1, not soft-deleted) and nothing refers to
--- any of them by a foreign key (a note, task, document, allergy, contact, legal hold). The people
--- are removed outright, the whole batch or nothing: the check is made again by the DELETE itself,
--- so a save that lands first makes the count fall short and the undo is refused. The window is the
--- API's (`import.undo_window_days`, read from the rate table). Audited with the count only; audit
--- events about the people stay.
+-- organisation, in a request scoped to the whole organisation, undoes a committed batch once:
+-- - within `import.undo_window_days` of the commit, read here from the rate table for the
+--   batch's home as the API reads it (`app.location_rate`), failing closed when there is none;
+-- - before any phone may hold its people (#150 clinical review H2): refused once a sync token
+--   carrying people at any home was issued in the organisation from one token's lifetime
+--   (SYNC_TOKEN_TTL_SECONDS, 900 seconds) before the commit, because a phone that received them
+--   can record care for them without a signal, and an undo would strand those entries;
+-- - only while every person it created is unchanged (version 1, not soft-deleted) and nothing
+--   refers to any of them by a foreign key (a note, task, document, allergy, contact, legal hold).
+-- Only people created by this batch are removed (`person.import_batch_id`), and they must be
+-- exactly the commit's record ids, the whole batch or nothing: the check is made again by the
+-- DELETE itself, so a save that lands first makes the count fall short and the undo is refused.
+-- Audited with the count only; audit events about the people stay.
 CREATE OR REPLACE FUNCTION app.undo_import_batch(p_batch uuid, p_request_id text)
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
@@ -238,6 +280,9 @@ DECLARE
   v_commit uuid;
   v_ids uuid[];
   v_undone timestamptz;
+  v_committed timestamptz;
+  v_location uuid;
+  v_days numeric;
   v_removed integer;
 BEGIN
   IF v_me IS NULL OR app.current_scope() IS DISTINCT FROM 'tenant'
@@ -245,7 +290,7 @@ BEGIN
      OR NOT app.holds_permission_at('people.person.create', NULL) THEN
     RAISE EXCEPTION 'missing_permission' USING ERRCODE = 'insufficient_privilege';
   END IF;
-  SELECT c.id, c.record_ids, c.undone_at INTO v_commit, v_ids, v_undone
+  SELECT c.id, c.record_ids, c.undone_at, c.committed_at INTO v_commit, v_ids, v_undone, v_committed
     FROM public.import_commit c
    WHERE c.tenant_id = v_tenant AND c.batch_id = p_batch
    FOR UPDATE;
@@ -255,9 +300,23 @@ BEGIN
   IF v_undone IS NOT NULL THEN
     RAISE EXCEPTION 'already_undone' USING ERRCODE = 'check_violation';
   END IF;
+  SELECT b.location_id INTO v_location FROM public.import_batch b
+   WHERE b.id = p_batch AND b.tenant_id = v_tenant;
+  v_days := app.location_rate(v_location, 'import.undo_window_days', now());
+  IF v_days IS NULL OR now() > v_committed + make_interval(days => v_days::integer) THEN
+    RAISE EXCEPTION 'window_passed' USING ERRCODE = 'check_violation';
+  END IF;
+  IF EXISTS (
+       SELECT 1 FROM public.audit_event a
+        WHERE a.tenant_id = v_tenant AND a.action = 'sync.token.issue'
+          AND a.occurred_at >= v_committed - interval '900 seconds'
+          AND coalesce(a.scope ->> 'peopleLocations', '0') ~ '^[0-9]+$'
+          AND (a.scope ->> 'peopleLocations')::integer > 0) THEN
+    RAISE EXCEPTION 'sent_to_devices' USING ERRCODE = 'check_violation';
+  END IF;
   BEGIN
     DELETE FROM public.person p
-     WHERE p.tenant_id = v_tenant AND p.id = ANY (v_ids)
+     WHERE p.tenant_id = v_tenant AND p.import_batch_id = p_batch AND p.id = ANY (v_ids)
        AND p.version = 1 AND p.deleted_at IS NULL;
     GET DIAGNOSTICS v_removed = ROW_COUNT;
   EXCEPTION WHEN foreign_key_violation THEN
@@ -281,16 +340,21 @@ $$;
 -- owner changes (ADR-0002).
 GRANT USAGE ON SCHEMA public, app TO harbour_import_owner;
 --> statement-breakpoint
-GRANT SELECT (tenant_id, id, version, deleted_at), DELETE ON public.person TO harbour_import_owner;
+GRANT SELECT (tenant_id, id, version, deleted_at, import_batch_id), DELETE ON public.person
+  TO harbour_import_owner;
 --> statement-breakpoint
 GRANT SELECT (tenant_id, batch_id), DELETE ON public.import_row TO harbour_import_owner;
 --> statement-breakpoint
-GRANT SELECT (id, tenant_id, batch_id, record_ids, undone_at), UPDATE (undone_at, undone_by)
-  ON public.import_commit TO harbour_import_owner;
+GRANT SELECT (id, tenant_id, batch_id, record_ids, undone_at, committed_at),
+  UPDATE (undone_at, undone_by) ON public.import_commit TO harbour_import_owner;
 --> statement-breakpoint
-GRANT SELECT (id, tenant_id, status), UPDATE (status) ON public.import_batch TO harbour_import_owner;
+GRANT SELECT (id, tenant_id, status, location_id), UPDATE (status) ON public.import_batch
+  TO harbour_import_owner;
 --> statement-breakpoint
-GRANT SELECT ON public.role_assignment, public.role, public.access_grant TO harbour_import_owner;
+GRANT SELECT ON public.role_assignment, public.role, public.access_grant, public.rate_table,
+  public.location TO harbour_import_owner;
+--> statement-breakpoint
+GRANT SELECT (tenant_id, action, occurred_at, scope) ON public.audit_event TO harbour_import_owner;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.holds_permission_at(text, uuid) TO harbour_import_owner;
 --> statement-breakpoint

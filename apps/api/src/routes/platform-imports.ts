@@ -24,6 +24,7 @@ import {
   stagedCells,
   UNDO_MESSAGES,
   type UndoProblem,
+  uploadCellProblem,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { desc, eq, inArray, sql } from "drizzle-orm";
@@ -48,9 +49,12 @@ import {
   dryRunNow,
   findBatch,
   findCommit,
+  ImportWriteFailed,
   importRates,
   openLocation,
+  sqlState,
   unchangedPeople,
+  writingImported,
 } from "../services/platform-imports";
 import {
   conflictResponse,
@@ -60,7 +64,6 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import { dbCode } from "./people-shared";
 
 /**
  * The import wizard's API (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-007). Every
@@ -80,6 +83,12 @@ const COMMITTED = "platform.import.committed";
 const UNDONE = "platform.import.undone";
 const DISCARDED = "platform.import.discarded";
 const IMPORTED = "people.person.imported";
+
+const COMMIT_EXPIRED =
+  "The time to commit this import has passed and its rows are being deleted. Upload the file again.";
+
+/** Whether this environment takes 999-range test NHS numbers (demonstration and tests only). */
+const testNumbersAllowed = (c: Context<AppEnv>) => c.get("services").config.importTestNhsNumbers;
 
 /** The import permissions, and the answer to a holder whose reach stops short of the organisation. */
 const ORGANISATION_WIDE = new HttpProblem(
@@ -218,30 +227,47 @@ function reportOut(batchId: string, report: PeopleDryRun): ImportDryRunReport {
     warningCount: report.warningCount,
     byCode: { ...report.byCode } as Record<string, number>,
     mayCommit: report.mayCommit,
-    errors: [...report.errors],
-    warnings: [...report.warnings],
+    needsAcknowledgement: report.needsAcknowledgement,
+    errors: report.errors.map((e) => ({ ...e })),
+    warnings: report.warnings.map((w) => ({ ...w })),
+    warningKeys: [...report.warningKeys],
     truncated: report.truncated,
-    allergyStatusUnknownRows: [...report.allergyStatusUnknownRows],
-    allergiesToRecordRows: [...report.allergiesToRecordRows],
+    allergyStatusNotStatedRows: [...report.allergyStatusNotStatedRows],
+    noKnownAllergiesStatedRows: [...report.noKnownAllergiesStatedRows],
+    hasAllergiesStatedRows: [...report.hasAllergiesStatedRows],
+    whatHappens: [...report.whatHappens],
   };
 }
 
 /** The database's undo refusals in the domain's words. */
 const UNDO_PROBLEMS: readonly UndoProblem[] = [
   "already_undone",
+  "window_passed",
+  "sent_to_devices",
   "changed_since",
   "referenced_since",
 ];
 
-function messageOf(error: unknown): string | undefined {
+/** The database's own words for a refusal (a RAISE): never a failed query's message. */
+function raisedMessage(error: unknown): string | undefined {
   const e = error as { message?: string; cause?: { message?: string } };
   return e.cause?.message ?? e.message;
 }
 
-/** The person columns an imported row fills (rule 23; data-standards.md). */
-function personValues(row: Readonly<Record<string, string>>, locationId: string) {
+/**
+ * The person columns an imported row fills (rule 23; data-standards.md). The allergy status is
+ * always unknown ("not recorded"), whatever the file stated, until a member of staff checks it on
+ * the record: an imported "no known allergies" must never read as freshly confirmed by the
+ * committer (#150 clinical review H1; HZ-007).
+ */
+function personValues(
+  row: Readonly<Record<string, string>>,
+  locationId: string,
+  importBatchId: string,
+) {
   return {
     locationId,
+    importBatchId,
     status: "active" as const,
     givenName: row.given_name ?? "",
     familyName: row.family_name ?? "",
@@ -251,11 +277,7 @@ function personValues(row: Readonly<Record<string, string>>, locationId: string)
     localIdentifier: row.local_identifier ?? null,
     sexCode: row.sex_code ?? null,
     genderIdentity: row.gender_identity ?? null,
-    // HZ-007: blank was stored as unknown by the rules; never assumed.
-    allergyStatus: (row.allergy_status ?? "unknown") as
-      | "unknown"
-      | "no_known_allergies"
-      | "has_allergies",
+    allergyStatus: "unknown" as const,
     postcode: row.postcode ?? null,
   };
 }
@@ -288,6 +310,11 @@ export const platformImportsRouter = createRouter()
         );
       }
       if (upload.rows.length === 0) throw problems.invalid("The file has no rows to import.");
+      const stagedCellsByRow = upload.rows.map((row) => stagedCells(row, mapped.fields));
+      // A cell Postgres would refuse (a control character, a lone surrogate) is refused here, by
+      // row and field, before any query could fail carrying it (#150 security review H1).
+      const unstorable = uploadCellProblem(stagedCellsByRow, fields);
+      if (unstorable) throw problems.invalid(unstorable.message);
       const out = await withTenant(c, async (tx) => {
         const home = await openLocation(tx, body.locationId);
         if (!home) throw problems.invalid("Choose one of the organisation's open locations.");
@@ -304,13 +331,15 @@ export const platformImportsRouter = createRouter()
           })
           .returning();
         if (!batch) throw new Error("import batch not created");
-        const staged = upload.rows.map((row, index) => ({
+        const staged = stagedCellsByRow.map((cells, index) => ({
           batchId: batch.id,
           rowNumber: index + 1,
-          cells: stagedCells(row, mapped.fields),
+          cells,
         }));
         for (let start = 0; start < staged.length; start += 500) {
-          await tx.insert(importRow).values(staged.slice(start, start + 500));
+          await writingImported(() =>
+            tx.insert(importRow).values(staged.slice(start, start + 500)),
+          );
         }
         await auditInTx(tx, access, {
           action: UPLOADED,
@@ -435,7 +464,7 @@ export const platformImportsRouter = createRouter()
           const batch = await findBatch(tx, id, true);
           if (!batch) throw problems.notFound();
           if (batch.status !== "staged") stateRefusal(DRY_RUN, batch.id, "not_staged", NOT_STAGED);
-          const { report } = await dryRunNow(tx, batch.id);
+          const { report } = await dryRunNow(tx, batch.id, testNumbersAllowed(c));
           await tx
             .update(importBatch)
             .set({
@@ -471,7 +500,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Commit an import, whole",
       description:
-        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only when it has had a dry run (409 dry_run_first), has no error (409 has_errors) and, when there are possible duplicates, acknowledgePossibleDuplicates (409 possible_duplicates_unacknowledged); otherwise nothing is created. Each row becomes a person at the batch's location (status active; allergy status as imported, blank as unknown). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
+        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only while it is staged and unexpired (409 not_staged, expired), has had a dry run (409 dry_run_first), has no error (409 has_errors) and acknowledgedWarnings lists exactly the possible duplicates found now (409 possible_duplicates_unacknowledged, also when one is new); otherwise nothing is created. Each row becomes a person at the batch's location (status active), tied to the batch, with allergy status not recorded whatever the file stated (HZ-007; the people whose status the file stated are returned to check). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
       security,
       request: {
         params: BatchParam,
@@ -510,19 +539,24 @@ export const platformImportsRouter = createRouter()
               committedAt: done.committedAt.toISOString(),
               undoClosesAt: importUndoClosesAt(done.committedAt, rates).toISOString(),
               replayed: true,
+              allergyStatusToConfirm: [],
             };
           }
-          const { validation, report } = await dryRunNow(tx, batch.id);
+          const { validation, report } = await dryRunNow(tx, batch.id, testNumbersAllowed(c));
           const check = checkPeopleCommit({
             status: batch.status as "staged",
+            expiresAt: batch.expiresAt,
+            now: new Date(),
             dryRunAt: batch.dryRunAt,
             report,
-            acknowledgePossibleDuplicates: body.acknowledgePossibleDuplicates,
+            acknowledgedWarnings: body.acknowledgedWarnings,
           });
           if (!check.ok) stateRefusal(COMMITTED, batch.id, check.problem, check.message);
           const created: string[] = [];
           try {
-            const values = validation.rows.map((row) => personValues(row, batch.locationId));
+            const values = validation.rows.map((row) =>
+              personValues(row, batch.locationId, batch.id),
+            );
             for (let start = 0; start < values.length; start += 500) {
               const made = await tx
                 .insert(person)
@@ -531,8 +565,8 @@ export const platformImportsRouter = createRouter()
               created.push(...made.map((m) => m.id));
             }
           } catch (error) {
-            const code = dbCode(error);
-            if (code === "23514" && messageOf(error) === "remove_sample_data_first") {
+            const code = sqlState(error);
+            if (code === "23514" && raisedMessage(error) === "remove_sample_data_first") {
               const refusal = sampleDataRefusal("remove_sample_data_first");
               stateRefusal(COMMITTED, batch.id, refusal.problem, refusal.message);
             }
@@ -545,13 +579,21 @@ export const platformImportsRouter = createRouter()
                 "Someone in this file was added to Harbour since the dry run. Nothing was imported: run the dry run again.",
               );
             }
-            throw error;
+            // Anything else carries the people's values in its message: only its code goes on.
+            throw new ImportWriteFailed(code);
           }
           const [closed] = await tx
             .update(importBatch)
             .set({ status: "committed", closedAt: sql`now()`, closedBy: access.tenantUserId })
             .where(eq(importBatch.id, batch.id))
-            .returning({ closedAt: importBatch.closedAt });
+            .returning({ closedAt: importBatch.closedAt })
+            .catch((error: unknown) => {
+              // Its time ran out between the check above and now (the guard's clock).
+              if (raisedMessage(error) === "import_expired") {
+                stateRefusal(COMMITTED, batch.id, "expired", COMMIT_EXPIRED);
+              }
+              throw error;
+            });
           const [commit] = await tx
             .insert(importCommit)
             .values({ batchId: batch.id, recordIds: created, recordCount: created.length })
@@ -575,12 +617,28 @@ export const platformImportsRouter = createRouter()
             scope: { records: created.length, possibleDuplicatesAcknowledged: report.warningCount },
             requestId: c.get("requestId"),
           });
+          // HZ-007: the people whose allergy status the file stated, now "not recorded", to check.
+          const allergyStatusToConfirm = validation.rows.flatMap(
+            (
+              row,
+              index,
+            ): { personId: string; stated: "no_known_allergies" | "has_allergies" }[] => {
+              const stated = row.allergy_status;
+              const personId = created[index];
+              if (!personId) return [];
+              if (stated === "no_known_allergies" || stated === "has_allergies") {
+                return [{ personId, stated }];
+              }
+              return [];
+            },
+          );
           return {
             batchId: batch.id,
             records: created.length,
             committedAt: commit.committedAt.toISOString(),
             undoClosesAt: importUndoClosesAt(commit.committedAt, rates).toISOString(),
             replayed: false,
+            allergyStatusToConfirm,
           };
         }),
       );
@@ -594,7 +652,7 @@ export const platformImportsRouter = createRouter()
       tags: ["platform"],
       summary: "Undo a committed import, once",
       description:
-        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the commit created through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
+        "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the batch created (and only those) through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed, checked by the database too), before any phone may hold them (409 sent_to_devices: a sync token carrying people was issued in the organisation since a token's lifetime before the commit, so a phone may have recorded care for them offline), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
       security,
       request: { params: BatchParam },
       responses: {
@@ -642,7 +700,7 @@ export const platformImportsRouter = createRouter()
             );
             removed = Number(rows[0]?.removed ?? 0);
           } catch (error) {
-            const problem = UNDO_PROBLEMS.find((p) => p === messageOf(error));
+            const problem = UNDO_PROBLEMS.find((p) => p === raisedMessage(error));
             if (problem) stateRefusal(UNDONE, batch.id, problem, UNDO_MESSAGES[problem]);
             throw error;
           }

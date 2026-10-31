@@ -24016,6 +24016,9 @@
           "mayCommit": {
             "type": "boolean"
           },
+          "needsAcknowledgement": {
+            "type": "boolean"
+          },
           "errors": {
             "type": "array",
             "items": {
@@ -24028,21 +24031,40 @@
               "$ref": "#/components/schemas/ImportFinding"
             }
           },
+          "warningKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "truncated": {
             "type": "boolean"
           },
-          "allergyStatusUnknownRows": {
+          "allergyStatusNotStatedRows": {
             "type": "array",
             "items": {
               "type": "integer",
               "minimum": 1
             }
           },
-          "allergiesToRecordRows": {
+          "noKnownAllergiesStatedRows": {
             "type": "array",
             "items": {
               "type": "integer",
               "minimum": 1
+            }
+          },
+          "hasAllergiesStatedRows": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "whatHappens": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },
@@ -24054,11 +24076,15 @@
           "warningCount",
           "byCode",
           "mayCommit",
+          "needsAcknowledgement",
           "errors",
           "warnings",
+          "warningKeys",
           "truncated",
-          "allergyStatusUnknownRows",
-          "allergiesToRecordRows"
+          "allergyStatusNotStatedRows",
+          "noKnownAllergiesStatedRows",
+          "hasAllergiesStatedRows",
+          "whatHappens"
         ],
         "description": "What committing would do now; nothing is committed by a dry run"
       },
@@ -24076,6 +24102,26 @@
             "type": "string"
           },
           "message": {
+            "type": "string"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "otherRow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "match": {
+            "type": "string"
+          },
+          "key": {
             "type": "string"
           }
         },
@@ -24108,6 +24154,29 @@
           },
           "replayed": {
             "type": "boolean"
+          },
+          "allergyStatusToConfirm": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "stated": {
+                  "type": "string",
+                  "enum": [
+                    "no_known_allergies",
+                    "has_allergies"
+                  ]
+                }
+              },
+              "required": [
+                "personId",
+                "stated"
+              ]
+            }
           }
         },
         "required": [
@@ -24115,15 +24184,21 @@
           "records",
           "committedAt",
           "undoClosesAt",
-          "replayed"
+          "replayed",
+          "allergyStatusToConfirm"
         ]
       },
       "CommitImport": {
         "type": "object",
         "properties": {
-          "acknowledgePossibleDuplicates": {
-            "type": "boolean",
-            "default": false
+          "acknowledgedWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "maxItems": 5000,
+            "default": []
           }
         }
       },
@@ -49769,7 +49844,7 @@
           "platform"
         ],
         "summary": "Commit an import, whole",
-        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only when it has had a dry run (409 dry_run_first), has no error (409 has_errors) and, when there are possible duplicates, acknowledgePossibleDuplicates (409 possible_duplicates_unacknowledged); otherwise nothing is created. Each row becomes a person at the batch's location (status active; allergy status as imported, blank as unknown). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
+        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only while it is staged and unexpired (409 not_staged, expired), has had a dry run (409 dry_run_first), has no error (409 has_errors) and acknowledgedWarnings lists exactly the possible duplicates found now (409 possible_duplicates_unacknowledged, also when one is new); otherwise nothing is created. Each row becomes a person at the batch's location (status active), tied to the batch, with allergy status not recorded whatever the file stated (HZ-007; the people whose status the file stated are returned to check). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.",
         "security": [
           {
             "bearerAuth": []
@@ -49868,7 +49943,7 @@
           "platform"
         ],
         "summary": "Undo a committed import, once",
-        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the commit created through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
+        "description": "platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the batch created (and only those) through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed, checked by the database too), before any phone may hold them (409 sent_to_devices: a sync token carrying people was issued in the organisation since a token's lifetime before the commit, so a phone may have recorded care for them offline), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.",
         "security": [
           {
             "bearerAuth": []

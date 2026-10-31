@@ -21256,7 +21256,7 @@ export interface paths {
     put?: never;
     /**
      * Commit an import, whole
-     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only when it has had a dry run (409 dry_run_first), has no error (409 has_errors) and, when there are possible duplicates, acknowledgePossibleDuplicates (409 possible_duplicates_unacknowledged); otherwise nothing is created. Each row becomes a person at the batch's location (status active; allergy status as imported, blank as unknown). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.
+     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up (403 step_up_required). Repeats the dry run with the batch locked and commits the whole batch only while it is staged and unexpired (409 not_staged, expired), has had a dry run (409 dry_run_first), has no error (409 has_errors) and acknowledgedWarnings lists exactly the possible duplicates found now (409 possible_duplicates_unacknowledged, also when one is new); otherwise nothing is created. Each row becomes a person at the batch's location (status active), tied to the batch, with allergy status not recorded whatever the file stated (HZ-007; the people whose status the file stated are returned to check). The staged rows are deleted in the same transaction. Committing a committed batch again returns the same commit (replayed). Refused while sample data is in place (409 remove_sample_data_first), and when someone was added meanwhile (409 records_changed). Audited: platform.import.committed (count) and people.person.imported per person.
      */
     post: {
       parameters: {
@@ -21346,7 +21346,7 @@ export interface paths {
     put?: never;
     /**
      * Undo a committed import, once
-     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the commit created through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.
+     * @description platform.import.run and people.person.create across the whole organisation, with a fresh step-up. Removes every person the batch created (and only those) through app.undo_import_batch, the whole batch or nothing, once (409 already_undone), within import.undo_window_days of the commit (409 window_passed, checked by the database too), before any phone may hold them (409 sent_to_devices: a sync token carrying people was issued in the organisation since a token's lifetime before the commit, so a phone may have recorded care for them offline), and only while none has been changed or soft-deleted (409 changed_since) and nothing refers to any of them (409 referenced_since); otherwise correct records one by one. Only a committed batch (409 not_committed). Audited by the database (platform.import.undone: the count); refusals here.
      */
     post: {
       parameters: {
@@ -28741,11 +28741,15 @@ export interface components {
         [key: string]: number;
       };
       mayCommit: boolean;
+      needsAcknowledgement: boolean;
       errors: components["schemas"]["ImportFinding"][];
       warnings: components["schemas"]["ImportFinding"][];
+      warningKeys: string[];
       truncated: boolean;
-      allergyStatusUnknownRows: number[];
-      allergiesToRecordRows: number[];
+      allergyStatusNotStatedRows: number[];
+      noKnownAllergiesStatedRows: number[];
+      hasAllergiesStatedRows: number[];
+      whatHappens: string[];
     };
     /** @description An error or warning at a row and field */
     ImportFinding: {
@@ -28753,6 +28757,11 @@ export interface components {
       column: string;
       code: string;
       message: string;
+      /** Format: uuid */
+      personId?: string | null;
+      otherRow?: number | null;
+      match?: string;
+      key?: string;
     };
     ImportCommitResult: {
       /** Format: uuid */
@@ -28763,10 +28772,16 @@ export interface components {
       /** Format: date-time */
       undoClosesAt: string;
       replayed: boolean;
+      allergyStatusToConfirm: {
+        /** Format: uuid */
+        personId: string;
+        /** @enum {string} */
+        stated: "no_known_allergies" | "has_allergies";
+      }[];
     };
     CommitImport: {
-      /** @default false */
-      acknowledgePossibleDuplicates: boolean;
+      /** @default [] */
+      acknowledgedWarnings: string[];
     };
     ImportUndoResult: {
       /** Format: uuid */
