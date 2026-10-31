@@ -424,6 +424,8 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
       "ARRAY['tenant'",
       "current_user_id() IS NULL",
       "handover_whole",
+      // No member and the whole organisation: exactly the collector's read (migration 0057).
+      "is_system()",
       // Outside the family portal, these read through person_visible, which passes for any person
       // the organisation-wide read can see.
       "person_visible(",
