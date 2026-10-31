@@ -1,5 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { DEMO_LOCATION_ID, DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
+import {
+  DEMO_LOCATION_ID,
+  DEMO_TENANT_ID,
+  demoMe,
+  demoPeople,
+  demoWriteScope,
+} from "../demo/demo-data";
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import { insertStatement } from "./entries";
 import { recentEntries } from "./entry-view";
@@ -32,7 +38,8 @@ import {
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
-import type { RoundTaskRow } from "./round-view";
+import { checkTaskMove } from "./round-actions";
+import { type RoundTaskRow, roundItems } from "./round-view";
 
 /**
  * Care mode SQL against a real SQLite engine with the device's tables (from the shared PowerSync
@@ -268,6 +275,33 @@ describe("hazard HZ-006 refused uploads on the device", () => {
   });
 });
 
+describe("the demo round (demo mode only)", () => {
+  it("seeds one task of each state the round words, each markable by the demo member", () => {
+    const seeded = new Date("2026-10-11T09:00:00Z");
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    const items = roundItems(rows, seeded);
+    expect(items.map((i) => [i.timing, i.action, i.row.from_earlier_plan])).toEqual([
+      ["overdue", "mark", 0],
+      ["due", "evidence", 0],
+      ["later", "mark", 1],
+    ]);
+    const overdue = items[0]?.row;
+    if (!overdue) throw new Error("no demo task");
+    const check = checkTaskMove(
+      overdue,
+      { to: "done", reason: "" },
+      {
+        userId: demoMe.tenantUserId ?? null,
+        scope: demoWriteScope,
+        personLocationId: overdue.person_location_id,
+        newId: () => "0194d000-0000-7000-8000-0000000000aa",
+      },
+      seeded,
+    );
+    expect(check.ok).toBe(true);
+  });
+});
+
 describe("the round on this device (screens gate items (b) and (f))", () => {
   const task = (id: string, fields: Record<string, unknown>) => {
     const row: Record<string, unknown> = {
@@ -287,6 +321,7 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
   };
 
   it("hazard HZ-029 lists the open tasks with their person, the earlier-plan flag and the evidence waiting here", () => {
+    db.prepare("DELETE FROM task").run(); // the demo round's tasks
     task("t-due", { from_earlier_plan: 1 });
     task("t-evidence", { evidence_required: 1, due_at: "2026-10-11T11:00:00.000Z" });
     task("t-done", { status: "done" });

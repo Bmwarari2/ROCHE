@@ -397,5 +397,7 @@
   "mobile.round.saveNotDone": "Save as not done",
   "mobile.round.cancel": "Cancel",
   "mobile.round.saveFailed": "This could not be saved on this phone. Try again, or tell the person in charge of this shift.",
-  "mobile.person.forTask": "Recording for the task “{title}”. The entry you save next answers it."
+  "mobile.person.forTask": "Recording for the task “{title}”. The entry you save next answers it.",
+  "mobile.tabs.people": "People",
+  "mobile.tabs.settings": "Settings"
 }

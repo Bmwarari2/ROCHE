@@ -12,6 +12,8 @@ import { usePowerSync, useQuery } from "@powersync/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "../app-state/session";
 import { useVault } from "../app-state/vault";
+import { appEnv } from "../config/app-env";
+import { demoWriteScope } from "../demo/demo-data";
 import { sha256Base64 } from "../platform/digest";
 import { newEntryId } from "../platform/ids";
 import { useWriteScope } from "../sync/write-scope-store";
@@ -141,7 +143,9 @@ export function useMoveTask(): (
   const db = usePowerSync();
   const { me } = useSession();
   const userId = me?.tenantUserId ?? null;
-  const scope = useWriteScope();
+  const tokenScope = useWriteScope();
+  // The demo has no sync token: its member may record about everyone at the demo home.
+  const scope = tokenScope ?? (appEnv.demoMode ? demoWriteScope : null);
   return useCallback(
     async (task, draft) => {
       const person = task.person_id

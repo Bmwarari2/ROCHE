@@ -354,6 +354,8 @@
     "mobile.sync.queued",
     "mobile.sync.title",
     "mobile.sync.window",
+    "mobile.tabs.people",
+    "mobile.tabs.settings",
     "mobile.today.empty",
     "mobile.today.greeting",
     "mobile.today.openHint",
