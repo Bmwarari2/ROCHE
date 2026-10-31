@@ -6,7 +6,7 @@ import {
   type SyncRefusedEntry,
 } from "@harbour/contracts";
 import type { Transaction } from "@harbour/db";
-import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
+import type { CareTrigger, EntryEvidence, PersonRecordKind } from "@harbour/domain";
 import { z } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
@@ -313,6 +313,8 @@ export async function planLink(
   personId: string,
   occurredAt: Date,
   author: string = access.tenantUserId,
+  /** What the entry is, so only the evidence a task asks for completes it (#123 clinical review, M3). */
+  evidence?: EntryEvidence,
 ): Promise<PlannedTaskLink | null> {
   if (!taskId) return null;
   // A handed-over entry is judged on its author's permission when the care was recorded, never on
@@ -329,6 +331,7 @@ export async function planLink(
         await permissionsReaching(tx, access, personId, { freshOnly: true }),
     occurredAt,
     stepUpFresh: handedOver || stepUpFresh(access),
+    ...(evidence ? { evidence } : {}),
   });
 }
 

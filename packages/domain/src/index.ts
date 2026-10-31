@@ -64,6 +64,7 @@ export * from "./platform/dpia";
 export * from "./platform/export";
 export * from "./platform/feature-flags";
 export * from "./platform/forms";
+export * from "./platform/image-metadata";
 export * from "./platform/imports";
 export * from "./platform/invitations";
 export * from "./platform/notifications";
@@ -82,7 +83,15 @@ export * from "./platform/sso";
 export * from "./platform/sub-processors";
 export * from "./platform/tasks";
 export * from "./platform/workflow";
+export * from "./platform/workflow-registry";
 export * from "./quality/evidence-pack";
+export * from "./quality/policies";
+export * from "./quality/quality-audits";
+export * from "./quality/quality-data-security";
+export * from "./quality/quality-framework";
+export * from "./quality/quality-indicators";
+export * from "./quality/quality-pir";
+export * from "./quality/quality-rates";
 export * from "./quality/rates";
 export * from "./quality/statement-of-purpose";
 export * from "./safety/candour";
@@ -110,6 +119,7 @@ export {
   type NightWorkerAssessment,
   nightMinutes,
 } from "./scheduling/night";
+export * from "./scheduling/pay";
 export * from "./scheduling/rates";
 export * from "./scheduling/weekly-average";
 export * from "./scheduling/working-time";
@@ -119,3 +129,4 @@ export * from "./shared/citation";
 export * from "./shared/email";
 export * from "./shared/time";
 export * from "./shared/working-days";
+export * from "./workforce";

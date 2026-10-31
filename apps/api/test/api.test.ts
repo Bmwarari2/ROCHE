@@ -14,10 +14,12 @@ import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { AUTH_MAX_BODY_BYTES } from "../src/app";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import type { TenantAccess } from "../src/http/context";
 import { recordDeviceHold } from "../src/services/device-holds";
+import { auditRowsFor, postSized } from "./support/body-size";
 import { ageSession, createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 let h: Harness;
@@ -121,6 +123,35 @@ describe("authentication", () => {
     });
     expect(response.status).toBe(400);
     expect(((await response.json()) as { code?: string }).code).toBe("OTP_NOT_CONFIGURED");
+  });
+
+  it("refuses a sign-in route body over 64 KiB with 413 before Better Auth reads it (security review, 31 October 2026)", async () => {
+    const signUp = {
+      email: "capped@example.invalid",
+      password: "four random harbour words",
+      name: "Cap Example",
+    };
+    for (const declared of [false, true]) {
+      const response = await postSized(
+        h,
+        "/api/auth/sign-up/email",
+        signUp,
+        AUTH_MAX_BODY_BYTES + 1,
+        `cap-auth-${declared}`,
+        declared,
+      );
+      expect(response.status).toBe(413);
+      expect(response.headers.get("content-type")).toContain("application/problem+json");
+      expect(await response.json()).toMatchObject({ status: 413, code: "too_large" });
+    }
+    const users = () =>
+      h.db.pool("harbour_auth").query('SELECT 1 FROM auth."user" WHERE email = $1', [signUp.email]);
+    expect((await users()).rowCount).toBe(0);
+    expect(await auditRowsFor(h, ["cap-auth-false", "cap-auth-true"])).toBe(0);
+    // A normal body works.
+    const created = await h.request("/api/auth/sign-up/email", { method: "POST", body: signUp });
+    expect(created.status).toBe(200);
+    expect((await users()).rowCount).toBe(1);
   });
 
   it("refuses passwords shorter than 12 characters", async () => {
@@ -452,6 +483,70 @@ describe("audit trail access", () => {
   });
 });
 
+describe("request ids in the audit trail (security reviews, 31 October 2026 and #134 M4)", () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const resident = "0194d000-0000-7000-8600-000000000001";
+  /** Opens a care record with the request id given, and reads back what the audit row kept. */
+  const viewWith = async (requestId: string) => {
+    const response = await h.request(`/v1/people/${resident}`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      headers: { "x-request-id": requestId },
+    });
+    expect(response.status).toBe(200);
+    const echoed = response.headers.get("x-request-id") ?? "";
+    const rows = await asTenant<{ request_id: string | null }>(
+      DEMO.tenantId,
+      "SELECT request_id FROM audit_event WHERE action = 'people.person.view' AND request_id = $1",
+      [echoed],
+    );
+    const kept = await asTenant<{ n: number }>(
+      DEMO.tenantId,
+      "SELECT count(*)::int AS n FROM audit_event WHERE request_id = $1",
+      [requestId],
+    );
+    return { echoed, audited: rows.map((r) => r.request_id), kept: kept[0]?.n };
+  };
+
+  it.each([
+    ["a canonical UUID", "0194d000-0000-7000-8000-0000000a0001"],
+    ["an id-shaped name and NHS number", "Ada-Example-9434765919"],
+    ["free text with personal data", "Ada Example 9990000000 ada@example.invalid"],
+    ["an id longer than 64 characters", "a".repeat(65)],
+    ["markup", "<img src=x onerror=alert(1)>"],
+  ])("writes the API's own id to the audit row, never %s the caller sent", async (_label, sent) => {
+    const { echoed, audited, kept } = await viewWith(sent);
+    expect(echoed).toMatch(UUID);
+    expect(echoed).not.toBe(sent);
+    expect(audited).toEqual([echoed]);
+    expect(kept).toBe(0);
+  });
+
+  it("gives two requests carrying the same id two different audit ids", async () => {
+    const reused = "0194d000-0000-7000-8000-0000000a0002";
+    const first = await viewWith(reused);
+    const second = await viewWith(reused);
+    expect(first.echoed).not.toBe(second.echoed);
+  });
+
+  it("logs a caller's canonical UUID beside the API's id, and nothing else the caller sent", async () => {
+    const logged = vi.spyOn(h.handle.services.logger, "info");
+    try {
+      const sent = "0194d000-0000-7000-8000-0000000a0003";
+      const { echoed } = await viewWith(sent);
+      expect(logged).toHaveBeenCalledWith(
+        { requestId: echoed, callerRequestId: sent },
+        "caller request id",
+      );
+      logged.mockClear();
+      await viewWith("Ada-Example-9434765919");
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("Ada-Example");
+    } finally {
+      logged.mockRestore();
+    }
+  });
+});
+
 describe("offline sync", () => {
   // Each test starts with no sync tasks: they are retired (soft-deleted), so each reporter's day of
   // raised devices (HZ-008) starts again.
@@ -540,6 +635,45 @@ describe("offline sync", () => {
       entries_write_location_ids: [DEMO.locationId],
       entries_write_assigned: false,
     });
+    // The shift pattern of each nation it has homes in, for the phone's handover (ADR-0074).
+    const day = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.day_shift_start_minute"),
+    );
+    const night = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.night_shift_start_minute"),
+    );
+    expect(payload.handover_shifts).toEqual({
+      england: { day: Number(day.value), night: Number(night.value) },
+    });
+  });
+
+  it("hazard HZ-018 leaves out a nation whose shift figures are out of order, and tells the operator (#50 review round 1, clinical M4)", async () => {
+    const insert = await asTenant<{ id: string }>(
+      DEMO.tenantId,
+      `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ($1, 'handover.night_shift_start_minute', 60, 'minutes', 'england', '2000-01-01', 'test', 'verified')
+       RETURNING id`,
+      [DEMO.tenantId],
+    );
+    const warn = vi.spyOn(h.handle.services.logger, "warn");
+    try {
+      const { token } = await json<SyncToken>(
+        await demo("manager", "/v1/sync/token", { method: "POST" }),
+      );
+      const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+      // Night before day: no pattern for England, so the phone says it cannot tell.
+      expect(payload.handover_shifts).toEqual({});
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: DEMO.tenantId, nations: ["england"] }),
+        expect.stringMatching(/^handover shift pattern missing or out of order/),
+      );
+      // Opaque ids and rate keys only: no names, no figures.
+      const fields = JSON.stringify(warn.mock.calls.at(-1)?.[0]);
+      expect(fields).not.toMatch(/Example|@|"value"/);
+    } finally {
+      warn.mockRestore();
+      await asTenant(DEMO.tenantId, "DELETE FROM rate_table WHERE id = $1", [insert[0]?.id]);
+    }
   });
 
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {

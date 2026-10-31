@@ -161,6 +161,98 @@ export function entryPermissionTime(occurredAt: Date, taskCreatedAt: Date, now: 
   return new Date(Math.min(recorded, now.getTime()));
 }
 
+/** The charts a task may name as its kind (`fluid_intake` and so on): its evidence is that chart. */
+export const TASK_CHART_KINDS = [
+  "fluid_intake",
+  "fluid_output",
+  "food",
+  "repositioning",
+  "bowel",
+  "weight",
+  "vitals",
+] as const;
+
+/** What an entry is, for the task it names: its table and, for an observation, its chart. */
+export interface EntryEvidence {
+  readonly table:
+    | "care_note"
+    | "observation"
+    | "body_map_mark"
+    | "activity_record"
+    | "visit_log"
+    | "assessment";
+  readonly chart?: string;
+}
+
+/**
+ * Whether an entry is the evidence a task asks for (#123 clinical review, M3; HZ-029). A task that
+ * needs no evidence takes any entry, as before. One that does is never completed by a care note
+ * (free text, which may say it was not done: that is "Not done" with a reason); a chart's task only
+ * by an entry in that chart; any other by an entry of a recording kind. An entry whose kind is not
+ * known (an older caller) is taken as before. The CSO confirms the default (H-423).
+ */
+export function isEvidenceFor(
+  task: { readonly kind: string; readonly evidenceRequired?: boolean },
+  evidence: EntryEvidence | undefined,
+): boolean {
+  if (!task.evidenceRequired || !evidence) return true;
+  if (evidence.table === "care_note") return false;
+  if ((TASK_CHART_KINDS as readonly string[]).includes(task.kind)) {
+    return evidence.table === "observation" && evidence.chart === task.kind;
+  }
+  return true;
+}
+
+/** The entries a task may cite as its evidence when it is completed directly (`EntryEvidence`). */
+export const TASK_EVIDENCE_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "activity_record",
+  "visit_log",
+  "assessment",
+] as const satisfies readonly EntryEvidence["table"][];
+
+export type TaskEvidenceProblem =
+  | "evidence_incomplete"
+  | "evidence_not_accepted"
+  | "evidence_not_found"
+  | "evidence_wrong_person";
+
+/**
+ * Whether the record a task cites when it is completed directly (`POST /v1/tasks/{id}/transition`)
+ * may stand as its evidence (HZ-029; HZ-001). Unlike an entry naming its task, which always names
+ * a real entry, the citation is two words in a request, so it is checked: a type and an id together,
+ * a type Harbour accepts as evidence, an entry that exists where the caller can see it (another
+ * organisation's, another home's or a missing id are all not found), about the task's own person,
+ * and, for a task that needs evidence, the evidence it asks for (`isEvidenceFor`: never a note, a
+ * chart's task only its own chart). Null when it may stand.
+ */
+export function checkTaskEvidence(
+  task: {
+    readonly personId: string | null;
+    readonly kind: string;
+    readonly evidenceRequired?: boolean;
+  },
+  cited: {
+    readonly type: string | null;
+    readonly id: string | null;
+    /** The entry as the caller's own read found it, or null when it found none. */
+    readonly found: { readonly personId: string; readonly chart?: string | null } | null;
+  },
+): TaskEvidenceProblem | null {
+  if (cited.type === null || cited.id === null) return "evidence_incomplete";
+  const table = TASK_EVIDENCE_TABLES.find((t) => t === cited.type);
+  if (!table) return "evidence_not_accepted";
+  if (!cited.found) return "evidence_not_found";
+  if (task.personId === null || cited.found.personId !== task.personId) {
+    return "evidence_wrong_person";
+  }
+  const evidence: EntryEvidence =
+    cited.found.chart != null ? { table, chart: cited.found.chart } : { table };
+  return isEvidenceFor(task, evidence) ? null : "evidence_not_accepted";
+}
+
 /**
  * What an entry does to the task it names. The entry is always kept (an entry recorded offline is
  * never lost, HZ-006), except for a task about another person (HZ-001). It completes an open task
@@ -169,7 +261,8 @@ export function entryPermissionTime(occurredAt: Date, taskCreatedAt: Date, now: 
  * that already has evidence, or a task the author may not complete) the entry is kept unlinked and
  * flagged for the nurse in charge, since the round may be repeated or counted twice; for a
  * medicines task that review is urgent (`medicines_conflict`): a dose may have been given twice,
- * and only the person who gave a medicine records it (HZ-004).
+ * and only the person who gave a medicine records it (HZ-004). An entry that is not the evidence an
+ * open task asks for (`isEvidenceFor`) is kept unlinked and reviewed too.
  */
 export function checkTaskLink(
   task: {
@@ -178,8 +271,15 @@ export function checkTaskLink(
     readonly status: TaskStatus;
     /** Evidence the task already has (an earlier entry). */
     readonly evidenceId?: string | null;
+    /** Whether the task is done only by the entry it asks for. */
+    readonly evidenceRequired?: boolean;
   },
-  entry: { readonly personId: string; readonly mayComplete: boolean },
+  entry: {
+    readonly personId: string;
+    readonly mayComplete: boolean;
+    /** What the entry is, when known: its table and, for an observation, its chart. */
+    readonly evidence?: EntryEvidence;
+  },
 ): TaskLinkCheck {
   if (task.personId !== entry.personId) {
     return { ok: false, problem: "wrong_person", message: TASK_LINK_MESSAGES.wrong_person };
@@ -190,6 +290,14 @@ export function checkTaskLink(
       ? { ok: true, outcome: "medicines_conflict", review: "urgent", completes: false }
       : { ok: true, outcome, review: "review", completes: false };
   if (!entry.mayComplete) return kept("not_linked");
+  // Only the entry the task asks for completes it: never a free-text note, and for a chart's task
+  // only that chart (#123 clinical review, M3; HZ-029, HZ-018). Anything else is kept and reviewed.
+  if (
+    !isEvidenceFor(task, entry.evidence) &&
+    (task.status === "open" || task.status === "in_progress")
+  ) {
+    return kept("not_linked");
+  }
   if (task.status === "done" || task.status === "skipped") return kept("task_already_closed");
   if (task.status === "cancelled") {
     // A cancelled task answered already: a second entry may repeat the round (or the dose).

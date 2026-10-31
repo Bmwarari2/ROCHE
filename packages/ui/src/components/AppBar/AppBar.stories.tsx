@@ -88,6 +88,15 @@ export const BrandOnly: Story = {
   args: { actions },
 };
 
+/** A 24 px logo, drawn inline so the story needs no file (PLAT-002). */
+const exampleLogo = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="24"><rect width="48" height="24" rx="6" fill="#767676"/></svg>',
+)}`;
+
+export const WithOrganisationLogo: Story = {
+  args: { brandLogoSrc: exampleLogo, actions },
+};
+
 const accountMenu = (
   <AccountMenu
     userName="Ben Sample"

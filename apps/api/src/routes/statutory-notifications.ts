@@ -30,7 +30,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import { notificationDetail, notificationSummary } from "./safety-shared";
+import { notificationDetail, notificationSummary, requireHeldAtLocation } from "./safety-shared";
 import { moveOrRefuse } from "./workflow-shared";
 
 /**
@@ -230,6 +230,11 @@ export const statutoryNotificationsRouter = createRouter()
       const now = new Date();
       const detail = await withTenant(c, async (tx) => {
         const row = await load(tx, id, body.version);
+        await requireHeldAtLocation(c, access, "safety.notification.submit", {
+          type: "statutory_notification",
+          id: row.id,
+          locationId: row.locationId,
+        });
         const evidence = {
           submittedAt: new Date(body.submittedAt),
           externalReference: body.externalReference ?? null,
@@ -317,6 +322,11 @@ export const statutoryNotificationsRouter = createRouter()
       const now = new Date();
       const detail = await withTenant(c, async (tx) => {
         const row = await load(tx, id, body.version);
+        await requireHeldAtLocation(c, access, "safety.notification.submit", {
+          type: "statutory_notification",
+          id: row.id,
+          locationId: row.locationId,
+        });
         await moveOrRefuse(
           c,
           tx,

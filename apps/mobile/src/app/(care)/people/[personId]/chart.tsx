@@ -72,17 +72,28 @@ export default function ChartScreen() {
   useRecordScreenProtection("chart");
   const theme = useTheme();
   const vault = useVault();
-  const params = useLocalSearchParams<{ personId: string; chart?: string; correct?: string }>();
+  const params = useLocalSearchParams<{
+    personId: string;
+    chart?: string;
+    correct?: string;
+    task?: string;
+  }>();
   const id = typeof params.personId === "string" ? params.personId : "";
   const correctId = typeof params.correct === "string" && params.correct ? params.correct : null;
   const initialChart =
     typeof params.chart === "string" && isChartKind(params.chart) ? params.chart : null;
   const tenantId = useTenantId();
-  const context = useEntryContext(id);
   const { profile, loaded: profileLoaded } = useCareProfileState(id);
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
   const [chart, setChart] = useState<ChartKind | null>(initialChart);
+  // The round's task this entry answers, when the carer came from the round (gate item (f)).
+  const context = useEntryContext(
+    id,
+    !params.correct && typeof params.task === "string" ? params.task : null,
+    // The chart being recorded: only it answers a chart's task (#123 clinical review, M3).
+    chart ? { table: "observation", chart } : null,
+  );
   const [text, setText] = useState<Record<string, string>>({});
   const [choice, setChoice] = useState<Record<string, string | null>>({});
   const [yesNo, setYesNo] = useState<Record<string, boolean | null>>({});

@@ -238,6 +238,40 @@ describe("fetchCredentials", () => {
     ]);
   });
 
+  it("hazard HZ-018 passes on the handover reach and each nation's shift pattern from each new token (ADR-0074)", async () => {
+    const claims = {
+      handover_shifts: { england: { day: 480, night: 1200 }, wales: { day: 1 } },
+      handover_location_ids: ["loc-north"],
+      handover_assigned: false,
+    };
+    const jwt = [
+      Buffer.from("{}").toString("base64url"),
+      Buffer.from(JSON.stringify(claims)).toString("base64url"),
+      "signature",
+    ].join(".");
+    const { fetch } = fakeFetch([
+      json({ token: jwt, endpoint: "https://sync.example.invalid", expiresAt: null }),
+    ]);
+    const patterns: unknown[] = [];
+    const reading = new HarbourConnector({
+      apiUrl: API,
+      fetch,
+      getToken: async () => "tok",
+      getTenantId: () => TENANT,
+      onSessionRevoked: () => undefined,
+      onHandoverConfig: (config) => patterns.push(config),
+    });
+    await reading.fetchCredentials();
+    // Wales's figures cannot be read, so it is left out and the phone says it cannot tell there.
+    expect(patterns).toEqual([
+      {
+        shifts: { england: { day: 480, night: 1200 } },
+        locationIds: ["loc-north"],
+        assigned: false,
+      },
+    ]);
+  });
+
   it("hazard HZ-040 names the device when it asks for credentials, so the server knows who has used it (security review round 7, M1)", async () => {
     const credentials = {
       token: "jwt",
@@ -960,7 +994,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "done in the carer's name, but not as this move",
       { version: 6 },
-      /^We could not check whether this was saved\. Check the task on the round before recording it again\.$/,
+      /^Harbour could not check whether this was saved\. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
     ],
     [
       "marked not done by someone else",
@@ -971,7 +1005,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
     [
       "no longer in the list",
       { id: "another" },
-      /^We could not find this task\. Check the round before recording it again\.$/,
+      /^Harbour could not find this task\. Check with the person in charge of this shift, or in Harbour on the web, before recording it again\.$/,
     ],
   ] as const)(
     "hazard HZ-006 says what happened to a task the move did not reach in time: %s",
@@ -1096,7 +1130,7 @@ describe("uploadData: the round and the handover go to their own routes", () => 
           id: MOVE,
           code: "task_unchecked",
           message:
-            "We could not check whether this was saved. Check the task on the round before recording it again.",
+            "Harbour could not check whether this was saved. Check the task with the person in charge of this shift, or in Harbour on the web, before recording it again.",
         },
       ]);
       const kept = queue.state.sql.find((x) => x.sql.startsWith("INSERT INTO upload_issue"));

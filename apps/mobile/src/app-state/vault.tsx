@@ -40,6 +40,7 @@ import {
 import { AppState, Platform } from "react-native";
 import type { Me } from "../auth/auth-client";
 import { authClient, platformFetch } from "../auth/clients";
+import { FORGET_ANSWER_FOR_ENTRY_SQL } from "../care/answered-tasks";
 import { DELETE_UPLOAD_ISSUE_SQL } from "../care/queries";
 import { appEnv } from "../config/app-env";
 import { t } from "../i18n/t";
@@ -104,6 +105,7 @@ import {
   requested,
   senderFor,
 } from "../sync/discards";
+import { writeCachedHandoverConfig } from "../sync/handover-shifts";
 import {
   HELD_FAIL_SAFE_DAYS,
   heldDeadline,
@@ -111,6 +113,7 @@ import {
   readCachedHeldMaxDays,
   resolveHeldMaxDays,
 } from "../sync/held-limit";
+import { commitOfflineDays, type PendingWindow, windowToCommit } from "../sync/offline-days";
 import { resolveOfflineWindow } from "../sync/offline-window";
 import { flushRefusedCopies } from "../sync/refused-copies";
 import { setWriteScope } from "../sync/write-scope-store";
@@ -405,6 +408,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
   const signOutAndWipeRef = useRef<(notice?: string) => Promise<void>>(async () => undefined);
   const sessionEndedRef = useRef<(revoked?: boolean) => Promise<void>>(async () => undefined);
   const afterSyncRef = useRef<() => Promise<void>>(async () => undefined);
+  // The window a token carried, waiting for a sync with it to complete (M2).
+  const pendingWindowRef = useRef<PendingWindow | null>(null);
   const meRef = useRef<Me | null>(session.me);
   meRef.current = session.me;
   const heldRef = useRef<HeldWork | null>(session.held);
@@ -534,6 +539,12 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           const at = next.lastSyncedAt?.getTime() ?? null;
           if (at !== null && at !== lastSynced) {
             lastSynced = at;
+            // A sync completed: the window of the token it used is now what the phone holds.
+            const days = windowToCommit(pendingWindowRef.current, at);
+            if (days) {
+              pendingWindowRef.current = null;
+              void commitOfflineDays(database, days);
+            }
             void afterSyncRef.current();
           }
         },
@@ -693,6 +704,16 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           },
           // Where the phone may record, from each token (review round 2, C2-M3).
           onWriteScope: setWriteScope,
+          // The handover reach and shift pattern, kept for the handover screen offline (ADR-0074);
+          // cleared when a token's handover family no longer reaches the phone.
+          onHandoverConfig: (config) => {
+            void writeCachedHandoverConfig(opened, config).catch(() => undefined);
+          },
+          // The window's days as the token gave them, recorded only once a sync with that token
+          // completes (M4; #123 clinical review re-check, M2).
+          onOfflineDays: (days) => {
+            pendingWindowRef.current = days ? { days, fetchedAt: Date.now() } : null;
+          },
         });
         connectorRef.current = connector;
         connectSync(opened, connector).catch(() => undefined);
@@ -1197,6 +1218,8 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
             ]);
           }
           await tx.execute(DELETE_UPLOAD_ISSUE_SQL, [me.tenant.id, id]);
+          // The task that entry answered is not answered once it is removed (#123 check, M1).
+          await tx.execute(FORGET_ANSWER_FOR_ENTRY_SQL, [id]);
         });
       } catch {
         // Checked below.

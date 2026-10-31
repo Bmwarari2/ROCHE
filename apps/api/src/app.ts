@@ -11,11 +11,13 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
+import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
-import { idleErrorLogger, type Logger } from "./logger";
+import { idleErrorLogger, type Logger, loggableError } from "./logger";
+import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -49,6 +51,7 @@ import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
+import { peopleEnquiriesRouter } from "./routes/people-enquiries";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
 import { peoplePropertyRouter } from "./routes/people-property";
@@ -73,12 +76,26 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { workflowsRouter } from "./routes/workflows";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Largest body a public route reached with no session accepts: a token, a code, a name and a
+ * password, a few hundred bytes. The same cap as the web's public pages (`PUBLIC_BODY_MAX_BYTES`
+ * in apps/web/src/lib/json-body.ts).
+ */
+export const PUBLIC_MAX_BODY_BYTES = 4 * 1024;
+/**
+ * Largest body a Better Auth route (/api/auth) accepts: sign-in, a second factor and passkey
+ * registration, whose attestation is the largest at a few kilobytes.
+ */
+export const AUTH_MAX_BODY_BYTES = 64 * 1024;
+/** The public routes reached with no session that take a body, capped at PUBLIC_MAX_BODY_BYTES. */
+const PUBLIC_BODY_PATHS = ["/p/*", "/v1/invitations/lookup", "/v1/invitations/accept"] as const;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
 const TENANTLESS = new Set([
@@ -153,7 +170,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.use("*", async (c, next) => {
     c.set("services", services);
-    c.set("requestId", c.req.header("x-request-id") ?? randomUUID());
+    // The audit chain's request id is always the API's own; a caller's canonical UUID is only
+    // logged beside it (request-id.ts).
+    const requestId = randomUUID();
+    c.set("requestId", requestId);
+    const callerRequestId = callerRequestIdOf(c.req.header("x-request-id"));
+    if (callerRequestId) logger.info({ requestId, callerRequestId }, "caller request id");
     await next();
     c.header("x-request-id", c.get("requestId"));
   });
@@ -176,6 +198,23 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     }),
   );
 
+  // Routes reached with no session read a body only within a small cap, refused with 413 before it
+  // is read or anything is written (security review, 31 October 2026). A declared length over the
+  // cap is refused at once; a chunked body is counted as it arrives. GET routes never get a body.
+  const capped = (maxSize: number) =>
+    bodyLimit({
+      maxSize,
+      onError: (c) =>
+        problemResponse(
+          c,
+          new HttpProblem(413, "too_large", "The request is too large."),
+          c.get("requestId") as string | undefined,
+        ),
+    });
+  // Registered before the handler below, which answers without calling on.
+  app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
+  for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
+
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>
     withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
   );
@@ -196,6 +235,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // The logo is small (512 KB): a larger body is refused before it is read or decoded.
+  app.use(
+    "/v1/branding/logo",
+    bodyLimit({
+      maxSize: LOGO_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
+    }),
+  );
   // Sync bodies are small JSON (a token request, a batch of changes, a deletion record, a device
   // report): anything larger is refused before it is read (security review round 4, M4).
   app.use(
@@ -226,12 +274,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", brandingRouter);
   app.route("/", searchRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
   app.route("/", peopleLifecycleRouter);
+  app.route("/", peopleEnquiriesRouter);
   app.route("/", peoplePropertyRouter);
   app.route("/", peopleRecordsRouter);
   app.route("/", peopleTransfersRouter);
@@ -242,6 +292,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", auditRouter);
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
+  app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
   app.route("/", carePlansRouter);
@@ -311,11 +362,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }
       return response;
     }
-    // Opaque identifiers only: the error message may contain data, so log its name and stack.
-    logger.error(
-      { requestId: c.get("requestId"), err: { name: error.name, stack: error.stack } },
-      "request failed",
-    );
+    // Opaque identifiers only (section 5.3). The message, and the stack's first line that repeats
+    // it, may hold data: a database error's message holds the query and its values (names, dates
+    // of birth). So only the error's kind, the database's code and the stack's frames are logged.
+    logger.error({ requestId: c.get("requestId"), err: loggableError(error) }, "request failed");
     return problemResponse(
       c,
       new HttpProblem(500, "internal", "Something went wrong on our side. Try again in a moment."),

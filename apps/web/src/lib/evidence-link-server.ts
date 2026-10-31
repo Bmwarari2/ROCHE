@@ -1,7 +1,8 @@
 import "server-only";
 import { headers } from "next/headers";
 import { API_URL } from "./api";
-import { clientAddress, trustedProxies } from "./client-address";
+import { callerHeaders } from "./api-headers";
+import { trustedProxies } from "./client-address";
 import {
   EVIDENCE_SESSION_COOKIE,
   type EvidenceLinkResult,
@@ -41,17 +42,12 @@ export async function finishSession(request: Request): Promise<Response> {
 const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 const NO_STORE = { "cache-control": "no-store" } as const;
 
-/** What the API is told about the caller: the user agent and the address the proxies saw. */
+/**
+ * What the API is told about the caller: the user agent, a UUID request id and the address
+ * the proxies saw (`callerHeaders`; security review, 31 October 2026).
+ */
 async function forwarded(): Promise<Record<string, string>> {
-  const incoming = await headers();
-  const out: Record<string, string> = {};
-  const agent = incoming.get("user-agent");
-  if (agent) out["user-agent"] = agent;
-  const requestId = incoming.get("x-request-id");
-  if (requestId) out["x-request-id"] = requestId;
-  const address = clientAddress(incoming.get("x-forwarded-for"), TRUSTED_PROXIES);
-  if (address) out["x-forwarded-for"] = address;
-  return out;
+  return callerHeaders(await headers(), TRUSTED_PROXIES);
 }
 
 async function problemCode(response: Response): Promise<string | undefined> {

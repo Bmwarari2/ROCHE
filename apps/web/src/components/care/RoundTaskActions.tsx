@@ -95,7 +95,7 @@ export function RoundTaskActions({
   return (
     <div className="flex flex-col gap-2">
       {inline.open ? (
-        <form className="flex flex-col gap-3" onSubmit={skip} noValidate>
+        <form method="post" className="flex flex-col gap-3" onSubmit={skip} noValidate>
           <TextField
             ref={inline.firstField}
             id={ids.reason}

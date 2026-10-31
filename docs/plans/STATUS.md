@@ -4,14 +4,14 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules) |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Lane C domain rules pushed: slice 5 (Working Time, SCHED-003) on `feat/sched-domain-working-time` (#136), and slice 6 (pay rules: SCHED-005, 006, 007, 009, 010; ADR-0086, ADR-0087) stacked on it on `feat/sched-pay-rules`; all six rows `partial`; [scheduling.md](../specs/scheduling.md) sections 4 and 4b; human actions H-580 to H-585. Next in lane C: slice 12 (dependency tool) |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -41,55 +41,88 @@ again. The Phase 1 safety case (v0.1) still excludes the mobile app until its jo
 reviewed by the security, accessibility and clinical-safety reviewer agents before its pull request,
 and merged by the lead once CI was green.
 
-**Merged on 31/10/2026:** #105 history tab journey and this file's resumption note; #106 gate hazard
-statuses and evidence pack render tests; #107 DPIA Phase 1 risks R13 to R19 and eight data-standards
-tables; #108 clinical safety case v0.1 (draft, CSO sign-off H-381); #109 weekly break-glass report
-screens (PLAT-006); #110 next 16.4.1 and patched transitive dependencies (two critical RCEs); #111
-Storybook 10.6.2; #112 reviews tab, reviews due tracker and hospital transfer pack (PEOP-008, 009);
-#115 second demo organisation, choose-organisation journey (every web route now has axe) and
-Lighthouse CI; #117 history marks what the latest review changed (HZ-024); #121 phone keeps an
-upload refused for MFA (HZ-112); #122 a location's DoLS requests and expiring authorisations
-(HZ-020); #124 Phase 1 follow-ups (sample people marked on prints, sample files removed, the
-evidence-link test made deterministic, HZ-003/008/021/027 Passing); #125 the Phase 2 plan.
+**Merged on 31/10/2026:** #105 history tab journey; #106 gate hazard statuses and evidence pack
+render tests; #107 DPIA Phase 1 risks R13 to R19; #108 clinical safety case v0.1 (draft, H-381);
+#109 weekly break-glass report screens (PLAT-006); #110 next 16.4.1 and patched dependencies (two
+critical RCEs); #111 Storybook 10.6.2; #112 reviews tab and hospital transfer pack (PEOP-008, 009);
+#113 evidence pack, statement of purpose and the public `/evidence` page (QUAL-003, 009); #114
+tasks, documents and retention screens (PLAT-009, 011, 012); #115 second demo organisation and
+Lighthouse CI; #117 history marks what the latest review changed (HZ-024); #118 pre-admission,
+admission, room and property (PEOP-005, 007; owns `POST /v1/people` and the global `onError` that
+logs only error kind, database code and real stack frames); #119 personal details, About me and
+sharing (PEOP-001, 003, 013); #121 phone keeps an upload refused for MFA (HZ-112); #122 a location's
+DoLS list (HZ-020); #124 Phase 1 follow-ups; #125 the Phase 2 plan; #126 store compliance (MOB-011,
+012); #127 role dashboards (INSI-001); #128 user guides by role and the demo walkthrough; #129 this
+file at midday; #130 workflow approvals and SLA states across modules (PLAT-011); #132 Phase 2 slice
+9 (data rights clocks, import validation, SSO rules); #133 every browser-handled form posts, so no
+field reaches the address before hydration (`apps/web/src/forms.test.ts`); #136 Phase 2 slice 5
+(Working Time rules); #139 Phase 2 slice 80 (Cyber Essentials and ISO 27001 mapping); #141
+`fromUkWallClock` refuses a time that does not exist instead of recursing.
 
-**Open pull requests** (merge order where it matters):
-- #118 admission and pre-admission (PEOP-005, 007), then #116 leaving the home (PEOP-010): #118
-  owns `POST /v1/people` (enquiry, no NHS number) and the global `onError` logging fix; #116 drops
-  its own route and takes main's after #118.
-- #119 personal details, About me and sharing (PEOP-001, 003, 013): NHS-number oracle, date bounds
-  and a sharing decision failing closed when an attorney's authority ends (HZ-022).
-- #120 candour, after a death, investigations, trends (SAFE-007, 008, 010): closing blocked until
-  every person harmed has a finished candour record; reg 20 wording.
-- #113 evidence pack, statement of purpose and the public `/evidence` page (QUAL-003, 009).
-- #114 tasks, documents and retention (PLAT-009, 011, 012): task list paging (CI timeout) and four
-  security lows.
-- #123 the phone's round screen and the screens gate data, superseding #50: **migration 0071**;
-  must merge before any 0072. Then `feat/mobile-gate` (Maestro against a seeded API; `store-release`
-  environment guard, H-399; run the workflow, H-400) and `feat/mobile-handover-screen`.
-- #126 store compliance (MOB-011, 012); #127 role dashboards (INSI-001); #128 user guides by role
-  and the Phase 1 demo walkthrough (34 register rows linked).
+**Paused at 15:10 on 31/10/2026** for the account's usage limit; every builder was asked to push
+its work in progress (`wip(...)` commits) and stop. Resume by reading this section.
 
-**In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
-hardening (`x-request-id` validation, property witness must be staff at the location, retention
-destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain)
-and slice 5 (SCHED-003 Working Time domain).
+**Open pull requests** (merge in this order where it matters):
+- #123 the phone's round screen and screens gate data, **migration 0071**: three clinical rounds
+  fixed (answered tasks kept in `sync_meta`, the offline window committed only after a sync, a note
+  never counts as evidence); merge first, then open PRs for `feat/mobile-gate` and
+  `feat/mobile-handover-screen` (session XyW2 keeps them merged forward).
+- #116 leaving the home (PEOP-010): on top of #118, own enquiry route dropped; merge when green.
+- #120 candour, after a death, investigations, trends (SAFE-007, 008, 010): clinical round 2 in
+  progress (one not-notifiable decision must not clear everyone; the relevant person must be one
+  of those affected; the API enforces the 20-character reason; blocked incidents escalate). It
+  must feed `closeBlocked` to the approvals list (#130) and post its forms.
+- #131 Phase 2 slice 4 (workforce rules, HZ-124 added): **squash-merge** (the domain code sits in a
+  docs commit).
+- #134 API hardening: request ids never reach the audit chain, legal holds cover every version and
+  record, failed storage deletes throw, witnesses need `people.property.manage`. Four Lows in
+  progress (acting-up grants, role in force at `signedAt`, a broken version chain counts as held,
+  the document view uses the same hold check).
+- #135 Phase 2 slice 2 (medicines record rules): **not safe to merge yet**. Round 3 found a change
+  can cancel a scheduled stop and a change to another product skips the stop line; the builder is
+  making the rules refuse such sequences (each refusal a CSO question in H-550 to H-553).
+- #137 slice 7 (safety rules), #138 slice 8 (quality rules), #140 white-label branding (PLAT-002),
+  #142 slice 6 (pay rules: NMW, holiday, SSP, family pay, AWR, auto-enrolment; figures verified),
+  #143 body limits on the API's public routes, #144 a task completion's cited evidence is checked.
 
-**Numbering in use:** migrations: 0071 is #123; Phase 2 owns 0072 to 0110 in the plan's merge
-order ([phase-2.md](phase-2.md)). ADRs: 0074 is #123's shift-pattern ADR; 0075 to 0079 Phase 1
-follow-ups; 0080 to 0099 Phase 2. Human actions: blocks per branch up to H-569, Phase 2 from H-510
-(plan) and H-550 per lane. Note: #50's provisional migration 0056 became 0071 and its ADR-0072
-became ADR-0074 (ADR-0072 is the MFA ADR).
+**Pushed, pull request not yet opened** (stacked; open when the base merges):
+`feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
+on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 
-**Decisions waiting on people** (none block the build): H-381 safety case v0.1 and the 13 level-3
-hazards (web-only ratings proposed); HZ-071 controls (H-119; blocks production until accepted);
-H-382 DPIA Phase 1 sign-off; H-397 decode-uri-component exception (expires 30/11/2026); H-399 and
-H-400 mobile store guard and first workflow run; H-452 statutory drafts for sample people; H-480 and
-H-481 candour and LeDeR decisions; H-563 to H-566 store accounts and deletion page; the Phase 2 block
-H-510 to H-549 (TRUD and dm+d licences, payroll accounts, CSO and DPO decisions).
+**In progress when paused** (branch, migration file, human actions):
+- slice 3 medicines administration, `feat/meds-domain-administration` (stacked on #135; HZ-116,
+  HZ-119, ADR-0082);
+- slice 12 dependency tool, `feat/sched-dependency-tool` (0074; HZ-123; H-710 to H-719);
+- slice 13 safeguarding log, `feat/safety-safeguarding-log` (0075; HZ-126; H-595 to H-599);
+- slice 15 DSAR workbench, `feat/platform-dsar-workbench` (0077; ADR-0090; H-612 to H-619);
+- slice 17 training and competence, `feat/work-training-competence` (0079; H-690 to H-699);
+- slice 20 breach register, `feat/platform-breach-register` (0082; H-670 to H-679);
+- slice 24 speak-up, `feat/safety-speak-up` (0086; ADR-0089; H-720 to H-729);
+- slice 26 import wizard, `feat/platform-import-wizard` (0088; HZ-130; H-680 to H-689);
+- slice 23 applicant tracking offered (0085; H-730 to H-739), not started.
 
-**Next:** merge the open pull requests as their fixes land; Phase 2 lanes A to F domain slices, then
-schema slices from 0072 once #123 has merged; the 14 UX gaps the user-guide author logged (#128);
-STATUS follow-ups below.
+**Numbering in use:** migrations: 0071 is #123; each Phase 2 schema branch writes one
+self-contained SQL file and journal entry with the plan's number; the journal test allows gaps, so
+merge in number order or renumber at merge time (file name, `idx`, `tag`, `when`). ADRs: 0074 is
+#123's; 0080 to 0099 Phase 2 (0086 and 0087 written in #142). Human actions by block: lane A H-550
+to H-559 and H-650 to H-659 (H-560 to H-569 are #126's); lane B H-570 to H-579 and H-690 to H-699;
+lane C H-580 to H-585; lane D H-590 to H-599; lane E H-600 to H-609; lane F H-610 to H-619; slice
+80 H-660 to H-664; then the per-slice blocks above.
+
+**Decisions waiting on people** (none block the build): H-381 safety case v0.1; HZ-071 (H-119);
+H-382 DPIA sign-off; H-397 decode-uri-component exception (expires 30/11/2026); H-399 and H-400
+mobile store guard; H-423 a note never counts as evidence (and whether NEWS2 response tasks should
+ask for evidence); H-480 and H-481 candour and LeDeR; H-550 to H-553 medicines rules; H-580 and
+H-585 employment law readings; property witnesses limited to `people.property.manage` holders
+(#134; care workers can no longer witness); the Phase 2 block H-510 to H-549.
+
+**Follow-ups logged on 31/10/2026** (each needs a migration or its own slice): the governance guard
+trigger does not cover the branding columns, and the organisation switcher shows registered names;
+`contact.authority_document_id` has no foreign key; the property witness's portal-link check should
+be a definer function; staff-file reminder tasks are invisible to HR's role; HR-only documents have
+no destruction rule; a complaint about a sample person blocks sample removal; list endpoints audit
+counts, not ids; the 14 UX gaps from the user guides (#128); whether archived people stay on the
+residents list.
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:
 - Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the
@@ -115,6 +148,10 @@ STATUS follow-ups below.
 - E2E journeys that record something should date it hours back: the downtime journey leaves an
   outage open, and anything inside it needs back-entry details.
 - Step-up in journeys needs a passkey (`signInWithDemoPasskey`); a password alone never counts.
+- A browser-handled form says `method="post"` (`forms.test.ts`); new screens trip the test otherwise.
+- `docs/plans/human-actions.md` and the hazard log are merge hotspots: keep both sides. Check a
+  branch with `git merge-tree --write-tree --name-only origin/main origin/<branch>` before merging.
+- Cloud sessions may refuse new work outside their first brief; local agents take it instead.
 
 ## Next items (in order)
 
@@ -668,7 +705,10 @@ STATUS follow-ups below.
       H-303); (f) a task whose evidence entry is saved on the phone shows "evidence recorded,
       waiting to upload" until it uploads, so it is not recorded twice (#36 review round 1,
       clinical M3; HZ-029); (g) the needs-attention screen ships with the round screen or before
-      it, since "no care left without a prompt" depends on it (#37 confirmation check).
+      it, since "no care left without a prompt" depends on it (#37 confirmation check). The data
+      for (a), (b) and (e) is on `feat/mobile-round-gate-data` (migration 0056, provisional
+      number; ADR-0072); the round screen (3(b), `feat/mobile-round-screen`) closes (b), (d), (f)
+      and (g) for the round; the handover screen (3(c)) closes the rest.
     - Follow-up: whether the round on the phone should also hold unfinished tasks due before the
       window (H-301).
     - Follow-up (#33 review round 1): the streams ignore `person_assignment.valid_from`, so a
@@ -732,6 +772,22 @@ STATUS follow-ups below.
     - Follow-up (#37 confirmation check): with no resend, every move made offline on a task
       that escalated during an outage becomes a needs-attention item, an alert-fatigue risk;
       it waits on H-305, H-310 and the lighter way to dismiss a refused move.
+    - Follow-up (gate data): the web has no handover screen yet; when it does, it words
+      `HandoverItem.summary` from its own catalogue (`handover.summary.*`), as the phone does.
+      Items compiled before migration 0056 have no summary and are worded by kind.
+    - Follow-up (gate data): a skipped task's reason is free text staff wrote and now reaches
+      the phone with the handover item (as notes already do); the CSO and DPO confirm that
+      with H-300 and H-307.
+    - Done on `feat/mobile-round-screen` (3(b)), from the follow-ups above:
+      - `useMoveTask` reads the person's home itself and refuses while the person row is
+        missing (#36 round 2, (a)).
+      - The round names a bare task row from its move (#36 round 2, (b), the screen's part).
+      - "Tell the person in charge" is worded by role on the round (#36 round 2, (e)).
+      - `task_unchecked` and `task_not_found` point to the person in charge or the web, not
+        to the round, where a closed task no longer shows (#37 confirmation check).
+    - Follow-up (round screen): a task that needs evidence opens the person's record with the
+      task; it should open the form for the evidence the task asks for (`task.evidence_type`
+      is not synced yet).
     - Follow-up (#36 review round 2, low): `useMoveTask` takes the person's home
       (`personLocationId`) from the caller; while it is null (the person row still loading)
       and the token lists no person ids, `mayRecordFor` lets the move through. Look the home

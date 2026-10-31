@@ -535,6 +535,8 @@ streams:
   # with that person, a task about nobody at a location the reader sees whole, and a task about
   # nobody given to the reader. A task done, skipped or cancelled leaves the device; an unfinished
   # task due before the window is on the web round and in the handover, not on the phone (HZ-028).
+  # `from_earlier_plan` is the round view's "From an earlier plan" notice, kept on the task by the
+  # database (migration 0071; HZ-024), so the phone needs neither the plan nor the series.
   # ----------------------------------------------------------------------------------------------
 
   assigned_open_tasks:
@@ -545,7 +547,8 @@ streams:
                task.kind, task.title, task.required_permission, task.source_type, task.source_id,
                task.assignee_tenant_user_id, task.assignee_role_key, task.due_at,
                task.window_start, task.window_end, task.priority, task.evidence_required,
-               task.status, task.restore_code, task.escalation_level, task.updated_at,
+               task.status, task.restore_code, task.from_earlier_plan, task.escalation_level,
+               task.updated_at,
                task.version
         FROM task, person_assignment
         WHERE task.person_id = person_assignment.person_id
@@ -562,7 +565,8 @@ streams:
                task.kind, task.title, task.required_permission, task.source_type, task.source_id,
                task.assignee_tenant_user_id, task.assignee_role_key, task.due_at,
                task.window_start, task.window_end, task.priority, task.evidence_required,
-               task.status, task.restore_code, task.escalation_level, task.updated_at,
+               task.status, task.restore_code, task.from_earlier_plan, task.escalation_level,
+               task.updated_at,
                task.version
         FROM task
         WHERE task.tenant_id = auth.parameter('tenant_id')
@@ -581,7 +585,8 @@ streams:
                task.kind, task.title, task.required_permission, task.source_type, task.source_id,
                task.assignee_tenant_user_id, task.assignee_role_key, task.due_at,
                task.window_start, task.window_end, task.priority, task.evidence_required,
-               task.status, task.restore_code, task.escalation_level, task.updated_at,
+               task.status, task.restore_code, task.from_earlier_plan, task.escalation_level,
+               task.updated_at,
                task.version
         FROM task, person
         WHERE task.person_id = person.id
@@ -597,7 +602,8 @@ streams:
                task.kind, task.title, task.required_permission, task.source_type, task.source_id,
                task.assignee_tenant_user_id, task.assignee_role_key, task.due_at,
                task.window_start, task.window_end, task.priority, task.evidence_required,
-               task.status, task.restore_code, task.escalation_level, task.updated_at,
+               task.status, task.restore_code, task.from_earlier_plan, task.escalation_level,
+               task.updated_at,
                task.version
         FROM task
         WHERE task.tenant_id = auth.parameter('tenant_id')
@@ -654,7 +660,8 @@ streams:
         SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
                handover_item.key AS item_key, handover_item.position, handover_item.kind,
                handover_item.person_id, handover_item.source_type, handover_item.source_id,
-               handover_item.at, handover_item.late_addition, handover_item.added_at
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
         FROM handover_item, handover, person, person_assignment AS opener,
              person_assignment AS assignment
         WHERE handover_item.handover_id = handover.id
@@ -699,7 +706,8 @@ streams:
         SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
                handover_item.key AS item_key, handover_item.position, handover_item.kind,
                handover_item.person_id, handover_item.source_type, handover_item.source_id,
-               handover_item.at, handover_item.late_addition, handover_item.added_at
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
         FROM handover_item, handover, person_assignment
         WHERE handover_item.handover_id = handover.id
           AND handover_item.person_id = person_assignment.person_id
@@ -781,7 +789,8 @@ streams:
         SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
                handover_item.key AS item_key, handover_item.position, handover_item.kind,
                handover_item.person_id, handover_item.source_type, handover_item.source_id,
-               handover_item.at, handover_item.late_addition, handover_item.added_at
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
         FROM handover_item, handover, person
         WHERE handover_item.handover_id = handover.id
           AND handover_item.person_id = person.id
@@ -796,7 +805,8 @@ streams:
         SELECT handover_item.id, handover_item.tenant_id, handover_item.handover_id,
                handover_item.key AS item_key, handover_item.position, handover_item.kind,
                handover_item.person_id, handover_item.source_type, handover_item.source_id,
-               handover_item.at, handover_item.late_addition, handover_item.added_at
+               handover_item.at, handover_item.late_addition, handover_item.added_at,
+               handover_item.summary
         FROM handover_item, handover
         WHERE handover_item.handover_id = handover.id
           AND handover_item.person_id IS NULL
