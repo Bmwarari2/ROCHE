@@ -6,6 +6,7 @@ import {
   consentChip,
   fileChip,
   othersOnly,
+  privacyDone,
   privacyShown,
   readAbsence,
   readComplianceItem,
@@ -15,8 +16,10 @@ import {
   readStaffFile,
   reportChip,
   salaryChip,
+  sponsorDone,
   sponsorManaged,
   sponsorShown,
+  staffDone,
   staffFilesManaged,
   staffFilesShown,
   visaChip,
@@ -107,8 +110,8 @@ describe("states are an icon and a word, never colour alone", () => {
     expect(reportChip("overdue", t)).toMatchObject({ label: "Overdue", status: "overdue" });
     expect(reportChip("reported_late", t).label).toBe("Reported late");
     expect(consentChip("none", t).label).toBe("Not asked yet");
-    expect(consentChip("given", t).label).toBe("Yes");
-    expect(consentChip("withdrawn", t).label).toBe("Withdrawn");
+    expect(consentChip("given", t).label).toBe("Consent given");
+    expect(consentChip("withdrawn", t).label).toBe("Consent withdrawn");
   });
 });
 
@@ -328,5 +331,17 @@ describe("the sponsor forms", () => {
         ),
       ),
     ).toEqual(["reportedOn", "smsReference"]);
+  });
+});
+
+describe("what a page says after a save (?done=)", () => {
+  it("knows its own codes and nothing else", () => {
+    expect(staffDone("item-references", t)).toBe("References saved");
+    expect(staffDone("item-employment_history", t)).toBeNull();
+    expect(staffDone("created", t)).toBe("Staff file started.");
+    expect(sponsorDone("reported", t)).toBe("Change marked as reported.");
+    expect(sponsorDone("<script>", t)).toBeNull();
+    expect(privacyDone("consent-website", t)).toBe("Your answer about the website is saved.");
+    expect(privacyDone("consent-elsewhere", t)).toBeNull();
   });
 });

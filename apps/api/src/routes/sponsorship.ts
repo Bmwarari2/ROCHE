@@ -50,6 +50,7 @@ import { type AppEnv, requirePermission, type TenantAccess, withTenant } from ".
 import { HttpProblem, problems } from "../http/problem";
 import { bankHolidays, rateRows } from "../services/rates";
 import { type StaffLookup, staffNames } from "../services/staff";
+import { isCurrentStaff } from "../services/staff-files";
 import {
   conflictResponse,
   createRouter,
@@ -410,6 +411,15 @@ export const sponsorshipRouter = createRouter()
       const on = today();
       const view = await change(c, access, A.created, SOURCE, null, async (tx) => {
         if (body.tenantUserId === access.tenantUserId) throw ownRecord(A.created, null);
+        if (!(await isCurrentStaff(tx, body.tenantUserId))) {
+          throw refused(
+            new HttpProblem(422, "not_current_staff", "Choose a current member of staff."),
+            A.created,
+            SOURCE,
+            null,
+            "not_current_staff",
+          );
+        }
         const [row] = await tx
           .insert(sponsoredWorker)
           .values({ tenantUserId: body.tenantUserId, ...workerValues(body) })

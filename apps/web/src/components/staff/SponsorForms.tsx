@@ -2,7 +2,6 @@
 
 import { Button, Checkbox, RadioGroup, SelectField, TextField } from "@harbour/ui";
 import { Save } from "lucide-react";
-import { useRouter } from "next/navigation";
 import {
   createSponsoredWorker,
   markReported,
@@ -58,7 +57,6 @@ export function SponsoredWorkerForm({
   readonly members?: readonly StaffName[];
   readonly worker?: SponsoredWorker;
 }) {
-  const router = useRouter();
   const ids = useFieldIds(WORKER_FIELDS);
   const creating = !worker;
   const { result, pending, submit } = useStaffForm(
@@ -67,10 +65,14 @@ export function SponsoredWorkerForm({
       worker
         ? updateSponsoredWorker(worker.id, worker.version, value)
         : createSponsoredWorker({ ...value, tenantUserId: value.tenantUserId ?? "" }),
-    (data) => {
-      if (creating && data && typeof data === "object" && "id" in data) {
-        router.push(`${SPONSOR_PAGE}/${String(data.id)}`);
-      }
+    {
+      done: creating ? "created" : "saved",
+      ...(creating
+        ? {
+            to: (data) =>
+              `${SPONSOR_PAGE}/${data && typeof data === "object" && "id" in data ? String(data.id) : ""}`,
+          }
+        : {}),
     },
   );
   const choose = t("staff.form.choose");
@@ -95,7 +97,6 @@ export function SponsoredWorkerForm({
         hint={t("sponsor.form.cosHint")}
         autoComplete="off"
         spellCheck={false}
-        maxLength={20}
         defaultValue={worker?.cosReference ?? ""}
         error={err("cosReference")}
       />
@@ -113,7 +114,6 @@ export function SponsoredWorkerForm({
         hint={t("sponsor.form.socHint")}
         inputMode="numeric"
         autoComplete="off"
-        maxLength={4}
         defaultValue={worker?.socCode ?? ""}
         error={err("socCode")}
       />
@@ -143,7 +143,6 @@ export function SponsoredWorkerForm({
         hint={t("sponsor.form.hoursHint")}
         inputMode="decimal"
         autoComplete="off"
-        maxLength={6}
         defaultValue={worker ? String(worker.contractedWeeklyHours) : ""}
         error={err("contractedWeeklyHours")}
       />
@@ -154,7 +153,6 @@ export function SponsoredWorkerForm({
         hint={t("sponsor.form.payHint")}
         inputMode="decimal"
         autoComplete="off"
-        maxLength={12}
         defaultValue={worker ? String(worker.guaranteedYearlyPay) : ""}
         error={err("guaranteedYearlyPay")}
       />
@@ -177,7 +175,7 @@ export function SponsoredWorkerForm({
         result={result}
         defaultValue={worker?.switchingEvidenceOn}
       />
-      <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" id={ids.appendixD}>
+      <fieldset className="m-0 flex flex-col gap-1 border-0 p-0" id={ids.appendixD} tabIndex={-1}>
         <legend className="mb-2 text-body font-semibold">{t("sponsor.form.appendixD")}</legend>
         {APPENDIX_D.map((item) => (
           <Checkbox
@@ -211,7 +209,6 @@ export function SponsoredWorkerForm({
         result={result}
         path={worker ? `${SPONSOR_PAGE}/${worker.id}` : SPONSOR_PAGE}
         fieldIds={ids}
-        success={t("sponsor.form.saved")}
       />
     </form>
   );
@@ -225,7 +222,7 @@ export function AbsenceForm({ workerId }: { readonly workerId: string }) {
   const { result, pending, submit } = useStaffForm(
     (form) => readAbsence(form, t),
     (value) => recordAbsence(workerId, value),
-    (_data, form) => form.reset(),
+    { done: "absence" },
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -246,12 +243,7 @@ export function AbsenceForm({ workerId }: { readonly workerId: string }) {
           {pending ? t("common.saving") : t("sponsor.absence.submit")}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={`${SPONSOR_PAGE}/${workerId}`}
-        fieldIds={ids}
-        success={t("sponsor.absence.saved")}
-      />
+      <StaffFeedback result={result} path={`${SPONSOR_PAGE}/${workerId}`} fieldIds={ids} />
     </form>
   );
 }
@@ -270,7 +262,7 @@ export function ReportForm({
   const { result, pending, submit } = useStaffForm(
     (form) => readReport(form, t),
     (value) => recordReport(workerId, value),
-    (_data, form) => form.reset(),
+    { done: "report" },
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -298,12 +290,7 @@ export function ReportForm({
           {pending ? t("common.saving") : t("sponsor.report.submit")}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={`${SPONSOR_PAGE}/${workerId}`}
-        fieldIds={ids}
-        success={t("sponsor.report.saved")}
-      />
+      <StaffFeedback result={result} path={`${SPONSOR_PAGE}/${workerId}`} fieldIds={ids} />
     </form>
   );
 }
@@ -322,6 +309,7 @@ export function MarkReportedForm({
   const { result, pending, submit } = useStaffForm(
     (form) => readMarkReported(form, report.happenedOn, t),
     (value) => markReported(report.id, report.version, value),
+    { done: "reported" },
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -337,20 +325,14 @@ export function MarkReportedForm({
         label={t("sponsor.report.reference")}
         autoComplete="off"
         spellCheck={false}
-        maxLength={40}
         error={errorFor(result, "smsReference")}
       />
       <div>
         <Button type="submit" disabled={pending} icon={icon}>
-          {pending ? t("common.saving") : t("sponsor.report.markSubmit")}
+          {pending ? t("common.saving") : t("sponsor.report.markSubmit", { kind: report.kind })}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={`${SPONSOR_PAGE}/${workerId}`}
-        fieldIds={ids}
-        success={t("sponsor.report.marked")}
-      />
+      <StaffFeedback result={result} path={`${SPONSOR_PAGE}/${workerId}`} fieldIds={ids} />
     </form>
   );
 }

@@ -12,7 +12,7 @@ import {
 import { complianceItem, document, staffProfile, type Transaction } from "@harbour/db";
 import { type ComplianceDetail, complianceItemView, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -35,8 +35,10 @@ import { sameStored } from "../services/record-history";
 import {
   COMPLIANCE_ITEM_SOURCE,
   type ComplianceItemRow,
+  currentStaff,
   endItemReminders,
   hrDocuments,
+  isCurrentStaff,
   loadStaffFile,
   namesFor,
   nationOf,
@@ -99,6 +101,9 @@ const refused = (problem: HttpProblem, action: string, id: string | null, reason
     ...(id ? { resourceId: id } : {}),
     reason,
   });
+
+const notStaff = () =>
+  new HttpProblem(422, "not_current_staff", "Choose a current member of staff.");
 
 const ownFile = (action: string, id: string | null) =>
   refused(
@@ -204,32 +209,13 @@ export const staffFilesRouter = createRouter()
       tags: ["workforce"],
       summary: "Staff to choose from",
       description:
-        "workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.",
+        "workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.",
       security,
       responses: { 200: jsonBody(StaffMemberList, "Staff"), ...errorResponses },
     }),
     async (c) => {
       await requireAnyPermission(c, [MANAGE, "workforce.sponsor.manage", "workforce.ldss.manage"]);
-      const items = await withTenant(c, async (tx) => {
-        const rows = await tx.execute<{
-          id: string;
-          display_name: string;
-          job_title: string | null;
-        }>(
-          sql`SELECT tu.id, tu.display_name, tu.job_title
-                FROM tenant_user tu
-               WHERE tu.status IN ('active', 'invited')
-                 AND EXISTS (
-                   SELECT 1 FROM role_assignment ra JOIN role r ON r.id = ra.role_id
-                    WHERE ra.tenant_user_id = tu.id AND ${SELF} = ANY (r.permissions))
-               ORDER BY tu.display_name, tu.id`,
-        );
-        return rows.rows.map((r) => ({
-          id: r.id,
-          displayName: r.display_name,
-          jobTitle: r.job_title,
-        }));
-      });
+      const items = await withTenant(c, (tx) => currentStaff(tx));
       return c.json({ items }, 200);
     },
   )
@@ -306,6 +292,9 @@ export const staffFilesRouter = createRouter()
       const on = await today();
       const result = await change(c, access, A.created, null, async (tx) => {
         if (body.tenantUserId === access.tenantUserId) throw ownFile(A.created, null);
+        if (!(await isCurrentStaff(tx, body.tenantUserId))) {
+          throw refused(notStaff(), A.created, null, "not_current_staff");
+        }
         const [row] = await tx
           .insert(staffProfile)
           .values({

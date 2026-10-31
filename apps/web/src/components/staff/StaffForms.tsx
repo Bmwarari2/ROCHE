@@ -2,9 +2,7 @@
 
 import { Button, Checkbox, DateInput, SelectField, TextArea, TextField } from "@harbour/ui";
 import { Save } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { createStaffFile, recordComplianceItem, updateStaffFile } from "@/app/actions/staff";
-import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { characterCount, t } from "@/lib/i18n";
@@ -63,19 +61,19 @@ export function StaffDate({
   );
 }
 
-/** What a staff form says after sending: the refusal, the step-up notice, or what was saved. */
+/**
+ * What a staff form says after sending: the refusal or the step-up notice. What was saved is said
+ * by the page it opens (RecordedArrival), so it survives the form leaving the page.
+ */
 export function StaffFeedback({
   result,
   path,
   fieldIds,
-  success,
 }: {
   readonly result: ActionResult<unknown> | null;
   readonly path: string;
   readonly fieldIds: Readonly<Record<string, string>>;
-  readonly success: string;
 }) {
-  if (result?.ok) return <FormFeedback result={result} success={success} />;
   return <ManageFeedback result={result} path={path} fieldIds={fieldIds} />;
 }
 
@@ -104,7 +102,6 @@ export function StaffFileForm({
   readonly locations: readonly { readonly id: string; readonly name: string }[];
   readonly file?: StaffFileItem;
 }) {
-  const router = useRouter();
   const ids = useFieldIds(PROFILE_FIELDS);
   const creating = !file;
   const { result, pending, submit } = useStaffForm(
@@ -116,10 +113,14 @@ export function StaffFileForm({
       file
         ? updateStaffFile(file.id, file.version, value)
         : createStaffFile({ ...value, tenantUserId: value.tenantUserId ?? "" }),
-    (data) => {
-      if (creating && data && typeof data === "object" && "id" in data) {
-        router.push(`${STAFF_PAGE}/${String(data.id)}`);
-      }
+    {
+      done: creating ? "created" : "saved",
+      ...(creating
+        ? {
+            to: (data) =>
+              `${STAFF_PAGE}/${data && typeof data === "object" && "id" in data ? String(data.id) : ""}`,
+          }
+        : {}),
     },
   );
   return (
@@ -145,7 +146,6 @@ export function StaffFileForm({
         name="jobTitle"
         label={t("staff.form.jobTitle")}
         defaultValue={file?.jobTitle ?? ""}
-        maxLength={120}
         autoComplete="off"
         error={errorFor(result, "jobTitle")}
       />
@@ -164,7 +164,6 @@ export function StaffFileForm({
         label={t("staff.form.pathway")}
         hint={t("staff.form.pathwayHint")}
         defaultValue={file?.pathwayCategory ?? ""}
-        maxLength={80}
         autoComplete="off"
         error={errorFor(result, "pathwayCategory")}
       />
@@ -221,7 +220,6 @@ export function StaffFileForm({
         result={result}
         path={file ? `${STAFF_PAGE}/${file.id}` : STAFF_PAGE}
         fieldIds={ids}
-        success={t("staff.form.saved")}
       />
     </form>
   );
@@ -269,6 +267,7 @@ export function ComplianceItemForm({
   const { result, pending, submit } = useStaffForm(
     (form) => readComplianceItem(form, kind, detail, t),
     (value) => recordComplianceItem(fileId, kind, item.version, value),
+    { done: `item-${kind}` },
   );
   const choose = t("staff.form.choose");
   const err = (field: string) => errorFor(result, field);
@@ -319,7 +318,6 @@ export function ComplianceItemForm({
               hint={t("staff.dbs.numberHint")}
               inputMode="numeric"
               autoComplete="off"
-              maxLength={14}
               defaultValue={cert?.number ?? ""}
               error={err("number")}
             />
@@ -365,7 +363,6 @@ export function ComplianceItemForm({
             }
             inputMode="numeric"
             autoComplete="off"
-            maxLength={2}
             defaultValue={
               detail?.kind === "references"
                 ? String(detail.received)
@@ -470,7 +467,6 @@ export function ComplianceItemForm({
               label={t("staff.registration.pin")}
               autoComplete="off"
               spellCheck={false}
-              maxLength={12}
               defaultValue={reg?.pin ?? ""}
               error={err("pin")}
             />
@@ -511,12 +507,7 @@ export function ComplianceItemForm({
           {pending ? t("common.saving") : t("staff.form.recordItem", { kind })}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={`${STAFF_PAGE}/${fileId}`}
-        fieldIds={ids}
-        success={t("staff.form.itemSaved", { kind })}
-      />
+      <StaffFeedback result={result} path={`${STAFF_PAGE}/${fileId}`} fieldIds={ids} />
     </form>
   );
 }

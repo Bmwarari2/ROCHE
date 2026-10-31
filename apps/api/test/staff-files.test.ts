@@ -372,4 +372,46 @@ describe("the staff picker for HR forms (slice 56)", () => {
     expect(JSON.stringify(items)).not.toContain("@");
     expect(Object.keys(items[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
   });
+
+  it("leaves out anyone whose staff role is not in force, and portal-only members (review M1)", async () => {
+    const make = async (name: string, status: string, roleKey: string, extra = "") => {
+      const [m] = await sql<{ id: string }>(
+        `INSERT INTO tenant_user (display_name, email, status) VALUES ($1, $2, $3::tenant_user_status) RETURNING id`,
+        [name, `${name.toLowerCase().replace(/\W+/g, ".")}@example.invalid`, status],
+      );
+      const id = m?.id as string;
+      await sql(
+        `INSERT INTO role_assignment (tenant_user_id, role_id, location_id ${extra ? ", valid_from, valid_to" : ""})
+         SELECT $1, id, $2 ${extra} FROM role WHERE key = $3`,
+        [id, DEMO.locationId, roleKey],
+      );
+      return id;
+    };
+    const expired = await make(
+      "Eve Expired",
+      "active",
+      "agency_worker",
+      ", now() - interval '2 days', now() - interval '1 day'",
+    );
+    const future = await make(
+      "Fay Future",
+      "active",
+      "care_worker",
+      ", now() + interval '2 days', NULL",
+    );
+    const suspended = await make("Sam Suspended", "suspended", "care_worker");
+    const family = await make("Fred Family", "active", "family_representative");
+    const current = await make("Cara Current", "invited", "care_worker");
+    const listed = await as("manager", "/v1/workforce/staff-members");
+    const ids = ((await listed.json()) as { items: { id: string }[] }).items.map((i) => i.id);
+    expect(ids).toContain(current);
+    for (const id of [expired, future, suspended, family]) expect(ids).not.toContain(id);
+    // The create routes refuse someone who is not current staff.
+    const refused = await as("manager", URL, {
+      method: "POST",
+      body: { ...profile, tenantUserId: expired },
+    });
+    expect(refused.status).toBe(422);
+    expect(((await refused.json()) as { code: string }).code).toBe("not_current_staff");
+  });
 });

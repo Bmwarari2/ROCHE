@@ -14,7 +14,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("dpia.title") };
 
-const DONE = new Set(["settings", "saved", "prepared", "signed"]);
+const DONE = new Set(["settings", "saved", "prepared", "signed", "notice"]);
 
 /**
  * The organisation's DPIA and data protection governance (PLAT-023; platform-completions.md rules

@@ -59,11 +59,16 @@ async function withApi<T>(fn: (api: ApiClient) => Promise<ActionResult<T>>) {
 }
 
 const notFound = () => refused(t("errors.notFound"), "not_found");
+/** Server actions can be called with anything: refuse what is not an object before reading it. */
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 const version = (v: number) => Number.isInteger(v) && v >= 1;
 
 export async function createStaffFile(
   input: StaffFileInput & { readonly tenantUserId: string },
 ): Promise<ActionResult<{ id: string }>> {
+  if (!isObject(input)) return notFound();
   if (!isUuid(input.tenantUserId) || (input.locationId && !isUuid(input.locationId)))
     return notFound();
   return withApi<{ id: string }>(async (api) => {
@@ -79,7 +84,7 @@ export async function updateStaffFile(
   expectedVersion: number,
   input: StaffFileInput,
 ): Promise<ActionResult<null>> {
-  if (!isUuid(id) || !version(expectedVersion)) return notFound();
+  if (!isObject(input) || !isUuid(id) || !version(expectedVersion)) return notFound();
   if (input.locationId && !isUuid(input.locationId)) return notFound();
   const { tenantUserId: _ignored, ...profile } = input;
   return withApi<null>(async (api) => {
@@ -99,6 +104,7 @@ export async function recordComplianceItem(
   expectedVersion: number | null,
   input: ComplianceInput,
 ): Promise<ActionResult<null>> {
+  if (!isObject(input) || !isObject(input.detail)) return notFound();
   if (!isUuid(fileId) || !RECORDABLE_KINDS.includes(kind) || input.detail.kind !== kind)
     return notFound();
   if (expectedVersion !== null && !version(expectedVersion)) return notFound();
@@ -120,7 +126,7 @@ export async function recordComplianceItem(
 export async function createSponsoredWorker(
   input: SponsorInput & { readonly tenantUserId: string },
 ): Promise<ActionResult<{ id: string }>> {
-  if (!isUuid(input.tenantUserId)) return notFound();
+  if (!isObject(input) || !isUuid(input.tenantUserId)) return notFound();
   const { endedOn: _ignored, ...body } = input;
   return withApi<{ id: string }>(async (api) => {
     const { data, error } = await api.POST("/v1/workforce/sponsored-workers", { body });
@@ -135,7 +141,7 @@ export async function updateSponsoredWorker(
   expectedVersion: number,
   input: SponsorInput,
 ): Promise<ActionResult<null>> {
-  if (!isUuid(id) || !version(expectedVersion)) return notFound();
+  if (!isObject(input) || !isUuid(id) || !version(expectedVersion)) return notFound();
   const { tenantUserId: _ignored, endedOn, ...rest } = input;
   return withApi<null>(async (api) => {
     const { data, error } = await api.PUT("/v1/workforce/sponsored-workers/{id}", {
@@ -152,7 +158,9 @@ export async function recordAbsence(
   workerId: string,
   input: { fromOn: string; toOn: string; authorised: boolean },
 ): Promise<ActionResult<null>> {
-  if (!isUuid(workerId)) return notFound();
+  if (!isObject(input) || !isUuid(workerId)) return notFound();
+  if (!isDate(input.fromOn) || !isDate(input.toOn) || typeof input.authorised !== "boolean")
+    return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.POST("/v1/workforce/sponsored-workers/{id}/absences", {
       params: { path: { id: workerId } },
@@ -168,7 +176,9 @@ export async function recordReport(
   workerId: string,
   input: { kind: (typeof REPORT_KINDS)[number]; happenedOn: string },
 ): Promise<ActionResult<null>> {
-  if (!isUuid(workerId) || !REPORT_KINDS.includes(input.kind)) return notFound();
+  if (!isObject(input) || !isUuid(workerId) || !REPORT_KINDS.includes(input.kind))
+    return notFound();
+  if (!isDate(input.happenedOn)) return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.POST("/v1/workforce/sponsored-workers/{id}/reports", {
       params: { path: { id: workerId } },
@@ -184,7 +194,8 @@ export async function markReported(
   expectedVersion: number,
   input: { reportedOn: string; smsReference: string },
 ): Promise<ActionResult<null>> {
-  if (!isUuid(reportId) || !version(expectedVersion)) return notFound();
+  if (!isObject(input) || !isUuid(reportId) || !version(expectedVersion)) return notFound();
+  if (!isDate(input.reportedOn) || typeof input.smsReference !== "string") return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.POST("/v1/workforce/sponsor-reports/{id}/reported", {
       params: { path: { id: reportId } },
@@ -197,6 +208,7 @@ export async function markReported(
 }
 
 export async function setNoticeVersion(input: { version: string }): Promise<ActionResult<null>> {
+  if (!isObject(input) || typeof input.version !== "string") return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.PUT("/v1/workforce/staff-privacy-notice", { body: input });
     if (!data) return problemOf(error);
@@ -207,7 +219,8 @@ export async function setNoticeVersion(input: { version: string }): Promise<Acti
 }
 
 export async function acknowledgeNotice(noticeVersion: string): Promise<ActionResult<null>> {
-  if (noticeVersion.length < 1 || noticeVersion.length > 40) return notFound();
+  if (typeof noticeVersion !== "string" || noticeVersion.length < 1 || noticeVersion.length > 40)
+    return notFound();
   return withApi<null>(async (api) => {
     const { data, error } = await api.POST("/v1/me/staff-privacy/acknowledgements", {
       body: { noticeVersion },

@@ -16,6 +16,7 @@ import {
   type ComplianceDetail,
   complianceItemView,
   complianceReminderDue,
+  PORTAL_ONLY_PERMISSIONS,
   requiredItems,
   resolveWorkforceRates,
   SCHEDULE3_ITEMS,
@@ -363,4 +364,47 @@ export async function raiseStaffFileReminders(
     raised += 1;
   }
   return raised;
+}
+
+/**
+ * Current staff of the organisation, for the HR forms' member picker and the create routes'
+ * check (slice 56 security review M1): an active or invited member, not deleted, holding a role
+ * in force now (not ended, not future, not archived or deleted) that carries `workforce.self.read`
+ * and none of the family portal permissions, as `app.holds_staff_permission` reads a staff role.
+ * Organisation-wide by design, as staff_profile's row-level security treats HR (review M2).
+ */
+function currentStaffWhere(id?: string) {
+  return sql`tu.status IN ('active', 'invited')
+    AND tu.deleted_at IS NULL
+    ${id ? sql`AND tu.id = ${id}` : sql``}
+    AND EXISTS (
+      SELECT 1 FROM role_assignment ra
+        JOIN role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
+       WHERE ra.tenant_user_id = tu.id
+         AND ra.tenant_id = tu.tenant_id
+         AND ra.deleted_at IS NULL
+         AND ra.valid_from <= now()
+         AND (ra.valid_to IS NULL OR ra.valid_to > now())
+         AND r.archived_at IS NULL
+         AND r.deleted_at IS NULL
+         AND 'workforce.self.read' = ANY (r.permissions)
+         AND NOT (r.permissions && ${sql.raw(`ARRAY[${PORTAL_ONLY_PERMISSIONS.map((p) => `'${p}'`).join(", ")}]::text[]`)}))`;
+}
+
+export async function currentStaff(
+  tx: Transaction,
+): Promise<{ id: string; displayName: string; jobTitle: string | null }[]> {
+  const rows = await tx.execute<{ id: string; display_name: string; job_title: string | null }>(
+    sql`SELECT tu.id, tu.display_name, tu.job_title FROM tenant_user tu
+         WHERE ${currentStaffWhere()} ORDER BY tu.display_name, tu.id`,
+  );
+  return rows.rows.map((r) => ({ id: r.id, displayName: r.display_name, jobTitle: r.job_title }));
+}
+
+/** Whether a member is current staff (the create routes refuse anyone else). */
+export async function isCurrentStaff(tx: Transaction, id: string): Promise<boolean> {
+  const rows = await tx.execute<{ id: string }>(
+    sql`SELECT tu.id FROM tenant_user tu WHERE ${currentStaffWhere(id)}`,
+  );
+  return rows.rows.length > 0;
 }

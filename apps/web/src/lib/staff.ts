@@ -118,7 +118,7 @@ export function reportChip(
 ): StaffChip {
   const look: Record<typeof state, { status: StatusChipStatus; icon: StaffChipIcon }> = {
     reported: { status: "done", icon: "circle-check" },
-    reported_late: { status: "notApplicable", icon: "circle-minus" },
+    reported_late: { status: "notRecorded", icon: "circle-alert" },
     open: { status: "due", icon: "clock" },
     overdue: { status: "overdue", icon: "circle-alert" },
   };
@@ -303,17 +303,28 @@ export function readComplianceItem(
   today: string = ukToday(),
 ): Read<ComplianceInput> {
   const problems: FieldProblem[] = [];
-  const choose = t("staff.form.choose");
   let detail: ComplianceDetail | null = null;
   switch (kind) {
     case "identity_with_photo":
       detail = {
         kind,
-        document: oneOf(IDENTITY_DOCUMENTS, text(form, "document"), "document", choose, problems),
+        document: oneOf(
+          IDENTITY_DOCUMENTS,
+          text(form, "document"),
+          "document",
+          t("staff.choose.document"),
+          problems,
+        ),
       };
       break;
     case "dbs_certificate": {
-      const level = oneOf(DBS_LEVELS, text(form, "level"), "level", choose, problems);
+      const level = oneOf(
+        DBS_LEVELS,
+        text(form, "level"),
+        "level",
+        t("staff.choose.level"),
+        problems,
+      );
       const issuedOn = date(form, "issuedOn", t("staff.dbs.issuedOn"), problems, t);
       const number = text(form, "number").replace(/\s+/g, "");
       if (!/^\d{12}$/.test(number))
@@ -322,7 +333,7 @@ export function readComplianceItem(
         ["clear", "information_disclosed"] as const,
         text(form, "result"),
         "result",
-        choose,
+        t("staff.choose.result"),
         problems,
       );
       const barred = date(form, "barredListClearOn", t("staff.dbs.barredOn"), problems, t, true);
@@ -373,12 +384,18 @@ export function readComplianceItem(
       break;
     case "right_to_work": {
       const checkedOn = date(form, "checkedOn", t("staff.rtw.checkedOn"), problems, t);
-      const method = oneOf(RTW_METHODS, text(form, "method"), "method", choose, problems);
+      const method = oneOf(
+        RTW_METHODS,
+        text(form, "method"),
+        "method",
+        t("staff.choose.method"),
+        problems,
+      );
       const permission = oneOf(
         ["unlimited", "time_limited"] as const,
         text(form, "permission"),
         "permission",
-        choose,
+        t("staff.choose.permission"),
         problems,
       );
       const expiresOn = date(form, "expiresOn", t("staff.rtw.expiresOn"), problems, t, true);
@@ -404,7 +421,13 @@ export function readComplianceItem(
       break;
     }
     case "professional_registration": {
-      const body = oneOf(REGISTRATION_BODIES, text(form, "body"), "body", choose, problems);
+      const body = oneOf(
+        REGISTRATION_BODIES,
+        text(form, "body"),
+        "body",
+        t("staff.choose.body"),
+        problems,
+      );
       const pin = text(form, "pin").toUpperCase();
       if (!/^[0-9A-Z]{4,12}$/.test(pin))
         problems.push({ field: "pin", message: t("staff.registration.pinFormat") });
@@ -421,7 +444,11 @@ export function readComplianceItem(
       break;
     }
     default:
-      problems.push({ field: "kind", message: t("staff.form.notRecordable") });
+      // The employment history has no form here (RECORDABLE_KINDS); the page offers none.
+      return {
+        ok: false,
+        problems: [{ field: "document", message: t("staff.form.notRecordable") }],
+      };
   }
   return done(problems, () => ({
     detail: detail as ComplianceDetail,
@@ -497,7 +524,6 @@ export function readSponsoredWorker(
   withMember: boolean,
 ): Read<SponsorInput> {
   const problems: FieldProblem[] = [];
-  const choose = t("staff.form.choose");
   const member = text(form, "tenantUserId");
   if (withMember && !member)
     problems.push({ field: "tenantUserId", message: t("staff.form.memberRequired") });
@@ -508,7 +534,13 @@ export function readSponsoredWorker(
   const soc = text(form, "socCode");
   if (!/^\d{4}$/.test(soc))
     problems.push({ field: "socCode", message: t("sponsor.form.socFormat") });
-  const route = oneOf(SPONSOR_ROUTES, text(form, "route"), "route", choose, problems);
+  const route = oneOf(
+    SPONSOR_ROUTES,
+    text(form, "route"),
+    "route",
+    t("sponsor.choose.route"),
+    problems,
+  );
   const visaExpiresOn = date(form, "visaExpiresOn", t("sponsor.form.visaExpiresOn"), problems, t);
   const hours = decimal(
     form,
@@ -530,7 +562,7 @@ export function readSponsoredWorker(
     ENGLISH_EVIDENCE,
     text(form, "englishEvidence") || "not_recorded",
     "englishEvidence",
-    choose,
+    t("sponsor.choose.english"),
     problems,
   );
   const switchingEvidenceOn = date(
@@ -571,7 +603,7 @@ export function readAbsence(
     problems.push({ field: "toOn", message: t("sponsor.absence.order") });
   const authorised = text(form, "authorised");
   if (authorised !== "yes" && authorised !== "no")
-    problems.push({ field: "authorised", message: t("staff.form.choose") });
+    problems.push({ field: "authorised", message: t("sponsor.choose.authorised") });
   return done(problems, () => ({
     fromOn: fromOn as string,
     toOn: toOn as string,
@@ -585,7 +617,7 @@ export function readReport(
   today: string = ukToday(),
 ): Read<{ kind: (typeof REPORT_KINDS)[number]; happenedOn: string }> {
   const problems: FieldProblem[] = [];
-  const kind = oneOf(REPORT_KINDS, text(form, "kind"), "kind", t("staff.form.choose"), problems);
+  const kind = oneOf(REPORT_KINDS, text(form, "kind"), "kind", t("sponsor.choose.kind"), problems);
   const happenedOn = date(form, "happenedOn", t("sponsor.report.happenedOn"), problems, t);
   if (happenedOn && happenedOn > today)
     problems.push({ field: "happenedOn", message: t("sponsor.report.notFuture") });
@@ -613,4 +645,40 @@ export function readNoticeVersion(form: FormLike, t: Translator): Read<{ version
   return version.length >= 1 && version.length <= 40
     ? { ok: true, value: { version } }
     : { ok: false, problems: [{ field: "version", message: t("privacy.notice.versionRequired") }] };
+}
+
+const ITEM_DONE = /^item-([a-z_]+)$/;
+const CONSENT_DONE = /^consent-([a-z_]+)$/;
+
+/** What a staff file page says after a save (`?done=`), or null for anything else. */
+export function staffDone(done: string, t: Translator): string | null {
+  if (done === "created") return t("staff.done.created");
+  if (done === "saved") return t("staff.done.saved");
+  const item = ITEM_DONE.exec(done)?.[1];
+  if (item && (RECORDABLE_KINDS as readonly string[]).includes(item))
+    return t("staff.form.itemSaved", { kind: item });
+  return null;
+}
+
+/** What a sponsored worker's page says after a save. */
+export function sponsorDone(done: string, t: Translator): string | null {
+  switch (done) {
+    case "created":
+    case "saved":
+    case "absence":
+    case "report":
+    case "reported":
+      return t("sponsor.done", { done });
+    default:
+      return null;
+  }
+}
+
+/** What My privacy says after a save. */
+export function privacyDone(done: string, t: Translator): string | null {
+  if (done === "acknowledged") return t("privacy.notice.acknowledged");
+  const purpose = CONSENT_DONE.exec(done)?.[1];
+  if (purpose && ["newsletter", "website", "social_media", "family_feed"].includes(purpose))
+    return t("privacy.image.saved", { purpose });
+  return null;
 }

@@ -19,6 +19,7 @@ export function NoticeVersionForm({ current }: { readonly current: string | null
   const { result, pending, submit } = useStaffForm(
     (form) => readNoticeVersion(form, t),
     (value) => setNoticeVersion(value),
+    { done: "notice" },
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -29,7 +30,6 @@ export function NoticeVersionForm({ current }: { readonly current: string | null
         hint={t("privacy.notice.versionHint")}
         defaultValue={current ?? ""}
         autoComplete="off"
-        maxLength={40}
         error={errorFor(result, "version")}
       />
       <div>
@@ -37,12 +37,7 @@ export function NoticeVersionForm({ current }: { readonly current: string | null
           {pending ? t("common.saving") : t("privacy.notice.save")}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path="/settings/data-protection"
-        fieldIds={ids}
-        success={t("privacy.notice.saved")}
-      />
+      <StaffFeedback result={result} path="/settings/data-protection" fieldIds={ids} />
     </form>
   );
 }
@@ -52,6 +47,7 @@ export function AcknowledgeNoticeForm({ version }: { readonly version: string })
   const { result, pending, submit } = useStaffForm(
     () => ({ ok: true as const, value: version }),
     (value) => acknowledgeNotice(value),
+    { done: "acknowledged" },
   );
   return (
     <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
@@ -60,19 +56,17 @@ export function AcknowledgeNoticeForm({ version }: { readonly version: string })
           {pending ? t("common.saving") : t("privacy.notice.acknowledge", { version })}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={PRIVACY_PAGE}
-        fieldIds={{}}
-        success={t("privacy.notice.acknowledged")}
-      />
+      <StaffFeedback result={result} path={PRIVACY_PAGE} fieldIds={{}} />
     </form>
   );
 }
 
 type Purpose = StaffPrivacy["imageConsent"][number]["purpose"];
 
-/** Give, refuse or withdraw consent for one optional use of the member's photo or image. */
+/**
+ * One optional use of the member's photo or image. Asked for the first time: yes or no. Once
+ * answered: one button that changes the answer, saying what it does (withdrawing stops new use).
+ */
 export function ImageConsentForm({
   purpose,
   decision,
@@ -81,16 +75,13 @@ export function ImageConsentForm({
   readonly decision: StaffPrivacy["imageConsent"][number]["decision"];
 }) {
   const ids = useFieldIds(["decision"] as const);
-  const offered =
-    decision === "given"
-      ? (["withdrawn"] as const)
-      : decision === "none"
-        ? (["given", "refused"] as const)
-        : (["given"] as const);
+  const first = decision === "none";
+  const change = decision === "given" ? "withdrawn" : "given";
   const { result, pending, submit } = useStaffForm(
     (form) => {
+      if (!first) return { ok: true as const, value: change };
       const chosen = String(form.get("decision") ?? "");
-      return (offered as readonly string[]).includes(chosen)
+      return chosen === "given" || chosen === "refused"
         ? { ok: true as const, value: chosen }
         : {
             ok: false as const,
@@ -98,30 +89,39 @@ export function ImageConsentForm({
           };
     },
     (value) => decideImageConsent(purpose, value),
+    { done: `consent-${purpose}` },
   );
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
-      <RadioGroup
-        id={ids.decision}
-        name="decision"
-        legend={t("privacy.image.question", { purpose })}
-        options={offered.map((d) => ({
-          value: d,
-          label: t("privacy.image.choice", { decision: d }),
-        }))}
-        error={errorFor(result, "decision")}
-      />
+      {first ? (
+        <RadioGroup
+          id={ids.decision}
+          name="decision"
+          legend={t("privacy.image.question", { purpose })}
+          options={(["given", "refused"] as const).map((d) => ({
+            value: d,
+            label: t("privacy.image.choice", { decision: d }),
+          }))}
+          error={errorFor(result, "decision")}
+        />
+      ) : (
+        <p className="m-0">{t("privacy.image.effect", { change, purpose })}</p>
+      )}
       <div>
-        <Button type="submit" disabled={pending} icon={icon}>
-          {pending ? t("common.saving") : t("privacy.image.submit")}
+        <Button
+          type="submit"
+          disabled={pending}
+          icon={icon}
+          variant={change === "withdrawn" && !first ? "secondary" : "primary"}
+        >
+          {pending
+            ? t("common.saving")
+            : first
+              ? t("privacy.image.submit")
+              : t("privacy.image.change", { change, purpose })}
         </Button>
       </div>
-      <StaffFeedback
-        result={result}
-        path={PRIVACY_PAGE}
-        fieldIds={ids}
-        success={t("privacy.image.saved")}
-      />
+      <StaffFeedback result={result} path={PRIVACY_PAGE} fieldIds={ids} />
     </form>
   );
 }

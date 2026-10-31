@@ -2,24 +2,30 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { StaffChip } from "@/components/staff/StaffChip";
+import { StaffDisclosure } from "@/components/staff/StaffDisclosure";
 import { ComplianceItemForm, StaffFileForm } from "@/components/staff/StaffForms";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { firstParam } from "@/lib/record-metadata";
 import {
   complianceChip,
   consentChip,
   fileChip,
   RECORDABLE_KINDS,
   STAFF_PAGE,
+  STAFF_READ,
+  staffDone,
   staffFilesManaged,
   staffFilesShown,
 } from "@/lib/staff";
 
 type Params = Promise<{ fileId: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("staff.file.title") };
 
@@ -30,8 +36,15 @@ export const metadata: Metadata = { title: t("staff.file.title") };
  * file (the forms are not offered there, and the API refuses it). HR-only documents stay on their
  * own route.
  */
-export default async function StaffFilePage({ params }: { readonly params: Params }) {
+export default async function StaffFilePage({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { fileId } = await params;
+  const done = firstParam((await searchParams).done);
   if (!isUuid(fileId)) notFound();
   const { me } = await getShellContext();
   if (!staffFilesShown(me.permissions)) return <SafetyForbidden title={t("staff.title")} />;
@@ -44,11 +57,12 @@ export default async function StaffFilePage({ params }: { readonly params: Param
   const file = got.data;
   const own = file.member?.id === me.tenantUserId;
   const manage = staffFilesManaged(me.permissions) && !own;
-  const privacy = file.member
-    ? await api.GET("/v1/workforce/members/{id}/staff-privacy", {
-        params: { path: { id: file.member.id } },
-      })
-    : null;
+  const privacy =
+    file.member && me.permissions.includes(STAFF_READ)
+      ? await api.GET("/v1/workforce/members/{id}/staff-privacy", {
+          params: { path: { id: file.member.id } },
+        })
+      : null;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
@@ -57,6 +71,9 @@ export default async function StaffFilePage({ params }: { readonly params: Param
         title={file.member?.displayName ?? t("staff.unknownMember")}
         description={file.jobTitle}
       />
+      {done && staffDone(done, t) ? (
+        <RecordedArrival message={staffDone(done, t) ?? ""} param="done" />
+      ) : null}
       <p className="m-0">
         <Link href={STAFF_PAGE} className="inline-flex min-h-target items-center underline">
           {t("staff.back")}
@@ -104,14 +121,9 @@ export default async function StaffFilePage({ params }: { readonly params: Param
                 </ul>
               ) : null}
               {manage && item.required && RECORDABLE_KINDS.includes(item.kind) ? (
-                <details className="flex flex-col gap-3">
-                  <summary className="inline-flex min-h-target cursor-pointer items-center underline">
-                    {t("staff.item.recordOpen", { kind: item.kind })}
-                  </summary>
-                  <div className="pt-3">
-                    <ComplianceItemForm fileId={file.id} item={item} />
-                  </div>
-                </details>
+                <StaffDisclosure label={t("staff.item.recordOpen", { kind: item.kind })}>
+                  <ComplianceItemForm fileId={file.id} item={item} />
+                </StaffDisclosure>
               ) : null}
             </li>
           ))}

@@ -15676,7 +15676,7 @@ export interface paths {
     };
     /**
      * Staff to choose from
-     * @description workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.
+     * @description workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role in force now, organisation-wide, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.
      */
     get: {
       parameters: {

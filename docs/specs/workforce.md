@@ -412,7 +412,7 @@ and every read of sponsor records or a member's choices is audited
 `workforce.sponsor_report.*`, `workforce.staff_privacy_notice.*`,
 `workforce.staff_image_consent.decided`, `workforce.staff_privacy.viewed`,
 `workforce.ldss_claim.*`) with opaque ids and codes only: never a certificate number, reference,
-pay or date of absence. Screens follow with slice 56.
+pay or date of absence. The screens are slice 56 (section 13).
 
 ### 12.5 Tests
 
@@ -434,3 +434,60 @@ pay or date of absence. Screens follow with slice 56.
 | Unauthorised absence is not drawn from the rota or leave records | Rota and leave (slice 36 onward) |
 | The family feed does not yet check staff image consent before a staff photo is published | Feed publishing checks (slice 56, H-905) |
 | Sponsor records follow the staff file's retention row; any sponsor-specific minimum is unconfirmed | H-901 |
+
+## 13. Web screens: staff file, compliance, sponsor and privacy (slice 56)
+
+Register rows WORK-002, WORK-003 and WORK-011. Screens only, on the API of slices 11 and 35, with
+one addition: `GET /v1/workforce/staff-members`, the member picker for HR forms (HR roles hold no
+`platform.user.manage`).
+
+### 13.1 Screens
+
+| Path | Who | What |
+| --- | --- | --- |
+| `/staff` | `workforce.staff_file.read` or `.manage` | Every staff file: complete or not (icon and word), checks outstanding and due soon; "Start a staff file" for `.manage` holders, choosing from current staff, never oneself or someone already kept |
+| `/staff/{id}` | as above | The profile; each Schedule 3 item with its status, verifier, expiry and notes; a form per recordable kind (not the employment history, 13.4) and the profile form for `.manage` holders, never on one's own file; the member's privacy notice acknowledgement and image consent for `.read` holders |
+| `/staff/sponsorship` | `workforce.immigration.read` | Sponsored workers, never one's own record: visa, salary check, open reports, Appendix D gaps, absence to report; a new record for holders of `workforce.sponsor.manage` too |
+| `/staff/sponsorship/{id}` | as above | Where the record stands; reportable changes with due dates; absences; the forms to record a change (filled in from an absence warning), an absence, mark a change reported and change or end the record |
+| `/settings/privacy` (account menu, "My privacy") | `workforce.self.read` | The notice version in force and its acknowledgement; each optional image use: yes or no the first time, then one button that changes the answer and says what it does |
+| `/settings/data-protection` | `platform.tenant.manage` | The staff privacy notice version in force |
+
+The module menu shows "Staff files" to staff file holders, and to sponsor-only HR it opens
+sponsored workers directly.
+
+### 13.2 Rules
+
+1. Status is an icon and a word (`StaffChip`), never colour alone; a late report is a warning.
+2. Every form posts (`method="post"`), reads every field before sending, and lists every problem
+   at once with a message for each field (accessibility review H1). Saved, the page opens again
+   with `?done=` and says what was done in a polite status, focus on its heading, so a form that
+   leaves the page once saved does not take the message with it (review M1).
+3. Forms under a record open from a 44 px button with `aria-expanded`; the form is only put on the
+   page once opened.
+4. The staff picker lists active and invited members holding a staff role in force now (not
+   ended, not future, not archived or deleted, no family portal permissions), by name and job
+   title only, organisation-wide by design as staff_profile's row-level security treats HR. The
+   create routes for staff files and sponsor records refuse anyone else (`not_current_staff`;
+   security review M1, M2).
+5. Server actions refuse malformed input before reading it (security review L1); the staff file
+   page asks for a member's privacy choices only for holders of `workforce.staff_file.read` (L2).
+
+### 13.3 Tests
+
+- `apps/web/src/lib/staff.test.ts`: who is offered what, the chips, every form reader, the
+  `?done=` messages.
+- `apps/api/test/staff-files.test.ts`: the picker's permission and fields, and that it leaves out
+  expired, future, suspended and portal-only members; creating a file for one is refused.
+- `apps/web/e2e/staff-file.spec.ts`: the notice set and acknowledged, image consent given and
+  withdrawn, care worker and manager refusals, a staff file started and a check recorded by
+  keyboard, a sponsor record with an absence, a change reported and sponsorship ended; axe in
+  light and dark at each step.
+
+### 13.4 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| The employment history, DBS risk assessment signature and HR-only documents have no form on these screens (the API has them) | A later workforce screens slice (H-941) |
+| The staff privacy notice is a version label, not a link to the text | Store the notice document with its version (H-940) |
+| Record pages share one static title (no personal names in titles) | Titles with the organisation once the house policy on names is set (H-947) |
+| No LDSS claim screens | LDSS screens (H-903, H-943) |

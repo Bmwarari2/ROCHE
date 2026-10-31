@@ -23,7 +23,7 @@ import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
-import { privacyShown, staffFilesShown } from "@/lib/staff";
+import { privacyShown, SPONSOR_PAGE, STAFF_PAGE, sponsorShown, staffFilesShown } from "@/lib/staff";
 import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 
@@ -90,7 +90,12 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
-        staffFiles: staffFilesShown(me.permissions) ? t("shell.nav.staffFiles") : undefined,
+        // Sponsor-only HR still reaches sponsored workers from the menu (review M4).
+        staffFiles:
+          staffFilesShown(me.permissions) || sponsorShown(me.permissions)
+            ? t("shell.nav.staffFiles")
+            : undefined,
+        staffFilesHref: staffFilesShown(me.permissions) ? STAFF_PAGE : SPONSOR_PAGE,
         privacy: privacyShown(me.permissions) ? t("shell.nav.privacy") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,

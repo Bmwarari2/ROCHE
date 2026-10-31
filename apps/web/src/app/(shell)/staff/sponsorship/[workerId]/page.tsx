@@ -2,6 +2,7 @@ import { Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import {
   AbsenceForm,
@@ -10,21 +11,25 @@ import {
   SponsoredWorkerForm,
 } from "@/components/staff/SponsorForms";
 import { StaffChip } from "@/components/staff/StaffChip";
+import { StaffDisclosure } from "@/components/staff/StaffDisclosure";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { firstParam } from "@/lib/record-metadata";
 import {
   othersOnly,
   reportChip,
   SPONSOR_PAGE,
   salaryChip,
+  sponsorDone,
   sponsorManaged,
   sponsorShown,
   visaChip,
 } from "@/lib/staff";
 
 type Params = Promise<{ workerId: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: t("sponsor.record.title") };
 
@@ -34,8 +39,15 @@ export const metadata: Metadata = { title: t("sponsor.record.title") };
  * changes with their due dates; and, for holders of workforce.sponsor.manage, the forms to change
  * the record, record absences and changes, and mark a change reported. Never one's own record.
  */
-export default async function SponsoredWorkerPage({ params }: { readonly params: Params }) {
+export default async function SponsoredWorkerPage({
+  params,
+  searchParams,
+}: {
+  readonly params: Params;
+  readonly searchParams: SearchParams;
+}) {
   const { workerId } = await params;
+  const done = firstParam((await searchParams).done);
   if (!isUuid(workerId)) notFound();
   const { me } = await getShellContext();
   if (!sponsorShown(me.permissions)) return <SafetyForbidden title={t("sponsor.title")} />;
@@ -53,6 +65,9 @@ export default async function SponsoredWorkerPage({ params }: { readonly params:
         title={worker.member?.displayName ?? t("staff.unknownMember")}
         description={t("sponsor.route.name", { route: worker.route })}
       />
+      {done && sponsorDone(done, t) ? (
+        <RecordedArrival message={sponsorDone(done, t) ?? ""} param="done" />
+      ) : null}
       <p className="m-0">
         <Link href={SPONSOR_PAGE} className="inline-flex min-h-target items-center underline">
           {t("sponsor.back")}
@@ -130,14 +145,9 @@ export default async function SponsoredWorkerPage({ params }: { readonly params:
                   </span>
                 </p>
                 {manage && !r.reportedOn ? (
-                  <details>
-                    <summary className="inline-flex min-h-target cursor-pointer items-center underline">
-                      {t("sponsor.report.markOpen")}
-                    </summary>
-                    <div className="pt-3">
-                      <MarkReportedForm workerId={worker.id} report={r} />
-                    </div>
-                  </details>
+                  <StaffDisclosure label={t("sponsor.report.markOpen", { kind: r.kind })}>
+                    <MarkReportedForm workerId={worker.id} report={r} />
+                  </StaffDisclosure>
                 ) : null}
               </li>
             ))}
@@ -164,7 +174,11 @@ export default async function SponsoredWorkerPage({ params }: { readonly params:
       {manage ? (
         <>
           <Card as="section" title={t("sponsor.report.newTitle")} headingLevel={2}>
-            <ReportForm workerId={worker.id} suggested={worker.absenceToReport} />
+            <ReportForm
+              key={worker.absenceToReport?.happenedOn ?? "none"}
+              workerId={worker.id}
+              suggested={worker.absenceToReport}
+            />
           </Card>
           <Card as="section" title={t("sponsor.absence.newTitle")} headingLevel={2}>
             <AbsenceForm workerId={worker.id} />

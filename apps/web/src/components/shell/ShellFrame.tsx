@@ -98,6 +98,8 @@ export interface ShellFrameLabels {
   readonly onboarding?: string | undefined;
   /** Shown to holders of workforce.staff_file.read or .manage. */
   readonly staffFiles?: string | undefined;
+  /** Where the staff nav item goes: staff files, or sponsored workers for sponsor-only HR. */
+  readonly staffFilesHref?: string | undefined;
   /** Shown to staff (workforce.self.read): their privacy notice and image consent. */
   readonly privacy?: string | undefined;
   readonly notifications: string;
@@ -327,7 +329,7 @@ export function ShellFrame({
           {
             id: "staff-files",
             label: labels.staffFiles,
-            href: "/staff",
+            href: labels.staffFilesHref ?? "/staff",
             icon: <IdCard {...icon} />,
           },
         ]
