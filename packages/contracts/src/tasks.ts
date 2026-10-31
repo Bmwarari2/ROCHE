@@ -77,6 +77,10 @@ export const TaskDetails = z
      * it are not all listed, so the reviewer checks the record (HZ-003).
      */
     missedTasksNotListedBefore: isoDate.optional(),
+    /** A policy read-and-sign or review task (quality.md section 18): the policy, the review state. */
+    policyId: uuid.optional(),
+    reviewStatus: z.string().optional(),
+    remindedOn: isoDate.optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

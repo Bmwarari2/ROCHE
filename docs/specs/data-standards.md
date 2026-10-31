@@ -635,6 +635,25 @@ a national standard beyond those named.
 | `letter_template_version` (`template_id`, `version_number`, `state`, `name`, `subject`, `body`, `author_id`, `contributor_ids`, `approved_by`, `approved_at`, `retired_by`, `retired_at`, `retirement_reason`, `discard_reason`) | Harbour (`TEMPLATE_WORKFLOW`); merge fields as `MERGE_FIELDS` above | `state` `draft`, `approved`, `superseded`, `retired`, `discarded`; `name` 1 to 200 characters, `body` 1 to 20,000, `subject` 1 to 80 (email only) | Personal data about staff only (author, contributors, approver); a template holds merge fields, never a person's details. Retention `organisation_document`. Schema `comms.ts`. |
 | `notification_preference` (`tenant_user_id`, `quiet_hours_start`, `quiet_hours_end`, `channels`) | Harbour | Quiet hours as UK wall-clock `HH:MM` (Europe/London, not UTC); `channels` JSON of channel choices per notification kind; one row per member | Personal data about the member of staff; urgent safety notifications ignore quiet hours. Retention: tenant configuration, kept while current. Schema `platform.ts`. |
 
+## Quality: policy library and read-and-sign (Phase 2, slice 25)
+
+Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
+these fields; exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `policy.policy_key` | Harbour | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
+| `policy.title` | Harbour | Plain text, 2 to 160 characters | |
+| `policy.require_second_reviewer` | Harbour | Boolean | Someone other than the author publishes |
+| `policy_version.state` | Harbour | `draft`, `published`, `superseded`, `retired` | At most one `published` per policy |
+| `policy_version.change` | Harbour | `minor`, `major` | A minor change keeps earlier signatures |
+| `policy_version.change_summary` | Harbour | Plain text, 2 to 2,000 characters | The change log |
+| `policy_version.body`, `document_id` | Harbour | Plain text or Markdown up to 100,000 characters; an organisation document (PDF) | At least one |
+| `policy_version.roles` | Harbour | Role keys (`^[a-z][a-z0-9_]{1,63}$`), up to 40 | Matched against a role's key or the built-in key it is based on |
+| `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
+| `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
+| Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

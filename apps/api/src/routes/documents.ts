@@ -131,6 +131,7 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
   "escalation_policy",
   "statement_of_purpose_version",
   "letter_template_version",
+  "policy",
 ]);
 
 /**

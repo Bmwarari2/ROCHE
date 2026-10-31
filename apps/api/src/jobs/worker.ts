@@ -23,6 +23,7 @@ import {
   raiseReviews,
   relayOutbox,
   remindDolsExpiry,
+  remindPolicies,
   reportBreakGlass,
   reportUnroutedDaily,
   retryUnroutedTasks,
@@ -67,6 +68,7 @@ const QUEUES = {
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
+  policyReminders: "policy-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
   peopleReviews: "people-reviews",
@@ -116,6 +118,9 @@ await work(QUEUES.careReviews, async () => {
 });
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
+});
+await work(QUEUES.policyReminders, async () => {
+  await remindPolicies(deps);
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
@@ -182,6 +187,8 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
+// Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.
+await boss.schedule(QUEUES.policyReminders, "27 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
 await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
