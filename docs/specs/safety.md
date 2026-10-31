@@ -353,6 +353,83 @@ from; a stale page is refused in words that do not blame anyone else. Gaps logge
 no `access` on `IncidentDetail`, no candour state on the incident, no upload for the submitted
 form, and no stable key for a line of required content (STATUS item 19, H-266).
 
+Web incident follow-up, slice 9 part 5 (`apps/web/src/lib/candour.ts`, `investigation.ts`,
+`after-death.ts`, `incident-trends.ts`; `apps/web/src/components/safety/CandourSection.tsx`,
+`CandourForms.tsx`, `InvestigationSection.tsx`, `InvestigationForm.tsx`, `AfterDeath.tsx`;
+`apps/web/src/app/(shell)/incidents/trends/`; HZ-013 and HZ-091). On an incident seen whole, after
+the statutory notifications:
+
+- **After a death** (SAFE-008, rules 6 and 8), for each person we support who died on it, with
+  their communication needs: the medical examiner pack's notification with its clock and status
+  (linked to its page for a holder of `safety.incident.manage`) and the pack's seven sections in
+  `MEDICAL_EXAMINER_PACK_SECTIONS` order, each with what it holds (the catalogue repeats the
+  domain's words) and where it is kept (their record's Overview, Notes, Charts and Assessments or
+  Advance care; this incident), or "not shown on Harbour's web pages yet" (diagnoses, medicines).
+  The LeDeR prompt: with a LeDeR draft, "report the death on LeDeR's online form, which anyone can
+  use" linked to `SOURCES.leder`, then record it on the notification; when the incident does not
+  record whether the person had a learning disability or was autistic, "check whether LeDeR
+  applies" with the same link and the Child Death Review exception; nothing when both are
+  recorded as no. The medical examiner and LeDeR notification pages show the pack and the link
+  too. Nothing judges the death.
+- **Duty of candour** (SAFE-007, rule 5), shown with a candour record or a person we support on the
+  incident: its stage as an icon and words; the clocks from `CandourItem.clocks`, telling the person
+  "as soon as reasonably practicable: the clock started" (due now, then told in person, or not told
+  in person after `no_contact`) and the written notification as "your organisation's target is
+  N working days from the decision, by" its time, N read from `/v1/rates` on the incident's date
+  (`candour.written_notification.working_days`), always followed by "This is a target, not a
+  legal deadline" (ADR-0021; past the target it says so in words and an icon); until the threshold
+  decision, that the times count from when the incident happened; none once it is not notifiable.
+  The record (who it happened to with their communication needs, the decision and whose opinion it
+  records, telling them, attempts, the letter, results shared, correspondence, outcome) is read by
+  anyone who may read the incident. A holder of `safety.incident.manage`, on an incident not
+  closed, gets the forms for the stage (`candourForms`): the threshold decision (who it happened
+  to, from the people we support on it; yes or no and when, nothing chosen; whose opinion), then
+  telling them in person (when, who, in person asked, the account, the enquiries and the apology
+  ticked, the written record) and attempts to contact them, then the written notification (when,
+  what it included, its copy) and the results and correspondence. A time is chosen every time:
+  as recorded, just now (the server's time) or earlier, never later than now. Documents are
+  chosen from the relevant person's available PDFs (`/v1/documents`, letters sent and documents
+  added), with a link to their letters. The steps are the workflow's (`availableTransitions` on
+  `CANDOUR_WORKFLOW`), from the threshold only the one its decision points to, each offered only
+  when `candourStepProblems` finds nothing missing, otherwise the missing items listed in the
+  catalogue's words; not notifiable, no contact and closing take a reason. The API's candour
+  refusals are recognised (`refusals.ts`). "Review and close" lists an open candour record (any
+  stage but closed, not notifiable or no contact) among what must happen first, as
+  `incidentCloseProblems` does.
+- **Investigation** (SAFE-010): its status, lead, method, findings, contributing factors, lessons,
+  whether the lessons were marked published as a bulletin and when, and each action with its
+  status (open, open past its date, done or cancelled, icon and word), owner, due date and whether
+  a task was made. Staff are named from `/v1/members` for those who manage the team, else "you"
+  or "a colleague". A holder of `safety.incident.manage`, on an incident seen whole (closed or
+  not, as the API allows), records it: lead, method, findings, factors one per line, lessons, each
+  action's status, one new action at a time with its owner and date (a task for the owner), the
+  bulletin mark, and save, complete (needs the findings and the lessons) or reopen. **Changed in
+  the API** (`PUT /v1/incidents/{id}/investigation`): an open action with an owner and a date
+  becomes a task only for an owner who may be given it (`mayBeGiven` with
+  `safety.incident.manage` at the incident's location), as the task engine requires of every
+  assignee; otherwise the save is refused in words.
+- **Incident trends** (`/incidents/trends`, from the incidents list, for `safety.incident.read`):
+  incidents and near misses counted by type in each of the last six UK calendar months at the
+  chosen location, from one `GET /v1/incidents` read per month, with a row of totals, said as
+  "counts only, as recorded"; a month whose read reached the API's limit of 500 is said as "500 or
+  more". It interprets nothing (medical-device boundary section 4).
+
+Every write sends the version the page was drawn from (0 starts a record); a stale page is refused
+in words; after a save the page opens again with focus on its heading and says what was done.
+Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
+sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses
+pages to link; duty of candour letters are refused by the letters API until it reads the candour
+record, so the written notification's copy is a document chosen from the person's record, and the
+web cannot upload one (PLAT-009); the candour record and the candour statutory notification are
+separate, so finishing the record does not record the draft as submitted; the incident form does
+not ask about learning disability or autism (H-262), hence the LeDeR check; no candour forms on a
+closed incident (a decision found after closing has no route); bulletins are a date only (no
+distribution, read receipts or list of lessons across incidents: no API lists investigations); the
+lead is not checked against any permission; trends count only what the reader can list, at most
+500 a month, by type only (no harm or severity breakdown yet). For the CSO: H-480 (candour
+wording, a decision after closing, the candour draft) and H-481 (the pack listed, not assembled;
+the LeDeR check).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos
@@ -392,7 +469,11 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture. Built so far: `apps/web/e2e/incidents.spec.ts` reads the list and an
-  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9).
+  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9);
+  `candour.spec.ts` (the candour record from the threshold decision to closing it; not notifiable
+  and a stale page), `investigation.spec.ts` (an investigation with an action as a task, the
+  lessons and a bulletin; a stale page; the trend view) and `after-death.spec.ts` (the medical
+  examiner pack and the LeDeR prompt), each with axe in both themes (slice 9 part 5).
 
 ## 10. Open questions
 
