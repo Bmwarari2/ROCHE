@@ -12,6 +12,8 @@ import {
 import {
   Archive,
   Bell,
+  BookCheck,
+  ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
@@ -71,6 +73,10 @@ export interface ShellFrameLabels {
   readonly evidencePacks?: string | undefined;
   /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
   readonly statementOfPurpose?: string | undefined;
+  /** Shown only to those who work with quality evidence (QUAL-001, QUAL-002). */
+  readonly framework?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-004). */
+  readonly audits?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
@@ -262,6 +268,26 @@ export function ShellFrame({
             label: labels.statementOfPurpose,
             href: "/quality/statement-of-purpose",
             icon: <ScrollText {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.framework
+      ? [
+          {
+            id: "framework",
+            label: labels.framework,
+            href: "/quality/framework",
+            icon: <BookCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.audits
+      ? [
+          {
+            id: "audits",
+            label: labels.audits,
+            href: "/quality/audits",
+            icon: <ClipboardCheck {...icon} />,
           },
         ]
       : []),
