@@ -301,8 +301,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
     competence (read from the workforce port, section 3) is not current, the allergies in the
     sources have not been compared with the recorded allergies by the completer (Harbour matches no
     allergen, ADR-0082 default), the person (or someone who speaks for them) was not involved and
-    no reason is given, an entry belongs to someone else, or the medicines record changed since the
-    reconciliation began. The result is the plan the API applies in one transaction: continued
+    no reason is given, an entry belongs to someone else, or the entries to decide on are not the
+    ones it began with (`record_changed`, medicine by medicine): a medicine added or gone, or
+    another version in force now. A reconciliation begun at 23:00 and completed at 00:30, after a
+    change scheduled for 00:00 took effect, says "Paracetamol 500mg tablets: version 2 is in force
+    now, from 06/11/2026 00:00, in place of version 1 this reconciliation began with. Redo the
+    decisions for it against version 2", and the decision for version 1 says the same; the API takes
+    the entries again (`entriesToReconcile`) when the person redoes those decisions. The result is the plan the API applies in one transaction: continued
     entries, stops with their source from when it completes (`stopMarEntry`), changes
     (`changeMarEntry`, with the re-anchor reason), each with the reason it withdraws a later
     version or stop and why what it keeps still stands, and starts (`transcribeMarEntry`, with the
@@ -502,6 +507,16 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
 - API (slice 16): `hazard HZ-005 imported medicines are created as not yet checked`; a second check
   by the transcriber is refused; a reconciliation completes only with every decision and applies
   its plan in one transaction; the return check is completed by it; audit events.
+- Open controls for slices 16 and 22 (HZ-003, HZ-010, HZ-121), logged by the #135 sixth review:
+  - The API applies a reconciliation's plan, and records every change, stop and new entry, with
+    the `at` the rules were tried with: the time of recording (`completedAt`, or the member's
+    action), never the sync or server time; it keeps the server time beside it (HZ-010), so a plan
+    applied after midnight is not tried against a different day.
+  - The API passes every version of a medicine to the rules (`versions`, `entryVersions`,
+    `earlierEntries`), never a subset, so a scheduled version or stop is always seen.
+  - The same-day route covers only the day an entry is recorded: an admission recorded at 00:30
+    shows a 23:30 dose the evening before as not due, with no way to keep it due. That is a missed
+    dose, not a double one; the nurse in charge decides with the prescriber (H-553).
 - Web (slice 52): the dm+d picker, the second check, the reconciliation screen with each
   difference in words, Playwright with axe.
 - The Phase 2 gate needs: a medication round completed offline with barcode and witness in the
@@ -561,6 +576,13 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   letter extends is recorded as the existing entry continued to its end and a new entry started
   from then on the letter's line (default, rather than a change allowed to extend the end when a
   current line says so): is that acceptable when the letter has a single line for the medicine?
+  For the CSO to confirm (#135 sixth review): who may give the same-day reason (default: the
+  transcriber, whose entry a second person then checks); the single-line extension above; the
+  refusal of a reconciliation begun before midnight and completed after a change took effect at
+  00:00 (default: refused, naming the version, until those decisions are redone); and the dose
+  before midnight on an admission recorded just after it (a 23:30 dose when the entry is recorded
+  at 00:30), which the same-day route cannot keep due: is a missed dose there acceptable, or is a
+  route needed for the evening before?
 - H-554 (CSO): the dose windows (60 minutes either side, 30 for time-critical), the reason asked
   for an early or late dose, and when an outstanding dose escalates.
 - H-555 (CSO with a pharmacist): the when-required rules: the rolling 24 hours up to the dose, no

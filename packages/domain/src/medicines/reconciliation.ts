@@ -437,12 +437,50 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
   if (input.currentEntries.some((e) => e.personId !== rec.personId)) {
     add({ problem: "wrong_person", message: "An entry belongs to someone else. Start again." });
   }
+  // What differs from the entries the reconciliation began with, medicine by medicine: a version
+  // that has come into force since (a change scheduled for 00:00, say), or a medicine added or gone.
+  const key = (e: { entryId: string; version: number }) => `${e.entryId}@${e.version}`;
+  const versionOf = (e: { entryId: string }) =>
+    input.entryVersions(e.entryId).find((v) => v.id === e.entryId) ?? null;
+  const nowKeys = new Set(input.currentEntries.map(key));
+  const startKeys = new Set(rec.entriesAtStart.map(key));
+  const gone = rec.entriesAtStart
+    .filter((e) => !nowKeys.has(key(e)))
+    .map((e) => ({ atStart: e, version: versionOf(e) }));
+  /** At-start entries whose medicine now has another version in force, by entry id. */
+  const replacedSince = new Map<
+    string,
+    { readonly now: ReconciledEntry; readonly from: Date | null }
+  >();
   if (!sameEntries(rec.entriesAtStart, input.currentEntries)) {
-    add({
-      problem: "record_changed",
-      message:
-        "The medicines record changed after this reconciliation began. Review the new or changed entries before completing it.",
-    });
+    for (const now of input.currentEntries.filter((e) => !startKeys.has(key(e)))) {
+      const before = gone.find(
+        (g) =>
+          g.version?.product.vmpId === now.product.vmpId && !replacedSince.has(g.atStart.entryId),
+      );
+      if (before) {
+        const from = versionOf(now)?.startsAt ?? null;
+        replacedSince.set(before.atStart.entryId, { now, from });
+        add({
+          problem: "record_changed",
+          entryId: now.entryId,
+          message: `${now.product.name}: version ${now.version} is in force now${from ? `, from ${formatUkDateTime(from)}` : ""}, in place of version ${before.atStart.version} this reconciliation began with. Redo the decisions for it against version ${now.version}.`,
+        });
+      } else {
+        add({
+          problem: "record_changed",
+          entryId: now.entryId,
+          message: `${now.product.name} is on the MAR now but was not when this reconciliation began. Decide it, then complete.`,
+        });
+      }
+    }
+    for (const g of gone.filter((g) => !replacedSince.has(g.atStart.entryId))) {
+      add({
+        problem: "record_changed",
+        entryId: g.atStart.entryId,
+        message: `${g.version?.product.name ?? "An entry"} was on the MAR when this reconciliation began but is not now. Check what happened to it, then complete.`,
+      });
+    }
   }
   for (const item of rec.items.filter((i) => i.says === "unclear")) {
     add({
@@ -532,11 +570,19 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
     const entryId = decision.entryId;
     decidedEntries.set(entryId, (decidedEntries.get(entryId) ?? 0) + 1);
     if (!entry) {
+      const since = replacedSince.get(entryId);
+      const before = rec.entriesAtStart.find((e) => e.entryId === entryId);
       add({
         problem: "unknown_entry",
         entryId,
-        message: "A decision is for an entry not on the MAR now.",
+        message:
+          since && before
+            ? `This decision is for version ${before.version} of ${since.now.product.name}; version ${since.now.version} is in force now${since.from ? `, from ${formatUkDateTime(since.from)}` : ""}. Redo it against version ${since.now.version}.`
+            : "A decision is for an entry not on the MAR now.",
       });
+      // Its lines stay linked, so they are not reported as undecided while it is redone.
+      if (since && decision.kind !== "query")
+        for (const itemId of decision.itemIds) useItem(itemId);
       continue;
     }
     if (decision.kind === "query") {
