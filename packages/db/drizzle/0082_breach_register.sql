@@ -174,8 +174,11 @@ ALTER TABLE public.dp_breach FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.dp_breach AS PERMISSIVE FOR ALL TO PUBLIC
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
+-- The organisation's own system context (no member, the whole organisation) also reads it, so
+-- the free full export includes the register (as #149 for DSAR cases); it never writes.
 CREATE POLICY breach_read ON public.dp_breach AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));
 --> statement-breakpoint
 CREATE POLICY breach_record ON public.dp_breach AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
   WITH CHECK (source = 'tenant' AND status = 'open' AND factors IS NULL AND decided_at IS NULL
@@ -256,7 +259,8 @@ CREATE POLICY tenant_isolation ON public.processor_breach_notice AS PERMISSIVE F
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY notice_read ON public.processor_breach_notice AS RESTRICTIVE FOR SELECT
-  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));
 --> statement-breakpoint
 CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.processor_breach_notice
   FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation();
@@ -279,7 +283,8 @@ CREATE POLICY tenant_isolation ON public.processor_breach_notice_ack AS PERMISSI
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY ack_read ON public.processor_breach_notice_ack AS RESTRICTIVE FOR SELECT
-  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  TO harbour_app, harbour_owner USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));
 --> statement-breakpoint
 CREATE POLICY ack_write ON public.processor_breach_notice_ack AS RESTRICTIVE FOR INSERT
   TO harbour_app, harbour_owner
@@ -306,7 +311,8 @@ CREATE POLICY tenant_isolation ON public.dp_complaint AS PERMISSIVE FOR ALL TO P
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
 CREATE POLICY complaint_read ON public.dp_complaint AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner
-  USING (app.holds_role_permission_at('quality.dsar.manage', NULL));
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));
 --> statement-breakpoint
 CREATE POLICY complaint_record ON public.dp_complaint AS RESTRICTIVE FOR INSERT TO harbour_app, harbour_owner
   WITH CHECK (status = 'open' AND closed_on IS NULL AND deleted_at IS NULL

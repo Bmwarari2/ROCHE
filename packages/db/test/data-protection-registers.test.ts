@@ -134,8 +134,19 @@ describe("hazard HZ-011 the breach register (migration 0082)", () => {
     }
     await expect(asHomeManager((c) => c.query(BREACH))).rejects.toThrow(/row-level security/);
     await expect(asHomeManager((c) => c.query(COMPLAINT))).rejects.toThrow(/row-level security/);
-    // Nor does the owner role see it without the organisation-wide permission.
-    expect((await ownerDb((c) => c.query("SELECT id FROM dp_breach"))).rowCount).toBe(0);
+    // Nor does the owner role, for a member without the organisation-wide permission (ADR-0002).
+    expect(
+      (
+        await inContext(db.pool("harbour_owner"), ctx(TENANT_A, a.carer, "tenant"), (c) =>
+          c.query("SELECT id FROM dp_breach"),
+        )
+      ).rowCount,
+    ).toBe(0);
+    // The organisation's system context (no member) reads it for the full export, never writes.
+    expect((await ownerDb((c) => c.query("SELECT id FROM dp_breach"))).rowCount).toBeGreaterThan(0);
+    await expect(
+      inContext(app(), ctx(TENANT_A, null, "tenant"), (c) => c.query(BREACH)),
+    ).rejects.toThrow(/row-level security/);
     await expect(
       asOtherDpo((c) =>
         c.query(

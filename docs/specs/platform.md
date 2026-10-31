@@ -1043,7 +1043,9 @@ renumbered at merge). Procedures: [breach-response.md](../compliance/breach-resp
     protection function, not a location's: someone who holds the permission for one home only (a
     Registered Manager or deputy) is refused by the API (403) and sees nothing through row-level
     security (`app.holds_role_permission_at(..., NULL)`; #149 security review). A location is
-    recorded when there is one. Database refusals are said plainly: a check or guard (23514) is a
+    recorded when there is one. The organisation's own system context (no member, the whole
+    organisation) reads all four tables, so the free full export includes them; it never writes.
+    Database refusals are said plainly: a check or guard (23514) is a
     422 with the guard's code, a missing reference (23503) a 422; logs carry codes, never values.
 19. The ICO clock is `breachClock` over `aware_at` and `ico.breach.report_hours` from the rate table,
     worked out when read, never stored. `aware_at` may be corrected only until the ICO report is
