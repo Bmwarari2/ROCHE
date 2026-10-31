@@ -24,6 +24,8 @@ import {
   Lock,
   LogOut,
   Mail,
+  Megaphone,
+  MessageSquare,
   Newspaper,
   Palette,
   ScrollText,
@@ -64,6 +66,12 @@ export interface ShellFrameLabels {
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
+  readonly safeguarding?: string | undefined;
+  /** Shown only to holders of safety.complaint.manage (SAFE-011). */
+  readonly complaints?: string | undefined;
+  /** Shown to every member of staff (SAFE-012), never in a family member's portal session. */
+  readonly speakUp?: string | undefined;
   /** Shown only to people who take a step in a listed workflow (PLAT-011 approvals). */
   readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
@@ -129,6 +137,9 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
     return "incidents";
   }
+  if (pathname.startsWith("/safeguarding")) return "safeguarding";
+  if (pathname.startsWith("/complaints")) return "complaints";
+  if (pathname.startsWith("/speak-up")) return "speak-up";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/approvals")) return "approvals";
@@ -253,6 +264,36 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.safeguarding
+      ? [
+          {
+            id: "safeguarding",
+            label: labels.safeguarding,
+            href: "/safeguarding",
+            icon: <ShieldAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.complaints
+      ? [
+          {
+            id: "complaints",
+            label: labels.complaints,
+            href: "/complaints",
+            icon: <MessageSquare {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.speakUp
+      ? [
+          {
+            id: "speak-up",
+            label: labels.speakUp,
+            href: "/speak-up",
+            icon: <Megaphone {...icon} />,
           },
         ]
       : []),

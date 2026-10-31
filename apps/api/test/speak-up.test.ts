@@ -526,3 +526,13 @@ describe("SAFE-012 the lead's view and appointment (ADR-0089 security review)", 
     expect(member.possibleFlood).toBeNull();
   });
 });
+
+describe("SAFE-012 the lead's staff list (slice 62)", () => {
+  it("lists active members for the lead only", async () => {
+    const lead = await asLead("/v1/speak-up/staff");
+    expect(lead.status).toBe(200);
+    const items = (await lead.json()) as { items: { id: string }[] };
+    expect(items.items.map((i) => i.id)).toContain(DEMO.users.nurse.id);
+    expect((await asUser("owner", "/v1/speak-up/staff")).status).toBe(403);
+  });
+});

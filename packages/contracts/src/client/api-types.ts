@@ -8183,6 +8183,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/speak-up/staff": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Active members the Freedom to Speak Up lead may name on a case
+     * @description The lead only: display names and job titles, for naming case members.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Members */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SpeakUpStaffList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workflows": {
     parameters: {
       query?: never;
@@ -25855,6 +25921,9 @@ export interface components {
       /** Format: uuid */
       tenantUserId: string;
       appoint: boolean;
+    };
+    SpeakUpStaffList: {
+      items: components["schemas"]["StaffName"][];
     };
     WorkflowInstanceList: {
       items: components["schemas"]["WorkflowInstanceItem"][];
