@@ -25,6 +25,7 @@ export type ActionResult<T = null> =
 interface ProblemLike {
   readonly code?: unknown;
   readonly detail?: unknown;
+  readonly title?: unknown;
 }
 
 function asProblem(error: unknown): ProblemLike {
@@ -102,6 +103,13 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     case "outside_outage_reason_required": {
       const message = detail || t("care.paper.outsideReasonAgain");
       return { code, message, fields: { outsideOutageReason: message } };
+    }
+    // A safety rule the record's state refuses (closing an outbreak before its UKHSA report is
+    // decided, HZ-013): the API's own sentence says what must happen first, in its detail or, for
+    // problems built with one sentence, its title.
+    case "invalid_state": {
+      const title = typeof problem.title === "string" ? problem.title.trim() : "";
+      return { code, message: detail || title || t("care.errors.invalid") };
     }
     case "outage_reconciled":
     case "back_entry_refused":

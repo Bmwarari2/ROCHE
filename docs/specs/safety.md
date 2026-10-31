@@ -501,6 +501,48 @@ from; a stale page is refused in words that do not blame anyone else. Gaps logge
 no `access` on `IncidentDetail`, no candour state on the incident, no upload for the submitted
 form, and no stable key for a line of required content (STATUS item 19, H-266).
 
+### Web screens (Phase 2 slice 63)
+
+- **Outbreaks** (`/outbreaks`, `safety.outbreak.manage`):
+  - The list, with the declare form.
+  - The record has the line list. Each row is marked current or superseded in words, and each
+    resident row shows the person's communication needs.
+  - A case is updated by superseding its row, never added again; the API refuses a second current
+    row for the same person, so the UKHSA figures count each person once.
+  - The UKHSA report fields show what is still missing. Staff cases read "not collected on this
+    screen" (H-955). The report itself is only linked to the notification centre.
+  - Closing with people still unwell needs the closer to say they know. The API refuses closing
+    until the report is decided, and the form shows the API's sentence.
+- **Deaths** (`/deaths`, `safety.incident.read`; recording needs `safety.incident.manage`):
+  - The record is opened from a death exit record, from the person's leaving tab.
+  - Until the clinician's judgement is recorded, the record says it assumes the safer answer, and
+    the police steps cannot be marked not needed (the domain and the API refuse it too).
+  - The regulator's notification, the medical examiner information and LeDeR are links to the
+    notification centre with their status in words, never recorded on the record.
+  - Also: the mortality review, the history and closing, with what blocks it listed.
+- **Missing persons** (`/missing`, `safety.incident.read`; opening needs `safety.incident.report`):
+  - Opened from a missing-person incident.
+  - The police call comes first, as a notice in words and an icon:
+    - due, saying "call now if you are worried", never a reason to wait;
+    - overdue;
+    - called, with the reference;
+    - missed, for someone found after the target with no call.
+  - The page refreshes every minute and turns overdue at the target on the device clock.
+  - Also: the timeline, the linked notifications and closing.
+- **Herbert Protocol profile** (the person's Herbert Protocol tab, `safety.incident.read`):
+  - Each prefilled part's source is in its field's hint.
+  - What the person looks like and where they may go are never filled in.
+  - A first profile with prefilled parts is saved only once each part is ticked as checked (the
+    API refuses it otherwise).
+- **Disclosure requests** (`/disclosures`, `safety.incident.manage` or
+  `safety.disclosure.approve`):
+  - The log and the request form.
+  - The record has the legal basis in words and the steps in order: collect, review each record,
+    prepare, decide, release, withdraw, and for a coroner the Regulation 28 report.
+  - Records, fields and values are in plain words, never table or column names.
+  - When the reader logged the request, the page says another approver must decide.
+  - The pack is shown as its summary and fingerprint (H-958).
+
 ## 6. Offline behaviour
 
 Incident capture works fully offline (section 17.1): the record, people, body-map marks and photos

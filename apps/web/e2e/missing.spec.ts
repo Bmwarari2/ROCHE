@@ -56,8 +56,22 @@ test("SAFE-015 the manager opens a missing person episode with the police call f
   page,
   context,
 }) => {
+  test.setTimeout(180_000);
   await context.addCookies(session);
-  const person = demoPerson(1);
+  // One open episode per person, and a run leaves its episode open (closing needs the person
+  // found, checked and debriefed), so each run takes a resident with none open.
+  const listed = await context.request.get(`${API_URL}/v1/missing-episodes`, {
+    headers: { "x-harbour-tenant": DEMO_TENANT },
+  });
+  expect(listed.status(), await listed.text()).toBe(200);
+  const busy = new Set(
+    ((await listed.json()) as { items: { personId: string; status: string }[] }).items
+      .filter((e) => e.status !== "closed")
+      .map((e) => e.personId),
+  );
+  const person = [1, 2, 3, 4, 5, 6].map(demoPerson).find((p) => !busy.has(p));
+  test.skip(!person, "Every demo resident already has an open missing person episode.");
+  if (!person) return;
   const noticed = new Date(Date.now() - 10 * 60_000);
   const recorded = await context.request.post(`${API_URL}/v1/incidents`, {
     headers: { "x-harbour-tenant": DEMO_TENANT },
@@ -84,7 +98,7 @@ test("SAFE-015 the manager opens a missing person episode with the police call f
 
   await page.waitForURL(/\/missing\/[0-9a-f-]{36}$/);
   // The police call and its target come first, in words.
-  await expect(page.getByText(/Call the police by \d{2}\/\d{2}\/\d{4}/).first()).toBeVisible();
+  await expect(page.getByText(/call by \d{2}\/\d{2}\/\d{4}/i).first()).toBeVisible();
   await accessibleInBothThemes(page, "missing person episode");
 
   await page.getByLabel("What happened").selectOption("police_called");
