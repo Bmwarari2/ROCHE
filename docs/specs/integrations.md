@@ -75,3 +75,104 @@ To be written by each slice: the port's contract tests pass against the mock and
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0080, ADR-0094,
 ADR-0095, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-510,
 H-511, H-518 to H-523, H-532, H-540).
+
+## 11. dm+d reference data (INTG-006; slice 10; ADR-0080)
+
+The NHS Dictionary of Medicines and Devices (dm+d), published by the NHSBSA through TRUD, is the
+only source of the medicines Harbour records ([medicines.md](medicines.md) rule 1, HZ-005). Slice
+10 builds the reference tables, the release loader and the search and barcode lookups; slice 75
+downloads each release from TRUD and runs the loader; slice 68 sends each device its subset. Until
+the TRUD account and the licence terms are in place (H-510, H-511), development and tests use a
+small invented fixture (`packages/db/fixtures/dmd/`: invented products, codes in an invented
+namespace and GTINs in the GS1 internal range 200), never real dm+d data.
+
+### Schema (migration 0072)
+
+Global reference tables with no `tenant_id`, like `bank_holiday`: every role reads them; only the
+loader writes them (`harbour_worker` for the slice 75 job, `harbour_owner` for a manual run and
+the seed); the application role has SELECT only. No personal data. Each row carries the release
+it was last loaded from (`release_id`).
+
+| Table | dm+d source (data model R2) | Key columns |
+| --- | --- | --- |
+| `dmd_release` | The release itself: the release history | `name` (the release's own name, for example `nhsbsa_dmd_10.1.0_20261026000001`), `released_on`, `source` (`nhsbsa_trud`, `fixture`, `manual`), `status` (`loading`, `loaded`, `refused`, `failed`), the SHA-256 checksum of the files, the counts per file, the problems found, started and finished, `loaded_by` (the database role); a finished release never changes |
+| `dmd_lookup` | `f_lookup2`: `UNIT_OF_MEASURE`, `FORM`, `ROUTE`, `CONTROL_DRUG_CATEGORY` | `kind`, `code`, `description`, `previous_code` |
+| `dmd_vtm` | `f_vtm2` `VTM` | `id` (VTMID), `name`, `abbreviated_name`, `invalid`, `previous_id` |
+| `dmd_vmp` | `f_vmp2` `VMP`, `DFORM`, `DROUTE`, `CONTROL_INFO` | `id` (VPID), `vtm_id`, `name`, `abbreviated_name`, `invalid`, `previous_id`, `unit_dose_uom_code`, `udfs` and `udfs_uom_code` (the unit dose form size), `form_code`, `route_codes`, `control_drug_category_code` |
+| `dmd_amp` | `f_amp2` `AMP`, `LIC_ROUTE` | `id` (APID), `vmp_id`, `name`, `abbreviated_name`, `description` (with the supplier), `invalid`, `licensed_route_codes` |
+| `dmd_vmpp` | `f_vmpp2` `VMPP` | `id` (VPPID), `vmp_id`, `name`, `quantity`, `quantity_uom_code`, `invalid` |
+| `dmd_ampp` | `f_ampp2` `AMPP` | `id` (APPID), `vmpp_id`, `amp_id`, `name`, `abbreviated_name`, `legal_category_code`, `discontinued_code`, `invalid` |
+| `dmd_gtin` | `f_gtin2` `AMPP`, `GTINDATA` | `ampp_id`, `gtin` (as GTIN-14), `start_date`, `end_date` |
+
+Each table has a text `id` (the dm+d identifier; `kind:code` for a lookup; `ampp:gtin:start` for a
+GTIN mapping) so a sync stream can use it, and the tables are in the PowerSync publication with
+SELECT for the sync role (ADR-0080). VMP and AMP names carry a search vector (`app.search_vector`,
+ADR-0070).
+
+### Permissions
+
+| Action | Permission | Scope |
+| --- | --- | --- |
+| Search dm+d, look up a product or a GTIN, read the release history | Any of `medicines.record.manage`, `medicines.emar.administer`, `medicines.stock.manage` | None needed: national reference data with no personal data |
+| Load a release | No API permission: the slice 75 job (`harbour_worker`) or a manual run by Thapsus (`pnpm --filter @harbour/db dmd:load`) | Global |
+
+### Rules
+
+1. **A release loads whole or not at all** (HZ-113). The loader reads every file, checks the
+   release (`checkDmdRelease`), and writes it in one transaction under an advisory lock, so
+   readers see the previous release or the new one, never a mixture. A refused or failed release
+   is recorded in the history with its problems, and the previous release stays in use.
+2. **Checks before loading** (`checkDmdRelease`): every file present and readable XML, with
+   records; identifiers of the SNOMED CT concept shape (6 to 18 digits, partition `00` or `10`),
+   each once; every reference resolving (VMP to VTM, AMP to VMP, VMPP to VMP, AMPP to VMPP and AMP,
+   an AMPP's AMP and VMPP naming the same VMP, GTIN to AMPP); every form, route, unit and
+   controlled drug category code in the lookups; GTINs of 8, 12, 13 or 14 digits with a valid GS1
+   check digit, an end date not before the start.
+3. **Never backwards, never twice** (`dmdReleaseOrder`): a release dated before the one in use is
+   refused; one already loaded under the same name is not loaded again.
+4. **Nothing disappears.** dm+d never deletes a concept; it marks it invalid. A release missing a
+   VTM, VMP, AMP, VMPP or AMPP the current one has is refused (`concepts_missing`). A GTIN mapping
+   absent from a new release is kept but no longer matches a scan, and is counted in the history
+   (`gtins_withdrawn`).
+5. **Out of date is said, never hidden** (`dmdReleaseFreshness`). Every search and lookup returns
+   the release in use, its date and its status: `current`, `out_of_date` when it is older than
+   `dmd.release.stale_after_days` (rate table, Harbour default, to verify, H-651), or `none`.
+   Screens show the date and, when out of date, the warning, by icon and word.
+6. **Search** (`dmdSearchQuery`): the words typed, each as a prefix (`par 500` finds "Paracetamol
+   500mg tablets"), over VMP and AMP names in the release in use; invalid products are left out
+   unless asked for, and then marked; at most 25 results, shortest names first. Ingredients are
+   never searched or compared (medical-device boundary).
+7. **GTIN lookup**: a scanned or typed GTIN is checked (`isGtin`) and read as GTIN-14 (a GTIN-13 or
+   GTIN-12 is padded with zeros); it matches only mappings in force on the UK date and present in
+   the release in use. An invalid check digit is refused (422) rather than looked up; no match is
+   404. A GTIN that maps to more than one pack returns them all, so the screen asks the person to
+   choose (slice 22 matches the scan to the MAR entry).
+8. **Times**: `released_on`, `start_date` and `end_date` are dates as dm+d gives them; "in force"
+   is judged on the UK date.
+
+### API (`apps/api/src/routes/medicines-dmd.ts`)
+
+| Route | What |
+| --- | --- |
+| `GET /v1/dmd/products?q=&includeInvalid=` | Search VMPs and AMPs; each result with its VMP, form, routes, controlled drug category and whether invalid |
+| `GET /v1/dmd/products/{id}` | A VMP (with its AMPs and packs) or an AMP (with its VMP and packs) |
+| `GET /v1/dmd/gtin/{gtin}` | The packs a GTIN maps to today, each with its AMP and VMP |
+| `GET /v1/dmd/releases` | The release history, newest first, and the release in use with its status |
+
+Each response carries `release` (`name`, `releasedOn`, `loadedAt`, `status`, `message`). Reads of
+national reference data are not care-record views and are not audited one by one; each load is
+recorded in `dmd_release` (the history), which is never changed once finished.
+
+### Test list
+
+- Domain (`packages/domain/src/medicines/dmd-release.test.ts`): every check in rule 2 from a
+  table; release order; freshness at, before and after the limit; GTIN check digits and
+  normalisation; the search query.
+- Database (`packages/db/test/dmd.test.ts`): the fixture loads and reads back; loading it again
+  changes nothing; a broken reference, a missing concept, unreadable XML and an older release are
+  refused whole with the history recorded and the previous data unchanged; a newer release adds
+  and invalidates; the application role cannot write; the tables are global, forced RLS and in
+  the publication readable by the sync role.
+- API (`apps/api/test/dmd.test.ts`): search, product, GTIN and history with the release and its
+  status; out of date said; an invalid GTIN refused; withdrawn and ended GTINs not matched;
+  members without a medicines permission refused.
