@@ -15,6 +15,7 @@ import {
   outbreak,
   outbreakCase,
   person,
+  roleAssignment,
   statutoryNotification,
   type Transaction,
   tenantUser,
@@ -32,7 +33,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -44,13 +45,11 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
+  allOutbreakCases,
   domainCase,
-  linkOrDraftReport,
-  outbreakCases,
+  draftReport,
   outbreakDetail,
   outbreakSummary,
-  refreshReportContent,
-  reportFields,
 } from "../services/outbreaks";
 import {
   conflictResponse,
@@ -67,9 +66,9 @@ import { notificationSummary } from "./safety-shared";
  * Outbreak management and IPC audits (safety.md section 11; SAFE-013; HZ-013; migration 0093).
  * Outbreaks are `safety.outbreak.manage` at their location (row-level security holds the same
  * line); a resident's case is seen only by those who can see the person. Declaring an outbreak
- * links the location's UKHSA report still being prepared, or drafts one due without delay, so the
- * notification centre carries its clock; closing waits until that report is decided. The line list
- * is append-only and its rows complete the report's fields. IPC audits are read against the Code of
+ * drafts its own UKHSA report, due without delay, so the notification centre carries its clock;
+ * closing waits until that report is decided. The line list is append-only; the report's fields
+ * are counted from all of it, shown on the outbreak and never written into the report. IPC audits are read against the Code of
  * Practice criteria with the audit's own scoring. Every change, view and refusal is audited with
  * ids only.
  */
@@ -251,7 +250,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "Declare an outbreak",
       description:
-        "safety.outbreak.manage at the location. One open outbreak per illness at a location (409 otherwise). Links the location's UKHSA report still being prepared, or drafts one due without delay, so its clock shows in the notification centre (HZ-013). Audited.",
+        "safety.outbreak.manage at the location, in England (other nations wait for their nation pack; 409). One open outbreak per illness at a location (409 otherwise). Drafts the outbreak's own UKHSA report, due without delay, so its clock shows in the notification centre (HZ-013). Audited.",
       security,
       request: { body: { content: { "application/json": { schema: DeclareOutbreak } } } },
       responses: {
@@ -267,10 +266,20 @@ export const outbreaksRouter = createRouter()
       const now = new Date();
       const declared = await change(c, access, A.declared, null, async (tx) => {
         const [place] = await tx
-          .select({ id: location.id })
+          .select({ id: location.id, nation: location.nation })
           .from(location)
           .where(eq(location.id, body.locationId));
         if (!place) throw refused(problems.notFound(), A.declared, null, "location_not_found");
+        if (place.nation !== "england") {
+          throw refused(
+            stateConflict(
+              "Outbreak reports for this nation are not set up yet. Report it to your public health agency directly.",
+            ),
+            A.declared,
+            null,
+            "nation_not_supported",
+          );
+        }
         const [row] = await tx
           .insert(outbreak)
           .values({
@@ -282,14 +291,13 @@ export const outbreaksRouter = createRouter()
           })
           .returning();
         if (!row) throw new Error("outbreak not stored");
-        const report = await linkOrDraftReport(tx, access.tenantId, row, now);
+        const report = await draftReport(tx, access.tenantId, row, now);
         const [linked] = await tx
           .update(outbreak)
           .set({ notificationId: report.id })
           .where(eq(outbreak.id, row.id))
           .returning();
         if (!linked) throw new Error("outbreak report not linked");
-        await refreshReportContent(tx, linked, await reportFields(tx, linked, []));
         await audit(c, tx, access, {
           action: A.declared,
           resourceType: "outbreak",
@@ -313,7 +321,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "An outbreak with its line list, report fields and report clock",
       description:
-        "safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields from the location and the current rows, with what is still missing; the linked report with its clock; how many cases are still unwell. The view is audited.",
+        "safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields counted from every row, whoever is reading (people ever positive or in hospital counted once), with what is still missing, to copy into the report; the outbreak's own report with its clock; how many cases are still unwell; how many rows about residents you cannot see are counted but not listed. The view is audited.",
       security,
       request: { params: IdParam },
       responses: {
@@ -381,11 +389,6 @@ export const outbreaksRouter = createRouter()
           .where(and(eq(outbreak.id, id), eq(outbreak.version, body.version)))
           .returning();
         if (!row) throw refused(problems.conflict(), A.updated, id, "version_conflict");
-        await refreshReportContent(
-          tx,
-          row,
-          await reportFields(tx, row, await outbreakCases(tx, id)),
-        );
         await audit(c, tx, access, {
           action: A.updated,
           resourceType: "outbreak",
@@ -404,7 +407,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "Add a case to the line list, or update one",
       description:
-        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff, once per outbreak: a later row names the row it supersedes, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). The linked report's fields are completed from the line list while it is being prepared. Audited with ids only.",
+        "safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.",
       security,
       request: {
         params: IdParam,
@@ -458,7 +461,7 @@ export const outbreaksRouter = createRouter()
             found.join(","),
           );
         }
-        if (body.tenantUserId) {
+        if (body.tenantUserId && !body.supersedesId) {
           const [member] = await tx
             .select({ id: tenantUser.id })
             .from(tenantUser)
@@ -472,8 +475,31 @@ export const outbreaksRouter = createRouter()
           if (!member) {
             throw refused(problems.notFound(), A.caseRecorded, id, "staff_member_not_found");
           }
+          const [works] = await tx
+            .select({ id: roleAssignment.id })
+            .from(roleAssignment)
+            .where(
+              and(
+                eq(roleAssignment.tenantUserId, body.tenantUserId),
+                or(
+                  eq(roleAssignment.locationId, current.locationId),
+                  isNull(roleAssignment.locationId),
+                ),
+                lte(roleAssignment.validFrom, now),
+                or(isNull(roleAssignment.validTo), gt(roleAssignment.validTo, now)),
+              ),
+            )
+            .limit(1);
+          if (!works) {
+            throw refused(
+              problems.invalid("Choose a member of staff who works at this location."),
+              A.caseRecorded,
+              id,
+              "staff_member_not_at_location",
+            );
+          }
         }
-        const existing = await outbreakCases(tx, id);
+        const existing = await allOutbreakCases(tx, id);
         if (body.supersedesId) {
           const latest = currentCases(existing.map(domainCase)).some(
             (r) => r.id === body.supersedesId,
@@ -487,8 +513,9 @@ export const outbreaksRouter = createRouter()
             );
           }
         }
-        if (body.personId) {
-          // Read in the caller's scope: a person they cannot see reads as not found.
+        if (body.personId && !body.supersedesId) {
+          // Read in the caller's scope: a person they cannot see reads as not found. An update
+          // follows the row it supersedes, wherever the person is now (the database checks it).
           const visible = await tx
             .select({ id: person.id })
             .from(person)
@@ -502,8 +529,6 @@ export const outbreaksRouter = createRouter()
           .values({ outbreakId: id, ...body })
           .returning();
         if (!row) throw new Error("outbreak case not stored");
-        const rows = [...existing, row];
-        await refreshReportContent(tx, current, await reportFields(tx, current, rows));
         await audit(c, tx, access, {
           action: A.caseRecorded,
           resourceType: "outbreak_case",
@@ -527,7 +552,7 @@ export const outbreaksRouter = createRouter()
       tags: ["safety"],
       summary: "Close an outbreak",
       description:
-        "safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the linked UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the last case's symptoms started, nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.",
+        "safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the outbreak's own UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the day it was declared or the last case's symptoms started (counted from every row), nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.",
       security,
       request: {
         params: IdParam,
@@ -565,14 +590,17 @@ export const outbreaksRouter = createRouter()
             "report_not_visible",
           );
         }
-        const cases = (await outbreakCases(tx, id)).map(domainCase);
+        const cases = (await allOutbreakCases(tx, id)).map(domainCase);
         const latest =
           currentCases(cases)
             .map((r) => r.onsetOn)
             .sort()
             .at(-1) ?? null;
         const found = checkOutbreakClosure(
-          { state: current.state as "declared" | "closed" },
+          {
+            state: current.state as "declared" | "closed",
+            declaredOn: ukIsoDate(current.declaredAt),
+          },
           report
             ? { status: report.status as "draft" | "ready" | "submitted" | "not_required" }
             : null,

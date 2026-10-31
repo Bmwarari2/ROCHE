@@ -95,13 +95,34 @@ describe("hazard HZ-013 declaring an outbreak puts its report clock in the notif
     expect(tasks).toHaveLength(1);
   });
 
-  it("links the location's report still being prepared rather than drafting another", async () => {
+  it("gives each outbreak its own report, never another illness's", async () => {
     const response = await as("manager", "/v1/safety/outbreaks", {
       method: "POST",
       body: { locationId: DEMO.locationId, syndrome: "diarrhoea_vomiting" },
     });
     expect(response.status).toBe(201);
-    expect((await json(response)).notificationId).toBe(outbreak.notificationId);
+    const other = await json(response);
+    expect(other.notificationId).toBeTruthy();
+    expect(other.notificationId).not.toBe(outbreak.notificationId);
+    await expect(
+      sql("UPDATE outbreak SET notification_id = $2 WHERE id = $1", [
+        other.id,
+        outbreak.notificationId,
+      ]),
+    ).rejects.toThrow();
+  });
+
+  it("is refused outside England until the nation pack is loaded", async () => {
+    await sql("UPDATE location SET nation = 'wales' WHERE id = $1", [DEMO.locationId]);
+    try {
+      const response = await as("manager", "/v1/safety/outbreaks", {
+        method: "POST",
+        body: { locationId: DEMO.locationId, syndrome: "flu" },
+      });
+      expect(response.status).toBe(409);
+    } finally {
+      await sql("UPDATE location SET nation = 'england' WHERE id = $1", [DEMO.locationId]);
+    }
   });
 
   it("allows one open outbreak per illness at a location, and refuses a care worker", async () => {
@@ -147,14 +168,21 @@ describe("the line list and the report fields", () => {
       covidVaccination: { yes: 0, no: 1, unknown: 1 },
     });
     expect(detail.report.missing.join(" ")).toMatch(/Vaccination status/);
+    // Harbour never writes into the report: the fields are shown on the outbreak to copy across.
     const [report] = await sql<{ content: Record<string, string> }>(
       "SELECT content FROM statutory_notification WHERE id = $1",
       [outbreak.notificationId],
     );
-    expect(report?.content).toMatchObject({ residentsAffected: "1", staffAffected: "1" });
+    expect(report?.content).toEqual({});
+    expect(detail.rowsNotShown).toBe(0);
   });
 
   it.each([
+    [
+      "a member of staff from another organisation",
+      { caseType: "staff", personId: null, tenantUserId: "0199f000-0000-7000-8000-00000000ffff" },
+      404,
+    ],
     [
       "symptoms starting tomorrow",
       { onsetOn: "2999-01-01", testedOn: null, testType: null, testResult: "not_tested" },
@@ -183,6 +211,8 @@ describe("the line list and the report fields", () => {
     const detail = await json(update);
     expect(detail.cases.find((c: Json) => c.id === first).current).toBe(false);
     expect(detail.stillUnwell).toBe(1);
+    // Positive once, positive in the report, whatever the latest row says.
+    expect(detail.report.positive).toBe(1);
     const stale = await as("manager", `/v1/safety/outbreaks/${outbreak.id}/cases`, {
       method: "POST",
       body: resident(people[0] as string, { supersedesId: first }),

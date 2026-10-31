@@ -86,6 +86,7 @@ ALTER TABLE "outbreak_case" ADD CONSTRAINT "outbreak_case_person_fk" FOREIGN KEY
 ALTER TABLE "outbreak_case" ADD CONSTRAINT "outbreak_case_tenant_user_fk" FOREIGN KEY ("tenant_id","tenant_user_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "outbreak_case" ADD CONSTRAINT "outbreak_case_supersedes_fk" FOREIGN KEY ("tenant_id","supersedes_id") REFERENCES "public"."outbreak_case"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "outbreak_one_open" ON "outbreak" USING btree ("tenant_id","location_id","syndrome") WHERE state = 'declared';--> statement-breakpoint
+CREATE UNIQUE INDEX "outbreak_notification_once" ON "outbreak" USING btree ("tenant_id","notification_id") WHERE notification_id IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "outbreak_case_superseded_once" ON "outbreak_case" USING btree ("tenant_id","supersedes_id") WHERE supersedes_id IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "outbreak_case_outbreak_idx" ON "outbreak_case" USING btree ("tenant_id","outbreak_id");--> statement-breakpoint
 -- Outbreak management and IPC audits (safety.md section 11; SAFE-013; HZ-013). Runs as harbour_owner.
@@ -187,7 +188,7 @@ BEGIN
       RAISE EXCEPTION 'An outbreak closes on or after its declaration, and not in the future'
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
-    IF NEW.notification_id IS NOT NULL AND NOT EXISTS (
+    IF NEW.notification_id IS NULL OR NOT EXISTS (
          SELECT 1 FROM public.statutory_notification n
           WHERE n.id = NEW.notification_id AND n.status IN ('submitted', 'not_required')) THEN
       RAISE EXCEPTION 'An outbreak closes only once its report is submitted or recorded as not needed'
@@ -207,9 +208,10 @@ CREATE TRIGGER outbreak_guard BEFORE INSERT OR UPDATE ON public.outbreak
   FOR EACH ROW EXECUTE FUNCTION app.outbreak_guard();
 --> statement-breakpoint
 
--- A case joins an open outbreak: a resident of the outbreak's location or a member of staff, once
--- per outbreak, with later rows superseding the last for the same person; nothing dated in the
--- future (UK dates).
+-- A case joins an open outbreak: a resident of the outbreak's location, or a member of staff who
+-- works there (a current role there or across the organisation), once per outbreak; nothing dated
+-- in the future (UK dates). A later row supersedes the person's row and follows it, whatever has
+-- happened to the person since (discharged, moved, left), so an outcome can still be recorded.
 CREATE OR REPLACE FUNCTION app.outbreak_case_add() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -221,11 +223,6 @@ BEGIN
   IF o.id IS NULL OR o.state <> 'declared' THEN
     RAISE EXCEPTION 'A case joins an open outbreak' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
-  IF NEW.case_type = 'resident' AND NOT EXISTS (
-       SELECT 1 FROM public.person p WHERE p.id = NEW.person_id AND p.location_id = o.location_id) THEN
-    RAISE EXCEPTION 'A resident case is someone living at the outbreak''s location'
-      USING ERRCODE = 'integrity_constraint_violation';
-  END IF;
   IF greatest(NEW.onset_on, NEW.tested_on, NEW.outcome_on) > today THEN
     RAISE EXCEPTION 'A case is not dated in the future' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
@@ -236,6 +233,17 @@ BEGIN
       RAISE EXCEPTION 'An update supersedes the same person''s case on the same outbreak'
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
+  ELSIF NEW.case_type = 'resident' AND NOT EXISTS (
+       SELECT 1 FROM public.person p WHERE p.id = NEW.person_id AND p.location_id = o.location_id) THEN
+    RAISE EXCEPTION 'A resident case is someone living at the outbreak''s location'
+      USING ERRCODE = 'integrity_constraint_violation';
+  ELSIF NEW.case_type = 'staff' AND NOT EXISTS (
+       SELECT 1 FROM public.role_assignment ra
+        WHERE ra.tenant_user_id = NEW.tenant_user_id
+          AND (ra.location_id = o.location_id OR ra.location_id IS NULL)
+          AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())) THEN
+    RAISE EXCEPTION 'A staff case is someone working at the outbreak''s location'
+      USING ERRCODE = 'integrity_constraint_violation';
   ELSIF EXISTS (SELECT 1 FROM public.outbreak_case c
                  WHERE c.outbreak_id = NEW.outbreak_id
                    AND c.person_id IS NOT DISTINCT FROM NEW.person_id

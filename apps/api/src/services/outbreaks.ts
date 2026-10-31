@@ -16,8 +16,8 @@ import {
   ukhsaReportFields,
   ukIsoDate,
 } from "@harbour/domain";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
-import { upsertDraft } from "./safety";
+import { asc, eq } from "drizzle-orm";
+import { upsertDraft, withTenantWideScope } from "./safety";
 
 /**
  * Outbreaks (safety.md section 11; SAFE-013; HZ-013; migration 0093): rows into the API's shapes,
@@ -63,6 +63,15 @@ export const domainCase = (row: CaseRow): OutbreakCase => ({
   createdAt: row.createdAt.toISOString(),
 });
 
+/**
+ * Every row of an outbreak, whoever is asking: the report's counts and the closure's dates must not
+ * depend on which residents the reader can see (HZ-013). Read under tenant-wide scope inside the
+ * caller's transaction (ADR-0033); only counts and dates derived from it go back to the caller.
+ */
+export async function allOutbreakCases(tx: Transaction, outbreakId: string): Promise<CaseRow[]> {
+  return withTenantWideScope(tx, () => outbreakCases(tx, outbreakId));
+}
+
 export async function outbreakCases(tx: Transaction, outbreakId: string): Promise<CaseRow[]> {
   return tx
     .select()
@@ -101,28 +110,6 @@ export async function reportFields(
   );
 }
 
-/** The report fields as the notification's content: one line each, for the person sending it. */
-function reportContent(fields: UkhsaReportFields): Record<string, string> {
-  const vaccination = (t: UkhsaReportFields["fluVaccination"]) =>
-    `${t.yes} yes, ${t.no} no, ${t.unknown} not known`;
-  return {
-    setting: fields.settingName,
-    postcode: fields.postcode ?? "",
-    cqcLocationId: fields.cqcLocationId ?? "",
-    illness: fields.syndrome,
-    organism: fields.organism ?? "",
-    residentsAffected: String(fields.residentCases),
-    staffAffected: String(fields.staffCases),
-    firstOnset: fields.firstOnsetOn ?? "",
-    latestOnset: fields.latestOnsetOn ?? "",
-    tests: `${fields.tested} tested, ${fields.positive} positive, ${fields.pending} pending`,
-    hospitalised: String(fields.hospitalised),
-    died: String(fields.died),
-    fluVaccination: vaccination(fields.fluVaccination),
-    covidVaccination: vaccination(fields.covidVaccination),
-  };
-}
-
 export const REPORT_REQUIRED_CONTENT = [
   "The setting's address and postcode, and its CQC location ID",
   "How many residents and how many staff are unwell",
@@ -133,31 +120,18 @@ export const REPORT_REQUIRED_CONTENT = [
 ];
 
 /**
- * Hazard HZ-013: the UKHSA report an outbreak's clock runs on. A report at the location still being
- * prepared (draft or ready) is linked, so detection and declaration share one clock; otherwise a
- * draft is made now, due without delay, which the notification centre shows and escalates like any
- * other.
+ * Hazard HZ-013: the UKHSA report an outbreak's clock runs on, its own and no other outbreak's
+ * (the database holds one outbreak per report), drafted at declaration due without delay, which
+ * the notification centre shows and escalates like any other draft. A report detection drafted
+ * for the location stays as it is, with its own clock: the person deciding the reports sees both.
+ * Harbour never writes into a report's content; the outbreak shows the fields to copy into it.
  */
-export async function linkOrDraftReport(
+export async function draftReport(
   tx: Transaction,
   tenantId: string,
   row: OutbreakRow,
   now: Date,
 ): Promise<{ id: string; drafted: boolean }> {
-  const [open] = await tx
-    .select({ id: statutoryNotification.id })
-    .from(statutoryNotification)
-    .where(
-      and(
-        eq(statutoryNotification.locationId, row.locationId),
-        eq(statutoryNotification.kind, "ukhsa_outbreak"),
-        inArray(statutoryNotification.status, ["draft", "ready"]),
-        isNull(statutoryNotification.deletedAt),
-      ),
-    )
-    .orderBy(desc(statutoryNotification.createdAt))
-    .limit(1);
-  if (open) return { id: open.id, drafted: false };
   const drafted = await upsertDraft(
     tx,
     tenantId,
@@ -187,24 +161,6 @@ export async function linkOrDraftReport(
   return { id: drafted.id, drafted: drafted.created };
 }
 
-/** Completes the linked report's content from the line list while it is still being prepared. */
-export async function refreshReportContent(
-  tx: Transaction,
-  row: OutbreakRow,
-  fields: UkhsaReportFields,
-): Promise<void> {
-  if (!row.notificationId) return;
-  await tx
-    .update(statutoryNotification)
-    .set({ content: reportContent(fields) })
-    .where(
-      and(
-        eq(statutoryNotification.id, row.notificationId),
-        inArray(statutoryNotification.status, ["draft", "ready"]),
-      ),
-    );
-}
-
 /** The outbreak with its line list and report; `summarise` maps the linked notification. */
 export async function outbreakDetail(
   tx: Transaction,
@@ -213,7 +169,8 @@ export async function outbreakDetail(
 ): Promise<OutbreakDetail> {
   const rows = await outbreakCases(tx, row.id);
   const current = new Set(currentCases(rows.map(domainCase)).map((c) => c.id));
-  const report = await reportFields(tx, row, rows);
+  const everyRow = await allOutbreakCases(tx, row.id);
+  const report = await reportFields(tx, row, everyRow);
   const [notification] = row.notificationId
     ? await tx
         .select()
@@ -244,6 +201,7 @@ export async function outbreakDetail(
     })),
     report: { ...report, missing: [...report.missing] },
     notification: notification ? summarise(notification) : null,
-    stillUnwell: casesStillUnwell(rows.map(domainCase)),
+    stillUnwell: casesStillUnwell(everyRow.map(domainCase)),
+    rowsNotShown: everyRow.length - rows.length,
   };
 }

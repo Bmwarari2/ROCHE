@@ -101,6 +101,10 @@ export const outbreak = pgTable(
   },
   (t) => [
     unique("outbreak_tenant_id_id_key").on(t.tenantId, t.id),
+    // One outbreak per report: no two outbreaks share a UKHSA report or its decision (HZ-013).
+    uniqueIndex("outbreak_notification_once")
+      .on(t.tenantId, t.notificationId)
+      .where(sql`notification_id IS NOT NULL`),
     uniqueIndex("outbreak_one_open")
       .on(t.tenantId, t.locationId, t.syndrome)
       .where(sql`state = 'declared'`),

@@ -342,7 +342,7 @@ date becomes a task) and lessons. Worker jobs: every minute, each overdue draft 
 `safety.notification.overdue` escalation chain (by default the Nominated Individual after
 `statutory_notification.escalation_minutes`, H-69), and publishes `safety.notification.overdue`;
 hourly, outbreak detection classifies the latest infection incident at each English location again
-with the location's cases (from incident people's infection details since the last decided report),
+with the location's cases (from incident people's infection details since the last decided report detection drafted for the same illness; slice 31),
 which drafts the UKHSA report once per threshold. Observations carry no infection case yet, so cases
 come from infection incidents until a chart records them. Statutory notifications, candour and
 investigations are server-only; incidents and their people are published for sync streams (offline
@@ -498,28 +498,38 @@ code; the screens are slice 63. Rules: `packages/domain/src/safety/outbreak-mana
 
 ### 11.1 Rules
 
-1. **Declaration.** Staff holding `safety.outbreak.manage` at a location declare an outbreak of
-   one illness (acute respiratory, flu, COVID-19, diarrhoea and vomiting, other), with the
-   organism and the health protection team's reference when known. One open outbreak per illness
-   at a location. Detection (rule 7) prompts; a person declares.
-2. **The report clock (HZ-013).** Declaring links the location's UKHSA report still being
-   prepared (draft or ready), so detection and declaration share one clock; otherwise it drafts a
-   `ukhsa_outbreak` notification due without delay, which the notification centre shows and
-   escalates like any other draft.
+1. **Declaration.** Staff holding `safety.outbreak.manage` at a location in England declare an
+   outbreak of one illness (acute respiratory, flu, COVID-19, diarrhoea and vomiting, other), with
+   the organism and the health protection team's reference when known. One open outbreak per
+   illness at a location. Detection (rule 7) prompts; a person declares. Other nations are refused
+   until their nation pack is loaded (H-781).
+2. **The report clock (HZ-013).** Declaring drafts the outbreak's own `ukhsa_outbreak`
+   notification, due without delay, which the notification centre shows and escalates like any
+   other draft. A report is never shared: the database holds one outbreak per report. A report
+   detection drafted for the location keeps its own clock beside it (how the two are reconciled
+   is H-786). Deciding a report resets detection only for the illness it was drafted for, and a
+   declared outbreak's report never resets detection (section 4 rule 7).
 3. **The line list** (`checkOutbreakCase`): residents living at the location and members of staff,
    once each per outbreak, with onset date, symptoms (coded), test type, date and result,
    flu and COVID-19 vaccination (yes, no, not known) and outcome (unwell, recovered, hospitalised,
    died) with its date. Nothing dated in the future; a test not before symptoms started; a result
-   needs its test and date. Rows are append-only: an update or correction is a new row superseding
-   the person's current row (a correction gives a reason).
-4. **Report fields** (`ukhsaReportFields`): the setting's name, postcode and CQC location ID, the
-   illness and organism, residents and staff affected, first and latest onset, tested, positive and
-   pending, in hospital, deaths, and vaccination tallies, counted from the current rows. A field
-   with no value is listed as missing, never guessed. While the report is a draft or ready, its
-   content is completed from these fields after every change.
+   needs its test and date (asymptomatic cases and screening before symptoms are H-783). A member
+   of staff must hold a current role at the location or across the organisation. Rows are
+   append-only: an update or correction is a new row superseding the person's current row (a
+   correction gives a reason), and follows that row wherever the person is now, so an outcome
+   after a discharge, move or leaving can still be recorded.
+4. **Report fields** (`ukhsaReportFields`, HZ-013): the setting's name, postcode and CQC location
+   ID, the illness and organism, residents and staff affected, first and latest onset, tested,
+   positive and pending, in hospital, deaths, and vaccination tallies. They are counted from every
+   row of the outbreak, whoever is reading (residents the reader cannot see are counted, not
+   listed). People are counted from their current rows, except "positive" and "in hospital",
+   which count anyone who ever was (H-784). A field with no value is listed as missing, never
+   guessed. The fields are shown on the outbreak to copy into the report; Harbour never writes into
+   a report's content, which stays the preparer's.
 5. **Closure** (`checkOutbreakClosure`, HZ-013): a person closes the outbreak with a date and a
-   reason (for example agreed with the health protection team), only once its report is submitted
-   or recorded as not needed, not before the last case's symptoms started and not in the future.
+   reason (for example agreed with the health protection team), only once its own report is
+   submitted or recorded as not needed (an outbreak without a report never closes), not before the
+   day it was declared or the last case's symptoms started (from every row), and not in the future.
    Harbour sets no quiet period of its own (H-768). Cases still unwell are said beside the closure,
    never a blocker. A closed outbreak never changes; cases continue on a new outbreak.
 6. **IPC audits** (`checkIpcTemplate`, `ipcCriteriaResults`): an audit template of kind `ipc` maps
@@ -537,8 +547,8 @@ report. Nothing diagnoses, predicts or scores a person, and nothing recommends t
 | Table | Kind | Key columns | Security | Retention class |
 | --- | --- | --- | --- | --- |
 | `ipc_code_criterion` | Global reference | id (`criterion_1` to `criterion_10`), number, title (Harbour's summary), source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
-| `outbreak` | Mutable aggregate, tenant | location, syndrome, organism, state (`declared`, `closed`), declared at and by, the linked report, health protection team reference, closed on, at and by, closure reason | Tenant policy; restrictive: `safety.outbreak.manage` at the location; declared open in the declarer's name, one open per location and illness; place, illness and declaration fixed; report linked once; closed once, only when the report is submitted or not required; a closed outbreak never changes; no delete | `serious_incident` |
-| `outbreak_case` | Append-only, tenant | outbreak, resident (person) or staff (member), onset, symptoms, test type, date and result, flu and COVID-19 vaccination, outcome and date, supersedes and correction reason | Tenant policy; restrictive: through the outbreak's location, and a resident's row only where the person is visible; an open outbreak only; a resident of the outbreak's location; once per person, then superseding rows for the same person, each row superseded once; nothing in the future | `care_record` |
+| `outbreak` | Mutable aggregate, tenant | location, syndrome, organism, state (`declared`, `closed`), declared at and by, its own report, health protection team reference, closed on, at and by, closure reason | Tenant policy; restrictive: `safety.outbreak.manage` at the location; declared open in the declarer's name, one open per location and illness; one outbreak per report; place, illness and declaration fixed; report linked once; closed once, only with a report that is submitted or not required, not before the declaration's UK date; a closed outbreak never changes; no delete | `serious_incident` |
+| `outbreak_case` | Append-only, tenant | outbreak, resident (person) or staff (member), onset, symptoms, test type, date and result, flu and COVID-19 vaccination, outcome and date, supersedes and correction reason | Tenant policy; restrictive: through the outbreak's location, and a resident's row only where the person is visible; an open outbreak only; a resident of the outbreak's location or staff with a current role there or organisation-wide; once per person, then superseding rows for the same person (following the superseded row), each row superseded once; nothing in the future | `care_record` |
 
 Removing sample data removes sample people's cases (`app.sample_removal_tables`). Existing
 organisations' built-in owner, Registered Manager, deputy and clinical lead roles gain
@@ -559,8 +569,8 @@ organisations' built-in owner, Registered Manager, deputy and clinical lead role
 | `GET /v1/safety/ipc-criteria` | The ten criteria |
 | `GET /v1/safety/ipc-audits/{id}/criteria` | An IPC audit criterion by criterion (409 for other kinds) |
 | `GET /v1/safety/outbreaks[?locationId&state]` | Newest first, at most 200 |
-| `POST /v1/safety/outbreaks` | Declare (rule 1), linking or drafting the report (rule 2); `safety.outbreak.declared` |
-| `GET /v1/safety/outbreaks/{id}` | The outbreak, every line-list row marked current or superseded, the report fields with what is missing, the report and its clock, cases still unwell; `safety.outbreak.view` |
+| `POST /v1/safety/outbreaks` | Declare (rule 1; 409 outside England), drafting its own report (rule 2); `safety.outbreak.declared` |
+| `GET /v1/safety/outbreaks/{id}` | The outbreak, the line-list rows the reader may see marked current or superseded, the report fields from every row with what is missing, the report and its clock, cases still unwell, rows counted but not shown; `safety.outbreak.view` |
 | `PUT /v1/safety/outbreaks/{id}` | Organism and reference, against the read version; `safety.outbreak.updated` |
 | `POST /v1/safety/outbreaks/{id}/cases` | A case or a superseding row (rule 3; the superseded row must be current, 409 otherwise); `safety.outbreak.case_recorded` with ids only |
 | `POST /v1/safety/outbreaks/{id}/close` | Rule 5: 409 while the report is undecided or the outbreak is closed, 422 for dates; `safety.outbreak.closed` |
@@ -578,6 +588,14 @@ Refusals decided in the API and those the database raises are audited as denied,
   the line list's rules; closure refused while the report is a draft (HZ-013); location scope and
   denial to a care worker and another organisation (HZ-011); the role data migration, idempotent
   and audited.
-- `apps/api/test/outbreaks.test.ts`: declaration drafting or linking the report with its workflow
-  (HZ-013); one open per illness; the line list, report fields and the report's content; refusals;
-  superseding; closure (HZ-013); IPC audits against the criteria; the audit trail with ids only.
+- `apps/api/test/outbreaks.test.ts`: declaration drafting the outbreak's own report with its
+  workflow, never another illness's, and refused outside England (HZ-013); one open per illness;
+  the line list and report fields, the report's content left to its preparer; refusals (another
+  organisation's staff, dates, tests, duplicates); superseding, with positives counted once ever;
+  closure (HZ-013); IPC audits against the criteria; the audit trail with ids only.
+  `apps/api/test/incidents.test.ts`: deciding another illness's report never resets respiratory
+  detection (HZ-013).
+- `packages/db/test/safety-outbreaks.test.ts` (review round 1): staff not working at the place and
+  people or staff of another organisation refused; an update following its row after the person
+  moved; residents' rows hidden from a manager who cannot see them; one outbreak per report; no
+  closure without a report; no delete grant.

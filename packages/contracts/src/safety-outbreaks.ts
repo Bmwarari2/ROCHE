@@ -164,12 +164,14 @@ export const UkhsaReportFieldsView = z
   .meta({ id: "UkhsaReportFields" });
 
 export const OutbreakDetail = OutbreakSummary.extend({
-  /** Every row, oldest first, each marked current or superseded. */
+  /** Every row you may see, oldest first, each marked current or superseded. */
   cases: z.array(OutbreakCaseItem),
   report: UkhsaReportFieldsView,
-  /** The UKHSA report the outbreak's clock runs on (HZ-013); null if it cannot be seen. */
+  /** The outbreak's own UKHSA report and its clock (HZ-013); null if it cannot be seen. */
   notification: StatutoryNotificationSummary.nullable(),
   /** Cases still unwell, said beside a closure. */
   stillUnwell: z.number().int(),
+  /** Line-list rows about residents you cannot see: counted in the report, not listed here. */
+  rowsNotShown: z.number().int(),
 }).meta({ id: "OutbreakDetail" });
 export type OutbreakDetail = z.infer<typeof OutbreakDetail>;

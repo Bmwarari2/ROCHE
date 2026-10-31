@@ -17409,7 +17409,7 @@ export interface paths {
     put?: never;
     /**
      * Declare an outbreak
-     * @description safety.outbreak.manage at the location. One open outbreak per illness at a location (409 otherwise). Links the location's UKHSA report still being prepared, or drafts one due without delay, so its clock shows in the notification centre (HZ-013). Audited.
+     * @description safety.outbreak.manage at the location, in England (other nations wait for their nation pack; 409). One open outbreak per illness at a location (409 otherwise). Drafts the outbreak's own UKHSA report, due without delay, so its clock shows in the notification centre (HZ-013). Audited.
      */
     post: {
       parameters: {
@@ -17495,7 +17495,7 @@ export interface paths {
     };
     /**
      * An outbreak with its line list, report fields and report clock
-     * @description safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields from the location and the current rows, with what is still missing; the linked report with its clock; how many cases are still unwell. The view is audited.
+     * @description safety.outbreak.manage at the outbreak's location. Every line-list row (residents only where you can see the person), each marked current or superseded; the UKHSA report fields counted from every row, whoever is reading (people ever positive or in hospital counted once), with what is still missing, to copy into the report; the outbreak's own report with its clock; how many cases are still unwell; how many rows about residents you cannot see are counted but not listed. The view is audited.
      */
     get: {
       parameters: {
@@ -17648,7 +17648,7 @@ export interface paths {
     put?: never;
     /**
      * Add a case to the line list, or update one
-     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff, once per outbreak: a later row names the row it supersedes, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). The linked report's fields are completed from the line list while it is being prepared. Audited with ids only.
+     * @description safety.outbreak.manage at the outbreak's location; an open outbreak only. A resident living at the location (one you can see) or an active member of staff working there (a current role at the location or across the organisation), once per outbreak: a later row names the current row it supersedes and follows it, wherever the person is now, with a reason when it corrects rather than updates. Checked by `checkOutbreakCase` (nothing dated in the future, a test with its date and type, an outcome with its date). Audited with ids only.
      */
     post: {
       parameters: {
@@ -17738,7 +17738,7 @@ export interface paths {
     put?: never;
     /**
      * Close an outbreak
-     * @description safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the linked UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the last case's symptoms started, nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.
+     * @description safety.outbreak.manage at the outbreak's location, against the version read, with the date and a reason (for example agreed with the health protection team). Only once the outbreak's own UKHSA report is submitted or recorded as not needed (HZ-013; 409 otherwise); not before the day it was declared or the last case's symptoms started (counted from every row), nor in the future. Cases still unwell are said in the response, never a blocker. Final. Audited.
      */
     post: {
       parameters: {
@@ -29568,6 +29568,7 @@ export interface components {
       notification: components["schemas"]["StatutoryNotificationSummary"] &
         (Record<string, never> | null);
       stillUnwell: number;
+      rowsNotShown: number;
     };
     OutbreakCaseItem: {
       /** @enum {string} */

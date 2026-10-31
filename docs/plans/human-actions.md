@@ -400,6 +400,10 @@ Logged by slice 31 (outbreaks and IPC audits, [safety.md](../specs/safety.md) se
 | H-780 | Decide who holds `safety.outbreak.manage` by default (Harbour: owner, Registered Manager, deputy, clinical lead), and whether team leaders on nights should be able to add cases | Registered Manager with the CSO | roles.ts; permissions.md | Night-time outbreak recording | open |
 | H-781 | Agree how outbreaks are reported in Wales, Scotland and Northern Ireland (Public Health Wales, Public Health Scotland, the Public Health Agency) before a nation pack loads | Brian with the quality lead | safety.md section 11 | Nation packs | open |
 | H-782 | Confirm whether a member of staff named on a line list must be one of the organisation's own members, or whether agency workers outside Harbour should be counted by number only | Registered Manager at the design partner | safety.md section 11 rule 3 | Agency staff on line lists | open |
+| H-783 | Decide whether a line-list case may be asymptomatic (a positive screening test with no symptoms) or tested before symptoms started; Harbour's default refuses both, so staff record the first symptom date | CSO with the IPC lead | safety.md section 11 rule 3; clinical review round 1 (M4) | Screening-led outbreaks | open |
+| H-784 | Confirm that the report's "positive" and "in hospital" mean anyone who ever was during the outbreak (Harbour's default), not only on their latest row | CSO | `ukhsaReportFields`; safety.md section 11 rule 4 | Outbreak reports for a real tenant | open |
+| H-785 | Confirm that a declared outbreak's report is due at once and escalates straight away ("as soon as possible"), or set a tenant target for it | CSO | `draftReport`; HZ-008 alert volume | Alert routing for outbreaks | open |
+| H-786 | Decide how a report detection drafted and the report of an outbreak a person declared for the same illness are reconciled (Harbour keeps both clocks and links neither), and whether a declared outbreak's report should ever be marked no longer indicated | CSO | safety.md section 11 rule 2; clinical review round 1 (M1) | Outbreak reporting for a real tenant | open |
 
 ## Per tenant at onboarding
 

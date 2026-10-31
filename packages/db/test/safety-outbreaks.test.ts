@@ -103,6 +103,11 @@ beforeAll(async () => {
          ($2, '0199f000-0000-7000-8000-000000000902', $3)`,
       [a.manager, a.northManager, a.locationNorth],
     );
+    // The carer works at North (a staff case is someone working at the outbreak's location).
+    await c.query(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [a.carer, a.roleCarer, a.locationNorth],
+    );
     await c.query(
       `INSERT INTO statutory_notification (id, location_id, source_key, kind, due_at, retention_class)
        VALUES ($1, $2, 'outbreak:test', 'ukhsa_outbreak', now(), 'serious_incident')`,
@@ -344,5 +349,68 @@ describe("existing organisations' built-in roles (migration 0093)", () => {
       "owner",
       "registered_manager",
     ]);
+  });
+});
+
+describe("the line list's edges (security and clinical review, round 1)", () => {
+  const asAssignedNorth = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+    inContext(app(), ctx(TENANT_A, a.northManager, "assigned"), fn);
+
+  it("refuses staff who do not work at the outbreak's place, and people of another organisation", async () => {
+    await expect(asLead((c) => addCase(c, SOUTH, { staff: a.northManager }))).rejects.toThrow(
+      /working at the outbreak's location/,
+    );
+    await expect(asLead((c) => addCase(c, SOUTH, { person: b.personDev }))).rejects.toThrow();
+    await expect(asLead((c) => addCase(c, SOUTH, { staff: b.manager }))).rejects.toThrow();
+  });
+
+  it("lets an update follow its row after the person has moved", async () => {
+    const cara = (await asLead((c) => addCase(c, SOUTH, { person: a.personCara }))).rows[0]?.id;
+    await inContext(owner(), ctx(TENANT_A, null, "tenant"), (c) =>
+      c.query("UPDATE person SET location_id = $2 WHERE id = $1", [a.personCara, a.locationNorth]),
+    );
+    try {
+      await asLead((c) => addCase(c, SOUTH, { person: a.personCara, supersedes: cara }));
+    } finally {
+      await inContext(owner(), ctx(TENANT_A, null, "tenant"), (c) =>
+        c.query("UPDATE person SET location_id = $2 WHERE id = $1", [
+          a.personCara,
+          a.locationSouth,
+        ]),
+      );
+    }
+  });
+
+  it("hides residents' rows from a manager who cannot see them", async () => {
+    const rows = await asAssignedNorth((c) =>
+      c.query<{ case_type: string }>("SELECT case_type FROM outbreak_case WHERE outbreak_id = $1", [
+        NORTH,
+      ]),
+    );
+    expect(rows.rows.map((r) => r.case_type)).toEqual(["staff"]);
+  });
+
+  it("gives each report to one outbreak, and never closes one without its report", async () => {
+    await expect(
+      asLead((c) =>
+        c.query("UPDATE outbreak SET notification_id = $2 WHERE id = $1", [SOUTH, REPORT]),
+      ),
+    ).rejects.toThrow(/outbreak_notification_once/);
+    await expect(
+      asLead((c) =>
+        c.query(
+          "UPDATE outbreak SET state = 'closed', closed_on = (now() AT TIME ZONE 'Europe/London')::date, closed_by = $2, closure_reason = 'Over' WHERE id = $1",
+          [SOUTH, a.manager],
+        ),
+      ),
+    ).rejects.toThrow(/report is submitted or recorded as not needed/);
+  });
+
+  it("grants the application no delete on outbreaks or cases", async () => {
+    for (const table of ["outbreak", "outbreak_case"]) {
+      await expect(asLead((c) => c.query(`DELETE FROM ${table}`))).rejects.toThrow(
+        /permission denied/,
+      );
+    }
   });
 });

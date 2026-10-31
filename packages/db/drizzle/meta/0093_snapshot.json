@@ -25596,6 +25596,28 @@
         }
       },
       "indexes": {
+        "outbreak_notification_once": {
+          "name": "outbreak_notification_once",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "notification_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "notification_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "outbreak_one_open": {
           "name": "outbreak_one_open",
           "columns": [

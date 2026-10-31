@@ -199,8 +199,10 @@ export interface UkhsaReportFields {
   readonly firstOnsetOn: string | null;
   readonly latestOnsetOn: string | null;
   readonly tested: number;
+  /** People with a positive result at any point in the outbreak, not only on their latest row. */
   readonly positive: number;
   readonly pending: number;
+  /** People admitted to hospital at any point in the outbreak, whatever happened next. */
   readonly hospitalised: number;
   readonly died: number;
   /** Of the cases, how many had the vaccine, had not, or nobody knows. */
@@ -218,9 +220,20 @@ const tally = (cases: readonly OutbreakCase[], pick: (c: OutbreakCase) => Vaccin
     unknown: cases.filter((c) => pick(c) === "unknown").length,
   }) as const;
 
+/** A person's key on the line list: the resident or the member of staff. */
+const subjectOf = (c: Pick<OutbreakCase, "caseType" | "personId" | "tenantUserId">) =>
+  `${c.caseType}:${c.personId ?? c.tenantUserId}`;
+
+/** How many people had a row matching `test` at any point, superseded rows included. */
+const everCount = (rows: readonly OutbreakCase[], test: (c: OutbreakCase) => boolean) =>
+  new Set(rows.filter(test).map(subjectOf)).size;
+
 /**
- * The report fields from the location and the current line list. Counts are of what is recorded;
- * a field with no value is listed as missing, never filled in or guessed.
+ * Hazard HZ-013: the report fields from the location and the whole line list. People are counted
+ * from their current rows, except "positive" and "in hospital", which count anyone who ever was,
+ * so a later recovery or negative re-test never removes them. A field with no value is listed as
+ * missing, never filled in or guessed. Callers pass every row of the outbreak, not one reader's
+ * view of it.
  */
 export function ukhsaReportFields(
   outbreak: {
@@ -238,6 +251,7 @@ export function ukhsaReportFields(
   const cases = currentCases(lineList);
   const onsets = cases.map((c) => c.onsetOn).sort();
   const missing: string[] = [];
+  if (!location.name.trim()) missing.push("The setting's name");
   if (!location.postcode) missing.push("The location's postcode");
   if (!location.cqcLocationId) missing.push("The location's CQC location ID");
   if (cases.length === 0) missing.push("At least one case on the line list");
@@ -257,9 +271,9 @@ export function ukhsaReportFields(
     firstOnsetOn: onsets[0] ?? null,
     latestOnsetOn: onsets.at(-1) ?? null,
     tested: cases.filter((c) => c.testResult !== "not_tested").length,
-    positive: cases.filter((c) => c.testResult === "positive").length,
+    positive: everCount(lineList, (c) => c.testResult === "positive"),
     pending: cases.filter((c) => c.testResult === "pending").length,
-    hospitalised: cases.filter((c) => c.outcome === "hospitalised").length,
+    hospitalised: everCount(lineList, (c) => c.outcome === "hospitalised"),
     died: cases.filter((c) => c.outcome === "died").length,
     fluVaccination: tally(cases, (c) => c.fluVaccinated),
     covidVaccination: tally(cases, (c) => c.covidVaccinated),
@@ -275,7 +289,8 @@ export type OutbreakClosureProblem =
   | "already_closed"
   | "report_undecided"
   | "closed_before_last_onset"
-  | "closed_in_future";
+  | "closed_in_future"
+  | "closed_before_declared";
 
 export const OUTBREAK_CLOSURE_MESSAGES: Readonly<Record<OutbreakClosureProblem, string>> = {
   already_closed: "This outbreak is already closed.",
@@ -283,15 +298,18 @@ export const OUTBREAK_CLOSURE_MESSAGES: Readonly<Record<OutbreakClosureProblem, 
     "Submit the outbreak report to the health protection team, or record why it is not needed, before closing the outbreak.",
   closed_before_last_onset: "An outbreak cannot close before its last case's symptoms started.",
   closed_in_future: "An outbreak cannot be closed in the future.",
+  closed_before_declared: "An outbreak cannot close before the day it was declared.",
 };
 
 /**
- * Hazard HZ-013: an outbreak closes only once its UKHSA report is decided (submitted, or recorded
- * as not needed), so closing never hides a report still due. The decision to close is a person's,
- * agreed with the health protection team; Harbour sets no quiet period of its own.
+ * Hazard HZ-013: an outbreak closes only once its own UKHSA report is decided (submitted, or
+ * recorded as not needed), so closing never hides a report still due; an outbreak with no report
+ * is treated as undecided. The decision to close is a person's, agreed with the health protection
+ * team; Harbour sets no quiet period of its own. Dates are UK dates; `declaredOn` is the UK date of
+ * the declaration.
  */
 export function checkOutbreakClosure(
-  outbreak: { readonly state: OutbreakState },
+  outbreak: { readonly state: OutbreakState; readonly declaredOn: string },
   report: { readonly status: "draft" | "ready" | "submitted" | "not_required" } | null,
   latestOnsetOn: string | null,
   closedOn: string,
@@ -299,13 +317,14 @@ export function checkOutbreakClosure(
 ): OutbreakClosureProblem[] {
   const problems: OutbreakClosureProblem[] = [];
   if (outbreak.state === "closed") problems.push("already_closed");
-  if (report !== null && (report.status === "draft" || report.status === "ready")) {
+  if (report === null || report.status === "draft" || report.status === "ready") {
     problems.push("report_undecided");
   }
   if (latestOnsetOn !== null && closedOn < latestOnsetOn) {
     problems.push("closed_before_last_onset");
   }
   if (closedOn > today) problems.push("closed_in_future");
+  if (closedOn < outbreak.declaredOn) problems.push("closed_before_declared");
   return problems;
 }
 

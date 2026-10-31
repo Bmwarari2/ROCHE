@@ -101,7 +101,7 @@ describe("currentCases", () => {
   });
 });
 
-describe("ukhsaReportFields: the report from the line list", () => {
+describe("hazard HZ-013 ukhsaReportFields: the report from the whole line list", () => {
   const location: { name: string; postcode: string | null; cqcLocationId: string | null } = {
     name: "Example House",
     postcode: "ZZ99 9ZZ",
@@ -153,9 +153,24 @@ describe("ukhsaReportFields: the report from the line list", () => {
     expect(report.source.url).toMatch(/^https:\/\/www\.gov\.uk\//);
   });
 
+  it("counts anyone ever positive or in hospital, even after a later recovery or negative re-test", () => {
+    const report = ukhsaReportFields(outbreak, location, [
+      kase({ id: "a", outcome: "hospitalised", outcomeOn: "2026-10-29" }),
+      kase({
+        id: "a2",
+        supersedesId: "a",
+        testResult: "negative",
+        outcome: "recovered",
+        outcomeOn: "2026-10-30",
+      }),
+    ]);
+    expect(report).toMatchObject({ residentCases: 1, positive: 1, hospitalised: 1 });
+  });
+
   it.each<[string, Partial<typeof location>, OutbreakCase[], string]>([
     ["no postcode", { postcode: null }, [base], "postcode"],
     ["no CQC location ID", { cqcLocationId: null }, [base], "CQC location ID"],
+    ["no setting name", { name: " " }, [base], "setting's name"],
     ["no cases", {}, [], "At least one case"],
     ["vaccination not known", {}, [kase({ covidVaccinated: "unknown" })], "Vaccination"],
     ["a pending test", {}, [kase({ testResult: "pending" })], "pending tests"],
@@ -178,7 +193,7 @@ describe("hazard HZ-013 checkOutbreakClosure: closing never hides a report still
   >([
     ["report submitted", "declared", "submitted", "2026-10-20", "2026-10-31", []],
     ["report recorded as not needed", "declared", "not_required", "2026-10-20", "2026-10-31", []],
-    ["no report drafted", "declared", null, null, "2026-10-31", []],
+    ["no report linked", "declared", null, null, "2026-10-31", ["report_undecided"]],
     ["report still a draft", "declared", "draft", "2026-10-20", "2026-10-31", ["report_undecided"]],
     [
       "report ready but not sent",
@@ -198,9 +213,23 @@ describe("hazard HZ-013 checkOutbreakClosure: closing never hides a report still
       ["closed_before_last_onset"],
     ],
     ["in the future", "declared", "submitted", null, "2026-11-01", ["closed_in_future"]],
+    [
+      "before the day it was declared",
+      "declared",
+      "submitted",
+      null,
+      "2026-10-19",
+      ["closed_before_declared"],
+    ],
   ])("%s", (_label, state, status, latest, closedOn, expected) => {
     expect(
-      checkOutbreakClosure({ state }, status === null ? null : { status }, latest, closedOn, TODAY),
+      checkOutbreakClosure(
+        { state, declaredOn: "2026-10-20" },
+        status === null ? null : { status },
+        latest,
+        closedOn,
+        TODAY,
+      ),
     ).toEqual(expected);
   });
 
