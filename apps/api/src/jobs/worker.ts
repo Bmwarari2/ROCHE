@@ -9,6 +9,7 @@ import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
   buildDowntimePacks,
+  closeEndedSurveysJob,
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
@@ -92,6 +93,7 @@ const QUEUES = {
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
   importExpiry: "import-expiry",
+  pulseSurveyClose: "pulse-survey-close",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -191,6 +193,9 @@ await work(QUEUES.statementOverdue, async () => {
 await work(QUEUES.importExpiry, async () => {
   await expireImportsJob(deps);
 });
+await work(QUEUES.pulseSurveyClose, async () => {
+  await closeEndedSurveysJob(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -242,6 +247,8 @@ await boss.schedule(QUEUES.fullExports, "* * * * *");
 await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
 // Hourly: a staged import's rows (personal data in quarantine) go within the hour of expiry.
 await boss.schedule(QUEUES.importExpiry, "31 * * * *");
+// Hourly: a survey closes, and its answers are released, within the hour after its last day.
+await boss.schedule(QUEUES.pulseSurveyClose, "17 * * * *");
 
 logger.info("Harbour worker started");
 

@@ -31598,12 +31598,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "submitted_week": {
-          "name": "submitted_week",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
         "answers": {
           "name": "answers",
           "type": "jsonb",

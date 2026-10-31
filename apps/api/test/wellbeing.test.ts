@@ -2,6 +2,8 @@ import { DEMO } from "@harbour/db/seed";
 import { withAdminClient } from "@harbour/db/testing";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { closeEndedSurveysJob } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
@@ -225,6 +227,35 @@ describe("SCHED-011 pulse surveys", () => {
       minGroupSize: 2,
       message: "Fewer than 2 people answered, so the results are not shown.",
     });
+  });
+});
+
+describe("SCHED-011 a survey past its last day closes on its own", () => {
+  it("is closed by the worker, which releases its answers, audited with no member", async () => {
+    const late = await openSurvey("Closes itself");
+    await post("carer", `/v1/pulse-surveys/${late.id}/responses`, { answers: { q1: 3 } });
+    await withAdminClient(async (c) => {
+      await c.query("SET session_replication_role = replica");
+      await c.query(
+        "UPDATE pulse_survey SET opens_on = opens_on - 3, closes_on = closes_on - 2 WHERE id = $1",
+        [late.id],
+      );
+    }, h.db.name);
+    const closed = await closeEndedSurveysJob({
+      workerPool: h.db.pool("harbour_worker"),
+      appDb: h.handle.services.db,
+      logger: createLogger("silent"),
+    });
+    expect(closed).toBe(1);
+    const [row] = await sql<{ state: string }>("SELECT state FROM pulse_survey WHERE id = $1", [
+      late.id,
+    ]);
+    expect(row?.state).toBe("closed");
+    const [audit] = await sql<{ actor: string | null }>(
+      "SELECT actor_tenant_user_id AS actor FROM audit_event WHERE action = 'scheduling.pulse_survey.closed' AND resource_id = $1",
+      [late.id],
+    );
+    expect(audit).toEqual({ actor: null });
   });
 });
 

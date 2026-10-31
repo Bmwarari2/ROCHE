@@ -142,7 +142,6 @@ export const pulseSurveyResponsePending = pgTable(
     id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
     tenantId: tenantId(),
     surveyId: uuid("survey_id").notNull(),
-    submittedWeek: date("submitted_week").notNull(),
     answers: jsonb("answers").notNull(),
   },
   (t) => [

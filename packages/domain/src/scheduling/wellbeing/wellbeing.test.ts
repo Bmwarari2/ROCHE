@@ -209,11 +209,12 @@ describe("SCHED-011 rules 5 and 6 recognition and check-ins", () => {
 describe("SCHED-011 rule 4 small counts never show, nor can be worked out", () => {
   it.each<[string, number[], (number | null)[]]>([
     ["all at or above the size", [5, 6, 0, 7, 0], [5, 6, 0, 7, 0]],
-    ["two small counts hidden", [2, 3, 0, 9, 0], [null, null, 0, 9, 0]],
-    ["one small count hides the next smallest too", [1, 0, 5, 8, 0], [null, 0, null, 8, 0]],
-    ["one small count with ties above", [2, 5, 5, 0, 0], [null, null, null, 0, 0]],
     ["everyone on one point", [0, 0, 5, 0, 0], [0, 0, 5, 0, 0]],
-    ["only small counts", [1, 2, 1, 0, 1], [null, null, null, 0, null]],
+    ["two small counts hide everything", [2, 3, 0, 9, 0], [null, null, null, null, null]],
+    // With 14 answered, hiding only 1 and 5 would still give them away (review round 2).
+    ["one small count hides everything", [1, 0, 5, 8, 0], [null, null, null, null, null]],
+    ["two ones beside a seven", [1, 1, 0, 0, 7], [null, null, null, null, null]],
+    ["only small counts", [1, 2, 1, 0, 1], [null, null, null, null, null]],
   ])("%s", (_name, counts, expected) => {
     expect(suppressCounts(counts, 5)).toEqual(expected);
   });

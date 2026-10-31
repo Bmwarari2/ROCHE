@@ -27,7 +27,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.family_item_shown(uuid)": ["harbour_app", "harbour_owner"],
   "app.invitation_for_token(text)": ["harbour_app"],
-  "app.works_at(uuid, uuid)": ["harbour_app"],
+  "app.works_at(uuid, uuid)": ["harbour_app", "harbour_owner"],
   "app.invite_first_owner(uuid, text)": ["harbour_operator"],
   "app.memberships_for_auth_user(text)": ["harbour_app"],
   "app.provision_tenant(jsonb, jsonb, jsonb)": ["harbour_operator"],

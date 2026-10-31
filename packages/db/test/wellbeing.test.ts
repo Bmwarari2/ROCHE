@@ -337,6 +337,67 @@ describe("SCHED-011 pulse surveys", () => {
     ).toBe("pulse_survey_not_found");
   });
 
+  it("lets the system close a survey only after its last day, releasing its answers", async () => {
+    const asSystem = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+      inContext(app(), ctx(TENANT_A, null, "tenant"), fn);
+    const survey = await newSurvey();
+    await move(survey, "open");
+    await answer(WORKERS[3] as string, survey, { q1: 2 });
+    // Still within its dates: the system may not close it, nor change anything else.
+    expect(
+      await code(
+        asSystem((c) =>
+          c.query("UPDATE pulse_survey SET state = 'closed' WHERE id = $1", [survey]),
+        ),
+      ),
+    ).toBe("pulse_survey_system_closes_only");
+    // Test setup only: move the survey's dates into the past, past the guard that fixes them.
+    await asAdmin(async (c) => {
+      await c.query("SET session_replication_role = replica");
+      await c.query(
+        "UPDATE pulse_survey SET opens_on = opens_on - 3, closes_on = closes_on - 2 WHERE id = $1",
+        [survey],
+      );
+    });
+    expect(
+      await code(
+        asSystem((c) =>
+          c.query("UPDATE pulse_survey SET title = 'Renamed' WHERE id = $1", [survey]),
+        ),
+      ),
+    ).toBe("pulse_survey_system_closes_only");
+    expect(
+      await code(
+        asSystem((c) =>
+          c.query("UPDATE pulse_survey SET state = 'closed' WHERE id = $1", [survey]),
+        ),
+      ),
+    ).toBe("ok");
+    const released = await asAdmin((c) =>
+      c.query("SELECT 1 FROM pulse_survey_response WHERE survey_id = $1", [survey]),
+    );
+    expect(released.rowCount).toBe(1);
+  });
+
+  it("never lets a member's or a staff file's creation date be backdated", async () => {
+    await expect(
+      asOwnerRole(TENANT_A, (c) =>
+        c.query(
+          "UPDATE staff_profile SET created_at = created_at - interval '30 days' WHERE tenant_user_id = $1",
+          [WORKERS[5]],
+        ),
+      ),
+    ).rejects.toThrow(/created_at_fixed/);
+    await expect(
+      asOwnerRole(TENANT_A, (c) =>
+        c.query(
+          "UPDATE tenant_user SET created_at = created_at - interval '30 days' WHERE id = $1",
+          [WORKERS[5]],
+        ),
+      ),
+    ).rejects.toThrow(/created_at_fixed/);
+  });
+
   it("keeps surveys inside their organisation", async () => {
     const survey = await newSurvey();
     const seen = await asOtherTenant((c) =>

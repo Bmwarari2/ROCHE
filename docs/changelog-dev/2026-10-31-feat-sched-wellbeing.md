@@ -48,7 +48,18 @@ Branch `feat/sched-wellbeing`; migration 0115; human actions H-1080 to H-1084.
 - The export holds only shared check-ins.
 - Participation rows have a random id.
 - Recognition refusals say nothing about where a colleague works.
-- Left open, in H-1081: comparing overlapping surveys, and the window before a survey closes.
+- Second review:
+  - Counts show all or none.
+  - The account, as well as the staff file, must predate the survey, and neither creation date
+    can be changed.
+  - Surveys close themselves after their last day (`closeEndedSurveysJob`, hourly).
+  - Each response keeps the week of the close.
+  - The owner's grants are narrowed, and `harbour_owner` is shut out of responses too.
+- Left open, in H-1081:
+  - comparing overlapping surveys;
+  - the waiting window and the database log;
+  - members made up before a survey opens;
+  - narrowing the system's read of shared check-ins to the export.
 
 ## Not built
 

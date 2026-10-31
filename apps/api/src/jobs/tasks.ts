@@ -5,6 +5,7 @@ import {
   escalationChain,
   notification,
   notificationDelivery,
+  pulseSurvey,
   type Transaction,
   taskSeries,
   tenantUser,
@@ -19,6 +20,7 @@ import {
   EXPORT_ARCHIVE_FILE,
   exportStoragePrefix,
   nextEscalationAt,
+  ukIsoDate,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
@@ -655,6 +657,40 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
  * Staged imports past `expires_at` (platform.md rule 25): each is expired as the system, which
  * deletes its staged rows in the same transaction; audited with the row count.
  */
+/**
+ * Staff pulse surveys past their last day (scheduling.md section 16 rule 4; security review round 2
+ * of slice 44): each open survey whose closing date has passed is closed as the system, which
+ * releases its waiting responses in the same transaction; audited with no member and no count.
+ */
+export async function closeEndedSurveysJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const today = ukIsoDate(now);
+  const closed = await eachTenant(deps, "pulse-survey-close", async (tx, tenantId) => {
+    const rows = await tx
+      .update(pulseSurvey)
+      .set({ state: "closed" })
+      .where(
+        and(
+          eq(pulseSurvey.state, "open"),
+          isNull(pulseSurvey.deletedAt),
+          lt(pulseSurvey.closesOn, today),
+        ),
+      )
+      .returning({ id: pulseSurvey.id });
+    for (const r of rows) {
+      await tx.insert(auditEvent).values({
+        tenantId,
+        action: "scheduling.pulse_survey.closed",
+        resourceType: "pulse_survey",
+        resourceId: r.id,
+        scope: { by: "system", reason: "closing_date_passed" },
+      });
+    }
+    return rows.length;
+  });
+  if (closed > 0) deps.logger.info({ closed }, "pulse surveys closed");
+  return closed;
+}
+
 export async function expireImportsJob(deps: TaskDeps): Promise<number> {
   const expired = await eachTenant(deps, "import-expiry", (tx, tenantId) =>
     expireImportBatches(tx, tenantId),

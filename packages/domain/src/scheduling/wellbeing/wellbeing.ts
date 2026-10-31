@@ -203,15 +203,13 @@ export function checkCheckIn(input: {
 }
 
 /**
- * A scale question's counts as they may show (rule 4; security review of slice 44, finding 4): a
- * count of at least one but below the minimum group size is hidden (null), and when exactly one
- * would be hidden, the smallest count at or above the size is hidden too, so a hidden count is
- * never the total less the others. Zeros show. `app.pulse_survey_results` applies the same rule.
+ * A scale question's counts as they may show (rule 4; security reviews of slice 44): all of them,
+ * or none. They show only when every point anyone chose was chosen by at least the minimum group
+ * size; otherwise every count is hidden, zeros too, because with the number who answered any
+ * hidden count could be worked out or bounded from the others. `app.pulse_survey_results` applies
+ * the same rule.
  */
 export function suppressCounts(counts: readonly number[], size: number): (number | null)[] {
-  const small = (c: number) => c > 0 && c < size;
-  const hidden = counts.filter(small).length;
-  const shown = counts.filter((c) => !small(c) && c >= size);
-  const alsoHide = hidden === 1 && shown.length > 0 ? Math.min(...shown) : null;
-  return counts.map((c) => (small(c) || c === alsoHide ? null : c));
+  const small = counts.some((c) => c > 0 && c < size);
+  return counts.map((c) => (small ? null : c));
 }

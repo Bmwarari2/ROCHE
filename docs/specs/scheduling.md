@@ -719,12 +719,13 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    non-empty text, and it closes on or after the day it opens (`checkSurveyDefinition`).
 2. **Who answers** (`app.submit_pulse_response`). A member holding `scheduling.wellbeing.self`
    answers an open survey, between its dates, once. They must be on a staff profile made before the
-   survey opened (at its home, for a home's survey), and never its writer or a holder of
+   survey opened, by an account also made before then (at its home, for a home's survey; neither
+   creation date can be changed), and never its writer or a holder of
    `scheduling.wellbeing.manage` there, who could otherwise make up respondents or take away their
    own answers. Each answer is checked against
    the survey's questions (`checkResponse`). At least one question must be answered.
 3. **No link to the member**. The response row holds no member and no exact time: the week
-   only, from `ukWeekStart`. Its id is random. The participation row holds no time and a random id.
+   only: the week the survey closed, the same for every response. Its id is random. The participation row holds no time and a random id.
    Nothing is audited as an answer arrives. When the survey closes, one audit event
    `scheduling.pulse_survey.responded` is written for each response, naming the survey only, so the
    audit never shows answers arriving. Its actor is anonymous:
@@ -734,12 +735,15 @@ share it. Nothing here scores, ranks or judges anyone, and nothing feeds a decis
    table. An organisation may raise it and never lower it: the larger of the global row and its
    own applies. Results show only once the survey has closed, so a manager cannot watch answers
    arrive one at a time. They show only when at least that many people answered (`resultsVisible`).
-   Each question shows only when at least that many answered it. Below the size, the results say
+   Each question shows only when at least that many answered it. A survey whose last day has passed
+   is closed within the hour by the worker as the system (`closeEndedSurveysJob`), which may do
+   nothing else to it. Below the size, the results say
    "Fewer than N people answered" and give no count, average, spread or text. There is no breakdown,
    filter or export of responses: a home that wants its own results runs its own survey.
-   Free-text answers come in alphabetical order, never the order they arrived. For a scale, a count
-   below the size is hidden, and when only one would be hidden the next smallest is hidden too, so
-   it cannot be worked out from the total (`suppressCounts`). Comparing two overlapping surveys of
+   Free-text answers come in alphabetical order, never the order they arrived. A scale's counts
+   show all or none: when any point was chosen by fewer than the size, every count is hidden, zeros
+   too, since a hidden count could otherwise be worked out from the number who answered
+   (`suppressCounts`). Comparing two overlapping surveys of
    the same people can still narrow down answers; that remains a risk the DPIA records (R28).
 5. **Recognition**. A member holding `scheduling.wellbeing.self` thanks a colleague, never
    themselves. The note is seen by its sender, its recipient and the holders of

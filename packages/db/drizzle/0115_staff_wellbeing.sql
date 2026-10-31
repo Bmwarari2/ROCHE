@@ -45,7 +45,6 @@ CREATE TABLE "pulse_survey_response_pending" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
 	"survey_id" uuid NOT NULL,
-	"submitted_week" date NOT NULL,
 	"answers" jsonb NOT NULL,
 	CONSTRAINT "pulse_survey_response_pending_answers" CHECK (jsonb_typeof(answers) = 'object')
 );
@@ -203,10 +202,11 @@ CREATE POLICY pulse_survey_insert ON public.pulse_survey AS RESTRICTIVE FOR INSE
   WITH CHECK (state = 'draft' AND deleted_at IS NULL AND created_by = app.current_user_id()
     AND app.holds_permission_at('scheduling.wellbeing.manage', location_id));
 --> statement-breakpoint
+-- The system closes a survey past its last day (the worker's survey-close job), and nothing else.
 CREATE POLICY pulse_survey_update ON public.pulse_survey AS RESTRICTIVE FOR UPDATE
   TO harbour_app, harbour_owner
-  USING (app.holds_permission_at('scheduling.wellbeing.manage', location_id))
-  WITH CHECK (app.holds_permission_at('scheduling.wellbeing.manage', location_id));
+  USING (app.is_system() OR app.holds_permission_at('scheduling.wellbeing.manage', location_id))
+  WITH CHECK (app.is_system() OR app.holds_permission_at('scheduling.wellbeing.manage', location_id));
 --> statement-breakpoint
 
 -- Rule 1: draft, then open, then closed, never back; the home is fixed; questions, title and dates
@@ -215,6 +215,11 @@ CREATE POLICY pulse_survey_update ON public.pulse_survey AS RESTRICTIVE FOR UPDA
 CREATE OR REPLACE FUNCTION app.pulse_survey_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
+  -- The system only closes an open survey whose last day has passed (UK date).
+  IF app.is_system() AND NOT (OLD.state = 'open' AND NEW.state = 'closed'
+      AND OLD.closes_on < (now() AT TIME ZONE 'Europe/London')::date) THEN
+    RAISE EXCEPTION 'pulse_survey_system_closes_only' USING ERRCODE = 'check_violation';
+  END IF;
   IF NEW.location_id IS DISTINCT FROM OLD.location_id OR NEW.created_by IS DISTINCT FROM OLD.created_by THEN
     RAISE EXCEPTION 'pulse_survey_fixed' USING ERRCODE = 'check_violation';
   END IF;
@@ -271,11 +276,11 @@ CREATE POLICY pulse_survey_participation_write ON public.pulse_survey_participat
 -- Responses, waiting or released: nothing for the application role, even with a grant added by
 -- mistake.
 CREATE POLICY pulse_survey_response_closed ON public.pulse_survey_response AS RESTRICTIVE
-  FOR ALL TO harbour_app
+  FOR ALL TO harbour_app, harbour_owner
   USING (false) WITH CHECK (false);
 --> statement-breakpoint
 CREATE POLICY pulse_survey_response_pending_closed ON public.pulse_survey_response_pending
-  AS RESTRICTIVE FOR ALL TO harbour_app
+  AS RESTRICTIVE FOR ALL TO harbour_app, harbour_owner
   USING (false) WITH CHECK (false);
 --> statement-breakpoint
 
@@ -453,8 +458,9 @@ BEGIN
   IF me = s.created_by OR app.holds_permission_at('scheduling.wellbeing.manage', s.location_id)
      OR NOT EXISTS (
        SELECT 1 FROM public.staff_profile p
+       JOIN public.tenant_user u ON u.tenant_id = p.tenant_id AND u.id = p.tenant_user_id
        WHERE p.tenant_id = s.tenant_id AND p.tenant_user_id = me AND p.deleted_at IS NULL
-         AND p.created_at < s.opened_at
+         AND p.created_at < s.opened_at AND u.created_at < s.opened_at
          AND (s.location_id IS NULL OR p.location_id = s.location_id)) THEN
     RAISE EXCEPTION 'pulse_response_not_eligible' USING ERRCODE = 'insufficient_privilege';
   END IF;
@@ -480,8 +486,8 @@ BEGIN
   EXCEPTION WHEN unique_violation THEN
     RAISE EXCEPTION 'pulse_already_answered' USING ERRCODE = 'unique_violation';
   END;
-  INSERT INTO public.pulse_survey_response_pending (tenant_id, survey_id, submitted_week, answers)
-    VALUES (s.tenant_id, s.id, date_trunc('week', today)::date, p_answers);
+  INSERT INTO public.pulse_survey_response_pending (tenant_id, survey_id, answers)
+    VALUES (s.tenant_id, s.id, p_answers);
 END
 $$;
 --> statement-breakpoint
@@ -497,8 +503,10 @@ DECLARE
   moved integer;
 BEGIN
   IF OLD.state = 'open' AND NEW.state = 'closed' THEN
+    -- The week kept is the week of the close, the same for every response (review round 2).
     INSERT INTO public.pulse_survey_response (tenant_id, survey_id, submitted_week, answers)
-      SELECT p.tenant_id, p.survey_id, p.submitted_week, p.answers
+      SELECT p.tenant_id, p.survey_id,
+        date_trunc('week', (now() AT TIME ZONE 'Europe/London')::date)::date, p.answers
       FROM public.pulse_survey_response_pending p
       WHERE p.tenant_id = NEW.tenant_id AND p.survey_id = NEW.id
       ORDER BY random();
@@ -521,9 +529,8 @@ CREATE TRIGGER release_pulse_responses AFTER UPDATE OF state ON public.pulse_sur
 -- Rule 4: a survey's results for a holder of scheduling.wellbeing.manage where it applies. Only
 -- once it has closed, only when at least the minimum group size answered, and each question only
 -- when that many answered it; never a single response, free text in alphabetical order. A scale's
--- count below the size is not shown, and when only one count would be hidden, the next smallest is
--- hidden too, so a hidden count is never the difference of the others (security review of slice
--- 44, finding 4).
+-- counts show all or none: none when any point was chosen by fewer than the size (security reviews
+-- of slice 44).
 CREATE OR REPLACE FUNCTION app.pulse_survey_results(p_survey_id uuid) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE
@@ -535,7 +542,6 @@ DECLARE
   raw integer[];
   shown jsonb;
   hidden integer;
-  smallest integer;
   out_questions jsonb := '[]'::jsonb;
 BEGIN
   SELECT * INTO s FROM public.pulse_survey
@@ -567,14 +573,10 @@ BEGIN
           WHERE r.tenant_id = s.tenant_id AND r.survey_id = s.id
             AND (r.answers ->> (q->>'id'))::numeric = p) AS c
         FROM generate_series(1, 5) p) x;
+      -- All or none (`suppressCounts`): any point chosen by fewer than the size hides every count.
       SELECT count(*) INTO hidden FROM unnest(raw) c WHERE c > 0 AND c < size;
-      smallest := NULL;
-      IF hidden = 1 THEN
-        SELECT min(c) INTO smallest FROM unnest(raw) c WHERE c >= size;
-      END IF;
-      SELECT jsonb_agg(CASE WHEN (c > 0 AND c < size) OR c = smallest THEN NULL ELSE to_jsonb(c) END
-          ORDER BY i)
-        INTO shown FROM unnest(raw) WITH ORDINALITY AS u(c, i);
+      SELECT CASE WHEN hidden > 0 THEN (SELECT jsonb_agg(NULL::int) FROM unnest(raw))
+        ELSE to_jsonb(raw) END INTO shown;
       out_questions := out_questions || jsonb_build_array(jsonb_build_object(
         'id', q->>'id', 'kind', 'scale', 'text', q->>'text', 'visible', true, 'answered', answered,
         'counts', shown));
@@ -601,8 +603,11 @@ GRANT USAGE ON SCHEMA public, app TO harbour_wellbeing_owner;
 GRANT SELECT ON public.pulse_survey, public.role_assignment, public.role, public.access_grant,
   public.staff_profile, public.rate_table, public.location TO harbour_wellbeing_owner;
 --> statement-breakpoint
-GRANT SELECT, INSERT ON public.pulse_survey_participation, public.pulse_survey_response
-  TO harbour_wellbeing_owner;
+GRANT SELECT (tenant_id, id, created_at) ON public.tenant_user TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT INSERT ON public.pulse_survey_participation TO harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT SELECT, INSERT ON public.pulse_survey_response TO harbour_wellbeing_owner;
 --> statement-breakpoint
 GRANT SELECT, INSERT, DELETE ON public.pulse_survey_response_pending TO harbour_wellbeing_owner;
 --> statement-breakpoint
@@ -630,6 +635,33 @@ ALTER FUNCTION app.pulse_survey_results(uuid) OWNER TO harbour_wellbeing_owner;
 ALTER FUNCTION app.release_pulse_responses() OWNER TO harbour_wellbeing_owner;
 --> statement-breakpoint
 REVOKE CREATE ON SCHEMA app FROM harbour_wellbeing_owner;
+--> statement-breakpoint
+-- The owner's own queries meet the survey read policy, which asks app.works_at: granted as its new
+-- owner (a grant to harbour_owner made while it owned the function would have no effect).
+SET ROLE harbour_wellbeing_owner;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.works_at(uuid, uuid) TO harbour_owner;
+--> statement-breakpoint
+RESET ROLE;
+--> statement-breakpoint
+
+-- When a member and their staff file were made never changes, so nobody can backdate one to make
+-- a respondent eligible for a survey already open (security review round 2 of slice 44).
+CREATE OR REPLACE FUNCTION app.created_at_fixed() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'created_at_fixed' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER created_at_fixed BEFORE UPDATE OF created_at ON public.staff_profile
+  FOR EACH ROW EXECUTE FUNCTION app.created_at_fixed();
+--> statement-breakpoint
+CREATE TRIGGER created_at_fixed BEFORE UPDATE OF created_at ON public.tenant_user
+  FOR EACH ROW EXECUTE FUNCTION app.created_at_fixed();
 --> statement-breakpoint
 
 -- Data migration: existing tenants' copies of the built-in roles gain the wellbeing permissions
