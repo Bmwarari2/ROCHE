@@ -4,6 +4,7 @@ import { DraftForm, GovernanceForm, PrepareDpia, SignDpia } from "@/components/d
 import { DpiaStatus } from "@/components/dpia/DpiaStatus";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
+import { NoticeVersionForm } from "@/components/staff/PrivacyForms";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { DPIA_PAGE, dpiaShown, maySign, prefillOf } from "@/lib/dpia";
 import { t } from "@/lib/i18n";
@@ -39,6 +40,7 @@ export default async function DataProtectionPage({
   const leads = (members?.data?.items ?? [])
     .filter((m) => m.state === "active")
     .map((m) => ({ id: m.id, name: m.displayName }));
+  const notice = may("platform.tenant.manage") ? await api.GET("/v1/me/staff-privacy") : null;
   const done = firstParam((await searchParams).done);
   const open = dpia.open;
   const signingFor = maySign(open, dpia.settings.leadId, me.tenantUserId, me.permissions)
@@ -56,6 +58,14 @@ export default async function DataProtectionPage({
       {may("platform.tenant.manage") ? (
         <Card as="section" title={t("dpia.settings.title")} headingLevel={2}>
           <GovernanceForm settings={dpia.settings} members={leads} />
+        </Card>
+      ) : null}
+      {may("platform.tenant.manage") ? (
+        <Card as="section" title={t("privacy.notice.settingTitle")} headingLevel={2}>
+          <div className="flex flex-col gap-4">
+            <p className="m-0">{t("privacy.notice.settingAbout")}</p>
+            <NoticeVersionForm current={notice?.data?.currentNoticeVersion ?? null} />
+          </div>
         </Card>
       ) : null}
       {signingFor?.versionSha256 ? (

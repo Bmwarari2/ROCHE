@@ -19532,6 +19532,21 @@
           "registrationPrompts"
         ]
       },
+      "StaffMemberList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The organisation's staff, by name and job title, to choose from on HR forms"
+      },
       "StaffFileList": {
         "type": "object",
         "properties": {
@@ -46333,6 +46348,65 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/staff-members": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Staff to choose from",
+        "description": "workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMemberList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

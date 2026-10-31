@@ -15667,6 +15667,72 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/staff-members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Staff to choose from
+     * @description workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Staff */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffMemberList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/staff-files": {
     parameters: {
       query?: never;
@@ -30061,6 +30127,10 @@ export interface components {
         kind: string;
         message: string;
       }[];
+    };
+    /** @description The organisation's staff, by name and job title, to choose from on HR forms */
+    StaffMemberList: {
+      items: components["schemas"]["StaffName"][];
     };
     StaffFileList: {
       items: components["schemas"]["StaffFileSummary"][];

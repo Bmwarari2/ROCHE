@@ -361,3 +361,15 @@ describe("expiry reminders through the task engine (workforce.md rule 1)", () =>
     expect(await remindStaffFileExpiry(deps())).toBe(0);
   });
 });
+
+describe("the staff picker for HR forms (slice 56)", () => {
+  it("names staff for holders of an HR manage permission only, never with an email", async () => {
+    expect((await as("carer", "/v1/workforce/staff-members")).status).toBe(403);
+    const listed = await as("manager", "/v1/workforce/staff-members");
+    expect(listed.status).toBe(200);
+    const { items } = (await listed.json()) as { items: Record<string, unknown>[] };
+    expect(items.map((i) => i.id)).toContain(DEMO.users.carer.id);
+    expect(JSON.stringify(items)).not.toContain("@");
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+  });
+});

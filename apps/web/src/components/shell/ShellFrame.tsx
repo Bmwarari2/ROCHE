@@ -19,6 +19,7 @@ import {
   FileText,
   FolderLock,
   House,
+  IdCard,
   ListChecks,
   ListTodo,
   Lock,
@@ -32,6 +33,7 @@ import {
   ShieldCheck,
   Stamp,
   TriangleAlert,
+  UserCheck,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -94,6 +96,10 @@ export interface ShellFrameLabels {
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
   readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
+  /** Shown to holders of workforce.staff_file.read or .manage. */
+  readonly staffFiles?: string | undefined;
+  /** Shown to staff (workforce.self.read): their privacy notice and image consent. */
+  readonly privacy?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -137,6 +143,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/documents")) return "documents";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/updates")) return "updates";
+  if (pathname.startsWith("/staff")) return "staff-files";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
   if (pathname.startsWith("/settings/retention")) return "retention";
@@ -315,6 +322,16 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.staffFiles
+      ? [
+          {
+            id: "staff-files",
+            label: labels.staffFiles,
+            href: "/staff",
+            icon: <IdCard {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.team
       ? [
           {
@@ -409,6 +426,16 @@ export function ShellFrame({
       href: "/settings/security",
       icon: <ShieldCheck {...menuIcon} />,
     },
+    ...(labels.privacy
+      ? [
+          {
+            id: "privacy",
+            label: labels.privacy,
+            href: "/settings/privacy",
+            icon: <UserCheck {...menuIcon} />,
+          },
+        ]
+      : []),
     {
       id: "sign-out",
       label: labels.signOut,

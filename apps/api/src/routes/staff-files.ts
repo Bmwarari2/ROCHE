@@ -6,12 +6,13 @@ import {
   StaffFileItem,
   StaffFileList,
   StaffHrDocument,
+  StaffMemberList,
   UpdateStaffFile,
 } from "@harbour/contracts";
 import { complianceItem, document, staffProfile, type Transaction } from "@harbour/db";
 import { type ComplianceDetail, complianceItemView, ukIsoDate } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -196,6 +197,42 @@ async function fileFor(
 }
 
 export const staffFilesRouter = createRouter()
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/staff-members",
+      tags: ["workforce"],
+      summary: "Staff to choose from",
+      description:
+        "workforce.staff_file.manage, workforce.sponsor.manage or workforce.ldss.manage. Active and invited members holding a staff role, by display name and job title only (never an email), for the member picker on HR forms; HR roles hold no platform.user.manage.",
+      security,
+      responses: { 200: jsonBody(StaffMemberList, "Staff"), ...errorResponses },
+    }),
+    async (c) => {
+      await requireAnyPermission(c, [MANAGE, "workforce.sponsor.manage", "workforce.ldss.manage"]);
+      const items = await withTenant(c, async (tx) => {
+        const rows = await tx.execute<{
+          id: string;
+          display_name: string;
+          job_title: string | null;
+        }>(
+          sql`SELECT tu.id, tu.display_name, tu.job_title
+                FROM tenant_user tu
+               WHERE tu.status IN ('active', 'invited')
+                 AND EXISTS (
+                   SELECT 1 FROM role_assignment ra JOIN role r ON r.id = ra.role_id
+                    WHERE ra.tenant_user_id = tu.id AND ${SELF} = ANY (r.permissions))
+               ORDER BY tu.display_name, tu.id`,
+        );
+        return rows.rows.map((r) => ({
+          id: r.id,
+          displayName: r.display_name,
+          jobTitle: r.job_title,
+        }));
+      });
+      return c.json({ items }, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",
