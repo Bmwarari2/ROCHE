@@ -72,3 +72,20 @@ whether it was from an earlier plan). Finished on 31/10/2026:
 - Not closed: the full list of round 1 Lows was not recorded in the repository (only the two above
   are named in the handover note), so any others remain for the next review.
 
+## PR #123 security review
+
+- M1: `care.handover.manage` also needs `care.plan.read`, since a task's summary carries its plan
+  action in the plan's own words (`PERMISSION_PREREQUISITES`, ADR-0071; domain and API tests).
+- M2: a route's `task` tags an entry only when the device holds that task for that person, open and
+  not already marked (`useRoundTaskFor`, `ROUND_TASK_FOR_PERSON_SQL`); `taskTitle` is no longer
+  passed, and the record shows the synced title; `+native-intent` strips `task` and `taskTitle`
+  from links from outside the app.
+- L1: data standards and records of processing list what a handover item's summary carries (a
+  task's title, plan action and reason not done); the code comments say what is true; "migration
+  0056" corrected to 0071.
+- L2: the summary check allows only the eleven keys, nothing beside the key and parameters, scalar
+  parameters (a strict JSON path) and at most 4 KiB (0071 regenerated in place).
+- L3: alert reasons look observations up by uuid, so the primary key is used.
+- Optional: the refresh computes the flag once per series; the task trigger skips its lookup when
+  the session's organisation is not the row's.
+

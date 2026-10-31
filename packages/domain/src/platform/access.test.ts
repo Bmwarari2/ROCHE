@@ -785,9 +785,14 @@ describe("hazard HZ-011 hazard HZ-018 a permission reaches no further than what 
     validFrom: PAST,
     validTo: null,
   });
-  const reads: Permission[] = ["safety.incident.read", "care.note.read", "people.person.read"];
+  const reads: Permission[] = [
+    "safety.incident.read",
+    "care.note.read",
+    "people.person.read",
+    "care.plan.read",
+  ];
 
-  it("names what reading handovers needs: incidents, notes and the person", () => {
+  it("names what reading handovers needs: incidents, notes, the person and care plans", () => {
     expect(PERMISSION_PREREQUISITES["care.handover.manage"]).toEqual(reads);
   });
 
@@ -795,7 +800,13 @@ describe("hazard HZ-011 hazard HZ-018 a permission reaches no further than what 
     ["handovers alone", ["care.handover.manage"], ["prerequisite_permission_missing"]],
     [
       "handovers without incidents",
-      ["care.handover.manage", "care.note.read", "people.person.read"],
+      ["care.handover.manage", "care.note.read", "people.person.read", "care.plan.read"],
+      ["prerequisite_permission_missing"],
+    ],
+    [
+      // A task's summary carries its plan action, the plan's own words (#123 security review, M1).
+      "handovers without care plans",
+      ["care.handover.manage", "safety.incident.read", "care.note.read", "people.person.read"],
       ["prerequisite_permission_missing"],
     ],
     ["handovers with every read", ["care.handover.manage", ...reads], []],

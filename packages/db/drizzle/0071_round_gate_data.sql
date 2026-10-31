@@ -1,6 +1,6 @@
 ALTER TABLE "handover_item" ADD COLUMN "summary" jsonb;--> statement-breakpoint
 ALTER TABLE "task" ADD COLUMN "from_earlier_plan" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "handover_item" ADD CONSTRAINT "handover_item_summary" CHECK (summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' LIKE 'handover.summary.%' AND jsonb_typeof(summary -> 'params') = 'object', false));--> statement-breakpoint
+ALTER TABLE "handover_item" ADD CONSTRAINT "handover_item_summary" CHECK (summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' IN ('handover.summary.fall', 'handover.summary.news2', 'handover.summary.incident', 'handover.summary.alert', 'handover.summary.bodyMapMark', 'handover.summary.flaggedNote', 'handover.summary.overdueTask', 'handover.summary.skippedTask', 'handover.summary.unfinishedTask', 'handover.summary.mustFollowUp', 'handover.summary.refusal') AND jsonb_typeof(summary -> 'params') = 'object' AND (summary - 'key' - 'params') = '{}'::jsonb AND NOT jsonb_path_exists(summary -> 'params', 'strict $.* ? (@.type() == "object" || @.type() == "array")') AND octet_length(summary::text) <= 4096, false));--> statement-breakpoint
 -- The screens gate for the round and the handover on the phone (STATUS item 15; care.md section
 -- 6). Expand-only: two columns, empty or false on every existing row until the backfill below.
 -- Runs as harbour_owner.
@@ -65,13 +65,16 @@ BEGIN
   END IF;
   PERFORM set_config('app.tenant_id', p_tenant_id::text, true);
   PERFORM set_config('app.scope', 'tenant', true);
+  -- The flag once per series, not once per row and again to compare.
   UPDATE public.task t
-     SET from_earlier_plan = app.task_from_earlier_plan(p_tenant_id, t.series_id)
+     SET from_earlier_plan = f.earlier
+    FROM (SELECT s.id, app.task_from_earlier_plan(p_tenant_id, s.id) AS earlier
+            FROM unnest(p_series_ids) AS s(id)) f
    WHERE t.tenant_id = p_tenant_id
-     AND t.series_id = ANY (p_series_ids)
+     AND t.series_id = f.id
      AND t.status IN ('open', 'in_progress')
      AND t.deleted_at IS NULL
-     AND t.from_earlier_plan IS DISTINCT FROM app.task_from_earlier_plan(p_tenant_id, t.series_id);
+     AND t.from_earlier_plan IS DISTINCT FROM f.earlier;
   PERFORM set_config('app.tenant_id', coalesce(prev_tenant, ''), true);
   PERFORM set_config('app.scope', coalesce(prev_scope, ''), true);
 END
@@ -83,6 +86,11 @@ REVOKE ALL ON FUNCTION app.refresh_earlier_plan(uuid, uuid[]) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION app.task_earlier_plan() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
+  -- A session in another organisation cannot write this row (row-level security refuses it), so
+  -- no lookup is made for it.
+  IF app.current_tenant_id() IS NOT NULL AND app.current_tenant_id() <> NEW.tenant_id THEN
+    RETURN NEW;
+  END IF;
   IF NEW.status IN ('open', 'in_progress') THEN
     NEW.from_earlier_plan := app.task_from_earlier_plan(NEW.tenant_id, NEW.series_id);
   ELSIF TG_OP = 'INSERT' THEN

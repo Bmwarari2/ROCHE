@@ -280,11 +280,31 @@ describe("hazard HZ-018 a handover item's summary is a catalogue key with its pa
       insertItem(c, 0, { key: "handover.summary.news2", params: { band: "high", score: 7 } }),
     );
     await asSystem((c) => insertItem(c, 1, undefined));
+    // A task's summary with its staff-written words, scalars only, within the limit.
+    await asSystem((c) =>
+      insertItem(c, 3, {
+        key: "handover.summary.skippedTask",
+        params: {
+          title: "Reposition",
+          planAction: "Turn every two hours",
+          reason: "Asleep",
+          status: "skipped",
+          earlierPlan: "no",
+        },
+      }),
+    );
     for (const bad of [
       "free English",
       { key: "web.title", params: {} },
       { key: "handover.summary.news2" },
       { key: "handover.summary.news2", params: "high" },
+      // #123 security review, L2: only the eleven keys, nothing beside the key and parameters,
+      // no nested values, and at most 4 KiB.
+      { key: "handover.summary.notAKey", params: {} },
+      { key: "handover.summary.news2", params: {}, note: "Ada fell in the lounge" },
+      { key: "handover.summary.news2", params: { band: { nested: "high" } } },
+      { key: "handover.summary.news2", params: { bands: ["high"] } },
+      { key: "handover.summary.skippedTask", params: { reason: "x".repeat(5000) } },
     ]) {
       await expect(asSystem((c) => insertItem(c, 2, bad))).rejects.toThrow(/handover_item_summary/);
     }

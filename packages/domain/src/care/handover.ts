@@ -283,8 +283,11 @@ export type HandoverSourceType =
  * What a handover item says, as a catalogue key and its parameters, so a screen words it in the
  * reader's language without reading the source: the phone holds neither incidents, alerts nor
  * skipped tasks (H-300). Parameters are codes (a NEWS2 band, a chart, an incident type, an alert
- * kind, a mark's type, view, region and side), the NEWS2 score, and for a task the words staff
- * wrote: its title and why it was not done. Never a person's name.
+ * kind and a care result's reason, a mark's type, view, region and side), the NEWS2 score, and for
+ * a task free text staff wrote: its title (up to 120 characters), the care plan action it carries
+ * out (the plan's own words) and why it was not done (`status_reason`, up to 500 characters). No
+ * field holds a person's name, but free text may mention one, so a summary is shown only to those
+ * who may read its sources (ADR-0071, `PERMISSION_PREREQUISITES`).
  */
 export interface HandoverItemSummary {
   readonly key: HandoverSummaryKey;

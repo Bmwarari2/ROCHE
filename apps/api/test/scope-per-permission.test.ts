@@ -1152,7 +1152,7 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 5 
   });
 });
 
-describe("hazard HZ-011 hazard HZ-018 handovers reach no further than incidents, notes and the person (ADR-0071; #50 review round 1, S-M1)", () => {
+describe("hazard HZ-011 hazard HZ-018 handovers reach no further than incidents, notes, the person and care plans (ADR-0071; #50 review round 1, S-M1; #123 security review, M1)", () => {
   // Hal Handover: an administrator at Harbour House, given grants at Harbour Lodge below.
   const HAL = "0194d000-0000-7000-8000-0000000003a4";
   let hal = "";
@@ -1193,8 +1193,12 @@ describe("hazard HZ-011 hazard HZ-018 handovers reach no further than incidents,
     await grant("{people.person.read,care.note.read,care.handover.manage}");
     expect(await handoverClaims()).toEqual({ ids: [], shifts: {} });
     expect((await asHal(`/v1/locations/${LODGE.locationId}/handovers`)).status).not.toBe(200);
-    // With incident reading at the Lodge too, the Lodge's handovers reach him, and only there.
+    // Incidents at the Lodge, but not care plans, whose words a task's summary carries
+    // (#123 security review, M1): still nothing.
     await grant("{safety.incident.read}");
+    expect(await handoverClaims()).toEqual({ ids: [], shifts: {} });
+    // With care plans at the Lodge too, the Lodge's handovers reach him, and only there.
+    await grant("{care.plan.read}");
     expect((await handoverClaims()).ids).toEqual([LODGE.locationId]);
     expect((await asHal(`/v1/locations/${LODGE.locationId}/handovers`)).status).toBe(200);
     expect((await asHal(`/v1/locations/${DEMO.locationId}/handovers`)).status).not.toBe(200);

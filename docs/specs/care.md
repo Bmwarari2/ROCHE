@@ -1390,9 +1390,14 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     are missing, not whole minutes of a day or not day before night is left out, so the phone says
     it cannot tell, and the API logs a warning for the operator with the organisation's id, the
     nations and the rate keys (#50 review round 1, clinical M4).
-  - The handover family needs `safety.incident.read`, `care.note.read` and `people.person.read` at
-    the same or a wider scope than `care.handover.manage`, since the summaries carry incidents,
-    notes and the person (ADR-0071; #50 review round 1, security M1). The phone works out the expected outgoing shift with `shiftAt` and
+  - The handover family needs `safety.incident.read`, `care.note.read`, `people.person.read` and
+    `care.plan.read` at the same or a wider scope than `care.handover.manage`, since the summaries
+    carry incidents, notes, the person and a care plan action's own words (ADR-0071; #50 review
+    round 1, security M1; #123 security review, M1).
+  - A route's task (`task`) tags a new entry only when this device holds that task for that person,
+    open and not already marked (`useRoundTaskFor`), and the record shows its synced title; links
+    from outside the app have `task` and `taskTitle` stripped (`+native-intent`) (#123 security
+    review, M2). The phone works out the expected outgoing shift with `shiftAt` and
     `previousShift`, and says "not compiled yet" when no handover for it has arrived, and "not
     final" while `locked_at` is empty.
 
