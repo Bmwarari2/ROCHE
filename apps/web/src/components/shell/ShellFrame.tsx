@@ -12,6 +12,7 @@ import {
 import {
   Archive,
   Bell,
+  BookOpen,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -78,6 +79,10 @@ export interface ShellFrameLabels {
   readonly evidencePacks?: string | undefined;
   /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
   readonly statementOfPurpose?: string | undefined;
+  /** The policy library: every member reads it and signs what they must (QUAL-008). */
+  readonly policies?: string | undefined;
+  /** Shown only to holders of quality.dsar.manage (QUAL-012). */
+  readonly dataSecurity?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
@@ -312,6 +317,26 @@ export function ShellFrame({
             label: labels.statementOfPurpose,
             href: "/quality/statement-of-purpose",
             icon: <ScrollText {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.policies
+      ? [
+          {
+            id: "policies",
+            label: labels.policies,
+            href: "/policies",
+            icon: <BookOpen {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataSecurity
+      ? [
+          {
+            id: "data-security",
+            label: labels.dataSecurity,
+            href: "/quality/data-security",
+            icon: <ShieldCheck {...icon} />,
           },
         ]
       : []),

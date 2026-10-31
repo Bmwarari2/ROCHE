@@ -15,6 +15,19 @@ export const QUALITY_DONE = [
   "approved",
   "sopDiscarded",
   "notified",
+  "policyCreated",
+  "draftStarted",
+  "draftSaved",
+  "policyPublished",
+  "policyRetired",
+  "policySigned",
+  "assertionAdded",
+  "assertionChanged",
+  "evidenceLinked",
+  "evidenceUnlinked",
+  "submissionRecorded",
+  "submissionCorrected",
+  "certificateRecorded",
 ] as const;
 export type QualityDone = (typeof QUALITY_DONE)[number];
 

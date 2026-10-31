@@ -10,6 +10,7 @@ import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
 
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { readNotifications } from "@/lib/dashboard-data";
+import { dataSecurityShown } from "@/lib/data-security";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { evidencePacksShown } from "@/lib/evidence-packs";
@@ -89,6 +90,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         statementOfPurpose: statementShown(me.permissions)
           ? t("shell.nav.statementOfPurpose")
           : undefined,
+        policies: t("shell.nav.policies"),
+        dataSecurity: dataSecurityShown(me.permissions) ? t("shell.nav.dataSecurity") : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,

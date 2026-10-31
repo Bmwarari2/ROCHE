@@ -13,7 +13,7 @@ import { type ActionResult, problemMessage } from "./outcome";
  * changed-record refusal (409) in the API's own plain words, which name what to do.
  */
 export async function sendQuality<T>(
-  subject: "pack" | "sop",
+  subject: "pack" | "sop" | "policy" | "dataSecurity",
   paths: readonly string[],
   call: (api: ApiClient) => Promise<{ data?: T; error?: unknown }>,
 ): Promise<ActionResult<T>> {
@@ -32,7 +32,7 @@ export async function sendQuality<T>(
   }
 }
 
-function qualityProblem(subject: "pack" | "sop", error: unknown) {
+function qualityProblem(subject: "pack" | "sop" | "policy" | "dataSecurity", error: unknown) {
   const problem = (typeof error === "object" && error !== null ? error : {}) as {
     code?: unknown;
     detail?: unknown;
