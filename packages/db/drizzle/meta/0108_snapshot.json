@@ -1,6 +1,6 @@
 {
-  "id": "1604f4db-6351-41fb-8f47-7f5e1da60cf9",
-  "prevId": "8631e6c2-99e8-4a45-9a43-d2f0b54387a3",
+  "id": "fb5de0bb-87e3-4d06-977f-57d745193d42",
+  "prevId": "67b7d389-9a92-48ec-b17f-0422fa19d4fd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1964,6 +1964,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "body_map_mark_supersedes_idx": {
+          "name": "body_map_mark_supersedes_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "supersedes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "supersedes_id IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -23939,6 +23961,10 @@
           "name": "quality_indicator_target_values",
           "value": "green >= 0 AND amber >= 0 AND green <= 1000000 AND amber <= 1000000"
         },
+        "quality_indicator_target_percent": {
+          "name": "quality_indicator_target_percent",
+          "value": "indicator_key NOT IN ('missed_visits', 'overdue_reviews', 'training_compliance', 'agency_hours', 'staff_turnover', 'incident_response') OR (green <= 100 AND amber <= 100)"
+        },
         "quality_indicator_target_direction": {
           "name": "quality_indicator_target_direction",
           "value": "CASE WHEN indicator_key IN ('training_compliance', 'incident_response')\n        THEN green >= amber ELSE green <= amber END"
@@ -29155,6 +29181,33 @@
             },
             {
               "expression": "sla_due_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "workflow_instance_subject_idx": {
+          "name": "workflow_instance_subject_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "definition_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subject_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -23261,7 +23261,7 @@ export interface paths {
     };
     /**
      * The quality indicators for one location and period, each with its working
-     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. A source Harbour does not record yet, an unfinished period, a period before the location used Harbour, or a small number (`quality.indicator.min_group_size`) gives `no_data` with its reason, never a rating. Audited (`quality.dashboard.viewed`).
+     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. `from` and `to` are whole calendar months that have ended, at most 12 (422 `period_not_months`, `period_not_ended`, `period_too_long`). A source Harbour does not record yet, a period before the location started recording in Harbour or with a downtime still to reconcile gives `no_data` with its reason and no working. A small count (`quality.indicator.min_group_size`) is withheld with its value, but keeps its status against the target. Audited (`quality.dashboard.viewed`).
      */
     get: {
       parameters: {
@@ -23384,7 +23384,7 @@ export interface paths {
     };
     /**
      * Set a target for an indicator
-     * @description `quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).
+     * @description `quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`), percentages 0 to 100 (422 `percent_range`); a location's target no looser than the organisation default unless set by an organisation-wide holder (422 `looser_than_organisation`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).
      */
     put: {
       parameters: {
@@ -23555,7 +23555,7 @@ export interface paths {
     };
     /**
      * The Provider Information Return prefill for one location
-     * @description `quality.audit.manage` at the location. The last 12 months to yesterday. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
+     * @description `quality.audit.manage` at the location. The last 12 whole calendar months. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
      */
     get: {
       parameters: {
@@ -32034,6 +32034,8 @@ export interface components {
     QualityDashboard: {
       /** Format: uuid */
       locationId: string;
+      /** Format: date-time */
+      generatedAt: string;
       period: {
         /** Format: date */
         from: string;
@@ -32069,6 +32071,10 @@ export interface components {
         amber: number;
         /** @enum {string} */
         level: "location" | "organisation";
+        organisationDefault: {
+          green: number;
+          amber: number;
+        } | null;
       } | null;
     };
     /** @enum {string} */

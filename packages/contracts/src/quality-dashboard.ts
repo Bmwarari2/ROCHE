@@ -62,7 +62,13 @@ export const QualityIndicatorOut = z
     reason: z.string().nullable(),
     /** The target that rated it, and whether it is the location's own or the organisation's. */
     target: z
-      .object({ green: z.number(), amber: z.number(), level: z.enum(["location", "organisation"]) })
+      .object({
+        green: z.number(),
+        amber: z.number(),
+        level: z.enum(["location", "organisation"]),
+        /** The organisation default, beside a location's own target. */
+        organisationDefault: z.object({ green: z.number(), amber: z.number() }).nullable(),
+      })
       .nullable(),
   })
   .meta({ id: "QualityIndicatorOut" });
@@ -76,6 +82,8 @@ export const QualityDashboardQuery = z.object({
 export const QualityDashboard = z
   .object({
     locationId: uuid,
+    /** When the figures were counted: records synced later are in a later view. */
+    generatedAt: z.iso.datetime({ offset: true }),
     period: Period,
     minGroupSize: z.number().int(),
     indicators: z.array(QualityIndicatorOut),

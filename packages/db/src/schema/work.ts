@@ -257,6 +257,8 @@ export const workflowInstance = pgTable(
     ),
     personRef("workflow_instance_person_fk", t),
     index("workflow_instance_sla_idx").on(t.tenantId, t.slaDueAt),
+    // An incident's workflow, for the quality dashboard's count (migration 0108).
+    index("workflow_instance_subject_idx").on(t.tenantId, t.definitionKey, t.subjectId),
   ],
 );
 

@@ -571,6 +571,15 @@ export const QUALITY_INDICATOR_KEY_CODES = [
   "staff_turnover",
   "incident_response",
 ] as const;
+/** The indicators measured as a percentage, whose targets are 0 to 100. */
+export const QUALITY_INDICATOR_PERCENT = [
+  "missed_visits",
+  "overdue_reviews",
+  "training_compliance",
+  "agency_hours",
+  "staff_turnover",
+  "incident_response",
+] as const;
 export const QUALITY_INDICATOR_HIGHER_IS_BETTER = [
   "training_compliance",
   "incident_response",
@@ -614,6 +623,10 @@ export const qualityIndicatorTarget = pgTable(
     check(
       "quality_indicator_target_values",
       sql`green >= 0 AND amber >= 0 AND green <= 1000000 AND amber <= 1000000`,
+    ),
+    check(
+      "quality_indicator_target_percent",
+      sql`indicator_key NOT IN (${sqlList(QUALITY_INDICATOR_PERCENT)}) OR (green <= 100 AND amber <= 100)`,
     ),
     check(
       "quality_indicator_target_direction",

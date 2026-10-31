@@ -32,12 +32,18 @@ type Indicator = {
   method: string;
   target: { green: number; amber: number; level: string } | null;
 };
-type Dashboard = { minGroupSize: number; indicators: Indicator[] };
+type Dashboard = { minGroupSize: number; generatedAt: string; indicators: Indicator[] };
 type Target = { id: string; version: number; locationId: string | null; indicatorKey: string };
 type Pir = {
   asOf: string;
   questionSet: { confirmed: boolean };
-  items: { key: string; status: string; value: unknown; reasonCode: string | null }[];
+  items: {
+    key: string;
+    status: string;
+    value: unknown;
+    records: number | null;
+    reasonCode: string | null;
+  }[];
 };
 
 const dashboardUrl = (location: string, period = SEPTEMBER) =>
@@ -81,6 +87,13 @@ beforeAll(async () => {
      VALUES ($1, $2, 1, '2026-08-01', 'Admission')`,
     [LODGE.personId, ROOM],
   );
+  // Lodge has recorded care in Harbour since June 2025, so its year and September are whole.
+  await ownerIn(
+    `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+     VALUES ($1, $2, '2025-06-01T10:00:00Z', 'personal_care', 'Assisted with a wash.'),
+            ($1, $2, '2026-09-15T10:00:00Z', 'personal_care', 'Assisted with a wash.')`,
+    [LODGE.personId, LODGE.locationId],
+  );
   for (const day of ["02", "05", "09", "14", "18", "27"]) await incident("fall", `2026-09-${day}`);
   for (const day of ["03", "21"]) await incident("medication", `2026-09-${day}`);
 }, 120_000);
@@ -105,12 +118,9 @@ describe("QUAL-005 the quality dashboard", () => {
       { from: "2026-09-30", to: "2026-09-01" },
       "period_order",
     ],
-    ["a period longer than 366 days", { from: "2025-01-01", to: "2026-09-30" }, "period_too_long"],
-    [
-      "a period that ends after today",
-      { from: "2026-09-01", to: "2099-01-01" },
-      "period_in_future",
-    ],
+    ["part of a month", { from: "2026-09-02", to: "2026-09-30" }, "period_not_months"],
+    ["months that have not ended", { from: "2026-09-01", to: "2099-01-31" }, "period_not_ended"],
+    ["more than twelve months", { from: "2025-09-01", to: "2026-09-30" }, "period_too_long"],
   ])("refuses %s", async (_name, period, code) => {
     const r = await get(dashboardUrl(LODGE.locationId, period));
     expect(r.status).toBe(422);
@@ -160,9 +170,10 @@ describe("QUAL-005 the quality dashboard", () => {
     expect(indicator(d, "falls")?.method).toContain("÷ occupied bed-days");
   });
 
-  it("hazard HZ-129 withholds a small number, its value and its status", async () => {
+  it("hazard HZ-129 withholds a small number and its value, but keeps its status", async () => {
     const d = await dashboard();
     expect(d.minGroupSize).toBeGreaterThan(2);
+    expect(d.generatedAt).toMatch(/T/);
     expect(indicator(d, "medication_errors")).toMatchObject({
       numerator: null,
       denominator: 30,
@@ -170,16 +181,33 @@ describe("QUAL-005 the quality dashboard", () => {
       status: "no_data",
       reasonCode: "small_number",
     });
+    // Two medication errors over 30 bed-days is about 67 per 1,000: amber against this target,
+    // shown though the count is not.
+    await send("PUT", "/v1/quality/indicator-targets", "owner", {
+      locationId: null,
+      indicatorKey: "medication_errors",
+      green: 50,
+      amber: 100,
+      expectedVersion: null,
+    });
+    expect(indicator(await dashboard(), "medication_errors")).toMatchObject({
+      numerator: null,
+      value: null,
+      status: "amber",
+      reasonCode: "small_number",
+    });
   });
 
-  it("gives overdue reviews as at today, and no rate without anything to measure", async () => {
+  it("gives overdue reviews as at today, counting a person with no care plan review date", async () => {
     const d = await dashboard();
     const reviews = indicator(d, "overdue_reviews");
     expect(reviews?.period.from).toBe(reviews?.period.to);
+    // Gwen lives at Lodge with no care plan: one overdue of one, so both are withheld.
     expect(reviews).toMatchObject({
-      denominator: 0,
+      numerator: null,
+      denominator: null,
       status: "no_data",
-      reasonCode: "no_denominator",
+      reasonCode: "small_number",
     });
   });
 });
@@ -211,7 +239,7 @@ describe("QUAL-005 indicator targets", () => {
     expect(own.status).toBe(200);
     expect(indicator(await dashboard(), "falls")).toMatchObject({
       status: "green",
-      target: { level: "location" },
+      target: { level: "location", organisationDefault: { green: 100, amber: 250 } },
     });
     // Cleared, the organisation default rates it again.
     const target = await json<Target>(own);
@@ -254,6 +282,43 @@ describe("QUAL-005 indicator targets", () => {
       expectedVersion: 99,
     });
     expect(stale.status).toBe(409);
+  });
+
+  it("refuses a home's own target looser than the organisation's, a percentage over 100 and an unknown location", async () => {
+    const looser = await set("manager", {
+      locationId: DEMO.locationId,
+      indicatorKey: "falls",
+      green: 500,
+      amber: 600,
+      expectedVersion: null,
+    });
+    expect(looser.status).toBe(422);
+    expect(await codeOf(looser)).toBe("looser_than_organisation");
+    const stricter = await set("manager", {
+      locationId: DEMO.locationId,
+      indicatorKey: "falls",
+      green: 50,
+      amber: 100,
+      expectedVersion: null,
+    });
+    expect(stricter.status).toBe(200);
+    const percent = await set("owner", {
+      locationId: null,
+      indicatorKey: "overdue_reviews",
+      green: 50,
+      amber: 150,
+      expectedVersion: null,
+    });
+    expect(await codeOf(percent)).toBe("percent_range");
+    const unknown = await set("owner", {
+      locationId: "0194d000-0000-7000-8000-00000000dead",
+      indicatorKey: "falls",
+      green: 1,
+      amber: 2,
+      expectedVersion: null,
+    });
+    expect(unknown.status).toBe(422);
+    expect(await codeOf(unknown)).toBe("location_not_found");
   });
 
   it("lets a home's manager set its own target only", async () => {
@@ -310,10 +375,11 @@ describe("QUAL-006 the PIR prefill", () => {
       reasonCode: "small_number",
     });
     expect(item("complaints")).toMatchObject({ status: "to_complete", reasonCode: "not_built" });
-    // No care notes at Lodge: not "no", but no data.
+    // One care note in the PIR year: yes, with the small number of records behind it withheld.
     expect(item("digital_care_records")).toMatchObject({
-      status: "to_complete",
-      reasonCode: "no_value",
+      status: "prefilled",
+      value: true,
+      records: null,
     });
   });
 

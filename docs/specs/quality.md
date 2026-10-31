@@ -934,11 +934,15 @@ list came before the code.
 | Indicator | Numerator | Denominator | Source today |
 | --- | --- | --- | --- |
 | Falls | Incidents of type `fall` that occurred in the period at the location | Occupied bed-days | `incident`; `bed_occupancy` with `room` |
-| Pressure ulcers | Body map marks first recorded in the period as a present pressure ulcer, not later corrected to another kind of mark | Occupied bed-days | `body_map_mark`; `bed_occupancy` |
+| Pressure ulcers | Body map marks first recorded in the period whose latest version that is not a healing record is a pressure ulcer (corrections either way) | Occupied bed-days | `body_map_mark`; `bed_occupancy` |
 | Medication errors | Incidents of type `medication` that occurred in the period | Occupied bed-days | `incident`; `bed_occupancy` |
-| Overdue reviews | Active care plans and active risk assessments past their review date, today | Active care plans and risk assessments with a review date, today | `care_plan`; `risk_assessment` by its person's location |
-| Incidents reviewed in time | Incidents recorded in the period that left `open` within `quality.incident_review.target_days` UK days of being recorded | Incidents recorded in the period, less those still open whose time has not run out | `incident`; the `safety.incident` workflow transitions |
+| Overdue reviews | For the people living at the location now (wherever their plan was written): active care plans and active risk assessments past their review date, today, and each person with no active care plan holding a review date | The same plans and assessments, and those people | `care_plan`, `risk_assessment` by the person's current location; `person` |
+| Incidents reviewed in time | Incidents that occurred in the period, moved on from `open` by someone other than their raiser within `quality.incident_review.target_days` UK days of the day they occurred, and not back to open since | Incidents that occurred in the period, less those whose time has not run out and that are not yet reviewed | `incident`; the `safety.incident` workflow transitions |
 | Missed visits, training compliance, agency hours, complaints, staff turnover | - | - | Not built: shown as "No data" with "Harbour does not record this yet" |
+
+Occupied bed-days are the days a bed was held for someone at the location in the period, less the
+days between leaving for hospital and coming back, and the days after a death (a room not yet
+cleared is not occupied).
 
 Complaints wait for the safety complaints register (the data protection complaints register is
 one kind of complaint only, so it is not shown as the complaints figure); staff turnover waits
@@ -947,28 +951,36 @@ for employment records (a member's access is not their employment).
 ### 22.2 Rules
 
 38. **Never rated without its data** (rule 22, HZ-129). An indicator whose source is not built
-    is `no_data` with "Harbour does not record this yet". The period must be over and wholly
-    after the location started using Harbour (its record's creation day) for its coverage to be
-    complete; otherwise "Data incomplete for this period". A location with no bed occupancy in
-    the period has no bed-days and its rates are "There is nothing to measure against", never 0.
+    is `no_data` with "Harbour does not record this yet". The period must be over, wholly after
+    the location started recording in Harbour (the later of its record's creation and its first
+    care note) and free of any downtime not yet reconciled for its coverage to be complete;
+    otherwise "Data incomplete for this period", with no numerator or denominator (they would be
+    a running tally). A location with no bed occupancy in the period has no bed-days and its rates
+    are "There is nothing to measure against", never 0. Each view says when it was counted.
 39. **Every figure shows its working**: numerator and denominator (each as a number, or withheld
     under rule 40), the period it covers (overdue reviews are as at today, so their period is
     today), the source in words and the method from rule 16.
 40. **Small numbers never point at one person.** A numerator of 1 or more but fewer than
-    `quality.indicator.min_group_size` (rate table) is withheld, with the value and the status:
-    "A small number: not shown, so no one can be identified" (`small_number`, never green). For
-    an indicator whose denominator counts records about people (overdue reviews, incidents
-    reviewed in time), a denominator in the same range is withheld the same way. Zero is shown.
-    The PIR prefill withholds the same counts and marks them to complete.
+    `quality.indicator.min_group_size` (rate table) is withheld with its value (`small_number`),
+    but its status against the target is still shown, so a rising signal is never hidden from
+    the people who govern the location (with no target it stays unrated). For an indicator whose
+    denominator counts records about people (overdue reviews, incidents reviewed in time), a
+    denominator, or a remainder (denominator less numerator), in the same range is withheld the
+    same way. Zero is shown. The PIR prefill withholds the same counts and marks them to complete,
+    and withholds a small number of records behind a yes.
 41. **Targets are the tenant's** (rule 18): per indicator, an organisation default and optionally
     one per location; the location's own wins. Green and amber are in the indicator's direction
-    (`checkIndicatorTarget`, and a database check). With no target, a value is shown unrated.
+    (`checkIndicatorTarget`, and a database check); percentages 0 to 100. A location's own
+    target is no looser than the organisation default unless someone holding
+    `quality.audit.manage` across the organisation sets it, and the default is shown beside it.
+    With no target, a value is shown unrated.
 42. **Counts only, by location**: the dashboard is for one location the reader holds
-    `quality.audit.manage` at, for one period of at most 366 UK days ending no later than today.
+    `quality.audit.manage` at, for whole calendar months that have ended, at most twelve, so no
+    two views can be subtracted to single out a day.
     The database function checks that permission itself and returns counts, never rows, names or
     ids. Incidents are counted whoever they involve, so a manager's own view of incidents does not
     change the figure.
-43. **PIR prefill** (rules 23 and 24): for one location, as at yesterday, the last 12 months.
+43. **PIR prefill** (rules 23 and 24): for one location, the last 12 whole calendar months.
     Each data point in the question set (`PIR_QUESTION_SET`, unconfirmed until H-602) is
     `prefilled` with its value, as-of date and record count, or `to_complete` with the reason (not
     built in Harbour, a small number, no data). Built today: incidents and medication errors in
@@ -1015,12 +1027,12 @@ the organisation's records); it holds no personal data.
 | `GET /v1/quality/indicator-targets?locationId` | The organisation defaults and the location's own targets |
 | `PUT /v1/quality/indicator-targets` | Set a target (`locationId` or null, `indicatorKey`, `green`, `amber`, `expectedVersion` or null for a new one) |
 | `POST /v1/quality/indicator-targets/{id}/clear` | Clear a target (`expectedVersion`) |
-| `GET /v1/quality/pir?locationId` | The PIR prefill as at yesterday |
+| `GET /v1/quality/pir?locationId` | The PIR prefill for the last 12 whole months |
 
 ### 22.6 Clinical safety and data protection
 
 HZ-129 (a quality indicator or audit score falsely reassures) is added to the hazard log with
-rules 38 to 42 as its controls, each with a `hazard HZ-129 ...` test. Inside the medical-device
+rules 38 to 43 as its controls, each with a `hazard HZ-129 ...` test. Inside the medical-device
 boundary: the figures are counts and the tenant's own targets, never a Harbour score. No new
 personal data: the function returns counts, and rule 40 keeps a small count from pointing at one
 person.

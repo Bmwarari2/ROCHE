@@ -221,29 +221,48 @@ describe("the quality dashboard (quality.md 22.2 rules 38 to 41; slice 47)", () 
       "incomplete_data",
     ],
     ["hazard HZ-129 no bed-days", "falls", full(0, 0), {}, "no_denominator"],
-    ["hazard HZ-129 one fall, a small number", "falls", full(1, 3000), {}, "small_number"],
-    [
-      "hazard HZ-129 a small denominator of records about people",
-      "overdue_reviews",
-      full(0, 2),
-      {},
-      "small_number",
-    ],
-  ])("rule 38 and 40: %s is never rated", (_name, key, input, over, reason) => {
+  ])("rule 38: %s is never rated", (_name, key, input, over, reason) => {
     const result = dashboardIndicator(byKey(key), input, target, { ...options, ...over });
     expect(result.status).toBe("no_data");
     expect(result.reasonCode).toBe(reason);
     expect(result.reason).toBe(NO_DATA_REASONS[reason as keyof typeof NO_DATA_REASONS]);
+    expect(result.value).toBeNull();
+    // No working for an unfinished period or a source not built: never a running tally. With no
+    // bed-days, the working (0 over 0) is itself the reason.
+    if (reason !== "no_denominator") expect(result.numerator).toBeNull();
   });
 
-  it("rule 40 withholds a small count, its value and its status, and shows zero", () => {
+  it.each<[string, string, IndicatorInput, IndicatorTarget | null, string]>([
+    ["one fall, rated against the target", "falls", full(1, 3000), target, "green"],
+    ["four falls in a small home, red", "falls", full(4, 300), target, "red"],
+    ["a small denominator of records about people", "overdue_reviews", full(0, 2), target, "green"],
+    [
+      "one review in time of eleven (a small remainder)",
+      "incident_response",
+      full(10, 11),
+      { green: 95, amber: 80 },
+      "amber",
+    ],
+    ["one fall with no target", "falls", full(1, 3000), null, "no_data"],
+  ])("hazard HZ-129 rule 40 withholds %s but keeps its status", (_name, key, input, t, status) => {
+    const result = dashboardIndicator(byKey(key), input, t, options);
+    expect(result).toMatchObject({
+      numerator: null,
+      value: null,
+      display: null,
+      status,
+      reasonCode: "small_number",
+    });
+  });
+
+  it("rule 40 withholds a small count, and shows zero", () => {
     const one = dashboardIndicator(falls, full(1, 3000), target, options);
     expect(one).toMatchObject({ numerator: null, denominator: 3000, value: null, display: null });
     const none = dashboardIndicator(falls, full(0, 3000), target, options);
     expect(none).toMatchObject({ numerator: 0, denominator: 3000, value: 0, status: "green" });
     const enough = dashboardIndicator(falls, full(rates.minGroupSize, 3000), target, options);
     expect(enough.numerator).toBe(rates.minGroupSize);
-    expect(enough.status).not.toBe("no_data");
+    expect(enough.reasonCode).toBeNull();
   });
 
   it("rule 40 keeps a bed-days denominator, which counts no one", () => {

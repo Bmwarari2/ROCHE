@@ -57,7 +57,10 @@ API, the rules or the contracts.
 - Good, because the reads are in one reviewed place, listed in the definer ACL test.
 - Bad, because one function reads several modules' tables. A change to those tables must update
   it, and the API and database tests catch a mismatch.
-- Bad, because the counts are computed on each read. Sized for one location and up to 366 days,
+- Good, because the function takes only whole months that have ended (at most twelve), so no
+  two calls can be subtracted to single out a day, and small counts are withheld (quality.md
+  rules 40 and 42).
+- Bad, because the counts are computed on each read. Sized for one location and up to twelve months,
   this is within budget for the pilot; a read model is the next step if it is not.
 
 ## More information

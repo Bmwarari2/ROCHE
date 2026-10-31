@@ -25,8 +25,8 @@ type Tx = Transaction;
 
 export const QUALITY_DASHBOARD_PERMISSION = "quality.audit.manage";
 
-/** The longest period the dashboard takes, in UK days (rule 42; the function checks it too). */
-export const MAX_PERIOD_DAYS = 366;
+/** The most whole calendar months one view covers (rule 42; the function checks it too). */
+export const MAX_PERIOD_MONTHS = 12;
 
 export interface IndicatorCounts {
   readonly since: string;
@@ -41,6 +41,8 @@ export interface IndicatorCounts {
   readonly incidentsDecided: number;
   readonly incidentsReviewedInTime: number;
   readonly careNotes: number;
+  readonly peopleWithoutReviewDate: number;
+  readonly openOutages: number;
 }
 
 const DAY = 86_400_000;
@@ -49,7 +51,34 @@ const isoOf = (day: number) => new Date(day * DAY).toISOString().slice(0, 10);
 export const addDays = (iso: string, days: number) => isoOf(dayNumber(iso) + days);
 export const daysBetween = (from: string, to: string) => dayNumber(to) - dayNumber(from);
 
-/** Rule 42: one period of UK days, in order, at most `MAX_PERIOD_DAYS` long, ending by today. */
+/**
+ * Rule 41: whether a location's target is at least as strict as the organisation default, in
+ * the indicator's direction (green and amber each), so a home cannot mark its own work more kindly
+ * than the organisation does (slice 47 clinical review).
+ */
+export function noLooserThan(
+  direction: "lower_is_better" | "higher_is_better",
+  target: { readonly green: number; readonly amber: number },
+  organisation: { readonly green: number; readonly amber: number } | null,
+): boolean {
+  if (!organisation) return true;
+  const atLeastAsStrict = (mine: number, theirs: number) =>
+    direction === "lower_is_better" ? mine <= theirs : mine >= theirs;
+  return (
+    atLeastAsStrict(target.green, organisation.green) &&
+    atLeastAsStrict(target.amber, organisation.amber)
+  );
+}
+
+const monthsSpanned = (from: string, to: string) =>
+  (Number(to.slice(0, 4)) - Number(from.slice(0, 4))) * 12 +
+  (Number(to.slice(5, 7)) - Number(from.slice(5, 7))) +
+  1;
+
+/**
+ * Rule 42: whole calendar months that have ended, at most twelve, so no two views can be
+ * subtracted to single out a day (slice 47 security review). The function checks it again.
+ */
 export function checkPeriod(from: string, to: string, today: string): void {
   if (daysBetween(from, to) < 0) {
     throw new HttpProblem(
@@ -58,15 +87,18 @@ export function checkPeriod(from: string, to: string, today: string): void {
       "The period must end on or after the day it starts.",
     );
   }
-  if (daysBetween(today, to) > 0) {
-    throw new HttpProblem(422, "period_in_future", "The period cannot end after today.");
-  }
-  if (daysBetween(from, to) + 1 > MAX_PERIOD_DAYS) {
+  if (!from.endsWith("-01") || !addDays(to, 1).endsWith("-01")) {
     throw new HttpProblem(
       422,
-      "period_too_long",
-      `Choose a period of ${MAX_PERIOD_DAYS} days or fewer.`,
+      "period_not_months",
+      "Choose whole months: from the first day of a month to the last day of a month.",
     );
+  }
+  if (daysBetween(to, today) <= 0) {
+    throw new HttpProblem(422, "period_not_ended", "Choose months that have ended.");
+  }
+  if (monthsSpanned(from, to) > MAX_PERIOD_MONTHS) {
+    throw new HttpProblem(422, "period_too_long", `Choose ${MAX_PERIOD_MONTHS} months or fewer.`);
   }
 }
 
@@ -79,6 +111,8 @@ export async function indicatorCounts(
   targetDays: number,
 ): Promise<IndicatorCounts> {
   try {
+    // Bounded: a view that cannot be counted quickly fails rather than holding the connection.
+    await tx.execute(sql`SET LOCAL statement_timeout = '10s'`);
     const result = await tx.execute<{ c: IndicatorCounts }>(
       sql`SELECT app.quality_indicator_counts(${locationId}::uuid, ${from}::date, ${to}::date, ${targetDays}::integer) AS c`,
     );
@@ -129,8 +163,12 @@ function figuresFor(
   counts: IndicatorCounts,
   period: { readonly from: string; readonly to: string },
 ): Figures | null {
+  // Over, wholly after the location started recording in Harbour, and no downtime still to be
+  // reconciled (rule 38; the function gives the start and the outages).
   const complete =
-    daysBetween(counts.since, period.from) >= 0 && daysBetween(period.to, counts.today) > 0;
+    daysBetween(counts.since, period.from) >= 0 &&
+    daysBetween(period.to, counts.today) > 0 &&
+    counts.openOutages === 0;
   const coverage = complete ? 1 : 0;
   const over = (numerator: number, denominator: number): Figures => ({
     input: { numerator, denominator, coverage },
@@ -198,6 +236,9 @@ export function dashboardOut(
         ? {
             green: chosen.green,
             amber: chosen.amber,
+            // Shown beside a location's own target, so an override is never read alone.
+            organisationDefault:
+              own && organisation ? { green: organisation.green, amber: organisation.amber } : null,
             level: own ? ("location" as const) : ("organisation" as const),
           }
         : null,
@@ -205,12 +246,14 @@ export function dashboardOut(
   });
 }
 
-/** Rule 43: the last 12 months to yesterday, so the figures describe whole UK days. */
+/** Rule 43: the last 12 whole calendar months, so the figures do not move day by day. */
 export function pirPeriod(today: string): { from: string; to: string } {
-  const to = addDays(today, -1);
-  const [year, month, day] = to.split("-").map(Number) as [number, number, number];
-  const yearBefore = new Date(Date.UTC(year - 1, month - 1, day)).toISOString().slice(0, 10);
-  return { from: addDays(yearBefore, 1), to };
+  const to = addDays(`${today.slice(0, 7)}-01`, -1);
+  const year = Number(to.slice(0, 4));
+  const month = Number(to.slice(5, 7));
+  const fromMonth = month === 12 ? 1 : month + 1;
+  const fromYear = month === 12 ? year : year - 1;
+  return { from: `${fromYear}-${String(fromMonth).padStart(2, "0")}-01`, to };
 }
 
 export function pirOut(
@@ -219,7 +262,7 @@ export function pirOut(
   minGroupSize: number,
 ) {
   // A count from a year Harbour was not in use for in full is not the year's count (rule 38).
-  const whole = daysBetween(counts.since, period.from) >= 0;
+  const whole = daysBetween(counts.since, period.from) >= 0 && counts.openOutages === 0;
   const count = (value: number): PirValue | null =>
     whole ? { value, asOf: period.to, records: value } : null;
   const values: Record<string, PirValue | null> = {
@@ -229,6 +272,9 @@ export function pirOut(
     digital_care_records:
       counts.careNotes > 0 ? { value: true, asOf: period.to, records: counts.careNotes } : null,
   };
+  // A small number of records behind a yes is withheld too (rule 40; security review L1).
+  const records = (value: PirValue | null) =>
+    value && value.records >= 1 && value.records < minGroupSize ? null : (value?.records ?? null);
   return {
     questionSet: { ...PIR_QUESTION_SET },
     period,
@@ -242,7 +288,7 @@ export function pirOut(
       status: item.status,
       value: item.value?.value ?? null,
       asOf: item.value?.asOf ?? null,
-      records: item.value?.records ?? null,
+      records: records(item.value),
       reasonCode: item.reasonCode,
       reason: item.reason,
     })),

@@ -307,6 +307,10 @@ export const bodyMapMark = pgTable(
     }),
     index("body_map_mark_person_idx").on(t.tenantId, t.personId, t.occurredAt),
     index("body_map_mark_incident_idx").on(t.tenantId, t.incidentId),
+    // Corrections of a mark, for the quality dashboard's count (migration 0108).
+    index("body_map_mark_supersedes_idx")
+      .on(t.tenantId, t.supersedesId)
+      .where(sql`supersedes_id IS NOT NULL`),
     check(
       "body_map_mark_drawing",
       sql`(drawn_x IS NULL) = (drawn_y IS NULL)

@@ -3018,7 +3018,7 @@ person receiving care.
 
 **Description**: a Registered Manager, quality lead or provider reads a quality indicator or PIR figure as better than care really is, and so does not act on a rising number of falls, pressure ulcers, medication errors or overdue reviews.
 
-**Causes**: missing data shown as zero or as green; a period that has not finished, or that starts before the location used Harbour, counted as if whole; a wrong or missing denominator (no bed-days recorded); a source Harbour does not record yet shown as a figure; incidents left out because the reader cannot see every person involved; a pressure ulcer corrected to another kind of mark still counted, or a healed one counted twice; a target set the wrong way round; the PIR prefilled with a partial year; a small count withheld for privacy read as zero.
+**Causes**: missing data shown as zero or as green; a period that has not finished, that starts before the location started recording in Harbour (an onboarding gap), or that has a downtime whose paper records are not yet back-entered, counted as if whole; a wrong or missing denominator (no bed-days recorded; bed-days inflated by hospital stays or a room not yet cleared after a death); a source Harbour does not record yet shown as a figure; incidents left out because the reader cannot see every person involved; a pressure ulcer corrected to another kind of mark still counted, a mark corrected into a pressure ulcer missed, or a healed one counted twice; a care plan lost when its person moves, or a person with no plan review date not counted; a review measured by any status change, including the raiser's own or one bounced back to open; a target set the wrong way round, above 100%, or set loosely by the home it rates; the PIR prefilled with a partial year; a small count withheld for privacy read as zero or as good; entries held for review left out without a flag.
 
 **Effects**: harm not acted on (repeated falls, pressure damage, medication errors); a provider information return that understates risk; a false sense of compliance (Regulation 17).
 
@@ -3029,12 +3029,12 @@ person receiving care.
 | Type | Control | When |
 | --- | --- | --- |
 | Design | Missing data is never shown as good: a source not built, no value, no denominator, incomplete coverage, no target and an unknown indicator each give "No data" with the reason, never green and never a value of 0 that was not recorded (rule 22) | Built in Phase 2 slice 8 (domain) |
-| Design | A period counts only when it is over and wholly after the location started using Harbour; overdue reviews are as at today; the PIR prefill counts a year only when the location used Harbour for all of it (rules 38 and 43) | Built in Phase 2 slice 47 (API) |
+| Design | A period counts only when it is over, wholly after the location started recording in Harbour (its creation or first care note, whichever is later) and free of unreconciled downtime, and then shows no working; overdue reviews are as at today; the PIR counts 12 whole months only when the location recorded for all of them (rules 38 and 43) | Built in Phase 2 slice 47 (API, migration 0108) |
 | Design | Every figure shows its numerator, denominator, period, source and method (rule 39) | Built in Phase 2 slice 47 (API); shown on screen in slice 65 |
-| Design | A small count is withheld as "A small number: not shown", never as 0, and never rated (rule 40) | Built in Phase 2 slice 47 |
+| Design | A small count is withheld as "A small number: not shown", never as 0, but keeps its status against the target, so a red or amber is never hidden (rule 40; H-981) | Built in Phase 2 slice 47 |
 | Design | Counts are complete for the location: one database function counts every record there whoever it involves, after checking the reader's permission at the location (rule 42, ADR-0108) | Built in Phase 2 slice 47 (migration 0108) |
-| Design | Pressure ulcers count each new mark once, leaving out marks later corrected to another kind; incidents count by the UK day they occurred | Built in Phase 2 slice 47 (migration 0108) |
-| Design | Targets are the organisation's own, in the indicator's direction (checked by the API and the database); with no target, a value is shown unrated (rule 41) | Built in Phase 2 slice 47 |
+| Design | Pressure ulcers count each new mark once by its latest version (corrections either way); incidents count by the UK day they occurred, across the clock change; bed-days leave out hospital stays and days after a death; overdue reviews follow the person's current location and count a person with no care plan review date; incidents count as reviewed only when moved on by someone other than the raiser within the target days of the day they occurred and not back to open | Built in Phase 2 slice 47 (migration 0108) |
+| Design | Targets are the organisation's own, in the indicator's direction and percentages 0 to 100 (checked by the API and the database); a location's own target is no looser than the organisation default unless set organisation-wide, and the default is shown beside it; with no target, a value is shown unrated (rule 41) | Built in Phase 2 slice 47 |
 | Training and user documentation | The screens say what each figure includes, and that a withheld or "No data" figure means "look at the records", not "nothing happened" | Slice 65 |
 
 **Target residual risk**: `[CSO rating - human action]`.
@@ -3045,8 +3045,8 @@ person receiving care.
 | --- | --- |
 | `packages/domain/src/quality/quality-indicators.test.ts`: `rule 22 missing data is never shown as good` and `hazard HZ-129 ...` (not built, unfinished period, no bed-days, small numbers) | Passing (Phase 2 slices 8 and 47) |
 | `packages/domain/src/quality/quality-pir.test.ts`: `hazard HZ-129 rule 43 ...` (not built, no value, small number, zero shown) | Passing (Phase 2 slice 47) |
-| `packages/db/test/quality-indicators.test.ts`: `hazard HZ-129 ...` (UK days, every incident at the location whoever the reader may see, corrected and healed marks, bed-days, overdue reviews, incident response, numbers only, refusals) | Passing (Phase 2 slice 47) |
-| `apps/api/test/quality-dashboard.test.ts`: `hazard HZ-129 ...` (not built and incomplete never rated, a period before the location used Harbour, small numbers withheld, the PIR's partial year) | Passing (Phase 2 slice 47) |
+| `packages/db/test/quality-indicators.test.ts`: `hazard HZ-129 ...` (UK days and the clock change, every incident at the location whoever the reader may see, marks corrected either way and healed, bed-days less hospital stays and after a death, plans following the person, people with no review date, review by someone other than the raiser and not reopened, care notes, unreconciled downtime, whole months only, numbers only, refusals and acting-up grants) | Passing (Phase 2 slice 47) |
+| `apps/api/test/quality-dashboard.test.ts`: `hazard HZ-129 ...` (not built and incomplete never rated, a period before the location recorded in Harbour, whole months that have ended, small numbers withheld with their status kept, targets no looser than the organisation's and percentages to 100, the PIR's partial year and small record counts) | Passing (Phase 2 slice 47) |
 | Screens (working shown, "No data" in words) | Planned, slice 65 |
 
 ---

@@ -36,13 +36,45 @@ Branch `feat/quality-dashboard-pir` (Phase 2 slice 47: QUAL-005, QUAL-006), cut 
 - HZ-129 added to the hazard log. quality.md section 22 covers rules 38 to 44, the permission
   matrix and tests. The medical-device boundary and records of processing are updated.
 
+## Review fixes
+
+The security and clinical-safety reviews (before push) found no critical issues. The fixes:
+
+- **Periods (security M1).** A view is whole calendar months that have ended, at most twelve,
+  checked by the API and the function, so two views cannot be subtracted to single out a day.
+  The PIR uses the last 12 whole months.
+- **Small numbers.** An incomplete period shows no working. A small remainder is withheld as
+  well as a small count. A small count keeps its red, amber or green status (clinical finding
+  1, H-981). The PIR withholds a small number of records behind a yes.
+- **Coverage.** A location counts from the later of its creation and its first care note. A
+  downtime not yet reconciled makes the period incomplete. Each view says when it was counted.
+- **Counting.**
+  - Care plans follow the person's current location, and a person with no care plan review date
+    counts as overdue.
+  - Pressure ulcers count by each mark's latest version, so a mark corrected into a pressure
+    ulcer is counted.
+  - Bed-days leave out hospital stays and the days after a death.
+  - An incident counts as reviewed only when someone other than its raiser moves it on, in time
+    from the day it occurred, and it has not gone back to open.
+- **Targets.** Percentages are 0 to 100. A location's own target is no looser than the
+  organisation default unless set organisation-wide, and the default is shown beside it. An
+  unknown location gives a 422.
+- **Hardening.**
+  - A 10-second statement timeout.
+  - Bounded incident scans, and a cycle guard on mark chains.
+  - Indexes on mark corrections and incident workflows.
+  - Column-level grants on the role tables.
+- **Tests.** The clock change, acting-up grants, a role scoped to assigned people, and execute
+  rights for every login role.
+
 ## Found, not fixed here
 
 - Plan slice 47 says "from events the source slices publish". No such events exist yet, so the
   counts are read where the records are, through one definer function (ADR-0108). It is the
   first function of its kind that reads several modules' tables.
-- Bed-days include days away in hospital, and pressure ulcers present on admission cannot yet be
-  told apart (H-983).
+- Pressure ulcers present on admission cannot yet be told apart (H-983).
+- No per-member rate limit on the dashboard yet; the statement timeout bounds each view (H-989).
+- Entries held for review (late or back-entered) do not yet make a period incomplete (H-984).
 
 ## Human actions logged
 
@@ -51,10 +83,10 @@ Branch `feat/quality-dashboard-pir` (Phase 2 slice 47: QUAL-005, QUAL-006), cut 
 ## Tests
 
 - Domain: quality indicators and PIR, table-driven (`hazard HZ-129 ...`).
-- `packages/db/test/quality-indicators.test.ts` (17): targets by permission and location,
+- `packages/db/test/quality-indicators.test.ts` (23): targets by permission and location,
   direction, one live target, no delete; counts by UK day, every incident at the location
   whatever the reader may see, corrected and healed marks, bed-days, reviews, incident response,
   numbers only, refusals, execute rights.
-- `apps/api/test/quality-dashboard.test.ts` (16): permissions, period checks, not built and
+- `apps/api/test/quality-dashboard.test.ts` (18): permissions, period checks, not built and
   incomplete never rated, small numbers withheld, targets with the location's own winning, audit,
   and the PIR prefill.

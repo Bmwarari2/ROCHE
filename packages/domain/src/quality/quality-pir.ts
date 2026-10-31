@@ -61,14 +61,15 @@ export const PIR_DATA_POINTS: readonly PirDataPoint[] = [
     area: "safe",
     label: "Incidents in the last 12 months",
     unit: "count",
-    source: "safety (slice 7)",
+    source: "Incidents recorded at the location (safety)",
   },
   {
     key: "medication_errors",
     area: "safe",
-    label: "Medication errors in the last 12 months",
+    label: "Medication incidents in the last 12 months",
     unit: "count",
-    source: "medicines (slice 45)",
+    source:
+      "Incidents recorded as a medication incident (safety); near misses recorded as such are not included",
   },
   {
     key: "complaints",
@@ -89,7 +90,7 @@ export const PIR_DATA_POINTS: readonly PirDataPoint[] = [
     area: "well-led",
     label: "Care records kept digitally",
     unit: "yes_no",
-    source: "platform",
+    source: "Care notes recorded at the location",
   },
 ];
 

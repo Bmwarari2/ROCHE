@@ -18,6 +18,8 @@ const ROLE_QUALITY = "0199f000-0000-7000-8000-000000000c01";
 const ROLE_HOME = "0199f000-0000-7000-8000-000000000c02";
 const ROOM_NORTH = "0199f000-0000-7000-8000-000000000c11";
 const ROOM_SOUTH = "0199f000-0000-7000-8000-000000000c12";
+const ROOM_NORTH_2 = "0199f000-0000-7000-8000-000000000c13";
+const PERSON_DEE = "0199f000-0000-7000-8000-000000000c21";
 const app = () => db.pool("harbour_app");
 const as =
   (userId: string | null, tenant = TENANT_A, scope: "tenant" | "locations" = "tenant") =>
@@ -48,26 +50,31 @@ async function incident(
   type: string,
   occurredAt: string,
   people: readonly string[] = [],
-  recordedAt = occurredAt,
+  status = "open",
 ): Promise<string> {
   const { rows } = await c.query<{ id: string }>(
-    `INSERT INTO incident (location_id, type, occurred_at, recorded_at, description, raised_by, person_ids)
-     VALUES ($1, $2, $3, $4, 'Fixture incident', $5, $6) RETURNING id`,
-    [location, type, occurredAt, recordedAt, a.manager, people],
+    `INSERT INTO incident (location_id, type, occurred_at, description, raised_by, person_ids, status)
+     VALUES ($1, $2, $3, 'Fixture incident', $4, $5, $6) RETURNING id`,
+    [location, type, occurredAt, a.manager, people, status],
   );
   return rows[0]?.id ?? "";
 }
 
-async function leftOpen(c: pg.PoolClient, incidentId: string, at: string): Promise<void> {
+async function leftOpen(
+  c: pg.PoolClient,
+  incidentId: string,
+  at: string,
+  by: string = a.northManager,
+): Promise<void> {
   const { rows } = await c.query<{ id: string }>(
     `INSERT INTO workflow_instance (definition_key, definition_version, subject_type, subject_id, state)
      VALUES ('safety.incident', 1, 'incident', $1, 'under_review') RETURNING id`,
     [incidentId],
   );
   await c.query(
-    `INSERT INTO workflow_transition (instance_id, from_state, to_state, occurred_at)
-     VALUES ($1, 'open', 'under_review', $2)`,
-    [rows[0]?.id, at],
+    `INSERT INTO workflow_transition (instance_id, from_state, to_state, occurred_at, created_by)
+     VALUES ($1, 'open', 'under_review', $2, $3)`,
+    [rows[0]?.id, at, by],
   );
 }
 
@@ -123,33 +130,92 @@ beforeAll(async () => {
     await incident(c, a.locationNorth, "fall", "2026-08-31T10:00:00Z", [a.personAda]);
     await incident(c, a.locationSouth, "fall", "2026-09-10T10:00:00Z", [a.personCara]);
     await incident(c, a.locationNorth, "fall", "2026-09-30T23:30:00Z", [a.personAda]);
-    // Incident response: reviewed in time, reviewed late, and one never reviewed (its time is up).
-    const inTime = await incident(c, a.locationNorth, "medication", "2026-09-05T09:00:00Z");
+    // Incident response: reviewed in time by someone else, reviewed late, never reviewed, moved on
+    // by its own raiser (not a review), and reviewed in time but back to open since.
+    const inTime = await incident(
+      c,
+      a.locationNorth,
+      "medication",
+      "2026-09-05T09:00:00Z",
+      [],
+      "under_review",
+    );
     await leftOpen(c, inTime, "2026-09-06T09:00:00Z");
-    const late = await incident(c, a.locationNorth, "environmental", "2026-09-05T09:00:00Z");
+    const late = await incident(
+      c,
+      a.locationNorth,
+      "environmental",
+      "2026-09-05T09:00:00Z",
+      [],
+      "under_review",
+    );
     await leftOpen(c, late, "2026-09-15T09:00:00Z");
     await incident(c, a.locationNorth, "environmental", "2026-09-07T09:00:00Z");
+    const own = await incident(
+      c,
+      a.locationNorth,
+      "environmental",
+      "2026-09-08T09:00:00Z",
+      [],
+      "under_review",
+    );
+    await leftOpen(c, own, "2026-09-08T10:00:00Z", a.manager);
+    const reopened = await incident(c, a.locationNorth, "environmental", "2026-09-09T09:00:00Z");
+    await leftOpen(c, reopened, "2026-09-09T10:00:00Z");
+    // The clock change: 01:30 UTC on 29 March is 02:30 BST, the 29th; 23:30 UTC on 31 March is
+    // 1 April in the UK.
+    await incident(c, a.locationNorth, "fall", "2026-03-29T01:30:00Z", [a.personAda]);
+    await incident(c, a.locationNorth, "fall", "2026-03-31T23:30:00Z", [a.personAda]);
 
     // Pressure ulcers: one new and later healed (counts once), one corrected to a bruise (not
-    // counted), one at South.
+    // counted), one first recorded as a bruise and corrected to a pressure ulcer (counted), one at
+    // South.
     const ulcer = await mark(c, a.locationNorth, "2026-09-04T08:00:00Z", "pressure_ulcer");
     await mark(c, a.locationNorth, "2026-09-25T08:00:00Z", "pressure_ulcer", ulcer, "healed");
     const wrong = await mark(c, a.locationNorth, "2026-09-08T08:00:00Z", "pressure_ulcer");
     await mark(c, a.locationNorth, "2026-09-08T09:00:00Z", "bruise", wrong);
+    const bruise = await mark(c, a.locationNorth, "2026-09-12T08:00:00Z", "bruise");
+    await mark(c, a.locationNorth, "2026-09-12T09:00:00Z", "pressure_ulcer", bruise);
     await mark(c, a.locationSouth, "2026-09-09T08:00:00Z", "pressure_ulcer");
 
-    // Bed-days: Ada at North from 11 September (20 days of September), Cara at South all month.
+    // Bed-days at North: Ada from 11 September (20 days) less four nights in hospital (left the
+    // 20th, back the 25th); Dee, who died on 5 September with her room not yet cleared (5 days).
+    // Cara at South all month.
     await c.query(
-      `INSERT INTO room (id, location_id, label, beds) VALUES ($1, $3, 'N1', 1), ($2, $4, 'S1', 1)`,
-      [ROOM_NORTH, ROOM_SOUTH, a.locationNorth, a.locationSouth],
+      `INSERT INTO room (id, location_id, label, beds) VALUES
+         ($1, $3, 'N1', 1), ($2, $4, 'S1', 1), ($5, $3, 'N2', 1)`,
+      [ROOM_NORTH, ROOM_SOUTH, a.locationNorth, a.locationSouth, ROOM_NORTH_2],
+    );
+    await c.query(
+      `INSERT INTO person (id, location_id, status, nhs_number, given_name, family_name, deceased_at)
+       VALUES ($1, $2, 'deceased', '9990000042', 'Dee', 'Example', '2026-09-05T15:00:00Z')`,
+      [PERSON_DEE, a.locationNorth],
     );
     await c.query(
       `INSERT INTO bed_occupancy (person_id, room_id, bed, from_date, reason) VALUES
-         ($1, $3, 1, '2026-09-11', 'Admission'), ($2, $4, 1, '2026-08-01', 'Admission')`,
-      [a.personAda, a.personCara, ROOM_NORTH, ROOM_SOUTH],
+         ($1, $3, 1, '2026-09-11', 'Admission'), ($2, $4, 1, '2026-08-01', 'Admission'),
+         ($5, $6, 1, '2026-08-01', 'Admission')`,
+      [a.personAda, a.personCara, ROOM_NORTH, ROOM_SOUTH, PERSON_DEE, ROOM_NORTH_2],
+    );
+    await c.query(
+      `INSERT INTO hospital_transfer (person_id, location_id, left_at, hospital_name, pack, returned_at)
+       VALUES ($1, $2, '2026-09-20T10:00:00Z', 'Example General Hospital', '{}', '2026-09-25T10:00:00Z')`,
+      [a.personAda, a.locationNorth],
+    );
+    // A care note at North in September, and a downtime at South not yet reconciled.
+    await c.query(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, category, body)
+       VALUES ($1, $2, '2026-09-15T10:00:00Z', 'personal_care', 'Assisted with a wash.')`,
+      [a.personAda, a.locationNorth],
+    );
+    await c.query(
+      `INSERT INTO outage (location_id, kind, description, started_at, ended_at, declared_by)
+       VALUES ($1, 'power', 'Power cut, whole building', '2026-09-10T08:00:00Z', '2026-09-10T12:00:00Z', $2)`,
+      [a.locationSouth, a.manager],
     );
 
-    // Reviews at North today: a care plan overdue and a risk assessment not yet due.
+    // Reviews at North today: Ada's care plan overdue, Ben's risk assessment not yet due (and Ben
+    // has no care plan review date). Cara moved to South with an overdue plan written at North.
     await c.query(
       `INSERT INTO care_plan (person_id, location_id, status, published_version, review_due_on)
        VALUES ($1, $2, 'active', 1, (now() AT TIME ZONE 'Europe/London')::date - 3)`,
@@ -162,6 +228,11 @@ beforeAll(async () => {
          3, 4, 12, 'high', '{"Hoist"}', '2026-09-11',
          (now() AT TIME ZONE 'Europe/London')::date + 30)`,
       [a.personBen],
+    );
+    await c.query(
+      `INSERT INTO care_plan (person_id, location_id, status, published_version, review_due_on)
+       VALUES ($1, $2, 'active', 1, (now() AT TIME ZONE 'Europe/London')::date - 10)`,
+      [a.personCara, a.locationNorth],
     );
   });
 }, 120_000);
@@ -265,15 +336,32 @@ describe("hazard HZ-129 the quality dashboard's counts (migration 0108)", () => 
     expect(result).toMatchObject({
       falls: 2,
       medicationErrors: 1,
-      incidents: 5,
-      pressureUlcers: 1,
-      bedDays: 20,
-      reviewsDue: 2,
-      reviewsOverdue: 1,
-      // The two falls count too: recorded in September, never reviewed, their time is up.
-      incidentsDecided: 5,
+      incidents: 7,
+      pressureUlcers: 2,
+      bedDays: 21,
+      // Ada's plan (overdue), Ben's risk assessment (not yet due), Ben with no plan review date
+      // (counted as overdue). Cara's plan follows her to South.
+      reviewsDue: 3,
+      reviewsOverdue: 2,
+      peopleWithoutReviewDate: 1,
+      // All seven are decided (each one's time is up); only the first was reviewed in time by
+      // someone other than its raiser and has not gone back to open.
+      incidentsDecided: 7,
       incidentsReviewedInTime: 1,
+      careNotes: 1,
+      openOutages: 0,
     });
+  });
+
+  it("counts by the UK day across the clock change", async () => {
+    const march = await north(asQualityLead, "2026-03-01", "2026-03-31");
+    expect(march.falls).toBe(1);
+  });
+
+  it("counts a care plan where its person lives now, and a downtime still to reconcile", async () => {
+    const south = (await asQualityLead((c) => c.query<{ c: Counts }>(counts(a.locationSouth))))
+      .rows[0]?.c;
+    expect(south).toMatchObject({ reviewsDue: 1, reviewsOverdue: 1, openOutages: 1 });
   });
 
   it("counts every incident at the location, whoever the home manager may see", async () => {
@@ -316,7 +404,10 @@ describe("hazard HZ-129 the quality dashboard's counts (migration 0108)", () => 
 
   it.each<[string, string, string, number]>([
     ["a period that ends before it starts", "2026-09-30", "2026-09-01", 2],
-    ["a period longer than 366 days", "2025-01-01", "2026-09-30", 2],
+    ["a period that is not whole months", "2026-09-02", "2026-09-30", 2],
+    ["a period that ends mid-month", "2026-09-01", "2026-09-29", 2],
+    ["a month that has not ended", "2026-10-01", "2026-10-31", 2],
+    ["more than twelve months", "2025-09-01", "2026-09-30", 2],
     ["a negative target", "2026-09-01", "2026-09-30", -1],
   ])("refuses %s", async (_name, from, to, days) => {
     await expect(
@@ -324,13 +415,52 @@ describe("hazard HZ-129 the quality dashboard's counts (migration 0108)", () => 
     ).rejects.toThrow(/quality_counts_invalid/);
   });
 
-  it("is not executable by the owner role or by PUBLIC", async () => {
+  it("is executable by the API's role only", async () => {
+    const roles = [
+      "harbour_app",
+      "harbour_owner",
+      "harbour_auth",
+      "harbour_worker",
+      "harbour_sync",
+      "harbour_operator",
+    ];
     const { rows } = await ownerDb((c) =>
-      c.query<{ app: boolean; owner: boolean }>(
-        `SELECT has_function_privilege('harbour_app', 'app.quality_indicator_counts(uuid, date, date, integer)', 'EXECUTE') AS app,
-                has_function_privilege('harbour_auth', 'app.quality_indicator_counts(uuid, date, date, integer)', 'EXECUTE') AS owner`,
+      c.query<{ role: string; may: boolean }>(
+        `SELECT r AS role, has_function_privilege(r, 'app.quality_indicator_counts(uuid, date, date, integer)', 'EXECUTE') AS may
+           FROM unnest($1::text[]) AS r`,
+        [roles],
       ),
     );
-    expect(rows[0]).toEqual({ app: true, owner: false });
+    expect(rows.filter((r) => r.may).map((r) => r.role)).toEqual(["harbour_app"]);
+  });
+
+  it("refuses a role scoped to assigned people, and follows acting-up grants while they last", async () => {
+    await ownerDb(async (c) => {
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
+           ('0199f000-0000-7000-8000-000000000c03', 'assigned_quality', 'Assigned quality', 'assigned', '{quality.audit.manage}')`,
+      );
+      await c.query(
+        "INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, '0199f000-0000-7000-8000-000000000c03')",
+        [a.carer],
+      );
+    });
+    await expect(asCarer((c) => c.query(counts(a.locationNorth)))).rejects.toThrow(
+      /quality_counts_refused/,
+    );
+    await ownerDb((c) =>
+      c.query(
+        `INSERT INTO access_grant (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+         VALUES ($1, '{quality.audit.manage}', $2, now() - interval '1 hour', now() + interval '1 hour', 'Covering the home manager', $3)`,
+        [a.carer, a.locationNorth, a.manager],
+      ),
+    );
+    expect((await asCarer((c) => c.query(counts(a.locationNorth)))).rowCount).toBe(1);
+    await ownerDb((c) =>
+      c.query("UPDATE access_grant SET revoked_at = now() WHERE tenant_user_id = $1", [a.carer]),
+    );
+    await expect(asCarer((c) => c.query(counts(a.locationNorth)))).rejects.toThrow(
+      /quality_counts_refused/,
+    );
   });
 });

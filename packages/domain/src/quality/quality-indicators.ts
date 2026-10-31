@@ -115,8 +115,8 @@ export function phase2Indicators(
     percent(
       "overdue_reviews",
       "Overdue reviews",
-      "care plan and risk reviews overdue",
-      "reviews due",
+      "care plan and risk reviews overdue, and people with no care plan review date",
+      "reviews due, and people with no care plan review date",
       "lower_is_better",
     ),
     percent(
@@ -183,7 +183,8 @@ export const NO_DATA_REASONS: Readonly<Record<NoDataReason, string>> = {
   incomplete_data: "Data incomplete for this period.",
   no_target: "No target has been set, so it is not rated.",
   source_not_built: "Harbour does not record this yet.",
-  small_number: "A small number: not shown, so no one can be identified.",
+  small_number:
+    "A small number: not shown, so no one can be identified. Its status against your target is still shown.",
 };
 
 export interface IndicatorResult {
@@ -300,8 +301,11 @@ export function isSmallNumber(count: number | null, minGroupSize: number): boole
 
 /**
  * Rules 38 to 41: one indicator for the dashboard. A source not built yet, missing or incomplete
- * data and a small number are each `no_data` with their reason (never green, HZ-129); a small
- * count is withheld with its value; otherwise the result of rules 17 to 22 with its working.
+ * data each give `no_data` with their reason (never green, HZ-129), and an incomplete period shows
+ * no working (its counts would be a running tally). A small count (rule 40), or for a count of
+ * records about people a small denominator or a small remainder, is withheld with its value, but
+ * its status against the target is still shown, so a rising signal is never hidden (slice 47
+ * clinical review); with no target it stays unrated.
  */
 export function dashboardIndicator(
   definition: IndicatorDefinition,
@@ -310,29 +314,44 @@ export function dashboardIndicator(
   options: { readonly minGroupSize: number; readonly built: boolean },
 ): DashboardIndicator {
   const method = indicatorMethod(definition);
-  const withheld = (
-    reason: NoDataReason,
-    numerator: number | null,
-    denominator: number | null,
-  ) => ({
-    key: definition.key,
-    value: null,
-    display: null,
-    status: "no_data" as const,
-    reason: NO_DATA_REASONS[reason],
-    reasonCode: reason,
-    method,
-    numerator,
-    denominator,
-  });
-  if (!options.built) return withheld("source_not_built", null, null);
-  const smallNumerator = isSmallNumber(input.numerator, options.minGroupSize);
-  const smallDenominator =
-    definition.smallNumbers === "both" && isSmallNumber(input.denominator, options.minGroupSize);
-  if (smallNumerator || smallDenominator) {
-    return withheld("small_number", null, smallDenominator ? null : input.denominator);
+  if (!options.built) {
+    return {
+      key: definition.key,
+      value: null,
+      display: null,
+      status: "no_data",
+      reason: NO_DATA_REASONS.source_not_built,
+      reasonCode: "source_not_built",
+      method,
+      numerator: null,
+      denominator: null,
+    };
   }
   const result = indicatorResult(definition, input, target);
+  if (result.reasonCode === "incomplete_data") {
+    return { ...result, numerator: null, denominator: null };
+  }
+  const small = (n: number | null) => isSmallNumber(n, options.minGroupSize);
+  const aboutPeople = definition.smallNumbers === "both";
+  const remainder =
+    input.numerator !== null && input.denominator !== null
+      ? input.denominator - input.numerator
+      : null;
+  const smallDenominator = aboutPeople && (small(input.denominator) || small(remainder));
+  if (small(input.numerator) || smallDenominator) {
+    const rated = result.status !== "no_data";
+    return {
+      key: definition.key,
+      value: null,
+      display: null,
+      status: rated ? result.status : "no_data",
+      reason: NO_DATA_REASONS.small_number,
+      reasonCode: "small_number",
+      method,
+      numerator: null,
+      denominator: smallDenominator ? null : input.denominator,
+    };
+  }
   return { ...result, numerator: input.numerator, denominator: input.denominator };
 }
 
