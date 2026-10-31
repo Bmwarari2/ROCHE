@@ -18314,6 +18314,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -18326,7 +18329,8 @@
           "revocationReason",
           "failedCodeAttempts",
           "locked",
-          "lastOpenedAt"
+          "lastOpenedAt",
+          "version"
         ]
       },
       "ComposeEvidencePack": {

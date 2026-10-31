@@ -17,6 +17,7 @@ import {
   CloudOff,
   FileLock,
   FileText,
+  FolderLock,
   House,
   ListChecks,
   ListTodo,
@@ -24,6 +25,7 @@ import {
   LogOut,
   Mail,
   Newspaper,
+  ScrollText,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -68,6 +70,10 @@ export interface ShellFrameLabels {
   readonly search?: string | undefined;
   /** Shown only to people who write, approve or send from letter templates. */
   readonly letters?: string | undefined;
+  /** Shown only to holders of quality.evidence_pack.compose or .release (QUAL-003). */
+  readonly evidencePacks?: string | undefined;
+  /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
+  readonly statementOfPurpose?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
@@ -263,6 +269,26 @@ export function ShellFrame({
       : []),
     ...(labels.letters
       ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
+      : []),
+    ...(labels.evidencePacks
+      ? [
+          {
+            id: "evidence-packs",
+            label: labels.evidencePacks,
+            href: "/quality/evidence-packs",
+            icon: <FolderLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.statementOfPurpose
+      ? [
+          {
+            id: "statement-of-purpose",
+            label: labels.statementOfPurpose,
+            href: "/quality/statement-of-purpose",
+            icon: <ScrollText {...icon} />,
+          },
+        ]
       : []),
     ...(labels.team
       ? [

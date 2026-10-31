@@ -640,6 +640,7 @@ export async function packDetail(tx: Transaction, row: EvidencePackRow) {
       failedCodeAttempts: k.failedCodeAttempts,
       locked: k.failedCodeAttempts >= EVIDENCE_LINK_MAX_CODE_ATTEMPTS,
       lastOpenedAt: iso(k.lastOpenedAt),
+      version: k.version,
     })),
     bundleDeleted: bundle.exists && bundle.content === null,
   };

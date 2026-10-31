@@ -7,6 +7,7 @@ import { getShellContext, tenantApi } from "@/lib/api";
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
+import { evidencePacksShown } from "@/lib/evidence-packs";
 import { exportShown } from "@/lib/exports";
 import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
 import { handoverShown } from "@/lib/handover";
@@ -17,6 +18,7 @@ import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { retentionShown } from "@/lib/retention";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
+import { statementShown } from "@/lib/statement-of-purpose";
 import { teamShown } from "@/lib/team";
 
 /** "CQC location 1-000000001", for the location switcher. */
@@ -70,6 +72,12 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         tasks: isFamilyMember(me) ? undefined : t("shell.nav.tasks"),
         documents: isFamilyMember(me) ? undefined : t("shell.nav.documents"),
         letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        evidencePacks: evidencePacksShown(me.permissions)
+          ? t("shell.nav.evidencePacks")
+          : undefined,
+        statementOfPurpose: statementShown(me.permissions)
+          ? t("shell.nav.statementOfPurpose")
+          : undefined,
         team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
         retention: retentionShown(me.permissions) ? t("shell.nav.retention") : undefined,
         dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
