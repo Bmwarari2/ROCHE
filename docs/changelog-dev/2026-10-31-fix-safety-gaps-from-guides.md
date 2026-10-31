@@ -32,4 +32,4 @@ that branch. No migration.
 
 ## Decisions logged
 
-H-1152 (updated), H-1158 (reopened), H-1160 to H-1165 in `docs/plans/human-actions.md`.
+H-1152 (updated), H-1158 (reopened), H-1210 to H-1215 in `docs/plans/human-actions.md`.
