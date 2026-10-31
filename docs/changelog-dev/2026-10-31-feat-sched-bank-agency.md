@@ -99,3 +99,13 @@ testing (`docs/plans/recommended-answers.md`). Three of them change this slice:
 - **Docs:** spec section 15, the hazard log (HZ-006, HZ-073), records of processing, data
   standards, retention and the export catalogue. The three human-action rows are marked as applied.
 
+
+## Merged origin/main (batch 2)
+
+`origin/main` (migrations 0000 to 0103) is merged in. Main's journal entries win for 0000 to 0103,
+and 0104 follows them. The 0104 snapshot is the merged schema's full state. Main's own 0103 snapshot
+lags its schema (`employee_case`, `sso_provider`), and several of its snapshots share a parent, so
+`drizzle-kit generate` fails on main itself. 0104 was checked against the schema in isolation.
+
+The `agency_window` policies now say outright that a read with no member (the organisation's own
+read, as the DSAR collector uses) is not limited. Their effect is unchanged.

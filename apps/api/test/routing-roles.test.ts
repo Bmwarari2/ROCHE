@@ -74,7 +74,8 @@ describe("hazard HZ-073 routed safety work reaches someone who can see it and ac
   it("finds the services' role-routed tasks", () => {
     expect(sites.length).toBeGreaterThanOrEqual(12);
     expect(new Set(sites.map((s) => s.roleKey))).toEqual(
-      new Set(["clinical_lead", REGISTERED_MANAGER]),
+      // The owner receives the organisation's data security renewals (quality.md rule 36).
+      new Set(["clinical_lead", REGISTERED_MANAGER, "owner"]),
     );
   });
 

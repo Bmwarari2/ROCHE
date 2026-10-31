@@ -87,7 +87,10 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
     [
       "not checked yet",
       null,
-      ["Notifications not checked yet", "Ask a nurse or the Registered Manager to check it."],
+      [
+        "Notifications not checked yet",
+        "and tell the Registered Manager, who submits notifications.",
+      ],
     ],
     [
       "outside England",
@@ -105,7 +108,7 @@ describe("the statutory notifications on an incident, every state (HZ-013)", () 
       }),
       [
         "1 question to answer before Harbour can say which notifications are needed",
-        "The questions are not on this page yet.",
+        "The questions are not shown to you here.",
         "May be needed once they are answered: Incident reported to or investigated by the police",
       ],
     ],

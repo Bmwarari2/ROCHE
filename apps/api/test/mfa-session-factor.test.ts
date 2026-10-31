@@ -1,8 +1,16 @@
 import { createHmac } from "node:crypto";
 import type { ProblemDetails } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { factorIdentifier } from "../src/auth/session-factor";
+import {
+  clearUserCodeAttempts,
+  factorIdentifier,
+  reserveUserCodeAttempt,
+  USER_CODE_ATTEMPTS_PER_HOUR,
+  USER_CODE_FREE_ATTEMPTS,
+  userCodeWait,
+} from "../src/auth/session-factor";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { createHarness, type Harness, PASSWORD } from "./support/harness";
 
@@ -17,6 +25,7 @@ let h: Harness;
 const resident = (n: number) => `0194d000-0000-7000-8600-${n.toString(16).padStart(12, "0")}`;
 const notes = `/v1/people/${resident(1)}/notes`;
 const auth = () => h.db.pool("harbour_auth");
+const nurseId = () => h.authIds.nurse ?? "";
 
 beforeAll(async () => {
   h = await createHarness();
@@ -264,6 +273,8 @@ describe("an authenticator app holder", () => {
   });
 
   it("hazard HZ-112 checks at most five codes from twenty sent at once on one session", async () => {
+    // The wrong codes above count for the member too; start this sign-in with none.
+    await clearUserCodeAttempts(auth(), nurseId());
     const signIn = await passwordSignIn();
     const cookie = signIn.headers
       .getSetCookie()
@@ -292,5 +303,176 @@ describe("an authenticator app holder", () => {
     expect(
       (await authCall(token, "/api/auth/two-factor/verify-totp", { code: right })).status,
     ).toBe(429);
+  });
+
+  /** A new session for the nurse: password, then the authenticator code. */
+  async function newSession(): Promise<string> {
+    const signIn = await passwordSignIn();
+    const cookie = signIn.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const verify = await h.request("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      origin: MOBILE_APP_ORIGIN,
+      headers: { cookie },
+      body: { code: totpFrom(totpUri) },
+    });
+    return verify.headers.get("set-auth-token") ?? "";
+  }
+
+  it("hazard HZ-112 throttles wrong codes for the member across many sessions (#33 re-check 2, M1)", async () => {
+    await clearUserCodeAttempts(auth(), nurseId());
+    const sessions: string[] = [];
+    for (let i = 0; i < 4; i++) sessions.push(await newSession());
+    expect(sessions.every((t) => t !== "")).toBe(true);
+    const right = totpFrom(totpUri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    const statuses: number[] = [];
+    let retryAfter: string | null = null;
+    // Two guesses on each of four sessions: each session stays well under its own five.
+    for (let round = 0; round < 2; round++) {
+      for (const token of sessions) {
+        const r = await authCall(token, "/api/auth/two-factor/verify-totp", { code: wrong });
+        statuses.push(r.status);
+        if (r.status === 429) retryAfter ??= r.headers.get("retry-after");
+      }
+    }
+    expect(statuses.slice(0, USER_CODE_FREE_ATTEMPTS)).toEqual(
+      Array(USER_CODE_FREE_ATTEMPTS).fill(401),
+    );
+    expect(statuses.filter((s) => s === 401).length).toBeLessThanOrEqual(
+      USER_CODE_FREE_ATTEMPTS + 1,
+    );
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(2);
+    expect(Number(retryAfter)).toBeGreaterThanOrEqual(1);
+    // A fresh sign-in inherits the member's wait: its own code step is refused too.
+    const signIn = await passwordSignIn();
+    const cookie = signIn.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const step = await h.request("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      origin: MOBILE_APP_ORIGIN,
+      headers: { cookie },
+      body: { code: totpFrom(totpUri) },
+    });
+    expect(step.status).toBe(429);
+  });
+
+  it("hazard HZ-112 checks no more than the member's free codes from many sent at once across sessions", async () => {
+    await clearUserCodeAttempts(auth(), nurseId());
+    const sessions: string[] = [];
+    for (let i = 0; i < 4; i++) sessions.push(await newSession());
+    const right = totpFrom(totpUri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    const statuses = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        authCall(sessions[i % sessions.length] ?? "", "/api/auth/two-factor/verify-totp", {
+          code: wrong,
+        }).then((r) => r.status),
+      ),
+    );
+    expect(statuses.filter((s) => s === 401).length).toBe(USER_CODE_FREE_ATTEMPTS);
+    expect(statuses.filter((s) => s === 429).length).toBe(10 - USER_CODE_FREE_ATTEMPTS);
+    await clearUserCodeAttempts(auth(), nurseId());
+  });
+
+  it("hazard HZ-112 counts the sign-in's own code step against the member too (#33 re-check 3)", async () => {
+    await clearUserCodeAttempts(auth(), nurseId());
+    const signIn = await passwordSignIn();
+    const cookie = signIn.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const right = totpFrom(totpUri);
+    const wrong = right === "000000" ? "111111" : "000000";
+    const step = (code: string) =>
+      h.request("/api/auth/two-factor/verify-totp", {
+        method: "POST",
+        origin: MOBILE_APP_ORIGIN,
+        headers: { cookie },
+        body: { code },
+      });
+    for (let i = 0; i < USER_CODE_FREE_ATTEMPTS; i++) expect((await step(wrong)).status).toBe(401);
+    const blocked = await step(right);
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
+    // Once the wait is over, a right code signs in and clears the count.
+    await clearUserCodeAttempts(auth(), nurseId());
+    await reserveUserCodeAttempt(auth(), nurseId());
+    const again = await passwordSignIn();
+    const verify = await h.request("/api/auth/two-factor/verify-totp", {
+      method: "POST",
+      origin: MOBILE_APP_ORIGIN,
+      headers: {
+        cookie: again.headers
+          .getSetCookie()
+          .map((c) => c.split(";")[0])
+          .join("; "),
+      },
+      body: { code: totpFrom(totpUri) },
+    });
+    expect(verify.status).toBe(200);
+    const { rows } = await auth().query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
+      [`user-factor-attempt:${nurseId()}`],
+    );
+    expect(rows[0]?.n).toBe(0);
+  });
+
+  it("hazard HZ-112 keeps the member's throttle in Postgres, so another API instance sees it", async () => {
+    const other = new pg.Pool({ connectionString: h.db.url("harbour_auth"), max: 1 });
+    try {
+      await clearUserCodeAttempts(auth(), nurseId());
+      for (let i = 0; i < USER_CODE_FREE_ATTEMPTS; i++) {
+        expect((await reserveUserCodeAttempt(auth(), nurseId())).allowed).toBe(true);
+      }
+      // Taken through one pool, refused through another.
+      const refused = await reserveUserCodeAttempt(other, nurseId());
+      expect(refused.allowed).toBe(false);
+      // The cap in an hour holds whatever the waits: fill it, and even an old wait is refused.
+      await auth().query(
+        `UPDATE auth.verification SET created_at = now() - interval '59 minutes'
+          WHERE identifier = $1`,
+        [`user-factor-attempt:${nurseId()}`],
+      );
+      const { rows } = await auth().query<{ n: number }>(
+        "SELECT count(*)::int AS n FROM auth.verification WHERE identifier = $1",
+        [`user-factor-attempt:${nurseId()}`],
+      );
+      for (let i = rows[0]?.n ?? 0; i < USER_CODE_ATTEMPTS_PER_HOUR; i++) {
+        await auth().query(
+          `INSERT INTO auth.verification (id, identifier, value, expires_at, created_at)
+           VALUES (gen_random_uuid()::text, $1, 'attempt', now() + interval '1 hour',
+                   now() - interval '59 minutes')`,
+          [`user-factor-attempt:${nurseId()}`],
+        );
+      }
+      const capped = await reserveUserCodeAttempt(other, nurseId());
+      expect(capped).toMatchObject({ allowed: false });
+      if (!capped.allowed) expect(capped.retryAfter).toBeLessThanOrEqual(61);
+      await clearUserCodeAttempts(other, nurseId());
+      expect((await reserveUserCodeAttempt(other, nurseId())).allowed).toBe(true);
+    } finally {
+      await clearUserCodeAttempts(auth(), nurseId());
+      await other.end();
+    }
+  });
+});
+
+describe("the member's code throttle (#33 re-check 2, M1)", () => {
+  it.each([
+    ["the first free attempts", 0, 0, 0, 0],
+    ["the last free attempt", 4, 0, 0, 0],
+    ["the first throttled attempt, at once", 5, 0, 0, 60],
+    ["the first throttled attempt, a minute later", 5, 60, 60, 0],
+    ["the second throttled attempt, 10 seconds later", 6, 10, 100, 230],
+    ["the third throttled attempt reaches the cap", 7, 1, 300, 899],
+    ["the fourth throttled attempt stays at the cap", 8, 0, 300, 900],
+    ["the hourly cap, oldest 10 minutes ago", 10, 9999, 600, 3000],
+  ])("waits as expected for %s", (_name, n, sinceLast, sinceOldest, wait) => {
+    expect(userCodeWait(n, sinceLast, sinceOldest)).toBe(wait);
   });
 });

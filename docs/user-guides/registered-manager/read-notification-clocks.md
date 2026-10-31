@@ -30,7 +30,7 @@ Each statutory notification has a clock that starts when the incident happened.
 | This time is Harbour's target, not a legal deadline | Harbour's own target. For a safeguarding concern or a missing person, act as soon as possible all the same. |
 | Provisional | It rests on a "Not sure yet" answer. Submit it, or record that it is not required. If in doubt, notify. |
 | The answers no longer show this is needed | A submitter must still decide. Harbour never closes it by itself. |
-| Notifications not checked yet | Harbour has not checked this incident. Check what the law needs yourself. |
+| Notifications not checked yet | Harbour has not checked this incident. Check what the law needs yourself; if you manage incidents but do not submit notifications, tell the Registered Manager too. |
 | No notification found | Harbour found nothing to notify on what is recorded so far. It only says this when nothing is open or waiting. |
 
 ## Overdue alerts

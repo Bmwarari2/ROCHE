@@ -13,7 +13,7 @@ import {
 import { useFieldIds } from "@/components/care/form-state";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
-import { ONBOARDING_PAGE, STAFF_FILE_OPTIONS } from "@/lib/onboarding";
+import { ONBOARDING_PAGE, STAFF_FILE_OPTIONS, settingName } from "@/lib/onboarding";
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
@@ -107,7 +107,7 @@ export function AcceptSetting({
           variant="secondary"
           disabled={pending}
           icon={<Check {...icon} />}
-          aria-label={t("onboarding.setting.acceptFor", { key: rateKey })}
+          aria-label={t("onboarding.setting.acceptFor", { key: settingName(rateKey) })}
         >
           {t("onboarding.setting.accept")}
         </Button>
@@ -130,7 +130,7 @@ export function RetentionDecision({ recordClass }: { readonly recordClass: strin
           variant="secondary"
           disabled={pending}
           icon={<Check {...icon} />}
-          aria-label={t("onboarding.retention.keepFor", { recordClass })}
+          aria-label={t("onboarding.retention.keepFor", { recordClass: settingName(recordClass) })}
           onClick={() => send(() => decideRetention(recordClass, "accepted"))}
         >
           {t("onboarding.retention.keep")}
@@ -139,7 +139,9 @@ export function RetentionDecision({ recordClass }: { readonly recordClass: strin
           variant="secondary"
           disabled={pending}
           icon={<Ban {...icon} />}
-          aria-label={t("onboarding.retention.notUsedFor", { recordClass })}
+          aria-label={t("onboarding.retention.notUsedFor", {
+            recordClass: settingName(recordClass),
+          })}
           onClick={() => send(() => decideRetention(recordClass, "not_used"))}
         >
           {t("onboarding.retention.notUsed")}

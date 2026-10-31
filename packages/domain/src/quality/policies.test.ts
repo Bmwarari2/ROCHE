@@ -28,7 +28,7 @@ const policy = (over: Partial<PolicyVersion> = {}): PolicyVersion => ({
   ...over,
 });
 
-describe("policies and read-and-sign (quality.md 17.3 rules 25 to 28; QUAL-008)", () => {
+describe("hazard HZ-128 policies and read-and-sign (quality.md 17.3 rules 25 to 28; QUAL-008)", () => {
   it("rule 25 moves draft to published to superseded or retired", () => {
     expect(POLICY_WORKFLOW.transitions.map((t) => `${t.from}>${t.to}`)).toEqual([
       "draft>published",

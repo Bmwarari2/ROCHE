@@ -367,12 +367,15 @@ export function notificationsView(
   t: Translator,
   riddorDays?: number,
 ): NotificationsView {
-  const notice = (notice: string, self: boolean | "answer" | "some", count = 0) => ({
+  const notice = (notice: string, self: boolean | "answer" | "some" | "manage", count = 0) => ({
     title: t("safety.notification.notice", { notice, count }),
     body: t("safety.notification.noticeHint", { notice, self: String(self) }),
   });
   if (!classifier) {
-    return { notices: [notice("notChecked", context.canSubmit)], waiting: [], none: null };
+    // Who checks the law meanwhile: a submitter themselves; someone who manages incidents but cannot
+    // submit checks it too and tells the Registered Manager; anyone else tells the person in charge.
+    const self = context.canSubmit ? true : context.canManage ? "manage" : false;
+    return { notices: [notice("notChecked", self)], waiting: [], none: null };
   }
   if (!classifier.nationSupported) {
     return { notices: [notice("nation", context.canSubmit)], waiting: [], none: null };
@@ -466,4 +469,17 @@ export function incidentPersonLine(
     person.otherName ??
     t("safety.incident.unnamed", { kind: person.kind });
   return t("safety.incident.person", { name, role: person.role });
+}
+
+/**
+ * Whether the incident page shows its checks after a fall (HZ-027): every fall, in every nation
+ * (the API raises the post-fall tasks everywhere, though the classifier's own task list is
+ * England's), and after closing too, because closing neither waits for nor cancels those tasks.
+ * Shown on a restricted view too: the heading already says it was a fall, the card holds no
+ * personal data, and a carer of the person who fell needs its guidance (#160 re-check).
+ * The card never lists the tasks: no API returns an incident's tasks, so it points to the task
+ * list rather than predicting them.
+ */
+export function showsPostFallCard(incident: { readonly type: string }): boolean {
+  return incident.type === "fall";
 }

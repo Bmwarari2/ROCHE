@@ -178,10 +178,10 @@ code and tests. The definition of done (section 19) also asks for a user guide, 
 Maestro journey, offline behaviour where section 17 needs it, audit, a retention class, permissions,
 hazard review and a data-protection check. What each row lacks:
 
-**Every row: user documentation.** The user-docs column is `-` on all 54, and there is no
-`docs/user-guides/` (nor `docs/demo/` for the end-of-phase walkthrough). **Gate item**: a user guide
-per role (care worker, nurse, Registered Manager, data protection lead, family member) covering the
-Phase 1 screens, then each row links its section.
+**Every row: user documentation.** **Done 31/10/2026 (#128)**: `docs/user-guides/` has a guide per
+role and task for the Phase 1 screens, and `docs/demo/phase-1-walkthrough.md` the end-of-phase
+walkthrough; the register's user docs column links them for 34 rows. `docs/user-guides/README.md`
+lists the rows that have a guide; other rows take theirs with their screen.
 
 Audit, retention class and permissions are in place for every built row. Every Phase 1 table is
 classified in the export catalogue, with its retention class (`packages/db/src/export-catalogue.test.ts`

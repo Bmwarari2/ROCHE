@@ -432,7 +432,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY['role_assignment', 'access_grant'] LOOP
     EXECUTE format(
       'CREATE POLICY agency_window ON public.%I AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner '
-      'USING (tenant_user_id IS DISTINCT FROM app.current_user_id() '
+      'USING (app.current_user_id() IS NULL OR tenant_user_id IS DISTINCT FROM app.current_user_id() '
       'OR NOT (SELECT app.member_is_agency(app.current_user_id())) '
       'OR app.agency_access_open(tenant_user_id, location_id))', t);
   END LOOP;

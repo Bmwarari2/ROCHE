@@ -20,6 +20,7 @@ import {
 } from "@harbour/db";
 import {
   CANDOUR_WORKFLOW,
+  type CandourCloseFacts,
   type CandourState,
   type ClassifierAnswer,
   type ClassifierAnswerValue,
@@ -44,10 +45,12 @@ import {
   type IncidentType,
   type InfectionCase,
   NOTIFICATION_KINDS,
+  type NotificationStatus,
   nextEscalationAt,
   type OutbreakAssessment,
   type OutbreakSignal,
   type OutputDeadline,
+  type Permission,
   type PostFallTaskKind,
   type PressureUlcerCategory,
   placesCover,
@@ -67,7 +70,7 @@ import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
-import { setWorkflowDeadline, startWorkflow } from "./workflow";
+import { reopenWorkflow, setWorkflowDeadline, startWorkflow } from "./workflow";
 
 /**
  * Safety rules wired to the database (docs/specs/safety.md; hazards HZ-013 and HZ-027). The
@@ -352,7 +355,7 @@ function adultOn(dateOfBirth: string | null, on: string): boolean | undefined {
   return `${year}${dateOfBirth.slice(4)}` <= on;
 }
 
-async function subjectToDolsAt(
+export async function subjectToDolsAt(
   tx: Transaction,
   tenantId: string,
   personIds: readonly string[],
@@ -431,16 +434,23 @@ function latestYesNoUnsure(
 }
 
 /**
- * The infection cases at a location with symptoms that started after its last outbreak report was
- * decided (submitted or marked not required); outbreak.ts counts from there. Cases behind a draft
- * still being prepared keep counting, so the same threshold keeps the same draft.
+ * The infection cases at a location with symptoms that started after the last outbreak report
+ * detection drafted for the same illness was decided (submitted or marked not required);
+ * outbreak.ts counts from there. Respiratory cases count from the last decided respiratory or flu
+ * report, diarrhoea and vomiting cases from the last decided one of theirs, so deciding one
+ * illness's report never resets detection of another (HZ-013). Reports drafted when a person
+ * declared an outbreak (source key `outbreak:<outbreak id>`) never reset detection. Cases behind a
+ * draft still being prepared keep counting, so the same threshold keeps the same draft.
  */
 export async function locationInfectionCases(
   tx: Transaction,
   locationId: string,
 ): Promise<InfectionCase[]> {
-  const [lastReport] = await tx
-    .select({ decidedAt: statutoryNotification.updatedAt })
+  const decided = await tx
+    .select({
+      decidedAt: statutoryNotification.updatedAt,
+      sourceKey: statutoryNotification.sourceKey,
+    })
     .from(statutoryNotification)
     .where(
       and(
@@ -449,9 +459,22 @@ export async function locationInfectionCases(
         inArray(statutoryNotification.status, ["submitted", "not_required"]),
         isNull(statutoryNotification.deletedAt),
       ),
-    )
-    .orderBy(desc(statutoryNotification.updatedAt))
-    .limit(1);
+    );
+  // Detection's key is `outbreak:<location>:<signal kind>:<threshold time>` (outbreakKey below).
+  const lastDecided = (kinds: readonly string[]) =>
+    Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...decided
+        .filter((r) => {
+          const [prefix, place, kind] = r.sourceKey.split(":");
+          return prefix === "outbreak" && place === locationId && kinds.includes(kind ?? "");
+        })
+        .map((r) => r.decidedAt.getTime()),
+    );
+  const since: Record<InfectionCase["syndrome"], number> = {
+    acute_respiratory: lastDecided(["acute_respiratory", "flu"]),
+    diarrhoea_vomiting: lastDecided(["diarrhoea_vomiting"]),
+  };
   const rows = await tx
     .select({ id: incidentPerson.id, infection: incidentPerson.infection })
     .from(incidentPerson)
@@ -465,7 +488,6 @@ export async function locationInfectionCases(
         isNotNull(incidentPerson.infection),
       ),
     );
-  const since = lastReport?.decidedAt.getTime() ?? Number.NEGATIVE_INFINITY;
   return rows
     .map((r) => {
       const i = r.infection as {
@@ -484,7 +506,7 @@ export async function locationInfectionCases(
         link: i.link ?? null,
       } satisfies InfectionCase;
     })
-    .filter((c) => c.onsetAt.getTime() > since);
+    .filter((c) => c.onsetAt.getTime() > since[c.syndrome]);
 }
 
 const outbreakKey = (locationId: string, signal: OutbreakSignal) =>
@@ -1047,13 +1069,23 @@ export async function submitHolders(
   locationId: string | null,
   now: Date,
 ): Promise<string[]> {
+  return permissionHolders(tx, "safety.notification.submit", locationId, now);
+}
+
+/** Active staff holding `permission` at a location, by role or current grant (as submitHolders). */
+export async function permissionHolders(
+  tx: Transaction,
+  permission: Permission,
+  locationId: string | null,
+  now: Date,
+): Promise<string[]> {
   const holders = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
     .where(
       and(
-        sql`${role.permissions} @> ARRAY['safety.notification.submit']::text[]`,
+        sql`${role.permissions} @> ARRAY[${permission}]::text[]`,
         isNull(roleAssignment.deletedAt),
         isNull(role.archivedAt),
         lte(roleAssignment.validFrom, now),
@@ -1065,7 +1097,7 @@ export async function submitHolders(
     .from(accessGrant)
     .where(
       and(
-        sql`${accessGrant.permissions} @> ARRAY['safety.notification.submit']::text[]`,
+        sql`${accessGrant.permissions} @> ARRAY[${permission}]::text[]`,
         isNull(accessGrant.deletedAt),
         isNull(accessGrant.revokedAt),
         lte(accessGrant.validFrom, now),
@@ -1079,12 +1111,7 @@ export async function submitHolders(
   return candidates.filter((id) => {
     const mine = rows.get(id);
     if (mine === undefined) return false;
-    const places = placesHoldingPermission(
-      mine.assignments,
-      mine.grants,
-      "safety.notification.submit",
-      now,
-    );
+    const places = placesHoldingPermission(mine.assignments, mine.grants, permission, now);
     return locationId === null
       ? places.organisationWide || places.locationIds.length > 0
       : placesCover(places, locationId);
@@ -1309,6 +1336,170 @@ export async function detectLocationOutbreaks(
 /** Whether a DoLS nation string is one Schedule A1 covers. */
 export function isDolsNation(nation: string): nation is DolsNation {
   return (DOLS_NATIONS as readonly string[]).includes(nation);
+}
+
+// ------------------------------------------------------------------------------------------------
+// The duty of candour and closing (HZ-013; #120 review)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * The people we support affected by an incident (role affected, not removed): the people the duty
+ * of candour applies to, and the only people a candour record may name (#120 round 2, M2).
+ */
+export async function affectedServiceUsers(tx: Transaction, incidentId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ personId: incidentPerson.personId })
+    .from(incidentPerson)
+    .where(
+      and(
+        eq(incidentPerson.incidentId, incidentId),
+        eq(incidentPerson.kind, "service_user"),
+        eq(incidentPerson.role, "affected"),
+        isNull(incidentPerson.deletedAt),
+      ),
+    );
+  return [...new Set(rows.flatMap((p) => (p.personId ? [p.personId] : [])))];
+}
+
+/** What closing an incident checks (`incidentCloseProblems`), apart from its open questions. */
+export interface IncidentCloseRead {
+  readonly notifications: readonly { kind: string; status: NotificationStatus }[];
+  readonly candourState: string | null;
+  readonly candour: CandourCloseFacts;
+}
+
+type CloseSource = Pick<typeof incident.$inferSelect, "id" | "classifierResult">;
+
+/**
+ * Everything closing each incident checks (`incidentCloseProblems`), read with tenant-wide scope so
+ * notifications and people the closer cannot see still count: the notifications, the candour
+ * record's stage, and the duty of candour facts. Three reads however many incidents, for the
+ * approvals list and the stuck-candour job as for the close route.
+ */
+export async function incidentCloseViews(
+  tx: Transaction,
+  rows: readonly CloseSource[],
+): Promise<Map<string, IncidentCloseRead>> {
+  const views = new Map<string, IncidentCloseRead>();
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return views;
+  return withTenantWideScope(tx, async () => {
+    const notifications = await tx
+      .select({
+        incidentId: statutoryNotification.incidentId,
+        kind: statutoryNotification.kind,
+        status: statutoryNotification.status,
+        noLongerIndicated: statutoryNotification.noLongerIndicated,
+      })
+      .from(statutoryNotification)
+      .where(
+        and(
+          inArray(statutoryNotification.incidentId, ids),
+          isNull(statutoryNotification.deletedAt),
+        ),
+      );
+    const records = await tx
+      .select({
+        incidentId: candourRecord.incidentId,
+        state: candourRecord.state,
+        notifiable: candourRecord.thresholdNotifiable,
+        personId: candourRecord.personId,
+      })
+      .from(candourRecord)
+      .where(inArray(candourRecord.incidentId, ids));
+    const people = await tx
+      .select({ incidentId: incidentPerson.incidentId, personId: incidentPerson.personId })
+      .from(incidentPerson)
+      .where(
+        and(
+          inArray(incidentPerson.incidentId, ids),
+          eq(incidentPerson.kind, "service_user"),
+          eq(incidentPerson.role, "affected"),
+          isNull(incidentPerson.deletedAt),
+        ),
+      );
+    for (const row of rows) {
+      const mine = notifications.filter((n) => n.incidentId === row.id);
+      const record = records.find((r) => r.incidentId === row.id);
+      const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
+      views.set(row.id, {
+        notifications: mine.map((n) => ({
+          kind: n.kind,
+          status: n.status as NotificationStatus,
+        })),
+        candourState: record?.state ?? null,
+        candour: {
+          indicated:
+            (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
+            mine.some(
+              (n) => n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
+            ),
+          notifiable: record?.notifiable ?? null,
+          personId: record?.personId ?? null,
+          people: [
+            ...new Set(
+              people.flatMap((p) => (p.incidentId === row.id && p.personId ? [p.personId] : [])),
+            ),
+          ],
+        },
+      });
+    }
+    return views;
+  });
+}
+
+/** What closing one incident checks: `incidentCloseViews` for that incident alone. */
+export async function incidentCloseView(
+  tx: Transaction,
+  row: CloseSource,
+): Promise<IncidentCloseRead> {
+  const view = (await incidentCloseViews(tx, [row])).get(row.id);
+  if (!view) throw new Error("incident close view missing");
+  return view;
+}
+
+/**
+ * Reopening a finished duty of candour record (#120 review round 3, H1): the incident's candour
+ * notification decided not required is a draft again, with its clock on the workflow, so the
+ * notification centre shows it due and a holder of `safety.notification.submit` decides it again.
+ * Read with tenant-wide scope. Returns the notifications reopened, for the caller's audit.
+ */
+export async function reopenCandourNotifications(
+  tx: Transaction,
+  incidentId: string,
+  reason: string,
+  now: Date,
+): Promise<string[]> {
+  return withTenantWideScope(tx, async () => {
+    const decided = await tx
+      .select({ id: statutoryNotification.id, dueAt: statutoryNotification.dueAt })
+      .from(statutoryNotification)
+      .where(
+        and(
+          eq(statutoryNotification.incidentId, incidentId),
+          eq(statutoryNotification.kind, "candour"),
+          eq(statutoryNotification.status, "not_required"),
+          isNull(statutoryNotification.deletedAt),
+        ),
+      )
+      .for("update");
+    for (const n of decided) {
+      await tx
+        .update(statutoryNotification)
+        .set({ status: "draft", notRequiredReason: null })
+        .where(eq(statutoryNotification.id, n.id));
+      await reopenWorkflow(
+        tx,
+        STATUTORY_NOTIFICATION_WORKFLOW,
+        { subjectType: "statutory_notification", subjectId: n.id },
+        "draft",
+        reason,
+        now,
+        n.dueAt,
+      );
+    }
+    return decided.map((n) => n.id);
+  });
 }
 
 // ------------------------------------------------------------------------------------------------

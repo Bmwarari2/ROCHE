@@ -11,7 +11,7 @@ import { PersonAvatar } from "@/components/people/PersonAvatar";
 import { SampleBadge } from "@/components/people/SampleBadge";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
-import { penceFrom, type TypedField } from "@/lib/letters";
+import { mergeFieldNames, penceFrom, type TypedField } from "@/lib/letters";
 import {
   type ActionResult,
   collectedRefusal,
@@ -273,7 +273,7 @@ export function LetterComposer({
           <p className="m-0 text-body-dense">
             {preview.personalDataFields.length > 0
               ? t("comms.templates.personalFields", {
-                  fields: preview.personalDataFields.join(", "),
+                  fields: mergeFieldNames(preview.personalDataFields),
                 })
               : t("comms.letters.noPersonal")}
             {preview.containsSpecialCategory ? ` ${t("comms.letters.specialCategory")}` : ""}

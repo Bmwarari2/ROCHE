@@ -14,6 +14,7 @@ export function createAuthMessages(translate: Translator) {
     passkeyUnsupported: translate("auth.errors.passkeyUnsupported"),
     passkeyNotAdded: translate("auth.errors.passkeyNotAdded"),
     codeMismatch: translate("auth.errors.codeMismatch"),
+    backupCodeMismatch: translate("auth.errors.backupCodeMismatch"),
     passwordMismatch: translate("auth.errors.passwordMismatch"),
   } as const;
 }
