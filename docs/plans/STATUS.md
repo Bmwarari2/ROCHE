@@ -20,6 +20,18 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Production moves to Google Cloud (owner, 31/10/2026; [ADR-0098](../decisions/0098-production-on-google-cloud.md)).**
+Production runs in Google Cloud europe-west2 (London), with Cloud Run, Cloud SQL for PostgreSQL 17,
+Cloud Storage with CMEK, Cloud KMS, Secret Manager, a load balancer with Cloud Armor, Artifact
+Registry and Workload Identity Federation; Supabase London stays for dev, staging and pilots. The
+documents are updated (`docs/production-google-cloud`). Engineering follow-ups before production:
+rewrite the Terraform in `infra/` for Google Cloud; a Cloud Storage adapter for documents, exports
+and the audit archive (signed URLs) to replace the S3 adapter, and the production configuration
+check in `apps/api/src/config.ts`; an SMTP email adapter to replace SES (production email stays off
+until H-08 chooses a provider); a load test of PowerSync on Cloud Run at the 60-bed target. The
+owner also accepted the default of every open decision he owns; the rows with no default stay open
+in human-actions.md.
+
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
 
