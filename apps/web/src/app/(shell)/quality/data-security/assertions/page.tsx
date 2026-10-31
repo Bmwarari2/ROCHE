@@ -40,7 +40,8 @@ export default async function AssertionsPage({
   const query = await searchParams;
   const { me } = await getShellContext();
   const title = t("quality.dataSecurity.assertions.title");
-  if (!dataSecurityShown(me.permissions)) return <SafetyForbidden title={title} />;
+  if (!dataSecurityShown(me.permissions))
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const api = await tenantApi();
   const year = isFinancialYear(query.year) ? query.year : undefined;
   const base = "/quality/data-security/assertions";
@@ -50,7 +51,8 @@ export default async function AssertionsPage({
     }),
     base,
   );
-  if (!listed) return <SafetyForbidden title={title} />;
+  if (!listed)
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const path = `${base}?year=${encodeURIComponent(listed.financialYear)}`;
   const documents =
     (

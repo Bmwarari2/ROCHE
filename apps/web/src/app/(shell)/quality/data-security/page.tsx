@@ -29,10 +29,12 @@ const linkClass = "inline-flex min-h-target items-center underline";
 export default async function DataSecurityPage() {
   const { me } = await getShellContext();
   const title = t("quality.dataSecurity.title");
-  if (!dataSecurityShown(me.permissions)) return <SafetyForbidden title={title} />;
+  if (!dataSecurityShown(me.permissions))
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const api = await tenantApi();
   const overview = readOrFail(await api.GET("/v1/data-security"), "/quality/data-security");
-  if (!overview) return <SafetyForbidden title={title} />;
+  if (!overview)
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const { dspt, certificates, registers } = overview;
   const deadline = formatDate(dspt.deadline) ?? dspt.deadline;
 

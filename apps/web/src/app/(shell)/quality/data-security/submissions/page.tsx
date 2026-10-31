@@ -28,7 +28,8 @@ export default async function SubmissionsPage({
 }) {
   const { me } = await getShellContext();
   const title = t("quality.dataSecurity.submissions.title");
-  if (!dataSecurityShown(me.permissions)) return <SafetyForbidden title={title} />;
+  if (!dataSecurityShown(me.permissions))
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const api = await tenantApi();
   const path = "/quality/data-security/submissions";
   const [submissions, overview] = await Promise.all([
@@ -37,7 +38,8 @@ export default async function SubmissionsPage({
   ]);
   const list = readOrFail(submissions, path);
   const now = readOrFail(overview, path);
-  if (!list || !now) return <SafetyForbidden title={title} />;
+  if (!list || !now)
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const year = now.dspt.financialYear;
   const recorded = list.items.some((s) => s.financialYear === year);
   const done = qualityDone((await searchParams).done);

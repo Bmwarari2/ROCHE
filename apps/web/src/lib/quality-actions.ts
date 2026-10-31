@@ -36,6 +36,7 @@ function qualityProblem(subject: "pack" | "sop" | "policy" | "dataSecurity", err
   const problem = (typeof error === "object" && error !== null ? error : {}) as {
     code?: unknown;
     detail?: unknown;
+    title?: unknown;
   };
   const detail = typeof problem.detail === "string" ? problem.detail.trim() : "";
   switch (problem.code) {
@@ -46,7 +47,16 @@ function qualityProblem(subject: "pack" | "sop" | "policy" | "dataSecurity", err
       return { code: problem.code, message: detail || t("quality.changed", { subject }) };
     case "version_conflict":
       return { code: "version_conflict", message: t("quality.changed", { subject }) };
-    default:
-      return problemMessage(error, t);
+    default: {
+      // A refusal this module names in its own words (evidence_required, notes_required and the
+      // like) is said as the API says it, never as "could not save just now".
+      const fallback = problemMessage(error, t);
+      const code = typeof problem.code === "string" ? problem.code : "";
+      const words = detail || (typeof problem.title === "string" ? problem.title.trim() : "");
+      const ownWords = /^[a-z_]+$/.test(code) && code !== "internal" && code !== "unavailable";
+      return fallback.code === "unavailable" && words && ownWords
+        ? { code, message: words }
+        : fallback;
+    }
   }
 }

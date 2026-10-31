@@ -26,7 +26,8 @@ export default async function CertificatesPage({
 }) {
   const { me } = await getShellContext();
   const title = t("quality.dataSecurity.certificates.pageTitle");
-  if (!dataSecurityShown(me.permissions)) return <SafetyForbidden title={title} />;
+  if (!dataSecurityShown(me.permissions))
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const api = await tenantApi();
   const path = "/quality/data-security/certificates";
   const [records, overview, docs] = await Promise.all([
@@ -36,7 +37,8 @@ export default async function CertificatesPage({
   ]);
   const list = readOrFail(records, path);
   const now = readOrFail(overview, path);
-  if (!list || !now) return <SafetyForbidden title={title} />;
+  if (!list || !now)
+    return <SafetyForbidden title={title} hint={t("quality.dataSecurity.organisationOnly")} />;
   const documents = docs.data?.items.filter((d) => d.status === "available") ?? [];
   const done = qualityDone((await searchParams).done);
 
