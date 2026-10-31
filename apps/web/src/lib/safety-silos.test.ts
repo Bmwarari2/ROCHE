@@ -19,6 +19,7 @@ import {
 } from "./safeguarding";
 import {
   anonymousPagePath,
+  caseReference,
   isReplyToken,
   nextPageHref,
   readAnonymousSpeakUp,
@@ -326,6 +327,11 @@ describe("speak-up", () => {
       ok: true,
       body: { reason: "Done." },
     });
+  });
+
+  it("gives each concern a short reference to tell same-day concerns apart", () => {
+    expect(caseReference("0199f000-0000-7000-8000-0000000abc12")).toBe("ABC12".padStart(6, "0"));
+    expect(caseReference(ID)).not.toBe(caseReference("0199f000-0000-7000-8000-0000000000a2"));
   });
 
   it("links the next page by the API's cursor", () => {

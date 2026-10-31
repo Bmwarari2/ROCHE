@@ -198,6 +198,8 @@ export function ComplaintStepForm({
   const { submit, result, pending } = useSubmit(
     (form) => readComplaintStep(form, t, { to, version }),
     (body) => stepComplaint(id, body),
+    undefined,
+    t("complaints.step.done"),
   );
   const responding = to === "responded" || to === "appeal_responded";
   return (
@@ -267,6 +269,7 @@ export function ComplaintStepForm({
           />
         </>
       ) : null}
+      {to === "closed" ? <p className="m-0">{t("complaints.step.closeFinal")}</p> : null}
       {to === "closed" ? (
         <TextArea
           id={ids.reason}

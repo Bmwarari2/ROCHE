@@ -3,12 +3,16 @@ import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/care/Notice";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { ConcernStepForm, UpdateConcernForm } from "@/components/safety-silos/SafeguardingForms";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { personNames } from "@/lib/people";
+import { getPerson } from "@/lib/person-record";
 import {
   safeguardingClockChip,
   safeguardingShown,
@@ -47,8 +51,10 @@ export default async function ConcernPage({ params }: { params: Promise<{ id: st
     if (response.status === 404) notFound();
     return failWith(error, response, `/safeguarding/${id}`);
   }
+  const person = (await getPerson(data.personId)).person;
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+      <SiloStatus />
       <PageHeader
         title={t("safeguarding.itemTitle", { when: formatDateTime(data.raisedAt) ?? "" })}
       />
@@ -56,6 +62,16 @@ export default async function ConcernPage({ params }: { params: Promise<{ id: st
         <SafetyChip chip={safeguardingStateChip(data.state, t)} />
         <SafetyChip chip={safeguardingClockChip(data.clock, t)} />
       </p>
+      <Card as="section" headingLevel={2} title={t("safeguarding.detail.person")}>
+        {person ? (
+          <div className="flex flex-col gap-2">
+            <p className="m-0 font-semibold">{personNames(person).full}</p>
+            <PersonNeeds person={person} />
+          </div>
+        ) : (
+          <p className="m-0">{t("safeguarding.personHidden")}</p>
+        )}
+      </Card>
       {data.warnings.map((warning) => (
         <Notice
           key={warning}
@@ -85,6 +101,51 @@ export default async function ConcernPage({ params }: { params: Promise<{ id: st
           ) : null}
           {data.noReferralReason ? (
             <Row term={t("safeguarding.detail.noReferral")} value={data.noReferralReason} />
+          ) : null}
+          {data.enquiry ? (
+            <Row
+              term={t("safeguarding.update.enquiry")}
+              value={t("safeguarding.detail.enquiry", {
+                kind: t("safeguarding.enquiryKind", { value: data.enquiry.kind }),
+                when: formatDateTime(data.enquiry.openedAt) ?? "",
+              })}
+            />
+          ) : null}
+          {data.personalOutcomes ? (
+            <Row
+              term={t("safeguarding.detail.outcomes")}
+              value={[
+                data.personalOutcomes.asked
+                  ? t("safeguarding.detail.outcomesAsked", {
+                      desired: data.personalOutcomes.desiredOutcomes ?? "",
+                    })
+                  : t("safeguarding.detail.outcomesNotAsked", {
+                      reason: data.personalOutcomes.notAskedReason ?? "",
+                    }),
+                data.personalOutcomes.achieved
+                  ? t("safeguarding.achieved", { value: data.personalOutcomes.achieved })
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            />
+          ) : null}
+          {data.staffHarm ? (
+            <Row
+              term={t("safeguarding.update.staffHarm")}
+              value={t("safeguarding.staffHarm", { value: data.staffHarm })}
+            />
+          ) : null}
+          {data.dbsReferral ? (
+            <Row
+              term={t("safeguarding.update.dbs")}
+              value={[
+                t("safeguarding.detail.dbs", { decision: data.dbsReferral.decision }),
+                data.dbsReferral.reason,
+              ]
+                .filter(Boolean)
+                .join(": ")}
+            />
           ) : null}
           {data.finding ? (
             <Row

@@ -2,12 +2,20 @@ import { ButtonLink, Card, PageHeader } from "@harbour/ui";
 import type { Metadata } from "next";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { ThreadMessages } from "@/components/safety-silos/AnonymousSpeakUp";
+import { CopyAddress } from "@/components/safety-silos/CopyAddress";
 import { RaiseSpeakUpForm, SpeakUpMessageForm } from "@/components/safety-silos/SpeakUpForms";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isFamilyMember } from "@/lib/family-feed";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { anonymousPagePath, isSpeakUpLead, speakUpShown, speakUpStateChip } from "@/lib/speak-up";
+import { webOrigin } from "@/lib/quality-server";
+import {
+  anonymousPagePath,
+  caseReference,
+  isSpeakUpLead,
+  speakUpShown,
+  speakUpStateChip,
+} from "@/lib/speak-up";
 
 export const metadata: Metadata = { title: t("speakUp.title") };
 
@@ -42,7 +50,7 @@ export default async function SpeakUpPage() {
       <Card as="section" headingLevel={2} title={t("speakUp.anonymousTitle")}>
         <div className="flex flex-col gap-2">
           <p className="m-0">{t("speakUp.anonymousBody")}</p>
-          <p className="m-0 break-all font-mono">{anonymousPagePath(tenantId)}</p>
+          <CopyAddress address={`${webOrigin() ?? ""}${anonymousPagePath(tenantId)}`} />
         </div>
       </Card>
       <section className="flex flex-col gap-3" aria-labelledby="my-concerns">
@@ -60,6 +68,7 @@ export default async function SpeakUpPage() {
               title={t("speakUp.mine.itemTitle", {
                 category: t("speakUp.category", { value: item.category }),
                 date: formatDate(item.receivedOn) ?? "",
+                ref: caseReference(item.id),
               })}
             >
               <div className="flex flex-col gap-3">

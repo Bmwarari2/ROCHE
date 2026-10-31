@@ -3495,6 +3495,22 @@
     "speakUp.anonymous.followTitle",
     "speakUp.anonymous.followBody",
     "speakUp.anonymous.tokenError",
-    "speakUp.anonymous.open"
+    "speakUp.anonymous.open",
+    "complaints.step.closeFinal",
+    "safeguarding.step.closeFinal",
+    "speakUp.step.closeFinal",
+    "safeguarding.step.needsIntro",
+    "safeguarding.detail.person",
+    "safeguarding.detail.enquiry",
+    "safeguarding.detail.outcomes",
+    "safeguarding.detail.outcomesAsked",
+    "safeguarding.detail.outcomesNotAsked",
+    "safeguarding.detail.dbs",
+    "safeguarding.personHidden",
+    "speakUp.anonymous.copy",
+    "speakUp.anonymous.copied",
+    "speakUp.anonymous.copyFailed",
+    "speakUp.pending.sending",
+    "speakUp.pending.opening"
   ]
 }

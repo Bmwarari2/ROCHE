@@ -1,6 +1,8 @@
 import { Card } from "@harbour/ui";
+import { TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import { NoAccess } from "@/components/care/NoAccess";
+import { Notice } from "@/components/care/Notice";
 import { RecordFrame } from "@/components/care/RecordFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
@@ -54,9 +56,13 @@ async function SafeguardingTab({ params }: { readonly params: Params }) {
           </ul>
         )}
         {data.openWithoutMeasures > 0 ? (
-          <p className="m-0 mt-3 font-semibold">
-            {t("safeguarding.measures.openWithout", { count: data.openWithoutMeasures })}
-          </p>
+          <div className="mt-3">
+            <Notice
+              tone="warning"
+              icon={<TriangleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+              title={t("safeguarding.measures.openWithout", { count: data.openWithoutMeasures })}
+            />
+          </div>
         ) : null}
       </Card>
     </>

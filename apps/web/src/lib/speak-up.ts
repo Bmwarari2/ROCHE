@@ -176,3 +176,8 @@ export function readSpeakUpStep(
 export function nextPageHref(cursor: string | null): string | null {
   return cursor ? `/speak-up/cases?cursor=${encodeURIComponent(cursor)}` : null;
 }
+
+/** A short reference for a concern, so two raised on the same day are told apart (WCAG 2.4.4). */
+export function caseReference(id: string): string {
+  return id.replace(/-/g, "").slice(-6).toUpperCase();
+}

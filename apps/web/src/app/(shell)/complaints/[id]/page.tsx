@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { ComplaintStepForm } from "@/components/safety-silos/ComplaintForms";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import {
   complaintMoves,
@@ -57,6 +58,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
     : [];
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+      <SiloStatus />
       <PageHeader
         title={t("complaints.itemTitle", { when: formatDateTime(data.receivedAt) ?? "" })}
         description={complaintTargets(data, t).join(" ")}

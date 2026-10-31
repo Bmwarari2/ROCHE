@@ -7,7 +7,7 @@ import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { isSpeakUpLead, nextPageHref, speakUpStateChip } from "@/lib/speak-up";
+import { caseReference, isSpeakUpLead, nextPageHref, speakUpStateChip } from "@/lib/speak-up";
 
 export const metadata: Metadata = { title: t("speakUp.cases.title") };
 
@@ -73,6 +73,7 @@ export default async function SpeakUpCasesPage({
                     {t("speakUp.mine.itemTitle", {
                       category: t("speakUp.category", { value: item.category }),
                       date: formatDate(item.receivedOn) ?? "",
+                      ref: caseReference(item.id),
                     })}
                   </Link>
                 }

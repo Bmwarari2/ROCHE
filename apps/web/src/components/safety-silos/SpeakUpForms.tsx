@@ -102,7 +102,7 @@ export function RaiseSpeakUpForm() {
       />
       <div>
         <Button type="submit" icon={<Megaphone {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("speakUp.form.submit")}
+          {pending ? t("speakUp.pending.sending") : t("speakUp.form.submit")}
         </Button>
       </div>
       <FormFeedback result={result} success={t("speakUp.form.done")} fieldIds={ids} />
@@ -137,7 +137,7 @@ export function SpeakUpMessageForm({
       />
       <div>
         <Button type="submit" variant="secondary" icon={<Send {...icon} />} disabled={pending}>
-          {pending ? t("common.saving") : t("speakUp.message.send")}
+          {pending ? t("speakUp.pending.sending") : t("speakUp.message.send")}
         </Button>
       </div>
       <FormFeedback result={result} success={t("speakUp.message.done")} fieldIds={ids} />
@@ -159,6 +159,8 @@ export function SpeakUpStepForm({
   const { submit, result, pending } = useSubmit(
     (form) => readSpeakUpStep(form, t, { to, version }),
     (body) => stepSpeakUpCase(id, body),
+    undefined,
+    t("speakUp.step.done"),
   );
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
@@ -174,6 +176,7 @@ export function SpeakUpStepForm({
           error={errorFor(result, "outcome")}
         />
       ) : null}
+      {to === "closed" ? <p className="m-0">{t("speakUp.step.closeFinal")}</p> : null}
       {to === "closed" ? (
         <TextArea
           id={ids.reason}
@@ -224,9 +227,15 @@ export function SpeakUpMembersForm({
   );
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
-      <fieldset id={ids.memberIds} className="m-0 flex flex-col gap-1 border-0 p-0">
+      <fieldset
+        id={ids.memberIds}
+        aria-describedby={`${ids.memberIds}-hint`}
+        className="m-0 flex flex-col gap-1 border-0 p-0"
+      >
         <legend className="mb-2 text-body font-semibold">{t("speakUp.members.legend")}</legend>
-        <p className="m-0 mb-2 text-body-dense text-text-secondary">{t("speakUp.members.hint")}</p>
+        <p id={`${ids.memberIds}-hint`} className="m-0 mb-2 text-body-dense text-text-secondary">
+          {t("speakUp.members.hint")}
+        </p>
         {staff.map((person) => (
           <Checkbox
             key={person.id}

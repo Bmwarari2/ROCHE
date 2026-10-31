@@ -1,12 +1,15 @@
+import type { PersonSummary } from "@harbour/contracts";
 import { ButtonLink, Card, EmptyState, PageHeader } from "@harbour/ui";
 import { ShieldCheck, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { personNames } from "@/lib/people";
 import {
   safeguardingClockChip,
   safeguardingShown,
@@ -30,6 +33,9 @@ export default async function SafeguardingPage() {
     return failWith(error, response, "/safeguarding");
   }
   const location = me.locations.find((l) => l.id === locationId);
+  // Who each concern is about, with their communication needs (the Accessible Information Standard).
+  const listed = await api.GET("/v1/people", {});
+  const people = new Map((listed.data?.items ?? []).map((p) => [p.id, p]));
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
       <PageHeader
@@ -75,6 +81,16 @@ export default async function SafeguardingPage() {
                     <SafetyChip chip={safeguardingStateChip(item.state, t)} />
                     <SafetyChip chip={safeguardingClockChip(item.clock, t)} />
                   </p>
+                  {people.get(item.personId) ? (
+                    <>
+                      <p className="m-0 font-semibold">
+                        {personNames(people.get(item.personId) as PersonSummary).full}
+                      </p>
+                      <PersonNeeds person={people.get(item.personId) as PersonSummary} />
+                    </>
+                  ) : (
+                    <p className="m-0">{t("safeguarding.personHidden")}</p>
+                  )}
                   <p className="m-0 text-body-dense text-text-secondary">
                     {item.abuseTypes
                       .map((value) => t("safeguarding.abuseType", { value }))

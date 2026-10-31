@@ -10,7 +10,7 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { Save, Send, ShieldAlert } from "lucide-react";
+import { CircleAlert, Save, Send, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   raiseSafeguardingConcern,
@@ -73,21 +73,33 @@ export function RaiseConcernForm({
         options={people.map((p) => ({ value: p.id, label: p.name }))}
         error={errorFor(result, "personId")}
       />
-      <fieldset id={ids.abuseTypes} className="m-0 flex flex-col gap-1 border-0 p-0">
+      <fieldset
+        className="m-0 flex flex-col gap-1 border-0 p-0"
+        {...(errorFor(result, "abuseTypes")
+          ? { "aria-describedby": `${ids.abuseTypes}-error` }
+          : {})}
+      >
         <legend className="mb-2 text-body font-semibold">
           {t("safeguarding.form.abuseTypes")}
         </legend>
         {errorFor(result, "abuseTypes") ? (
-          <p className="m-0 text-body-dense font-semibold text-danger">
+          <p
+            id={`${ids.abuseTypes}-error`}
+            className="m-0 flex items-center gap-2 text-body-dense font-semibold text-danger"
+          >
+            <CircleAlert {...icon} />
             {errorFor(result, "abuseTypes")}
           </p>
         ) : null}
-        {ABUSE_TYPES.map((value) => (
+        {ABUSE_TYPES.map((value, index) => (
           <Checkbox
             key={value}
+            // The first box carries the field's id, so the error summary's link focuses it.
+            {...(index === 0 ? { id: ids.abuseTypes } : {})}
             name="abuseTypes"
             value={value}
             label={t("safeguarding.abuseType", { value })}
+            {...(errorFor(result, "abuseTypes") ? { "aria-invalid": true } : {})}
           />
         ))}
       </fieldset>
@@ -334,10 +346,14 @@ export function ConcernStepForm({
   const { submit, result, pending } = useSubmit(
     (form) => readSafeguardingStep(form, t, { to, version }),
     (body) => stepSafeguardingConcern(id, body),
+    undefined,
+    t("safeguarding.step.done"),
   );
   const withReason = to === "no_referral" || to === "closed";
   return (
     <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
+      {to === "closed" ? <p className="m-0">{t("safeguarding.step.closeFinal")}</p> : null}
+      {needs.length > 0 ? <p className="m-0">{t("safeguarding.step.needsIntro")}</p> : null}
       {needs.length > 0 ? (
         <ul className="m-0 flex flex-col gap-1 pl-5">
           {needs.map((need) => (

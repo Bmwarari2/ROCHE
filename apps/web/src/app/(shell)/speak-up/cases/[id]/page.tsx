@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { ThreadMessages } from "@/components/safety-silos/AnonymousSpeakUp";
+import { SiloStatus } from "@/components/safety-silos/SiloStatus";
 import {
   SpeakUpMembersForm,
   SpeakUpMessageForm,
@@ -12,7 +13,7 @@ import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { isSpeakUpLead, speakUpStateChip } from "@/lib/speak-up";
+import { caseReference, isSpeakUpLead, speakUpStateChip } from "@/lib/speak-up";
 
 export const metadata: Metadata = { title: t("speakUp.case.title") };
 
@@ -44,10 +45,12 @@ export default async function SpeakUpCasePage({ params }: { params: Promise<{ id
   const members = data.members.flatMap((m) => (m ? [m.id] : []));
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6">
+      <SiloStatus />
       <PageHeader
         title={t("speakUp.mine.itemTitle", {
           category: t("speakUp.category", { value: data.category }),
           date: formatDate(data.receivedOn) ?? "",
+          ref: caseReference(data.id),
         })}
       />
       <p className="m-0 flex flex-wrap items-center gap-2">

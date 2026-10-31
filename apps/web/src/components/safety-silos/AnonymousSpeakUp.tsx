@@ -3,7 +3,7 @@
 import type { AnonymousSpeakUpRaised, SpeakUpThread } from "@harbour/contracts";
 import { Button, Card, Checkbox, TextArea, TextField } from "@harbour/ui";
 import { KeyRound, Megaphone, Send } from "lucide-react";
-import { type FormEvent, useState, useTransition } from "react";
+import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 import {
   raiseAnonymousConcern,
   readAnonymousThread,
@@ -85,7 +85,7 @@ function RaiseForm({
         />
         <div>
           <Button type="submit" icon={<Megaphone {...icon} />} disabled={pending}>
-            {pending ? t("common.saving") : t("speakUp.anonymous.submit")}
+            {pending ? t("speakUp.pending.sending") : t("speakUp.anonymous.submit")}
           </Button>
         </div>
         <FormFeedback result={result} success="" fieldIds={ids} />
@@ -96,10 +96,13 @@ function RaiseForm({
 
 function Raised({ raised }: { readonly raised: AnonymousSpeakUpRaised }) {
   const ids = useFieldIds(["token"]);
+  // The form was replaced: focus moves here, so the confirmation is read out (WCAG 2.4.3).
+  const first = useRef<HTMLParagraphElement>(null);
+  useEffect(() => first.current?.focus(), []);
   return (
     <Card as="section" headingLevel={2} title={t("speakUp.anonymous.raisedTitle")}>
-      <div className="flex flex-col gap-3" role="status">
-        <p className="m-0">
+      <div className="flex flex-col gap-3">
+        <p className="m-0" ref={first} tabIndex={-1}>
           {t("speakUp.anonymous.raisedBody", { date: formatDate(raised.receivedOn) ?? "" })}
         </p>
         {raised.replyToken ? (
@@ -132,6 +135,15 @@ function FollowUp({ tenantId }: { readonly tenantId: string }) {
   const [thread, setThread] = useState<SpeakUpThread | null>(null);
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
+  const opened = useRef<HTMLParagraphElement>(null);
+  const shown = useRef(false);
+  // Focus moves to the thread once, when the code first opens it (not after each reply).
+  useEffect(() => {
+    if (thread && !shown.current) {
+      shown.current = true;
+      opened.current?.focus();
+    }
+  }, [thread]);
 
   const open = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,7 +183,9 @@ function FollowUp({ tenantId }: { readonly tenantId: string }) {
     <Card as="section" headingLevel={2} title={t("speakUp.anonymous.followTitle")}>
       {thread ? (
         <div className="flex flex-col gap-4">
-          <p className="m-0">{t("speakUp.state", { state: thread.state })}</p>
+          <p className="m-0" ref={opened} tabIndex={-1}>
+            {t("speakUp.state", { state: thread.state })}
+          </p>
           {thread.outcome ? (
             <div className="flex flex-col gap-1">
               <h3 className="m-0 text-body font-semibold">{t("speakUp.thread.outcome")}</h3>
@@ -197,7 +211,7 @@ function FollowUp({ tenantId }: { readonly tenantId: string }) {
                   icon={<Send {...icon} />}
                   disabled={pending}
                 >
-                  {pending ? t("common.saving") : t("speakUp.message.send")}
+                  {pending ? t("speakUp.pending.sending") : t("speakUp.message.send")}
                 </Button>
               </div>
             </form>
@@ -223,7 +237,7 @@ function FollowUp({ tenantId }: { readonly tenantId: string }) {
               icon={<KeyRound {...icon} />}
               disabled={pending}
             >
-              {pending ? t("common.saving") : t("speakUp.anonymous.open")}
+              {pending ? t("speakUp.pending.opening") : t("speakUp.anonymous.open")}
             </Button>
           </div>
           <FormFeedback result={result} success="" fieldIds={ids} />
