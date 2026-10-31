@@ -49,7 +49,7 @@ describe("seed", () => {
     expect(counts).toEqual({
       people: 6,
       rooms: 60,
-      roles: 21,
+      roles: 22,
       rates: rates.length,
       bankHolidays: holidays.length,
     });

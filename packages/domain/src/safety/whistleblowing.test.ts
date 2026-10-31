@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
+import { isSiloPermission, SILO_PERMISSIONS } from "../platform/permissions";
+import { BUILTIN_ROLES, builtinRole } from "../platform/roles";
 import { checkWorkflowTransition } from "../platform/workflow";
 import { workingDaysDeadline } from "../shared/working-days";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
@@ -26,7 +28,7 @@ describe("speaking up (safety.md Phase 2 rule 3)", () => {
           stepUpFresh: false,
         },
       ).ok;
-    expect(check(new Set(["safety.whistleblowing.read"]))).toBe(true);
+    expect(check(new Set(["safety.speak_up.manage"]))).toBe(true);
     expect(check(new Set(["safety.incident.manage"]))).toBe(false);
   });
 
@@ -57,6 +59,34 @@ describe("speaking up (safety.md Phase 2 rule 3)", () => {
     const holidays = new Set(["2026-12-25", "2026-12-28"]);
     expect(speakUpAcknowledgeTarget(received, rates, holidays)).toEqual(
       workingDaysDeadline(received, rates.whistleblowingAcknowledgeWorkingDays, holidays),
+    );
+  });
+});
+
+describe("the speak-up silo (ADR-0089)", () => {
+  it("is held by no wider built-in role, and the guardian's role carries nothing else", () => {
+    for (const role of BUILTIN_ROLES) {
+      if (role.key === "speak_up_guardian") {
+        expect(role.permissions).toEqual(["safety.speak_up.manage"]);
+      } else {
+        expect(
+          role.permissions.filter((p) => isSiloPermission(p)),
+          role.key,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  it.each(["owner", "registered_manager", "quality_lead", "group_executive"])(
+    "leaves the %s role out",
+    (key) => {
+      expect(builtinRole(key)?.permissions).not.toContain("safety.speak_up.manage");
+    },
+  );
+
+  it("moves every step with the lead's own permission", () => {
+    expect(new Set(SPEAK_UP_WORKFLOW.transitions.map((t) => t.permission))).toEqual(
+      new Set(SILO_PERMISSIONS),
     );
   });
 });
