@@ -65,6 +65,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { qualityFrameworkRouter } from "./routes/quality-framework";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { safeguardingRouter } from "./routes/safeguarding";
@@ -315,6 +316,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", qualityFrameworkRouter);
   app.route("/", staffFilesRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);

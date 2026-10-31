@@ -2024,6 +2024,35 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.evidence_link": {
+    context: "quality",
+    description:
+      "Records tagged as evidence against quality statements of one framework version (quality.md rule 6): the record's type and id only, never its content.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_type: {
+        description: "The kind of record tagged (care_note, incident, audit and so on).",
+      },
+      record_id: { description: "The record's id in its own table." },
+      framework_version_id: { description: "The framework version the statements belong to." },
+      statement_ids: { description: "The quality statements the record is evidence for." },
+      tagged_by: { description: "Who tagged it (tenant_user.id)." },
+      tagged_at: "exported",
+      removed_at: { description: "When the tag was removed, if it was." },
+      removed_by: { description: "Who removed it (tenant_user.id)." },
+      removal_reason: { description: "Why the tag was removed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.evidence_pack": {
     context: "quality",
     description:
@@ -2606,6 +2635,72 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       version: "exported",
       deleted_at: "exported",
     },
+  },
+  "public.framework_evidence_category": {
+    context: "quality",
+    description: "Evidence categories of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_key_question": {
+    context: "quality",
+    description: "Key questions of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_mapping": {
+    context: "quality",
+    description:
+      "The organisation's versioned mapping of a compliance framework version (quality.md rule 5): local titles, owner roles and expected evidence categories per statement.",
+    treatment: "tenant_rows",
+    retention: "tenant_configuration",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      framework_version_id: { description: "The framework version mapped." },
+      mapping_version: {
+        description: "The mapping's version for this framework version.",
+        unit: "version",
+      },
+      entries: {
+        description:
+          "Per statement: the statement id, the organisation's own title, the owner role and the evidence categories expected.",
+      },
+      made_by: { description: "Who made this version (tenant_user.id)." },
+      made_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.framework_statement": {
+    context: "quality",
+    description: "Quality statements of each compliance framework version.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
+  },
+  "public.framework_version": {
+    context: "quality",
+    description:
+      "Compliance framework versions (CQC's single assessment framework now; KLOEs when published).",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Global reference data with no organisation rows: the published compliance framework (migration 0076, ADR-0096).",
+    columns: {},
   },
   "public.handed_over_entry": {
     context: "care",

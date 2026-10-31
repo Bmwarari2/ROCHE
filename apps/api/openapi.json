@@ -546,8 +546,7 @@
           "care_attachment",
           "person_document",
           "organisation_document",
-          "organisation_logo",
-          "staff_hr_document"
+          "organisation_logo"
         ]
       },
       "SearchResults": {
@@ -6849,20 +6848,6 @@
           "missedTasksNotListedBefore": {
             "type": "string",
             "format": "date"
-          },
-          "staffProfileId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "complianceItemKind": {
-            "type": "string"
-          },
-          "reminderDueOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "reminderDays": {
-            "type": "integer"
           }
         }
       },
@@ -17507,786 +17492,6 @@
           "dueOn"
         ]
       },
-      "SafeguardingRaised": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "state": {
-            "$ref": "#/components/schemas/SafeguardingState"
-          },
-          "referralDueAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "state",
-          "referralDueAt",
-          "version"
-        ]
-      },
-      "SafeguardingState": {
-        "type": "string",
-        "enum": [
-          "concern",
-          "no_referral",
-          "referred",
-          "enquiry",
-          "outcome",
-          "closed"
-        ]
-      },
-      "RaiseSafeguardingConcern": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "personId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "abuseTypes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SafeguardingAbuseType"
-            },
-            "minItems": 1,
-            "maxItems": 10
-          },
-          "description": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 4000
-          },
-          "raisedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "incidentId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "notificationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "decisionGuideTaskId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "protectiveMeasures": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 2000
-          }
-        },
-        "required": [
-          "personId",
-          "abuseTypes",
-          "description"
-        ]
-      },
-      "SafeguardingAbuseType": {
-        "type": "string",
-        "enum": [
-          "physical",
-          "domestic",
-          "sexual",
-          "psychological",
-          "financial_or_material",
-          "modern_slavery",
-          "discriminatory",
-          "organisational",
-          "neglect",
-          "self_neglect"
-        ]
-      },
-      "SafeguardingList": {
-        "type": "object",
-        "properties": {
-          "concerns": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SafeguardingSummary"
-            }
-          },
-          "truncated": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "concerns",
-          "truncated"
-        ]
-      },
-      "SafeguardingSummary": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "personId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "locationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "state": {
-            "$ref": "#/components/schemas/SafeguardingState"
-          },
-          "abuseTypes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SafeguardingAbuseType"
-            }
-          },
-          "raisedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "clock": {
-            "$ref": "#/components/schemas/SafeguardingClock"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "personId",
-          "locationId",
-          "state",
-          "abuseTypes",
-          "raisedAt",
-          "clock",
-          "version"
-        ]
-      },
-      "SafeguardingClock": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/SafeguardingClockStatus"
-          },
-          "dueAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "wording": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "dueAt",
-          "wording"
-        ]
-      },
-      "SafeguardingClockStatus": {
-        "type": "string",
-        "enum": [
-          "due",
-          "overdue",
-          "referred",
-          "not_referred"
-        ]
-      },
-      "SafeguardingDetail": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "personId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "locationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "incidentId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "notification": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "draft",
-                  "ready",
-                  "submitted",
-                  "not_required"
-                ]
-              },
-              "dueAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "id",
-              "status",
-              "dueAt"
-            ]
-          },
-          "decisionGuideTaskId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "state": {
-            "$ref": "#/components/schemas/SafeguardingState"
-          },
-          "abuseTypes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SafeguardingAbuseType"
-            }
-          },
-          "description": {
-            "type": "string"
-          },
-          "raisedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "raisedByYou": {
-            "type": "boolean"
-          },
-          "clock": {
-            "$ref": "#/components/schemas/SafeguardingClock"
-          },
-          "noReferralReason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "referral": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "localAuthority": {
-                "type": "string",
-                "minLength": 2,
-                "maxLength": 200
-              },
-              "method": {
-                "type": "string",
-                "enum": [
-                  "phone",
-                  "online_form",
-                  "email",
-                  "in_person"
-                ]
-              },
-              "referredAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "reference": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 120
-              }
-            },
-            "required": [
-              "localAuthority",
-              "method",
-              "referredAt",
-              "reference"
-            ]
-          },
-          "enquiry": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "s42_local_authority",
-                  "s42_caused_to_provider"
-                ]
-              },
-              "openedAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "kind",
-              "openedAt"
-            ]
-          },
-          "finding": {
-            "$ref": "#/components/schemas/SafeguardingFinding"
-          },
-          "personalOutcomes": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "asked": {
-                "type": "boolean"
-              },
-              "notAskedReason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "desiredOutcomes": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "achieved": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "fully",
-                  "partly",
-                  "not",
-                  null
-                ]
-              }
-            },
-            "required": [
-              "asked",
-              "notAskedReason",
-              "desiredOutcomes",
-              "achieved"
-            ]
-          },
-          "staffHarm": {
-            "$ref": "#/components/schemas/SafeguardingStaffHarm"
-          },
-          "dbsReferral": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "referred",
-                  "not_required"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "at": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "decision",
-              "reason",
-              "at"
-            ]
-          },
-          "protectiveMeasures": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "protectiveMeasuresUpdatedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "measuresOutcome": {
-            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
-          },
-          "closedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "closedReason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nextSteps": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "to": {
-                  "$ref": "#/components/schemas/SafeguardingState"
-                },
-                "needs": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "required": [
-                "to",
-                "needs"
-              ]
-            }
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "personId",
-          "locationId",
-          "incidentId",
-          "notification",
-          "decisionGuideTaskId",
-          "state",
-          "abuseTypes",
-          "description",
-          "raisedAt",
-          "raisedByYou",
-          "clock",
-          "noReferralReason",
-          "referral",
-          "enquiry",
-          "finding",
-          "personalOutcomes",
-          "staffHarm",
-          "dbsReferral",
-          "protectiveMeasures",
-          "protectiveMeasuresUpdatedAt",
-          "measuresOutcome",
-          "closedAt",
-          "closedReason",
-          "nextSteps",
-          "warnings",
-          "version"
-        ]
-      },
-      "SafeguardingFinding": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "enum": [
-          "substantiated",
-          "partly_substantiated",
-          "not_substantiated",
-          "inconclusive",
-          "no_s42_enquiry",
-          null
-        ]
-      },
-      "SafeguardingStaffHarm": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "enum": [
-          "removed",
-          "would_have_removed",
-          "not_removed",
-          "no_staff_involved",
-          null
-        ]
-      },
-      "SafeguardingMeasuresOutcome": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "enum": [
-          "carried_into_care_plan",
-          "no_longer_needed",
-          null
-        ]
-      },
-      "UpdateSafeguardingConcern": {
-        "type": "object",
-        "properties": {
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "abuseTypes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SafeguardingAbuseType"
-            },
-            "minItems": 1,
-            "maxItems": 10
-          },
-          "referral": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "localAuthority": {
-                "type": "string",
-                "minLength": 2,
-                "maxLength": 200
-              },
-              "method": {
-                "type": "string",
-                "enum": [
-                  "phone",
-                  "online_form",
-                  "email",
-                  "in_person"
-                ]
-              },
-              "referredAt": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "reference": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 120
-              }
-            },
-            "required": [
-              "localAuthority",
-              "method",
-              "referredAt",
-              "reference"
-            ]
-          },
-          "enquiry": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "s42_local_authority",
-                  "s42_caused_to_provider"
-                ]
-              },
-              "openedAt": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "kind",
-              "openedAt"
-            ]
-          },
-          "finding": {
-            "$ref": "#/components/schemas/SafeguardingFinding"
-          },
-          "personalOutcomes": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "asked": {
-                "type": "boolean"
-              },
-              "notAskedReason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "desiredOutcomes": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "achieved": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "fully",
-                  "partly",
-                  "not",
-                  null
-                ]
-              }
-            },
-            "required": [
-              "asked",
-              "notAskedReason",
-              "desiredOutcomes",
-              "achieved"
-            ]
-          },
-          "staffHarm": {
-            "$ref": "#/components/schemas/SafeguardingStaffHarm"
-          },
-          "dbsReferral": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "decision": {
-                "type": "string",
-                "enum": [
-                  "referred",
-                  "not_required"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "maxLength": 2000
-              },
-              "at": {
-                "type": "string",
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "decision",
-              "reason",
-              "at"
-            ]
-          },
-          "protectiveMeasures": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 2000
-          },
-          "measuresOutcome": {
-            "$ref": "#/components/schemas/SafeguardingMeasuresOutcome"
-          }
-        },
-        "required": [
-          "version"
-        ]
-      },
-      "SafeguardingStep": {
-        "type": "object",
-        "properties": {
-          "to": {
-            "$ref": "#/components/schemas/SafeguardingState"
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 2000
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "to",
-          "version"
-        ]
-      },
-      "SafeguardingMeasures": {
-        "type": "object",
-        "properties": {
-          "measures": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "text": {
-                  "type": "string"
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              },
-              "required": [
-                "text",
-                "updatedAt"
-              ]
-            }
-          },
-          "openWithoutMeasures": {
-            "type": "integer",
-            "minimum": 0
-          }
-        },
-        "required": [
-          "measures",
-          "openWithoutMeasures"
-        ]
-      },
       "StatutoryNotificationList": {
         "type": "object",
         "properties": {
@@ -20312,967 +19517,508 @@
           "registrationPrompts"
         ]
       },
-      "StaffFileList": {
+      "FrameworkVersionList": {
         "type": "object",
         "properties": {
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/StaffFileSummary"
+              "$ref": "#/components/schemas/FrameworkVersionSummary"
             }
-          },
-          "asOf": {
-            "type": "string",
-            "format": "date"
           }
         },
         "required": [
-          "items",
-          "asOf"
+          "items"
         ]
       },
-      "StaffFileSummary": {
+      "FrameworkVersionSummary": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "version": {
-            "type": "integer"
-          },
-          "member": {
-            "$ref": "#/components/schemas/StaffName"
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "jobTitle": {
+          "frameworkKey": {
             "type": "string"
           },
-          "startsOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "leftOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "complete": {
-            "type": "boolean"
-          },
-          "outstanding": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceItemKind"
-            }
-          },
-          "dueSoon": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceItemKind"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "version",
-          "member",
-          "locationId",
-          "jobTitle",
-          "startsOn",
-          "leftOn",
-          "complete",
-          "outstanding",
-          "dueSoon"
-        ]
-      },
-      "ComplianceItemKind": {
-        "type": "string",
-        "enum": [
-          "identity_with_photo",
-          "dbs_certificate",
-          "conduct_in_care_work",
-          "references",
-          "relevant_qualifications",
-          "employment_history",
-          "health_fitness",
-          "right_to_work",
-          "professional_registration"
-        ],
-        "description": "A Schedule 3 pre-employment requirement"
-      },
-      "StaffFileItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "version": {
-            "type": "integer"
-          },
-          "member": {
-            "$ref": "#/components/schemas/StaffName"
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "jobTitle": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 120
-          },
-          "pathwayCategory": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 2,
-            "maxLength": 80
-          },
-          "registrationBody": {
-            "$ref": "#/components/schemas/RegistrationBody"
-          },
-          "previousCareWork": {
-            "type": "boolean"
-          },
-          "dateOfBirth": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "startsOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "leftOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "complete": {
-            "type": "boolean"
-          },
-          "outstanding": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceItemKind"
-            }
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceItemView"
-            }
-          },
-          "documents": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/StaffHrDocument"
-            }
-          },
-          "asOf": {
-            "type": "string",
-            "format": "date"
-          }
-        },
-        "required": [
-          "id",
-          "version",
-          "member",
-          "locationId",
-          "jobTitle",
-          "pathwayCategory",
-          "registrationBody",
-          "previousCareWork",
-          "dateOfBirth",
-          "startsOn",
-          "leftOn",
-          "complete",
-          "outstanding",
-          "items",
-          "documents",
-          "asOf"
-        ]
-      },
-      "RegistrationBody": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "enum": [
-          "nmc",
-          "hcpc",
-          "swe",
-          "gmc",
-          null
-        ]
-      },
-      "ComplianceItemView": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "$ref": "#/components/schemas/ComplianceItemKind"
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ComplianceStatus"
-          },
-          "id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "version": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "detail": {
-            "$ref": "#/components/schemas/ComplianceDetail"
-          },
-          "verifiedOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "verifiedBy": {
-            "$ref": "#/components/schemas/StaffName"
-          },
-          "riskAssessmentSignedOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "riskAssessmentSignedBy": {
-            "$ref": "#/components/schemas/StaffName"
-          },
-          "expiresOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "recheckDueOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "notes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ComplianceNote"
-            }
-          }
-        },
-        "required": [
-          "kind",
-          "required",
-          "status",
-          "id",
-          "version",
-          "detail",
-          "verifiedOn",
-          "verifiedBy",
-          "riskAssessmentSignedOn",
-          "riskAssessmentSignedBy",
-          "expiresOn",
-          "recheckDueOn",
-          "notes"
-        ]
-      },
-      "ComplianceStatus": {
-        "type": "string",
-        "enum": [
-          "satisfied",
-          "due_soon",
-          "expired",
-          "missing",
-          "not_required"
-        ]
-      },
-      "ComplianceDetail": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "identity_with_photo"
-                ]
-              },
-              "document": {
-                "type": "string",
-                "enum": [
-                  "passport",
-                  "photocard_driving_licence",
-                  "national_identity_card",
-                  "biometric_residence_permit",
-                  "other_photo_document"
-                ]
-              }
-            },
-            "required": [
-              "kind",
-              "document"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "dbs_certificate"
-                ]
-              },
-              "certificate": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "level": {
-                    "type": "string",
-                    "enum": [
-                      "enhanced_adults_barred",
-                      "enhanced",
-                      "standard",
-                      "basic"
-                    ]
-                  },
-                  "issuedOn": {
-                    "type": "string",
-                    "format": "date"
-                  },
-                  "number": {
-                    "type": "string",
-                    "pattern": "^\\d{12}$"
-                  },
-                  "result": {
-                    "type": "string",
-                    "enum": [
-                      "clear",
-                      "information_disclosed"
-                    ]
-                  }
-                },
-                "required": [
-                  "level",
-                  "issuedOn",
-                  "number",
-                  "result"
-                ]
-              },
-              "updateService": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "subscribed": {
-                    "type": "boolean"
-                  },
-                  "lastCheckedOn": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "format": "date"
-                  },
-                  "lastResult": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "enum": [
-                      "no_new_information",
-                      "new_information",
-                      null
-                    ]
-                  }
-                },
-                "required": [
-                  "subscribed",
-                  "lastCheckedOn",
-                  "lastResult"
-                ]
-              },
-              "barredListClearOn": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date"
-              }
-            },
-            "required": [
-              "kind",
-              "certificate",
-              "updateService",
-              "barredListClearOn"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "conduct_in_care_work"
-                ]
-              },
-              "employersContacted": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 50
-              }
-            },
-            "required": [
-              "kind",
-              "employersContacted"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "references"
-                ]
-              },
-              "received": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 20
-              }
-            },
-            "required": [
-              "kind",
-              "received"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "relevant_qualifications"
-                ]
-              },
-              "qualifications": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 2,
-                  "maxLength": 160
-                },
-                "maxItems": 30
-              }
-            },
-            "required": [
-              "kind",
-              "qualifications"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "employment_history"
-                ]
-              },
-              "historyStart": {
-                "type": "string",
-                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
-              },
-              "applicationMonth": {
-                "type": "string",
-                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
-              },
-              "periods": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "from": {
-                      "type": "string",
-                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
-                    },
-                    "to": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "employment",
-                        "education",
-                        "explained_gap"
-                      ]
-                    },
-                    "explanation": {
-                      "type": "string",
-                      "minLength": 2,
-                      "maxLength": 500
-                    }
-                  },
-                  "required": [
-                    "from",
-                    "to",
-                    "kind"
-                  ]
-                },
-                "maxItems": 80
-              }
-            },
-            "required": [
-              "kind",
-              "historyStart",
-              "applicationMonth",
-              "periods"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "health_fitness"
-                ]
-              },
-              "declaredFit": {
-                "type": "boolean"
-              },
-              "adjustmentsAgreed": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "kind",
-              "declaredFit",
-              "adjustmentsAgreed"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "right_to_work"
-                ]
-              },
-              "checks": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "checkedOn": {
-                      "type": "string",
-                      "format": "date"
-                    },
-                    "method": {
-                      "type": "string",
-                      "enum": [
-                        "manual_document",
-                        "online_share_code",
-                        "idsp"
-                      ]
-                    },
-                    "permission": {
-                      "type": "string",
-                      "enum": [
-                        "unlimited",
-                        "time_limited"
-                      ]
-                    },
-                    "expiresOn": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "format": "date"
-                    }
-                  },
-                  "required": [
-                    "checkedOn",
-                    "method",
-                    "permission",
-                    "expiresOn"
-                  ]
-                },
-                "maxItems": 40
-              }
-            },
-            "required": [
-              "kind",
-              "checks"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "professional_registration"
-                ]
-              },
-              "body": {
-                "$ref": "#/components/schemas/RegistrationBody"
-              },
-              "pin": {
-                "type": "string",
-                "pattern": "^[0-9A-Z]{4,12}$"
-              },
-              "renewalDueOn": {
-                "type": "string",
-                "format": "date"
-              },
-              "revalidationDueOn": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date"
-              }
-            },
-            "required": [
-              "kind",
-              "body",
-              "pin",
-              "renewalDueOn",
-              "revalidationDueOn"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "What a compliance item keeps, by its kind"
-      },
-      "ComplianceNote": {
-        "type": "object",
-        "properties": {
-          "code": {
+          "regulator": {
             "type": "string",
             "enum": [
-              "not_verified",
-              "self_verified",
-              "dbs_supervised_only",
-              "dbs_not_clear",
-              "dbs_update_service_check_due",
-              "right_to_work_none",
-              "right_to_work_lapsed",
-              "right_to_work_checked_late",
-              "employment_gaps",
-              "registration_lapsed",
-              "health_not_declared_fit",
-              "references_none"
+              "cqc",
+              "ciw",
+              "care_inspectorate",
+              "rqia"
             ]
           },
-          "reason": {
+          "versionNumber": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "retired"
+            ]
+          },
+          "publishedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "retiredOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "provision": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "provision",
+              "url"
+            ]
+          },
+          "inForce": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "frameworkKey",
+          "regulator",
+          "versionNumber",
+          "state",
+          "publishedOn",
+          "retiredOn",
+          "source",
+          "inForce"
+        ]
+      },
+      "FrameworkVersionDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "frameworkKey": {
             "type": "string"
           },
-          "dueOn": {
+          "regulator": {
             "type": "string",
+            "enum": [
+              "cqc",
+              "ciw",
+              "care_inspectorate",
+              "rqia"
+            ]
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "retired"
+            ]
+          },
+          "publishedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date"
           },
-          "lapsedOn": {
-            "type": "string",
+          "retiredOn": {
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date"
           },
-          "checkedOn": {
-            "type": "string",
-            "format": "date"
+          "source": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "provision": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "provision",
+              "url"
+            ]
           },
-          "gaps": {
+          "inForce": {
+            "type": "boolean"
+          },
+          "keyQuestions": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "from": {
-                  "type": "string",
-                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                "id": {
+                  "type": "string"
                 },
-                "to": {
-                  "type": "string",
-                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                "title": {
+                  "type": "string"
                 },
-                "months": {
-                  "type": "integer"
+                "statements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "title"
+                    ]
+                  }
                 }
               },
               "required": [
-                "from",
-                "to",
-                "months"
+                "id",
+                "title",
+                "statements"
+              ]
+            }
+          },
+          "evidenceCategories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title"
               ]
             }
           }
         },
         "required": [
-          "code"
-        ],
-        "description": "Why an item is not satisfied, or what it must say"
+          "id",
+          "frameworkKey",
+          "regulator",
+          "versionNumber",
+          "state",
+          "publishedOn",
+          "retiredOn",
+          "source",
+          "inForce",
+          "keyQuestions",
+          "evidenceCategories"
+        ]
       },
-      "StaffHrDocument": {
+      "FrameworkMappingView": {
+        "type": "object",
+        "properties": {
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mappingVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FrameworkMappingEntry"
+            }
+          },
+          "madeBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "madeAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "frameworkVersionId",
+          "mappingVersion",
+          "entries",
+          "madeBy",
+          "madeAt"
+        ]
+      },
+      "FrameworkMappingEntry": {
+        "type": "object",
+        "properties": {
+          "statementId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "localTitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ownerRole": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "evidenceCategoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "statementId",
+          "localTitle",
+          "ownerRole",
+          "evidenceCategoryIds"
+        ]
+      },
+      "SaveFrameworkMapping": {
+        "type": "object",
+        "properties": {
+          "mappingVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FrameworkMappingEntry"
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "mappingVersion",
+          "entries"
+        ]
+      },
+      "EvidenceCoverage": {
+        "type": "object",
+        "properties": {
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "statementId": {
+                  "type": "string"
+                },
+                "keyQuestionId": {
+                  "type": "string"
+                },
+                "records": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "statementId",
+                "keyQuestionId",
+                "records"
+              ]
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "frameworkVersionId",
+          "statements",
+          "gaps"
+        ]
+      },
+      "EvidenceLinkList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceLinkItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "EvidenceLinkItem": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "itemKind": {
-            "$ref": "#/components/schemas/ComplianceItemKind"
-          },
-          "title": {
+          "recordType": {
             "type": "string"
           },
-          "contentType": {
-            "type": "string"
+          "recordId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "sizeBytes": {
-            "type": "integer"
+          "frameworkVersionId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "createdAt": {
+          "statementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "taggedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taggedAt": {
             "type": "string",
             "format": "date-time"
           },
-          "status": {
-            "type": "string"
+          "removedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "removedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "removalReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
           "id",
-          "itemKind",
-          "title",
-          "contentType",
-          "sizeBytes",
-          "createdAt",
-          "status"
-        ],
-        "description": "An HR-only document's details (not its contents)"
+          "recordType",
+          "recordId",
+          "frameworkVersionId",
+          "statementIds",
+          "taggedBy",
+          "taggedAt",
+          "removedAt",
+          "removedBy",
+          "removalReason",
+          "version"
+        ]
       },
-      "CreateStaffFile": {
+      "CreateEvidenceLink": {
         "type": "object",
         "properties": {
-          "tenantUserId": {
+          "recordType": {
+            "type": "string",
+            "pattern": "^[a-z_]{1,40}$"
+          },
+          "recordId": {
             "type": "string",
             "format": "uuid"
           },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
+          "frameworkVersionId": {
+            "type": "string",
             "format": "uuid"
           },
-          "jobTitle": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 120
-          },
-          "pathwayCategory": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 2,
-            "maxLength": 80
-          },
-          "registrationBody": {
-            "$ref": "#/components/schemas/RegistrationBody"
-          },
-          "previousCareWork": {
-            "type": "boolean"
-          },
-          "dateOfBirth": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "startsOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "leftOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
+          "statementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "minItems": 1,
+            "maxItems": 20
           }
         },
         "required": [
-          "tenantUserId",
-          "locationId",
-          "jobTitle",
-          "pathwayCategory",
-          "registrationBody",
-          "previousCareWork",
-          "dateOfBirth",
-          "startsOn",
-          "leftOn"
+          "recordType",
+          "recordId",
+          "frameworkVersionId",
+          "statementIds"
         ]
       },
-      "UpdateStaffFile": {
+      "RemoveEvidenceLink": {
         "type": "object",
         "properties": {
-          "expectedVersion": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "jobTitle": {
+          "reason": {
             "type": "string",
-            "minLength": 2,
-            "maxLength": 120
+            "minLength": 3,
+            "maxLength": 500
           },
-          "pathwayCategory": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 2,
-            "maxLength": 80
-          },
-          "registrationBody": {
-            "$ref": "#/components/schemas/RegistrationBody"
-          },
-          "previousCareWork": {
-            "type": "boolean"
-          },
-          "dateOfBirth": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "startsOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "leftOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          }
-        },
-        "required": [
-          "expectedVersion",
-          "locationId",
-          "jobTitle",
-          "pathwayCategory",
-          "registrationBody",
-          "previousCareWork",
-          "dateOfBirth",
-          "startsOn",
-          "leftOn"
-        ]
-      },
-      "RecordComplianceItem": {
-        "type": "object",
-        "properties": {
-          "expectedVersion": {
+          "version": {
             "type": "integer",
             "minimum": 1
-          },
-          "detail": {
-            "$ref": "#/components/schemas/ComplianceDetail"
-          },
-          "verifiedOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
           }
         },
         "required": [
-          "detail",
-          "verifiedOn"
-        ]
-      },
-      "SignDbsRiskAssessment": {
-        "type": "object",
-        "properties": {
-          "expectedVersion": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "signedOn": {
-            "type": "string",
-            "format": "date"
-          }
-        },
-        "required": [
-          "expectedVersion",
-          "signedOn"
+          "reason",
+          "version"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -26562,991 +25308,6 @@
         },
         "required": [
           "version"
-        ]
-      },
-      "DependencyScaleList": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DependencyScaleItem"
-            }
-          },
-          "notice": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "items",
-          "notice"
-        ]
-      },
-      "DependencyScaleItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "archivedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "archiveReason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "current": {
-            "$ref": "#/components/schemas/DependencyScaleVersionItem"
-          },
-          "draft": {
-            "$ref": "#/components/schemas/DependencyScaleVersionItem"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "locationId",
-          "name",
-          "archivedAt",
-          "archiveReason",
-          "current",
-          "draft",
-          "version"
-        ]
-      },
-      "DependencyScaleVersionItem": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scaleId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "versionNumber": {
-            "type": "integer"
-          },
-          "state": {
-            "$ref": "#/components/schemas/DependencyScaleState"
-          },
-          "definition": {
-            "$ref": "#/components/schemas/DependencyScaleDefinition"
-          },
-          "authorId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "contributorIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "approvedBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "approvedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "supersededAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "discardReason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "issues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DependencyScaleIssue"
-            }
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "id",
-          "scaleId",
-          "versionNumber",
-          "state",
-          "definition",
-          "authorId",
-          "contributorIds",
-          "approvedBy",
-          "approvedAt",
-          "supersededAt",
-          "discardReason",
-          "issues",
-          "version"
-        ]
-      },
-      "DependencyScaleState": {
-        "type": "string",
-        "enum": [
-          "draft",
-          "approved",
-          "superseded",
-          "discarded"
-        ]
-      },
-      "DependencyScaleDefinition": {
-        "type": "object",
-        "properties": {
-          "periods": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 40
-                },
-                "label": {
-                  "type": "string",
-                  "maxLength": 80
-                },
-                "startMinute": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 1439
-                }
-              },
-              "required": [
-                "key",
-                "label",
-                "startMinute"
-              ]
-            },
-            "maxItems": 12
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 40
-                },
-                "label": {
-                  "type": "string",
-                  "maxLength": 80
-                },
-                "description": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "maxLength": 500
-                },
-                "careMinutes": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PeriodMinutes"
-                  },
-                  "maxItems": 12
-                }
-              },
-              "required": [
-                "key",
-                "label",
-                "description",
-                "careMinutes"
-              ]
-            },
-            "maxItems": 30
-          },
-          "skillMix": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "skill": {
-                  "$ref": "#/components/schemas/StaffingSkill"
-                },
-                "periodKey": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 40
-                },
-                "minimumStaff": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 100
-                }
-              },
-              "required": [
-                "skill",
-                "periodKey",
-                "minimumStaff"
-              ]
-            },
-            "maxItems": 60
-          },
-          "reviewIntervalDays": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "minimum": 0,
-            "maximum": 3650
-          }
-        },
-        "required": [
-          "periods",
-          "categories",
-          "skillMix",
-          "reviewIntervalDays"
-        ],
-        "description": "The organisation's own dependency scale: its shift periods, categories with care minutes per period, skill-mix minimums and review interval"
-      },
-      "PeriodMinutes": {
-        "type": "object",
-        "properties": {
-          "periodKey": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 40
-          },
-          "minutes": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 2880
-          }
-        },
-        "required": [
-          "periodKey",
-          "minutes"
-        ],
-        "description": "Minutes in one of the scale's shift periods"
-      },
-      "StaffingSkill": {
-        "type": "string",
-        "enum": [
-          "registered_nurse",
-          "medicines_competent",
-          "moving_and_handling",
-          "driver"
-        ]
-      },
-      "DependencyScaleIssue": {
-        "type": "object",
-        "properties": {
-          "problem": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "problem",
-          "path",
-          "message"
-        ]
-      },
-      "CreateDependencyScale": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "locationId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "definition": {
-            "$ref": "#/components/schemas/DependencyScaleDefinition"
-          }
-        },
-        "required": [
-          "name",
-          "locationId",
-          "definition"
-        ]
-      },
-      "RenameDependencyScale": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "name",
-          "version"
-        ]
-      },
-      "EndDependencyScale": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 500
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "reason",
-          "version"
-        ],
-        "description": "Archive a scale or discard a draft, with why"
-      },
-      "DependencyScaleVersionList": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DependencyScaleVersionItem"
-            }
-          }
-        },
-        "required": [
-          "items"
-        ]
-      },
-      "EditDependencyScaleVersion": {
-        "type": "object",
-        "properties": {
-          "definition": {
-            "$ref": "#/components/schemas/DependencyScaleDefinition"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "definition",
-          "version"
-        ]
-      },
-      "ApproveDependencyScaleVersion": {
-        "type": "object",
-        "properties": {
-          "version": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "version"
-        ]
-      },
-      "PersonDependency": {
-        "type": "object",
-        "properties": {
-          "inForce": {
-            "$ref": "#/components/schemas/DependencyRecordItem"
-          },
-          "currentId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DependencyRecordItem"
-            }
-          },
-          "notice": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "inForce",
-          "currentId",
-          "items",
-          "notice"
-        ]
-      },
-      "DependencyRecordItem": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "personId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scaleId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "scaleVersionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "versionNumber": {
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "categoryKey": {
-            "type": "string"
-          },
-          "categoryLabel": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "oneToOne": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PeriodMinutes"
-            }
-          },
-          "kind": {
-            "$ref": "#/components/schemas/DependencyKind"
-          },
-          "effectiveFrom": {
-            "type": "string",
-            "format": "date"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "decidedBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "recordedBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "recordedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "supersedesId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "inForce": {
-            "type": "boolean"
-          },
-          "corrected": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "personId",
-          "scaleId",
-          "scaleVersionId",
-          "versionNumber",
-          "categoryKey",
-          "categoryLabel",
-          "oneToOne",
-          "kind",
-          "effectiveFrom",
-          "reason",
-          "decidedBy",
-          "recordedBy",
-          "recordedAt",
-          "supersedesId",
-          "inForce",
-          "corrected"
-        ]
-      },
-      "DependencyKind": {
-        "type": "string",
-        "enum": [
-          "initial",
-          "review",
-          "correction"
-        ]
-      },
-      "RecordDependency": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/DependencyKind"
-          },
-          "categoryKey": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 40
-          },
-          "oneToOne": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PeriodMinutes"
-            },
-            "maxItems": 12,
-            "default": []
-          },
-          "effectiveFrom": {
-            "type": "string",
-            "format": "date"
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "decidedBy": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "supersedesId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "categoryKey",
-          "effectiveFrom",
-          "reason",
-          "decidedBy",
-          "supersedesId"
-        ]
-      },
-      "StaffingRequirementList": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StaffingRequirementItem"
-            }
-          },
-          "asAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "items",
-          "asAt"
-        ]
-      },
-      "StaffingRequirementItem": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "computed",
-              "no_scale"
-            ]
-          },
-          "locationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "date": {
-            "type": "string",
-            "format": "date"
-          },
-          "period": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "label": {
-                "type": "string"
-              },
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "minutes": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "key",
-              "label",
-              "start",
-              "end",
-              "minutes"
-            ]
-          },
-          "source": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "organisation_scale"
-                ]
-              },
-              "scaleId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "scaleName": {
-                "type": "string"
-              },
-              "versionId": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "versionNumber": {
-                "type": "integer"
-              },
-              "approvedBy": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "uuid"
-              },
-              "approvedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "format": "date-time"
-              }
-            },
-            "required": [
-              "kind",
-              "scaleId",
-              "scaleName",
-              "versionId",
-              "versionNumber",
-              "approvedBy",
-              "approvedAt"
-            ]
-          },
-          "notice": {
-            "type": "string"
-          },
-          "figure": {
-            "type": "string",
-            "enum": [
-              "exact",
-              "at_least",
-              "none"
-            ]
-          },
-          "careMinutes": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "oneToOneMinutes": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "requiredMinutes": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "awayMinutes": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "key": {
-                  "type": "string"
-                },
-                "label": {
-                  "type": "string"
-                },
-                "minutesEach": {
-                  "type": "number"
-                },
-                "people": {
-                  "type": "integer"
-                },
-                "minutes": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "key",
-                "label",
-                "minutesEach",
-                "people",
-                "minutes"
-              ]
-            }
-          },
-          "oneToOne": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "personId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "minutes": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "personId",
-                "minutes"
-              ]
-            }
-          },
-          "people": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "personId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "presence": {
-                  "type": "string",
-                  "enum": [
-                    "present",
-                    "planned_admission",
-                    "away",
-                    "away_return_unknown",
-                    "admission_date_unknown",
-                    "not_yet_admitted",
-                    "unknown"
-                  ]
-                },
-                "standing": {
-                  "type": "string",
-                  "enum": [
-                    "assessed",
-                    "not_assessed",
-                    "other_scale",
-                    "not_in_scale_version"
-                  ]
-                },
-                "recordId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "format": "uuid"
-                },
-                "categoryKey": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "categoryLabel": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "careMinutes": {
-                  "type": "number"
-                },
-                "oneToOneMinutes": {
-                  "type": "number"
-                },
-                "flags": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "enum": [
-                      "earlier_version",
-                      "later_version",
-                      "review_overdue"
-                    ]
-                  }
-                }
-              },
-              "required": [
-                "personId",
-                "presence",
-                "standing",
-                "recordId",
-                "categoryKey",
-                "categoryLabel",
-                "careMinutes",
-                "oneToOneMinutes",
-                "flags"
-              ]
-            }
-          },
-          "skillMix": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "skill": {
-                  "$ref": "#/components/schemas/StaffingSkill"
-                },
-                "minimumStaff": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "skill",
-                "minimumStaff"
-              ]
-            }
-          },
-          "complete": {
-            "type": "boolean"
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "personIds": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                }
-              },
-              "required": [
-                "code",
-                "message",
-                "personIds"
-              ]
-            }
-          },
-          "method": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "status",
-          "locationId",
-          "date",
-          "period",
-          "source",
-          "notice",
-          "figure",
-          "careMinutes",
-          "oneToOneMinutes",
-          "requiredMinutes",
-          "awayMinutes",
-          "categories",
-          "oneToOne",
-          "people",
-          "skillMix",
-          "complete",
-          "warnings",
-          "method"
         ]
       }
     },
@@ -43255,524 +41016,6 @@
         }
       }
     },
-    "/v1/safeguarding/concerns": {
-      "post": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "Raise a safeguarding concern about a person (Care Act 2014 s.42)",
-        "description": "Anyone who may report an incident about the person may raise one. The referral clock starts at raisedAt (safeguarding.referral_hours, a tenant target; the law says without delay). A client id makes a replay return the same concern. From a Phase 1 safeguarding_s42 draft, the person, location and incident come from the draft.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RaiseSafeguardingConcern"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Raised (or the earlier copy of a replay)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingRaised"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "The safeguarding log in scope, open concerns first, with each referral clock",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "$ref": "#/components/schemas/SafeguardingState"
-            },
-            "required": false,
-            "name": "state",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": false,
-            "name": "personId",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The log",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/safeguarding/concerns/{id}": {
-      "get": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "One safeguarding concern, its clock, the linked draft and what each next step needs",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The concern",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingDetail"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "Record the referral, enquiry, finding, Making Safeguarding Personal, DBS decision and protective measures",
-        "description": "Expected version. A concern that is closed or not referred cannot be changed. The workflow moves through /step.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSafeguardingConcern"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Saved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingDetail"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/safeguarding/concerns/{id}/step": {
-      "post": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "Move the concern (safeguardingStepProblems says what each step needs)",
-        "description": "Not referring and closing need a reason. Referring or deciding not to refer stops the overdue alerts.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SafeguardingStep"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Moved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingDetail"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/people/{id}/safeguarding/measures": {
-      "get": {
-        "tags": [
-          "safety"
-        ],
-        "summary": "The protective measures of the person's open safeguarding concerns (HZ-126)",
-        "description": "For staff caring for the person: the measures only, never the allegation or who raised it. Open concerns with no measures recorded are counted.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The measures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SafeguardingMeasures"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/notifications/statutory": {
       "get": {
         "tags": [
@@ -46653,13 +43896,13 @@
         }
       }
     },
-    "/v1/workforce/staff-files": {
+    "/v1/quality/frameworks": {
       "get": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "Staff files",
-        "description": "workforce.staff_file.read or .manage. Every staff profile with where its Schedule 3 file stands today: complete or not, outstanding items and items due soon.",
+        "summary": "Compliance framework versions",
+        "description": "Global reference data: every framework version (CQC's single assessment framework now, KLOE-based and devolved-nation frameworks as later versions), each marked when it is the one in force today for its regulator. For anyone who works with quality evidence.",
         "security": [
           {
             "bearerAuth": []
@@ -46670,11 +43913,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Staff files",
+            "description": "Framework versions",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffFileList"
+                  "$ref": "#/components/schemas/FrameworkVersionList"
                 }
               }
             }
@@ -46691,82 +43934,6 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "workforce"
-        ],
-        "summary": "Create a staff file",
-        "description": "workforce.staff_file.manage. One file per member of staff, never one's own. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateStaffFile"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -46788,13 +43955,12 @@
         }
       }
     },
-    "/v1/workforce/staff-files/{id}": {
+    "/v1/quality/frameworks/{id}": {
       "get": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "A staff file",
-        "description": "workforce.staff_file.read or .manage. The profile and every Schedule 3 item with its details, status and notes today; the HR-only documents' details for holders of workforce.hr_document.read. Audited.",
+        "summary": "A framework version's key questions, statements and evidence categories",
         "security": [
           {
             "bearerAuth": []
@@ -46816,11 +43982,100 @@
         ],
         "responses": {
           "200": {
-            "description": "The staff file",
+            "description": "The framework version",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
+                  "$ref": "#/components/schemas/FrameworkVersionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/frameworks/{id}/mapping": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The organisation's mapping of a framework version",
+        "description": "quality.evidence.manage. The latest mapping version, or the one in force at `at` (rule 5), so a past audit is read with the mapping of its time; version 0 with no entries when the organisation has not mapped it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "required": false,
+            "name": "at",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrameworkMappingView"
                 }
               }
             }
@@ -46867,12 +44122,12 @@
           }
         }
       },
-      "patch": {
+      "put": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "Change a staff profile",
-        "description": "workforce.staff_file.manage, never on one's own file, against the version you loaded. Audited.",
+        "summary": "Save a new version of the organisation's mapping",
+        "description": "quality.evidence.manage. A new mapping version, the one read plus one (409 otherwise), naming only statements and evidence categories of a published framework version, each statement once (rule 5). Earlier versions stay. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -46896,18 +44151,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateStaffFile"
+                "$ref": "#/components/schemas/SaveFrameworkMapping"
               }
             }
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Saved",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
+                  "$ref": "#/components/schemas/FrameworkMappingView"
                 }
               }
             }
@@ -46965,13 +44220,13 @@
         }
       }
     },
-    "/v1/workforce/staff-files/{id}/items/{kind}": {
-      "put": {
+    "/v1/quality/frameworks/{id}/coverage": {
+      "get": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "Record a pre-employment check",
-        "description": "workforce.staff_file.manage, never on one's own file. Records or replaces one Schedule 3 item's details (the detail's kind must be the path's) and verifies it in the caller's name on a date no later than today, or leaves it unverified. An existing item needs expectedVersion. A new expiry or re-check date ends the item's open reminder tasks. Audited.",
+        "summary": "How many records evidence each statement, and the gaps",
+        "description": "quality.evidence.manage. Each statement of the version with the number of records tagged against it (each record once), and the statements with none (rule 7). Removed tags do not count.",
         "security": [
           {
             "bearerAuth": []
@@ -46989,33 +44244,15 @@
             "required": true,
             "name": "id",
             "in": "path"
-          },
-          {
-            "schema": {
-              "$ref": "#/components/schemas/ComplianceItemKind"
-            },
-            "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
-            "name": "kind",
-            "in": "path"
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordComplianceItem"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "Recorded",
+            "description": "Coverage",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
+                  "$ref": "#/components/schemas/EvidenceCoverage"
                 }
               }
             }
@@ -47050,16 +44287,6 @@
               }
             }
           },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "422": {
             "description": "The request did not validate",
             "content": {
@@ -47073,13 +44300,13 @@
         }
       }
     },
-    "/v1/workforce/staff-files/{id}/items/dbs_certificate/risk-assessment": {
-      "post": {
+    "/v1/evidence-links": {
+      "get": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "Sign the DBS risk assessment",
-        "description": "workforce.dbs_risk_assessment.sign, never for oneself, in the caller's name, on a date no later than today. Lets a worker with a clear adults' barred list check start supervised before the certificate, or accepts a disclosure on a certificate already seen (workforce.md rule 3). Audited.",
+        "summary": "Evidence links for a record, or for a statement",
+        "description": "quality.evidence.manage. By record (`recordType` and `recordId`) or by statement (`frameworkVersionId` and `statementId`); removed links are included, marked, so the history is visible. Newest first, at most 500.",
         "security": [
           {
             "bearerAuth": []
@@ -47092,182 +44319,113 @@
           {
             "schema": {
               "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SignDbsRiskAssessment"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Signed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/workforce/staff-files/{id}/items/{kind}/documents": {
-      "post": {
-        "tags": [
-          "workforce"
-        ],
-        "summary": "Add an HR-only document (the body is the file)",
-        "description": "workforce.staff_file.manage and workforce.hr_document.read, never on one's own file. Checked by its contents (JPEG, PNG, WebP or PDF), scanned and stored encrypted, as the document store does. Never to the DBS check: no certificate copy is kept. Right to work copies are kept as right_to_work_copy. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "$ref": "#/components/schemas/ComplianceItemKind"
-            },
-            "required": true,
-            "description": "A Schedule 3 pre-employment requirement",
-            "name": "kind",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 2,
-              "maxLength": 160
-            },
-            "required": true,
-            "name": "title",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "maxLength": 255
+              "pattern": "^[a-z_]{1,40}$"
             },
             "required": false,
-            "name": "fileName",
+            "name": "recordType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "recordId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "frameworkVersionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            "required": false,
+            "name": "statementId",
             "in": "query"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Evidence links",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceLinkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Tag a record as evidence",
+        "description": "quality.evidence.manage. The record is read in your own scope (one you cannot see reads as not found); its statements must be in the named framework version, which must be the published one (rule 6). Restricted records (speak-up, employee relations casework, legal advice) are never evidence. Record types whose tables later slices add (audits, compliments, policies, surveys) are accepted once those slices register them. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
         "requestBody": {
-          "required": true,
           "content": {
-            "image/jpeg": {
+            "application/json": {
               "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "image/png": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "image/webp": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "application/pdf": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
+                "$ref": "#/components/schemas/CreateEvidenceLink"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Stored",
+            "description": "Tagged",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffHrDocument"
+                  "$ref": "#/components/schemas/EvidenceLinkItem"
                 }
               }
             }
@@ -47302,20 +44460,12 @@
               }
             }
           },
-          "413": {
-            "description": "The file is too large",
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code"
-                  ]
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -47333,13 +44483,13 @@
         }
       }
     },
-    "/v1/workforce/staff-files/{id}/documents/{documentId}/content": {
-      "get": {
+    "/v1/evidence-links/{id}/remove": {
+      "post": {
         "tags": [
-          "workforce"
+          "quality"
         ],
-        "summary": "Open an HR-only document (audited)",
-        "description": "workforce.hr_document.read. Every open is audited as workforce.hr_document.viewed.",
+        "summary": "Remove an evidence tag",
+        "description": "quality.evidence.manage, with a reason, against the version you read. The link stays, marked removed with who and why; it no longer counts as evidence. Audited.",
         "security": [
           {
             "bearerAuth": []
@@ -47357,112 +44507,24 @@
             "required": true,
             "name": "id",
             "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "documentId",
-            "in": "path"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveEvidenceLink"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "The file",
-            "content": {
-              "image/jpeg": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "image/png": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "image/webp": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "application/pdf": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/me/staff-file": {
-      "get": {
-        "tags": [
-          "workforce"
-        ],
-        "summary": "My staff file",
-        "description": "workforce.self.read. The member's own profile and where each of their checks stands; not the HR-only documents.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Your staff file",
+            "description": "Removed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StaffFileItem"
+                  "$ref": "#/components/schemas/EvidenceLinkItem"
                 }
               }
             }
@@ -47489,6 +44551,16 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -53967,1116 +51039,6 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales": {
-      "get": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "The organisation's dependency scales",
-        "description": "Each scale with the version in use and its open draft, each draft with its problems. The scale is the organisation's own tool. Holders of scheduling.dependency.manage, care.dependency.assess, scheduling.rota.manage or scheduling.rota.read.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Scales",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Make a dependency scale with its first draft",
-        "description": "scheduling.dependency.manage at the location, or across the organisation for the organisation-wide scale (locationId null). One live scale per location. The draft is saved with its problems listed; it needs none to be approved. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDependencyScale"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Made",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}": {
-      "patch": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Rename a dependency scale",
-        "description": "scheduling.dependency.manage where the scale applies, against `version`. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RenameDependencyScale"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Renamed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}/archive": {
-      "post": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Archive a dependency scale",
-        "description": "scheduling.dependency.manage where the scale applies, with a reason, against `version`. An archived scale applies nowhere: its location's required hours show no scale until another is approved. Final. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EndDependencyScale"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Archived",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}/versions": {
-      "get": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "A dependency scale's versions, newest first",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Versions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleVersionList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Start a new draft from the version in use",
-        "description": "scheduling.dependency.manage where the scale applies. The approved version stays in use until the new draft is approved. One draft at a time. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Drafted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleVersionItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}/versions/{versionId}": {
-      "put": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Change a draft",
-        "description": "scheduling.dependency.manage where the scale applies, drafts only, against the version you loaded. You join its contributors, so you cannot approve it. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "versionId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditDependencyScaleVersion"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Saved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleVersionItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}/versions/{versionId}/approve": {
-      "post": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Approve a draft",
-        "description": "scheduling.dependency.manage where the scale applies, never by its author or anyone who changed it; only a draft with no problems that differs from the version in use. It supersedes that version and applies from now. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "versionId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApproveDependencyScaleVersion"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Approved",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleVersionItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/dependency-scales/{id}/versions/{versionId}/discard": {
-      "post": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Discard a draft",
-        "description": "scheduling.dependency.manage where the scale applies, with a reason. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "versionId",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EndDependencyScale"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Discarded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyScaleVersionItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/people/{id}/dependency": {
-      "get": {
-        "tags": [
-          "care"
-        ],
-        "summary": "A person's dependency categories",
-        "description": "Every record, newest first, with the one in force now and the corrected ones marked. A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The person's categories",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonDependency"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "care"
-        ],
-        "summary": "Record a person's dependency category",
-        "description": "care.dependency.assess in the person's scope. From the approved version of the scale at the person's location, with the reason and who decided. The first record is `initial`; a later one supersedes the current record (`supersedesId`, as loaded): a review from its own date, a correction from the corrected record's date. Sending the same id again returns what was stored. Audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordDependency"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Already stored with these details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyRecordItem"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Recorded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DependencyRecordItem"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Changed by someone else since you loaded it; reload and try again",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request did not validate",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/locations/{id}/staffing-requirement": {
-      "get": {
-        "tags": [
-          "scheduling"
-        ],
-        "summary": "Required care hours for a location and shift",
-        "description": "The organisation's own dependency scale added up for the people living at the location, per shift period of the UK date (or one period), with the method, the source and the notice; never a judgement of safe staffing. No scale in force gives no figure, never 0; people not counted are named. Needs scheduling.rota.manage and care.plan.read across the whole location (a narrower scope would leave people out). A care-record view, audited.",
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "cookieAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "required": true,
-            "name": "date",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 40
-            },
-            "required": false,
-            "name": "period",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Required care hours",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffingRequirementList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not signed in",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not a member, missing permission, MFA not set up or step-up needed",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
