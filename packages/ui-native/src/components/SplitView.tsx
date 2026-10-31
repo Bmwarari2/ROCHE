@@ -52,13 +52,19 @@ export function SplitView({
   const theme = useTheme();
   const heading = useRef<View>(null);
   const shown = useRef<string | null>(detailKey);
+  // A new choice waits here until its heading is drawn, so focus never lands on nothing or on a
+  // heading still naming the previous choice (#73 accessibility review H1).
+  const pending = useRef<string | null>(null);
 
   useEffect(() => {
-    if (detailKey === shown.current) return;
-    shown.current = detailKey;
-    if (detailKey === null) return;
+    if (detailKey !== shown.current) {
+      shown.current = detailKey;
+      pending.current = detailKey;
+    }
+    if (pending.current === null || pending.current !== detailKey || !detailTitle) return;
     // After the detail has drawn, so the heading exists to take the focus.
     const timer = setTimeout(() => {
+      pending.current = null;
       try {
         const node = heading.current ? findNodeHandle(heading.current) : null;
         if (node) AccessibilityInfo.setAccessibilityFocus(node);
@@ -67,7 +73,7 @@ export function SplitView({
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [detailKey]);
+  }, [detailKey, detailTitle]);
 
   return (
     <View testID={testID} style={styles.row}>

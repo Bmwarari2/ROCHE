@@ -1,9 +1,10 @@
 import { SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
 import { useQuery } from "@powersync/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, FlatList, View } from "react-native";
 import { useSession } from "../../../app-state/session";
+import { chosenPerson } from "../../../care/split-selection";
 import { PersonListItem } from "../../../components/PersonListItem";
 import { PersonRecord } from "../../../components/PersonRecord";
 import { Screen } from "../../../components/Screen";
@@ -34,7 +35,7 @@ export default function PeopleScreen() {
   const layout = useSplitLayout();
   const split = layout.mode === "split";
   const { person: chosen } = useLocalSearchParams<{ person?: string }>();
-  const selected = split ? (people.find((p) => p.id === chosen) ?? null) : null;
+  const selected = split ? chosenPerson(people, chosen) : null;
 
   const open = useCallback(
     (personId: string) =>
@@ -44,6 +45,21 @@ export default function PeopleScreen() {
     [router, split],
   );
   const selectedId = selected?.id ?? null;
+  // Turned to portrait with a record beside the list: the record opens as its own screen, so the
+  // reader keeps their place, and the choice is cleared so it never comes back unasked (#73
+  // reviews: accessibility M5, clinical H2).
+  const wasSplit = useRef(split);
+  const lastSelected = useRef<string | null>(selectedId);
+  if (split) lastSelected.current = selectedId;
+  useEffect(() => {
+    if (wasSplit.current && !split && lastSelected.current) {
+      const personId = lastSelected.current;
+      lastSelected.current = null;
+      router.setParams({ person: undefined });
+      router.push({ pathname: "/people/[personId]", params: { personId } });
+    }
+    wasSplit.current = split;
+  }, [split, router]);
   const renderItem = useCallback(
     ({ item }: { item: PersonView }) => (
       <PersonListItem

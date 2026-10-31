@@ -1,12 +1,12 @@
 import { SplitView, Text, useSplitLayout, useTheme } from "@harbour/ui-native";
 import { useQuery, useStatus } from "@powersync/react";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, View } from "react-native";
-import { useSession } from "../../app-state/session";
-import { useVault } from "../../app-state/vault";
-import { useMoveTask, useTaskRefusal, useTenantId } from "../../care/hooks";
-import { META_VALUE_SQL, ROUND_TASKS_SQL } from "../../care/queries";
+import { useSession } from "../../../app-state/session";
+import { useVault } from "../../../app-state/vault";
+import { useMoveTask, useTaskRefusal, useTenantId } from "../../../care/hooks";
+import { META_VALUE_SQL, ROUND_TASKS_SQL } from "../../../care/queries";
 import {
   managesTasks,
   type RoundItem,
@@ -14,18 +14,18 @@ import {
   roundEmpty,
   roundHeader,
   roundItems,
-} from "../../care/round-view";
-import { useCarePerson } from "../../components/CarePersonHeader";
-import { type OpenPersonScreen, PersonRecord } from "../../components/PersonRecord";
-import { RoundHeaderCard } from "../../components/RoundHeaderCard";
-import { RoundTaskCard } from "../../components/RoundTaskCard";
-import { Screen } from "../../components/Screen";
-import { UploadIssues } from "../../components/UploadIssues";
-import { appEnv } from "../../config/app-env";
-import { t } from "../../i18n/t";
-import { useRecordScreenProtection } from "../../security/use-record-protection";
-import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../sync/offline-days";
-import { lastSyncedAtOf } from "../../sync/sync-state";
+} from "../../../care/round-view";
+import { type RoundChoice, roundPane } from "../../../care/split-selection";
+import { type OpenPersonScreen, PersonRecord } from "../../../components/PersonRecord";
+import { RoundHeaderCard } from "../../../components/RoundHeaderCard";
+import { RoundTaskCard } from "../../../components/RoundTaskCard";
+import { Screen } from "../../../components/Screen";
+import { UploadIssues } from "../../../components/UploadIssues";
+import { appEnv } from "../../../config/app-env";
+import { t } from "../../../i18n/t";
+import { useRecordScreenProtection } from "../../../security/use-record-protection";
+import { OFFLINE_DAYS_META_ID, parseCachedOfflineDays } from "../../../sync/offline-days";
+import { lastSyncedAtOf } from "../../../sync/sync-state";
 
 /** The time, again each minute, so a task becomes due or overdue on the screen as it does. */
 function useMinute(): Date {
@@ -37,12 +37,6 @@ function useMinute(): Date {
   return now;
 }
 
-/** The person shown beside the round on a tablet, and the task they were opened for, if any. */
-interface Shown {
-  readonly personId: string;
-  readonly task: string | null;
-}
-
 /**
  * The round (care.md rule 8 and section 6; CARE-013): the open tasks on this device, overdue
  * first, each with its status as an icon and a word, marked done or not done (with a reason) on
@@ -52,8 +46,10 @@ interface Shown {
  *
  * On a tablet in landscape (MOB-013) the round stays on the left and a person's record, with its
  * point-of-care header (HZ-001), opens on the right: "Show record" on a task, or "Record the
- * entry" for a task that needs evidence. A note or chart started from that record opens over the
- * People tab with the record beneath it, as on a phone, so saving returns to the person.
+ * entry" for a task that needs evidence. A note or chart started from that record opens on the
+ * round's own stack, so saving returns to the round with the record still beside it. The person
+ * stays beside the round only while the round has a task about them (`roundPane`); turning the
+ * tablet to portrait opens the record as its own screen and clears the choice.
  */
 export default function RoundScreen() {
   useRecordScreenProtection("round");
@@ -87,14 +83,21 @@ export default function RoundScreen() {
 
   const layout = useSplitLayout();
   const split = layout.mode === "split";
-  const [shown, setShown] = useState<Shown | null>(null);
-  const { person: shownPerson } = useCarePerson(shown?.personId ?? "");
+  const [choice, setChoice] = useState<RoundChoice | null>(null);
+  const pane = useMemo(() => roundPane(choice, items), [choice, items]);
+  const paneKey = pane.kind === "person" ? `${pane.personId}:${pane.task ?? ""}` : null;
 
   const recordEvidence = useCallback(
     (item: RoundItem) => {
       if (!item.personId) return;
       // The task's id only: the record looks it up on this device and shows its synced title.
-      if (split) setShown({ personId: item.personId, task: item.id });
+      if (split)
+        setChoice({
+          personId: item.personId,
+          personName: item.person ?? "",
+          task: item.id,
+          taskTitle: item.title,
+        });
       else
         router.push({
           pathname: "/people/[personId]",
@@ -104,18 +107,34 @@ export default function RoundScreen() {
     [router, split],
   );
   const showPerson = useCallback((item: RoundItem) => {
-    if (item.personId) setShown({ personId: item.personId, task: null });
-  }, []);
-  const openScreen = useCallback<OpenPersonScreen>(
-    (personId, screen, params) => {
-      router.push({
-        pathname: "/people/[personId]",
-        params: { personId, ...(params.task ? { task: params.task } : {}) },
+    if (item.personId)
+      setChoice({
+        personId: item.personId,
+        personName: item.person ?? "",
+        task: null,
+        taskTitle: null,
       });
-      router.push({ pathname: `/people/[personId]/${screen}`, params: { personId, ...params } });
-    },
+  }, []);
+  // One push, on the round's own stack (#73 clinical review M3: never two pushes across tabs).
+  const openScreen = useCallback<OpenPersonScreen>(
+    (personId, screen, params) =>
+      router.push({ pathname: `/round/[personId]/${screen}`, params: { personId, ...params } }),
     [router],
   );
+  // Turned to portrait with a person beside the round: their record opens as its own screen, so
+  // the reader keeps their place, and the choice is cleared so it never comes back unasked
+  // (#73 reviews: accessibility M5, clinical H2).
+  const wasSplit = useRef(split);
+  useEffect(() => {
+    if (wasSplit.current && !split && pane.kind === "person") {
+      router.push({
+        pathname: "/people/[personId]",
+        params: { personId: pane.personId, ...(pane.task ? { task: pane.task } : {}) },
+      });
+    }
+    if (!split) setChoice(null);
+    wasSplit.current = split;
+  }, [split, pane, router]);
   const renderItem = useCallback(
     ({ item }: { item: RoundItem }) => (
       <View style={{ paddingHorizontal: theme.space[2], paddingBottom: theme.space[1.5] }}>
@@ -126,11 +145,11 @@ export default function RoundScreen() {
           onRecordEvidence={recordEvidence}
           refusal={taskRefusal(item.row, item.row.person_location_id)}
           onShowPerson={split ? showPerson : undefined}
-          personShown={split && shown !== null && item.personId === shown.personId}
+          personShown={split && pane.kind === "person" && item.personId === pane.personId}
         />
       </View>
     ),
-    [theme, manager, moveTask, recordEvidence, taskRefusal, split, showPerson, shown],
+    [theme, manager, moveTask, recordEvidence, taskRefusal, split, showPerson, pane],
   );
 
   const list = (
@@ -158,7 +177,7 @@ export default function RoundScreen() {
       initialNumToRender={10}
       maxToRenderPerBatch={10}
       windowSize={7}
-      extraData={shown}
+      extraData={pane}
     />
   );
 
@@ -169,19 +188,28 @@ export default function RoundScreen() {
           testID="round-split"
           listWidth={layout.listWidth}
           list={list}
-          detailKey={shown ? `${shown.personId}:${shown.task ?? ""}` : null}
+          detailKey={paneKey}
+          // The name the round shows for the chosen person, known at once: never a previous
+          // person's while the record loads (#73 reviews: clinical H1, accessibility H1).
           detailTitle={
-            shown && shownPerson
-              ? t("mobile.split.recordOf", { person: shownPerson.displayName })
-              : null
+            pane.kind === "person" ? t("mobile.split.recordOf", { person: pane.personName }) : null
           }
           detail={
-            shown ? (
+            pane.kind === "person" ? (
               <View testID="person-screen" style={{ flex: 1 }}>
+                {pane.taskGone !== null ? (
+                  <Text
+                    testID="round-split-task-gone"
+                    accessibilityLiveRegion="polite"
+                    style={{ paddingHorizontal: theme.space[2], paddingTop: theme.space[1] }}
+                  >
+                    {t("mobile.split.taskGone", { title: pane.taskGone })}
+                  </Text>
+                ) : null}
                 <PersonRecord
-                  key={`${shown.personId}:${shown.task ?? ""}`}
-                  personId={shown.personId}
-                  task={shown.task}
+                  key={paneKey ?? ""}
+                  personId={pane.personId}
+                  task={pane.task}
                   onOpenScreen={openScreen}
                 />
               </View>

@@ -57,7 +57,7 @@ describe("Care mode screens", () => {
     expect(record).toContain("<CarePersonHeader personId={id} />");
     // The header comes before anything that can be pressed in the record.
     expect(record.indexOf("<CarePersonHeader")).toBeLessThan(record.indexOf("<Button"));
-    for (const screen of ["../app/(care)/people/index.tsx", "../app/(care)/round.tsx"]) {
+    for (const screen of ["../app/(care)/people/index.tsx", "../app/(care)/round/index.tsx"]) {
       const source = read(screen);
       expect(source, screen).toContain("<SplitView");
       expect(source, screen).toContain("<PersonRecord");
@@ -65,6 +65,16 @@ describe("Care mode screens", () => {
       // Each choice draws a fresh record, so nothing of the previous person is left behind.
       expect(source, screen).toMatch(/<PersonRecord\s+key=/);
       expect(source, screen).toContain("useRecordScreenProtection(");
+    }
+    // Screens opened from a record beside the round stay on the round's stack, in one push, so
+    // saving returns to the round (#73 clinical review M3: never two pushes across tabs).
+    const round = read("../app/(care)/round/index.tsx");
+    expect(round).toContain("pathname: `/round/[personId]/${screen}`");
+    expect(round).not.toContain("pathname: `/people/[personId]/${screen}`");
+    for (const form of ["note", "chart", "body-map", "care-plan", "risks"]) {
+      expect(read(`../app/(care)/round/[personId]/${form}.tsx`), form).toContain(
+        `export { default } from "../../people/[personId]/${form}";`,
+      );
     }
   });
 

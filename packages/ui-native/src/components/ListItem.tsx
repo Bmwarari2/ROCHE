@@ -1,7 +1,7 @@
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import PanelRight from "lucide-react-native/icons/panel-right";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useHaptics, useTheme } from "../theme/ThemeProvider";
 import { ICON_STROKE_WIDTH } from "./icons";
 import { Text } from "./Text";
@@ -45,8 +45,12 @@ export function ListItem({
 }: ListItemProps) {
   const theme = useTheme();
   const haptics = useHaptics();
-  const base = accessibilityLabel ?? [title, subtitle].filter(Boolean).join(", ");
-  const label = selected && selectedLabel ? `${base}. ${selectedLabel}` : base;
+  // The selected state is said once, by the platform ("selected"), not again in the label; the
+  // words on the row are for sighted readers (#73 accessibility review L7).
+  const label = accessibilityLabel ?? [title, subtitle].filter(Boolean).join(", ");
+  // At large text the title and subtitle wrap as far as they need, never cut off (WCAG 1.4.4).
+  const { fontScale } = useWindowDimensions();
+  const lines = fontScale > LARGE_TEXT_SCALE ? undefined : 2;
 
   return (
     <Pressable
@@ -54,7 +58,7 @@ export function ListItem({
       accessible
       accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={label}
-      accessibilityHint={accessibilityHint}
+      accessibilityHint={selected ? undefined : accessibilityHint}
       accessibilityState={onPress ? { selected } : undefined}
       disabled={!onPress}
       onPress={
@@ -85,11 +89,11 @@ export function ListItem({
         </View>
       ) : null}
       <View style={[styles.body, { gap: theme.space[0.5] }]}>
-        <Text emphasis numberOfLines={2}>
+        <Text emphasis numberOfLines={lines}>
           {title}
         </Text>
         {subtitle ? (
-          <Text variant="bodyDense" tone="secondary" numberOfLines={2}>
+          <Text variant="bodyDense" tone="secondary" numberOfLines={lines}>
             {subtitle}
           </Text>
         ) : null}
@@ -124,6 +128,9 @@ export function ListItem({
     </Pressable>
   );
 }
+
+/** Above this text size a row's lines are never limited. */
+const LARGE_TEXT_SCALE = 1.3;
 
 /** The leading bar on the selected row, in points; always drawn so the row never shifts. */
 const SELECTED_BAR = 4;

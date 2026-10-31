@@ -149,9 +149,10 @@ Flows live in `.maestro/`, filtered by tag:
 
 `.github/workflows/mobile.yml` (on demand, weekly and on release candidates) has two emulator jobs.
 Neither has run yet: they were written on 31/10/2026 in a sandbox without an Android emulator.
-Each runs twice, on a phone and on a tablet (the `pixel_tablet` profile, held in landscape), so the
-same flows cover the tablet split views (MOB-013); `tablet-split-views.yaml` checks whichever layout
-the device draws.
+Each runs on a phone and on a tablet (the `pixel_tablet` profile, held in landscape), so the same
+flows cover the tablet split views (MOB-013); the demo job also runs the tablet with text at 200%,
+where the screens fall back to one pane. `tablet-split-views.yaml` checks whichever layout the
+device draws.
 
 1. `maestro-android-demo`: a release APK in demo mode; `--include-tags smoke,demo,store-compliance`.
 2. `maestro-android-live`: Postgres and PowerSync from `docker-compose.yml`, the database seeded

@@ -44,7 +44,7 @@ function split(detailKey: string | null, detailTitle: string | null) {
       title: "Ada Example",
       onPress: () => undefined,
       selected: detailKey === "ada",
-      selectedLabel: "Shown on the right",
+      selectedLabel: "Open beside the list",
     }),
     detail: createElement(ListItem, { testID: "detail-body", title: "Record body" }),
   });
@@ -107,6 +107,13 @@ describe("SplitView", () => {
       // Nothing chosen: nothing to move to.
       await draw(split(null, null));
       expect(AccessibilityInfo.focused).toHaveLength(1);
+      // A choice whose heading is not drawn yet waits for it, then moves once (#73 review H1).
+      await draw(split("cara", null));
+      expect(AccessibilityInfo.focused).toHaveLength(1);
+      await draw(split("cara", "Record for Cara Example"));
+      expect(AccessibilityInfo.focused).toHaveLength(2);
+      await draw(split("cara", "Record for Cara Example"));
+      expect(AccessibilityInfo.focused).toHaveLength(2);
     } finally {
       (tree as { unmount(): void } | null)?.unmount();
       vi.useRealTimers();
@@ -119,9 +126,10 @@ describe("ListItem, chosen on a tablet", () => {
     const view = await render(split("ada", "Record for Ada Example"));
     const row = view.find("row-ada");
     expect(row?.props.accessibilityState).toEqual({ selected: true });
-    expect(row?.props.accessibilityLabel).toBe("Ada Example. Shown on the right");
+    // Said once, as the platform's "selected", not again in the name (#73 accessibility review L7).
+    expect(row?.props.accessibilityLabel).toBe("Ada Example");
     expect(view.find("row-ada-selected")).not.toBeNull();
-    expect(view.texts()).toContain("Shown on the right");
+    expect(view.texts()).toContain("Open beside the list");
   });
 
   it("says nothing extra when not chosen, and keeps a 44 point target", async () => {
@@ -179,9 +187,7 @@ describe("RoundTaskCard beside a record on a tablet (HZ-001)", () => {
     const { element, shown } = card({ onShowPerson: true });
     const view = await render(element);
     const button = view.find("round-task-1-show");
-    expect(button?.props.accessibilityLabel).toBe(
-      "Show the record for Ada Example beside the round",
-    );
+    expect(button?.props.accessibilityLabel).toBe("Show record for Ada Example");
     await view.press("round-task-1-show");
     expect(shown).toEqual(["shown"]);
   });
@@ -189,7 +195,7 @@ describe("RoundTaskCard beside a record on a tablet (HZ-001)", () => {
   it("says in words whose record is shown, in place of the button", async () => {
     const view = await render(card({ onShowPerson: true, personShown: true }).element);
     expect(view.find("round-task-1-show")).toBeNull();
-    expect(view.texts()).toContain("Record for Ada Example shown on the right");
+    expect(view.texts()).toContain("Record for Ada Example open beside the round");
   });
 
   it("offers nothing extra on a phone", async () => {

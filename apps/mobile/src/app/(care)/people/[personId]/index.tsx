@@ -16,8 +16,13 @@ export default function PersonScreen() {
   const { person } = useCarePerson(id);
   return (
     <Screen testID="person-screen">
-      <Stack.Screen options={{ title: person?.displayName ?? t("mobile.person.title") }} />
-      <PersonRecord personId={id} task={typeof task === "string" && task ? task : null} />
+      {/* Only this person's name, never a previous one still loading (#73 clinical review L6). */}
+      <Stack.Screen
+        options={{
+          title: person?.id === id ? person.displayName : t("mobile.person.title"),
+        }}
+      />
+      <PersonRecord key={id} personId={id} task={typeof task === "string" && task ? task : null} />
     </Screen>
   );
 }

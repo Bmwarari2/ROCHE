@@ -1,6 +1,6 @@
 # Tablet split views (MOB-013; hazard HZ-001). On a tablet in landscape the People list and the
 # chosen person's record sit side by side, the record with its point-of-care header at the top of
-# its pane, and the chosen row says "Shown on the right" in words. On a phone, or wherever the two
+# its pane, and the chosen row says "Open beside the list" in words. On a phone, or wherever the two
 # panes would not fit (portrait, 200% text), the same tap opens the record as its own screen. The
 # flow checks whichever layout the device draws, so it runs on both the phone and the tablet.
 appId: uk.co.thapsus.harbour
@@ -35,7 +35,7 @@ env:
       - assertVisible:
           id: "people-list"
       - assertVisible:
-          text: "Shown on the right"
+          text: "Open beside the list"
       - assertVisible:
           id: "people-split-detail-title"
       - assertVisible:
@@ -73,7 +73,7 @@ env:
       - assertVisible:
           id: "round-tasks"
       - assertVisible:
-          text: "Record for .* shown on the right"
+          text: "Record for .* open beside the round"
 - runFlow:
     when:
       notVisible:
@@ -81,3 +81,25 @@ env:
     commands:
       - assertNotVisible:
           text: "Show record"
+# The handover, for those who take part in it: on a tablet the locations are listed beside the
+# handover; on a phone every location's handover is one list.
+- runFlow:
+    when:
+      visible:
+        id: "tab-handover"
+    commands:
+      - tapOn:
+          id: "tab-handover"
+      - extendedWaitUntil:
+          visible:
+            id: "handover-screen"
+          timeout: 15000
+      - runFlow:
+          when:
+            visible:
+              id: "handover-split"
+          commands:
+            - assertVisible:
+                id: "handover-header"
+            - assertVisible:
+                text: "Locations"

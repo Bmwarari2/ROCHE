@@ -156,6 +156,14 @@ export function HandoverLocationCard({
               ? t("mobile.handover.acknowledgeAgain")
               : t("mobile.handover.acknowledge")
           }
+          // The home is named, so it is clear which handover is acknowledged (#73 clinical review M4).
+          accessibilityLabel={t("mobile.handover.acknowledgeLabel", {
+            action:
+              acknowledgement === "new_items"
+                ? t("mobile.handover.acknowledgeAgain")
+                : t("mobile.handover.acknowledge"),
+            home: locationName,
+          })}
           accessibilityHint={t("mobile.handover.acknowledgeHint")}
           onPress={() => void acknowledge()}
           loading={saving}

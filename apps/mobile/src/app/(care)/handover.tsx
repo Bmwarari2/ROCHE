@@ -34,6 +34,7 @@ import {
   META_VALUE_SQL,
   MY_ACKNOWLEDGEMENT_SQL,
 } from "../../care/queries";
+import { homePane } from "../../care/split-selection";
 import { Card } from "../../components/Card";
 import { HandoverLocationCard } from "../../components/HandoverLocationCard";
 import { Screen } from "../../components/Screen";
@@ -173,7 +174,9 @@ function LocationHandover({
  *
  * On a tablet in landscape (MOB-013) the homes are listed on the left, each with its handover's
  * state as an icon and a word, and the chosen home's handover is read and acknowledged on the
- * right. The first home is shown until the reader chooses another.
+ * right. With one home its handover is shown at once; with more, only the home the reader chose,
+ * so a sync that adds or re-orders homes never swaps the handover or its acknowledgement
+ * (`homePane`).
  */
 export default function HandoverScreen() {
   useRecordScreenProtection("handover");
@@ -221,8 +224,8 @@ export default function HandoverScreen() {
   );
   const layout = useSplitLayout();
   const [chosen, setChosen] = useState<string | null>(null);
-  const chosenHome = homes.find((h) => h.location.id === chosen) ?? null;
-  const shownHome = chosenHome ?? homes[0] ?? null;
+  const pane = homePane(homes, chosen);
+  const shownHome = pane.kind === "home" ? pane.home : null;
 
   const top: ReactNode = (
     <>
@@ -268,7 +271,7 @@ export default function HandoverScreen() {
       <SplitView
         testID="handover-split"
         listWidth={layout.listWidth}
-        detailKey={chosenHome?.location.id ?? null}
+        detailKey={pane.kind === "home" && pane.chosen ? pane.home.location.id : null}
         detailTitle={shownHome ? t("mobile.split.handoverOf", { home: shownName }) : null}
         list={
           <ScrollView
@@ -276,14 +279,16 @@ export default function HandoverScreen() {
           >
             <View style={{ paddingHorizontal: theme.space[2], gap: theme.space[2] }}>{top}</View>
             {homes.length > 0 ? (
+              <Text
+                variant="eyebrow"
+                accessibilityRole="header"
+                style={{ paddingHorizontal: theme.space[2] }}
+              >
+                {t("mobile.split.homes")}
+              </Text>
+            ) : null}
+            {homes.length > 0 ? (
               <View accessibilityRole="list">
-                <Text
-                  variant="eyebrow"
-                  accessibilityRole="header"
-                  style={{ paddingHorizontal: theme.space[2], paddingBottom: theme.space[1] }}
-                >
-                  {t("mobile.split.homes")}
-                </Text>
                 {homes.map(({ location, entries }) => (
                   <ListItem
                     key={location.id}
@@ -291,7 +296,12 @@ export default function HandoverScreen() {
                     title={location.name ?? t("mobile.handover.title")}
                     accessibilityLabel={[
                       location.name ?? t("mobile.handover.title"),
-                      ...entries.map((e) => e.status.chip.label),
+                      ...entries.map((e) =>
+                        t("mobile.split.homeStatus", {
+                          role: t(`mobile.split.role.${e.role}`),
+                          status: e.status.chip.label,
+                        }),
+                      ),
                     ].join(". ")}
                     accessibilityHint={t("mobile.split.openHandoverHint")}
                     accessories={
@@ -330,7 +340,11 @@ export default function HandoverScreen() {
             </ScrollView>
           ) : (
             <View style={{ padding: theme.space[3] }} testID="handover-split-empty">
-              <Text tone="secondary">{t("mobile.split.chooseHandover")}</Text>
+              <Text tone="secondary" accessibilityLiveRegion="polite">
+                {pane.kind === "gone"
+                  ? t("mobile.split.handoverGone")
+                  : t("mobile.split.chooseHandover")}
+              </Text>
             </View>
           )
         }

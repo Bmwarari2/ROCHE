@@ -36,9 +36,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # tablet-200-text: the tablet with text at 200%, where the screens fall back to one pane
+        # (MOB-013; WCAG 1.4.4) and the flows still pass.
         device:
-          - { name: phone, profile: "" }
-          - { name: tablet, profile: pixel_tablet }
+          - { name: phone, profile: "", font_scale: "1.0" }
+          - { name: tablet, profile: pixel_tablet, font_scale: "1.0" }
+          - { name: tablet-200-text, profile: pixel_tablet, font_scale: "2.0" }
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -78,6 +81,7 @@ jobs:
             adb install apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             adb shell locksettings set-pin 1111
             adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 0
+            adb shell settings put system font_scale ${{ matrix.device.font_scale }}
             ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,demo,store-compliance --format junit --output maestro-demo-report-${{ matrix.device.name }}.xml
       - uses: actions/upload-artifact@v4
         if: always()
@@ -97,8 +101,8 @@ jobs:
       fail-fast: false
       matrix:
         device:
-          - { name: phone, profile: "" }
-          - { name: tablet, profile: pixel_tablet }
+          - { name: phone, profile: "", font_scale: "1.0" }
+          - { name: tablet, profile: pixel_tablet, font_scale: "1.0" }
     env:
       HARBOUR_API_URL: http://localhost:4000
       POWERSYNC_URL: http://localhost:8080
@@ -169,6 +173,7 @@ jobs:
             adb reverse tcp:8080 tcp:8080
             adb shell locksettings set-pin 1111
             adb shell settings put system accelerometer_rotation 0 && adb shell settings put system user_rotation 0
+            adb shell settings put system font_scale ${{ matrix.device.font_scale }}
             ( while true; do adb -e emu finger touch 1 >/dev/null 2>&1; sleep 2; done ) & maestro test apps/mobile/.maestro --include-tags smoke,offline --env HARBOUR_EMAIL=carer@example.invalid --env "HARBOUR_PASSWORD=$HARBOUR_DEMO_PASSWORD" --env "HARBOUR_ROUND_TASK=$HARBOUR_ROUND_TASK" --format junit --output maestro-live-report-${{ matrix.device.name }}.xml
       - name: The task marked done offline reached Harbour (HZ-006, HZ-029)
         env:
