@@ -148,6 +148,13 @@
                   "null"
                 ]
               },
+              "logoDocumentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
               "nation": {
                 "type": "string",
                 "enum": [
@@ -163,6 +170,7 @@
               "name",
               "terminology",
               "brandAccent",
+              "logoDocumentId",
               "nation"
             ]
           },
@@ -301,6 +309,244 @@
           "requestedAt",
           "respondBy",
           "routedToManager"
+        ]
+      },
+      "Branding": {
+        "type": "object",
+        "properties": {
+          "registeredName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "documentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "contentType": {
+                "type": "string",
+                "enum": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ]
+              }
+            },
+            "required": [
+              "documentId",
+              "contentType"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "registeredName",
+          "displayName",
+          "accent",
+          "logo",
+          "version"
+        ]
+      },
+      "SaveBranding": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 400
+          },
+          "accent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 20
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "displayName",
+          "accent",
+          "expectedVersion"
+        ]
+      },
+      "DocumentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "$ref": "#/components/schemas/DocumentCategoryKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$/i"
+          },
+          "documentVersion": {
+            "type": "integer"
+          },
+          "previousVersionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "subjectType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subjectId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "quarantined",
+              "destroyed"
+            ]
+          },
+          "scanStatus": {
+            "type": "string",
+            "enum": [
+              "clean",
+              "infected",
+              "unavailable",
+              "not_scanned"
+            ]
+          },
+          "retentionClass": {
+            "type": "string"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "signerName": {
+                  "type": "string"
+                },
+                "signerCapacity": {
+                  "type": "string",
+                  "enum": [
+                    "staff",
+                    "person",
+                    "representative"
+                  ]
+                },
+                "statement": {
+                  "type": "string"
+                },
+                "signedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "documentSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$/i"
+                }
+              },
+              "required": [
+                "signerName",
+                "signerCapacity",
+                "statement",
+                "signedAt",
+                "documentSha256"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "title",
+          "fileName",
+          "contentType",
+          "sizeBytes",
+          "sha256",
+          "documentVersion",
+          "previousVersionId",
+          "personId",
+          "subjectType",
+          "subjectId",
+          "status",
+          "scanStatus",
+          "retentionClass",
+          "legalHold",
+          "createdAt",
+          "signatures"
+        ],
+        "description": "Document metadata; the bytes are at /content"
+      },
+      "DocumentCategoryKey": {
+        "type": "string",
+        "enum": [
+          "person_photo",
+          "feed_photo",
+          "care_attachment",
+          "person_document",
+          "organisation_document",
+          "organisation_logo"
         ]
       },
       "SearchResults": {
@@ -2824,6 +3070,9 @@
                     "awaiting_clearance"
                   ]
                 },
+                "version": {
+                  "type": "integer"
+                },
                 "beds": {
                   "type": "array",
                   "items": {
@@ -2871,6 +3120,7 @@
                 "label",
                 "unitName",
                 "status",
+                "version",
                 "beds"
               ]
             }
@@ -2986,6 +3236,125 @@
         "required": [
           "items",
           "version"
+        ]
+      },
+      "EnquiryRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PersonStatus"
+          },
+          "statusChangedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "status",
+          "statusChangedAt",
+          "version",
+          "replayed"
+        ]
+      },
+      "CreateEnquiry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "givenName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "familyName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "preferredName": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "locationId",
+          "givenName",
+          "familyName",
+          "dateOfBirth"
+        ],
+        "description": "A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record."
+      },
+      "ServiceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ServiceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "serviceType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "name",
+          "serviceType",
+          "status"
         ]
       },
       "PropertyList": {
@@ -7033,162 +7402,6 @@
         ],
         "default": "approvals",
         "description": "approvals: records waiting for the reader's approval, and ones the reader raised that wait for someone else's; all: every open workflow the reader has a part in"
-      },
-      "DocumentItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "category": {
-            "$ref": "#/components/schemas/DocumentCategoryKey"
-          },
-          "title": {
-            "type": "string"
-          },
-          "fileName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contentType": {
-            "type": "string"
-          },
-          "sizeBytes": {
-            "type": "integer"
-          },
-          "sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$/i"
-          },
-          "documentVersion": {
-            "type": "integer"
-          },
-          "previousVersionId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "personId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "subjectType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "subjectId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "available",
-              "quarantined",
-              "destroyed"
-            ]
-          },
-          "scanStatus": {
-            "type": "string",
-            "enum": [
-              "clean",
-              "infected",
-              "unavailable",
-              "not_scanned"
-            ]
-          },
-          "retentionClass": {
-            "type": "string"
-          },
-          "legalHold": {
-            "type": "boolean"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "signatures": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "signerName": {
-                  "type": "string"
-                },
-                "signerCapacity": {
-                  "type": "string",
-                  "enum": [
-                    "staff",
-                    "person",
-                    "representative"
-                  ]
-                },
-                "statement": {
-                  "type": "string"
-                },
-                "signedAt": {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                "documentSha256": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$/i"
-                }
-              },
-              "required": [
-                "signerName",
-                "signerCapacity",
-                "statement",
-                "signedAt",
-                "documentSha256"
-              ]
-            }
-          }
-        },
-        "required": [
-          "id",
-          "category",
-          "title",
-          "fileName",
-          "contentType",
-          "sizeBytes",
-          "sha256",
-          "documentVersion",
-          "previousVersionId",
-          "personId",
-          "subjectType",
-          "subjectId",
-          "status",
-          "scanStatus",
-          "retentionClass",
-          "legalHold",
-          "createdAt",
-          "signatures"
-        ],
-        "description": "Document metadata; the bytes are at /content"
-      },
-      "DocumentCategoryKey": {
-        "type": "string",
-        "enum": [
-          "person_photo",
-          "feed_photo",
-          "care_attachment",
-          "person_document",
-          "organisation_document"
-        ]
       },
       "DocumentList": {
         "type": "object",
@@ -13173,6 +13386,34 @@
             "type": "string",
             "format": "date-time"
           },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "key",
+              "params"
+            ]
+          },
           "seen": {
             "type": "boolean"
           }
@@ -13186,6 +13427,7 @@
           "at",
           "lateAddition",
           "addedAt",
+          "summary",
           "seen"
         ]
       },
@@ -24774,6 +25016,378 @@
         }
       }
     },
+    "/v1/branding": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's white-label name, accent and logo",
+        "description": "Any member: the shell shows them. Holds no personal data, so it is not audited as a view.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branding"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Set the display name and accent colour",
+        "description": "platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBranding"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branding"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branding/logo": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The organisation's logo (any member; the shell shows it)",
+        "description": "Not audited as a view: a logo is about no one and is shown on every page. 404 when there is none.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The logo",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Set the organisation's logo (the body is the image)",
+        "description": "platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Logo stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Stop showing the organisation's logo",
+        "description": "platform.tenant.manage. The shell shows the product name again; the file stays in the document store until its retention ends. Audited (platform.branding.logo, removed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branding"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/search": {
       "post": {
         "tags": [
@@ -25194,6 +25808,92 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Record an enquiry: a new person record at enquiry (people.md rule 1)",
+        "description": "people.enquiry.manage at the location the enquiry is about. Names and a date of birth (1900 to today) only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later, before 1900 or before the birth. The answer is the record's id and state, never the person's details. A request sent again by the same person with the same id and details answers as the first (replayed); the same id with other details is refused with 409 `id_reused_with_different_details`; an id in use for anything else is refused (422). Refusals are audited with opaque ids.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnquiry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded (or the first copy of the same request sent again)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnquiryRecorded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -27181,6 +27881,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/services": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "The services run at a location, for an assessment or an admission",
+        "description": "Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Services, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -29867,7 +30647,7 @@
           "people"
         ],
         "summary": "Record an item of the exit checklist as done, or not required with a reason",
-        "description": "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.",
+        "description": "Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.",
         "security": [
           {
             "bearerAuth": []
@@ -44744,7 +45524,7 @@
           "sync"
         ],
         "summary": "A short-lived token for the PowerSync service, scoped to tenant and assignments",
-        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), and offline_days (the offline window from the rate table, never from the device). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+        "description": "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         "security": [
           {
             "bearerAuth": []

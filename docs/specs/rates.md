@@ -107,6 +107,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | sponsor.salary_floor.care_worker_hourly | 12.82 | GBP_per_hour | 2025-07-22 | - | uk | https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | to-verify |
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
+| sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -175,8 +176,22 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | asc_wds.funding_completeness_percentage | 90 | percent | 2000-01-01 | - | england | master prompt 12.3 (ASC-WDS funding data standard) | master-prompt |
 | dspt.submission_deadline.month | 6 | month_of_year | 2000-01-01 | - | england | master prompt 11.2 (30 June deadline) | master-prompt |
 | dspt.submission_deadline.day | 30 | day_of_month | 2000-01-01 | - | england | master prompt 11.2 (30 June deadline) | master-prompt |
+| cqc.rating_scale.min | 1 | count | 2000-01-01 | - | england | master prompt 11.2 (self-rating 1 to 4); CQC ratings scale: 1 inadequate, 2 requires improvement, 3 good, 4 outstanding | master-prompt |
+| cqc.rating_scale.max | 4 | count | 2000-01-01 | - | england | master prompt 11.2 (self-rating 1 to 4); CQC ratings scale: 1 inadequate, 2 requires improvement, 3 good, 4 outstanding | master-prompt |
+| quality.indicator.bed_days_base | 1000 | count | 2000-01-01 | - | all | master prompt 11.2 (falls per 1,000 bed-days): the multiplier for bed-day rates on the quality dashboard | master-prompt |
+| quality.audit.action_due_days | 28 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an audit action's due date when the auditor does not choose one; tenant default | to-verify |
+| policy.read_and_sign.reminder_days | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long after publication or the last reminder an unsigned policy is reminded again; tenant default | to-verify |
+| policy.review_due_soon_days | 30 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long before a policy's review date it shows as due soon; tenant default | to-verify |
+| policy.review_interval_months.max | 36 | months | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the longest a policy may go before its review date (Reg 17 good governance sets no interval); tenant default | to-verify |
+| quality.renewal_reminder_days | 60 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: how long before a DSPT deadline, certificate expiry or registration renewal it shows as due soon; tenant default | to-verify |
+| cyber_essentials.certificate_valid_months | 12 | months | 2000-01-01 | - | uk | https://www.ncsc.gov.uk/cyberessentials/overview (a Cyber Essentials certificate is renewed every year) | to-verify |
+| ico.registration.renewal_months | 12 | months | 2000-01-01 | - | uk | https://ico.org.uk/for-organisations/data-protection-fee/ (the data protection fee is paid every year, Data Protection (Charges and Information) Regulations 2018) | to-verify |
 | nmc.revalidation.practice_hours | 450 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
 | nmc.revalidation.cpd_hours | 35 | hours | 2016-04-01 | - | uk | master prompt 12.2 | master-prompt |
+| nmc.revalidation.cycle_years | 3 | years | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (https://www.nmc.org.uk/revalidation/) | to-verify |
+| nmc.revalidation.participatory_cpd_hours | 20 | hours | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (of the CPD hours) | to-verify |
+| nmc.revalidation.feedback_count | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (practice-related feedback) | to-verify |
+| nmc.revalidation.reflective_accounts | 5 | count | 2016-04-01 | - | uk | NMC, How to revalidate with the NMC (written reflective accounts) | to-verify |
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
@@ -185,6 +200,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.second | 30 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
 | document_expiry.reminder_days.third | 7 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
+| dbs.update_service.check_interval_months | 12 | months | 2000-01-01 | - | all | Tenant default: no statutory interval for Update Service status checks (phase-2.md decisions, slice 4; H-570) | to-verify |
 | access.agency.post_shift_hours | 2 | hours | 2000-01-01 | - | all | master prompt 4 (agency access expires at shift end plus 2 hours) | master-prompt |
 | break_glass.weekly_repeat_threshold | 3 | count | 2000-01-01 | - | all | Harbour default for flagging repeated break-glass use in the weekly report (master prompt 4 requires the report but sets no number); tenant default | to-verify |
 | family_involvement.interval_months | 6 | months | 2000-01-01 | - | all | Harbour default for the family involvement record (master prompt 9.2 names the record but sets no interval); tenant default | to-verify |
@@ -461,6 +477,13 @@ literals, and tests assert against the table, not a literal (section 7, section 
   swept nightly and its address cleared. Tenant default, confirmed by the tenant's data protection
   lead (H-355). `invitation.unlinked_sign_in_hours` (24) is how old an unlinked sign-in must be
   before the nightly sweep deletes it: long enough that an acceptance in progress is never caught.
+
+- Quality Phase 2 (slice 8, [quality.md](quality.md) section 17): `quality.audit.action_due_days`
+  (28), `policy.read_and_sign.reminder_days` (7), `policy.review_due_soon_days` (30),
+  `policy.review_interval_months.max` (36) and `quality.renewal_reminder_days` (60) are Harbour
+  defaults each tenant may change; no law sets them (H-603). `cyber_essentials.certificate_valid_months`
+  (12) and `ico.registration.renewal_months` (12) are to be confirmed on the NCSC and ICO pages
+  before a tenant relies on them (H-604).
 
 ## Other notes
 

@@ -4,6 +4,7 @@ flows:
   - offline-people-list.yaml
   - sync-recovery.yaml
   - hazard-HZ-006-offline-note-and-vitals.yaml
+  - hazard-HZ-028-round-on-the-phone.yaml
   - account-deletion-request.yaml
 executionOrder:
   continueOnFailure: false
@@ -12,4 +13,5 @@ executionOrder:
     - offline-people-list
     - sync-recovery
     - hazard-HZ-006-offline-note-and-vitals
+    - hazard-HZ-028-round-on-the-phone
     - account-deletion-request
