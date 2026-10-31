@@ -123,6 +123,13 @@ describe("task lists (PLAT-011)", () => {
       { id: "f", status: "open", timeState: "due", dueAt: at(6) },
     ] as const);
     expect(sorted.map((s) => s.id)).toEqual(["d", "c", "f", "e", "a", "b"]);
+    // Finished tasks: the most recent first.
+    expect(
+      sortTasks([
+        { id: "early", status: "done", timeState: "closed", dueAt: at(1) },
+        { id: "late", status: "skipped", timeState: "closed", dueAt: at(9) },
+      ] as const).map((s) => s.id),
+    ).toEqual(["late", "early"]);
   });
 });
 

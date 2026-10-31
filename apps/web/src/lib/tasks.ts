@@ -146,7 +146,7 @@ export function isOpen(task: Pick<TaskItem, "status">): boolean {
   return task.status === "open" || task.status === "in_progress";
 }
 
-/** Busiest first: escalated and overdue, then due, then by due time. */
+/** Busiest first: escalated and overdue, then due, then by due time; finished, newest first. */
 export function sortTasks<T extends Pick<TaskItem, "status" | "timeState" | "dueAt">>(
   items: readonly T[],
 ): T[] {
@@ -158,7 +158,13 @@ export function sortTasks<T extends Pick<TaskItem, "status" | "timeState" | "due
     if (state === "upcoming") return 3;
     return 4;
   };
-  return [...items].sort((a, b) => rank(a) - rank(b) || Date.parse(a.dueAt) - Date.parse(b.dueAt));
+  // Open tasks soonest first; finished ones most recent first, so what was just done is in view.
+  return [...items].sort((a, b) => {
+    const byRank = rank(a) - rank(b);
+    if (byRank !== 0) return byRank;
+    const byDue = Date.parse(a.dueAt) - Date.parse(b.dueAt);
+    return rank(a) === 4 ? -byDue : byDue;
+  });
 }
 
 const text = (form: FormLike, name: string) => {
