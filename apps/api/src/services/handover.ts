@@ -15,6 +15,7 @@ import {
 import {
   type AlertNotification,
   alertConditions,
+  alertReasonFromFlags,
   checkHandoverKeepsItems,
   compileHandover,
   HANDOVER_NOTICE_KIND_PREFIX,
@@ -217,6 +218,12 @@ export async function handoverSources(
       title: task.title,
       status: task.status,
       statusReason: task.statusReason,
+      fromEarlierPlan: task.fromEarlierPlan,
+      // The care plan action a plan's round carries out, as the plan words it (HZ-024).
+      planAction: sql<string | null>`(SELECT a.action FROM task_series s
+        JOIN care_plan_action a ON a.tenant_id = s.tenant_id AND a.id = s.source_id
+        WHERE s.tenant_id = "task"."tenant_id" AND s.id = "task"."series_id"
+          AND s.source_type = 'care_plan_action')`,
       priority: task.priority,
       evidenceRequired: task.evidenceRequired,
       dueAt: task.dueAt,
@@ -353,6 +360,8 @@ export async function handoverSources(
       closedAt: ["done", "skipped", "cancelled"].includes(t.status) ? t.completedAt : null,
       title: t.title,
       statusReason: t.statusReason,
+      fromEarlierPlan: t.fromEarlierPlan,
+      planAction: t.planAction,
     })),
     observations: observations.map((o) => {
       const news2 = (o.flags as { news2?: { band?: string; score?: unknown } } | null)?.news2;
@@ -373,8 +382,35 @@ export async function handoverSources(
     incidents: incidents.map((i) => ({ ...i, personIds: i.personIds ?? [] })),
     bodyMapMarks: marks,
     notes,
-    alerts: alertConditions(alerts as AlertNotification[]),
+    alerts: alertConditions(await withAlertReasons(tx, alerts as AlertNotification[])),
   };
+}
+
+/**
+ * A care result's alert with why it was raised, from its observation's stored flags (a NEWS2
+ * threshold or an IDDSI problem), so the handover item says what the alert is about (#50 review
+ * round 1, clinical M2).
+ */
+async function withAlertReasons(
+  tx: Transaction,
+  rows: readonly AlertNotification[],
+): Promise<AlertNotification[]> {
+  const ids = [
+    ...new Set(
+      rows.filter((r) => r.sourceType === "observation" && r.sourceId).map((r) => r.sourceId),
+    ),
+  ].filter((id): id is string => typeof id === "string");
+  if (ids.length === 0) return [...rows];
+  const flagged = await tx
+    .select({ id: observation.id, flags: observation.flags })
+    .from(observation)
+    .where(inArray(sql`${observation.id}::text`, ids));
+  const reasons = new Map(flagged.map((o) => [o.id, alertReasonFromFlags(o.flags)]));
+  return rows.map((r) => {
+    const reason =
+      r.sourceType === "observation" && r.sourceId ? reasons.get(r.sourceId) : undefined;
+    return reason ? { ...r, reason } : r;
+  });
 }
 
 /** Records a handover write: as the requester through the API, as the system in the worker. */

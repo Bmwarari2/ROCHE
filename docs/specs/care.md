@@ -1377,13 +1377,22 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   ADR-0074):
   - (a) each `handover_item` carries `summary`, a catalogue key (`handover.summary.*`, one per
     kind; `HANDOVER_SUMMARY_KEYS`) and its parameters. The parameters are codes, the NEWS2 score,
-    and a task's title and the reason it was not done. It is compiled with the item from its
-    source and synced with it. The phone words it from `mobile.` + key (`handover-summary.ts`), or
+    for a care result's alert why it was raised (the NEWS2 threshold or the IDDSI problem, from
+    its observation's flags), and a task's title, the care plan action it carries out, whether it
+    was from an earlier plan when compiled and the reason it was not done. An alert's summary never
+    says whether anyone acknowledged it, since the item never changes once compiled (#50 review
+    round 1, clinical M1 to M3). It is compiled with the item from its source and synced with it. The phone words it from `mobile.` + key (`handover-summary.ts`), or
     by the item's kind when it has none.
   - (b) `task.from_earlier_plan` is the round view's notice, kept on the task by the database with
     the same rule (`planRoundNotice`) and synced with the open tasks.
-  - (e) the sync token carries `handover_shifts`: each nation's day and night start times, where
-    the handover family reaches. The phone works out the expected outgoing shift with `shiftAt` and
+  - (e) the sync token carries `handover_shifts`: each nation's day and night start times
+    (minutes after midnight, UK time), where the handover family reaches. A nation whose figures
+    are missing, not whole minutes of a day or not day before night is left out, so the phone says
+    it cannot tell, and the API logs a warning for the operator with the organisation's id, the
+    nations and the rate keys (#50 review round 1, clinical M4).
+  - The handover family needs `safety.incident.read`, `care.note.read` and `people.person.read` at
+    the same or a wider scope than `care.handover.manage`, since the summaries carry incidents,
+    notes and the person (ADR-0071; #50 review round 1, security M1). The phone works out the expected outgoing shift with `shiftAt` and
     `previousShift`, and says "not compiled yet" when no handover for it has arrived, and "not
     final" while `locked_at` is empty.
 

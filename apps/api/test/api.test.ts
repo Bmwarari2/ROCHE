@@ -14,7 +14,7 @@ import { DEVICE_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import { DEMO } from "@harbour/db/seed";
 import { offlineWindowDays, SYNC_TOKEN_AUDIENCE, SYNC_TOKEN_ISSUER } from "@harbour/sync/streams";
 import { jwtVerify } from "jose";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import type { TenantAccess } from "../src/http/context";
 import { recordDeviceHold } from "../src/services/device-holds";
@@ -547,6 +547,35 @@ describe("offline sync", () => {
     expect(payload.handover_shifts).toEqual({
       england: { day: Number(day.value), night: Number(night.value) },
     });
+  });
+
+  it("hazard HZ-018 leaves out a nation whose shift figures are out of order, and tells the operator (#50 review round 1, clinical M4)", async () => {
+    const insert = await asTenant<{ id: string }>(
+      DEMO.tenantId,
+      `INSERT INTO rate_table (tenant_id, key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ($1, 'handover.night_shift_start_minute', 60, 'minutes', 'england', '2000-01-01', 'test', 'verified')
+       RETURNING id`,
+      [DEMO.tenantId],
+    );
+    const warn = vi.spyOn(h.handle.services.logger, "warn");
+    try {
+      const { token } = await json<SyncToken>(
+        await demo("manager", "/v1/sync/token", { method: "POST" }),
+      );
+      const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+      // Night before day: no pattern for England, so the phone says it cannot tell.
+      expect(payload.handover_shifts).toEqual({});
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: DEMO.tenantId, nations: ["england"] }),
+        expect.stringMatching(/^handover shift pattern missing or out of order/),
+      );
+      // Opaque ids and rate keys only: no names, no figures.
+      const fields = JSON.stringify(warn.mock.calls.at(-1)?.[0]);
+      expect(fields).not.toMatch(/Example|@|"value"/);
+    } finally {
+      warn.mockRestore();
+      await asTenant(DEMO.tenantId, "DELETE FROM rate_table WHERE id = $1", [insert[0]?.id]);
+    }
   });
 
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {

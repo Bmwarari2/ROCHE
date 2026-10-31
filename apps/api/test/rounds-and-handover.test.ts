@@ -839,10 +839,23 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
     });
     expect(about(5, "alert")).toMatchObject({
       key: "handover.summary.alert",
-      params: { alert: "care_urgent_result" },
+      // What it is about, from the observation that raised it; never whether it was acknowledged.
+      params: { alert: "care_urgent_result", reason: "news2_threshold" },
     });
     const doors = current.items.find((i) => i.personId === null && i.sourceType === "task");
-    expect(doors?.summary?.params).toEqual({ title: "Check the fire doors" });
+    expect(doors?.summary?.params).toEqual({
+      title: "Check the fire doors",
+      planAction: "",
+      earlierPlan: "no",
+    });
+    expect(about(5, "alert")?.params).not.toHaveProperty("acknowledged");
+    // The overdue round of resident 4's dropped schedule says it is from an earlier plan, with the
+    // plan action it carried out (HZ-024; #50 review round 1, clinical M3).
+    const earlier = current.items.find(
+      (i) => i.personId === resident(4) && i.summary?.params.earlierPlan === "yes",
+    );
+    expect(earlier?.summary?.params.planAction).toEqual(expect.any(String));
+    expect(String(earlier?.summary?.params.planAction).length).toBeGreaterThan(0);
     // Every item has one, stored with it, never a person's name.
     expect(current.items.every((i) => i.summary?.key.startsWith("handover.summary."))).toBe(true);
     const stored = await query<{ n: number }>(
