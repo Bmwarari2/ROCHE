@@ -100,6 +100,8 @@ export * from "./safety/phase2-rates";
 export * from "./safety/post-fall";
 export * from "./safety/questions";
 export * from "./safety/rates";
+export * from "./safety/safeguarding";
+export * from "./safety/whistleblowing";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
 // The rule-group functions take periods prepared inside the module; callers use checkWorkingTime.
@@ -113,8 +115,6 @@ export * from "./scheduling/weekly-average";
 export * from "./scheduling/working-time";
 export * from "./scheduling/working-time-types";
 export { youngWorkerUntil } from "./scheduling/young-workers";
-export * from "./safety/safeguarding";
-export * from "./safety/whistleblowing";
 export * from "./shared/citation";
 export * from "./shared/email";
 export * from "./shared/time";

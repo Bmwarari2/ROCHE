@@ -12572,6 +12572,459 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/safeguarding/concerns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The safeguarding log in scope, open concerns first, with each referral clock */
+    get: {
+      parameters: {
+        query?: {
+          state?: components["schemas"]["SafeguardingState"];
+          personId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The log */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Raise a safeguarding concern about a person (Care Act 2014 s.42)
+     * @description Anyone who may report an incident about the person may raise one. The referral clock starts at raisedAt (safeguarding.referral_hours, a tenant target; the law says without delay). A client id makes a replay return the same concern. From a Phase 1 safeguarding_s42 draft, the person, location and incident come from the draft.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RaiseSafeguardingConcern"];
+        };
+      };
+      responses: {
+        /** @description Raised (or the earlier copy of a replay) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingRaised"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safeguarding/concerns/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One safeguarding concern, its clock, the linked draft and what each next step needs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The concern */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Record the referral, enquiry, finding, Making Safeguarding Personal, DBS decision and protective measures
+     * @description Expected version. A concern that is closed or not referred cannot be changed. The workflow moves through /step.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["UpdateSafeguardingConcern"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/safeguarding/concerns/{id}/step": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move the concern (safeguardingStepProblems says what each step needs)
+     * @description Not referring and closing need a reason. Referring or deciding not to refer stops the overdue alerts.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SafeguardingStep"];
+        };
+      };
+      responses: {
+        /** @description Moved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/safeguarding/measures": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The protective measures of the person's open safeguarding concerns (HZ-126)
+     * @description For staff caring for the person: the measures only, never the allegation or who raised it. Open concerns with no measures recorded are counted.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The measures */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SafeguardingMeasures"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/notifications/statutory": {
     parameters: {
       query?: never;
@@ -25776,6 +26229,198 @@ export interface components {
        * @enum {string}
        */
       status: "open" | "done" | "cancelled";
+    };
+    SafeguardingRaised: {
+      /** Format: uuid */
+      id: string;
+      state: components["schemas"]["SafeguardingState"];
+      /** Format: date-time */
+      referralDueAt: string;
+      version: number;
+    };
+    /** @enum {string} */
+    SafeguardingState: "concern" | "no_referral" | "referred" | "enquiry" | "outcome" | "closed";
+    RaiseSafeguardingConcern: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: uuid */
+      personId: string;
+      abuseTypes: components["schemas"]["SafeguardingAbuseType"][];
+      description: string;
+      /** Format: date-time */
+      raisedAt?: string;
+      /** Format: uuid */
+      incidentId?: string;
+      /** Format: uuid */
+      notificationId?: string;
+      /** Format: uuid */
+      decisionGuideTaskId?: string;
+      protectiveMeasures?: string;
+    };
+    /** @enum {string} */
+    SafeguardingAbuseType:
+      | "physical"
+      | "domestic"
+      | "sexual"
+      | "psychological"
+      | "financial_or_material"
+      | "modern_slavery"
+      | "discriminatory"
+      | "organisational"
+      | "neglect"
+      | "self_neglect";
+    SafeguardingList: {
+      concerns: components["schemas"]["SafeguardingSummary"][];
+      truncated: boolean;
+    };
+    SafeguardingSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      state: components["schemas"]["SafeguardingState"];
+      abuseTypes: components["schemas"]["SafeguardingAbuseType"][];
+      /** Format: date-time */
+      raisedAt: string;
+      clock: components["schemas"]["SafeguardingClock"];
+      version: number;
+    };
+    SafeguardingClock: {
+      status: components["schemas"]["SafeguardingClockStatus"];
+      /** Format: date-time */
+      dueAt: string;
+      wording: string;
+    };
+    /** @enum {string} */
+    SafeguardingClockStatus: "due" | "overdue" | "referred" | "not_referred";
+    SafeguardingDetail: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      incidentId: string | null;
+      notification: {
+        /** Format: uuid */
+        id: string;
+        /** @enum {string} */
+        status: "draft" | "ready" | "submitted" | "not_required";
+        /** Format: date-time */
+        dueAt: string;
+      } | null;
+      /** Format: uuid */
+      decisionGuideTaskId: string | null;
+      state: components["schemas"]["SafeguardingState"];
+      abuseTypes: components["schemas"]["SafeguardingAbuseType"][];
+      description: string;
+      /** Format: date-time */
+      raisedAt: string;
+      raisedByYou: boolean;
+      clock: components["schemas"]["SafeguardingClock"];
+      noReferralReason: string | null;
+      referral: {
+        localAuthority: string;
+        /** @enum {string} */
+        method: "phone" | "online_form" | "email" | "in_person";
+        /** Format: date-time */
+        referredAt: string;
+        reference: string | null;
+      } | null;
+      enquiry: {
+        /** @enum {string} */
+        kind: "s42_local_authority" | "s42_caused_to_provider";
+        /** Format: date-time */
+        openedAt: string;
+      } | null;
+      finding: components["schemas"]["SafeguardingFinding"];
+      personalOutcomes: {
+        asked: boolean;
+        notAskedReason: string | null;
+        desiredOutcomes: string | null;
+        /** @enum {string|null} */
+        achieved: "fully" | "partly" | "not" | null;
+      } | null;
+      staffRemovedForHarm: boolean;
+      dbsReferral: {
+        /** @enum {string} */
+        decision: "referred" | "not_required";
+        reason: string | null;
+        /** Format: date-time */
+        at: string;
+      } | null;
+      protectiveMeasures: string | null;
+      /** Format: date-time */
+      protectiveMeasuresUpdatedAt: string | null;
+      /** Format: date-time */
+      closedAt: string | null;
+      closedReason: string | null;
+      nextSteps: {
+        to: components["schemas"]["SafeguardingState"];
+        needs: string[];
+      }[];
+      warnings: string[];
+      version: number;
+    };
+    /** @enum {string|null} */
+    SafeguardingFinding:
+      | "substantiated"
+      | "partly_substantiated"
+      | "not_substantiated"
+      | "inconclusive"
+      | "no_s42_enquiry"
+      | null;
+    UpdateSafeguardingConcern: {
+      version: number;
+      abuseTypes?: components["schemas"]["SafeguardingAbuseType"][];
+      description?: string;
+      referral?: {
+        localAuthority: string;
+        /** @enum {string} */
+        method: "phone" | "online_form" | "email" | "in_person";
+        /** Format: date-time */
+        referredAt: string;
+        reference: string | null;
+      } | null;
+      enquiry?: {
+        /** @enum {string} */
+        kind: "s42_local_authority" | "s42_caused_to_provider";
+        /** Format: date-time */
+        openedAt: string;
+      } | null;
+      finding?: components["schemas"]["SafeguardingFinding"];
+      personalOutcomes?: {
+        asked: boolean;
+        notAskedReason: string | null;
+        desiredOutcomes: string | null;
+        /** @enum {string|null} */
+        achieved: "fully" | "partly" | "not" | null;
+      } | null;
+      staffRemovedForHarm?: boolean;
+      dbsReferral?: {
+        /** @enum {string} */
+        decision: "referred" | "not_required";
+        reason: string | null;
+        /** Format: date-time */
+        at: string;
+      } | null;
+      protectiveMeasures?: string | null;
+    };
+    SafeguardingStep: {
+      to: components["schemas"]["SafeguardingState"];
+      reason?: string;
+      version: number;
+    };
+    SafeguardingMeasures: {
+      measures: {
+        text: string;
+        /** Format: date-time */
+        updatedAt: string;
+      }[];
+      openWithoutMeasures: number;
     };
     StatutoryNotificationList: {
       items: components["schemas"]["StatutoryNotificationSummary"][];

@@ -12,6 +12,7 @@ import {
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateSafeguardingReferrals,
   escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
@@ -119,6 +120,7 @@ await work(QUEUES.dolsExpiry, async () => {
 });
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
+  await escalateSafeguardingReferrals(deps);
 });
 await work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
