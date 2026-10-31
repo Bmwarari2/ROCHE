@@ -431,9 +431,12 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    question, so the classifier drafts the CQC notification (regulation 18(2)(f)) with its clock in
    the notification centre (HZ-013); found also ends the task. The episode shows the incident's
    Herbert Protocol and CQC police notifications as the notification centre has them. An episode
-   opened with immediate risk also tells every clinical lead and team leader on site at once, an
-   urgent notification that does not wait for the task's escalation (H-771, recommended answer
-   applied 31/10/2026).
+   opened with immediate risk also tells, at opening, every holder of the clinical lead or team
+   leader role at the location (no rota yet), an urgent notification that does not wait for the
+   task's escalation; nobody holding those roles falls back to the Registered Manager, then anyone
+   who manages incidents there, and nobody at all is audited (H-771, recommended answer applied
+   31/10/2026). One episode is open (still searching) per person: a found episode awaiting its
+   welfare check and debrief never stops a new one opening.
 6. **The Herbert Protocol profile**: one per person, read by `safety.incident.read`, written by
    `safety.incident.manage`, for someone living here. A new profile is **prefilled from the record**
    (the home address before moving here, communication needs and first language, allergies, and
@@ -448,7 +451,8 @@ HZ-013 and HZ-127). No web screens yet (slice 63).
    is expected, prompted but never forced, for anyone at risk of going missing: the same daily job
    gives a person living here with an active risk assessment for leaving without staff knowing, and
    no profile, one task for the nurse in charge to prepare it with them or their representative,
-   again only when that risk assessment changes; saving a profile finishes it. Dementia prompts too
+   due after `herbert_protocol.prepare_due_days`, again for a new assessment date, closed when no
+   longer needed; saving a profile finishes it. Dementia prompts too
    once the record holds diagnoses (H-773, recommended answer applied 31/10/2026).
 
 Permissions: `safety.incident.read` (read), `safety.incident.report` (open an episode, add to its

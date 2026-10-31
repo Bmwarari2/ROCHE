@@ -180,6 +180,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | mortality_review.due_days | 28 | days | 2000-01-01 | - | all | Tenant target: no statutory figure for care providers (H-590) | to-verify |
 | missing_person.police_call_minutes | 30 | minutes | 2000-01-01 | - | all | Tenant target: the tenant's missing person policy and risk assessment; call at once when they say so (H-591) | to-verify |
 | herbert_protocol.review_months | 6 | months | 2000-01-01 | - | all | Tenant target: the Herbert Protocol forms ask for regular updates but set no interval (H-591) | to-verify |
+| herbert_protocol.prepare_due_days | 7 | days | 2000-01-01 | - | all | Harbour default (H-773, recommended answer applied 31/10/2026; HZ-127): a prompt to prepare a Herbert Protocol profile with the person or their representative is due this many days after it is raised, so it is prompted, never forced; tenant default; CSO to confirm | to-verify |
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |

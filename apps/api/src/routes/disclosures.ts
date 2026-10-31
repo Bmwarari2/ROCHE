@@ -160,27 +160,62 @@ async function inTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>): Promise<
   }
 }
 
+/** Append-only person records: when each was received. */
+const RECEIVED_TABLES = [
+  "care_note",
+  "observation",
+  "body_map_mark",
+  "assessment",
+  "activity_record",
+  "visit_log",
+  "death_step",
+  "capacity_assessment",
+  "best_interests_decision",
+] as const;
+/** Person records that change: their latest change counts, a review included. */
+const CHANGED_TABLES = [
+  "risk_assessment",
+  "care_plan",
+  "care_plan_section",
+  "care_plan_change",
+  "advance_care_record",
+  "dols_authorisation",
+  "hospital_transfer",
+  "death_record",
+  "safeguarding_concern",
+] as const;
+/** Person records written once, with no received time of their own. */
+const CREATED_TABLES = ["consent_record", "handover_note"] as const;
+
 /**
- * The latest record of any kind added to a person's record, for the Access to Health Records Act
- * clock (H-827): care notes, observations, body map marks, assessments, activities, visits, risk
- * assessments, incidents they are named in and their documents. Null when none is found, which
- * the clock treats as recent (the shorter time).
+ * The latest record of any kind added to or changed in a person's record, for the Access to
+ * Health Records Act clock (H-827; clinical review of the recommended answers, finding 6): notes,
+ * charts, assessments, care plans and their changes, risk assessments and their reviews, consent,
+ * capacity and DoLS records, hospital transfers, the death record and its steps, safeguarding
+ * concerns, handover notes, incidents they are named in and their documents. Medicines join when
+ * the eMAR tables do. Read in the organisation's context, so no reader's scope leaves a class
+ * out. Null when none is found, which the clock treats as recent (the shorter time).
  */
 async function latestRecordAdded(tx: Tx, personId: string): Promise<Date | null> {
-  const { rows } = await tx.execute<{ at: Date | string | null }>(sql`
-    SELECT max(at) AS at FROM (
-      SELECT max(recorded_at) AS at FROM care_note WHERE person_id = ${personId}
-      UNION ALL SELECT max(recorded_at) FROM observation WHERE person_id = ${personId}
-      UNION ALL SELECT max(recorded_at) FROM body_map_mark WHERE person_id = ${personId}
-      UNION ALL SELECT max(recorded_at) FROM assessment WHERE person_id = ${personId}
-      UNION ALL SELECT max(recorded_at) FROM activity_record WHERE person_id = ${personId}
-      UNION ALL SELECT max(recorded_at) FROM visit_log WHERE person_id = ${personId}
-      UNION ALL SELECT max(created_at) FROM risk_assessment WHERE person_id = ${personId}
-      UNION ALL SELECT max(i.created_at) FROM incident i
-        JOIN incident_person ip ON ip.incident_id = i.id WHERE ip.person_id = ${personId}
-      UNION ALL SELECT max(created_at) FROM document
-        WHERE subject_type = 'person' AND subject_id = ${personId}
-    ) latest`);
+  const parts = [
+    ...RECEIVED_TABLES.map(
+      (t) =>
+        sql`SELECT max(recorded_at) AS at FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    ...CHANGED_TABLES.map(
+      (t) =>
+        sql`SELECT max(greatest(created_at, updated_at)) FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    ...CREATED_TABLES.map(
+      (t) => sql`SELECT max(created_at) FROM ${sql.identifier(t)} WHERE person_id = ${personId}`,
+    ),
+    sql`SELECT max(greatest(i.created_at, i.updated_at)) FROM incident i
+        JOIN incident_person ip ON ip.incident_id = i.id WHERE ip.person_id = ${personId}`,
+    sql`SELECT max(created_at) FROM document WHERE subject_type = 'person' AND subject_id = ${personId}`,
+  ];
+  const { rows } = await tx.execute<{ at: Date | string | null }>(
+    sql`SELECT max(at) AS at FROM (${sql.join(parts, sql` UNION ALL `)}) latest`,
+  );
   const at = rows[0]?.at;
   return at ? new Date(at) : null;
 }

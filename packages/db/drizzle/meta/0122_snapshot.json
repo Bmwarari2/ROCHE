@@ -11186,7 +11186,7 @@
             }
           ],
           "isUnique": true,
-          "where": "status <> 'closed' AND deleted_at IS NULL",
+          "where": "status = 'open' AND deleted_at IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

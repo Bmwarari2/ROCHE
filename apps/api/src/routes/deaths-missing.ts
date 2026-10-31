@@ -58,6 +58,7 @@ import {
   readDeath,
   readEpisode,
   syncPoliceCallTask,
+  tellOnSiteNow,
 } from "../services/deaths-missing";
 import { loadPerson } from "../services/people";
 import { classifyAndStore, subjectToDolsAt } from "../services/safety";
@@ -654,6 +655,8 @@ export const deathsMissingRouter = createRouter()
         });
         const read = await readEpisode(tx, access.tenantId, row, now);
         await syncPoliceCallTask(tx, row, read.view.policeCallDueAt, now);
+        // Told at opening, whatever the police call task (H-771; clinical review finding 4).
+        if (row.immediateRisk) await tellOnSiteNow(tx, row, now);
         await audit(c, tx, access, {
           action: "safety.missing.open",
           resourceType: "missing_episode",

@@ -60,6 +60,12 @@ END
 $$;
 --> statement-breakpoint
 
+-- HZ-127 (clinical review of the recommended answers, finding 2): one episode still searching per
+-- person. A found episode waiting for its welfare check and debrief no longer stops a new episode
+-- if the person goes missing again, so the police call task and the on-site alert are never lost.
+DROP INDEX "missing_episode_one_open";--> statement-breakpoint
+CREATE UNIQUE INDEX "missing_episode_one_open" ON "missing_episode" USING btree ("tenant_id","person_id") WHERE status = 'open' AND deleted_at IS NULL;--> statement-breakpoint
+
 -- H-721: speak-up concerns get their own retention class, 6 years after the concern closes, rather
 -- than the 10 years borrowed from complaints. Existing rows move to it: row-level security is lifted
 -- for the owner and the versioning trigger paused for this one statement (as migrations 0021 to

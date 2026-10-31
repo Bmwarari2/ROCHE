@@ -27,3 +27,17 @@ owner asked to apply now, reviewed at the testing phase (`docs/plans/recommended
 
 - The outbreak and disclosure web screens (on `feat/web-safety-events`) offer unnamed staff cases
   once both branches meet on main.
+
+## Clinical safety review, round 1
+
+- The immediate-risk alert is sent from the open handler itself, falls back to the Registered
+  Manager and then anyone who manages incidents there, and is audited as unrouted when nobody can
+  be told.
+- A person who goes missing again while the last episode is found but not yet debriefed gets a
+  new episode (migration 0122 narrows the one-open index to episodes still searching).
+- The Herbert prompt is raised once per assessment date, is due after
+  `herbert_protocol.prepare_due_days` (new rate row), skips deleted tasks and is closed when no
+  longer needed.
+- The Access to Health Records Act clock counts many more record classes, and changes as well as
+  additions.
+- New tests; HZ-013 and HZ-127 rows reworded; CSO decisions added to H-771, H-773, H-782 and H-827.

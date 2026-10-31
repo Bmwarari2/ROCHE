@@ -186,6 +186,45 @@ describe("SAFE-016 rule 38: every request carries its legal basis", () => {
     // The 21-day period (rate table), never the 40-day one, when no record date is found.
     expect(days).toBeLessThan(25);
     expect(req.legalBasis).toMatch(/Access to Health Records Act 1990/);
+
+    // Only an old care note: the longer period. Then a recent review of a risk assessment, not a
+    // care note, brings the shorter one (clinical review finding 6).
+    const [q] = await owner<{ id: string; location_id: string }>(
+      `INSERT INTO person (location_id, given_name, family_name, date_of_birth, status)
+       SELECT location_id, 'Ernest', 'Example', DATE '1931-01-01', 'deceased'
+         FROM person WHERE id = $1
+       RETURNING id, location_id`,
+      [ada],
+    );
+    await owner(
+      `INSERT INTO care_note (person_id, location_id, occurred_at, recorded_at, category, body)
+       VALUES ($1, $2, now() - interval '100 days', now() - interval '100 days', 'other',
+         'Settled evening.')`,
+      [q?.id, q?.location_id],
+    );
+    const dueIn = async () => {
+      const at = new Date();
+      const response = await post("/v1/disclosures", {
+        personId: q?.id,
+        type: "access_to_health_records",
+        requester: { name: "Personal representative", organisation: "Example executors" },
+        receivedAt: at.toISOString(),
+      });
+      expect(response.status, await response.clone().text()).toBe(201);
+      const out = (await response.json()) as Request;
+      return Math.round((new Date(out.dueAt ?? 0).getTime() - at.getTime()) / 86_400_000);
+    };
+    const longer = await dueIn();
+    expect(longer).toBeGreaterThan(30);
+    await owner(
+      `INSERT INTO risk_assessment (person_id, template_key, template_version, hazard, who_at_risk,
+         assessed_on, review_due_on)
+       VALUES ($1, 'falls', '1', 'Falls', 'The person', current_date, current_date + 30)`,
+      [q?.id],
+    );
+    const shorter = await dueIn();
+    expect(shorter).toBeLessThan(longer);
+    expect(shorter).toBeLessThan(25);
   });
 
   it("police requests need a stated purpose before they are prepared", async () => {
