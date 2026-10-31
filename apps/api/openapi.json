@@ -6252,6 +6252,13 @@
             "items": {
               "$ref": "#/components/schemas/TaskItem"
             }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "earlierOmitted": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -7304,6 +7311,13 @@
           "eligibleSince": {
             "type": "string",
             "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -7314,28 +7328,19 @@
         ],
         "description": "A document past retention with no legal hold"
       },
-      "DestructionResult": {
+      "DestructionCertificateList": {
         "type": "object",
         "properties": {
-          "certificates": {
+          "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DestructionCertificateItem"
             }
-          },
-          "skipped": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         },
         "required": [
-          "certificates",
-          "skipped"
-        ],
-        "description": "Certificates per record class; skipped ids were held, not yet due or not found"
+          "items"
+        ]
       },
       "DestructionCertificateItem": {
         "type": "object",
@@ -7373,6 +7378,29 @@
           "method",
           "executedAt"
         ]
+      },
+      "DestructionResult": {
+        "type": "object",
+        "properties": {
+          "certificates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DestructionCertificateItem"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "certificates",
+          "skipped"
+        ],
+        "description": "Certificates per record class; skipped ids were held, not yet due or not found"
       },
       "DestroyDocuments": {
         "type": "object",
@@ -30493,6 +30521,19 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "default": "no"
+            },
+            "required": false,
+            "name": "earlier",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "date-time"
             },
             "required": false,
@@ -31891,6 +31932,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RetentionCandidateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/destruction-certificates": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Destruction certificates, newest first",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Certificates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestructionCertificateList"
                 }
               }
             }

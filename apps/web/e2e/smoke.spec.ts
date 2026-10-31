@@ -57,13 +57,13 @@ async function signOut(page: Page) {
   await page.waitForURL((url) => url.pathname === "/sign-in");
 }
 
-test("a manager signs in, sees the empty home, opens people and a person, and signs out", async ({
+test("a manager signs in, sees the dashboard, opens people and a person, and signs out", async ({
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
 
   await expect(page.getByRole("heading", { level: 1, name: "Welcome, Mo Manager" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Today" })).toBeVisible();
   await expect(page.getByRole("banner").getByText("Mo Manager")).toBeVisible();
   await expectAccessible(page, "home");
 
