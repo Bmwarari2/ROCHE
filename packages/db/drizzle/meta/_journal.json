@@ -498,6 +498,13 @@
       "when": 1793455130280,
       "tag": "0073_staff_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1793457159832,
+      "tag": "0079_training_competence",
+      "breakpoints": true
     }
   ]
 }
