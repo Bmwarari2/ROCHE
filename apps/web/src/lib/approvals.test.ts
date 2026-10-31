@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   approvalGroups,
   approvalsShown,
+  incidentApprovalView,
   isIncidentApproval,
   raisedByLine,
   slaChip,
@@ -32,6 +33,7 @@ const base: WorkflowInstanceItem = {
     jobTitle: null,
   },
   permissions: ["safety.incident.manage"],
+  incident: { version: 3, status: "under_review", closeBlocked: false },
   moves: [{ to: "closed", approval: true, requiresReason: true, requiresStepUp: false }],
   awaitingYourApproval: true,
   raisedByYou: false,
@@ -170,6 +172,33 @@ describe("approvals screen (PLAT-011)", () => {
   it("says who raised it, or that Harbour started it", () => {
     expect(raisedByLine(base, t)).toBe("Raised by Mo Manager");
     expect(raisedByLine(item({ createdBy: null }), t)).toBe("Started by Harbour");
+  });
+
+  it.each<[string, Partial<WorkflowInstanceItem>, unknown]>([
+    ["closing, ready", {}, { review: null, close: { kind: "form" } }],
+    [
+      "closing and sending back, when it can go back to open",
+      {
+        moves: [
+          { to: "closed", approval: true, requiresReason: true, requiresStepUp: false },
+          { to: "open", approval: false, requiresReason: true, requiresStepUp: false },
+        ],
+      },
+      { review: "open", close: { kind: "form" } },
+    ],
+    [
+      "what must be done first, when closing is held back (HZ-013)",
+      { incident: { version: 3, status: "open", closeBlocked: true } },
+      { review: null, close: { kind: "blocked", notifications: [], questions: 0 } },
+    ],
+    ["nothing, without the incident's facts", { incident: null }, null],
+    [
+      "nothing, to the person who raised it",
+      { awaitingYourApproval: false, raisedByYou: true, moves: [] },
+      null,
+    ],
+  ])("offers %s", (_label, change, expected) => {
+    expect(incidentApprovalView(item(change))).toEqual(expected);
   });
 
   it("offers closing here only for an incident waiting for the reader's approval", () => {

@@ -1,4 +1,4 @@
-import type { IncidentDetail, WorkflowInstanceItem } from "@harbour/contracts";
+import type { WorkflowInstanceItem } from "@harbour/contracts";
 import { Card, PageHeader } from "@harbour/ui";
 import { TriangleAlert, UserRoundX } from "lucide-react";
 import type { Metadata } from "next";
@@ -13,7 +13,7 @@ import {
   type ApprovalGroup,
   approvalGroups,
   approvalsShown,
-  isIncidentApproval,
+  incidentApprovalView,
   raisedByLine,
   slaChip,
   workflowItemTitle,
@@ -23,7 +23,7 @@ import {
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { doneToShow, incidentManageView, manageDone } from "@/lib/incident-review";
+import { doneToShow, manageDone } from "@/lib/incident-review";
 import { incidentTitle } from "@/lib/incidents";
 
 export const metadata: Metadata = { title: t("approvals.title") };
@@ -31,23 +31,12 @@ export const metadata: Metadata = { title: t("approvals.title") };
 const GROUPS: readonly ApprovalGroup[] = ["yours", "raised", "other"];
 const iconProps = { size: 20, strokeWidth: 1.5, "aria-hidden": true } as const;
 
-function Item({
-  item,
-  incident,
-  tenantUserId,
-}: {
-  readonly item: WorkflowInstanceItem;
-  readonly incident: IncidentDetail | undefined;
-  readonly tenantUserId: string;
-}) {
+function Item({ item }: { readonly item: WorkflowInstanceItem }) {
   const href = workflowLink(item);
   const label = workflowItemTitle(item, t);
   const describedBy = `workflow-${item.id}`;
-  // The permissions the API found reaching this record, never ones held at another home.
-  const manage =
-    incident && isIncidentApproval(item)
-      ? incidentManageView(incident, { tenantUserId, permissions: item.permissions })
-      : null;
+  // From the steps and facts the API found for the reader where the incident is.
+  const manage = incidentApprovalView(item);
   return (
     <li
       className="flex flex-col gap-2 border-b border-border pb-4 break-words"
@@ -77,12 +66,12 @@ function Item({
       {item.raisedByYou ? (
         <Notice icon={<UserRoundX {...iconProps} />} title={t("approvals.raisedByYou")} />
       ) : null}
-      {manage && incident ? (
+      {manage && item.incident ? (
         <IncidentApproval
-          incidentId={incident.id}
-          version={incident.version}
+          incidentId={item.subjectId}
+          version={item.incident.version}
           view={manage}
-          path={`${APPROVALS_PAGE}?incident=${incident.id}`}
+          path={`${APPROVALS_PAGE}?incident=${item.subjectId}`}
         />
       ) : !item.raisedByYou && href && item.moves.length > 0 ? (
         <p className="m-0">{t("approvals.nextStep")}</p>
@@ -122,21 +111,12 @@ export default async function ApprovalsPage({
     return failWith(error, response, APPROVALS_PAGE);
   }
   const groups = approvalGroups(data.items);
-  // Each incident waiting for the reader, for its version and what must be done before closing.
-  // Reading one is audited as a view, as on its own page; the waiting ones are few.
-  const readIncident = async (id: string) =>
-    (await api.GET("/v1/incidents/{id}", { params: { path: { id } } })).data ?? undefined;
-  const incidents = new Map<string, IncidentDetail>();
-  await Promise.all(
-    groups.yours.filter(isIncidentApproval).map(async (item) => {
-      const detail = await readIncident(item.subjectId);
-      if (detail) incidents.set(item.subjectId, detail);
-    }),
-  );
-  // Say what was done only while the incident's status still matches (an old address says nothing).
+  // Say what was done only while the incident's status still matches (an old address says
+  // nothing): the one incident just acted on is read, as its own page would be.
   const acted =
     done && doneIncident
-      ? (incidents.get(doneIncident) ?? (await readIncident(doneIncident)))
+      ? ((await api.GET("/v1/incidents/{id}", { params: { path: { id: doneIncident } } })).data ??
+        undefined)
       : undefined;
   const shownDone = acted && done ? doneToShow(done, acted.status) : null;
   const now = new Date();
@@ -169,12 +149,7 @@ export default async function ApprovalsPage({
           ) : (
             <ul className="m-0 flex list-none flex-col gap-4 p-0">
               {groups[group].map((item) => (
-                <Item
-                  key={item.id}
-                  item={item}
-                  incident={incidents.get(item.subjectId)}
-                  tenantUserId={me.tenantUserId}
-                />
+                <Item key={item.id} item={item} />
               ))}
             </ul>
           )}

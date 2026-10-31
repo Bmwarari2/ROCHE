@@ -58,11 +58,33 @@ Branch `feat/web-workflow-approvals`.
   that waits for you is audited as a view) and L5 (step-up asked of holders of notification
   submission alone).
 
+## Review round 2 (#130)
+
+- M1: an incident shows to its raiser anywhere, so visibility alone let a permission act at a
+  home where it is not held. Reach is now decided by the record's home (`scopeReachesLocation`).
+  This applies on the list, in `managesIncident`, in the incident review and close routes and in
+  the notification submit and not-required routes, and each refusal is audited. Tests: a submitter
+  at one home who raised a police incident at another under an ended grant, and a manager moving an
+  incident they raised elsewhere.
+- M2 (HZ-013): a workflow names the states whose deadline is kept on the record. Only those read
+  "Deadline kept on the record" when it is missing; candour enquiries open read "No deadline" and
+  are not listed first.
+- L3: keyset paging with no scan cap, so `truncated` means only that more visible records exist.
+  The list carries the incident facts the page needs, so the page no longer reads (and audits as
+  viewed) each incident.
+- L4: instances are read in the union of the held scopes, so a record behind a stale step-up does
+  not drop out.
+- L5: `syncCandourDeadline` moved to the safety service, with a test on the candour record and step.
+  An idempotent backfill (`pnpm --filter @harbour/api workflow-deadlines:backfill`) is tested and was
+  run locally (it filled 10 instances). It needs running once per environment after release; that is
+  for whoever releases, not a human action.
+- Merged `main` (#114, #127); the feature register keeps both sides of PLAT-011.
+
 ## What is next
 
 - Steps for the other workflows are still taken on each record's own page. Approving them in place
   needs each module's form on this page, as was done for incidents.
-- When the tasks screens (#114) merge, this page could become a tab beside them.
+- The tasks screens (#114) have merged: this page could become a tab beside them.
 - The user guide for the approvals page is still to write (section 19, definition of done).
 
 ## Human actions logged

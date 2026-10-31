@@ -2,6 +2,7 @@ import type { WorkflowInstanceItem } from "@harbour/contracts";
 import { LISTED_WORKFLOW_PERMISSIONS } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import { formatDateTime } from "./format";
+import type { IncidentManageView } from "./incident-review";
 import type { SafetyChip } from "./incidents";
 
 /**
@@ -176,14 +177,29 @@ export function raisedByLine(item: WorkflowInstanceItem, t: Translator): string 
 }
 
 /**
- * An incident whose closing the reader may approve here (the API marks it, and the page reads the
- * incident for its version and what must be done first).
+ * An incident whose closing the reader may approve here: the API marks it waiting for the reader
+ * and sends what the forms need (its version, whether closing is held back).
  */
 export function isIncidentApproval(item: WorkflowInstanceItem): boolean {
   return (
     item.subjectType === "incident" &&
     item.definitionKey === "safety.incident" &&
     item.awaitingYourApproval &&
+    item.incident !== null &&
     item.moves.some((m) => m.to === "closed" && m.approval)
   );
+}
+
+/**
+ * The incident forms this page offers, from the steps and facts the API returned for the reader
+ * where the incident is (#130 review rounds 1 and 2), never from permissions held elsewhere:
+ * close with a reason, or what must be done first; and send it back to open when under review.
+ */
+export function incidentApprovalView(item: WorkflowInstanceItem): IncidentManageView | null {
+  if (!isIncidentApproval(item) || !item.incident) return null;
+  const review = item.moves.some((m) => m.to === "open") ? "open" : null;
+  if (item.incident.closeBlocked) {
+    return { review, close: { kind: "blocked", notifications: [], questions: 0 } };
+  }
+  return { review, close: { kind: "form" } };
 }
