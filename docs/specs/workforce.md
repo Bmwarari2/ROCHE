@@ -166,8 +166,9 @@ Section 17.1: e-learning modules downloaded in advance are completed offline (pl
 
 ## 7. Clinical safety
 
-Expired competence that fails to block an action is a hazard (HZ-119); a worker rostered without a
-required check is HZ-124. Both are added by the slices the plan names.
+Expired competence that fails to block an action is a hazard (HZ-119, added by slice 3); a worker
+rostered without a required check is HZ-124, in the hazard log from slice 4 with the rostering rule
+as its first control.
 
 ## 8. Data protection
 

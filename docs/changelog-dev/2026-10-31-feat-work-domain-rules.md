@@ -26,8 +26,10 @@ WORK-012 (domain rules only).
 
 ## Clinical safety and data protection
 
-- No hazard is assigned to slice 4 in the plan. The rules feed HZ-119 (expired competence) and
-  HZ-124 (rostered without a required check), which the schema slices add with their tests.
+- HZ-124 (a worker without a required check, training or competence rostered to a shift that
+  needs it) added to the hazard log, as the plan's hazard table assigns it to slice 4: the rostering
+  rule is its first control, the rostering tests carry its id, and the rating is left to the CSO
+  (H-543). HZ-119 (expired competence) comes with slice 3.
 - No personal data is stored or processed by this slice (pure functions); records of processing
   and data standards change with slice 11.
 

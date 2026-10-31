@@ -12,8 +12,8 @@ const ok: RosterInput = {
 };
 const reason = "Covering a sudden absence; the nurse in charge supervises every round.";
 
-describe("a worker without a required check cannot be rostered (workforce.md rule 10)", () => {
-  it("allows a worker with every check", () => {
+describe("hazard HZ-124 a worker without a required check cannot be rostered (workforce.md rule 10)", () => {
+  it("hazard HZ-124 allows a worker with every check", () => {
     expect(rosterDecision(ok)).toEqual({ allowed: true, overridden: [] });
   });
 
@@ -43,19 +43,19 @@ describe("a worker without a required check cannot be rostered (workforce.md rul
       },
       "competence",
     ],
-  ])("blocks %s", (_, change, kind) => {
+  ])("hazard HZ-124 blocks %s", (_, change, kind) => {
     const decision = rosterDecision({ ...ok, ...change });
     expect(decision.allowed).toBe(false);
     if (!decision.allowed) expect(decision.blockers.map((b) => b.kind)).toEqual([kind]);
   });
 
-  it("allows supervised-only DBS on a supervised shift", () => {
+  it("hazard HZ-124 allows supervised-only DBS on a supervised shift", () => {
     expect(
       rosterDecision({ ...ok, dbs: { kind: "supervised_only" }, shiftSupervised: true }).allowed,
     ).toBe(true);
   });
 
-  it("allows a right to work with a follow-up due", () => {
+  it("hazard HZ-124 allows a right to work with a follow-up due", () => {
     expect(
       rosterDecision({
         ...ok,
@@ -64,7 +64,7 @@ describe("a worker without a required check cannot be rostered (workforce.md rul
     ).toBe(true);
   });
 
-  it("takes a manager's override with a justification, and lists what it overrode", () => {
+  it("hazard HZ-124 takes a manager's override with a justification, and lists what it overrode", () => {
     const decision = rosterDecision(
       { ...ok, registrationCurrent: false },
       { justification: reason, byTenantUserId: "manager-1" },
@@ -72,7 +72,7 @@ describe("a worker without a required check cannot be rostered (workforce.md rul
     expect(decision).toEqual({ allowed: true, overridden: [{ kind: "registration" }] });
   });
 
-  it("refuses an override without a real justification", () => {
+  it("hazard HZ-124 refuses an override without a real justification", () => {
     const decision = rosterDecision(
       { ...ok, registrationCurrent: false },
       { justification: "x".repeat(MIN_OVERRIDE_JUSTIFICATION - 1), byTenantUserId: "manager-1" },
@@ -80,7 +80,7 @@ describe("a worker without a required check cannot be rostered (workforce.md rul
     expect(decision).toMatchObject({ allowed: false, overrideRefused: "justification_required" });
   });
 
-  it("never overrides a missing right to work (illegal working)", () => {
+  it("hazard HZ-124 never overrides a missing right to work (illegal working)", () => {
     const decision = rosterDecision(
       { ...ok, rightToWork: { kind: "none" }, registrationCurrent: false },
       { justification: reason, byTenantUserId: "manager-1" },
