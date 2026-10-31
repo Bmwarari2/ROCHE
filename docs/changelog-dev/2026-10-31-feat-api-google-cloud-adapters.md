@@ -47,14 +47,35 @@ Storage with CMEK, Cloud KMS, Secret Manager, and SMTP for email.
 - **No Cloud KMS adapter**: no code calls AWS KMS. Encryption is bucket-level (formerly SSE-KMS,
   now CMEK), and nothing in the API shreds a key.
 
-## Not done here (outside the brief, for the lead)
+- **API image** (`apps/api/Dockerfile`):
+  - The image no longer downloads the AWS RDS CA bundle or sets `NODE_EXTRA_CA_CERTS`.
+  - ADR-0098 puts Cloud SQL on a private IP, with no Auth Proxy or connector, and TLS from the API.
+    Cloud SQL's server CA belongs to the instance, so there is no global bundle to bake in at build
+    time.
+  - Runtime contract for the Terraform branch (`feat/infra-google-cloud`, not yet pushed when this
+    was written):
+    - the Cloud Run services for the API, worker and migrate job mount the instance's server CA
+      from Secret Manager at `/secrets/cloudsql/server-ca.pem`;
+    - they set `NODE_EXTRA_CA_CERTS` to that path, and `DATABASE_SSL_MODE` for the migrator.
+    - Without the variable, a verifying connection fails rather than trusting anything else.
+  - `infra/README.md` ("CA bundle" row) and `infra/modules/harbour_stack/variables.tf` (default
+    `/app/certs/rds-global-bundle.pem`) still name the old path. That builder owns them.
 
-- No V4 signed URLs, and no separate quarantine bucket. The API has never issued signed URLs:
-  every download streams through it, so each one is authorised and audited (§5.5). Quarantine is
-  the document's status in the database.
-- `apps/api/Dockerfile` still adds the AWS RDS CA bundle. The `infra/` Terraform and
-  `.github/workflows/terraform.yml` are still AWS.
-- `.env.example` could not be read in this session, so it was not changed.
+## Decided by the lead
+
+- No V4 signed URLs, and no separate quarantine bucket. Downloads keep streaming through the API,
+  so each one is authorised and audited (§5.5). Quarantine stays the document's status in the
+  database. ADR-0098 is to be amended to match.
+- No Cloud KMS adapter. Per-organisation crypto-shredding was never built, and encryption is
+  bucket-level. The lead logs it as a gap against the retention spec.
+
+## Still to do elsewhere
+
+- `.env.example` must replace the `S3_*` settings with `DOCUMENT_STORAGE=local` (or `gcs` with
+  `GCP_PROJECT_ID`, `GCS_DOCUMENTS_BUCKET`, `GCS_EXPORTS_BUCKET`, `GCS_KMS_KEY`) and the `SMTP_*`
+  settings. The lead will do it; it was left unchanged here.
+- The `infra/` Terraform and `.github/workflows/terraform.yml` are still AWS. The Terraform
+  branch owns them.
 
 ## Human actions logged
 
