@@ -645,6 +645,7 @@ describe("#33 re-check 2", () => {
   it("L: switching the flag off ends live SSO sessions, on the API and on Better Auth's routes", async () => {
     const api = await freshSession();
     const authRoute = await freshSession();
+    const tenantless = await freshSession();
     expect((await h.request("/v1/me", { token: api, tenant: DEMO.tenantId })).status).toBe(200);
     await owner("UPDATE feature_flag SET enabled = false WHERE flag_key = 'platform.sso'");
     try {
@@ -656,11 +657,17 @@ describe("#33 re-check 2", () => {
       expect(gate.status).toBe(401);
       expect(await codeOf(gate)).toBe("sso_session_ended");
       expect(await sessionCount(authRoute)).toBe(0);
+      // Routes outside the tenant middleware neither accept nor extend it (#33 re-check 3).
+      const memberships = await h.request("/v1/memberships", { token: tenantless });
+      expect(memberships.status).toBe(401);
+      expect(await codeOf(memberships)).toBe("sso_session_ended");
+      expect(await sessionCount(tenantless)).toBe(0);
     } finally {
       await owner("UPDATE feature_flag SET enabled = true WHERE flag_key = 'platform.sso'");
     }
     // Ended for good: switching it back on does not revive them.
     expect((await h.request("/v1/me", { token: api, tenant: DEMO.tenantId })).status).toBe(401);
+    expect((await h.request("/v1/memberships", { token: tenantless })).status).toBe(401);
   });
 
   it("L: the operator console refuses an SSO-bound session", async () => {

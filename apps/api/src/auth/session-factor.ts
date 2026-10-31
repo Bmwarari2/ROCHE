@@ -190,15 +190,17 @@ export async function clearCodeAttempts(authPool: pg.Pool, sessionId: string): P
  * Wrong codes across all of a member's sessions (#33 re-check 2, M1; HZ-112). One session's
  * limit does not stop someone who can mint many sessions (an organisation's identity provider
  * can, for its members) from spreading guesses across them. So every code checked on a session
- * also takes an attempt for the member, kept in Postgres (every API instance sees the same
- * count): the first `USER_CODE_FREE_ATTEMPTS` in an hour go straight through, each one after waits
- * twice as long as the last (from a second, at most `USER_CODE_MAX_DELAY_SECONDS`), and no more
- * than `USER_CODE_ATTEMPTS_PER_HOUR` are checked in an hour. A throttle, never a lockout (NCSC
- * password guidance): the member can always try again later, and a right code clears the count.
- * Product settings, not statutory figures.
+ * also takes an attempt for the member, and so does a sign-in's own code step (re-check 3), kept
+ * in Postgres (every API instance sees the same count): the first `USER_CODE_FREE_ATTEMPTS` in an
+ * hour go straight through, then each waits four times as long as the last (a minute, four,
+ * then the cap of `USER_CODE_MAX_DELAY_SECONDS`), and no more than `USER_CODE_ATTEMPTS_PER_HOUR`
+ * are checked in an hour. A throttle, never a lockout (NCSC password guidance): the member can
+ * always try again later, and a right code clears the count. Product settings, not statutory
+ * figures.
  */
 export const USER_CODE_FREE_ATTEMPTS = 5;
 export const USER_CODE_ATTEMPTS_PER_HOUR = 10;
+export const USER_CODE_FIRST_DELAY_SECONDS = 60;
 export const USER_CODE_MAX_DELAY_SECONDS = 900;
 
 function userAttemptIdentifier(authUserId: string): string {
@@ -216,7 +218,7 @@ export function userCodeWait(
   }
   if (attemptsInHour < USER_CODE_FREE_ATTEMPTS) return 0;
   const delay = Math.min(
-    2 ** (attemptsInHour - USER_CODE_FREE_ATTEMPTS),
+    USER_CODE_FIRST_DELAY_SECONDS * 4 ** (attemptsInHour - USER_CODE_FREE_ATTEMPTS),
     USER_CODE_MAX_DELAY_SECONDS,
   );
   return secondsSinceLast >= delay ? 0 : Math.ceil(delay - secondsSinceLast);

@@ -15,7 +15,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
-import { sessionFactorState, sessionSsoTenant } from "../auth/session-factor";
+import { sessionFactorState } from "../auth/session-factor";
 import { type AppEnv, SSO_OFF } from "../http/context";
 import { problems } from "../http/problem";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
@@ -39,7 +39,7 @@ export const operatorMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => 
     .where(eq(operatorUser.authUserId, session.authUserId));
   if (!op?.active) throw problems.forbidden();
   // Operators never use an organisation's single sign-on (#33 re-check 2).
-  if ((await sessionSsoTenant(authPool, session.sessionId)) !== null) throw SSO_OFF();
+  if (session.ssoTenantId !== null) throw SSO_OFF();
   // As for members: only a session signed in or confirmed with a second factor (ADR-0072).
   const { mfa, stepUpFresh } = await sessionFactorState(
     authPool,

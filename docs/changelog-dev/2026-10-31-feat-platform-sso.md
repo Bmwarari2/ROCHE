@@ -68,6 +68,16 @@ Branch `feat/platform-sso`. PLAT-005 (partial: OpenID Connect; SAML later, H-753
   addresses, through `node:https`, so no new dependency) and enforces the 256 KB cap while the
   body streams.
 
+## Re-check 3 (#33)
+
+- Switching `platform.sso` off now refuses and ends SSO sessions in the session middleware, so no
+  `/v1` route (the tenantless ones included) accepts one or moves its expiry on while the flag is
+  off.
+- The sign-in's own code step counts against the member's hourly codes; the waits are a minute,
+  four, then the 15-minute cap.
+- Follow-ups logged under HZ-112: a holder of one session can use up the member's hourly codes; the
+  plugin's sign-in fetches are not pinned against DNS rebinding.
+
 ## Tests
 
 - `packages/domain/src/platform/sso.test.ts` (44, 25 new).

@@ -54,6 +54,28 @@ export function isBlockedSsoPath(pathname: string): boolean {
   return path === "/api/auth/sso/callback" || path.startsWith("/api/auth/sso/saml2/");
 }
 
+/**
+ * The member a sign-in's second step is for: Better Auth's signed two-factor cookie names a
+ * verification row whose value is the user id (better-auth two-factor `verifyTwoFactor`). Null
+ * when there is no such cookie or row (Better Auth then refuses the request itself).
+ */
+async function signInStepMember(ctx: {
+  readonly context: {
+    readonly secret: string;
+    createAuthCookie(name: string): { readonly name: string };
+    readonly internalAdapter: {
+      findVerificationValue(identifier: string): Promise<{ readonly value: string } | null>;
+    };
+  };
+  getSignedCookie(name: string, secret: string): Promise<string | null | false | undefined>;
+}): Promise<string | null> {
+  const cookie = ctx.context.createAuthCookie("two_factor");
+  const token = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
+  if (!token) return null;
+  const row = await ctx.context.internalAdapter.findVerificationValue(token);
+  return row?.value ?? null;
+}
+
 export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHooks) {
   const db = drizzle(authPool);
   const passkeyOrigin = config.webOrigins[0] ?? config.BETTER_AUTH_URL;
@@ -167,6 +189,22 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
         if (!found) {
           // Changing a factor always needs a session; a code with none is a sign-in's second step.
           if (changesFactor) throw new APIError("UNAUTHORIZED", { code: "UNAUTHORIZED" });
+          // That step counts against the member's hourly codes too (#33 re-check 3, L): the
+          // member is the one the signed two-factor cookie names, as Better Auth reads it.
+          const member = await signInStepMember(ctx);
+          if (member) {
+            const reserved = await reserveUserCodeAttempt(authPool, member);
+            if (!reserved.allowed) {
+              throw new APIError(
+                "TOO_MANY_REQUESTS",
+                {
+                  message: "Too many wrong codes. Wait a little and try again.",
+                  code: "TOO_MANY_ATTEMPTS",
+                },
+                { "retry-after": String(reserved.retryAfter) },
+              );
+            }
+          }
           return;
         }
         if (changesFactor) {
@@ -229,6 +267,9 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
         if (existing && IN_SESSION_CODE_ROUTES.has(ctx.path)) {
           await clearCodeAttempts(authPool, existing.id);
           await clearUserCodeAttempts(authPool, existing.userId);
+        } else if (!existing && IN_SESSION_CODE_ROUTES.has(ctx.path) && ctx.context.newSession) {
+          // A right code at sign-in clears the member's count as well.
+          await clearUserCodeAttempts(authPool, ctx.context.newSession.session.userId);
         }
         if (firstEnrolment) return;
         const session = ctx.context.newSession?.session ?? ctx.context.session?.session;

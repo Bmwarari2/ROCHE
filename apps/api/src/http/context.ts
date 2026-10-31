@@ -128,6 +128,8 @@ export interface SessionInfo {
   readonly sessionCreatedAt: Date;
   /** When the session was last used (written at most once a minute; `activityDue`). */
   readonly lastActiveAt: Date;
+  /** The organisation whose single sign-on made the session, or null (ADR-0091). */
+  readonly ssoTenantId: string | null;
 }
 
 export interface Membership {
@@ -212,6 +214,13 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     query: { disableRefresh: true },
   });
   if (result) {
+    // An SSO session is refused, and ended, on every route while its organisation's flag is off,
+    // before anything moves its expiry on: the tenantless routes too (#33 re-check 3, M).
+    const ssoTenantId = await sessionSsoTenant(authPool, result.session.id);
+    if (ssoTenantId !== null && !(await ssoEnabledFor(c.get("services"), ssoTenantId))) {
+      await endSsoSession(authPool, result.session.id);
+      throw SSO_OFF();
+    }
     const now = Date.now();
     const expiresAt = new Date(result.session.expiresAt).getTime();
     if (expiresAt - (SESSION_EXPIRES_IN_SECONDS - SESSION_UPDATE_AGE_SECONDS) * 1000 <= now) {
@@ -229,6 +238,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       twoFactorEnabled: user.twoFactorEnabled === true,
       sessionCreatedAt: new Date(result.session.createdAt),
       lastActiveAt: new Date(result.session.updatedAt),
+      ssoTenantId,
     });
   } else {
     c.set("session", null);
@@ -405,13 +415,9 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw problems.notAMember();
   }
   // An SSO session reaches only the organisation whose provider signed it in (#33 review H2).
-  const ssoTenant = await sessionSsoTenant(services.authPool, session.sessionId);
+  // The flag was checked by the session middleware for this request (#33 re-check 3).
+  const ssoTenant = session.ssoTenantId;
   if (ssoTenant !== null && ssoTenant !== membership.tenantId) throw problems.notAMember();
-  // Switching the flag off ends the organisation's SSO sessions (#33 re-check 2).
-  if (ssoTenant !== null && !(await ssoEnabledFor(services, ssoTenant))) {
-    await endSsoSession(services.authPool, session.sessionId);
-    throw SSO_OFF();
-  }
 
   const now = new Date();
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));

@@ -1100,11 +1100,18 @@ change in `record_version` and the audit trail.
     API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
     organisation on its own row and reaches no other; on Better Auth's routes it may only read
     itself, sign out and confirm a Harbour code. No implicit linking by email.
-24. Switching the flag off ends the organisation's live SSO sessions at their next request (the
-    API and Better Auth's routes delete the session and answer 401 `sso_session_ended`); switching
-    it back on revives none. The operator console refuses any SSO session.
-25. Wrong Harbour codes are throttled per member across all sessions as well as per session
-    (HZ-112): the member's attempts are counted in Postgres, with growing waits and an hourly cap.
+24. While the flag is off, an SSO session is refused and ended on every request: the session
+    middleware checks the flag before it accepts the session or moves its expiry on, on every
+    `/v1` route (the tenantless ones, `/v1/memberships`, `/v1/me/sessions*` and the invitation
+    routes, included) and the operator console, and the auth gate does the same on Better Auth's
+    routes (401 `sso_session_ended`). An idle session is ended at its next request, so nothing it
+    does in between keeps it alive, and switching the flag back on revives none. The flag is
+    changed outside the API (Flagsmith or the `feature_flag` table), so no write path deletes the
+    rows at that moment. The operator console refuses any SSO session.
+25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
+    sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
+    five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked
+    in an hour.
 26. Discovery connects only to the address it checked: its connection's DNS lookup refuses any
     non-public address, so a host cannot resolve to a public address for the check and a private
     one for the fetch; the document is refused as soon as it passes 256 KB.
