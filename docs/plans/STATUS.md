@@ -57,6 +57,17 @@ invitation table's column grants refuse, so any member of staff's request failed
 complaint links, and a record that no longer exists (H-881). Merge order: #149, then #156, then
 this branch (the merge kept migration 0082 after 0077, with 0082's journal time after 0077's).
 
+**Production moves to Google Cloud (owner, 31/10/2026; [ADR-0098](../decisions/0098-production-on-google-cloud.md)).**
+Production runs in Google Cloud europe-west2 (London), with Cloud Run, Cloud SQL for PostgreSQL 17,
+Cloud Storage with CMEK, Cloud KMS, Secret Manager, a load balancer with Cloud Armor, Artifact
+Registry and Workload Identity Federation; Supabase London stays for dev, staging and pilots. The
+documents are updated (`docs/production-google-cloud`). Engineering follow-ups before production:
+rewrite the Terraform in `infra/` for Google Cloud; a Cloud Storage adapter for documents, exports
+and the audit archive (signed URLs) to replace the S3 adapter, and the production configuration
+check in `apps/api/src/config.ts`; an SMTP email adapter to replace SES (production email stays off
+until H-08 chooses a provider); a load test of PowerSync on Cloud Run at the 60-bed target; the operator alarms (H-171) as Cloud Monitoring alerts; the restore runbook's maintenance rule; the Cloud SQL edition (PITR window); the certificate pin set (ADR-0028); evidence pack codes without email (ADR-0050). Also `apps/api/src/routes/integrations.ts` accepts only AWS Secrets Manager ARNs as secret references (Secret Manager names must be allowed), and the API's Flagsmith and config comments name AWS. The
+owner also accepted the default of every open decision he owns; the rows with no default stay open
+in human-actions.md.
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
 

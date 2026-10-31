@@ -256,7 +256,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | INTG-008 | Nurse call and acoustic monitoring webhooks | 15.3 | 5 | todo | - | - | - | - |
 | INTG-009 | Lone-worker devices (BS 8484) | 12.3, 15.3 | 4 | todo | - | - | - | - |
 | INTG-010 | Bluetooth vitals (SpO2, blood pressure, thermometer) | 15.3 | 5 | todo | - | - | - | - |
-| INTG-011 | Communications (SES, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/channels.ts`, `notify-plan.ts`, `notify-calendar.ts`, `notify-rates.ts`, `packages/domain/src/integrations/ports.ts` | `packages/domain/src/comms/channels.test.ts`, `notify-plan.test.ts`, `notify-calendar.test.ts` | - |
+| INTG-011 | Communications (email, SMS gateway, Expo push, ICS calendar, click-to-call) | 15.3 | 1 | partial | [comms](comms.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/comms/channels.ts`, `notify-plan.ts`, `notify-calendar.ts`, `notify-rates.ts`, `packages/domain/src/integrations/ports.ts` | `packages/domain/src/comms/channels.test.ts`, `notify-plan.test.ts`, `notify-calendar.test.ts` | - |
 | INTG-012 | Directories and lead sources (carehome.co.uk, Autumna, Lottie) | 15.3 | 3 | todo | - | - | - | - |
 | INTG-013 | E-signature and OCR adapters (optional DocuSign, camera scanning with OCR for paper MARs) | 15.3 | 2 | todo | - | - | - | - |
 | AI-001 | AI gateway with per-tenant enablement (off by default) and provider choice | 16, 16.3 | 6 | todo | - | - | - | - |

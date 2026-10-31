@@ -587,7 +587,8 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   events about people that permission reaches, never a reason (ADR-0071 review round 1; a
   `location_id` on audit events is a STATUS follow-up).
 - Later: signed PDF export of a record's history for inspectors and coroners (Phase 1); pgAudit is
-  configured at the database level in RDS (infra).
+  configured at the database level in Cloud SQL by the `cloudsql.enable_pgaudit` flag (infra,
+  [ADR-0098](../decisions/0098-production-on-google-cloud.md)).
 
 ## Notification centre (PLAT-008)
 
@@ -654,7 +655,7 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (`sync.escalation_unrouted`, `assignee_only`). Each run goes on to the next organisation when
   one organisation's part fails (`platform.job.tenant_failed`). Once a day the worker logs
   `escalation.unrouted.daily` per organisation with any unrouted safety work in the last 25 hours,
-  and a CloudWatch alarm defined in Terraform fires on it for the operator, as another does on any
+  and a Cloud Monitoring alert defined in Terraform fires on it for the operator, as another does on any
   failed worker job (`worker.job.failed`), once applied (H-171; [on-call](../runbooks/on-call.md)).
 - Workflows (`workflow_instance`, append-only `workflow_transition`): each module declares its
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
@@ -750,7 +751,8 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (images or PDF, 25 MB), organisation document (PDF, 25 MB).
 - Uploads: the request body is the file; content is sniffed and must match the declared type;
   ClamAV scans it (an infected file is refused and nothing is stored; an unscannable one is
-  quarantined); bytes go to S3 (SSE-KMS) or local disk under an opaque key
+  quarantined); bytes go to object storage (Cloud Storage with CMEK in production by [ADR-0098](../decisions/0098-production-on-google-cloud.md); the
+  adapter as built is for S3 with SSE-KMS) or local disk under an opaque key
   ([ADR-0031](../decisions/0031-document-storage-scanning-and-destruction.md)).
 - Serving: `GET /v1/documents/{id}/content` (audited) and `GET /v1/people/{id}/photo`, with
   `nosniff`, a sandboxing CSP, `no-store`, and `attachment` disposition except for photos.
@@ -814,9 +816,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
     deleted after the commit, so a failed transaction never leaves bytes gone without a
     certificate. The worker deletes them again from the outbox event (idempotent, only for a
     document recorded as destroyed, the key made from the tenant and document ids, never read
-    from the row) until the storage accepts it, backing off up to an hour. On S3 a deletion counts
+    from the row) until the storage accepts it, backing off up to an hour. With the S3 adapter as built, a deletion counts
     only when the batch delete reports no per-object error and a fresh listing finds no version
-    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6).
+    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6); the Cloud Storage adapter
+    (ADR-0098) must keep the same rule.
   - A failed deletion is detected by the worker's `worker.job.failed` line (queue
     `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
     (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
@@ -904,10 +907,11 @@ last year the calendar covers, no holiday is skipped, so a deadline can only fal
 ## Integrations framework (INTG-001)
 
 - Ports (`comms.email`, `comms.sms`, `comms.push`) in `packages/domain/src/integrations/ports.ts`;
-  adapters in `apps/api/src/integrations/adapters.ts` (mock, SES London, Expo push). Every adapter
+  adapters in `apps/api/src/integrations/adapters.ts` (mock, SES London, Expo push; SES is replaced by an SMTP adapter under
+  [ADR-0098](../decisions/0098-production-on-google-cloud.md), provider H-08). Every adapter
   is wrapped by a guard (personal-data check, idempotency) and must pass the port contract tests
   (`apps/api/test/adapters.test.ts`).
-- `integration_connection` chooses a provider per tenant (credentials stay in Secrets Manager);
+- `integration_connection` chooses a provider per tenant (credentials stay in Secret Manager);
   production without a provider fails clearly, never silently.
 - Inbound data is validated with Zod and quarantined with its problems
   (`apps/api/src/integrations/inbound.ts`); `GET /v1/integrations/quarantine` and resolve.
@@ -1105,7 +1109,7 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    decision goes back to pending, so what is sent is what was reviewed (#149 M3). Redacted fields
    read `[redacted]` and withheld items are left out with a count. On responding, the bundle is
    kept in the exports bucket under its own `dsar/` prefix, outside the exports' 30-day expiry
-   (SSE-KMS, a key of the organisation and case ids, checked by the database), with its SHA-256, and can be
+   (encrypted at rest with the bucket's key, a key of the organisation and case ids, checked by the database), with its SHA-256, and can be
    fetched again exactly as sent through a step-up route; responding closes the clock (a late
    response stays late).
 6. Erasure is assessed record by record against retention (`erasureAssessment`): a record under a

@@ -17,7 +17,7 @@ H-561).
 
 ## 1. What the app sends, and to whom
 
-The app talks to two services only, both Harbour's own and in the UK (AWS eu-west-2, ADR-0001):
+The app talks to two services only, both Harbour's own and in the UK (Google Cloud europe-west2, [ADR-0098](../decisions/0098-production-on-google-cloud.md)):
 
 | Destination | What goes | Code |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ are managed by their employer.
 | Location, Photos and videos, Audio, Files and docs, Calendar, Contacts, App activity, Web browsing, Messages, Financial info | Not collected |
 | Is data processed ephemerally? | No: records are kept by the care provider |
 
-"Shared" in Google's sense excludes service providers acting for Harbour (AWS hosting, Harbour's own
+"Shared" in Google's sense excludes service providers acting for Harbour (Google Cloud hosting, Harbour's own
 PowerSync), so nothing is shared.
 
 ## 4. Health declarations

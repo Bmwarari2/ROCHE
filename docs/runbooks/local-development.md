@@ -1,7 +1,9 @@
 # Local development
 
 How to run Harbour on a laptop or in a cloud development container. Everything here uses local-only
-defaults; deployed environments take secrets from AWS Secrets Manager.
+defaults; deployed environments take secrets from Google Cloud Secret Manager in production
+([ADR-0098](../decisions/0098-production-on-google-cloud.md)) and from the Supabase environment for
+development, staging and pilots.
 
 ## Prerequisites
 

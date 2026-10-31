@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "accepted; partly superseded by ADR-0098"
 date: 2026-10-11
 decision-makers: Claude Code (lead engineer)
 consulted: comms.md, the integrations framework (INTG-001), records of processing
@@ -7,6 +7,11 @@ informed: Brian, the data protection lead, the CSO
 ---
 
 # Family notification channels: provider-neutral ports and events, content-free messages
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: Amazon SES as the email adapter. Email goes through an SMTP adapter to a
+> provider still to be chosen (H-08), and production email stays off until then. The ports, events
+> and content-free messages are unchanged. The text below is kept as decided.
 
 ## Context and problem statement
 
