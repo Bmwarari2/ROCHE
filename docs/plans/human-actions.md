@@ -5,8 +5,9 @@ they gate a real tenant going live, which is Brian's decision. Each item says wh
 already produced for it. Update the status column as items are done.
 
 **Owner instruction, 31/10/2026 ([ADR-0098](../decisions/0098-production-on-google-cloud.md)):** every
-open question below, whoever owns it, takes the default in force (as built and marked to verify) so
-that development never waits. All of them are reviewed at the testing phase after development, before
+open question below, whoever owns it, takes its recommended answer: the default in force where there is
+one, otherwise the recommendation in [recommended-answers.md](recommended-answers.md), so that development
+never waits. All of them are reviewed at the testing phase after development, before
 any real tenant goes live. Sign-offs, accounts, appointments and contracts still need the people named.
 
 Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be appointed), **DPO**

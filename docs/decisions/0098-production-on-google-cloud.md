@@ -193,8 +193,9 @@ SMS gateway H-09, the IDSP H-521 and the DBS route H-522), accounts, credentials
 pricing without a default.
 
 Later the same day the owner widened this: every open human question, whoever owns it (the CSO, the
-DPO, an adviser, the design partner or a tenant), takes the default in force, as built and marked to
-verify, so that no question holds back development. All of them are reviewed at the testing phase
+DPO, an adviser, the design partner or a tenant), takes its recommended answer (the default in force where
+there is one, otherwise the recommendation in [recommended-answers.md](../plans/recommended-answers.md)), so that no
+question holds back development. All of them are reviewed at the testing phase
 after development, before any real tenant goes live; the status of a row changes only when that
 review, or an earlier answer, decides it. This does not sign anything off: DCB0129 sign-offs, the
 DPIA, certifications, accounts, appointments and contracts still need the people named, and the
