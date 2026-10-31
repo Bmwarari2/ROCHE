@@ -16,6 +16,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
+import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -227,6 +228,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // The logo is small (512 KB): a larger body is refused before it is read or decoded.
+  app.use(
+    "/v1/branding/logo",
+    bodyLimit({
+      maxSize: LOGO_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
+    }),
+  );
   // Sync bodies are small JSON (a token request, a batch of changes, a deletion record, a device
   // report): anything larger is refused before it is read (security review round 4, M4).
   app.use(
@@ -257,6 +267,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", brandingRouter);
   app.route("/", searchRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);

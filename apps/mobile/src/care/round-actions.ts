@@ -70,6 +70,8 @@ export interface TaskToMove {
   readonly assignee_tenant_user_id: string | null;
   readonly version: number | null;
   readonly queued_transition: string | null;
+  /** `module.what`; a medicines task is never marked here before eMAR (#123 clinical review, L10). */
+  readonly kind?: string | null;
 }
 
 export interface MoveContext {
@@ -170,9 +172,17 @@ export function checkTaskMove(
  * write scope is unknown, and for any task neither given to the user nor about a person they may
  * record about with the permission it names (#36 review round 1, M1).
  */
-function moveRefusal(task: TaskToMove, context: MoveContext): MessageKey | null {
+export function moveRefusal(task: TaskToMove, context: MoveContext): MessageKey | null {
   if (!context.userId) return "mobile.round.userUnknown";
   if (context.scope === null) return "mobile.round.scopeUnknown";
+  // Medicines are recorded through eMAR, which the phone does not have yet (#123 clinical review,
+  // L10): never a one-tap Done here.
+  if (task.kind?.startsWith("medicines.")) return "mobile.round.medicinesOnWeb";
+  // Never marked about someone whose record is not on the phone, whoever the task is given to: the
+  // carer would act without the point-of-care header (#36 review round 2; #123 clinical review, M2).
+  if (task.person_id !== null && context.personLocationId === null) {
+    return "mobile.round.personUnknown";
+  }
   if (task.assignee_tenant_user_id === context.userId) return null;
   if (
     task.required_permission === PERSON_TASK_PERMISSION &&
