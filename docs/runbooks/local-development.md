@@ -37,6 +37,12 @@ refuses both unless `NODE_ENV` is `development` or `test`, `HARBOUR_ENV` is not 
 container when `CI=true`), and the demo manager is linked in the demo tenant
 (`apps/api/scripts/demo-seed-guard.ts`). Never point it at a dev, staging or pilot database.
 
+With `HARBOUR_DEMO_E2E_PASSKEY=1` the seed also adds two invented organisations for the journeys,
+each with its own sign-in so the demo users keep one organisation: Starter Example Care
+(`starter.owner@example.invalid`, empty, for the sample data journey) and Second Example Care, whose
+one resident is Bea Elsewhere. `shared.coordinator@example.invalid` (Rowan Shared) works for both
+Second Example Care and the demo organisation, so signing in as them shows `/choose-organisation`.
+
 New cluster roles: when a migration needs a role your cluster does not have yet, `pnpm db:migrate`
 stops with `role "..." does not exist`. Run `pnpm db:bootstrap` again first: it is idempotent,
 creating missing roles and re-applying their memberships without touching data (it resets the
@@ -54,6 +60,25 @@ pnpm --filter @harbour/domain test:coverage
 pnpm --filter @harbour/web test:e2e   # Playwright and axe (needs the API, web and demo data)
 ```
 
+### Lighthouse CI
+
+Lighthouse CI checks the web tier against the budgets in `docs/01-CONSTRAINTS.md`: first
+contentful paint under 1.5 s and layout shift under 0.1 (failures), largest contentful paint,
+total blocking time and the performance score (warnings), and an accessibility score of at least
+0.95 (a failure). It uses the desktop preset and the median of three runs, on `/sign-in` and
+`/invitation` signed out, then `/`, `/people`, a resident's record and `/incidents` signed in as
+the demo manager (`apps/web/lighthouserc.cjs`). It needs production builds and the e2e demo seed
+(`HARBOUR_DEMO_MFA=off`), and starts the API and web app itself, so stop any dev servers first:
+
+```sh
+pnpm turbo run build --filter=@harbour/api --filter=@harbour/web
+CHROME_PATH=/path/to/chrome scripts/lighthouse-ci.sh   # reports in apps/web/.lighthouseci/reports
+```
+
+`CHROME_PATH` is optional when Chrome or Chromium is installed in the usual place. With servers
+already running, `pnpm --filter @harbour/web lighthouse` runs the audits alone (`WEB_URL` to point it
+elsewhere). CI runs the same script in the web journeys job and keeps the reports as an artifact.
+
 Database tests connect as a superuser to create throwaway databases:
 `HARBOUR_TEST_ADMIN_URL` (default `postgres://harbour_admin:harbour_admin_local@localhost:5432/postgres`).
 
@@ -67,6 +92,7 @@ because the PowerSync rules engine uses `using` declarations (configured in each
 | New migration | `cd packages/db && npx drizzle-kit generate --name=<change>` (see the `add-migration` skill) |
 | Reset the local database | `pnpm db:reset && pnpm db:migrate && pnpm db:seed` |
 | Run the export worker's job once (no worker running; the export journey does this) | `pnpm --filter @harbour/api exports:run` |
+| Build the weekly break-glass report once (last week; `--this-week` reports the week in progress, as the break-glass report journey does) | `pnpm --filter @harbour/api break-glass-report:run` |
 | Regenerate the OpenAPI document and typed client | `pnpm --filter @harbour/api openapi && pnpm --filter @harbour/contracts generate:client` |
 | Regenerate the permission matrix | `pnpm --filter @harbour/domain permissions:doc` |
 | Storybook | `pnpm storybook` |

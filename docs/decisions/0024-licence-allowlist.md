@@ -27,7 +27,10 @@ be swapped without losing a core tool.
 - allows these named exceptions, which are never shipped to tenants:
   - `caniuse-lite` (CC-BY-4.0): browser-support data read at build time by browserslist;
   - `spawndamnit` (MIT per its repository; the published package omits the field): a dependency of
-    Changesets, a development tool.
+    Changesets, a development tool;
+  - `parse-cache-control` (BSD-3-Clause per its LICENSE file, whose three clauses it carries; the
+    package field says only "BSD"): a dependency of Lighthouse, run by Lighthouse CI, a development
+    tool (added 31/10/2026).
 
 Any new exception needs a row here and in the script, with the reason.
 

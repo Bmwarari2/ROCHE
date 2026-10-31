@@ -225,6 +225,22 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+      # Performance budgets (web first paint under 1.5 s) and accessibility on signed-out and
+      # signed-in pages, in this job so it reuses the build and the seeded database.
+      - name: Lighthouse CI
+        if: ${{ !cancelled() }}
+        env:
+          LIGHTHOUSE_LOG_DIR: ${{ runner.temp }}/lighthouse-logs
+        run: scripts/lighthouse-ci.sh
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: lighthouse-reports
+          path: |
+            apps/web/.lighthouseci/reports
+            ${{ runner.temp }}/lighthouse-logs
+          retention-days: 7
+          if-no-files-found: ignore
 
   # Container images are built on main (and on demand), not on every pull request: a broken
   # Dockerfile shows on main straight after the merge, at a fraction of the minutes.

@@ -1,6 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { pdfText } from "./support/pdf-text";
 
 /**
  * Letters and emails through the API (comms.md rules 24 and 25; COMMS-007; ADR-0051; hazard
@@ -49,6 +50,42 @@ async function approvedTemplate(body: Record<string, unknown>): Promise<string> 
   );
   expect(approved.status).toBe(200);
   return made.id;
+}
+
+/**
+ * An invented sample person at Harbour House, for the sample-marking tests (HZ-072). The demo
+ * organisation has real people, and the database keeps practice data apart from them
+ * (`person_sample_guard`), so this goes round that guard for one insert, in one transaction, and
+ * puts it back; the sample data journey and `sample-data.test.ts` load sample people properly.
+ */
+async function insertSamplePerson(): Promise<string> {
+  const client = await h.db.pool("harbour_owner").connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query("ALTER TABLE person DISABLE TRIGGER person_sample_guard");
+    const batch = await client.query<{ id: string }>(
+      "INSERT INTO sample_batch (people, loaded_by) SELECT 1, id FROM tenant_user LIMIT 1 RETURNING id",
+    );
+    const person = await client.query<{ id: string }>(
+      `INSERT INTO person (location_id, status, given_name, family_name, nhs_number, allergy_status,
+                           sample_batch_id, is_sample)
+       VALUES ($1, 'active', 'Sam', 'Sample', '9990001545', 'no_known_allergies', $2, true)
+       RETURNING id`,
+      [DEMO.locationId, batch.rows[0]?.id],
+    );
+    await client.query("ALTER TABLE person ENABLE TRIGGER person_sample_guard");
+    await client.query("COMMIT");
+    return person.rows[0]?.id as string;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 let admission: string;
@@ -157,6 +194,51 @@ describe("hazard HZ-051 letters from approved templates", () => {
       ["admission.date", "person.preferred_name", "recipient.full_name", "sender.name"].sort(),
     );
     expect(await sql("SELECT 1 FROM letter WHERE person_id = $1", [personId])).toEqual([]);
+  });
+
+  it("hazard HZ-072 says a letter is about an invented sample person, in the check and on the page", async () => {
+    const sample = { id: await insertSamplePerson() };
+    const [kin] = await sql<{ id: string }>(
+      `INSERT INTO contact (person_id, role, given_name, family_name, address_line1, town, postcode)
+       VALUES ($1, 'next_of_kin', 'Kit', 'Sample', '2 Example Road', 'Exampletown', 'EX1 1EX')
+       RETURNING id`,
+      [sample?.id],
+    );
+    const body = {
+      templateId: admission,
+      recipient: { kind: "contact", contactId: kin?.id },
+      values: { "admission.date": "2026-11-02" },
+    };
+    const sampleUrl = `/v1/people/${sample?.id}/letters`;
+    const preview = (await (
+      await as("manager", `${sampleUrl}/preview`, { method: "POST", body })
+    ).json()) as { templateVersionId: string; textHash: string; person: { sample: boolean } };
+    expect(preview.person.sample).toBe(true);
+    const real = (await (
+      await as("manager", `${url()}/preview`, { method: "POST", body: letterBody() })
+    ).json()) as { person: { sample: boolean } };
+    expect(real.person.sample).toBe(false);
+
+    const sent = await as("manager", sampleUrl, {
+      method: "POST",
+      body: {
+        ...body,
+        confirmed: true,
+        templateVersionId: preview.templateVersionId,
+        textHash: preview.textHash,
+      },
+    });
+    expect(sent.status).toBe(201);
+    const { id } = (await sent.json()) as { id: string };
+    const [row] = await sql<{ document_id: string }>(
+      "SELECT document_id FROM letter WHERE id = $1",
+      [id],
+    );
+    const pdf = await as("manager", `/v1/documents/${row?.document_id}/content`);
+    expect(pdf.status).toBe(200);
+    const text = pdfText(new Uint8Array(await pdf.arrayBuffer()));
+    expect(text).toContain("Sample letter: about an invented person for practice. Do not send.");
+    expect(text).toContain("Dear Kit Sample,");
   });
 
   it("refuses a typed value for a field that comes from the record, a missing one, and another person's contact", async () => {

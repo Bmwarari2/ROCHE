@@ -67,6 +67,53 @@ describe("the test-only switches are refused off a local database", () => {
       refused: /points at harbour\.cluster/,
     },
     { name: "an unreadable URL", urls: ["not a url"], refused: /unreadable host/ },
+    // node-postgres takes a `host` query parameter over the URL's host (security re-review L-4).
+    {
+      name: "a host query parameter overriding localhost",
+      urls: ["postgres://u:p@localhost:5432/harbour?host=prod.example.invalid"],
+      refused: /"host" query parameter/,
+    },
+    {
+      name: "a host query parameter in another case",
+      urls: ["postgres://u:p@localhost/harbour?sslmode=disable&HOST=prod.example.invalid"],
+      refused: /"HOST" query parameter/,
+    },
+    {
+      name: "a hostaddr query parameter",
+      urls: ["postgresql://u:p@127.0.0.1/harbour?hostaddr=203.0.113.7"],
+      refused: /"hostaddr" query parameter/,
+    },
+    {
+      name: "a host query parameter naming a local host, in CI",
+      env: { CI: "true" },
+      urls: ["postgres://u:p@postgres:5432/harbour?host=localhost"],
+      refused: /"host" query parameter/,
+    },
+    {
+      name: "a Unix socket path",
+      urls: ["/var/run/postgresql harbour"],
+      refused: /socket path/,
+    },
+    {
+      name: "a socket: URL",
+      urls: ["socket://u:p@/var/run/postgresql?db=harbour"],
+      refused: /unreadable host/,
+    },
+    {
+      name: "a URL with no host (PGHOST would decide)",
+      urls: ["postgres://u:p@/harbour"],
+      refused: /no host|unreadable host/,
+    },
+    {
+      name: "another protocol",
+      urls: ["http://localhost:5432/harbour"],
+      refused: /unreadable host/,
+    },
+    {
+      name: "a local URL with other query parameters",
+      urls: ["postgres://u:p@localhost:5432/harbour?sslmode=disable&application_name=seed"],
+      refused: null,
+    },
   ];
   it.each(cases)("$name", ({ env = {}, nodeEnv = "development", urls = [LOCAL], refused }) => {
     const refusal = testOnlySwitchRefusal({ env, nodeEnv, databaseUrls: urls });
