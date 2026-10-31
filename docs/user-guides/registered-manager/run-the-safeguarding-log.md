@@ -10,6 +10,12 @@ carers and care workers can raise a concern but cannot run the log.
 
 ## Open the log
 
+When a concern is raised about someone at your home, you are told straight away: an urgent
+notification, "A safeguarding concern has been raised", and a task, "Decide on a safeguarding
+referral", due at the referral target. If nobody acknowledges the notification, the owner is told
+next (your organisation's escalation chain). Referring the concern, or recording why not, completes
+the task. If you raised the concern yourself, the other managers are told, not you.
+
 1. Choose **Safeguarding** in the menu. The **Safeguarding log** lists open concerns first.
 2. Each concern shows its state (for example **Concern raised** or **Referred**), its referral
    clock in words, who it is about with their communication needs, and the kinds of abuse.
@@ -29,7 +35,8 @@ carers and care workers can raise a concern but cannot run the log.
    - **Disclosure and Barring Service**: **Referral to the Disclosure and Barring Service**
      (**Referred** or **Not required**) and **Why**.
    - **Protective measures**: tick **Change the protective measures** and write what staff must
-     do now.
+     do now. Under **When the concern ends, the protective measures are**, choose **Carried into
+     the care plan or risk assessment** or **No longer needed**.
 3. Then take the next step. Each step has its own section, for example **Mark as referred**,
    **Decide not to refer** (with **Why**), **Open the enquiry**, **Record the outcome** or **Close
    the concern** (with **Why**).
@@ -42,10 +49,10 @@ carers and care workers can raise a concern but cannot run the log.
 ## When a concern with protective measures will not end
 
 Before a concern with protective measures can be closed, or not referred, Harbour asks whether the
-measures were carried into the care plan or risk assessment, or are no longer needed. **The web
-has no box for this answer yet**, so the step keeps listing it. Make sure the measures are in the
-care plan or risk assessment if they are still needed, then ask the person who manages Harbour for
-your organisation to record the answer through the system.
+measures were carried into the care plan or risk assessment, or are no longer needed, so they are
+never lost. If the step lists this under **Before you can do this:**, make sure the measures are in
+the care plan or risk assessment if they are still needed, then answer **When the concern ends,
+the protective measures are** under **Update the record** and choose **Save**.
 
 ## Good to know
 

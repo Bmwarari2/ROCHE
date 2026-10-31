@@ -13,10 +13,10 @@ Harbour. You need to have signed in with your passkey or authenticator app.
 
 - **If the person is in danger now, keep them safe and get help first.** Call the emergency
   services if needed, and tell the person in charge of the shift.
-- The page is **Raise a safeguarding concern**. Managers reach it from **Safeguarding** in the
-  menu. Care workers have no menu link to it yet: ask the person in charge for the link (the
-  address ends `/safeguarding/new`). If you cannot open it, tell the person in charge what you saw.
-  They will raise it.
+- The page is **Raise a safeguarding concern**. Open it from **Raise a safeguarding concern** in
+  the menu, or from the person's **Safeguarding measures** tab: choose **Raise a safeguarding
+  concern about this person**, which chooses them for you. Managers reach it from **Safeguarding**
+  in the menu. If you cannot open it, tell the person in charge what you saw. They will raise it.
 
 ## Steps
 
@@ -35,8 +35,9 @@ Harbour. You need to have signed in with your passkey or authenticator app.
 
 - The referral clock starts when you raise the concern. A manager decides whether to refer it to
   the local authority. Harbour never refers it for them.
-- Harbour does not tell the safeguarding lead straight away when you raise a concern. **Tell the
-  person in charge, or the safeguarding lead, as well**, as your safeguarding procedure says.
+- The managers who run the safeguarding log at the person's home are told straight away, urgently,
+  with a task to decide on the referral. If nobody looks at it, the owner is told next. Still
+  tell the person in charge, or the safeguarding lead, as your safeguarding procedure says.
 - You cannot change what you wrote after you raise it. If something needs adding or correcting,
   tell the safeguarding lead.
 - After you raise it you cannot open the concern from the menu. Only managers of the safeguarding

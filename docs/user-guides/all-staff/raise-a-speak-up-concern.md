@@ -38,8 +38,8 @@ using the family portal cannot. To speak up without signing in, see
   name.
 - What you write may still show who you are, for example a shift only you worked.
 - If something is putting a person in danger now, also tell the person in charge or follow your
-  safeguarding procedure straight away. A speak-up concern is not an emergency route: Harbour
-  does not alert the lead when it arrives, and they see it when they next open their cases.
+  safeguarding procedure straight away. A speak-up concern is not an emergency route: the lead
+  is told it has arrived, without your name, but may not read it straight away.
 - You can also speak up outside the organisation, to the National Guardian's Office or a prescribed
   person such as the Care Quality Commission.
 - The rules: [safety specification, Phase 2 rule 3](../../specs/safety.md#phase-2-rules-plan-slice-7-safe-006-safe-011-safe-012-safe-014-safe-015-safe-016-meds-012)
