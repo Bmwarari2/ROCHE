@@ -602,7 +602,11 @@ Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
   entered or sent a paper record is told another manager must reconcile. Entries are listed by a
   short reference (the last 8 characters of the id), which every record list shows beside
   "Entered from a paper record"; the screen says to look in each person's record at the location
-  (#62 review round 1; HZ-092).
+  (#62 review round 1; HZ-092). Under each box the screen now lists every entry with its person,
+  kind of record, time and how it was recorded, linked to the person's notes, charts, body map or
+  activities, from the reconciliation's `reviewEntries` (named only when the reader can see the
+  person, never an entry's text; recommended answer to H-267, 31/10/2026), so reconciling may go
+  live.
 - Actions are offered for the permission held where the viewer works; `/v1/me` has no
   per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
 - Not yet: the places form (no read route with the location's version) and the back-entry

@@ -3438,6 +3438,9 @@
     "care.charts.iddsiChangedSince",
     "safety.afterDeath.deathNotification",
     "safety.record.foundWhen",
-    "safety.record.foundWhenDescription"
+    "safety.record.foundWhenDescription",
+    "operations.reconcile.entry",
+    "operations.reconcile.entryHidden",
+    "operations.reconcile.entryKind"
   ]
 }

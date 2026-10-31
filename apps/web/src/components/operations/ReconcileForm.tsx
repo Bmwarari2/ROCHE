@@ -1,12 +1,20 @@
 "use client";
 
 import { Button, Checkbox, TextArea } from "@harbour/ui";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 import { reconcileOutage } from "@/app/actions/downtime";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
-import { entryReference, type ReviewItem, reviewedEntryIds } from "@/lib/downtime";
+import { tabHref } from "@/lib/care-record";
+import {
+  entryReference,
+  entryTab,
+  type ReviewItem,
+  reviewEntryLine,
+  reviewedEntryIds,
+} from "@/lib/downtime";
 import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 
@@ -76,26 +84,46 @@ export function ReconcileForm({
             {t("operations.reconcile.reviewHint")}
           </p>
           {items.map((item, index) => (
-            <Checkbox
-              key={item.key}
-              id={itemId(index)}
-              name="reviewed"
-              value={item.key}
-              required
-              checked={ticked.has(item.key)}
-              onChange={(event) => {
-                const next = new Set(ticked);
-                if (event.currentTarget.checked) next.add(item.key);
-                else next.delete(item.key);
-                setTicked(next);
-              }}
-              label={t("operations.reconcile.item", {
-                kind: item.kind,
-                count: item.entryIds.length,
-                refs: item.entryIds.map(entryReference).join(", "),
-              })}
-              {...(reviewError && !ticked.has(item.key) ? { error: reviewError } : {})}
-            />
+            <div key={item.key} className="flex flex-col gap-1">
+              <Checkbox
+                id={itemId(index)}
+                name="reviewed"
+                value={item.key}
+                required
+                checked={ticked.has(item.key)}
+                onChange={(event) => {
+                  const next = new Set(ticked);
+                  if (event.currentTarget.checked) next.add(item.key);
+                  else next.delete(item.key);
+                  setTicked(next);
+                }}
+                label={t("operations.reconcile.item", {
+                  kind: item.kind,
+                  count: item.entryIds.length,
+                  refs: item.entryIds.map(entryReference).join(", "),
+                })}
+                {...(reviewError && !ticked.has(item.key) ? { error: reviewError } : {})}
+              />
+              {item.entries.length > 0 ? (
+                // Each entry's person, kind and time, so it is found before it is ticked (H-267).
+                <ul className="m-0 ml-11 flex list-none flex-col gap-1 p-0 text-body-dense">
+                  {item.entries.map((entry) => (
+                    <li key={entry.id} data-review-entry={entry.id}>
+                      {entry.person ? (
+                        <Link
+                          href={tabHref(entry.personId, entryTab(entry.kind))}
+                          className="inline-flex min-h-target items-center underline"
+                        >
+                          {reviewEntryLine(entry, t)}
+                        </Link>
+                      ) : (
+                        <span>{reviewEntryLine(entry, t)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ))}
         </fieldset>
       ) : null}

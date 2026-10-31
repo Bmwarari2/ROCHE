@@ -15179,7 +15179,7 @@ export interface paths {
     };
     /**
      * What reconciling the outage needs: the counts, possible duplicates and blockers
-     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.
+     * @description Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.
      */
     get: {
       parameters: {
@@ -34678,9 +34678,27 @@ export interface components {
       statement: string;
       reviewedEntryIds: string[];
       version: number;
+      reviewEntries: components["schemas"]["ReconcileEntry"][];
     };
     CancelOutage: {
       reason: string;
+    ReconcileEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      person: {
+        givenName: string;
+        familyName: string;
+        preferredName: string | null;
+      } | null;
+      kind: string;
+      /** Format: date-time */
+      occurredAt: string;
+      /** @enum {string} */
+      source: "back_entry" | "digital";
+      paperReference: string | null;
+    };
       version: number;
     };
     CorrectOutage: {

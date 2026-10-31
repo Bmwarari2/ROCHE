@@ -202,8 +202,27 @@ describe("hazard HZ-017 outages at a location", () => {
       enteredByYou: boolean;
       outsideWindowEntryIds: string[];
       blockers: string[];
+      reviewEntries: {
+        id: string;
+        personId: string;
+        person: { givenName: string; familyName: string } | null;
+        kind: string;
+        occurredAt: string;
+        source: string;
+      }[];
     };
     expect(summary.backEntries).toBe(2);
+    // Each entry to review with its person, kind and time, so it can be found (H-267, HZ-092);
+    // never the entry's text.
+    expect(summary.reviewEntries.map((e) => e.id).sort()).toEqual([paper, digital, late].sort());
+    for (const entry of summary.reviewEntries) {
+      expect(entry).toMatchObject({ personId, kind: "care_note" });
+      expect(entry.person?.familyName).toBeTruthy();
+      expect(Number.isNaN(Date.parse(entry.occurredAt))).toBe(false);
+    }
+    expect(summary.reviewEntries.find((e) => e.id === paper)?.source).toBe("back_entry");
+    expect(summary.reviewEntries.find((e) => e.id === digital)?.source).toBe("digital");
+    expect(JSON.stringify(summary.reviewEntries)).not.toMatch(/body/);
     expect(summary.duplicateGroups.map((g) => [...g].sort())).toEqual([[paper, digital].sort()]);
     expect(summary.enteredByYou).toBe(true);
     expect(summary.outsideWindowEntryIds).toEqual([late]);

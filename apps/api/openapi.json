@@ -19693,6 +19693,12 @@
             "items": {
               "type": "string",
               "format": "uuid"
+          "reviewEntries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReconcileEntry"
+            }
+          },
             },
             "maxItems": 1000
           },
@@ -19713,10 +19719,78 @@
           "reason": {
             "type": "string",
             "minLength": 1,
+          "reviewEntries",
             "maxLength": 1000
           },
           "version": {
             "type": "integer",
+      "ReconcileEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "person": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "givenName": {
+                "type": "string"
+              },
+              "familyName": {
+                "type": "string"
+              },
+              "preferredName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "givenName",
+              "familyName",
+              "preferredName"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "back_entry",
+              "digital"
+            ]
+          },
+          "paperReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "person",
+          "kind",
+          "occurredAt",
+          "source",
+          "paperReference"
+        ]
+      },
             "minimum": 1
           }
         },
@@ -49991,7 +50065,7 @@
           "operations"
         ],
         "summary": "What reconciling the outage needs: the counts, possible duplicates and blockers",
-        "description": "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts only.",
+        "description": "Counted in the organisation's view, so a paper record about someone you can no longer see still counts (rule 14). Ids, people and counts, and for each entry to review its person (named only when you can see them), kind and time (H-267); never an entry's text or values.",
         "security": [
           {
             "bearerAuth": []

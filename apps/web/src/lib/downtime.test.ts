@@ -5,6 +5,7 @@ import {
   downtimeAccess,
   downtimeNavShown,
   entryReference,
+  entryTab,
   OUTAGE_KINDS,
   outageActions,
   outageStateChip,
@@ -15,6 +16,7 @@ import {
   printProblem,
   printProblemWords,
   retryAt,
+  reviewEntryLine,
   reviewedEntryIds,
   reviewItems,
 } from "./downtime";
@@ -170,6 +172,45 @@ describe("hazard HZ-092 reconciling an outage (operations.md section 12, #38 rev
       "c1",
     ]);
     expect(reviewedEntryIds([], new Set())).toEqual([]);
+  });
+
+  it("hazard HZ-092 gives each entry to review its person, kind and time, with its record's tab (H-267)", () => {
+    const entry = (id: string, kind: string, person: boolean) => ({
+      id: `0194d000-0000-7000-8600-0000000000${id}`,
+      personId: "0194d000-0000-7000-8600-000000000001",
+      person: person ? { givenName: "Ada", familyName: "Example", preferredName: null } : null,
+      kind,
+      occurredAt: "2026-10-16T07:15:00.000Z",
+      source: "back_entry" as const,
+      paperReference: null,
+    });
+    const items = reviewItems({
+      duplicateGroups: [
+        [entry("a1", "observation.fluid_intake", true).id, entry("a2", "care_note", true).id],
+      ],
+      outsideWindowEntryIds: [entry("c1", "body_map_mark", false).id],
+      reviewEntries: [
+        entry("c1", "body_map_mark", false),
+        entry("a2", "care_note", true),
+        entry("a1", "observation.fluid_intake", true),
+      ],
+    });
+    expect(items.map((i) => i.entries.map((e) => e.id.slice(-2)))).toEqual([["a1", "a2"], ["c1"]]);
+    const [fluid, note] = items[0]?.entries ?? [];
+    expect(fluid && reviewEntryLine(fluid, t)).toBe(
+      "Ada Example: Fluid intake, 16/10/2026 08:15, entered from paper (reference 000000A1)",
+    );
+    expect(note && reviewEntryLine(note, t)).toMatch(/^Ada Example: Care note, /);
+    // Someone the reader cannot see is not named, and gets no link.
+    const hidden = items[1]?.entries[0];
+    expect(hidden && reviewEntryLine(hidden, t)).toMatch(
+      /^Someone you cannot see: Body map mark, /,
+    );
+    expect(
+      ["observation.vitals", "care_note", "body_map_mark", "activity_record", "visit_log"].map(
+        entryTab,
+      ),
+    ).toEqual(["charts", "notes", "body-map", "activities", "activities"]);
   });
 
   it("hazard HZ-092 gives the short reference the record shows beside the paper label", () => {

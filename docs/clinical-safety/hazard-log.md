@@ -64,7 +64,7 @@
 | [HZ-080](#hz-080-a-revised-statement-of-purpose-not-sent-to-cqc-in-time) | A revised statement of purpose not sent to CQC in time | Minor / Medium / 2 | Minor / Low / 1 | Open | None (Phase 1) | Phase 1 |
 | [HZ-090](#hz-090-an-incident-form-records-an-assumed-answer-or-asks-a-notification-question-in-other-words) | An incident form records an assumed answer, or asks a notification question in other words | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-261) | Open | None (Phase 1) | Phase 1 |
 | [HZ-091](#hz-091-an-incident-is-closed-or-a-notification-recorded-as-submitted-or-not-required-on-a-wrong-or-stale-page) | An incident is closed, or a notification recorded as submitted or not required, on a wrong or stale page | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-265) | Open | None (Phase 1) | Phase 1 |
-| [HZ-092](#hz-092-paper-records-confirmed-as-reviewed-at-reconciliation-without-being-found) | Paper records confirmed as reviewed at reconciliation without being found | Considerable / Medium / 3 | Considerable / Low / 2 (engineering proposal; the CSO rates it, H-267) | Open | None (Phase 1) | Phase 1 |
+| [HZ-092](#hz-092-paper-records-confirmed-as-reviewed-at-reconciliation-without-being-found) | Paper records confirmed as reviewed at reconciliation without being found | Considerable / Medium / 3 | Considerable / Low / 2 (CSO rating as recommended, H-267; reviewed at testing) | Open | None (Phase 1) | Phase 1 |
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
@@ -2872,7 +2872,7 @@ person receiving care.
 
 **Effects**: a fluid or food chart double-counted, or care shown at the wrong time, after an outage (HZ-017, HZ-004); decisions taken on that chart.
 
-**Initial risk**: severity Considerable, likelihood Medium, **risk 3**.
+**Initial risk**: severity Considerable, likelihood Medium, **risk 3** (the CSO's rating as recommended, H-267, 31/10/2026; reviewed at the testing phase).
 
 **Controls**
 
@@ -2881,10 +2881,10 @@ person receiving care.
 | Design | Each group and each entry is a separate box to tick, with what it is in words ("possibly the same care recorded twice", "a time outside the outage and no reason"), how many entries and their references; the outage cannot be reconciled until every box is ticked and the manager says what was checked, and the API refuses the same again | Built in Phase 1 (slice 11 web) |
 | Design | Someone who entered or sent any paper record from the outage is told another manager who can manage outages, such as the Registered Manager, must reconcile it, and offered no form (H-203) | Built in Phase 1 (slice 11 web) |
 | Design | Every record list shows a paper record's reference (the last 8 characters of its id, the current version's for a corrected note) beside "Entered from a paper record", the same reference the reconciliation lists; the reconciliation says to look in the care record of each person at the location, and that an entry recorded in Harbour at the time has no reference and is the one for the same person at about the same time (#62 review round 1) | Built in Phase 1 (slice 11 web) |
-| Design | The reconciliation names the person, the entry's kind and time, and links each entry to its place in the record, so it can be opened and kept or corrected from the screen | Planned (Lane A: the API returns ids only; STATUS item 21; the CSO decides whether reconciling goes live before it, H-267) |
+| Design | The reconciliation names the person, the entry's kind and time, and links each entry to its place in the record, so it can be opened and kept or corrected from the screen: `GET /v1/outages/{id}/reconciliation` returns `reviewEntries` (person, named only when the reader can see them, kind, time, how it was recorded, never its text) and the web lists them under each box with a link to the person's notes, charts, body map or activities; someone the reader cannot see is said so, with no link | Built for the recommended answer to H-267 (31/10/2026, reviewed at the testing phase): reconciling may go live with it |
 | Training and user documentation | Deployer control: reconcile with the paper forms in hand, find each listed entry in the person's record history before ticking it (DCB0160 template) | Phase 1 |
 
-**Target residual risk**: severity Considerable, likelihood Low, **risk 2** (an engineering proposal; the CSO rates it, H-267).
+**Target residual risk**: severity Considerable, likelihood Low, **risk 2** (the CSO's rating as recommended, H-267, 31/10/2026; reviewed at the testing phase).
 
 **Verification**
 
@@ -2899,6 +2899,7 @@ person receiving care.
 ## HZ-110 A server-side sign-out clears a carer's offline records during a shift
 
 | Field | Value |
+| `apps/api/test/outages.test.ts` (`reviewEntries`: every entry to review with its person, kind, time and how it was recorded, never its text); `apps/web/src/lib/downtime.test.ts`: `hazard HZ-092 gives each entry to review its person, kind and time, with its record's tab (H-267)` | Passing (31/10/2026) |
 | --- | --- |
 | ID | HZ-110 |
 | Status | Open |
