@@ -184,15 +184,12 @@ describe("hazard HZ-011 search follows permission and scope through the API", ()
     expect(((await carer.json()) as { code: string }).code).toBe("nothing_to_search");
   });
 
-  it("refuses an agency worker with no shift recorded, audited", async () => {
+  it("refuses an agency worker with no booked shift (ADR-0088: their roles reach nothing)", async () => {
     await sql("UPDATE tenant_user SET is_agency = true WHERE id = $1", [DEMO.users.carer.id]);
     try {
       const refused = await search("carer", { query: "Ada" });
       expect(refused.status).toBe(403);
-      expect(((await refused.json()) as { code: string }).code).toBe("no_shift_recorded");
-      expect((await lastAudit("platform.search.refused"))?.scope).toMatchObject({
-        problem: "no_shift_recorded",
-      });
+      expect(((await refused.json()) as { code: string }).code).toBe("missing_permission");
     } finally {
       await sql("UPDATE tenant_user SET is_agency = false WHERE id = $1", [DEMO.users.carer.id]);
     }

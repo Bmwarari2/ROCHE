@@ -15,6 +15,7 @@ import { requirePermission, type TenantAccess, withTenant } from "../http/contex
 import { HttpProblem, problems } from "../http/problem";
 import { RateLimiter, requireWithinLimit } from "../http/rate-limit";
 import { accessRowsOf } from "../services/access-rows";
+import { currentBookedShiftEnd } from "../services/agency-window";
 import { rateNumber } from "../services/rates";
 import { READ_LIMIT, searchRows } from "../services/search";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
@@ -121,6 +122,11 @@ export const searchRouter = createRouter().openapi(
             scope: event.scope,
           });
         }
+        const postShiftHours = await rateNumber(
+          tx,
+          access.tenantId,
+          "access.agency.post_shift_hours",
+        );
         const checked = buildSearchPlan(
           { rawQuery: body.query, entityTypes: asked, includeArchived: body.includeArchived },
           {
@@ -130,19 +136,15 @@ export const searchRouter = createRouter().openapi(
             window: {
               roleEndsAt: await roleEndsAt(tx, access, now),
               isAgencyWorker: me.isAgency,
-              // Rotas arrive in Phase 2: no shift is recorded, so agency search fails closed.
-              agencyShiftEndsAt: null,
+              // The end of the booked shift whose window is open now (ADR-0088); none, no search.
+              agencyShiftEndsAt: me.isAgency
+                ? await currentBookedShiftEnd(tx, access.tenantUserId, now, postShiftHours)
+                : null,
             },
             teamIds: null,
           },
           now,
-          {
-            agencyPostShiftHours: await rateNumber(
-              tx,
-              access.tenantId,
-              "access.agency.post_shift_hours",
-            ),
-          },
+          { agencyPostShiftHours: postShiftHours },
         );
         if (!checked.ok) {
           const event = searchRefusalAuditEvent(checked.problem, asked);

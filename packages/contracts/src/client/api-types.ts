@@ -25566,6 +25566,994 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/agencies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Agencies */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Agencies */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Add an agency */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The agency */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateAgency"];
+        };
+      };
+      responses: {
+        /** @description Added */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agencies/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Archive an agency
+     * @description Existing bookings stay; no new ones.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with why */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ArchiveAgency"];
+        };
+      };
+      responses: {
+        /** @description Archived */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Bank and agency workers */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Workers */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Register a bank or agency worker
+     * @description A member who holds no role but agency_worker. Registering flags them as agency or bank: from then their access comes only from booked shifts (ADR-0088).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The worker */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RegisterAgencyWorker"];
+        };
+      };
+      responses: {
+        /** @description Registered */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/confirmation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Record the agency's confirmation of a worker's checks
+     * @description From the agency's written confirmation (DBS, right to work, registration), recorded in the recorder's own name, never by the worker. Agency workers only: a bank worker's checks are in their staff file.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AgencyConfirmation"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyWorkerItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shifts/{id}/booking": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Book a bank or agency worker onto an open shift
+     * @description Applies the rostering rule as assigning does (the agency's confirmation for agency workers, the staff file for bank workers, the competence port, every UK date the shift touches); an override needs scheduling.rota.approve and the blocker keys shown. Never for a right to work, a member not active or one marked do not book. Records the cost and opens the worker's access window for the shift (ADR-0088).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Who, against the shift's version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["BookShift"];
+        };
+      };
+      responses: {
+        /** @description Booked */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyBookingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-bookings/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a booking
+     * @description With a reason: the worker comes off the shift, which is open again, and their access window for it closes at once (ADR-0088). Recorded for notice once published.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with why */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelBooking"];
+        };
+      };
+      responses: {
+        /** @description Cancelled */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyBookingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/awr": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * An agency worker's AWR clock
+     * @description Agency Workers Regulations 2010 reg 7, from the worker's confirmed bookings with this organisation at every location: the weeks counted and the week equal basic terms apply from. Weeks with no booking between bookings have no recorded reason and are treated as uncovered (H-924).
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The clock */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrClockItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/inductions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record an induction at a location
+     * @description By a member who is not the worker, with the location's checklist items covered.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The induction */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordInduction"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InductionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/agency-workers/{id}/feedback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Feedback on a worker
+     * @description Only where the reader builds the rota; newest first.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Feedback */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyFeedbackList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record feedback after a booking
+     * @description Positive, a concern, or do not rebook (which marks the worker not to be booked again). Never by the worker about themselves.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The feedback */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAgencyFeedback"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyFeedbackItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/agency-costs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Bank and agency cost at a location
+     * @description Confirmed bookings of shifts starting between two UK dates, per agency.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Cost */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AgencyCostList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -33311,6 +34299,7 @@ export interface components {
         covered: boolean;
       }[];
       openShiftIds: string[];
+      inductionsDue: string[];
       hasWarnings: boolean;
       periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
@@ -33381,6 +34370,212 @@ export interface components {
         /** Format: date-time */
         changedAfterPublishAt: string | null;
       }[];
+    };
+    AgencyList: {
+      items: components["schemas"]["AgencyItem"][];
+    };
+    AgencyItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      name: string;
+      contactEmail: string | null;
+      frameworkRef: string | null;
+      defaultChargePencePerHour: number | null;
+      archived: boolean;
+    };
+    CreateAgency: {
+      name: string;
+      /**
+       * Format: email
+       * @default null
+       */
+      contactEmail: string | null;
+      /** @default null */
+      frameworkRef: string | null;
+      /** @default null */
+      defaultChargePencePerHour: number | null;
+    };
+    ArchiveAgency: {
+      version: number;
+      reason: string;
+    };
+    AgencyWorkerList: {
+      items: components["schemas"]["AgencyWorkerItem"][];
+    };
+    AgencyWorkerItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+        jobTitle: string | null;
+      };
+      kind: components["schemas"]["AgencyWorkerKind"];
+      /** Format: uuid */
+      agencyId: string | null;
+      roleTitle: string;
+      confirmation: {
+        /** Format: date */
+        dbsConfirmedOn: string | null;
+        dbsEnhancedBarred: boolean;
+        /** Format: date */
+        rightToWorkConfirmedOn: string | null;
+        /** Format: date */
+        rightToWorkExpiresOn: string | null;
+        registrationBody: string | null;
+        /** Format: date */
+        registrationValidUntil: string | null;
+        /** Format: uuid */
+        confirmedBy: string | null;
+      } | null;
+      doNotBook: boolean;
+    };
+    /** @enum {string} */
+    AgencyWorkerKind: "agency" | "bank";
+    RegisterAgencyWorker: {
+      /** Format: uuid */
+      tenantUserId: string;
+      kind: components["schemas"]["AgencyWorkerKind"];
+      /**
+       * Format: uuid
+       * @default null
+       */
+      agencyId: string | null;
+      roleTitle: string;
+    };
+    AgencyConfirmation: {
+      version: number;
+      /** Format: date */
+      dbsConfirmedOn: string | null;
+      dbsEnhancedBarred: boolean;
+      /** Format: date */
+      rightToWorkConfirmedOn: string | null;
+      /** Format: date */
+      rightToWorkExpiresOn: string | null;
+      /** @enum {string|null} */
+      registrationBody: "nmc" | "hcpc" | "swe" | "gmc" | null;
+      /** Format: date */
+      registrationValidUntil: string | null;
+    };
+    AgencyBookingItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      shiftId: string;
+      /** Format: uuid */
+      assignmentId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      agencyId: string | null;
+      kind: components["schemas"]["AgencyWorkerKind"];
+      bookingRef: string | null;
+      chargePencePerHour: number;
+      costPence: number;
+      /** @enum {string} */
+      status: "confirmed" | "cancelled";
+      inductionDue: boolean;
+    };
+    BookShift: {
+      /** Format: uuid */
+      workerId: string;
+      version: number;
+      chargePencePerHour?: number;
+      /** @default null */
+      bookingRef: string | null;
+      override?: {
+        justification: string;
+        blockerKeys: string[];
+      };
+    };
+    CancelBooking: {
+      version: number;
+      reason: string;
+    };
+    AwrClockItem: {
+      /** Format: uuid */
+      workerId: string;
+      qualifyingWeeks: number;
+      qualifyingWeeksNeeded: number;
+      /** Format: date */
+      qualifiedFromWeek: string | null;
+      weeksWithoutReason: number;
+      resets: {
+        /** Format: date */
+        week: string;
+        /** @enum {string} */
+        reason: "break" | "new_role";
+      }[];
+      method: string[];
+    };
+    InductionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      inductedOn: string;
+      items: string[];
+      /** Format: uuid */
+      inductedBy: string | null;
+    };
+    RecordInduction: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      inductedOn: string;
+      items: string[];
+    };
+    AgencyFeedbackList: {
+      items: components["schemas"]["AgencyFeedbackItem"][];
+    };
+    AgencyFeedbackItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      bookingId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** @enum {string} */
+      kind: "positive" | "concern" | "do_not_rebook";
+      notes: string;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    RecordAgencyFeedback: {
+      /** Format: uuid */
+      bookingId: string;
+      /** @enum {string} */
+      kind: "positive" | "concern" | "do_not_rebook";
+      notes: string;
+    };
+    AgencyCostList: {
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      from: string;
+      /** Format: date */
+      to: string;
+      items: {
+        /** Format: uuid */
+        agencyId: string | null;
+        kind: components["schemas"]["AgencyWorkerKind"];
+        bookings: number;
+        costPence: number;
+      }[];
+      totalPence: number;
     };
   };
   responses: never;

@@ -723,6 +723,22 @@ home rota; the fields below are Harbour's.
 | `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
 | `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
 
+## Bank and agency workers (Phase 2, slice 27)
+
+Code lists for [scheduling.md](scheduling.md) section 15. No national standard defines these; the
+fields are Harbour's.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `agency_worker.kind`, `agency_booking.kind` | Harbour | `agency`, `bank` | An agency worker names their agency; a bank worker none. |
+| `agency_worker.dbs_enhanced_barred` | Harbour (DBS check levels) | Boolean | True only for an enhanced DBS with the adults' barred list, as the agency confirmed it. |
+| `agency_worker.right_to_work_expires_on`, `registration_valid_until` | ISO 8601 date | `YYYY-MM-DD`, UK date; null for an unlimited right to work | The last valid day. |
+| `agency_worker.registration_body` | Harbour | `nmc`, `hcpc`, `swe`, `gmc` | The register the role needs. |
+| `agency_booking.charge_pence_per_hour`, `cost_pence`, `agency.default_charge_pence_per_hour` | Harbour | Whole pence | Cost: paid minutes (shift less break) at the charge, to the nearest penny. |
+| `agency_booking.status` | Harbour | `confirmed`, `cancelled` | A cancelled booking stays cancelled. |
+| `location_induction.items` | Harbour | Lower-case keys (`fire_exits`, `emergency_procedures`, ...), 1 to 40 | The location's own checklist. |
+| `agency_worker_feedback.kind` | Harbour | `positive`, `concern`, `do_not_rebook` | `do_not_rebook` marks the worker not to be booked. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

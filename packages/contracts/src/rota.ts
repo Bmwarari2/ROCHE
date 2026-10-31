@@ -330,6 +330,8 @@ export const RotaCheck = z
       }),
     ),
     openShiftIds: z.array(uuid),
+    /** Assignments of bank or agency workers with no induction recorded at the location. */
+    inductionsDue: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**
