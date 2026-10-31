@@ -4,7 +4,7 @@ Branch `fix/web-forms-post-before-hydration`.
 
 ## What changed
 
-- Every web form handled in the browser (`onSubmit`) now says `method="post"`: 62 forms in 45
+- Every web form handled in the browser (`onSubmit`) now says `method="post"`: 70 forms in 49
   files, from sign-in, the second factor and invitation acceptance to notes, incidents and
   break-glass reasons. Before, a form submitted before the page hydrated fell back to the HTML
   default, a GET, and put every field in the address: a password or a one-time code, or a care
