@@ -57,6 +57,7 @@ export class SyncTokenSigner {
         ? { entries_write_person_ids: [...claims.entries_write_person_ids] }
         : {}),
       offline_days: [...claims.offline_days],
+      ...(claims.handover_shifts ? { handover_shifts: { ...claims.handover_shifts } } : {}),
     })
       .setProtectedHeader({ alg: "ES256", kid: this.keyId })
       .setSubject(claims.sub)

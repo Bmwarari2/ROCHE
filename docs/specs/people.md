@@ -87,7 +87,7 @@ break-glass). Every read of a person's record is audited; writes are audited wit
 
 | Permission | Allows | Held by (built-in roles) |
 | --- | --- | --- |
-| `people.enquiry.manage` | Start a pre-admission assessment, close an enquiry as not admitted, record a re-referral | Owner, Registered Manager, deputy, administrator |
+| `people.enquiry.manage` | Record an enquiry (a new person record), start a pre-admission assessment, close an enquiry as not admitted, record a re-referral | Owner, Registered Manager, deputy, administrator |
 | `people.admission.manage` | The decision to admit, admission, bed moves, discharge and transfer, exit workflow moves, archive, correcting a discharge or a death (a death correction also needs step-up) | Owner, Registered Manager, deputy |
 | `people.movement.record` (new) | Leave, hospital transfer, return, recording a death, printing and handing over the transfer pack | As above plus clinical lead and team leader (the nurse or senior in charge at night) |
 | `people.property.manage` (new) | Property, valuables and keys in and out | As `people.movement.record` |
@@ -414,6 +414,25 @@ it) in migration 0022, as a new role version; migration 0024 writes one audit ev
 0022 changed, as the system, in the tenant's hash chain.
 Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecycle.test.ts`.
 
+Added with the web screens (`apps/api/src/routes/people-enquiries.ts`): `POST /v1/people` records an
+enquiry, a new person record at `enquiry` with names and a date of birth only, at a location where
+the caller holds `people.enquiry.manage` (anywhere else is not found, audited, HZ-011). The date of
+birth runs from 1900-01-01 to today (UK); the time it came in may be earlier than now, never later,
+before 1900 or before the birth, and becomes when the status began, so the assessment and an
+admission can be entered later than they happened; a value Postgres cannot hold is refused (422).
+The answer is the record's id, location, status, status time and version, never the person's
+details: the permission (held by the administrator role) reads no care record and asks for no
+second factor. A request sent again with its id is answered as the first (`replayed`, audited
+as `people.person.enquiry.replay`) only when the stored record is the caller's own enquiry, still
+at `enquiry`, with the same location, names, date of birth and, when sent, time it came in (HZ-029);
+the same id with other details is refused with 409 `id_reused_with_different_details`, nothing
+changed (the form then starts a new id and asks for the list to be checked, HZ-001); any other
+record's id, seen or not, is refused alike (422). Refusals are audited as denied with opaque ids
+(`outside_scope`, `location_not_found`, `id_in_use`, `id_reused_with_different_details`). Every request takes one path: the insert, which does nothing when the id is in use (`ON CONFLICT (id) DO NOTHING`), then a read of what holds it, so an id the caller cannot see and someone else's record they can are refused after the same steps; while sample people are loaded every insert is refused with 422 `remove_sample_data_first`. Names are one line (no line breaks or other control characters) and free text has no control characters but tab and line breaks, so no value can start a line of its own in a log or a print. The NHS number and other details are not taken here: the
+demographics edit (PEOP-001) records them. The enquiry pipeline itself (sources, stages,
+follow-ups) stays PEOP-004. `GET /v1/locations/{id}/services` lists a location's services (no
+personal data) for the assessment and the admission. Tests: `apps/api/test/people-enquiries.test.ts`.
+
 Personal details and contacts (PEOP-001, `apps/api/src/routes/people-details.ts`): `GET` and
 `PATCH /v1/people/{id}/details` (the demographics and the national data opt-out; only the fields
 sent change and null clears one; the NHS number passes the modulus 11 check and is unique in the
@@ -534,6 +553,95 @@ Built on the slice 8 routes; no new API. Written before the code (section 20 rul
   person, missing sections read "Not recorded", send in one form, the PDF downloads as a PDF, the
   hand-over refuses without an acknowledgement and records with one, the return raises the checks;
   axe light and dark).
+
+### 6b. Web screens: pre-admission, admission and property (PEOP-005, PEOP-007)
+
+- **People** lists people receiving care or who have left; people at `enquiry`, `pre_admission`
+  and `not_admitted` are listed under **Enquiries and pre-admission** (`/people/pre-admission`),
+  offered to holders of `people.person.read` with `people.enquiry.manage`,
+  `people.admission.manage` or `care.plan.write`, each with their status, date of birth and
+  communication needs, open ones first. **Record an enquiry** (`/people/pre-admission/new`,
+  `people.enquiry.manage`) asks the person to search first so someone returning keeps one record,
+  and sends the form's own id with every attempt.
+- The record gains three tabs, each under the point-of-care header and titled without the
+  person's name: **Pre-admission**, **Admission and room** and **Property and keys**
+  (`people.person.read`). A write is offered only where the user holds the permission reaching the
+  person (`access.reaching`) and the status allows it (`personStatusAllows`); the API checks both
+  again. Every write sends the record's version (or the item's) and new items and keys their own
+  id; forms post, so nothing typed reaches an address.
+- **Pre-admission**: start the assessment (service and placement sought), close as not admitted
+  or record a re-referral, with a reason (`people.enquiry.manage`). The twenty sections show done,
+  not applicable (with the reason), in progress, or not started, which for a required section is
+  the not-recorded warning, never calm. "Not applicable" is offered only where the section allows
+  it, and the screen asks for what was found before a section is marked done (a screen rule on top
+  of rule 4: a done section with nothing written would hide a safety fact; HZ-007, HZ-015,
+  HZ-016). The medicines section takes the list (time-critical marked). Sources and the person's
+  involvement (or why not) are recorded together. The decision form (`people.admission.manage`)
+  appears once the assessment is complete; a later decision replaces the one in force with the
+  reason, and replaced decisions stay, marked and struck through. Conditions are confirmed one by
+  one; once the decision allows it, the tab links to the admission.
+- **Admission and room**: the admission form (`people.admission.manage`) offers the services at
+  the person's location and the beds free today in rooms in use (the API checks the first day
+  again, so a bed someone left today is refused for an earlier day in its words), the first day,
+  the trial end for a trial, funding and when the person arrived (now or earlier). Then the
+  placement, the room and bed now with every move (a move recorded after its day marked in words),
+  a move form for active and on-leave people, and the welcome checklist, safety-critical items
+  first, "not applicable" offered only where the item allows it and never for a safety-critical
+  item (`people.admission.manage` or `care.plan.write`, while the person is receiving care).
+- **Property and keys** (`people.property.manage`): items held or away first, each with who
+  signed for it, its witness, and how it left; items in while the person is receiving care,
+  returns and keys back after an exit too. The witness is a colleague found by name with the staff
+  search (the user's own staff scope), never the person recording; the record names both (rule 7).
+  Return offers only the personal representative after a death; a lost item needs the person's
+  incident first; disposal and loss say that the item closes. Keys are issued to the person or a
+  representative, then returned or reported lost.
+- Staff are named "you" or "a colleague" on these records until the lifecycle responses carry staff
+  names (care.md section 5, staff names), as letters do.
+- Tests: `apps/web/src/lib/admission.test.ts`; `apps/web/e2e/pre-admission.spec.ts` and
+  `apps/web/e2e/admission.spec.ts` (axe in the light and dark themes on every state).
+
+### Web: leaving the service (PEOP-010)
+
+The record's **Leaving** tab (`/people/{id}/leaving`, `people.person.read`) shows the discharge,
+transfer or death workflow from `GET /v1/people/{id}/exit` and offers only what the API would take.
+The web app decides nothing itself: every rule, permission, step-up and separation-of-duties check
+is the API's, and a refusal is said in words with what to do next.
+
+| State | What the tab shows | Actions offered |
+| --- | --- | --- |
+| Live person, no exit | Nothing in progress | Plan a discharge or transfer; record a discharge or transfer; record a death |
+| Exit `planned` | Checklist, deadlines | Tick items; record that the person has left; cancel the plan with a reason |
+| `left` or `recorded` | Checklist with owners, notifications and hazard ids | Tick items; move to awaiting returns |
+| `awaiting_return` | Returns outstanding and their deadline | Return property and keys; confirm money; close |
+| `closed`, person discharged or deceased | Closed, read-only checklist | Archive the record |
+| Person `archived` | "Archived" (icon and word) above the read-only exit summary | None |
+
+Items counted from their own records are never ticked by hand: property and keys are returned on
+the same tab (`people.property.manage`); statutory notifications (the regulator's death
+notification, the medical examiner information pack, LeDeR) link to their page under
+`/notifications/statutory/{id}`, where `safety.notification.submit` holders submit them (HZ-013).
+
+Permission matrix (the API enforces each; the web hides what the viewer's permissions reaching
+the person do not include):
+
+| Action | Permission | Also |
+| --- | --- | --- |
+| Plan, record a discharge or transfer, move, close, archive, cancel a plan | `people.admission.manage` | A reason to discharge or cancel |
+| Record a death | `people.movement.record` | Whether expected and LeDeR answered explicitly |
+| Tick a people, care, medicines or safety item | `people.admission.manage` or `people.movement.record` | "Not required" only where allowed, with a reason |
+| Confirm residents' money, the deposit or DWP | `finance.ledger.approve` | Step-up; never the person who recorded the exit |
+| Return property or keys | `people.property.manage` | Who received it and who signed |
+
+The status of anyone who is not receiving care (left, died, archived, on leave, in hospital, before
+admission) shows as an icon and a word beside their name on the people list, the record header and
+search. `POST /v1/people` (`people.person.create`, the location in scope) records an enquiry: the
+first step of the lifecycle, so journeys and onboarding can start a person without seeding.
+
+Tests: `apps/web/src/lib/exit.test.ts` (which actions each state and permission set offers, nothing
+after archive, the item words), `apps/api/test/people-lifecycle.test.ts` (the exit routes),
+and `apps/web/e2e/exit.spec.ts` (discharge, transfer and death on people the journey records through
+`POST /v1/people` and admits,
+each to archive, with axe in light and dark themes; HZ-001, HZ-013).
 
 ## 7. Offline behaviour (section 17.1)
 
