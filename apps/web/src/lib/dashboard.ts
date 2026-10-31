@@ -63,6 +63,9 @@ export const PER_LOCATION_TILES: ReadonlySet<TileId> = new Set([
 /** The most locations read at once when the shell shows every location (the call budget). */
 export const DASHBOARD_LOCATION_LIMIT = 3;
 
+/** How often the dashboard is read again while it is open (insights.md rule 8). */
+export const DASHBOARD_REFRESH_MS = 5 * 60_000;
+
 /** The API's limit on one read of the reader's notifications (`GET /v1/notifications`). */
 export const ALERT_LIST_LIMIT = 100;
 

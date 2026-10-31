@@ -40,6 +40,9 @@ audits arrive with their modules (Phases 2 to 4) and are not shown as empty plac
    with the shell, one incidents, two statutory notifications, one break-glass, and four per
    location for up to three locations). No client-side fetching.
 7. **Family members** keep their own home (`/updates`); they never see the staff dashboard.
+8. **Never stale without saying so.** The page says when its counts were worked out, and reads
+   them again every five minutes while it is in view, and as soon as it comes back into view after
+   longer than that.
 
 ## Tiles
 

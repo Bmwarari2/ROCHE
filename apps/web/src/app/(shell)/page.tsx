@@ -3,11 +3,13 @@ import { Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DashboardRefresh } from "@/components/insights/DashboardRefresh";
 import { SummaryTile } from "@/components/insights/SummaryTile";
 import { getShellContext } from "@/lib/api";
-import type { TileId, TileSummary } from "@/lib/dashboard";
+import { DASHBOARD_REFRESH_MS, type TileId, type TileSummary } from "@/lib/dashboard";
 import { loadDashboard } from "@/lib/dashboard-data";
 import { isFamilyMember } from "@/lib/family-feed";
+import { formatDateTime } from "@/lib/format";
 import { peopleLabel, t } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: t("shell.nav.home") };
@@ -37,6 +39,7 @@ export default async function HomePage() {
   if (isFamilyMember(me)) redirect("/updates");
   const location = me.locations.find((l) => l.id === locationId);
   const tiles = await loadDashboard(me, locationId);
+  const readAt = new Date();
   const today = tiles.filter((tile) => TODAY.has(tile.id));
   const oversight = tiles.filter((tile) => !TODAY.has(tile.id));
   const people = me.permissions.includes("people.person.read");
@@ -52,6 +55,15 @@ export default async function HomePage() {
         title={t("dashboard.welcome", { name: me.user.name })}
         description={t("dashboard.description")}
       />
+      <p className="m-0 -mt-4 text-body-dense text-text-secondary">
+        <time dateTime={readAt.toISOString()}>
+          {t("dashboard.asOf", {
+            dateTime: formatDateTime(readAt.toISOString()) ?? "",
+            minutes: DASHBOARD_REFRESH_MS / 60_000,
+          })}
+        </time>
+      </p>
+      <DashboardRefresh readAt={readAt.getTime()} />
       {today.length > 0 ? (
         <section aria-labelledby="dashboard-today" className="flex flex-col gap-4">
           <h2 id="dashboard-today" className="m-0 text-eyebrow">

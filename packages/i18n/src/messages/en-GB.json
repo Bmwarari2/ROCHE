@@ -65,6 +65,7 @@
   "dashboard.welcome": "Welcome, {name}",
   "dashboard.eyebrow": "{organisation}, {location}",
   "dashboard.description": "What is waiting for you now. Each count opens the list it comes from.",
+  "dashboard.asOf": "Counts worked out at {dateTime}. They are read again every {minutes} minutes while this page is open.",
   "dashboard.today": "Today",
   "dashboard.oversight": "Safety and oversight",
   "dashboard.yourWork": "Your work",
