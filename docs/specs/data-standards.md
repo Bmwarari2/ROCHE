@@ -717,8 +717,9 @@ home rota; the fields below are Harbour's.
 | `shift.starts_at`, `ends_at` | ISO 8601 date-time, UTC | `timestamptz` | A shift starts on one of its rota's UK dates. |
 | `shift.required_competences` | Harbour | `COMPETENCES` (workforce.md section 2b) | Applied by the rostering rule. |
 | `shift.required_skills` | Harbour | `STAFFING_SKILLS` | Describe the position; not a blocker (H-836). |
+| `shift.counts_as_care`, `shift_template.counts_as_care` | Harbour | Boolean, default true | False for shifts the organisation does not count as care on the floor. |
 | `shift_pattern.entries` | Harbour | `[{ day, templateId, count }]`; `day` from 0 within `cycle_days` | |
-| `roster_override.blocker_keys` | Harbour | `dbs`, `dbs_supervised_only`, `registration`, `competence:<competence>`; never `right_to_work` | No DBS detail is stored. |
+| `roster_override.blocker_keys` | Harbour | `dbs:<reason>`, `dbs_supervised_only`, `registration`, `competence:<competence>:<reason>`; never a right to work or `not_active` (checked by the table) | The reason is a code (`no_certificate`, `expired`, ...), never what a DBS certificate disclosed. |
 | `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
 | `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
 

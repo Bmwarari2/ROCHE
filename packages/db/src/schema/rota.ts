@@ -68,6 +68,8 @@ export const shiftTemplate = pgTable(
     requiredSkills: text("required_skills").array().notNull().default(sql`'{}'`),
     /** The shift is worked alongside a cleared colleague (a supervised-only DBS may work it). */
     supervised: boolean("supervised").notNull().default(false),
+    /** The organisation counts it as care on the floor (not housekeeping, kitchen or office). */
+    countsAsCare: boolean("counts_as_care").notNull().default(true),
     ...mutableColumns(),
   },
   (t) => [
@@ -187,6 +189,7 @@ export const shift = pgTable(
     requiredCompetences: text("required_competences").array().notNull().default(sql`'{}'`),
     requiredSkills: text("required_skills").array().notNull().default(sql`'{}'`),
     supervised: boolean("supervised").notNull().default(false),
+    countsAsCare: boolean("counts_as_care").notNull().default(true),
     /** Set when a publication included the shift. */
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** The last change after it was published (notice tracking). */
@@ -286,7 +289,7 @@ export const rosterOverride = pgTable(
     staffRef("roster_override_worker_fk", t, t.workerId),
     check(
       "roster_override_blockers",
-      sql`cardinality(blocker_keys) >= 1 AND NOT ('right_to_work' = ANY (blocker_keys))`,
+      sql`cardinality(blocker_keys) >= 1 AND array_to_string(blocker_keys, ' ') ~ '^((dbs:[a-z_]+|dbs_supervised_only|registration|competence:[a-z_]+:[a-z_]+)( |$))+$'`,
     ),
     check(
       "roster_override_justification",

@@ -693,13 +693,13 @@ actions H-830 to H-839.
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `shift_template` | mutable, `expected_version`, archived | `location_id`, `name`, `kind` (`SHIFT_KINDS`), `start_minute`, `end_minute` (UK wall clock; an end at or before the start is the next day), `break_minutes`, `required_competences`, `required_skills`, `supervised` | `rota_and_timesheet` |
+| `shift_template` | mutable, `expected_version`, archived | `location_id`, `name`, `kind` (`SHIFT_KINDS`), `start_minute`, `end_minute` (UK wall clock; an end at or before the start is the next day), `break_minutes`, `required_competences`, `required_skills`, `supervised`, `counts_as_care` | `rota_and_timesheet` |
 | `shift_pattern` | mutable, archived | `location_id`, `name`, `cycle_days` (1 to 56), `entries` (`[{ day, templateId, count }]`) | `rota_and_timesheet` |
 | `rota` | mutable | `location_id`, `starts_on`, `ends_on` (at most 42 days; live rotas at a location never overlap), `state` (`draft`, `published`), `published_at` | `rota_and_timesheet` |
 | `rota_publication` | append-only | `rota_id`, `published_by`, `published_at`, `first_shift_start`, `notice_minutes`, counts of shifts, open shifts, overrides and working time findings, `staffing` (`[{ date, periodKey, status }]`), `check_digest` | `rota_and_timesheet` |
-| `shift` | mutable, cancelled with a reason | `rota_id`, `location_id`, `template_id`, `label`, `kind`, `starts_at`, `ends_at`, `break_minutes`, `required_competences`, `required_skills`, `supervised`, `published_at`, `changed_after_publish_at` | `rota_and_timesheet` |
+| `shift` | mutable, cancelled with a reason | `rota_id`, `location_id`, `template_id`, `label`, `kind`, `starts_at`, `ends_at`, `break_minutes`, `required_competences`, `required_skills`, `supervised`, `counts_as_care`, `published_at`, `changed_after_publish_at` | `rota_and_timesheet` |
 | `shift_assignment` | mutable, removed with a reason | `shift_id`, `location_id` (the shift's), `worker_id`, `published_at`; one live assignment per shift | `rota_and_timesheet` |
-| `roster_override` | append-only | `assignment_id`, `location_id`, `worker_id`, `blocker_keys` (never `right_to_work`), `justification` (10 to 1000 characters), `created_by` | `rota_and_timesheet` |
+| `roster_override` | append-only | `assignment_id`, `location_id`, `worker_id`, `blocker_keys` (each with its reason; never a right to work or `not_active`), `justification` (10 to 1000 characters), `created_by`; given only with the assignment | `rota_and_timesheet` |
 
 A shift is one position for one member. Row-level security: the rota tables are read with
 `scheduling.rota.read` or `.manage` where the rota is (`app.reads_rota`) and written with `.manage`
@@ -708,8 +708,9 @@ there (`app.manages_rota`); a member reads their own assignments and shifts once
 holders of `.manage` or `.approve` there and given only with `.approve`, in the giver's name, never
 for themselves. Guards: a rota, template or pattern keeps its location; a shift keeps its rota and
 starts on one of its dates; an assignment keeps its shift and worker, is to a live shift, and a
-member is never on two live shifts that overlap; an override is for a live assignment of its
-worker. Earlier versions in `record_version` follow the rota's read rule.
+member is never on two live shifts that overlap (one member's assignments are serialised with an
+advisory lock the API also takes before checking every location); rotas at a location are started
+one at a time; an override is for a live assignment of its worker, made in the same transaction. Earlier versions in `record_version` follow the rota's read rule.
 
 ### Rules
 
@@ -721,48 +722,66 @@ worker. Earlier versions in `record_version` follow the rota's read rule.
 2. **Patterns** (`checkPattern`, `patternShifts`): a cycle of live templates by day; applied to a
    rota, the cycle's day 0 is the UK date the pattern was made, so the next rota carries on. Applying
    makes open shifts.
-3. **Assigning** (HZ-124; `rosterDecision` with `rosterChecks` and the competence port): on the
-   shift's UK date, the staff file's DBS, right to work and (where the role is registered)
-   registration, counting only items verified by someone other than the member, and each
+3. **Assigning** (HZ-124; `combinedRosterDecision` with `rosterChecks` and the competence port):
+   on every UK date the shift touches (a night is checked on the date it ends too, so a right to
+   work or a sign-off expiring overnight blocks): whether the member works for the organisation
+   that day (`memberActiveOn`: active, started, not left; `not_active`, never overridable); the
+   staff file's DBS (the newest certificate decides; new information from the Update Service on
+   any certificate blocks), right to work and (where the role is registered) a registration on the
+   role's own register, counting only items verified by someone other than the member; and each
    competence the shift needs from the competence port, which blocks if the sign-off has lapsed by
-   the shift or now. No staff file means no DBS and no right to work. A blocked member is refused
-   (422 `not_eligible`; `right_to_work` when the right to work blocks, never overridable) unless a
-   holder of `scheduling.rota.approve` at the location overrides with a justification, never for
-   their own shift; the override names the blockers it covers. A member already on an overlapping
-   live shift anywhere is refused (409). The answer gives each blocker's kind in words, never a DBS
-   detail. A shift's required skills describe the position and do not block (H-836).
-4. **Skills held** (`workerSkills`): `registered_nurse` when the role is on the NMC register and the
-   registration is current; `medicines_competent` and `moving_and_handling` from the competence
-   port (`medicines_administration`, `moving_and_handling_hoist`); nobody is a `driver` until
-   drivers are recorded (H-835).
+   then or now. No staff file means no DBS and no right to work. A blocked member is refused (422
+   `not_eligible`; `right_to_work` or `not_active` when those block, never overridable) unless a
+   holder of `scheduling.rota.approve` at the location overrides with a justification and the
+   blocker keys they were shown (each with its reason: `dbs:<reason>`, `competence:<name>:<reason>`);
+   if the blockers have changed since, the override is refused (409 `blockers_changed`). Never for
+   their own shift. Only members with a live role at the location or across the organisation are
+   answered for; anyone else reads as not found. A member already on an overlapping live shift
+   anywhere is refused (409). The answer gives each blocker's kind in words, never a DBS detail. A
+   shift's required skills describe the position and do not block (H-836).
+4. **Skills held** (`workerSkills`), for the whole shift (on each date it touches):
+   `registered_nurse` when the role is on the NMC register and the registration is current (the
+   part of the register is not yet recorded, H-835); `medicines_competent` and
+   `moving_and_handling` from the competence port (`medicines_administration`,
+   `moving_and_handling_hoist`); nobody is a `driver` until drivers are recorded (H-835).
 5. **The rota against the requirement** (HZ-123; `staffingProvided` then `compareStaffing`): per
    date of the rota and each shift period of the scale in force, the care minutes of assigned
-   `work` shifts inside the period less each shift's break in proportion, and the number of
-   distinct assigned members holding each skill; open shifts, sleep-ins, on-call and training give
+   `work` shifts the organisation counts as care (`counts_as_care`; not housekeeping, kitchen or
+   office) inside the period less each shift's break in proportion, and for each skill the fewest
+   holders on shift at any moment of the period (`fewestPresent`: a handover overlap or two
+   holders one after the other never count as two); shifts of the neighbouring rotas at the
+   location that reach into the period count too; open shifts, sleep-ins, on-call and training give
    no care minutes. The comparison carries the requirement's source, notice, method and every
-   warning, and says "met, but" (`met_with_warnings`) whenever a warning stands. It advises and
-   never blocks.
+   warning, adds the rota's own (open care shifts, members on shift under an override), and says
+   "met, but" (`met_with_warnings`) whenever a warning stands. It advises and never blocks.
 6. **Working time** (advice only; `checkWorkingTime`): for each member on the rota, every live
    assignment of theirs at any location from the longest reference period before the rota to the
    day after it, with planned breaks placed in the middle of each shift (H-833), only the rota's
    own days known; no working-time setting or opt-out is recorded until slice 30, so none is
-   applied (H-832); a staff file without a date of birth or start date gives `cannot_check`, never
-   an adult's rules by default.
+   applied (H-832); both of a young worker's restricted windows are checked until the contract's
+   late working is recorded; a staff file without a date of birth or start date gives
+   `cannot_check`, never an adult's rules by default. Findings use hours worked at other locations
+   too (only this rota's shift ids are returned).
 7. **The check before publishing** (`rotaCheck`; `GET /v1/rotas/{id}/check`): the comparison per
    date and period, each member's working time, every assignment's eligibility again with whether
    an override still covers it (`overrideCovers`: an override covers only what it named), the open
    shifts, the notice the rota would give now and a digest of all of it. It needs
    `scheduling.rota.manage` and `care.plan.read` in a scope covering the whole location (H-837),
    and is audited as a care-record view.
-8. **Publishing**: sends back the digest; a changed check is refused (409 `check_changed`) so the
-   new one is read first; an assignment the rule now blocks with no override covering it is
-   refused (422 `ineligible_assignments`); any warning (a comparison not `met`, a working time
-   finding or `cannot_check`, an open shift, an override standing) needs `acknowledgeWarnings`
-   (422 `warnings_not_acknowledged` otherwise). Publishing marks the shifts and assignments
+8. **Publishing**: locks the rota (every change to its shifts and assignments takes the same lock),
+   and sends back the digest; a changed check is refused (409 `check_changed`) so the new one is
+   read first; the publisher must have read that check themselves within the hour (its digest is on
+   their own `scheduling.rota.checked` audit event; 409 `check_not_seen`); an assignment the rule
+   now blocks with no override covering it is refused (422 `ineligible_assignments`); each period
+   that is `below`, `incomplete` or `no_scale` must be acknowledged by name
+   (`periodsToAcknowledge`; 422 `periods_not_acknowledged`); any other warning (`met, but`, a
+   working time finding or `cannot_check`, an open shift, an override standing) needs
+   `acknowledgeWarnings` (422 `warnings_not_acknowledged`). Publishing marks the shifts and assignments
    published, records the publication with the notice before the first shift and what the
    publisher was shown, and raises `scheduling.rota_published`. A change after publishing (a shift
    added or cancelled, a member put on or taken off) is marked on the shift for notice (H-834) and
-   the rota is published again.
+   the rota is published again; the rota then reads `changedSincePublished` until it is (a task or
+   a daily re-check of published rotas is H-839).
 
 ### API, audit and outbox
 

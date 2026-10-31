@@ -1,7 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { DEPENDENCY_TOOL_NOTICE, STAFFING_STATUS_WORDS, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, OTHER } from "./support/harness";
+import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The rota builder through the API (scheduling.md section 14; SCHED-001, SCHED-002; hazards
@@ -59,6 +59,7 @@ interface Shift {
 }
 interface Rota {
   id: string;
+  changedSincePublished: boolean;
   version: number;
   state: string;
   shifts: Shift[];
@@ -66,6 +67,7 @@ interface Rota {
 }
 interface Check {
   digest: string;
+  periodsToAcknowledge: string[];
   rotaVersion: number;
   hasWarnings: boolean;
   blockedAssignmentIds: string[];
@@ -125,7 +127,7 @@ async function staffFile(worker: string, opts: { dateOfBirth?: string | null } =
           },
         ],
       }),
-      OWNER,
+      worker === OWNER ? MANAGER : OWNER,
     ],
   );
   return id as string;
@@ -278,13 +280,16 @@ describe("hazard HZ-124 assigning applies the rostering rule", () => {
     };
     expect(answer.allowed).toBe(false);
     expect(answer.overridable).toBe(false);
-    expect(answer.blockers.map((b) => b.key)).toContain("right_to_work");
+    expect(answer.blockers.map((b) => b.key)).toContain("right_to_work:none");
     const overridden = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
       method: "POST",
       body: {
         workerId: CARER,
         version: shift.version,
-        override: { justification: "Covering sickness at short notice" },
+        override: {
+          justification: "Covering sickness at short notice",
+          blockerKeys: ["dbs:no_certificate"],
+        },
       },
     });
     expect(overridden.status).toBe(422);
@@ -330,27 +335,58 @@ describe("hazard HZ-124 assigning applies the rostering rule", () => {
     expect(((await plain.json()) as { code: string }).code).toBe("not_eligible");
     const tick = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
       method: "POST",
-      body: { workerId: CARER, version: shift.version, override: { justification: "ok" } },
+      body: {
+        workerId: CARER,
+        version: shift.version,
+        override: {
+          justification: "ok",
+          blockerKeys: ["competence:medicines_administration:missing"],
+        },
+      },
     });
     expect(tick.status).toBe(422);
+    const shown = (await (
+      await as("manager", `/v1/shifts/${shift.id}/eligibility?workerId=${CARER}`)
+    ).json()) as { blockers: { key: string }[] };
+    expect(shown.blockers.map((b) => b.key)).toEqual([
+      "competence:medicines_administration:missing",
+    ]);
+    const wrong = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
+      method: "POST",
+      body: {
+        workerId: CARER,
+        version: shift.version,
+        override: {
+          justification: "Nurse in charge gives medicines; carer assists only",
+          blockerKeys: ["registration"],
+        },
+      },
+    });
+    expect(wrong.status).toBe(409);
+    expect(((await wrong.json()) as { code: string }).code).toBe("blockers_changed");
     const overridden = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
       method: "POST",
       body: {
         workerId: CARER,
         version: shift.version,
-        override: { justification: "Nurse in charge gives medicines; carer assists only" },
+        override: {
+          justification: "Nurse in charge gives medicines; carer assists only",
+          blockerKeys: shown.blockers.map((b) => b.key),
+        },
       },
     });
     expect(overridden.status).toBe(201);
     const result = (await overridden.json()) as { shift: Shift };
-    expect(result.shift.assignment?.overridden).toEqual(["competence:medicines_administration"]);
+    expect(result.shift.assignment?.overridden).toEqual([
+      "competence:medicines_administration:missing",
+    ]);
     const rows = await sql<{ justification: string; created_by: string }>(
       "SELECT justification, created_by FROM roster_override",
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.created_by).toBe(MANAGER);
     const audit = await sql<{ detail: string }>(
-      "SELECT row_to_json(a)::text AS detail FROM audit_event a WHERE action = 'scheduling.roster_override.given'",
+      "SELECT row_to_json(a)::text AS detail FROM audit_event a WHERE action = 'scheduling.roster_override.given' AND reason IS NULL",
     );
     expect(audit).toHaveLength(1);
     expect(audit[0]?.detail).not.toContain("Nurse in charge");
@@ -363,7 +399,10 @@ describe("hazard HZ-124 assigning applies the rostering rule", () => {
       body: {
         workerId: NURSE,
         version: shift.version,
-        override: { justification: "Covering sickness at short notice" },
+        override: {
+          justification: "Covering sickness at short notice",
+          blockerKeys: ["registration"],
+        },
       },
     });
     expect(response.status).toBe(403);
@@ -376,11 +415,101 @@ describe("hazard HZ-124 assigning applies the rostering rule", () => {
       body: {
         workerId: MANAGER,
         version: shift.version,
-        override: { justification: "Covering sickness at short notice" },
+        override: {
+          justification: "Covering sickness at short notice",
+          blockerKeys: ["registration"],
+        },
       },
     });
     expect(response.status).toBe(403);
     expect(((await response.json()) as { code: string }).code).toBe("separation_of_duties");
+  });
+
+  it("hazard HZ-124 refuses a suspended member, and no override covers it", async () => {
+    await sql("UPDATE tenant_user SET status = 'suspended' WHERE id = $1", [CARER]);
+    try {
+      const shift = (await getRota(rotaId)).shifts.find(
+        (s) => s.label === "Day" && s.assignment === null,
+      ) as Shift;
+      const response = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
+        method: "POST",
+        body: {
+          workerId: CARER,
+          version: shift.version,
+          override: {
+            justification: "Covering sickness at short notice",
+            blockerKeys: ["not_active"],
+          },
+        },
+      });
+      expect(response.status).toBe(422);
+      expect(((await response.json()) as { code: string }).code).toBe("not_active");
+    } finally {
+      await sql("UPDATE tenant_user SET status = 'active' WHERE id = $1", [CARER]);
+    }
+  });
+
+  it("does not answer for a member who does not work at the location", async () => {
+    const [member] = await sql<{ id: string }>(
+      `INSERT INTO tenant_user (display_name, email, status)
+       VALUES ('Lou Lodge', 'lou.lodge@example.invalid', 'active') RETURNING id`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'care_worker' LIMIT 1`,
+      [member?.id, LODGE.locationId],
+    );
+    const shift = (await getRota(rotaId)).shifts[0] as Shift;
+    const response = await as(
+      "manager",
+      `/v1/shifts/${shift.id}/eligibility?workerId=${member?.id}`,
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("hazard HZ-124 checks a night shift on the date it ends too (a right to work expiring overnight)", async () => {
+    const owner = await staffFile(OWNER);
+    await sql(
+      `UPDATE compliance_item SET detail = $2 WHERE staff_profile_id = $1 AND kind = 'right_to_work'`,
+      [
+        owner,
+        JSON.stringify({
+          kind: "right_to_work",
+          checks: [
+            {
+              checkedOn: "2025-01-02",
+              permission: "time_limited",
+              expiresOn: inDays(14),
+              method: "online_share_code",
+            },
+          ],
+        }),
+      ],
+    );
+    const added = await as("manager", `/v1/rotas/${rotaId}/shifts`, {
+      method: "POST",
+      body: {
+        date: inDays(14),
+        label: "Night",
+        kind: "work",
+        startMinute: 1200,
+        endMinute: 480,
+        breakMinutes: 30,
+      },
+    });
+    expect(added.status).toBe(201);
+    const night = ((await added.json()) as Rota).shifts.find((s) => s.label === "Night") as Shift;
+    const answer = (await (
+      await as("manager", `/v1/shifts/${night.id}/eligibility?workerId=${OWNER}`)
+    ).json()) as { allowed: boolean; overridable: boolean; blockers: { key: string }[] };
+    expect(answer.allowed).toBe(false);
+    expect(answer.overridable).toBe(false);
+    expect(answer.blockers.map((b) => b.key)).toEqual(["right_to_work:lapsed"]);
+    const cancelled = await as("manager", `/v1/shifts/${night.id}/cancel`, {
+      method: "POST",
+      body: { version: night.version, reason: "Added for a test of the rule" },
+    });
+    expect(cancelled.status).toBe(200);
   });
 
   it("says when the working time check cannot run", async () => {
@@ -478,12 +607,44 @@ describe("hazard HZ-123 publishing needs the check the publisher saw", () => {
     const seen = await check(rotaId);
     const unacknowledged = await as("manager", `/v1/rotas/${rotaId}/publish`, {
       method: "POST",
-      body: { version: rota.version, digest: seen.digest },
+      body: {
+        version: rota.version,
+        digest: seen.digest,
+        acknowledgedPeriods: seen.periodsToAcknowledge,
+      },
     });
     expect(unacknowledged.status).toBe(422);
+    expect(seen.periodsToAcknowledge.length).toBeGreaterThan(0);
     expect(((await unacknowledged.json()) as { code: string }).code).toBe(
       "warnings_not_acknowledged",
     );
+  });
+
+  it("hazard HZ-123 refuses periods short of the scale not acknowledged by name", async () => {
+    const rota = await getRota(rotaId);
+    const seen = await check(rotaId);
+    const response = await as("manager", `/v1/rotas/${rotaId}/publish`, {
+      method: "POST",
+      body: { version: rota.version, digest: seen.digest, acknowledgeWarnings: true },
+    });
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { code: string }).code).toBe("periods_not_acknowledged");
+  });
+
+  it("hazard HZ-123 refuses a publisher who did not read the check themselves", async () => {
+    const rota = await getRota(rotaId);
+    const seen = await check(rotaId);
+    const response = await as("owner", `/v1/rotas/${rotaId}/publish`, {
+      method: "POST",
+      body: {
+        version: rota.version,
+        digest: seen.digest,
+        acknowledgeWarnings: true,
+        acknowledgedPeriods: seen.periodsToAcknowledge,
+      },
+    });
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { code: string }).code).toBe("check_not_seen");
   });
 
   it("hazard HZ-123 publishes with the warnings acknowledged and records the notice", async () => {
@@ -491,7 +652,12 @@ describe("hazard HZ-123 publishing needs the check the publisher saw", () => {
     const seen = await check(rotaId);
     const response = await as("manager", `/v1/rotas/${rotaId}/publish`, {
       method: "POST",
-      body: { version: rota.version, digest: seen.digest, acknowledgeWarnings: true },
+      body: {
+        version: rota.version,
+        digest: seen.digest,
+        acknowledgeWarnings: true,
+        acknowledgedPeriods: seen.periodsToAcknowledge,
+      },
     });
     expect(response.status).toBe(200);
     const published = (await response.json()) as Rota;
@@ -526,6 +692,7 @@ describe("hazard HZ-123 publishing needs the check the publisher saw", () => {
       [shift.id],
     );
     expect(row?.changed).toBe(true);
+    expect((await getRota(rotaId)).changedSincePublished).toBe(true);
   });
 
   it("hazard HZ-124 refuses publishing when a right to work has lapsed since assigning", async () => {
@@ -540,7 +707,12 @@ describe("hazard HZ-123 publishing needs the check the publisher saw", () => {
     const rota = await getRota(rotaId);
     const response = await as("manager", `/v1/rotas/${rotaId}/publish`, {
       method: "POST",
-      body: { version: rota.version, digest: result.digest, acknowledgeWarnings: true },
+      body: {
+        version: rota.version,
+        digest: result.digest,
+        acknowledgeWarnings: true,
+        acknowledgedPeriods: result.periodsToAcknowledge,
+      },
     });
     expect(response.status).toBe(422);
     expect(((await response.json()) as { code: string }).code).toBe("ineligible_assignments");

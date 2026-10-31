@@ -27626,6 +27626,9 @@
           },
           "supervised": {
             "type": "boolean"
+          },
+          "countsAsCare": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -27639,7 +27642,8 @@
           "breakMinutes",
           "requiredCompetences",
           "requiredSkills",
-          "supervised"
+          "supervised",
+          "countsAsCare"
         ]
       },
       "ShiftKind": {
@@ -27697,6 +27701,10 @@
           "supervised": {
             "type": "boolean",
             "default": false
+          },
+          "countsAsCare": {
+            "type": "boolean",
+            "default": true
           }
         },
         "required": [
@@ -27877,6 +27885,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "changedSincePublished": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -27886,7 +27897,8 @@
           "startsOn",
           "endsOn",
           "state",
-          "publishedAt"
+          "publishedAt",
+          "changedSincePublished"
         ]
       },
       "RotaItem": {
@@ -27925,6 +27937,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "changedSincePublished": {
+            "type": "boolean"
           },
           "shifts": {
             "type": "array",
@@ -27981,6 +27996,7 @@
           "endsOn",
           "state",
           "publishedAt",
+          "changedSincePublished",
           "shifts",
           "publications"
         ]
@@ -28043,6 +28059,9 @@
           "supervised": {
             "type": "boolean"
           },
+          "countsAsCare": {
+            "type": "boolean"
+          },
           "publishedAt": {
             "type": [
               "string",
@@ -28075,6 +28094,7 @@
           "requiredCompetences",
           "requiredSkills",
           "supervised",
+          "countsAsCare",
           "publishedAt",
           "changedAfterPublishAt",
           "assignment"
@@ -28247,6 +28267,10 @@
               "supervised": {
                 "type": "boolean",
                 "default": false
+              },
+              "countsAsCare": {
+                "type": "boolean",
+                "default": true
               }
             },
             "required": [
@@ -28328,7 +28352,8 @@
               "dbs_supervised_only",
               "right_to_work",
               "registration",
-              "competence"
+              "competence",
+              "not_active"
             ]
           },
           "competence": {
@@ -28479,10 +28504,20 @@
                 "type": "string",
                 "minLength": 10,
                 "maxLength": 1000
+              },
+              "blockerKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "minItems": 1,
+                "maxItems": 20
               }
             },
             "required": [
-              "justification"
+              "justification",
+              "blockerKeys"
             ]
           }
         },
@@ -28594,6 +28629,12 @@
           "hasWarnings": {
             "type": "boolean"
           },
+          "periodsToAcknowledge": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "blockedAssignmentIds": {
             "type": "array",
             "items": {
@@ -28628,6 +28669,7 @@
           "eligibility",
           "openShiftIds",
           "hasWarnings",
+          "periodsToAcknowledge",
           "blockedAssignmentIds",
           "firstShiftStart",
           "noticeMinutes",
@@ -28826,6 +28868,15 @@
           "acknowledgeWarnings": {
             "type": "boolean",
             "default": false
+          },
+          "acknowledgedPeriods": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "maxItems": 500,
+            "default": []
           }
         },
         "required": [

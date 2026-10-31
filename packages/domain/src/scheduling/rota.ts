@@ -192,6 +192,11 @@ export interface RosteredShift {
   readonly start: Date;
   readonly end: Date;
   readonly breakMinutes: number;
+  /**
+   * The organisation counts this shift as care on the floor (a care shift, not housekeeping, the
+   * kitchen, the office or a supernumerary manager; clinical safety review round 1, C2).
+   */
+  readonly countsAsCare: boolean;
   /** The assigned worker, or null for an open shift. */
   readonly workerId: string | null;
   /** The skills the assigned worker holds on the shift's day, from the workforce port. */
@@ -201,16 +206,50 @@ export interface RosteredShift {
 export interface StaffingProvidedWithMethod extends StaffingProvided {
   /** Assigned care shifts that overlap the period. */
   readonly shiftIds: readonly string[];
-  /** Open shifts that overlap the period: not counted. */
+  /** Open care shifts that overlap the period: not counted. */
   readonly openShiftIds: readonly string[];
+  /** Assigned shifts in the period the organisation does not count as care. */
+  readonly notCareShiftIds: readonly string[];
   readonly method: readonly string[];
 }
 
 /**
- * What the rota gives on one dependency period: the care minutes of assigned `work` shifts inside
- * the period, less each shift's planned break in proportion to the part inside, and the number of
- * distinct assigned workers on those shifts who hold each skill. Open shifts, sleep-ins and on-call
- * give nothing (they are listed). No figure is rounded; the comparison formats it.
+ * The fewest distinct holders present at any moment of the window (0 when any moment has none):
+ * a skill minimum is met only if it is met throughout, so a 15-minute handover overlap or two
+ * holders one after the other never count as two (clinical safety review round 1, C1).
+ */
+export function fewestPresent(
+  spans: readonly { readonly start: Date; readonly end: Date; readonly holder: string }[],
+  window: Span,
+): number {
+  const inside = spans
+    .map((s) => ({ part: clip(s, window), holder: s.holder }))
+    .filter((s): s is { part: Span; holder: string } => s.part !== null);
+  const cuts = new Set<number>([window.start.getTime(), window.end.getTime()]);
+  for (const s of inside) {
+    cuts.add(s.part.start.getTime());
+    cuts.add(s.part.end.getTime());
+  }
+  const points = [...cuts].sort((x, y) => x - y);
+  let fewest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i + 1 < points.length; i++) {
+    const at = points[i] as number;
+    const present = new Set(
+      inside
+        .filter((s) => s.part.start.getTime() <= at && s.part.end.getTime() > at)
+        .map((s) => s.holder),
+    );
+    fewest = Math.min(fewest, present.size);
+  }
+  return Number.isFinite(fewest) ? fewest : 0;
+}
+
+/**
+ * What the rota gives on one dependency period: the care minutes of assigned `work` shifts the
+ * organisation counts as care, inside the period, less each shift's planned break in proportion to
+ * the part inside; and for each skill the fewest assigned holders on those shifts present at any
+ * moment of the period. Open shifts, shifts not counted as care, sleep-ins and on-call give nothing
+ * (they are listed). No figure is rounded; the comparison formats it.
  */
 export function staffingProvided(
   shifts: readonly RosteredShift[],
@@ -219,11 +258,16 @@ export function staffingProvided(
   let careMinutes = 0;
   const shiftIds: string[] = [];
   const openShiftIds: string[] = [];
-  const holders = new Map<StaffingSkill, Set<string>>();
+  const notCareShiftIds: string[] = [];
+  const holderSpans = new Map<StaffingSkill, { start: Date; end: Date; holder: string }[]>();
   for (const shift of shifts) {
     if (!CARE_SHIFT_KINDS.has(shift.kind)) continue;
     const inside = clip({ start: shift.start, end: shift.end }, window);
     if (!inside) continue;
+    if (!shift.countsAsCare) {
+      if (shift.workerId !== null) notCareShiftIds.push(shift.id);
+      continue;
+    }
     if (shift.workerId === null) {
       openShiftIds.push(shift.id);
       continue;
@@ -233,19 +277,21 @@ export function staffingProvided(
     careMinutes += length > 0 ? part - (shift.breakMinutes * part) / length : 0;
     shiftIds.push(shift.id);
     for (const skill of shift.workerSkills) {
-      const set = holders.get(skill) ?? new Set<string>();
-      set.add(shift.workerId);
-      holders.set(skill, set);
+      const list = holderSpans.get(skill) ?? [];
+      list.push({ start: shift.start, end: shift.end, holder: shift.workerId });
+      holderSpans.set(skill, list);
     }
   }
   const staffWithSkill: Partial<Record<StaffingSkill, number>> = {};
-  for (const skill of STAFFING_SKILLS) staffWithSkill[skill] = holders.get(skill)?.size ?? 0;
+  for (const skill of STAFFING_SKILLS) {
+    staffWithSkill[skill] = fewestPresent(holderSpans.get(skill) ?? [], window);
+  }
   const method = [
-    "The rota's care minutes are the assigned day-to-day shifts inside the period, less each shift's planned break in proportion to the part inside it.",
-    "Sleep-ins, on-call and training are not counted as care. Open shifts are not counted until someone is assigned.",
-    "A member counts for a skill when the workforce records show they hold it on the day.",
+    "The rota's care minutes are the assigned care shifts inside the period, less each shift's planned break in proportion to the part inside it.",
+    "Shifts your organisation does not count as care, sleep-ins, on-call and training are not counted. Open shifts are not counted until someone is assigned.",
+    "Staff with a skill are the fewest holders on shift at any moment of the period, so a skill is met only if it is covered throughout. A member counts for a skill when the workforce records show they hold it on the day.",
   ];
-  return { careMinutes, staffWithSkill, shiftIds, openShiftIds, method };
+  return { careMinutes, staffWithSkill, shiftIds, openShiftIds, notCareShiftIds, method };
 }
 
 // ---------------------------------------------------------------------------------------------

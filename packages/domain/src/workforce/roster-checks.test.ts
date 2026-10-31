@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { resolveWorkforceRates } from "./rates";
-import { blockerKey, overrideCovers, rosterChecks } from "./roster-checks";
+import {
+  blockerKey,
+  combinedRosterDecision,
+  type Membership,
+  memberActiveOn,
+  overrideCovers,
+  rosterChecks,
+  sameBlockers,
+} from "./roster-checks";
 import { type RosterBlocker, rosterDecision } from "./rostering";
 import type { ComplianceDetail, StaffProfileFacts, StoredComplianceItem } from "./staff-file";
 
@@ -16,6 +24,7 @@ const carer: StaffProfileFacts = {
   startsOn: "2026-09-01",
 };
 const nurse: StaffProfileFacts = { ...carer, registration: "nmc" };
+const ACTIVE: Membership = { status: "active", leftOn: null, startsOn: "2026-09-01" };
 
 const item = (
   detail: ComplianceDetail,
@@ -119,14 +128,14 @@ describe("hazard HZ-124 the rota reads the staff file's checks for the shift's d
       false,
     ],
   ] as const)("hazard HZ-124 %s", (_, profile, items, dbsKind, rtwKind, registered) => {
-    const checks = rosterChecks(profile, items, DAY, rates);
+    const checks = rosterChecks(profile, items, DAY, rates, ACTIVE);
     expect(checks.dbs.kind).toBe(dbsKind);
     expect(checks.rightToWork.kind).toBe(rtwKind);
     expect(checks.registrationCurrent).toBe(registered);
   });
 
   it("hazard HZ-124 a rota with no staff file blocks and cannot be overridden", () => {
-    const checks = rosterChecks(null, [], DAY, rates);
+    const checks = rosterChecks(null, [], DAY, rates, ACTIVE);
     const decision = rosterDecision(
       { ...checks, competences: [], shiftSupervised: false },
       { justification: "Covering sickness tonight", byTenantUserId: HR },
@@ -181,7 +190,116 @@ describe("hazard HZ-124 an override covers only what it overrode", () => {
   });
 
   it("keys a competence blocker by its competence", () => {
-    expect(blockerKey(competence)).toBe("competence:moving_and_handling_hoist");
-    expect(blockerKey(dbsBlock)).toBe("dbs");
+    expect(blockerKey(competence)).toBe("competence:moving_and_handling_hoist:expired");
+    expect(blockerKey(dbsBlock)).toBe("dbs:no_certificate");
+  });
+});
+
+describe("hazard HZ-124 a member not working for the organisation on the day is never rostered", () => {
+  it.each([
+    ["active", ACTIVE, true],
+    ["suspended", { ...ACTIVE, status: "suspended" }, false],
+    ["left", { ...ACTIVE, status: "left" }, false],
+    ["only invited", { ...ACTIVE, status: "invited" }, false],
+    ["leaving after the day", { ...ACTIVE, leftOn: DAY }, true],
+    ["left before the day", { ...ACTIVE, leftOn: "2026-11-01" }, false],
+    ["starting after the day", { ...ACTIVE, startsOn: "2026-11-03" }, false],
+  ] as const)("hazard HZ-124 %s", (_, membership, active) => {
+    expect(memberActiveOn(membership, DAY)).toBe(active);
+  });
+
+  it("hazard HZ-124 refuses any override for a suspended member", () => {
+    const checks = rosterChecks(carer, [item(dbs), item(rtw(null))], DAY, rates, {
+      ...ACTIVE,
+      status: "suspended",
+    });
+    const decision = rosterDecision(
+      { ...checks, competences: [], shiftSupervised: false },
+      { justification: "Covering sickness tonight", byTenantUserId: HR },
+    );
+    expect(decision).toMatchObject({ allowed: false, overrideRefused: "not_active" });
+  });
+});
+
+describe("hazard HZ-124 the newest DBS decides, and new information always blocks", () => {
+  const older = item(dbs);
+  const newer = (result: "clear" | "information_disclosed", issued = "2026-10-01") =>
+    item({
+      ...dbs,
+      certificate: {
+        level: "enhanced_adults_barred",
+        issuedOn: issued,
+        number: "009999999998",
+        result,
+      },
+    } as ComplianceDetail);
+
+  it("hazard HZ-124 an older clear certificate does not clear a newer unassessed disclosure", () => {
+    const checks = rosterChecks(carer, [older, newer("information_disclosed")], DAY, rates, ACTIVE);
+    expect(checks.dbs).toEqual({ kind: "not_clear", reason: "disclosure_not_assessed" });
+  });
+
+  it("hazard HZ-124 new information from the Update Service on any certificate blocks", () => {
+    const flagged = item({
+      ...dbs,
+      updateService: {
+        subscribed: true,
+        lastCheckedOn: "2026-10-30",
+        lastResult: "new_information",
+      },
+    } as ComplianceDetail);
+    const checks = rosterChecks(carer, [flagged, newer("clear")], DAY, rates, ACTIVE);
+    expect(checks.dbs).toEqual({ kind: "not_clear", reason: "update_service_new_information" });
+  });
+
+  it("hazard HZ-124 a registration on another register does not count", () => {
+    const hcpc = item({ ...registration("2027-03-31"), body: "hcpc" } as ComplianceDetail);
+    const checks = rosterChecks(nurse, [item(dbs), item(rtw(null)), hcpc], DAY, rates, ACTIVE);
+    expect(checks.registrationCurrent).toBe(false);
+  });
+
+  it("compares blocker lists in any order", () => {
+    expect(sameBlockers(["a", "b"], ["b", "a"])).toBe(true);
+    expect(sameBlockers(["a"], ["a", "b"])).toBe(false);
+  });
+});
+
+describe("hazard HZ-124 one decision across the dates a shift touches", () => {
+  const rtwLapsed: RosterBlocker = { kind: "right_to_work", reason: "lapsed" };
+  const comp: RosterBlocker = {
+    kind: "competence",
+    competence: "catheter_care",
+    reason: "expired",
+  };
+  const ok = { justification: "Covering sickness tonight", blockerKeys: [blockerKey(comp)] };
+  it.each([
+    ["nothing on either date", [[], []], null, { allowed: true }],
+    [
+      "a right to work lapsing overnight",
+      [[], [rtwLapsed]],
+      null,
+      { allowed: false, overridable: false },
+    ],
+    [
+      "a right to work lapsing overnight, overridden",
+      [[], [rtwLapsed]],
+      ok,
+      { overrideRefused: "right_to_work" },
+    ],
+    ["the blocker shown, overridden", [[comp], [comp]], ok, { allowed: true }],
+    [
+      "a blocker not shown when overriding",
+      [[comp], [{ kind: "registration" } as RosterBlocker]],
+      ok,
+      { overrideRefused: "blockers_changed" },
+    ],
+    [
+      "a short justification",
+      [[comp]],
+      { ...ok, justification: "ok" },
+      { overrideRefused: "justification_required" },
+    ],
+  ] as const)("hazard HZ-124 %s", (_, perDay, override, expected) => {
+    expect(combinedRosterDecision(perDay, override, 10)).toMatchObject(expected);
   });
 });

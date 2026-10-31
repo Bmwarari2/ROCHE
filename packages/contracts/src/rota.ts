@@ -36,6 +36,8 @@ const ShiftShapeFields = {
   requiredCompetences: z.array(Competence).max(8).default([]),
   requiredSkills: z.array(StaffingSkill).max(4).default([]),
   supervised: z.boolean().default(false),
+  /** The organisation counts it as care on the floor (false for housekeeping, kitchen, office). */
+  countsAsCare: z.boolean().default(true),
 };
 
 export const CreateShiftTemplate = z
@@ -55,6 +57,7 @@ export const ShiftTemplateItem = z
     requiredCompetences: z.array(z.string()),
     requiredSkills: z.array(StaffingSkill),
     supervised: z.boolean(),
+    countsAsCare: z.boolean(),
   })
   .meta({ id: "ShiftTemplateItem" });
 
@@ -137,6 +140,7 @@ export const ShiftItem = z
     requiredCompetences: z.array(z.string()),
     requiredSkills: z.array(StaffingSkill),
     supervised: z.boolean(),
+    countsAsCare: z.boolean(),
     publishedAt: isoDateTime.nullable(),
     changedAfterPublishAt: isoDateTime.nullable(),
     /** Null: an open shift. */
@@ -153,6 +157,8 @@ export const RotaItem = z
     endsOn: isoDate,
     state: z.enum(["draft", "published"]),
     publishedAt: isoDateTime.nullable(),
+    /** A shift was added, cancelled or changed hands since the last publication: check and publish again. */
+    changedSincePublished: z.boolean(),
     shifts: z.array(ShiftItem),
     publications: z.array(
       z.object({
@@ -187,9 +193,19 @@ export const CancelShift = z.object({ version, reason }).meta({ id: "CancelShift
 
 export const RosterBlockerItem = z
   .object({
-    /** `dbs`, `dbs_supervised_only`, `right_to_work`, `registration` or `competence:<name>`. */
+    /**
+     * `dbs:<reason>`, `dbs_supervised_only`, `right_to_work:<reason>`, `registration`,
+     * `competence:<name>:<reason>` or `not_active`; an override names the keys it was shown.
+     */
     key: z.string(),
-    kind: z.enum(["dbs", "dbs_supervised_only", "right_to_work", "registration", "competence"]),
+    kind: z.enum([
+      "dbs",
+      "dbs_supervised_only",
+      "right_to_work",
+      "registration",
+      "competence",
+      "not_active",
+    ]),
     competence: z.string().nullable(),
     /** In words; never what a DBS certificate disclosed. */
     message: z.string(),
@@ -214,7 +230,13 @@ export const AssignShift = z
     /** The shift's version, so a changed shift is not assigned blind. */
     version,
     /** A manager's override of the rostering rule (scheduling.rota.approve), with why. */
-    override: z.object({ justification: z.string().trim().min(10).max(1000) }).optional(),
+    override: z
+      .object({
+        justification: z.string().trim().min(10).max(1000),
+        /** The blocker keys the manager was shown; refused (409) if they have changed since. */
+        blockerKeys: z.array(z.string().max(80)).min(1).max(20),
+      })
+      .optional(),
   })
   .meta({ id: "AssignShift" });
 
@@ -310,6 +332,11 @@ export const RotaCheck = z
     openShiftIds: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
+    /**
+     * Periods whose comparison is `below`, `incomplete` or `no_scale`, as `date:periodKey` (or `date`
+     * with no period): each must be acknowledged by name when publishing.
+     */
+    periodsToAcknowledge: z.array(z.string()),
     /** Assignments the rostering rule blocks with no override covering them: publishing is refused. */
     blockedAssignmentIds: z.array(uuid),
     firstShiftStart: isoDateTime.nullable(),
@@ -324,6 +351,8 @@ export const PublishRota = z
     digest: z.string().min(1).max(128),
     /** Required when the check has warnings: the publisher has read them (HZ-123). */
     acknowledgeWarnings: z.boolean().default(false),
+    /** Every entry of the check's `periodsToAcknowledge`, by name. */
+    acknowledgedPeriods: z.array(z.string().max(60)).max(500).default([]),
   })
   .meta({ id: "PublishRota" });
 

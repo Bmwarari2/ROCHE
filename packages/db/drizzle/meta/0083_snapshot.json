@@ -1,5 +1,5 @@
 {
-  "id": "aa3001d0-571e-4cd2-b9f7-6aa96566dddd",
+  "id": "2e811c81-44e9-4e60-95c0-e90453bf927e",
   "prevId": "db121a31-84e8-49b7-9ec9-ab1276062a5c",
   "version": "7",
   "dialect": "postgresql",
@@ -23171,7 +23171,7 @@
       "checkConstraints": {
         "roster_override_blockers": {
           "name": "roster_override_blockers",
-          "value": "cardinality(blocker_keys) >= 1 AND NOT ('right_to_work' = ANY (blocker_keys))"
+          "value": "cardinality(blocker_keys) >= 1 AND array_to_string(blocker_keys, ' ') ~ '^((dbs:[a-z_]+|dbs_supervised_only|registration|competence:[a-z_]+:[a-z_]+)( |$))+$'"
         },
         "roster_override_justification": {
           "name": "roster_override_justification",
@@ -23629,6 +23629,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "counts_as_care": {
+          "name": "counts_as_care",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "published_at": {
           "name": "published_at",
@@ -24205,6 +24212,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "counts_as_care": {
+          "name": "counts_as_care",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "created_at": {
           "name": "created_at",

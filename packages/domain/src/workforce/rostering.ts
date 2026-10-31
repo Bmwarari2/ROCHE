@@ -17,7 +17,9 @@ export type RosterBlocker =
   | { readonly kind: "dbs_supervised_only" }
   | { readonly kind: "right_to_work"; readonly reason: RightToWorkStatus["kind"] }
   | { readonly kind: "registration" }
-  | { readonly kind: "competence"; readonly competence: string; readonly reason: string };
+  | { readonly kind: "competence"; readonly competence: string; readonly reason: string }
+  /** Not working for the organisation on the day (suspended, left, not started): never overridden. */
+  | { readonly kind: "not_active" };
 
 export interface RosterInput {
   readonly dbs: DbsClearance;
@@ -31,6 +33,8 @@ export interface RosterInput {
     readonly gate: CompetenceDecision | CompetenceGate;
   }[];
   readonly shiftSupervised: boolean;
+  /** False when the member is not active in the organisation on the day; absent means active. */
+  readonly memberActive?: boolean;
 }
 
 export interface Override {
@@ -45,7 +49,7 @@ export type RosterDecision =
       readonly blockers: readonly RosterBlocker[];
       /** Whether a manager may override these blockers (never with a right to work blocker). */
       readonly overridable: boolean;
-      readonly overrideRefused?: "justification_required" | "right_to_work";
+      readonly overrideRefused?: "justification_required" | "right_to_work" | "not_active";
     };
 
 /** The shortest justification that counts: a short sentence, not a tick (a product rule). */
@@ -53,6 +57,7 @@ export const MIN_OVERRIDE_JUSTIFICATION = 10;
 
 export function rosterBlockers(input: RosterInput): readonly RosterBlocker[] {
   const blockers: RosterBlocker[] = [];
+  if (input.memberActive === false) blockers.push({ kind: "not_active" });
   if (input.dbs.kind === "not_clear") blockers.push({ kind: "dbs", reason: input.dbs.reason });
   if (input.dbs.kind === "supervised_only" && !input.shiftSupervised) {
     blockers.push({ kind: "dbs_supervised_only" });
@@ -73,10 +78,13 @@ export function rosterDecision(
 ): RosterDecision {
   const blockers = rosterBlockers(input);
   if (blockers.length === 0) return { allowed: true, overridden: [] };
-  const overridable = !blockers.some((b) => b.kind === "right_to_work");
+  const overridable = !blockers.some((b) => b.kind === "right_to_work" || b.kind === "not_active");
   if (!override) return { allowed: false, blockers, overridable };
   if (!overridable) {
-    return { allowed: false, blockers, overridable, overrideRefused: "right_to_work" };
+    const refused = blockers.some((b) => b.kind === "right_to_work")
+      ? "right_to_work"
+      : "not_active";
+    return { allowed: false, blockers, overridable, overrideRefused: refused };
   }
   if (override.justification.trim().length < MIN_OVERRIDE_JUSTIFICATION) {
     return { allowed: false, blockers, overridable, overrideRefused: "justification_required" };

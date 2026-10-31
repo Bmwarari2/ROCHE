@@ -8,7 +8,7 @@ CREATE TABLE "roster_override" (
 	"justification" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
-	CONSTRAINT "roster_override_blockers" CHECK (cardinality(blocker_keys) >= 1 AND NOT ('right_to_work' = ANY (blocker_keys))),
+	CONSTRAINT "roster_override_blockers" CHECK (cardinality(blocker_keys) >= 1 AND array_to_string(blocker_keys, ' ') ~ '^((dbs:[a-z_]+|dbs_supervised_only|registration|competence:[a-z_]+:[a-z_]+)( |$))+$'),
 	CONSTRAINT "roster_override_justification" CHECK (char_length(btrim(justification)) BETWEEN 10 AND 1000)
 );
 --> statement-breakpoint
@@ -68,6 +68,7 @@ CREATE TABLE "shift" (
 	"required_competences" text[] DEFAULT '{}' NOT NULL,
 	"required_skills" text[] DEFAULT '{}' NOT NULL,
 	"supervised" boolean DEFAULT false NOT NULL,
+	"counts_as_care" boolean DEFAULT true NOT NULL,
 	"published_at" timestamp with time zone,
 	"changed_after_publish_at" timestamp with time zone,
 	"cancel_reason" text,
@@ -133,6 +134,7 @@ CREATE TABLE "shift_template" (
 	"required_competences" text[] DEFAULT '{}' NOT NULL,
 	"required_skills" text[] DEFAULT '{}' NOT NULL,
 	"supervised" boolean DEFAULT false NOT NULL,
+	"counts_as_care" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -298,6 +300,9 @@ BEGIN
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF TG_TABLE_NAME = 'rota' THEN
+    -- Two rotas started at once for one location are taken one after the other (security review
+    -- round 1, L1), so the overlap check below sees the first.
+    PERFORM pg_advisory_xact_lock(hashtextextended('rota:' || NEW.tenant_id::text || NEW.location_id::text, 0));
     IF NEW.deleted_at IS NULL AND EXISTS (
       SELECT 1 FROM public.rota r
       WHERE r.tenant_id = NEW.tenant_id AND r.location_id = NEW.location_id AND r.id <> NEW.id
@@ -372,6 +377,9 @@ BEGIN
   IF NEW.deleted_at IS NOT NULL THEN
     RETURN NEW;
   END IF;
+  -- One member's assignments are written one after the other, the API taking the same lock before
+  -- it checks every location with the system's rights (security review round 1, M1).
+  PERFORM pg_advisory_xact_lock(hashtextextended('worker:' || NEW.tenant_id::text || NEW.worker_id::text, 0));
   SELECT * INTO v_shift FROM public.shift s WHERE s.tenant_id = NEW.tenant_id AND s.id = NEW.shift_id;
   IF NOT FOUND OR v_shift.deleted_at IS NOT NULL OR v_shift.location_id <> NEW.location_id THEN
     RAISE EXCEPTION 'An assignment is to a live shift at its location'
@@ -393,14 +401,18 @@ CREATE TRIGGER shift_assignment_guard BEFORE INSERT OR UPDATE ON public.shift_as
   FOR EACH ROW EXECUTE FUNCTION app.shift_assignment_guard();
 --> statement-breakpoint
 
--- HZ-124: an override is for a live assignment, at its location, about its worker.
+-- HZ-124: an override is for a live assignment, at its location, about its worker, given when the
+-- assignment is made (an override added later to an existing assignment is refused; clinical safety
+-- review round 1, L4). Keys name each blocker with its reason; never a right to work or a member
+-- who is not active (the table's check lists the keys allowed).
 CREATE OR REPLACE FUNCTION app.roster_override_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.shift_assignment a
     WHERE a.tenant_id = NEW.tenant_id AND a.id = NEW.assignment_id AND a.deleted_at IS NULL
-      AND a.location_id = NEW.location_id AND a.worker_id = NEW.worker_id) THEN
+      AND a.location_id = NEW.location_id AND a.worker_id = NEW.worker_id
+      AND a.created_at = now()) THEN
     RAISE EXCEPTION 'An override is for a live assignment of its worker at its location'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;

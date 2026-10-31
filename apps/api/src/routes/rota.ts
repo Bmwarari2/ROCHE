@@ -49,7 +49,7 @@ import {
   ukStartOfDay,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -170,6 +170,7 @@ function templateItem(t: typeof shiftTemplate.$inferSelect): z.infer<typeof Shif
     requiredCompetences: t.requiredCompetences,
     requiredSkills: t.requiredSkills as StaffingSkill[],
     supervised: t.supervised,
+    countsAsCare: t.countsAsCare,
   };
 }
 
@@ -184,7 +185,7 @@ function patternItem(p: typeof shiftPattern.$inferSelect): z.infer<typeof ShiftP
   };
 }
 
-function rotaSummary(r: RotaRow) {
+function rotaSummary(r: RotaRow, changedSincePublished = false) {
   return {
     id: r.id,
     version: r.version,
@@ -193,6 +194,7 @@ function rotaSummary(r: RotaRow) {
     endsOn: r.endsOn,
     state: r.state as "draft" | "published",
     publishedAt: iso(r.publishedAt),
+    changedSincePublished,
   };
 }
 
@@ -208,7 +210,7 @@ async function rotaItem(tx: Transaction, r: RotaRow): Promise<z.infer<typeof Rot
     .where(eq(rotaPublication.rotaId, r.id))
     .orderBy(desc(rotaPublication.publishedAt));
   return {
-    ...rotaSummary(r),
+    ...rotaSummary(r, (await rotasChangedSince(tx, [r])).has(r.id)),
     shifts: shifts.map((s) => shiftItem(s, assignmentOf(s.id), overriddenOf, names)),
     publications: publications.map((p) => ({
       id: p.id,
@@ -241,6 +243,7 @@ function shiftItem(
     requiredCompetences: s.requiredCompetences,
     requiredSkills: s.requiredSkills as StaffingSkill[],
     supervised: s.supervised,
+    countsAsCare: s.countsAsCare,
     publishedAt: iso(s.publishedAt),
     changedAfterPublishAt: iso(s.changedAfterPublishAt),
     assignment: a
@@ -264,6 +267,92 @@ function shapeProblems(shape: ShiftShape): string | null {
   return found.length === 0 ? null : found.map((p) => SHIFT_SHAPE_MESSAGES[p]).join(" ");
 }
 
+/**
+ * A published rota has changed since its last publication when a shift was added, cancelled or
+ * changed hands after it (clinical safety review round 1, H3): the rota then shows that it needs
+ * checking and publishing again. Cancelled shifts count too.
+ */
+async function rotasChangedSince(tx: Transaction, rows: readonly RotaRow[]): Promise<Set<string>> {
+  const published = rows.filter((r) => r.publishedAt);
+  if (published.length === 0) return new Set();
+  const changed = await tx
+    .select({ rotaId: shift.rotaId, at: shift.changedAfterPublishAt })
+    .from(shift)
+    .where(
+      and(
+        inArray(
+          shift.rotaId,
+          published.map((r) => r.id),
+        ),
+        isNotNull(shift.changedAfterPublishAt),
+      ),
+    );
+  return new Set(
+    changed
+      .filter((x) => {
+        const r = published.find((p) => p.id === x.rotaId);
+        return r?.publishedAt && x.at && x.at > r.publishedAt;
+      })
+      .map((x) => x.rotaId),
+  );
+}
+
+/**
+ * Locks a rota for the rest of the transaction: every change to its shifts and assignments, and
+ * publishing, take it first, so a publication publishes exactly what its check saw (security
+ * review round 1, M2).
+ */
+async function lockRota(tx: Transaction, id: string): Promise<RotaRow | null> {
+  const [row] = await tx
+    .select()
+    .from(rota)
+    .where(and(eq(rota.id, id), isNull(rota.deletedAt)))
+    .for("update");
+  return row ?? null;
+}
+
+/**
+ * Whether the member works where the shift is: a live role at the location, or across the
+ * organisation (security review round 1, M3). Anyone else reads as not found, so the rota cannot be
+ * used to look up another location's staff files. Read with the system's rights.
+ */
+async function worksAt(tx: Transaction, workerId: string, locationId: string): Promise<boolean> {
+  const rows = await withSystemRights(tx, () =>
+    tx.execute<{ ok: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM public.role_assignment ra
+        WHERE ra.tenant_user_id = ${workerId} AND ra.deleted_at IS NULL
+          AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())
+          AND (ra.location_id = ${locationId} OR ra.location_id IS NULL)) AS ok`),
+  );
+  return rows.rows[0]?.ok === true;
+}
+
+/** Takes one member's assignment lock (the database guard takes the same one; M1). */
+async function lockWorker(tx: Transaction, tenantId: string, workerId: string) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`worker:${tenantId}${workerId}`}, 0))`,
+  );
+}
+
+/** Whether this member read this check (by its digest) within the last hour. */
+async function checkSeen(
+  tx: Transaction,
+  memberId: string,
+  rotaId: string,
+  digest: string,
+): Promise<boolean> {
+  const rows = await withSystemRights(tx, () =>
+    tx.execute<{ ok: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM public.audit_event e
+        WHERE e.action = ${A.checked} AND e.actor_tenant_user_id = ${memberId}
+          AND e.resource_id = ${rotaId} AND e.scope->>'digest' = ${digest}
+          AND e.occurred_at > now() - interval '1 hour') AS ok`),
+  );
+  return rows.rows[0]?.ok === true;
+}
+
 async function loadRota(tx: Transaction, id: string): Promise<RotaRow | null> {
   const [row] = await tx
     .select()
@@ -272,17 +361,18 @@ async function loadRota(tx: Transaction, id: string): Promise<RotaRow | null> {
   return row ?? null;
 }
 
-async function loadShift(tx: Transaction, id: string): Promise<ShiftRow | null> {
-  const [row] = await tx
+async function loadShift(tx: Transaction, id: string, lock = false): Promise<ShiftRow | null> {
+  const query = tx
     .select()
     .from(shift)
     .where(and(eq(shift.id, id), isNull(shift.deletedAt)));
+  const [row] = lock ? await query.for("update") : await query;
   return row ?? null;
 }
 
-/** A change to a published shift is recorded for notice tracking, and the rota needs publishing again. */
-async function markChanged(tx: Transaction, s: ShiftRow, at: Date) {
-  if (!s.publishedAt) return;
+/** A change on a published rota is recorded for notice tracking, and the rota needs publishing again. */
+async function markChanged(tx: Transaction, s: ShiftRow, r: RotaRow, at: Date) {
+  if (!s.publishedAt && !r.publishedAt) return;
   await tx.update(shift).set({ changedAfterPublishAt: at }).where(eq(shift.id, s.id));
 }
 
@@ -612,14 +702,15 @@ export const rotaRouter = createRouter()
       const access = await requireAnyPermission(c, READERS);
       const { id } = c.req.valid("param");
       requireLocationInScope(access, id);
-      const rows = await withTenant(c, (tx) =>
-        tx
+      const { rows, changed } = await withTenant(c, async (tx) => {
+        const found = await tx
           .select()
           .from(rota)
           .where(and(eq(rota.locationId, id), isNull(rota.deletedAt)))
-          .orderBy(desc(rota.startsOn)),
-      );
-      return c.json({ items: rows.map(rotaSummary) }, 200);
+          .orderBy(desc(rota.startsOn));
+        return { rows: found, changed: await rotasChangedSince(tx, found) };
+      });
+      return c.json({ items: rows.map((r) => rotaSummary(r, changed.has(r.id))) }, 200);
     },
   )
   .openapi(
@@ -724,7 +815,7 @@ export const rotaRouter = createRouter()
         access,
         { action: A.patternApplied, resourceType: "rota", id },
         async (tx) => {
-          const row = await loadRota(tx, id);
+          const row = await lockRota(tx, id);
           if (!row) return null;
           requireLocationInScope(access, row.locationId);
           if (row.version !== body.version) throw stale();
@@ -820,7 +911,7 @@ export const rotaRouter = createRouter()
         access,
         { action: A.shiftAdded, resourceType: "rota", id },
         async (tx) => {
-          const row = await loadRota(tx, id);
+          const row = await lockRota(tx, id);
           if (!row) return null;
           requireLocationInScope(access, row.locationId);
           if (body.date < row.startsOn || body.date > row.endsOn) {
@@ -909,9 +1000,12 @@ export const rotaRouter = createRouter()
         access,
         { action: A.shiftCancelled, resourceType: "shift", id },
         async (tx) => {
-          const s = await loadShift(tx, id);
-          if (!s) return null;
-          requireLocationInScope(access, s.locationId);
+          const found = await loadShift(tx, id);
+          if (!found) return null;
+          requireLocationInScope(access, found.locationId);
+          const locked = await lockRota(tx, found.rotaId);
+          const s = await loadShift(tx, id, true);
+          if (!s || !locked) return null;
           const now = new Date();
           await tx
             .update(shiftAssignment)
@@ -922,7 +1016,7 @@ export const rotaRouter = createRouter()
             .set({
               deletedAt: now,
               cancelReason: body.reason,
-              changedAfterPublishAt: s.publishedAt ? now : null,
+              changedAfterPublishAt: s.publishedAt || locked.publishedAt ? now : null,
             })
             .where(and(eq(shift.id, id), eq(shift.version, body.version)))
             .returning();
@@ -969,6 +1063,7 @@ export const rotaRouter = createRouter()
         const s = await loadShift(tx, id);
         if (!s) return null;
         requireLocationInScope(access, s.locationId);
+        if (!(await worksAt(tx, workerId, s.locationId))) return null;
         const decision = await shiftEligibility(tx, access.tenantId, s, workerId);
         await audit(c, tx, access, {
           action: A.eligibility,
@@ -1034,19 +1129,21 @@ export const rotaRouter = createRouter()
         access,
         { action: A.assigned, resourceType: "shift", id },
         async (tx) => {
-          const s = await loadShift(tx, id);
-          if (!s) return null;
-          requireLocationInScope(access, s.locationId);
+          const found = await loadShift(tx, id);
+          if (!found) return null;
+          requireLocationInScope(access, found.locationId);
+          const locked = await lockRota(tx, found.rotaId);
+          const s = await loadShift(tx, id, true);
+          if (!s || !locked) return null;
           if (s.version !== body.version) throw stale();
+          if (!(await worksAt(tx, body.workerId, s.locationId))) return null;
           const now = new Date();
           const decision = await shiftEligibility(
             tx,
             access.tenantId,
             s,
             body.workerId,
-            body.override
-              ? { justification: body.override.justification, byTenantUserId: access.tenantUserId }
-              : null,
+            body.override ?? null,
             now,
           );
           if (!decision.allowed) {
@@ -1054,9 +1151,28 @@ export const rotaRouter = createRouter()
               .map((b) => blockerItems([b])[0]?.message)
               .filter(Boolean)
               .join(" ");
-            const code =
-              decision.overrideRefused === "right_to_work" || !decision.overridable
-                ? "right_to_work"
+            if (decision.overrideRefused === "blockers_changed") {
+              await audit(c, tx, access, {
+                action: A.overridden,
+                outcome: "denied",
+                resourceType: "shift",
+                resourceId: id,
+                reason: "blockers_changed",
+                scopeExtra: { workerId: body.workerId },
+              });
+              return {
+                refused: new HttpProblem(
+                  409,
+                  "blockers_changed",
+                  "What stops this member working the shift has changed since you looked. Check it again before overriding.",
+                  words,
+                ),
+              };
+            }
+            const code = decision.blockers.some((b) => b.kind === "right_to_work")
+              ? "right_to_work"
+              : decision.blockers.some((b) => b.kind === "not_active")
+                ? "not_active"
                 : "not_eligible";
             await audit(c, tx, access, {
               action: A.assigned,
@@ -1072,11 +1188,14 @@ export const rotaRouter = createRouter()
                 code,
                 code === "right_to_work"
                   ? "This member cannot be put on this shift: there is no right to work on record for the day. This cannot be overridden."
-                  : "This member cannot be put on this shift without a manager's override.",
+                  : code === "not_active"
+                    ? "This member is not working for your organisation on the day. This cannot be overridden."
+                    : "This member cannot be put on this shift without a manager's override.",
                 words,
               ),
             };
           }
+          await lockWorker(tx, access.tenantId, body.workerId);
           if (await doubleBooked(tx, body.workerId, s)) {
             throw stateConflict("This member is already on a shift at that time.");
           }
@@ -1085,7 +1204,7 @@ export const rotaRouter = createRouter()
             .values({ shiftId: s.id, locationId: s.locationId, workerId: body.workerId })
             .returning();
           if (!made) throw new Error("assignment not stored");
-          await markChanged(tx, s, now);
+          await markChanged(tx, s, locked, now);
           if (decision.overridden.length > 0 && body.override) {
             await tx.insert(rosterOverride).values({
               assignmentId: made.id,
@@ -1107,8 +1226,7 @@ export const rotaRouter = createRouter()
             resourceId: made.id,
             scopeExtra: { shiftId: s.id, workerId: body.workerId },
           });
-          const row = await loadRota(tx, s.rotaId);
-          if (!row) throw new Error("rota not found");
+          const row = locked;
           const { shifts, assignmentOf, overriddenOf } = await rotaShifts(tx, row.id);
           const names = await staffNames(tx, [body.workerId]);
           const current = shifts.find((x) => x.id === s.id) ?? s;
@@ -1172,6 +1290,8 @@ export const rotaRouter = createRouter()
             .where(and(eq(shiftAssignment.id, id), isNull(shiftAssignment.deletedAt)));
           if (!a) return null;
           requireLocationInScope(access, a.locationId);
+          const parent = await loadShift(tx, a.shiftId);
+          const locked = parent ? await lockRota(tx, parent.rotaId) : null;
           const now = new Date();
           const [done] = await tx
             .update(shiftAssignment)
@@ -1180,16 +1300,15 @@ export const rotaRouter = createRouter()
             .returning();
           if (!done) throw stale();
           const s = await loadShift(tx, a.shiftId);
-          if (s) await markChanged(tx, s, now);
+          if (s && locked) await markChanged(tx, s, locked, now);
           await audit(c, tx, access, {
             action: A.removed,
             resourceType: "shift_assignment",
             resourceId: id,
             scopeExtra: { shiftId: a.shiftId },
           });
-          const row = s ? await loadRota(tx, s.rotaId) : null;
-          if (!row) throw new Error("rota not found");
-          return rotaItem(tx, row);
+          if (!locked) throw new Error("rota not found");
+          return rotaItem(tx, locked);
         },
       );
       if (!item) throw problems.notFound();
@@ -1223,6 +1342,7 @@ export const rotaRouter = createRouter()
           resourceType: "rota",
           resourceId: id,
           scopeExtra: {
+            digest: result.digest,
             staffing: result.staffing.length,
             blocked: result.blockedAssignmentIds.length,
           },
@@ -1259,7 +1379,7 @@ export const rotaRouter = createRouter()
         access,
         { action: A.published, resourceType: "rota", id },
         async (tx) => {
-          const row = await loadRota(tx, id);
+          const row = await lockRota(tx, id);
           if (!row) return null;
           if (row.version !== body.version) throw stale();
           const now = new Date();
@@ -1283,6 +1403,17 @@ export const rotaRouter = createRouter()
               ),
             );
           }
+          // The publisher must have read this very check themselves, recently (clinical safety
+          // review round 1, H4): its digest is on their own `scheduling.rota.checked` audit event.
+          if (!(await checkSeen(tx, access.tenantUserId, id, check.digest))) {
+            return refuse(
+              new HttpProblem(
+                409,
+                "check_not_seen",
+                "Read the check yourself before publishing: it was read by someone else, or too long ago.",
+              ),
+            );
+          }
           if (check.blockedAssignmentIds.length > 0) {
             return refuse(
               new HttpProblem(
@@ -1290,6 +1421,19 @@ export const rotaRouter = createRouter()
                 "ineligible_assignments",
                 "Some members on this rota may not work their shifts now. Take them off, or a manager may override where the rule allows.",
                 `${check.blockedAssignmentIds.length} assignment(s) blocked.`,
+              ),
+            );
+          }
+          const missing = check.periodsToAcknowledge.filter(
+            (p) => !body.acknowledgedPeriods.includes(p),
+          );
+          if (missing.length > 0) {
+            return refuse(
+              new HttpProblem(
+                422,
+                "periods_not_acknowledged",
+                "Confirm each period that falls short of your scale, or has no figure, by name before publishing.",
+                missing.join(", "),
               ),
             );
           }
@@ -1417,7 +1561,9 @@ export const rotaRouter = createRouter()
             and(
               eq(shiftAssignment.workerId, access.tenantUserId),
               isNull(shiftAssignment.deletedAt),
+              isNotNull(shiftAssignment.publishedAt),
               isNull(shift.deletedAt),
+              isNotNull(shift.publishedAt),
               gte(shift.startsAt, ukStartOfDay(from)),
               lt(shift.startsAt, ukEndOfDay(to)),
             ),

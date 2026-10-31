@@ -11,6 +11,7 @@ import { resolveWorkingTimeRates } from "./rates";
 import {
   checkPattern,
   checkShiftShape,
+  fewestPresent,
   noticeMinutes,
   overlaps,
   patternShifts,
@@ -137,6 +138,7 @@ const shift = (over: Partial<RosteredShift>): RosteredShift => ({
   start: at("2026-11-02T08:00:00Z"),
   end: at("2026-11-02T20:00:00Z"),
   breakMinutes: 60,
+  countsAsCare: true,
   workerId: "w1",
   workerSkills: [],
   ...over,
@@ -186,7 +188,7 @@ describe("hazard HZ-123 what the rota gives on a period", () => {
     expect(provided.careMinutes).toBe(360 - 45);
   });
 
-  it("hazard HZ-123 counts a worker on two shifts once for a skill", () => {
+  it("hazard HZ-123 leaves a skill uncovered in the gap between one worker's two shifts", () => {
     const provided = staffingProvided(
       [
         shift({ id: "a", end: at("2026-11-02T12:00:00Z"), workerSkills: ["driver"] }),
@@ -194,7 +196,85 @@ describe("hazard HZ-123 what the rota gives on a period", () => {
       ],
       dayWindow,
     );
-    expect(provided.staffWithSkill.driver).toBe(1);
+    expect(provided.staffWithSkill.driver).toBe(0);
+  });
+
+  it("hazard HZ-123 does not count a handover overlap as a skill holder on the period", () => {
+    const provided = staffingProvided(
+      [
+        shift({
+          id: "night-nurse",
+          start: at("2026-11-01T19:45:00Z"),
+          end: at("2026-11-02T08:15:00Z"),
+          workerSkills: ["registered_nurse"],
+        }),
+        shift({ id: "day-carer", workerId: "w2" }),
+      ],
+      dayWindow,
+    );
+    expect(provided.staffWithSkill.registered_nurse).toBe(0);
+  });
+
+  it("hazard HZ-123 counts two holders one after the other as one present", () => {
+    const provided = staffingProvided(
+      [
+        shift({ id: "a", end: at("2026-11-02T14:00:00Z"), workerSkills: ["registered_nurse"] }),
+        shift({
+          id: "b",
+          workerId: "w2",
+          start: at("2026-11-02T14:00:00Z"),
+          workerSkills: ["registered_nurse"],
+        }),
+      ],
+      dayWindow,
+    );
+    expect(provided.staffWithSkill.registered_nurse).toBe(1);
+  });
+
+  it("hazard HZ-123 gives no care minutes for a shift the organisation does not count as care", () => {
+    const provided = staffingProvided(
+      [shift({ id: "kitchen", countsAsCare: false, workerSkills: ["driver"] })],
+      dayWindow,
+    );
+    expect(provided.careMinutes).toBe(0);
+    expect(provided.notCareShiftIds).toEqual(["kitchen"]);
+    expect(provided.staffWithSkill.driver).toBe(0);
+  });
+
+  it.each([
+    ["nobody", [], 0],
+    ["one throughout", [["08:00", "20:00", "a"]], 1],
+    [
+      "two throughout",
+      [
+        ["08:00", "20:00", "a"],
+        ["08:00", "20:00", "b"],
+      ],
+      2,
+    ],
+    [
+      "a gap in the middle",
+      [
+        ["08:00", "12:00", "a"],
+        ["13:00", "20:00", "b"],
+      ],
+      0,
+    ],
+    [
+      "one throughout and one for part",
+      [
+        ["08:00", "20:00", "a"],
+        ["10:00", "12:00", "b"],
+      ],
+      1,
+    ],
+  ] as const)("hazard HZ-123 fewest present: %s", (_, spans, expected) => {
+    const list = spans.map(([s, e, h]) => ({
+      start: at(`2026-11-02T${s}:00Z`),
+      end: at(`2026-11-02T${e}:00Z`),
+      holder: h,
+    }));
+    expect(fewestPresent(list, dayWindow)).toBe(expected);
   });
 
   const definition: DependencyScaleDefinition = {

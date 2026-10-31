@@ -9,24 +9,28 @@ import {
   shiftAssignment,
   staffProfile,
   type Transaction,
+  tenantUser,
 } from "@harbour/db";
 import {
   blockerKey,
   type Competence,
   checkWorkingTime,
+  combinedRosterDecision,
   compareStaffing,
   isCompetence,
+  type Membership,
+  MIN_OVERRIDE_JUSTIFICATION,
   noticeMinutes,
   overrideCovers,
   plannedWorkPeriods,
   type RosterBlocker,
-  type RosterDecision,
   type RosteredShift,
   resolveWorkingTimeRates,
+  rosterBlockers,
   rosterChecks,
-  rosterDecision,
   rotaDates,
   type ShiftKind,
+  STAFFING_STATUS_WORDS,
   type StaffingSkill,
   staffingProvided,
   ukIsoDate,
@@ -35,7 +39,7 @@ import {
   workingTimeWindow,
 } from "@harbour/domain";
 import type { z } from "@hono/zod-openapi";
-import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 import { competencePort } from "./competence-port";
 import { rateRows } from "./rates";
 import { profileFacts, storedItem, workforceRates } from "./staff-files";
@@ -64,6 +68,8 @@ export const BLOCKER_MESSAGES: Readonly<Record<RosterBlocker["kind"], string>> =
     "No right to work on record for the day. This cannot be overridden: illegal working is never allowed.",
   registration: "Their professional registration is not current on the day.",
   competence: "They are not signed off as competent for this on the day.",
+  not_active:
+    "They are not working for your organisation on the day (suspended, left or not yet started). This cannot be overridden.",
 };
 
 export function blockerItems(blockers: readonly RosterBlocker[]) {
@@ -75,9 +81,25 @@ export function blockerItems(blockers: readonly RosterBlocker[]) {
   }));
 }
 
-/** The staff file's checks for a member on a UK date, read with the system's rights. */
-async function staffFileChecks(tx: Transaction, tenantId: string, workerId: string, day: string) {
-  const { profile, items } = await withSystemRights(tx, async () => {
+export type EligibilityDecision = ReturnType<typeof combinedRosterDecision>;
+
+/**
+ * The staff file's checks for a member on a UK date, read with the system's rights, with the figures
+ * of the nation where the shift is (clinical safety review round 1, L6) and whether the member works
+ * for the organisation on the day (security review round 1, H1).
+ */
+async function staffFileChecks(
+  tx: Transaction,
+  tenantId: string,
+  workerId: string,
+  day: string,
+  shiftLocationId: string,
+) {
+  const { profile, items, member } = await withSystemRights(tx, async () => {
+    const [m] = await tx
+      .select({ status: tenantUser.status })
+      .from(tenantUser)
+      .where(eq(tenantUser.id, workerId));
     const [p] = await tx
       .select()
       .from(staffProfile)
@@ -88,9 +110,9 @@ async function staffFileChecks(tx: Transaction, tenantId: string, workerId: stri
           .from(complianceItem)
           .where(and(eq(complianceItem.staffProfileId, p.id), isNull(complianceItem.deletedAt)))
       : [];
-    return { profile: p ?? null, items: rows };
+    return { profile: p ?? null, items: rows, member: m ?? null };
   });
-  const nation = await nationOfLocation(tx, profile?.locationId ?? null);
+  const nation = await nationOfLocation(tx, shiftLocationId);
   const rates = await workforceRates(tx, tenantId, nation, day);
   return {
     profile,
@@ -99,6 +121,11 @@ async function staffFileChecks(tx: Transaction, tenantId: string, workerId: stri
       items.map((i) => storedItem(i)),
       day,
       rates,
+      {
+        status: (member?.status ?? "left") as Membership["status"],
+        leftOn: profile?.leftOn ?? null,
+        startsOn: profile?.startsOn ?? null,
+      },
     ),
   };
 }
@@ -111,50 +138,78 @@ async function nationOfLocation(tx: Transaction, locationId: string | null): Pro
   return (row?.nation as Nation | undefined) ?? "england";
 }
 
+/** The last instant of a shift, for the UK date it ends on (a night ends the next day). */
+const lastInstant = (endsAt: Date) => new Date(endsAt.getTime() - 1);
+
 /**
- * The rostering rule for a member on a shift (HZ-124): the staff file's checks on the shift's UK
- * date and every competence the shift needs from the competence port, which blocks when the
- * sign-off has lapsed by the shift or now (ADR-0085).
+ * The rostering rule for a member on a shift (HZ-124): on every UK date the shift touches (a night
+ * across an expiry date is checked on both; clinical safety review round 1, H1), whether the member
+ * works for the organisation, the staff file's checks and every competence the shift needs from the
+ * competence port, which blocks when the sign-off has lapsed by then or now (ADR-0085). An override
+ * must name exactly the blockers the manager was shown (C3).
  */
 export async function shiftEligibility(
   tx: Transaction,
   tenantId: string,
-  row: Pick<ShiftRow, "startsAt" | "requiredCompetences" | "supervised">,
+  row: Pick<ShiftRow, "startsAt" | "endsAt" | "requiredCompetences" | "supervised" | "locationId">,
   workerId: string,
-  override: { justification: string; byTenantUserId: string } | null = null,
+  override: { justification: string; blockerKeys: readonly string[] } | null = null,
   now: Date = new Date(),
-): Promise<RosterDecision> {
-  const day = ukIsoDate(row.startsAt);
-  const { checks } = await staffFileChecks(tx, tenantId, workerId, day);
-  const competences = [];
-  for (const competence of row.requiredCompetences.filter(isCompetence)) {
-    competences.push({
-      competence,
-      gate: await competencePort(tx, workerId, competence, row.startsAt, now),
-    });
+): Promise<EligibilityDecision> {
+  const instants = [row.startsAt];
+  const end = lastInstant(row.endsAt);
+  if (ukIsoDate(end) !== ukIsoDate(row.startsAt)) instants.push(end);
+  const perDay: RosterBlocker[][] = [];
+  for (const at of instants) {
+    const { checks } = await staffFileChecks(tx, tenantId, workerId, ukIsoDate(at), row.locationId);
+    const competences = [];
+    for (const competence of row.requiredCompetences.filter(isCompetence)) {
+      competences.push({
+        competence,
+        gate: await competencePort(tx, workerId, competence, at, now),
+      });
+    }
+    perDay.push([...rosterBlockers({ ...checks, competences, shiftSupervised: row.supervised })]);
   }
-  return rosterDecision({ ...checks, competences, shiftSupervised: row.supervised }, override);
+  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION);
 }
 
 /**
- * The dependency-scale skills a member holds on a UK date: a registered nurse when their role is
- * on the NMC register and the registration is current; medicines and moving and handling from the
- * competence port. Nothing yet records who may drive (H-835), so nobody counts as a driver.
+ * The dependency-scale skills a member holds for a whole shift: a registered nurse when their role
+ * is on the NMC register and the registration is current, medicines and moving and handling from
+ * the competence port, each on every UK date the shift touches. Nothing yet records who may drive
+ * (H-835) or which part of the NMC register a nurse is on (H-835), so nobody counts as a driver.
  */
 export async function workerSkills(
   tx: Transaction,
   tenantId: string,
   workerId: string,
-  at: Date,
+  row: Pick<ShiftRow, "startsAt" | "endsAt" | "locationId">,
   now: Date,
 ): Promise<StaffingSkill[]> {
-  const day = ukIsoDate(at);
-  const { profile, checks } = await staffFileChecks(tx, tenantId, workerId, day);
-  const skills: StaffingSkill[] = [];
-  if (profile?.registrationBody === "nmc" && checks.registrationCurrent === true) {
-    skills.push("registered_nurse");
+  const instants = [row.startsAt, lastInstant(row.endsAt)];
+  let nurse = true;
+  for (const at of instants) {
+    const { profile, checks } = await staffFileChecks(
+      tx,
+      tenantId,
+      workerId,
+      ukIsoDate(at),
+      row.locationId,
+    );
+    nurse &&=
+      profile?.registrationBody === "nmc" &&
+      checks.registrationCurrent === true &&
+      checks.memberActive;
   }
-  const held = async (c: Competence) => (await competencePort(tx, workerId, c, at, now)).allowed;
+  const held = async (c: Competence) => {
+    for (const at of instants) {
+      if (!(await competencePort(tx, workerId, c, at, now)).allowed) return false;
+    }
+    return true;
+  };
+  const skills: StaffingSkill[] = [];
+  if (nurse) skills.push("registered_nurse");
   if (await held("medicines_administration")) skills.push("medicines_competent");
   if (await held("moving_and_handling_hoist")) skills.push("moving_and_handling");
   return skills;
@@ -241,31 +296,44 @@ export async function workingTimeFor(
       notes: [WORKING_TIME_NOTES.noDateOfBirth, WORKING_TIME_NOTES.advice],
     };
   }
-  const report = checkWorkingTime({
-    worker: {
-      dateOfBirth: profile.dateOfBirth,
-      employmentStart: profile.startsOn,
-      optOuts: [],
-      designatedNightWorker: false,
-      specialHazards: false,
-      contractProvidesWorkAfter22: false,
-    },
-    setting: DEFAULT_WORKING_TIME_SETTING,
-    periods: plannedWorkPeriods(
-      rows.map((r) => ({
-        id: r.id,
-        kind: r.kind as ShiftKind,
-        start: r.startsAt,
-        end: r.endsAt,
-        breakMinutes: r.breakMinutes,
-      })),
-    ),
-    excludedDays: [],
-    evaluateFrom: rotaRow.startsOn,
-    evaluateTo: rotaRow.endsOn,
-    known,
-    rates,
-  });
+  // Whether the contract provides for work after 22:00 is not recorded until slice 30, so both of a
+  // young worker's restricted windows are checked and every finding of either is shown (clinical
+  // safety review round 1, M5); for an adult the two runs are the same.
+  const run = (contractProvidesWorkAfter22: boolean) =>
+    checkWorkingTime({
+      worker: {
+        dateOfBirth: profile.dateOfBirth as string,
+        employmentStart: profile.startsOn as string,
+        optOuts: [],
+        designatedNightWorker: false,
+        specialHazards: false,
+        contractProvidesWorkAfter22,
+      },
+      setting: DEFAULT_WORKING_TIME_SETTING,
+      periods: plannedWorkPeriods(
+        rows.map((r) => ({
+          id: r.id,
+          kind: r.kind as ShiftKind,
+          start: r.startsAt,
+          end: r.endsAt,
+          breakMinutes: r.breakMinutes,
+        })),
+      ),
+      excludedDays: [],
+      evaluateFrom: rotaRow.startsOn,
+      evaluateTo: rotaRow.endsOn,
+      known,
+      rates,
+    });
+  const seen = new Set<string>();
+  const report = {
+    findings: [...run(false).findings, ...run(true).findings].filter((f) => {
+      const key = `${f.rule}|${f.outcome}|${f.from.toISOString()}|${f.to.toISOString()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+  };
   return {
     workerId,
     status: "checked",
@@ -356,28 +424,62 @@ export async function rotaCheck(
     });
   }
 
-  // Skills per worker per day, from the workforce port.
-  const skillCache = new Map<string, StaffingSkill[]>();
+  // Shifts of the neighbouring rotas at the location that reach into this rota's periods (a night
+  // from the rota before, an early from the rota after) count too (clinical safety review round 1,
+  // L1); they are read, never changed.
+  const edges = workingTimeWindow(rotaRow.startsOn, rotaRow.endsOn, 0);
+  const neighbours = await tx
+    .select()
+    .from(shift)
+    .where(
+      and(
+        eq(shift.locationId, rotaRow.locationId),
+        ne(shift.rotaId, rotaRow.id),
+        isNull(shift.deletedAt),
+        gt(shift.endsAt, edges.from),
+        lt(shift.startsAt, edges.to),
+      ),
+    );
+  const neighbourAssignments =
+    neighbours.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(shiftAssignment)
+          .where(
+            and(
+              inArray(
+                shiftAssignment.shiftId,
+                neighbours.map((n) => n.id),
+              ),
+              isNull(shiftAssignment.deletedAt),
+            ),
+          );
+
+  // Skills for each shift's whole length, from the workforce port.
   const rostered: RosteredShift[] = [];
-  for (const s of shifts) {
-    const a = assignmentOf(s.id);
-    let skills: StaffingSkill[] = [];
-    if (a) {
-      const cacheKey = `${a.workerId}:${ukIsoDate(s.startsAt)}`;
-      skills =
-        skillCache.get(cacheKey) ?? (await workerSkills(tx, tenantId, a.workerId, s.startsAt, now));
-      skillCache.set(cacheKey, skills);
-    }
+  const all = [
+    ...shifts.map((s) => ({ s, a: assignmentOf(s.id) })),
+    ...neighbours.map((s) => ({
+      s,
+      a: neighbourAssignments.find((x) => x.shiftId === s.id) ?? null,
+    })),
+  ];
+  for (const { s, a } of all) {
     rostered.push({
       id: s.id,
       kind: s.kind as ShiftKind,
       start: s.startsAt,
       end: s.endsAt,
       breakMinutes: s.breakMinutes,
+      countsAsCare: s.countsAsCare,
       workerId: a?.workerId ?? null,
-      workerSkills: skills,
+      workerSkills: a ? await workerSkills(tx, tenantId, a.workerId, s, now) : [],
     });
   }
+  const overriddenShiftIds = new Set(
+    eligibility.filter((e) => !e.allowed && e.covered).map((e) => e.shiftId),
+  );
 
   // The staffing comparison per date and period (HZ-123).
   const staffing: z.infer<typeof StaffingComparisonItem>[] = [];
@@ -388,16 +490,38 @@ export async function rotaCheck(
       const window = period ? { start: period.start, end: period.end } : null;
       const provided = window
         ? staffingProvided(rostered, window)
-        : { careMinutes: 0, staffWithSkill: {}, openShiftIds: [], method: [] };
+        : {
+            careMinutes: 0,
+            staffWithSkill: {},
+            shiftIds: [],
+            openShiftIds: [],
+            notCareShiftIds: [],
+            method: [],
+          };
       const comparison = compareStaffing(requirement, provided);
+      // The rota's own warnings on the period: never a plain "met" while one stands (M1).
+      const own: string[] = [];
+      if (provided.openShiftIds.length > 0) {
+        own.push(
+          `${provided.openShiftIds.length} care shift(s) in this period have nobody on them and are not counted.`,
+        );
+      }
+      const overriddenHere = provided.shiftIds.filter((id) => overriddenShiftIds.has(id)).length;
+      if (overriddenHere > 0) {
+        own.push(
+          `${overriddenHere} member(s) in this period are on shift under a manager's override of the rostering rule.`,
+        );
+      }
+      const status =
+        comparison.status === "met" && own.length > 0 ? "met_with_warnings" : comparison.status;
       staffing.push({
         date,
         periodKey: period?.key ?? null,
         periodLabel: period?.label ?? null,
         start: iso(period?.start ?? null),
         end: iso(period?.end ?? null),
-        status: comparison.status,
-        word: comparison.word,
+        status,
+        word: STAFFING_STATUS_WORDS[status],
         requiredMinutes: comparison.requiredMinutes,
         figure: comparison.figure,
         providedMinutes: comparison.providedMinutes,
@@ -413,7 +537,7 @@ export async function rotaCheck(
             }
           : null,
         notice: comparison.notice,
-        warnings: [...comparison.warnings],
+        warnings: [...comparison.warnings, ...own],
         method: [...comparison.method, ...provided.method],
       });
     }
@@ -428,6 +552,9 @@ export async function rotaCheck(
 
   const openShiftIds = shifts.filter((s) => !assignmentOf(s.id)).map((s) => s.id);
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
+  const periodsToAcknowledge = staffing
+    .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
+    .map((p) => (p.periodKey ? `${p.date}:${p.periodKey}` : p.date));
   const hasWarnings =
     staffing.some((s) => s.status !== "met") ||
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
@@ -445,8 +572,12 @@ export async function rotaCheck(
           s.status,
           s.requiredMinutes,
           s.providedMinutes,
+          s.skills,
+          s.source?.scaleId ?? null,
+          s.source?.versionNumber ?? null,
           s.warnings,
         ]),
+        periodsToAcknowledge,
         workingTime,
       }),
     )
@@ -461,6 +592,7 @@ export async function rotaCheck(
     eligibility,
     openShiftIds,
     hasWarnings,
+    periodsToAcknowledge,
     blockedAssignmentIds,
     firstShiftStart: iso(first),
     noticeMinutes: noticeMinutes(now, first),

@@ -57,22 +57,36 @@ const assign = (c: pg.PoolClient, shiftId: string, worker: string, id: string | 
      VALUES (COALESCE($1, app.uuid_v7()), $2, $3, $4)`,
     [id, shiftId, a.locationNorth, worker],
   );
-const override = (
+/** A new assignment of the worker on its own shift with an override, in one transaction. */
+const override = async (
   c: pg.PoolClient,
-  v: { worker?: string; keys?: string[]; justification?: string; by?: string | null },
-) =>
-  c.query(
+  v: { worker?: string; keys?: string[]; justification?: string; by?: string | null; day?: number },
+) => {
+  const worker = v.worker ?? a.carer;
+  const day = `2026-11-0${v.day ?? 6}`;
+  const { rows } = await c.query<{ id: string }>(
+    `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at)
+     VALUES ($1, $2, 'Day', 'work', $3::timestamptz, $3::timestamptz + interval '8 hours') RETURNING id`,
+    [ROTA, a.locationNorth, `${day}T09:00:00Z`],
+  );
+  const shiftId = rows[0]?.id as string;
+  const assignment = await c.query<{ id: string }>(
+    `INSERT INTO shift_assignment (shift_id, location_id, worker_id) VALUES ($1, $2, $3) RETURNING id`,
+    [shiftId, a.locationNorth, a.carer],
+  );
+  return c.query(
     `INSERT INTO roster_override (assignment_id, location_id, worker_id, blocker_keys, justification, created_by)
      VALUES ($1, $2, $3, $4, $5, COALESCE($6, app.current_user_id()))`,
     [
-      ASSIGNMENT,
+      assignment.rows[0]?.id,
       a.locationNorth,
-      v.worker ?? a.carer,
-      v.keys ?? ["competence:moving_and_handling_hoist"],
+      worker,
+      v.keys ?? ["competence:moving_and_handling_hoist:expired"],
       v.justification ?? "Hoist trained colleague on the same shift",
       v.by ?? null,
     ],
   );
+};
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -301,10 +315,28 @@ describe("hazard HZ-124 overrides of the rostering rule in the database", () => 
     await expect(asPlanner((c) => override(c, {}))).rejects.toThrow(/row-level security/);
   });
 
-  it("hazard HZ-124 never overrides a missing right to work", async () => {
-    await expect(asNorth((c) => override(c, { keys: ["right_to_work"] }))).rejects.toThrow(
-      /roster_override_blockers/,
-    );
+  it("hazard HZ-124 never overrides a missing right to work or a member who is not active", async () => {
+    for (const keys of [
+      ["right_to_work:lapsed"],
+      ["not_active"],
+      ["dbs:no_certificate", "right_to_work:none"],
+    ]) {
+      await expect(asNorth((c) => override(c, { keys }))).rejects.toThrow(
+        /roster_override_blockers/,
+      );
+    }
+  });
+
+  it("hazard HZ-124 refuses an override added later to an existing assignment", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `INSERT INTO roster_override (assignment_id, location_id, worker_id, blocker_keys, justification)
+           VALUES ($1, $2, $3, '{registration}', 'Added after the assignment was made')`,
+          [ASSIGNMENT, a.locationNorth, a.carer],
+        ),
+      ),
+    ).rejects.toThrow(/live assignment of its worker/);
   });
 
   it("hazard HZ-124 refuses an override without a real justification", async () => {
@@ -335,15 +367,19 @@ describe("hazard HZ-124 overrides of the rostering rule in the database", () => 
   });
 
   it("hazard HZ-124 refuses an override for oneself", async () => {
-    await asNorth(async (c) => {
-      await c.query(
-        "UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Swapped' WHERE id = $1",
-        [ASSIGNMENT],
-      );
-    });
     await expect(
       asNorth(async (c) => {
-        await assign(c, DAY_SHIFT, a.northManager, "0199f300-0000-7000-8000-0000000000d2");
+        await insertShift(c, {
+          id: "0199f300-0000-7000-8000-0000000000c8",
+          start: "2026-11-07T08:00:00Z",
+          end: "2026-11-07T20:00:00Z",
+        });
+        await assign(
+          c,
+          "0199f300-0000-7000-8000-0000000000c8",
+          a.northManager,
+          "0199f300-0000-7000-8000-0000000000d2",
+        );
         await c.query(
           `INSERT INTO roster_override (assignment_id, location_id, worker_id, blocker_keys, justification)
            VALUES ($1, $2, $3, '{registration}', 'Covering my own shift tonight')`,

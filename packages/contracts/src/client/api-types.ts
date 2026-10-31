@@ -33048,6 +33048,7 @@ export interface components {
       requiredCompetences: string[];
       requiredSkills: components["schemas"]["StaffingSkill"][];
       supervised: boolean;
+      countsAsCare: boolean;
     };
     /** @enum {string} */
     ShiftKind: "work" | "sleep_in" | "on_call_at_workplace" | "on_call_away" | "training";
@@ -33063,6 +33064,8 @@ export interface components {
       requiredSkills: components["schemas"]["StaffingSkill"][];
       /** @default false */
       supervised: boolean;
+      /** @default true */
+      countsAsCare: boolean;
     };
     ArchiveRotaItem: {
       version: number;
@@ -33109,6 +33112,7 @@ export interface components {
       state: "draft" | "published";
       /** Format: date-time */
       publishedAt: string | null;
+      changedSincePublished: boolean;
     };
     RotaItem: {
       /** Format: uuid */
@@ -33124,6 +33128,7 @@ export interface components {
       state: "draft" | "published";
       /** Format: date-time */
       publishedAt: string | null;
+      changedSincePublished: boolean;
       shifts: components["schemas"]["ShiftItem"][];
       publications: {
         /** Format: uuid */
@@ -33157,6 +33162,7 @@ export interface components {
       requiredCompetences: string[];
       requiredSkills: components["schemas"]["StaffingSkill"][];
       supervised: boolean;
+      countsAsCare: boolean;
       /** Format: date-time */
       publishedAt: string | null;
       /** Format: date-time */
@@ -33211,6 +33217,8 @@ export interface components {
           requiredSkills: components["schemas"]["StaffingSkill"][];
           /** @default false */
           supervised: boolean;
+          /** @default true */
+          countsAsCare: boolean;
         };
     CancelShift: {
       version: number;
@@ -33230,7 +33238,13 @@ export interface components {
     RosterBlockerItem: {
       key: string;
       /** @enum {string} */
-      kind: "dbs" | "dbs_supervised_only" | "right_to_work" | "registration" | "competence";
+      kind:
+        | "dbs"
+        | "dbs_supervised_only"
+        | "right_to_work"
+        | "registration"
+        | "competence"
+        | "not_active";
       competence: string | null;
       message: string;
     };
@@ -33268,6 +33282,7 @@ export interface components {
       version: number;
       override?: {
         justification: string;
+        blockerKeys: string[];
       };
     };
     RemoveAssignment: {
@@ -33297,6 +33312,7 @@ export interface components {
       }[];
       openShiftIds: string[];
       hasWarnings: boolean;
+      periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
       /** Format: date-time */
       firstShiftStart: string | null;
@@ -33346,6 +33362,8 @@ export interface components {
       digest: string;
       /** @default false */
       acknowledgeWarnings: boolean;
+      /** @default [] */
+      acknowledgedPeriods: string[];
     };
     MyShiftList: {
       items: {

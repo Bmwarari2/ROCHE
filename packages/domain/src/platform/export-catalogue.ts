@@ -3125,6 +3125,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Dependency-scale skills the shift gives (STAFFING_SKILLS).",
       },
       supervised: { description: "Worked alongside a cleared colleague." },
+      counts_as_care: {
+        description:
+          "The organisation counts it as care on the floor (false for housekeeping, kitchen or office shifts).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -3245,6 +3249,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       required_competences: { description: "Observed competences the shift needs." },
       required_skills: { description: "Dependency-scale skills the shift gives." },
       supervised: { description: "Worked alongside a cleared colleague." },
+      counts_as_care: {
+        description:
+          "The organisation counts it as care on the floor (false for housekeeping, kitchen or office shifts).",
+      },
       published_at: { description: "When a publication first included it (UTC)." },
       changed_after_publish_at: { description: "The last change after it was published (UTC)." },
       cancel_reason: { description: "Why it was cancelled." },
@@ -3293,7 +3301,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       worker_id: { description: "The member of staff (tenant_user.id)." },
       blocker_keys: {
         description:
-          "What was overridden: dbs, dbs_supervised_only, registration or competence:<name>.",
+          "What was overridden, each with its reason: dbs:<reason>, dbs_supervised_only, registration or competence:<name>:<reason>.",
       },
       justification: { description: "Why, in the manager's words." },
       created_at: "exported",

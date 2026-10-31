@@ -39,4 +39,30 @@ clock-in on the day slice 27, swaps H-838.
 
 - Domain: `rota.test.ts`, `roster-checks.test.ts` (5,385 domain tests pass).
 - Database: `packages/db/test/rota.test.ts` (775 database tests pass).
-- API: `apps/api/test/rota.test.ts` (23 tests).
+- API: `apps/api/test/rota.test.ts` (28 tests after review round 1).
+
+## Review round 1 (security and clinical safety)
+
+- Members not working for the organisation on the day (suspended, left, not started) are blocked,
+  never overridable (`not_active`).
+- A night is checked on the date it ends too.
+- The newest DBS certificate decides, and new information from the Update Service always blocks.
+- A registration counts only on the role's own register.
+- Override keys carry the reason. An override must name the blockers the manager was shown
+  (409 `blockers_changed`), and the database refuses overrides added after the assignment.
+- Skill minimums count the fewest holders present throughout a period. Care minutes count only
+  shifts the organisation counts as care (`counts_as_care`). Neighbouring rotas' shifts that reach
+  into a period count.
+- Open shifts and overrides make a period "met, but".
+- Publishing:
+  - it locks the rota, and every change takes the same lock;
+  - the publisher must have read the check themselves (`check_not_seen`);
+  - each period below the scale is acknowledged by name.
+- After a change, the rota reads `changedSincePublished`.
+- A member's assignments are serialised with an advisory lock, and so is starting rotas at a
+  location.
+- Eligibility answers only for members with a role at the location.
+- `GET /v1/me/shifts` returns published shifts only.
+- Both of a young worker's restricted windows are checked.
+- The staff file's figures come from the shift's nation.
+- Remaining decisions are folded into H-830, H-835, H-836 and H-839.
