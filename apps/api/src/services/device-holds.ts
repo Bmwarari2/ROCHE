@@ -1425,20 +1425,24 @@ const FLAGGED_ENTRY_TITLES: Record<string, string> = {
 const flaggedTitle = (kind: string, count: number) =>
   `${FLAGGED_ENTRY_TITLES[kind] ?? FLAGGED_ENTRY_TITLES[REPORTED_DELETED_TASK_KIND]}: ${count}`;
 
-interface FlaggedEntry {
+export interface FlaggedEntry {
   readonly id: string;
   readonly resourceType: string;
   readonly locationId: string | null;
+  /** The entry completed a scheduled task it named (`task_outcome` `completed`; H-148). */
+  readonly completedTask?: boolean;
 }
 
 /**
- * When the review falls due (clinical review round 7, M3): at once when any entry is an
+ * When the review falls due (clinical review round 7, M3; H-148): at once when any entry is an
  * observation (fluids, repositioning, vital signs and every other chart), because a possible
- * duplicate counts towards the day's totals and can complete a round; otherwise within
- * `FLAGGED_ENTRY_REVIEW_HOURS` (human action H-148).
+ * duplicate counts towards the day's totals and can complete a round, or when any entry completed
+ * a scheduled task, so a round never shows as done for up to a day on the strength of a possible
+ * duplicate (HZ-003, HZ-040); otherwise (notes, body-map marks, activities, visits and assessments
+ * that completed nothing) within `FLAGGED_ENTRY_REVIEW_HOURS`.
  */
 export function flaggedDue(entries: readonly FlaggedEntry[], now: Date): Date {
-  return entries.some((e) => e.resourceType === "observation")
+  return entries.some((e) => e.resourceType === "observation" || e.completedTask === true)
     ? now
     : new Date(now.getTime() + FLAGGED_ENTRY_REVIEW_HOURS * HOUR_MS);
 }
@@ -1756,6 +1760,8 @@ export async function flagIfReportedDeleted(
      * deletions count (care.md section 6, Device integrity part 6).
      */
     readonly uploader?: string | undefined;
+    /** What the entry did to the task it named (`task_outcome`): `completed` brings the review forward (H-148). */
+    readonly taskOutcome?: string | null;
   },
 ): Promise<boolean> {
   const uploader = entry.uploader ?? access.tenantUserId;
@@ -1767,7 +1773,7 @@ export async function flagIfReportedDeleted(
       kind: REPORTED_DELETED_TASK_KIND,
       discardId,
       ownerTenantUserId: uploader,
-      entries: [entry],
+      entries: [{ ...entry, completedTask: entry.taskOutcome === "completed" }],
       now,
       requestId: entry.requestId,
     });
@@ -1901,7 +1907,12 @@ export async function flagEntriesAlreadyUploaded(
     const found: (FlaggedEntry & { personId: string })[] = [];
     for (const { resourceType, table } of CARE_ENTRY_TABLES) {
       const rows = await tx
-        .select({ id: table.id, locationId: table.locationId, personId: table.personId })
+        .select({
+          id: table.id,
+          locationId: table.locationId,
+          personId: table.personId,
+          taskOutcome: table.taskOutcome,
+        })
         .from(table)
         .where(and(inArray(table.id, [...discard.entryIds]), eq(table.createdBy, owner)));
       for (const row of rows) {
@@ -1910,6 +1921,7 @@ export async function flagEntriesAlreadyUploaded(
           resourceType,
           locationId: row.locationId,
           personId: row.personId,
+          completedTask: row.taskOutcome === "completed",
         });
       }
     }

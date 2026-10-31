@@ -1028,8 +1028,12 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     one notice a day (below): no cap stops a task (round 7, M2; human action H-149). The task is due
     at once when any of its entries is an observation (fluids, repositioning, vital signs and every
     other chart), because a possible duplicate counts towards the day's totals and can complete a
-    round; otherwise 24 hours after it is raised, and an observation added later brings it forward
-    (hazard HZ-008; clinical review round 7, M3; human actions H-147 and H-148). The deletion
+    round, and at once when any of its entries completed a scheduled task (`task_outcome`
+    `completed`: a note, activity or assessment that answered a round), so a round never shows as
+    done for up to a day on the strength of a possible duplicate (recommended answer to H-148,
+    31/10/2026; HZ-003, HZ-040); otherwise 24 hours after it is raised, and an observation or an
+    entry that completed a task added later brings it forward (hazard HZ-008; clinical review
+    round 7, M3; human actions H-147 and H-148). The deletion
     records' entry ids are read from `device_discard_entry`, never by scanning the audit trail
     (Device integrity, part 3, below; the HZ-040 go-live blocker).
   - A device a manager revokes is told at its next contact and wipes, keeping its unsent entries
