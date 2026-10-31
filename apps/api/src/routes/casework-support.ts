@@ -33,7 +33,7 @@ import { audit, dbCode } from "./people-shared";
  * (`platform.dpia.sign`), someone else. The ticket names the case by id only; neither the
  * requester nor the approver reads the case, and support appoints the member it names without
  * reading it (`POST /operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint`).
- * The database enforces the same (migration 0116). Audited by ids only.
+ * The database enforces the same (migration 0121). Audited by ids only.
  */
 
 const RAISE = "platform.user.manage";

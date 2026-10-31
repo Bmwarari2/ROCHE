@@ -365,7 +365,7 @@ whatever the clock change.
 
     H-802 (recommended answer applied 31/10/2026, reviewed at testing): the DBS decision is also due when a disciplinary or capability case ends in redeployment, or in an action short of dismissal marked as removing the member from regulated activity (`removes_from_regulated_activity`, decided with the outcome), because the Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal. Harbour still only asks for the decision.
 
-    H-806: a case closed as a grievance, with no case to answer or withdrawn takes `casework_no_sanction` (6 years after closure); one ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file (`caseRetentionClass`; set by the database as the case closes, migration 0116). Expired warnings stay on the case marked as no longer counting.
+    H-806: a case closed as a grievance, with no case to answer or withdrawn takes `casework_no_sanction` (6 years after closure); one ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file (`caseRetentionClass`; set by the database as the case closes, migration 0121). Expired warnings stay on the case marked as no longer counting.
 
     H-804: when every case manager has left, a holder of `platform.user.manage` raises a support ticket naming the case by id and the new case manager (never themselves, the approver or the member of staff the case is about); the data protection lead (`platform.dpia.sign`) approves it with step-up; Thapsus support appoints them once (`app.operator_appoint_case_manager`) without reading the case, audited to the organisation, whose owners are told.
 

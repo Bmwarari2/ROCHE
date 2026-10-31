@@ -4,7 +4,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
 /**
- * Recommended answers applied 31/10/2026 (migration 0116; review at testing):
+ * Recommended answers applied 31/10/2026 (migration 0121; review at testing):
  * - H-802: the removal-from-regulated-activity flag is decided with the outcome, and only with an
  *   action short of dismissal.
  * - H-806: a case's retention class is set by the database as it closes, never by a client.

@@ -29,7 +29,7 @@ its recommended answer now, reviewed at the testing phase
 - **H-879, leavers' sessions:** the leaver sweep signs the leaver out of every device, unless they still work for another organisation.
   - Unsent entries stay on the device for hand-over.
   - Audited by ids and counts.
-- **Migration 0116:** the two case columns and the ticket table, with row-level security, guards and history. Also the two definers, with their ACLs listed in the definer test, and the decline reason CHECK.
+- **Migration 0121:** the two case columns and the ticket table, with row-level security, guards and history. Also the two definers, with their ACLs listed in the definer test, and the decline reason CHECK.
 - **Docs:** workforce.md rules 17, 22 and 23 and the known gaps; retention.md; records of processing; data standards; the export catalogue.
 
 ## Tests
