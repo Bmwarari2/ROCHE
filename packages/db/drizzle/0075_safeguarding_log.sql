@@ -130,10 +130,12 @@ REVOKE DELETE, TRUNCATE ON public.safeguarding_concern FROM harbour_app;
 
 -- Sample data mode (migration 0069, HZ-072): a concern about a sample person goes with it. The one
 -- list is redefined with the new table before its parents (statutory_notification, task), and
--- harbour_sample_owner may delete from it, as from every table on the list.
+-- harbour_sample_owner may delete from it, as from every table on the list. It keeps
+-- dependency_assessment, which migration 0074 added to the list.
 CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
   SELECT ARRAY[
+    'dependency_assessment',
     'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
     'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',
     'break_glass_event', 'candour_record', 'care_note', 'care_plan_action', 'care_plan_change',
