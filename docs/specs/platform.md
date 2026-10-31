@@ -82,7 +82,29 @@ Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
   the location's Registered Manager and the data protection lead (holders of the quality lead role
   until the DPO confirms, H-80) with a generic title; `GET /v1/break-glass/weekly-report?week=`
   (`platform.audit.read`, the locations in the reader's access) and `POST
-  .../weekly-report/{reportId}/review` (the actions taken, once). The screen comes with the web work.
+  .../weekly-report/{reportId}/review` (the actions taken, once). Each report carries `staff`, the
+  `StaffName` of every member it counts and of its reviewer (display name and job title only), so a
+  reader who cannot list the members (the quality lead, a group executive) still sees who used
+  break-glass.
+- Break-glass report screen (web, `apps/web/src/app/(shell)/break-glass/weekly-report`): "Break-glass
+  report" in the side bar for `platform.audit.read` only (anyone else opening the address is told
+  they do not have access). The list shows one UK week (Monday to Sunday, dd/mm/yyyy; the last
+  complete week by default, `?week=` any date in it, with previous and next week, next only once it
+  has ended), each location's report in the reader's access (narrowed to the location switcher's
+  location when one is chosen) with its totals in words and its state as an icon and a word
+  ("Reviewed" or "To review", and "n things flagged"); a week with no reports says when Harbour
+  builds them. The report page shows the totals, what it flags as sentences ("Mo Manager opened the
+  record of Una Example 3 times. Their access may need changing."), tables of records opened by
+  member of staff, by person and by reason chosen, the break-glass searches by member of staff and
+  by reason, and the review. People are named from the reader's own people list, each with their
+  communication needs (AIS); anyone else is numbered ("Person 2 (not shown to you)"). The typed reasons are not on the page: the report holds
+  counts and ids, and the screen says the reasons are in the audit log. A report the reader is not
+  flagged in, and not yet reviewed, offers "Actions taken" (3 to 2,000 characters) and "Record the
+  review"; the review needs no step-up (the API asks none). A report flagging the reader says
+  someone else must review it. A stored summary the web cannot read in part warns rather than
+  reading as nothing to report (HZ-011). The per-opening "not yet reviewed" count is not shown:
+  nothing reviews an opening one by one yet. Local journeys build this week's report with
+  `pnpm --filter @harbour/api break-glass-report:run --this-week`.
 - Devices: `GET /v1/me/sessions` lists where the person is signed in (this device marked);
   `POST /v1/me/sessions/{id}/revoke` and `POST /v1/me/sessions/revoke-others` sign devices out.
   Identity-level, so no organisation header. Session tokens reach only the mobile app (`Origin:
