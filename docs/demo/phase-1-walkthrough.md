@@ -122,7 +122,8 @@ Still as Cat, on Ada's record.
    question, and answer the emergency services and GP questions. Save.
    ([guide](../user-guides/care-worker/record-an-incident.md))
 2. Point out: "Not sure yet" is treated as yes, so Harbour sets urgent medical advice and timed
-   observation tasks. Say that the incident page itself does not show these tasks (a gap to fix).
+   observation tasks. Open the incident and point out **Checks after the fall**, with urgent
+   medical advice first and marked **Urgent**.
 3. Sign out. Sign in as **Mo Manager** with the password and authenticator code.
 4. Go to **Incidents** and open the fall. Point out the questions about statutory notifications,
    and that a care worker could not close it. ([guide](../user-guides/registered-manager/answer-notification-questions.md))
@@ -190,7 +191,7 @@ Sign in as **Mo Manager** with a code, for step-up.
    important." ([guide](../user-guides/family-member/read-updates.md))
    - Whether the update shows depends on Ada's sharing decisions, which have no screen yet. If the
      feed is empty, say so.
-3. As **Mo**, go to **Letters**, **New template**, write a general letter and **Save draft**. Point
+3. As **Mo**, go to **Letter templates**, **New template**, write a general letter and **Save draft**. Point
    out Mo cannot approve his own draft. Sign in as **Olive Owner** and **Approve this draft**.
    ([guide](../user-guides/registered-manager/write-a-letter-template.md))
 4. As Mo, on Ada's **Letters** tab, make a letter, preview, tick the check and **Make the letter**.

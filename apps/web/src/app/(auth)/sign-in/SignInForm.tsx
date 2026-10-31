@@ -5,6 +5,7 @@ import { KeyRound } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { authMessages, signInErrorMessage } from "@/lib/auth-messages";
+import { readSignInCode, SIGN_IN_CODE_MAX_LENGTH } from "@/lib/sign-in-code";
 
 export interface SignInLabels {
   readonly email: string;
@@ -83,8 +84,8 @@ export function SignInForm({
   const verifyCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const code = String(form.get("code") ?? "").replace(/\s+/g, "");
-    if (!/^\d{6}$/.test(code)) {
+    const read = readSignInCode(String(form.get("code") ?? ""));
+    if (!read) {
       setFieldErrors({ code: labels.codeRequired });
       return;
     }
@@ -92,7 +93,11 @@ export function SignInForm({
     setError(null);
     setBusy(true);
     try {
-      const result = await authClient().twoFactor.verifyTotp({ code });
+      // A backup code works once, in place of the app's code (lost or changed phone).
+      const result =
+        read.kind === "totp"
+          ? await authClient().twoFactor.verifyTotp({ code: read.code })
+          : await authClient().twoFactor.verifyBackupCode({ code: read.code });
       if (result.error) {
         setError(
           result.error.status === 429 ? authMessages.tooManyAttempts : authMessages.codeMismatch,
@@ -152,9 +157,10 @@ export function SignInForm({
           name="code"
           label={labels.totpTitle}
           hint={labels.totpHint}
-          inputMode="numeric"
           autoComplete="one-time-code"
-          maxLength={6}
+          autoCapitalize="none"
+          spellCheck={false}
+          maxLength={SIGN_IN_CODE_MAX_LENGTH}
           {...(fieldErrors.code ? { error: fieldErrors.code } : {})}
         />
         <Button type="submit" fullWidth disabled={busy}>

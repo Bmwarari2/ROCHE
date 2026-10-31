@@ -20,6 +20,7 @@ import {
   notificationsView,
   notificationWarnings,
   overdueCount,
+  postFallChecks,
 } from "./incidents";
 
 const t = createTranslator("en-GB");
@@ -494,17 +495,20 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
         (n) => n.body,
       );
     expect(hint(null, { canSubmit: false, canManage: true })).toEqual([
-      "Harbour has not yet checked which notifications this incident needs. Ask a nurse or the Registered Manager to check it.",
+      "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself, and tell the Registered Manager, who submits notifications.",
+    ]);
+    expect(hint(null, { canSubmit: false, canManage: false })).toEqual([
+      "Harbour has not yet checked which notifications this incident needs. Tell the nurse in charge or the Registered Manager.",
     ]);
     expect(hint(null, { canSubmit: true, canManage: true })).toEqual([
       "Harbour has not yet checked which notifications this incident needs. Until it has, check what the law needs for this incident yourself.",
     ]);
     const open = view({ openQuestions: [question] });
     expect(hint(open, { canSubmit: true, canManage: false })).toEqual([
-      "The questions are not on this page yet. Tell the nurse in charge or the Registered Manager that this incident has questions to answer.",
+      "The questions are not shown to you here. Tell the nurse in charge or the Registered Manager that this incident has questions to answer.",
     ]);
     expect(hint(open, { canSubmit: false, canManage: true })).toEqual([
-      "The questions are not on this page yet. Until they are, check what the law needs for this incident yourself.",
+      "The questions are not shown to you here. Until they are answered, check what the law needs for this incident yourself.",
     ]);
   });
 
@@ -546,5 +550,34 @@ describe("statutory notifications on an incident (safety.md section 4; HZ-013)",
     expect(t("safety.incident.overdueLink", { count: 2 })).toBe(
       "2 statutory notifications overdue: go to them",
     );
+  });
+});
+
+describe("hazard HZ-027 the checks after a fall on the incident page", () => {
+  const tasks = (...kinds: string[]) => ({
+    tasks: kinds.map((kind) => ({
+      task: kind,
+      reason: "Fall",
+      dueAt: "2026-10-31T14:05:00Z",
+      until: kind === "post_fall_monitoring" ? "2026-11-01T14:05:00Z" : null,
+    })),
+  });
+
+  it("hazard HZ-027 puts urgent medical advice first, as urgent, in words", () => {
+    const checks = postFallChecks(
+      tasks("post_fall_observations", "riddor_absence_check", "urgent_medical_advice"),
+      false,
+      t,
+    );
+    expect(checks.map((c) => c.task)).toEqual(["urgent_medical_advice", "post_fall_observations"]);
+    expect(checks[0]?.urgent).toBe(true);
+    expect(checks[0]?.title).toMatch(/^Get urgent medical advice now/);
+    expect(checks[0]?.when).toMatch(/^Due /);
+  });
+
+  it("hazard HZ-027 says how long monitoring lasts, and shows nothing once the incident is closed", () => {
+    expect(postFallChecks(tasks("post_fall_monitoring"), false, t)[0]?.when).toMatch(/^Until /);
+    expect(postFallChecks(tasks("urgent_medical_advice"), true, t)).toEqual([]);
+    expect(postFallChecks(null, false, t)).toEqual([]);
   });
 });

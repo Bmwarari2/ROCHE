@@ -1,6 +1,7 @@
 "use client";
 
 import type { CreateBodyMapMark, OutageItem } from "@harbour/contracts";
+import { markTriggers, type PressureUlcerCategory } from "@harbour/domain";
 import {
   Button,
   RadioGroup,
@@ -99,6 +100,7 @@ export function BodyMapRecorder({
   const [markType, setMarkType] = useState<MarkType | "">("");
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [round, setRound] = useState(0);
+  const [raised, setRaised] = useState(false);
   const [pending, startTransition] = useTransition();
   const ids = useFieldIds(FIELDS);
   const entry = useEntryId();
@@ -121,8 +123,29 @@ export function BodyMapRecorder({
     const category = String(form.get("pressureCategory") ?? "");
     const deviceRelated = readYesNo(form.get("deviceRelated"));
     const bruiseExplained = readYesNo(form.get("bruiseExplained"));
+    // The API refuses these too; asking here says which question is missing before sending.
+    if (markType === "pressure_ulcer" && !category) {
+      return setResult(
+        refused(t("care.bodyMap.categoryRequired"), "invalid", ["pressureCategory"]),
+      );
+    }
+    if (markType === "pressure_ulcer" && deviceRelated === null) {
+      return setResult(refused(t("care.bodyMap.deviceRequired"), "invalid", ["deviceRelated"]));
+    }
+    if (markType === "bruise" && bruiseExplained === null) {
+      return setResult(refused(t("care.bodyMap.bruiseRequired"), "invalid", ["bruiseExplained"]));
+    }
     const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) return setResult(collectedRefusal(when.problems));
+    // Whether this mark raises the incident report and safeguarding guide tasks (the domain rule
+    // the API applies), so the saved message can say so.
+    const raises =
+      markTriggers({
+        markType,
+        pressureUlcerCategory:
+          markType === "pressure_ulcer" ? (category as PressureUlcerCategory) : null,
+        bruiseExplained: markType === "bruise" ? bruiseExplained : null,
+      }).length > 0;
     startTransition(async () => {
       const outcome = await recordBodyMark(personId, {
         id: entry.id,
@@ -148,6 +171,7 @@ export function BodyMapRecorder({
         ...size("depthMm"),
       });
       setResult(outcome);
+      setRaised(outcome.ok && raises);
       // Kept for review after a reconciled outage: start again, so it is not saved twice.
       if (outcome.ok || keptForReview(outcome)) {
         setRound((n) => n + 1);
@@ -240,6 +264,7 @@ export function BodyMapRecorder({
                   name="pressureCategory"
                   label={t("care.bodyMap.category")}
                   emptyOption={t("care.bodyMap.categoryEmpty")}
+                  required
                   options={CATEGORIES.map((category) => ({
                     value: category,
                     label: t("care.bodyMap.categoryOption", { category }),
@@ -250,6 +275,7 @@ export function BodyMapRecorder({
                   error={errorFor(result, "deviceRelated")}
                   legend={t("care.bodyMap.deviceRelated")}
                   name="deviceRelated"
+                  required
                   layout="inline"
                   options={[
                     { value: "yes", label: t("care.common.yes") },
@@ -264,6 +290,7 @@ export function BodyMapRecorder({
                 error={errorFor(result, "bruiseExplained")}
                 legend={t("care.bodyMap.bruiseExplained")}
                 name="bruiseExplained"
+                required
                 layout="inline"
                 options={[
                   { value: "yes", label: t("care.common.yes") },
@@ -328,7 +355,11 @@ export function BodyMapRecorder({
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.bodyMap.saved")} fieldIds={ids} />
+      <FormFeedback
+        result={result}
+        success={raised ? t("care.bodyMap.savedRaised") : t("care.bodyMap.saved")}
+        fieldIds={ids}
+      />
     </div>
   );
 }

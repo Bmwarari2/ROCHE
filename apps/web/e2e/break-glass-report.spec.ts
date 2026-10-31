@@ -118,6 +118,7 @@ test("hazard HZ-011 break-glass use is reported weekly and named, to the locatio
   if (await opener.isVisible()) {
     await opener.click();
     const sheet = page.getByRole("dialog", { name: "Open a record outside your access" });
+    await sheet.getByLabel("Why you need this record").selectOption("emergency_care");
     await sheet
       .getByLabel("Reason")
       .fill("Covering an emergency at Harbour Mews tonight while its manager is away");
