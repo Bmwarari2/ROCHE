@@ -192,6 +192,14 @@ whole organisation (owner, quality lead; never a manager for one home); every re
 never the summary, names, contact details, reasoning or notice text. A complaint about a sample
 person stops sample data removal rather than being deleted with it.
 
+Quality dashboard and PIR prefill (slice 47, [quality.md](../specs/quality.md) section 22): counts
+of incidents, body map marks, care plans and risk assessments, bed occupancy and care notes at one
+location, for good governance (Regulation 17) and the provider information return within the
+existing care-record purposes (B1, B7). Counts only, never a row or a name; a count of 1 or more
+below `quality.indicator.min_group_size` is withheld so no one can be identified (H-981). Targets
+hold no personal data. No new processing purpose and no new personal data field, so
+docs/specs/data-standards.md is unchanged.
+
 Data security evidence (slice 32, [quality.md](../specs/quality.md) section 18): DSPT assertions,
 evidence links, submissions and Cyber Essentials and ICO registration records hold no personal data
 beyond the member who recorded or owns them (B3 and B5); no new processing purpose.

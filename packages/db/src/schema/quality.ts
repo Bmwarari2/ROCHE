@@ -8,6 +8,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -17,7 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
-import { document, tenantUser } from "./platform";
+import { document, location, tenantUser } from "./platform";
 
 /**
  * Quality: the inspector evidence pack and the statement of purpose (master prompt 11.2;
@@ -551,5 +552,73 @@ export const policySignature = pgTable(
     }),
     staffRef("policy_signature_signer_fk", t, t.signerId),
     index("policy_signature_signer_idx").on(t.tenantId, t.signerId),
+  ],
+);
+
+/**
+ * The quality dashboard's indicator keys (`QUALITY_INDICATOR_KEYS` in packages/domain; a test keeps
+ * the lists in step), and those where a higher value is better, for the direction check.
+ */
+export const QUALITY_INDICATOR_KEY_CODES = [
+  "falls",
+  "pressure_ulcers",
+  "medication_errors",
+  "missed_visits",
+  "overdue_reviews",
+  "training_compliance",
+  "agency_hours",
+  "complaints",
+  "staff_turnover",
+  "incident_response",
+] as const;
+export const QUALITY_INDICATOR_HIGHER_IS_BETTER = [
+  "training_compliance",
+  "incident_response",
+] as const;
+
+/**
+ * The tenant's own targets for the quality dashboard (quality.md section 22, rule 41; QUAL-005):
+ * per indicator, the organisation default (`location_id` null) and optionally one per location.
+ * Green and amber are in the indicator's direction. Cleared by `deleted_at`, never deleted.
+ * Row-level security, grants and the history trigger are in migration 0108. Retention
+ * `organisation_document`; no personal data.
+ */
+export const qualityIndicatorTarget = pgTable(
+  "quality_indicator_target",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    locationId: uuid("location_id"),
+    indicatorKey: text("indicator_key").notNull(),
+    green: numeric("green", { mode: "number" }).notNull(),
+    amber: numeric("amber", { mode: "number" }).notNull(),
+    ...mutableColumns(),
+  },
+  (t) => [
+    unique("quality_indicator_target_tenant_id_id_key").on(t.tenantId, t.id),
+    uniqueIndex("quality_indicator_target_location_key")
+      .on(t.tenantId, t.locationId, t.indicatorKey)
+      .where(sql`deleted_at IS NULL AND location_id IS NOT NULL`),
+    uniqueIndex("quality_indicator_target_organisation_key")
+      .on(t.tenantId, t.indicatorKey)
+      .where(sql`deleted_at IS NULL AND location_id IS NULL`),
+    foreignKey({
+      name: "quality_indicator_target_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
+    check(
+      "quality_indicator_target_key",
+      sql`indicator_key IN (${sqlList(QUALITY_INDICATOR_KEY_CODES)})`,
+    ),
+    check(
+      "quality_indicator_target_values",
+      sql`green >= 0 AND amber >= 0 AND green <= 1000000 AND amber <= 1000000`,
+    ),
+    check(
+      "quality_indicator_target_direction",
+      sql`CASE WHEN indicator_key IN (${sqlList(QUALITY_INDICATOR_HIGHER_IS_BETTER)})
+        THEN green >= amber ELSE green <= amber END`,
+    ),
   ],
 );

@@ -18,7 +18,44 @@ export interface IndicatorDefinition {
   readonly multiplier: number;
   readonly unit: string;
   readonly direction: IndicatorDirection;
+  /**
+   * Rule 40: which counts could point at one person when small. A numerator always can; a
+   * denominator only when it counts records about people (`both`), never bed-days.
+   */
+  readonly smallNumbers: "numerator" | "both";
 }
+
+/** The ten indicator keys (plan slice 47; master prompt 11.2). */
+export const QUALITY_INDICATOR_KEYS = [
+  "falls",
+  "pressure_ulcers",
+  "medication_errors",
+  "missed_visits",
+  "overdue_reviews",
+  "training_compliance",
+  "agency_hours",
+  "complaints",
+  "staff_turnover",
+  "incident_response",
+] as const;
+export type QualityIndicatorKey = (typeof QUALITY_INDICATOR_KEYS)[number];
+
+/**
+ * Rule 39: where each indicator's figures come from today, in words; null where Harbour does not
+ * record it yet (rule 38), so it is shown as "No data", never rated (quality.md 22.1).
+ */
+export const INDICATOR_SOURCES: Readonly<Record<QualityIndicatorKey, string | null>> = {
+  falls: "Incidents recorded as a fall",
+  pressure_ulcers: "Body map marks recorded as a new pressure ulcer",
+  medication_errors: "Incidents recorded as a medication incident",
+  missed_visits: null,
+  overdue_reviews: "Active care plans and risk assessments",
+  training_compliance: null,
+  agency_hours: null,
+  complaints: null,
+  staff_turnover: null,
+  incident_response: "Incidents and when each left open",
+};
 
 /** The method in words, shown beside every value (master prompt 11.2 "with the method shown"). */
 export function indicatorMethod(definition: IndicatorDefinition): string {
@@ -42,6 +79,7 @@ export function phase2Indicators(
     multiplier: rates.bedDaysBase,
     unit: `per ${rates.bedDaysBase.toLocaleString("en-GB")} occupied bed-days`,
     direction: "lower_is_better",
+    smallNumbers: "numerator",
   });
   const percent = (
     key: string,
@@ -57,6 +95,7 @@ export function phase2Indicators(
     multiplier: 100,
     unit: "percent",
     direction,
+    smallNumbers: "both",
   });
   const count = (key: string, title: string, numerator: string): IndicatorDefinition => ({
     key,
@@ -66,6 +105,7 @@ export function phase2Indicators(
     multiplier: 1,
     unit: "count",
     direction: "lower_is_better",
+    smallNumbers: "numerator",
   });
   return [
     perBedDays("falls", "Falls", "falls recorded"),
@@ -132,7 +172,9 @@ export type NoDataReason =
   | "no_value"
   | "no_denominator"
   | "incomplete_data"
-  | "no_target";
+  | "no_target"
+  | "source_not_built"
+  | "small_number";
 
 export const NO_DATA_REASONS: Readonly<Record<NoDataReason, string>> = {
   unknown_indicator: "Harbour does not know this indicator.",
@@ -140,6 +182,8 @@ export const NO_DATA_REASONS: Readonly<Record<NoDataReason, string>> = {
   no_denominator: "There is nothing to measure against for this period.",
   incomplete_data: "Data incomplete for this period.",
   no_target: "No target has been set, so it is not rated.",
+  source_not_built: "Harbour does not record this yet.",
+  small_number: "A small number: not shown, so no one can be identified.",
 };
 
 export interface IndicatorResult {
@@ -150,6 +194,8 @@ export interface IndicatorResult {
   readonly display: number | null;
   readonly status: RagStatus;
   readonly reason: string | null;
+  /** The reason as a code, for the screens' own words; null when rated. */
+  readonly reasonCode: NoDataReason | null;
   readonly method: string;
 }
 
@@ -213,6 +259,7 @@ export function indicatorResult(
     display: value === null ? null : Math.round(value * 10) / 10,
     status: "no_data" as const,
     reason: NO_DATA_REASONS[reason],
+    reasonCode: reason,
     method,
   });
   if (!definition) return noData("unknown", "unknown_indicator", "");
@@ -235,6 +282,74 @@ export function indicatorResult(
     display: Math.round(value * 10) / 10,
     status: ragStatus(definition, value, target),
     reason: null,
+    reasonCode: null,
     method,
   };
+}
+
+export interface DashboardIndicator extends IndicatorResult {
+  /** Rule 39: the working, or null where rule 40 withholds it (or there is none). */
+  readonly numerator: number | null;
+  readonly denominator: number | null;
+}
+
+/** Rule 40: a count of 1 or more but below the minimum group size could point at one person. */
+export function isSmallNumber(count: number | null, minGroupSize: number): boolean {
+  return count !== null && count >= 1 && count < minGroupSize;
+}
+
+/**
+ * Rules 38 to 41: one indicator for the dashboard. A source not built yet, missing or incomplete
+ * data and a small number are each `no_data` with their reason (never green, HZ-129); a small
+ * count is withheld with its value; otherwise the result of rules 17 to 22 with its working.
+ */
+export function dashboardIndicator(
+  definition: IndicatorDefinition,
+  input: IndicatorInput,
+  target: IndicatorTarget | null,
+  options: { readonly minGroupSize: number; readonly built: boolean },
+): DashboardIndicator {
+  const method = indicatorMethod(definition);
+  const withheld = (
+    reason: NoDataReason,
+    numerator: number | null,
+    denominator: number | null,
+  ) => ({
+    key: definition.key,
+    value: null,
+    display: null,
+    status: "no_data" as const,
+    reason: NO_DATA_REASONS[reason],
+    reasonCode: reason,
+    method,
+    numerator,
+    denominator,
+  });
+  if (!options.built) return withheld("source_not_built", null, null);
+  const smallNumerator = isSmallNumber(input.numerator, options.minGroupSize);
+  const smallDenominator =
+    definition.smallNumbers === "both" && isSmallNumber(input.denominator, options.minGroupSize);
+  if (smallNumerator || smallDenominator) {
+    return withheld("small_number", null, smallDenominator ? null : input.denominator);
+  }
+  const result = indicatorResult(definition, input, target);
+  return { ...result, numerator: input.numerator, denominator: input.denominator };
+}
+
+export interface StoredTarget extends IndicatorTarget {
+  readonly locationId: string | null;
+  readonly indicatorKey: string;
+}
+
+/** Rule 41: the location's own target, else the organisation default, else none. */
+export function targetFor(
+  key: string,
+  targets: readonly StoredTarget[],
+  locationId: string,
+): IndicatorTarget | null {
+  const pick = (t: StoredTarget | undefined) => (t ? { green: t.green, amber: t.amber } : null);
+  return (
+    pick(targets.find((t) => t.indicatorKey === key && t.locationId === locationId)) ??
+    pick(targets.find((t) => t.indicatorKey === key && t.locationId === null))
+  );
 }

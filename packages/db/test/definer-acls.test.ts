@@ -44,6 +44,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Processor breach notices (slice 20, migration 0082).
   "app.send_processor_breach_notice(uuid, uuid, text, text, integer, integer, text, text, text, text, text)":
     ["harbour_operator"],
+  // The quality dashboard's counts (slice 47, migration 0108): the API, for a member holding
+  // quality.audit.manage at the location, which the function checks itself.
+  "app.quality_indicator_counts(uuid, date, date, integer)": ["harbour_app"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],

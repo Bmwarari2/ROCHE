@@ -70,6 +70,7 @@
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
 | [HZ-128](#hz-128-staff-follow-a-superseded-policy-or-procedure) | Staff follow a superseded policy or procedure | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 25, 65) |
+| [HZ-129](#hz-129-a-quality-indicator-falsely-reassures) | A quality indicator falsely reassures | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 8, 47, 65) |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -3002,6 +3003,51 @@ person receiving care.
 | `packages/db/test/policies.test.ts`: `hazard HZ-128 ...` (one published version per policy; publishing supersedes the last; a published version fixed but for its state; no statement supersedes by setting the flag itself; a draft-only policy and draft history hidden; signatures only on the version in force, in one's own name, never changed) | Passing (Phase 2 slice 25) |
 | `apps/api/test/policies.test.ts`: `hazard HZ-128 ...` (a superseded version served with its state and the version in force, its PDF too; the list shows only the version in force; the general routes serve a policy PDF only while in force and refuse a new file version; a major change asks everyone again, a minor one does not; signing a superseded version refused; unknown roles refused; the first reminder at once, then once per interval, completed only by signing, cancelled by a newer version and by retirement; review tasks) | Passing (Phase 2 slice 25) |
 | Screens and print (state and version on every page) | Planned, slice 65 |
+
+---
+
+## HZ-129 A quality indicator falsely reassures
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-129 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `quality` module (lane E) |
+| Source | [phase-2.md](../plans/phase-2.md) hazards table (slices 47, 65); [quality.md](../specs/quality.md) sections 17.3 (rules 16 to 24) and 22 (rules 38 to 43); Regulation 17 (good governance) |
+
+**Description**: a Registered Manager, quality lead or provider reads a quality indicator or PIR figure as better than care really is, and so does not act on a rising number of falls, pressure ulcers, medication errors or overdue reviews.
+
+**Causes**: missing data shown as zero or as green; a period that has not finished, or that starts before the location used Harbour, counted as if whole; a wrong or missing denominator (no bed-days recorded); a source Harbour does not record yet shown as a figure; incidents left out because the reader cannot see every person involved; a pressure ulcer corrected to another kind of mark still counted, or a healed one counted twice; a target set the wrong way round; the PIR prefilled with a partial year; a small count withheld for privacy read as zero.
+
+**Effects**: harm not acted on (repeated falls, pressure damage, medication errors); a provider information return that understates risk; a false sense of compliance (Regulation 17).
+
+**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Missing data is never shown as good: a source not built, no value, no denominator, incomplete coverage, no target and an unknown indicator each give "No data" with the reason, never green and never a value of 0 that was not recorded (rule 22) | Built in Phase 2 slice 8 (domain) |
+| Design | A period counts only when it is over and wholly after the location started using Harbour; overdue reviews are as at today; the PIR prefill counts a year only when the location used Harbour for all of it (rules 38 and 43) | Built in Phase 2 slice 47 (API) |
+| Design | Every figure shows its numerator, denominator, period, source and method (rule 39) | Built in Phase 2 slice 47 (API); shown on screen in slice 65 |
+| Design | A small count is withheld as "A small number: not shown", never as 0, and never rated (rule 40) | Built in Phase 2 slice 47 |
+| Design | Counts are complete for the location: one database function counts every record there whoever it involves, after checking the reader's permission at the location (rule 42, ADR-0108) | Built in Phase 2 slice 47 (migration 0108) |
+| Design | Pressure ulcers count each new mark once, leaving out marks later corrected to another kind; incidents count by the UK day they occurred | Built in Phase 2 slice 47 (migration 0108) |
+| Design | Targets are the organisation's own, in the indicator's direction (checked by the API and the database); with no target, a value is shown unrated (rule 41) | Built in Phase 2 slice 47 |
+| Training and user documentation | The screens say what each figure includes, and that a withheld or "No data" figure means "look at the records", not "nothing happened" | Slice 65 |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/quality/quality-indicators.test.ts`: `rule 22 missing data is never shown as good` and `hazard HZ-129 ...` (not built, unfinished period, no bed-days, small numbers) | Passing (Phase 2 slices 8 and 47) |
+| `packages/domain/src/quality/quality-pir.test.ts`: `hazard HZ-129 rule 43 ...` (not built, no value, small number, zero shown) | Passing (Phase 2 slice 47) |
+| `packages/db/test/quality-indicators.test.ts`: `hazard HZ-129 ...` (UK days, every incident at the location whoever the reader may see, corrected and healed marks, bed-days, overdue reviews, incident response, numbers only, refusals) | Passing (Phase 2 slice 47) |
+| `apps/api/test/quality-dashboard.test.ts`: `hazard HZ-129 ...` (not built and incomplete never rated, a period before the location used Harbour, small numbers withheld, the PIR's partial year) | Passing (Phase 2 slice 47) |
+| Screens (working shown, "No data" in words) | Planned, slice 65 |
 
 ---
 

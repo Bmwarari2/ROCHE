@@ -3,13 +3,18 @@ import { readRateTable } from "../../test/rate-table";
 import {
   checkIndicatorTarget,
   computeIndicator,
+  dashboardIndicator,
+  INDICATOR_SOURCES,
   type IndicatorDefinition,
   type IndicatorInput,
   type IndicatorTarget,
   indicatorMethod,
   indicatorResult,
+  NO_DATA_REASONS,
   phase2Indicators,
+  type QualityIndicatorKey,
   ragStatus,
+  targetFor,
 } from "./quality-indicators";
 import { resolveQualityPhase2Rates } from "./quality-rates";
 
@@ -169,5 +174,129 @@ describe("quality indicators (quality.md 17.3 rules 16 to 22; QUAL-005)", () => 
       expect(indicatorResult(complaints, full(0, 1), { green: 0, amber: 2 }).status).toBe("green");
       expect(indicatorResult(training, full(0, 40), { green: 95, amber: 85 }).status).toBe("red");
     });
+  });
+});
+
+describe("the quality dashboard (quality.md 22.2 rules 38 to 41; slice 47)", () => {
+  const options = { minGroupSize: rates.minGroupSize, built: true };
+  const target: IndicatorTarget = { green: 5, amber: 10 };
+  const overdue = byKey("overdue_reviews");
+
+  it("reads the minimum group size and the incident review target from the rate table", () => {
+    expect(rates.minGroupSize).toBeGreaterThan(1);
+    expect(rates.incidentReviewTargetDays).toBeGreaterThan(0);
+  });
+
+  it("names a source for every indicator, and none for those Harbour does not record yet", () => {
+    for (const definition of indicators) {
+      expect(Object.hasOwn(INDICATOR_SOURCES, definition.key)).toBe(true);
+    }
+    expect(INDICATOR_SOURCES.falls).toBe("Incidents recorded as a fall");
+    expect(
+      indicators
+        .filter((d) => INDICATOR_SOURCES[d.key as QualityIndicatorKey] === null)
+        .map((d) => d.key),
+    ).toEqual([
+      "missed_visits",
+      "training_compliance",
+      "agency_hours",
+      "complaints",
+      "staff_turnover",
+    ]);
+  });
+
+  it.each<[string, string, IndicatorInput, { built?: boolean }, string]>([
+    [
+      "hazard HZ-129 a source not built yet",
+      "falls",
+      full(0, 3000),
+      { built: false },
+      "source_not_built",
+    ],
+    [
+      "hazard HZ-129 an unfinished period",
+      "falls",
+      { numerator: 0, denominator: 3000, coverage: 0.5 },
+      {},
+      "incomplete_data",
+    ],
+    ["hazard HZ-129 no bed-days", "falls", full(0, 0), {}, "no_denominator"],
+    ["hazard HZ-129 one fall, a small number", "falls", full(1, 3000), {}, "small_number"],
+    [
+      "hazard HZ-129 a small denominator of records about people",
+      "overdue_reviews",
+      full(0, 2),
+      {},
+      "small_number",
+    ],
+  ])("rule 38 and 40: %s is never rated", (_name, key, input, over, reason) => {
+    const result = dashboardIndicator(byKey(key), input, target, { ...options, ...over });
+    expect(result.status).toBe("no_data");
+    expect(result.reasonCode).toBe(reason);
+    expect(result.reason).toBe(NO_DATA_REASONS[reason as keyof typeof NO_DATA_REASONS]);
+  });
+
+  it("rule 40 withholds a small count, its value and its status, and shows zero", () => {
+    const one = dashboardIndicator(falls, full(1, 3000), target, options);
+    expect(one).toMatchObject({ numerator: null, denominator: 3000, value: null, display: null });
+    const none = dashboardIndicator(falls, full(0, 3000), target, options);
+    expect(none).toMatchObject({ numerator: 0, denominator: 3000, value: 0, status: "green" });
+    const enough = dashboardIndicator(falls, full(rates.minGroupSize, 3000), target, options);
+    expect(enough.numerator).toBe(rates.minGroupSize);
+    expect(enough.status).not.toBe("no_data");
+  });
+
+  it("rule 40 keeps a bed-days denominator, which counts no one", () => {
+    const result = dashboardIndicator(falls, full(0, 3), target, options);
+    expect(result).toMatchObject({ denominator: 3, value: 0, status: "green" });
+  });
+
+  it("rule 40 withholds a small denominator of records about people with its numerator", () => {
+    const result = dashboardIndicator(overdue, full(0, 3), target, options);
+    expect(result).toMatchObject({ numerator: null, denominator: null, value: null });
+  });
+
+  it("rule 39 keeps the working beside a rated value", () => {
+    const result = dashboardIndicator(overdue, full(10, 40), { green: 10, amber: 20 }, options);
+    expect(result).toMatchObject({
+      numerator: 10,
+      denominator: 40,
+      value: 25,
+      display: 25,
+      status: "red",
+      reasonCode: null,
+      method: indicatorMethod(overdue),
+    });
+  });
+
+  it("rule 41 shows a value without a target, unrated", () => {
+    const result = dashboardIndicator(falls, full(6, 3000), null, options);
+    expect(result).toMatchObject({
+      numerator: 6,
+      value: 2,
+      status: "no_data",
+      reasonCode: "no_target",
+    });
+  });
+
+  it("rule 41 takes the location's own target over the organisation default", () => {
+    const organisation = { green: 1, amber: 2 };
+    const location = { green: 3, amber: 4 };
+    expect(
+      targetFor(
+        "falls",
+        [
+          { locationId: null, indicatorKey: "falls", ...organisation },
+          { locationId: "l1", indicatorKey: "falls", ...location },
+        ],
+        "l1",
+      ),
+    ).toEqual(location);
+    expect(
+      targetFor("falls", [{ locationId: null, indicatorKey: "falls", ...organisation }], "l1"),
+    ).toEqual(organisation);
+    expect(
+      targetFor("falls", [{ locationId: "l2", indicatorKey: "falls", ...location }], "l1"),
+    ).toBeNull();
   });
 });

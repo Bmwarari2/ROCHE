@@ -111,6 +111,7 @@ generic line and a link only. Nothing interprets, scores or predicts
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |
 | Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Harbour's assessment |
 | Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Harbour adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
+| Quality dashboard RAG (falls, pressure ulcers and medication errors per bed-days, overdue reviews, incident response) | 2 | Decided in slice 47 ([quality.md](../specs/quality.md) section 22, ADR-0108): counts of recorded events divided by a stated denominator, rated only against the organisation's own green and amber targets, shown with the working. No Harbour score, no prediction and nothing about one person; missing data is never rated (HZ-129) |
 
 ## 7. The question every clinical PR answers
 

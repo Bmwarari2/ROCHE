@@ -919,3 +919,120 @@ tell that holder the screens are for whoever handles data protection for the who
   published by the owner, and version 1 then names version 2 as in force. Data security: the owner
   adds an assertion, met is refused without evidence, not applicable needs notes, and the owner
   records a certificate and this year's submission.
+
+## 22. Quality dashboard and PIR prefill (slice 47: QUAL-005, QUAL-006; migration 0108)
+
+Stores the tenant's indicator targets and works out the slice 8 indicators (section 17.3, rules
+16 to 24) per location from the tables that exist today. The screens are slice 65 part 2. Plan
+slice 47 says "from events the source slices publish"; those read models do not exist yet, so
+the counts are read from the source tables through one database function that returns counts
+only ([ADR-0108](../decisions/0108-quality-indicator-counts.md)). Spec, permission matrix and test
+list came before the code.
+
+### 22.1 What each indicator reads today
+
+| Indicator | Numerator | Denominator | Source today |
+| --- | --- | --- | --- |
+| Falls | Incidents of type `fall` that occurred in the period at the location | Occupied bed-days | `incident`; `bed_occupancy` with `room` |
+| Pressure ulcers | Body map marks first recorded in the period as a present pressure ulcer, not later corrected to another kind of mark | Occupied bed-days | `body_map_mark`; `bed_occupancy` |
+| Medication errors | Incidents of type `medication` that occurred in the period | Occupied bed-days | `incident`; `bed_occupancy` |
+| Overdue reviews | Active care plans and active risk assessments past their review date, today | Active care plans and risk assessments with a review date, today | `care_plan`; `risk_assessment` by its person's location |
+| Incidents reviewed in time | Incidents recorded in the period that left `open` within `quality.incident_review.target_days` UK days of being recorded | Incidents recorded in the period, less those still open whose time has not run out | `incident`; the `safety.incident` workflow transitions |
+| Missed visits, training compliance, agency hours, complaints, staff turnover | - | - | Not built: shown as "No data" with "Harbour does not record this yet" |
+
+Complaints wait for the safety complaints register (the data protection complaints register is
+one kind of complaint only, so it is not shown as the complaints figure); staff turnover waits
+for employment records (a member's access is not their employment).
+
+### 22.2 Rules
+
+38. **Never rated without its data** (rule 22, HZ-129). An indicator whose source is not built
+    is `no_data` with "Harbour does not record this yet". The period must be over and wholly
+    after the location started using Harbour (its record's creation day) for its coverage to be
+    complete; otherwise "Data incomplete for this period". A location with no bed occupancy in
+    the period has no bed-days and its rates are "There is nothing to measure against", never 0.
+39. **Every figure shows its working**: numerator and denominator (each as a number, or withheld
+    under rule 40), the period it covers (overdue reviews are as at today, so their period is
+    today), the source in words and the method from rule 16.
+40. **Small numbers never point at one person.** A numerator of 1 or more but fewer than
+    `quality.indicator.min_group_size` (rate table) is withheld, with the value and the status:
+    "A small number: not shown, so no one can be identified" (`small_number`, never green). For
+    an indicator whose denominator counts records about people (overdue reviews, incidents
+    reviewed in time), a denominator in the same range is withheld the same way. Zero is shown.
+    The PIR prefill withholds the same counts and marks them to complete.
+41. **Targets are the tenant's** (rule 18): per indicator, an organisation default and optionally
+    one per location; the location's own wins. Green and amber are in the indicator's direction
+    (`checkIndicatorTarget`, and a database check). With no target, a value is shown unrated.
+42. **Counts only, by location**: the dashboard is for one location the reader holds
+    `quality.audit.manage` at, for one period of at most 366 UK days ending no later than today.
+    The database function checks that permission itself and returns counts, never rows, names or
+    ids. Incidents are counted whoever they involve, so a manager's own view of incidents does not
+    change the figure.
+43. **PIR prefill** (rules 23 and 24): for one location, as at yesterday, the last 12 months.
+    Each data point in the question set (`PIR_QUESTION_SET`, unconfirmed until H-602) is
+    `prefilled` with its value, as-of date and record count, or `to_complete` with the reason (not
+    built in Harbour, a small number, no data). Built today: incidents and medication errors in
+    the last 12 months, and whether care records are kept digitally (care notes recorded at the
+    location in that time). Nothing is submitted; the Registered Manager copies it across.
+44. **Audit**: viewing the dashboard (`quality.dashboard.viewed`) and the PIR prefill
+    (`quality.pir.viewed`) with the location and period; setting and clearing a target
+    (`quality.indicator_target.set`, `.cleared`) with the indicator key. Ids and codes only.
+
+### 22.3 Schema (migration 0108)
+
+| Table | Kind | Columns | Rules |
+| --- | --- | --- | --- |
+| `quality_indicator_target` | mutable aggregate (`version`, history) | `location_id` (null: the organisation default), `indicator_key` (one of the ten), `green`, `amber` (0 or more) | One live row per organisation, location and indicator; green and amber in the indicator's direction; cleared by `deleted_at`, never deleted |
+
+Forced RLS, the tenant policy and restrictive policies for `harbour_app` and `harbour_owner`:
+any member holding `quality.audit.manage` somewhere reads the targets (they are organisation
+figures, not personal data); writing a location's target needs `quality.audit.manage` at that
+location, and the organisation default needs it organisation-wide.
+
+`app.quality_indicator_counts(location, from, to, target_days)` is a security-definer function
+owned by the no-login role `harbour_quality_reader`, executable by `harbour_app` only. It refuses
+a caller without `quality.audit.manage` at the location and returns one JSON object of counts. The
+reader role holds SELECT on the tables it counts and on the role tables the permission check
+reads, and nothing else; the tenant policy still holds it to the caller's organisation.
+
+Retention: `quality_indicator_target` is `organisation_document` (kept while current, then with
+the organisation's records); it holds no personal data.
+
+### 22.4 Permission matrix
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the dashboard and the PIR prefill for a location | `quality.audit.manage` at that location (organisation-wide covers every location) | API and database function |
+| Read targets | `quality.audit.manage` anywhere | RLS |
+| Set or clear a location's target | `quality.audit.manage` at that location | API and RLS |
+| Set or clear the organisation default | `quality.audit.manage` organisation-wide | API and RLS |
+
+### 22.5 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/dashboard?locationId&from&to` | Every indicator for the location and period: key, title, method, unit, source, numerator, denominator, period, value, status and reason |
+| `GET /v1/quality/indicator-targets?locationId` | The organisation defaults and the location's own targets |
+| `PUT /v1/quality/indicator-targets` | Set a target (`locationId` or null, `indicatorKey`, `green`, `amber`, `expectedVersion` or null for a new one) |
+| `POST /v1/quality/indicator-targets/{id}/clear` | Clear a target (`expectedVersion`) |
+| `GET /v1/quality/pir?locationId` | The PIR prefill as at yesterday |
+
+### 22.6 Clinical safety and data protection
+
+HZ-129 (a quality indicator or audit score falsely reassures) is added to the hazard log with
+rules 38 to 42 as its controls, each with a `hazard HZ-129 ...` test. Inside the medical-device
+boundary: the figures are counts and the tenant's own targets, never a Harbour score. No new
+personal data: the function returns counts, and rule 40 keeps a small count from pointing at one
+person.
+
+### 22.7 Tests
+
+- `packages/domain/src/quality/quality-indicators.test.ts` and `quality-pir.test.ts`: rules 38 to
+  41 and 43, table-driven (`hazard HZ-129 ...`).
+- `packages/db/test/quality-indicators.test.ts`: targets isolated between organisations and by
+  location permission, the direction check, one live target each; the function refuses a reader
+  without the permission at the location, counts only that location and organisation, takes UK
+  days, counts incidents whatever the reader's own scope, and returns no row data.
+- `apps/api/test/quality-dashboard.test.ts`: permissions and scope, not-built and incomplete
+  indicators never rated, small numbers withheld, targets with the location's own winning, RAG,
+  audit, and the PIR prefill.

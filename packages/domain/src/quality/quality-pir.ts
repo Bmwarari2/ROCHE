@@ -130,3 +130,70 @@ export function assemblePirDraft(
     }),
   );
 }
+
+/**
+ * The question set the data points are mapped to (rule 43). CQC's adult social care PIR for the
+ * single assessment framework; the mapping is Harbour's until the Registered Manager at the design
+ * partner confirms it against CQC's current questions (H-602).
+ */
+export const PIR_QUESTION_SET = {
+  regulator: "cqc",
+  name: "Provider Information Return, adult social care",
+  version: "harbour-2026-10",
+  confirmed: false,
+} as const;
+
+/** The data points whose source Harbour records today (quality.md 22.2 rule 43). */
+export const PIR_BUILT: ReadonlySet<string> = new Set([
+  "incidents",
+  "medication_errors",
+  "digital_care_records",
+]);
+
+export type PirReason = "not_built" | "no_value" | "small_number";
+
+export const PIR_REASONS: Readonly<Record<PirReason, string>> = {
+  not_built: "Not recorded in Harbour yet: complete it from your own records.",
+  no_value: "Not available in Harbour: check your own records.",
+  small_number:
+    "A small number, not shown so that no one can be identified: check your own records.",
+};
+
+export interface PirPrefillItem {
+  readonly dataPoint: PirDataPoint;
+  readonly status: "prefilled" | "to_complete";
+  readonly value: PirValue | null;
+  readonly reasonCode: PirReason | null;
+  readonly reason: string | null;
+}
+
+/**
+ * Rule 43: every data point, in key question order, prefilled with its value or marked to
+ * complete with why: its source is not built, there is no usable value, or a count is so small it
+ * could identify someone (rule 40). Never a 0 for a gap; nothing is submitted.
+ */
+export function pirPrefill(
+  values: Readonly<Record<string, PirValue | null | undefined>>,
+  options: { readonly minGroupSize: number },
+): PirPrefillItem[] {
+  return assemblePirDraft(values).map(({ dataPoint, value }) => {
+    const toComplete = (reasonCode: PirReason): PirPrefillItem => ({
+      dataPoint,
+      status: "to_complete",
+      value: null,
+      reasonCode,
+      reason: PIR_REASONS[reasonCode],
+    });
+    if (!PIR_BUILT.has(dataPoint.key)) return toComplete("not_built");
+    if (value === null) return toComplete("no_value");
+    if (
+      typeof value.value === "number" &&
+      dataPoint.unit === "count" &&
+      value.value >= 1 &&
+      value.value < options.minGroupSize
+    ) {
+      return toComplete("small_number");
+    }
+    return { dataPoint, status: "prefilled", value, reasonCode: null, reason: null };
+  });
+}

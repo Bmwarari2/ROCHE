@@ -4595,6 +4595,37 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.quality_indicator_target": {
+    context: "quality",
+    description:
+      "The organisation's own targets for the quality dashboard (quality.md section 22, rule 41): per indicator, green and amber thresholds for the organisation or one location.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: {
+        description:
+          "The location the target is for (location.id); empty for the organisation default.",
+      },
+      indicator_key: { description: "The indicator, for example falls or overdue_reviews." },
+      green: {
+        description: "The value at or better than which the indicator is green.",
+        unit: "the indicator's own unit (a rate, a percentage or a count)",
+      },
+      amber: {
+        description: "The value at or better than which it is amber; beyond it, red.",
+        unit: "the indicator's own unit (a rate, a percentage or a count)",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.policy_version": {
     context: "quality",
     description:

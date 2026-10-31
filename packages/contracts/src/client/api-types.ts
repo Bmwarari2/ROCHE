@@ -23252,6 +23252,368 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/quality/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The quality indicators for one location and period, each with its working
+     * @description `quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. A source Harbour does not record yet, an unfinished period, a period before the location used Harbour, or a small number (`quality.indicator.min_group_size`) gives `no_data` with its reason, never a rating. Audited (`quality.dashboard.viewed`).
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The dashboard */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityDashboard"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/indicator-targets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's indicator targets
+     * @description `quality.audit.manage`. The organisation defaults and, with `locationId`, that location's own targets; without it, the targets of every location the reader holds the permission at.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Targets */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityIndicatorTargetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set a target for an indicator
+     * @description `quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SetQualityIndicatorTarget"];
+        };
+      };
+      responses: {
+        /** @description The target */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["QualityIndicatorTargetOut"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/indicator-targets/{id}/clear": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clear a target
+     * @description `quality.audit.manage` where the target applies. The indicator is then rated against the organisation default, or not at all. Audited (`quality.indicator_target.cleared`).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ClearQualityIndicatorTarget"];
+        };
+      };
+      responses: {
+        /** @description Cleared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              id: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/quality/pir": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The Provider Information Return prefill for one location
+     * @description `quality.audit.manage` at the location. The last 12 months to yesterday. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).
+     */
+    get: {
+      parameters: {
+        query: {
+          locationId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The prefill */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PirPrefill"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -31669,6 +32031,132 @@ export interface components {
       /** Format: uuid */
       documentId?: string | null;
     };
+    QualityDashboard: {
+      /** Format: uuid */
+      locationId: string;
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      minGroupSize: number;
+      indicators: components["schemas"]["QualityIndicatorOut"][];
+    };
+    QualityIndicatorOut: {
+      key: components["schemas"]["QualityIndicatorKey"];
+      title: string;
+      unit: string;
+      /** @enum {string} */
+      direction: "lower_is_better" | "higher_is_better";
+      method: string;
+      source: string | null;
+      numerator: number | null;
+      denominator: number | null;
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      value: number | null;
+      display: number | null;
+      status: components["schemas"]["QualityIndicatorStatus"];
+      reasonCode: components["schemas"]["QualityNoDataReason"];
+      reason: string | null;
+      target: {
+        green: number;
+        amber: number;
+        /** @enum {string} */
+        level: "location" | "organisation";
+      } | null;
+    };
+    /** @enum {string} */
+    QualityIndicatorKey:
+      | "falls"
+      | "pressure_ulcers"
+      | "medication_errors"
+      | "missed_visits"
+      | "overdue_reviews"
+      | "training_compliance"
+      | "agency_hours"
+      | "complaints"
+      | "staff_turnover"
+      | "incident_response";
+    /** @enum {string} */
+    QualityIndicatorStatus: "green" | "amber" | "red" | "no_data";
+    /** @enum {string|null} */
+    QualityNoDataReason:
+      | "unknown_indicator"
+      | "no_value"
+      | "no_denominator"
+      | "incomplete_data"
+      | "no_target"
+      | "source_not_built"
+      | "small_number"
+      | null;
+    QualityIndicatorTargetList: {
+      items: components["schemas"]["QualityIndicatorTargetOut"][];
+    };
+    QualityIndicatorTargetOut: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string | null;
+      indicatorKey: components["schemas"]["QualityIndicatorKey"];
+      green: number;
+      amber: number;
+      version: number;
+    };
+    SetQualityIndicatorTarget: {
+      /** Format: uuid */
+      locationId: string | null;
+      indicatorKey: components["schemas"]["QualityIndicatorKey"];
+      green: number;
+      amber: number;
+      expectedVersion: number | null;
+    };
+    ClearQualityIndicatorTarget: {
+      expectedVersion: number;
+    };
+    PirPrefill: {
+      /** Format: uuid */
+      locationId: string;
+      questionSet: {
+        regulator: string;
+        name: string;
+        version: string;
+        confirmed: boolean;
+      };
+      period: {
+        /** Format: date */
+        from: string;
+        /** Format: date */
+        to: string;
+      };
+      /** Format: date */
+      asOf: string;
+      items: components["schemas"]["PirPrefillItem"][];
+    };
+    PirPrefillItem: {
+      key: string;
+      area: components["schemas"]["PirQuestionArea"];
+      label: string;
+      /** @enum {string} */
+      unit: "count" | "percent" | "hours" | "yes_no";
+      source: string;
+      /** @enum {string} */
+      status: "prefilled" | "to_complete";
+      value: number | boolean | null;
+      /** Format: date */
+      asOf: string | null;
+      records: number | null;
+      /** @enum {string|null} */
+      reasonCode: "not_built" | "no_value" | "small_number" | null;
+      reason: string | null;
+    };
+    /** @enum {string} */
+    PirQuestionArea: "safe" | "effective" | "caring" | "responsive" | "well-led";
     SubProcessorOverview: {
       noticeDays: number;
       mayRespond: boolean;

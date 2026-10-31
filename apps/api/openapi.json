@@ -25377,6 +25377,480 @@
           "issuedOn"
         ]
       },
+      "QualityDashboard": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "minGroupSize": {
+            "type": "integer"
+          },
+          "indicators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QualityIndicatorOut"
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "period",
+          "minGroupSize",
+          "indicators"
+        ]
+      },
+      "QualityIndicatorOut": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "lower_is_better",
+              "higher_is_better"
+            ]
+          },
+          "method": {
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numerator": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "denominator": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "display": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/QualityIndicatorStatus"
+          },
+          "reasonCode": {
+            "$ref": "#/components/schemas/QualityNoDataReason"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "green": {
+                "type": "number"
+              },
+              "amber": {
+                "type": "number"
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "location",
+                  "organisation"
+                ]
+              }
+            },
+            "required": [
+              "green",
+              "amber",
+              "level"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "unit",
+          "direction",
+          "method",
+          "source",
+          "numerator",
+          "denominator",
+          "period",
+          "value",
+          "display",
+          "status",
+          "reasonCode",
+          "reason",
+          "target"
+        ]
+      },
+      "QualityIndicatorKey": {
+        "type": "string",
+        "enum": [
+          "falls",
+          "pressure_ulcers",
+          "medication_errors",
+          "missed_visits",
+          "overdue_reviews",
+          "training_compliance",
+          "agency_hours",
+          "complaints",
+          "staff_turnover",
+          "incident_response"
+        ]
+      },
+      "QualityIndicatorStatus": {
+        "type": "string",
+        "enum": [
+          "green",
+          "amber",
+          "red",
+          "no_data"
+        ]
+      },
+      "QualityNoDataReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "unknown_indicator",
+          "no_value",
+          "no_denominator",
+          "incomplete_data",
+          "no_target",
+          "source_not_built",
+          "small_number",
+          null
+        ]
+      },
+      "QualityIndicatorTargetList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QualityIndicatorTargetOut"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "QualityIndicatorTargetOut": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "indicatorKey": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "green": {
+            "type": "number"
+          },
+          "amber": {
+            "type": "number"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "indicatorKey",
+          "green",
+          "amber",
+          "version"
+        ]
+      },
+      "SetQualityIndicatorTarget": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "indicatorKey": {
+            "$ref": "#/components/schemas/QualityIndicatorKey"
+          },
+          "green": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "amber": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "expectedVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        },
+        "required": [
+          "locationId",
+          "indicatorKey",
+          "green",
+          "amber",
+          "expectedVersion"
+        ]
+      },
+      "ClearQualityIndicatorTarget": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "PirPrefill": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "questionSet": {
+            "type": "object",
+            "properties": {
+              "regulator": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "confirmed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "regulator",
+              "name",
+              "version",
+              "confirmed"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date"
+              },
+              "to": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PirPrefillItem"
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "questionSet",
+          "period",
+          "asOf",
+          "items"
+        ]
+      },
+      "PirPrefillItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "area": {
+            "$ref": "#/components/schemas/PirQuestionArea"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "count",
+              "percent",
+              "hours",
+              "yes_no"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "prefilled",
+              "to_complete"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "records": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "not_built",
+              "no_value",
+              "small_number",
+              null
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "area",
+          "label",
+          "unit",
+          "source",
+          "status",
+          "value",
+          "asOf",
+          "records",
+          "reasonCode",
+          "reason"
+        ]
+      },
+      "PirQuestionArea": {
+        "type": "string",
+        "enum": [
+          "safe",
+          "effective",
+          "caring",
+          "responsive",
+          "well-led"
+        ]
+      },
       "SubProcessorOverview": {
         "type": "object",
         "properties": {
@@ -53807,6 +54281,418 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SecurityCertificate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/dashboard": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The quality indicators for one location and period, each with its working",
+        "description": "`quality.audit.manage` at the location. Each indicator gives its numerator, denominator, period, source and method, and a status against the organisation's own target. A source Harbour does not record yet, an unfinished period, a period before the location used Harbour, or a small number (`quality.indicator.min_group_size`) gives `no_data` with its reason, never a rating. Audited (`quality.dashboard.viewed`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityDashboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/indicator-targets": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The organisation's indicator targets",
+        "description": "`quality.audit.manage`. The organisation defaults and, with `locationId`, that location's own targets; without it, the targets of every location the reader holds the permission at.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Targets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityIndicatorTargetList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Set a target for an indicator",
+        "description": "`quality.audit.manage` at the location, or across the organisation for the default (`locationId` null). Green and amber in the indicator's direction (422 `wrong_order`). `expectedVersion` null adds a target (409 `already_set` when one is live); otherwise the live target's version (409 when stale). Audited (`quality.indicator_target.set`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetQualityIndicatorTarget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The target",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityIndicatorTargetOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/indicator-targets/{id}/clear": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Clear a target",
+        "description": "`quality.audit.manage` where the target applies. The indicator is then rated against the organisation default, or not at all. Audited (`quality.indicator_target.cleared`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearQualityIndicatorTarget"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quality/pir": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The Provider Information Return prefill for one location",
+        "description": "`quality.audit.manage` at the location. The last 12 months to yesterday. Each data point in the question set is `prefilled` with its value, as-of date and records, or `to_complete` with why (not recorded in Harbour, no data, a small number). Nothing is submitted to CQC. Audited (`quality.pir.viewed`).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The prefill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PirPrefill"
                 }
               }
             }

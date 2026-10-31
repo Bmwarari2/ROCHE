@@ -12,6 +12,8 @@ export const QUALITY_PHASE_2_RATE_KEYS = {
   ratingScaleMin: "cqc.rating_scale.min",
   ratingScaleMax: "cqc.rating_scale.max",
   bedDaysBase: "quality.indicator.bed_days_base",
+  minGroupSize: "quality.indicator.min_group_size",
+  incidentReviewTargetDays: "quality.incident_review.target_days",
   auditActionDueDays: "quality.audit.action_due_days",
   readAndSignReminderDays: "policy.read_and_sign.reminder_days",
   policyReviewDueSoonDays: "policy.review_due_soon_days",

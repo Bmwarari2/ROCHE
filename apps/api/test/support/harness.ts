@@ -134,7 +134,11 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
   await ownerTx(
     owner,
     DEMO.tenantId,
-    ["INSERT INTO location (id, name) VALUES ($1, 'Harbour Lodge')", [LODGE.locationId]],
+    // In use since 2025, so a past month is a whole period on the quality dashboard (slice 47).
+    [
+      "INSERT INTO location (id, name, created_at) VALUES ($1, 'Harbour Lodge', '2025-01-01T00:00:00Z')",
+      [LODGE.locationId],
+    ],
     [
       `INSERT INTO person (id, location_id, status, given_name, family_name, nhs_number)
        VALUES ($1, $2, 'active', 'Gwen', 'Outofscope', '9990000077')`,

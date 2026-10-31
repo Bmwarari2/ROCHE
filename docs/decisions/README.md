@@ -65,6 +65,7 @@ for an answer.
 | [0074](0074-shift-pattern-on-the-sync-token.md) | The phone learns the shift pattern from its sync token | accepted | 2026-10-13 | Phase 1 |
 | [0086](0086-pay-rules-engine.md) | Pay rules engine: pure functions over stored inputs, in whole pence, with their working | accepted | 2026-10-31 | Phase 2 |
 | [0087](0087-employment-law-not-yet-in-force.md) | Employment law not yet in force: record, do not calculate | accepted | 2026-10-31 | Phase 2 |
+| [0108](0108-quality-indicator-counts.md) | Quality indicator counts: one definer function returning numbers only | accepted | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 

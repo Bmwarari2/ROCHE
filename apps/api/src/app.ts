@@ -69,6 +69,7 @@ import {
   ratesRouter,
 } from "./routes/platform";
 import { policiesRouter } from "./routes/policies";
+import { qualityDashboardRouter } from "./routes/quality-dashboard";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
@@ -329,6 +330,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dpiaRouter);
   app.route("/", dataProtectionRouter);
   app.route("/", dataSecurityRouter);
+  app.route("/", qualityDashboardRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
