@@ -94,7 +94,8 @@ security on every table; the policies in section 3.
 | `training_record` | `worker_id`, `topic`, `tier`, `completed_on`, `expires_on` (a certificate's own last valid day), `provider` | Mutable with history (a correction is a change with `expected_version`); never by the worker |
 | `competence_sign_off` | `worker_id`, `competence` (`COMPETENCES`), `observed_on`, `observer_id`, `valid_until` (the day before observed plus the competence's refresh months) | Append-only. Observed in the observer's own name by a holder of `workforce.competence.observe`, never the worker, on a day no later than today |
 | `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
-| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. No notes are kept (a supervision's notes stay with the supervisor's own records until slice 57) |
+| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. Its notes are in `supervision_note` |
+| `supervision_note` (slice 57, migration 0114, ADR-0114) | `supervision_id`, `worker_id` (the supervision's), `discussion` (10 to 4,000 characters), `actions` (optional, up to 2,000), `supersedes_id` (the note it corrects), `written_by` | Append-only; written by whoever held the supervision, in their own name, never about themselves; a correction is a new note superseding the one in force (one original per supervision, each corrected once). Read by its writer, the member (`workforce.self.read`) and a supervisor for the member (`app.supervises_member`: organisation-wide HR, or a holder at a location where the member works), never by training, competence or staff file readers or by tenant-wide roles for that alone. Likely special category |
 | `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
 
 Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
@@ -302,6 +303,35 @@ item. Recording the item again with a new date cancels its open reminder tasks (
 for that item only), and the new date's reminders follow. Competence changes are published for
 medicines and scheduling (ADR-0085, slice 17).
 
+### Screens (slice 57)
+
+Web screens for WORK-005, WORK-008, WORK-009 and WORK-012, on the routes above and two added by
+this slice. The API and the database check every permission again; the web only decides what to
+offer. No form is offered on one's own record.
+
+| Screen | Path | Offered to | Does |
+| --- | --- | --- | --- |
+| Training matrix | `/training` | any of `workforce.training.manage`, `.competence.observe`, `.supervision.manage`, `.staff_file.read` | Every member of staff whose roles need training, a column per topic, each state an icon and a word (up to date, due soon, lapsed, not done; not needed for their roles). Filter by location, role and those needing attention (a GET form, ids and codes only); find by name in the browser, so no name enters an address |
+| Training requirements | `/training/requirements` | `workforce.training.manage` | Each role's topics, refresh and Oliver McGowan tier; set one role's requirement for a topic |
+| Training record | `/training/{memberId}` | as the matrix | The member's required training today and their records (record, correct); observed competences and sign-offs (sign off in one's own name, withdraw with a reason and a confirmation); supervisions and appraisals with the next due, and their notes where the viewer may read them (add or correct by whoever held it, earlier notes struck through); the NMC revalidation planner (H-693's default: HR records the evidence) |
+
+- **Routes added:**
+  - `GET /v1/workforce/training-matrix` uses the same permissions as one member's record. It
+    applies the member record's rules and filters by location (roles held there), role key and
+    attention. It returns at most 2,000 members, capped before any record is read, and says when
+    more match. It is audited without names.
+  - `POST /v1/workforce/members/{memberId}/supervisions/{supervisionId}/notes` adds or corrects a
+    note. Only whoever held the supervision may use it, never the member. It is audited without the
+    note.
+  - The supervision POST takes an optional note.
+- **Large homes:** every row stays in the page, so screen reader table navigation and find-in-page
+  reach everyone. The browser skips laying out rows out of view (`content-visibility: auto`), and
+  the header stays in view without hiding focus. A windowed list was tried first and dropped after
+  the accessibility review, because rows that were not drawn could not be reached.
+- **After a save** the page opens again at `?done=<catalogue key>`. The status says what was done
+  and focus moves to the page's heading.
+- Strings are en-GB; Welsh entries are marked untranslated. Dates are dd/mm/yyyy.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -427,8 +457,14 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Gap | Effect now | To close |
 | --- | --- | --- |
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
-| Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
-| Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
+| Supervision and appraisal due dates raise no tasks yet | Shown on the training record with their state (slice 57) | Reminder tasks for supervisions and appraisals due (with the task engine's workforce reminders) |
+| Supervision notes are not read by tenant-wide roles (owner, group executive) for holding `workforce.supervision.manage` alone (slice 57, ADR-0114) | They see that a supervision happened, not what was said | A separate note permission, if wanted (H-1044) |
+| The matrix offers the built-in roles as filters; an organisation's own roles show by key on the requirements screen (slice 57) | A custom role's key, not its name, shows | A roles list in the API (with the role design screens) |
+| Every training record page has the same title, "Training record" (slice 57) | Browser tabs and history do not tell members apart; no name goes into history | Decide whether a name in the page title is acceptable (H-1046) |
+| Supervision templates and the wellbeing check-in (master prompt section 12.2) (slice 57) | Notes are free text | Templates per tenant, with ADR-0114's read rule |
+| The training screens' form and arrival components duplicate slice 58's workforce ones (`DevelopmentForm`, `WorkforceForm`), so the two branches merge cleanly (slice 57) | Two copies of the same component | Fold into one shared component once both are merged |
+| The e-learning player (slice 43) | Not part of these screens | Joins the training record when slice 43 lands |
+| Revalidation evidence is recorded by HR, not by the nurse | H-693's default applied in slice 57: HR records it from the nurse's evidence, and the nurse revalidates with the NMC | Self-service with review if H-693 decides so |
 | Reminders cover upcoming expiry only: required training never done, a member with no records, and an expired or withdrawn competence raise no task (the matrix and the port show them) | HR sees them in the development record, not in tasks | Slice 57 with the matrix screens (H-691) |
 | `withSystemRights` answers the port's and the record's narrow questions inside the caller's transaction; callers must await it alone | A concurrent query on the same transaction would run with the system's rights | Security-definer functions owned by a NOLOGIN role (ADR-0002), before slice 22 calls the port |
 | A location's team leader (`workforce.competence.observe`) reads development records and signs off competence across the organisation; the rule that an observer holds a valid sign-off for the same competence where the tenant requires it is not built | Wider than need-to-know; withdrawal reasons are free text | DPO decision (H-694); the observer rule in slice 57 |

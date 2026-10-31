@@ -84,6 +84,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `training_record`, `competence` | training_record |
 | `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
 | `supervision_record` (slice 17) | staff_file (tenant's chosen row) |
+| `supervision_note` (slice 57, ADR-0114) | staff_file (tenant's chosen row), with its supervision; append-only, destroyed only with the staff file |
 | `training_requirement` (slice 17) | tenant configuration, kept while current; each change kept in `record_version` |
 | `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |
 | `shift`, `timesheet_entry` | rota_and_timesheet |

@@ -681,6 +681,8 @@ names.
 | `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
 | `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
 | `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
+| `supervision_note.discussion`, `.actions` | Harbour | Free text: 10 to 4,000 characters; actions optional, 2 to 2,000 | Likely special category (ADR-0114); read only by the writer, the member and a supervisor for the member; never in audit, outbox, search or sync |
+| `supervision_note.supersedes_id` | Harbour | `supervision_note.id` | A correction; the earlier note is kept and shown struck through |
 | `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
 | Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
 

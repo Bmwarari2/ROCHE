@@ -63,6 +63,7 @@ for an answer.
 | [0072](0072-mfa-counts-only-for-the-session-that-used-it.md) | MFA counts only for the session that used it | accepted | 2026-10-16 | Phase 1 |
 | [0073](0073-changelog-fragments.md) | Development log entries as one file per pull request (deviation from section 20 rule 9's wording) | accepted | 2026-10-16 | All phases |
 | [0074](0074-shift-pattern-on-the-sync-token.md) | The phone learns the shift pattern from its sync token | accepted | 2026-10-13 | Phase 1 |
+| [0114](0114-supervision-notes-kept-in-harbour.md) | Supervision and appraisal notes are kept in Harbour, read by few | proposed | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 
