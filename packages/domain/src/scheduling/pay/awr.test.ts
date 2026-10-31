@@ -62,6 +62,22 @@ describe("the AWR 12-week clock (scheduling.md 4b rule 6)", () => {
     },
   );
 
+  it("pauses for jury service up to its own limit; longer resets (reg 7(8)(e), 9(b))", () => {
+    const jury = rates.awrJuryServicePauseMaxWeeks;
+    const pause = [
+      ...worked(weeks.slice(0, 2)),
+      ...breaks(weeks.slice(2, 2 + jury), "jury_service"),
+      ...worked(weeks.slice(2 + jury, 3 + jury)),
+    ];
+    expect(awrClock(pause, rates).qualifyingWeeks).toBe(3);
+    const reset = [
+      ...worked(weeks.slice(0, 2)),
+      ...breaks(weeks.slice(2, 3 + jury), "jury_service"),
+      ...worked(weeks.slice(3 + jury, 4 + jury)),
+    ];
+    expect(awrClock(reset, rates).qualifyingWeeks).toBe(1);
+  });
+
   it("pauses for sickness up to its limit; a longer sickness break resets (reg 7(9)(a))", () => {
     const sick = rates.awrSicknessPauseMaxWeeks;
     const pause = [

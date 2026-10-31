@@ -44,6 +44,7 @@ import {
 } from "@harbour/domain";
 import type { z } from "@hono/zod-openapi";
 import { and, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { agencyWithoutPeople } from "./agency-window";
 import { competencePort } from "./competence-port";
 import { rateRows } from "./rates";
 import { profileFacts, storedItem, workforceRates } from "./staff-files";
@@ -628,6 +629,11 @@ export async function rotaCheck(
         !inducted.some((i) => i.workerId === a.workerId),
     )
     .map((a) => a.id);
+  // H-927: a booked bank or agency worker on a shift running now with nobody assigned (HZ-073).
+  const rotaShiftSet = new Set(shifts.map((s) => s.id));
+  const peopleUnassigned = (await agencyWithoutPeople(tx, rotaRow.locationId, now, now, now))
+    .filter((x) => rotaShiftSet.has(x.shiftId))
+    .map((x) => x.assignmentId);
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
   const periodsToAcknowledge = staffing
     .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
@@ -637,6 +643,7 @@ export async function rotaCheck(
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
     openShiftIds.length > 0 ||
     inductionsDue.length > 0 ||
+    peopleUnassigned.length > 0 ||
     eligibility.some((e) => !e.allowed);
   const digest = createHash("sha256")
     .update(
@@ -657,6 +664,7 @@ export async function rotaCheck(
         ]),
         periodsToAcknowledge,
         inductionsDue,
+        peopleUnassigned,
         workingTime,
       }),
     )
@@ -671,6 +679,7 @@ export async function rotaCheck(
     eligibility,
     openShiftIds,
     inductionsDue,
+    peopleUnassigned,
     hasWarnings,
     periodsToAcknowledge,
     blockedAssignmentIds,

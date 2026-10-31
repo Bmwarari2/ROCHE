@@ -88,7 +88,7 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |
 | `shift`, `timesheet_entry` | rota_and_timesheet |
 | `shift_template`, `shift_pattern`, `rota`, `rota_publication`, `shift_assignment`, `roster_override` ([scheduling.md](scheduling.md) section 14, slice 21) | rota_and_timesheet; never deleted (archived, cancelled or removed with a reason); publications and overrides append-only |
-| `agency`, `agency_worker`, `agency_booking`, `location_induction`, `agency_worker_feedback` ([scheduling.md](scheduling.md) section 15, slice 27) | rota_and_timesheet; agencies archived, bookings cancelled, never deleted; inductions and feedback append-only |
+| `agency`, `agency_worker`, `agency_booking`, `location_induction`, `agency_worker_feedback`, `agency_awr_record` ([scheduling.md](scheduling.md) section 15, slice 27) | rota_and_timesheet; agencies archived, bookings cancelled, never deleted; inductions and feedback append-only |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |
 | `audit_event` | audit_event, extended by audit_event.care_record |

@@ -228,6 +228,11 @@ export const HandoverSummary = z
 export type HandoverSummary = z.infer<typeof HandoverSummary>;
 
 export const HandoverDetail = HandoverSummary.extend({
+  /**
+   * Booked bank or agency workers on this shift now with nobody assigned to them (H-927; HZ-073):
+   * the nurse in charge assigns people so they can see allergies and care plans. Ids only.
+   */
+  agencyWithoutPeople: z.array(z.object({ memberId: uuid, shiftId: uuid })),
   /** The items the reader may see, in the order they were compiled and added. */
   items: z.array(HandoverItem),
   notes: z.array(HandoverNoteItem),

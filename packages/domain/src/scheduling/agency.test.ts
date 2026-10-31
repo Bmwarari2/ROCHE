@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
-import { agencyAccessWindow, awrWeeksFromShifts, bookingCostPence } from "./agency";
+import {
+  agencyAccessWindow,
+  agencyUploadDecision,
+  awrWeeksFromShifts,
+  bookingCostPence,
+} from "./agency";
 import { awrClock } from "./pay/awr";
 import { resolvePayRates } from "./pay/rates";
 
@@ -126,5 +131,97 @@ describe("the access window a booked shift opens (ADR-0088)", () => {
 
   it("gives nothing with no booking", () => {
     expect(agencyAccessWindow([], at("2026-11-02T12:00:00Z"), 2)).toBeNull();
+  });
+});
+
+describe("break reasons and role changes on the AWR clock (H-924 recommended answer)", () => {
+  const rates = resolvePayRates(readRateTable(), "england", "2026-10-31", null);
+  // Weeks run from Monday 5 January 2026, the first shift.
+  const first = at("2026-01-05T08:00:00Z");
+  const after = (weeksOn: number) => at(`${addDays("2026-01-05", weeksOn * 7)}T08:00:00Z`);
+  function addDays(d: string, n: number) {
+    const x = new Date(`${d}T00:00:00Z`);
+    x.setUTCDate(x.getUTCDate() + n);
+    return x.toISOString().slice(0, 10);
+  }
+
+  it.each([
+    ["no reason recorded: uncovered, a long break resets", [], 1],
+    [
+      "sickness covering every day of the break: the clock pauses",
+      [{ from: "2026-01-12", to: addDays("2026-01-12", 10 * 7 - 1), reason: "sickness" as const }],
+      2,
+    ],
+    [
+      "a week only partly covered: uncovered, it resets",
+      [{ from: "2026-01-13", to: addDays("2026-01-12", 10 * 7 - 1), reason: "sickness" as const }],
+      1,
+    ],
+    [
+      "maternity leave counts as weeks worked (reg 7(6))",
+      [
+        {
+          from: "2026-01-12",
+          to: addDays("2026-01-12", 10 * 7 - 1),
+          reason: "protected_leave" as const,
+        },
+      ],
+      12,
+    ],
+  ] as const)("%s", (_, records, qualifying) => {
+    // Worked in week 0, a ten-week break, worked again in week 11.
+    const weeks = awrWeeksFromShifts([first, after(11)], addDays("2026-01-05", 11 * 7), [
+      ...records,
+    ]);
+    expect(awrClock(weeks, rates).qualifyingWeeks).toBe(qualifying);
+  });
+
+  it("restarts the clock in the week a new role was notified in writing (reg 7(3))", () => {
+    const starts = [0, 1, 2, 3].map(after);
+    const weeks = awrWeeksFromShifts(starts, addDays("2026-01-05", 3 * 7), [], ["2026-01-21"]);
+    expect(weeks.filter((w) => w.kind === "worked" && w.newRole).map((w) => w.week)).toEqual([
+      "2026-01-19",
+    ]);
+    const clock = awrClock(weeks, rates);
+    expect(clock.qualifyingWeeks).toBe(2);
+    expect(clock.resets).toEqual([{ week: "2026-01-19", reason: "new_role" }]);
+  });
+});
+
+describe("hazard HZ-006 offline entries from a closed agency window (H-921 recommended answer)", () => {
+  const booking = { start: at("2026-11-02T08:00:00Z"), end: at("2026-11-02T20:00:00Z") };
+  it.each([
+    [
+      "recorded and uploaded in the window",
+      "2026-11-02T12:00:00Z",
+      "2026-11-02T13:00:00Z",
+      { accept: true, late: false },
+    ],
+    [
+      "uploaded after the window, within the grace period",
+      "2026-11-02T12:00:00Z",
+      "2026-11-05T21:59:00Z",
+      { accept: true, late: true },
+    ],
+    [
+      "uploaded after the grace period",
+      "2026-11-02T12:00:00Z",
+      "2026-11-05T22:00:00Z",
+      { accept: false, reason: "upload_grace_ended" },
+    ],
+    [
+      "recorded outside any booking",
+      "2026-11-02T07:00:00Z",
+      "2026-11-02T13:00:00Z",
+      { accept: false, reason: "outside_booking" },
+    ],
+    [
+      "recorded in the post-shift hours",
+      "2026-11-02T21:30:00Z",
+      "2026-11-03T10:00:00Z",
+      { accept: true, late: true },
+    ],
+  ] as const)("hazard HZ-006 %s", (_, recorded, now, decision) => {
+    expect(agencyUploadDecision([booking], at(recorded), at(now), 2, 72)).toEqual(decision);
   });
 });

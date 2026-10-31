@@ -845,6 +845,7 @@ window. Hazards HZ-124 and HZ-011. Human actions H-920 to H-929. The screens are
 | `agency_booking` | mutable, cancelled with a reason | `shift_id`, `assignment_id`, `location_id`, `worker_id`, `agency_id`, `kind`, `booking_ref`, `charge_pence_per_hour`, `cost_pence`, `status` (`confirmed`, `cancelled`), `cancel_reason`; one live booking per assignment | `rota_and_timesheet` |
 | `location_induction` | append-only | `worker_id`, `location_id`, `inducted_on`, `items` (the location's checklist keys), `created_by` (never the worker) | `rota_and_timesheet` |
 | `agency_worker_feedback` | append-only | `worker_id`, `booking_id`, `location_id`, `kind` (`positive`, `concern`, `do_not_rebook`), `notes` (free text), `created_by` | `rota_and_timesheet` |
+| `agency_awr_record` | append-only (H-924) | `worker_id`, `kind` (`break_reason`, `role_change`, `withdrawal`), `from_on`, `to_on`, `reason` (`sickness`, `jury_service`, `protected_leave`, `annual_leave`, `shutdown`, `industrial_action`), `notified_on`, `withdraws_id` (one withdrawal each), `note`, `created_by` (never the worker) | `rota_and_timesheet` |
 
 Row-level security: agencies and agency workers are read by holders of `scheduling.rota.read` or
 `.manage` anywhere, and written with `.manage`. Bookings, inductions and feedback are read with
@@ -876,9 +877,17 @@ on `role_assignment` and `access_grant`.
 4. **AWR clock** (`awrWeeksFromShifts` then slice 6's `awrClock`): from the agency worker's booked
    shifts with this organisation that have started (never a future booking; cancelled and removed
    ones left out), weeks of seven days from the first shift's day (reg 7(4)), each with a shift
-   worked; weeks between are breaks
-   with no recorded reason (H-924), which the clock treats as uncovered. Shown with the weeks
-   counted and the week equal terms apply from. Bank workers have no AWR clock.
+   worked; a week without one is a break. A rota manager records why (H-924 recommended answer,
+   applied 31/10/2026): a coded reason over a range of dates, which covers a break week only when
+   it spans every day of it (the reason covering most days, ties in a fixed order), otherwise the
+   week is uncovered. Sickness pauses the clock up to `awr.sickness_pause_max_weeks`, jury service
+   up to `awr.jury_service_pause_max_weeks`; leave, the hirer's shutdown and industrial action
+   pause it; pregnancy, childbirth and maternity breaks count as weeks worked (reg 7(6)); any break
+   with an uncovered week longer than `awr.break_reset_weeks` restarts it. A substantively
+   different role, recorded with the day the worker was told in writing, restarts the clock from
+   the first worked week on or after that day (reg 7(3)). Records are never changed: a mistaken one
+   is withdrawn. Shown with the weeks counted, the week equal terms apply from and the label Great
+   Britain (AWR 2010) until a Northern Ireland pack loads. Bank workers have no AWR clock.
 5. **Induction at the location**: recorded by a member who is not the worker, with the checklist
    items done. A booking at a location where the worker has no induction says so, and the rota's
    check lists it as a warning; whether it should block is H-922.
@@ -887,7 +896,17 @@ on `role_assignment` and `access_grant`.
    `access.agency.post_shift_hours`; otherwise nothing, in the API and in Postgres, whoever asks.
    A worker marked do not book has no window. Search and the sync token end with the window.
    Bank and agency members go on shifts only by booking (the database refuses an assignment
-   without one); cancelling the shift or taking them off cancels the booking.
+   without one); cancelling the shift or taking them off cancels the booking. Access opens at the
+   shift's start, with no lead time (H-921 recommended answer, applied 31/10/2026). Entries the
+   worker recorded offline are uploaded only if their recorded time falls inside a booked window;
+   after the window closes they are still accepted, flagged late for the nurse in charge, for
+   `access.agency.upload_grace_hours` (a Harbour default), and refused after it
+   (`agencyUploadDecision`; HZ-006). Nothing can be read during the grace period.
+8. **People to care for** (H-927 recommended answer, applied 31/10/2026; HZ-073): the agency worker
+   role stays assigned-scope (rota-derived team scope stays off, H-929). While a booked bank or
+   agency worker is on a shift running now with nobody assigned to them, the rota's check lists the
+   assignment (`peopleUnassigned`) and the shift's handover names them (`agencyWithoutPeople`), so
+   the nurse in charge assigns people and the worker can see allergies and care plans.
 7. **Feedback** after a booking: positive, a concern, or do not rebook (which sets `do_not_book`
    with the reason). A concern or do not rebook says whether it is a safeguarding matter; if so the
    Registered Manager at the location gets an urgent task to raise it as an incident. Never by the
@@ -902,6 +921,7 @@ on `role_assignment` and `access_grant`.
 | `GET`, `POST /v1/agency-workers`; `PUT /v1/agency-workers/{id}/confirmation` | Workers and the agency's confirmation |
 | `POST /v1/shifts/{id}/booking`; `POST /v1/agency-bookings/{id}/cancel` | Booking an open shift and cancelling |
 | `GET /v1/agency-workers/{id}/awr` | The AWR clock |
+| `GET`, `POST /v1/agency-workers/{id}/awr-records` | Break reasons, role changes and withdrawals (H-924) |
 | `POST /v1/agency-workers/{id}/inductions` | Induction at a location |
 | `GET`, `POST /v1/agency-workers/{id}/feedback` | Feedback |
 | `GET /v1/locations/{id}/agency-costs?from=&to=` | Cost per agency |
@@ -909,7 +929,7 @@ on `role_assignment` and `access_grant`.
 Audit events (opaque ids only, never a confirmation's detail, notes or a reason):
 `scheduling.agency.created`, `.archived`; `scheduling.agency_worker.registered`, `.confirmed`;
 `scheduling.agency_booking.made`, `.cancelled`; `scheduling.induction.recorded`;
-`scheduling.agency_feedback.recorded`; `scheduling.awr.viewed`. Outbox:
+`scheduling.agency_feedback.recorded`; `scheduling.awr.viewed`, `.recorded`. Outbox:
 `scheduling.agency_booking_made` and `scheduling.agency_booking_cancelled` (booking, shift,
 location).
 

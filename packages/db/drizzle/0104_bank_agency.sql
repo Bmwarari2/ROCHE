@@ -105,6 +105,30 @@ CREATE TABLE "location_induction" (
 	CONSTRAINT "location_induction_items" CHECK (cardinality(items) BETWEEN 1 AND 40)
 );
 --> statement-breakpoint
+CREATE TABLE "agency_awr_record" (
+	"id" uuid PRIMARY KEY DEFAULT app.uuid_v7() NOT NULL,
+	"tenant_id" uuid DEFAULT app.current_tenant_id() NOT NULL,
+	"worker_id" uuid NOT NULL,
+	"kind" text NOT NULL,
+	"from_on" date,
+	"to_on" date,
+	"reason" text,
+	"notified_on" date,
+	"withdraws_id" uuid,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_by" uuid DEFAULT app.current_user_id(),
+	CONSTRAINT "agency_awr_record_tenant_id_id_key" UNIQUE("tenant_id","id"),
+	CONSTRAINT "agency_awr_record_kind" CHECK (kind IN ('break_reason', 'role_change', 'withdrawal')),
+	CONSTRAINT "agency_awr_record_shape" CHECK ((kind = 'break_reason' AND from_on IS NOT NULL AND to_on IS NOT NULL AND to_on >= from_on
+          AND reason IN ('sickness', 'jury_service', 'protected_leave', 'annual_leave', 'shutdown', 'industrial_action') AND notified_on IS NULL AND withdraws_id IS NULL)
+        OR (kind = 'role_change' AND notified_on IS NOT NULL AND from_on IS NULL AND to_on IS NULL
+          AND reason IS NULL AND withdraws_id IS NULL)
+        OR (kind = 'withdrawal' AND withdraws_id IS NOT NULL AND from_on IS NULL AND to_on IS NULL
+          AND reason IS NULL AND notified_on IS NULL)),
+	CONSTRAINT "agency_awr_record_note" CHECK (note IS NULL OR char_length(btrim(note)) BETWEEN 1 AND 500)
+);
+--> statement-breakpoint
 ALTER TABLE "agency_booking" ADD CONSTRAINT "agency_booking_shift_fk" FOREIGN KEY ("tenant_id","shift_id") REFERENCES "public"."shift"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agency_booking" ADD CONSTRAINT "agency_booking_assignment_fk" FOREIGN KEY ("tenant_id","assignment_id") REFERENCES "public"."shift_assignment"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agency_booking" ADD CONSTRAINT "agency_booking_agency_fk" FOREIGN KEY ("tenant_id","agency_id") REFERENCES "public"."agency"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -120,14 +144,21 @@ ALTER TABLE "location_induction" ADD CONSTRAINT "location_induction_worker_fk" F
 ALTER TABLE "location_induction" ADD CONSTRAINT "location_induction_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "agency_booking_live_key" ON "agency_booking" USING btree ("tenant_id","assignment_id") WHERE status = 'confirmed';--> statement-breakpoint
 CREATE INDEX "agency_booking_worker_idx" ON "agency_booking" USING btree ("tenant_id","worker_id");--> statement-breakpoint
-CREATE INDEX "location_induction_worker_idx" ON "location_induction" USING btree ("tenant_id","worker_id","location_id");--> statement-breakpoint
+CREATE INDEX "location_induction_worker_idx" ON "location_induction" USING btree ("tenant_id","worker_id","location_id");--> statement-breakpoint--> statement-breakpoint
+ALTER TABLE "agency_awr_record" ADD CONSTRAINT "agency_awr_record_worker_fk" FOREIGN KEY ("tenant_id","worker_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "agency_awr_record" ADD CONSTRAINT "agency_awr_record_withdraws_fk" FOREIGN KEY ("tenant_id","withdraws_id") REFERENCES "public"."agency_awr_record"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+CREATE UNIQUE INDEX "agency_awr_record_one_withdrawal_key" ON "agency_awr_record" USING btree ("tenant_id","withdraws_id") WHERE withdraws_id IS NOT NULL;
+--> statement-breakpoint
+CREATE INDEX "agency_awr_record_worker_idx" ON "agency_awr_record" USING btree ("tenant_id","worker_id");
 
 -- Bank and agency workers (scheduling.md section 15; SCHED-009; ADR-0088; HZ-124, HZ-011).
 DO $$
 DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY['agency', 'agency_worker', 'agency_booking', 'location_induction',
-      'agency_worker_feedback'] LOOP
+      'agency_worker_feedback', 'agency_awr_record'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format(
@@ -205,6 +236,22 @@ CREATE POLICY feedback_insert ON public.agency_worker_feedback AS RESTRICTIVE FO
   TO harbour_app
   WITH CHECK (app.manages_rota(location_id) AND worker_id <> app.current_user_id()
     AND created_by = app.current_user_id());
+--> statement-breakpoint
+
+-- AWR records (H-924): read by the worker and by those who build a rota anywhere (the clock spans
+-- every location with one hirer); written by a rota builder, never for themselves, in their own name.
+-- A withdrawal names a record of the same worker.
+CREATE POLICY awr_record_read ON public.agency_awr_record AS RESTRICTIVE FOR SELECT TO harbour_app
+  USING (worker_id = app.current_user_id() OR app.is_system()
+    OR app.holds_permission_anywhere('scheduling.rota.manage'));
+--> statement-breakpoint
+CREATE POLICY awr_record_insert ON public.agency_awr_record AS RESTRICTIVE FOR INSERT TO harbour_app
+  WITH CHECK (app.holds_permission_anywhere('scheduling.rota.manage')
+    AND worker_id <> app.current_user_id() AND created_by = app.current_user_id()
+    AND (withdraws_id IS NULL OR EXISTS (SELECT 1 FROM public.agency_awr_record r
+      WHERE r.tenant_id = agency_awr_record.tenant_id AND r.id = agency_awr_record.withdraws_id
+        AND r.worker_id = agency_awr_record.worker_id
+        AND r.kind <> 'withdrawal')));
 --> statement-breakpoint
 
 -- A bank or agency worker is a member who holds no role but agency_worker; registering one flags
@@ -485,7 +532,7 @@ BEGIN
     EXECUTE format('CREATE TRIGGER no_delete BEFORE DELETE ON public.%I '
       'FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()', t);
   END LOOP;
-  FOREACH t IN ARRAY ARRAY['location_induction', 'agency_worker_feedback'] LOOP
+  FOREACH t IN ARRAY ARRAY['location_induction', 'agency_worker_feedback', 'agency_awr_record'] LOOP
     EXECUTE format('CREATE TRIGGER append_only BEFORE UPDATE OR DELETE ON public.%I '
       'FOR EACH ROW EXECUTE FUNCTION app.forbid_mutation()', t);
     EXECUTE format('CREATE TRIGGER append_only_truncate BEFORE TRUNCATE ON public.%I '
@@ -497,12 +544,13 @@ $$;
 GRANT SELECT, INSERT, UPDATE ON public.agency, public.agency_worker, public.agency_booking
   TO harbour_app;
 --> statement-breakpoint
-GRANT SELECT, INSERT ON public.location_induction, public.agency_worker_feedback TO harbour_app;
+GRANT SELECT, INSERT ON public.location_induction, public.agency_worker_feedback,
+  public.agency_awr_record TO harbour_app;
 --> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.agency, public.agency_worker, public.agency_booking FROM harbour_app;
 --> statement-breakpoint
-REVOKE UPDATE, DELETE, TRUNCATE ON public.location_induction, public.agency_worker_feedback
-  FROM harbour_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.location_induction, public.agency_worker_feedback,
+  public.agency_awr_record FROM harbour_app;
 --> statement-breakpoint
 -- Earlier versions follow the tables' own read rules.
 CREATE POLICY record_version_agency ON public.record_version AS RESTRICTIVE FOR SELECT
