@@ -3,8 +3,10 @@ import { readRateTable } from "../../test/rate-table";
 import { checkWorkflowTransition } from "../platform/workflow";
 import { resolveSafetyPhase2Rates } from "./phase2-rates";
 import {
+  protectiveMeasuresFor,
   SAFEGUARDING_WORKFLOW,
   type SafeguardingRecordView,
+  safeguardingClock,
   safeguardingReferralTarget,
   safeguardingStepProblems,
 } from "./safeguarding";
@@ -161,5 +163,64 @@ describe("hazard HZ-013 the safeguarding log (safety.md Phase 2 rule 1)", () => 
       rates.safeguardingReferralHours * 3_600_000,
     );
     expect(target.wording).toContain("without delay");
+  });
+});
+
+describe("hazard HZ-126 a safeguarding concern is progressed and its protective measures are seen", () => {
+  const raised = new Date("2026-10-31T09:00:00Z");
+  const due = new Date(raised.getTime() + rates.safeguardingReferralHours * 3_600_000);
+
+  it.each([
+    ["concern", new Date("2026-10-31T10:00:00Z"), "due"],
+    ["concern", due, "overdue"],
+    ["concern", new Date("2026-11-03T09:00:00Z"), "overdue"],
+    ["referred", new Date("2026-11-03T09:00:00Z"), "referred"],
+    ["enquiry", new Date("2026-11-03T09:00:00Z"), "referred"],
+    ["closed", new Date("2026-11-03T09:00:00Z"), "referred"],
+    ["no_referral", new Date("2026-11-03T09:00:00Z"), "not_referred"],
+  ] as const)("hazard HZ-126 shows a %s concern at %s as %s", (state, now, status) => {
+    const clock = safeguardingClock(state, due, now, rates);
+    expect(clock.status).toBe(status);
+    expect(clock.dueAt).toEqual(due);
+    expect(clock.wording).toContain("The law says refer without delay.");
+  });
+
+  it("hazard HZ-126 shows the protective measures of every open concern, newest first", () => {
+    const view = protectiveMeasuresFor([
+      {
+        state: "concern",
+        protectiveMeasures: "Two staff for personal care",
+        protectiveMeasuresUpdatedAt: new Date("2026-10-30T10:00:00Z"),
+      },
+      {
+        state: "enquiry",
+        protectiveMeasures: " No visits from the named visitor ",
+        protectiveMeasuresUpdatedAt: new Date("2026-10-31T10:00:00Z"),
+      },
+      {
+        state: "closed",
+        protectiveMeasures: "Old measure",
+        protectiveMeasuresUpdatedAt: new Date("2026-10-31T11:00:00Z"),
+      },
+      {
+        state: "no_referral",
+        protectiveMeasures: "Not referred",
+        protectiveMeasuresUpdatedAt: new Date("2026-10-31T11:00:00Z"),
+      },
+    ]);
+    expect(view.measures.map((m) => m.text)).toEqual([
+      "No visits from the named visitor",
+      "Two staff for personal care",
+    ]);
+    expect(view.openWithoutMeasures).toBe(0);
+  });
+
+  it("hazard HZ-126 counts an open concern with no measures, so the screen never shows nothing", () => {
+    const view = protectiveMeasuresFor([
+      { state: "concern", protectiveMeasures: null, protectiveMeasuresUpdatedAt: null },
+      { state: "referred", protectiveMeasures: "  ", protectiveMeasuresUpdatedAt: new Date() },
+    ]);
+    expect(view.measures).toEqual([]);
+    expect(view.openWithoutMeasures).toBe(2);
   });
 });

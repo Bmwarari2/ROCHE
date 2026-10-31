@@ -102,6 +102,7 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.statutory_notification",
   "public.candour_record",
   "public.investigation",
+  "public.safeguarding_concern",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -922,6 +923,109 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "Letters and other correspondence about the duty of candour (document.id).",
       },
       outcome: { description: "How the duty of candour ended, as recorded when it closed." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.safeguarding_concern": {
+    context: "safety",
+    description:
+      "The safeguarding log (Care Act 2014 s.42; SAFE-006): one concern about one adult at risk, its referral to the local authority or the reason it was not referred, the enquiry and its finding, Making Safeguarding Personal outcomes, the DBS referral decision and the protective measures for staff.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: "exported",
+      person_id: "exported",
+      incident_id: { description: "The incident the concern came from, if any (incident.id)." },
+      notification_id: {
+        description:
+          "The s.42 safeguarding notification draft the concern was opened from, if any (statutory_notification.id).",
+      },
+      decision_guide_task_id: {
+        description:
+          "The pressure-ulcer adult safeguarding decision guide task the concern came from, if any (task.id).",
+      },
+      abuse_types: {
+        description:
+          "The types of abuse or neglect (Care and support statutory guidance 14.17): physical, domestic, sexual, psychological, financial_or_material, modern_slavery, discriminatory, organisational, neglect, self_neglect.",
+      },
+      description: {
+        description: "What the concern is, in the words of the person who raised it.",
+      },
+      raised_at: {
+        description: "When the concern was raised; the referral clock starts here (instant, UTC).",
+      },
+      raised_by: { description: "The member of staff who raised the concern (tenant_user.id)." },
+      referral_due_at: {
+        description:
+          "The organisation's referral target (safeguarding.referral_hours after raised_at; the law says without delay) (instant, UTC).",
+      },
+      state: {
+        description:
+          "Where the concern stands (SAFEGUARDING_WORKFLOW): concern, no_referral, referred, enquiry, outcome or closed.",
+      },
+      no_referral_reason: {
+        description: "Why the concern was not referred to the local authority.",
+      },
+      no_referral_decided_by: {
+        description: "Who decided not to refer (tenant_user.id).",
+      },
+      referral_local_authority: { description: "The local authority the concern was referred to." },
+      referral_method: {
+        description: "How it was referred: phone, online_form, email or in_person.",
+      },
+      referred_at: { description: "When it was referred (instant, UTC)." },
+      referral_reference: { description: "The local authority's reference for the referral." },
+      enquiry_kind: {
+        description:
+          "The enquiry: s42_local_authority (made by the local authority) or s42_caused_to_provider (caused to be made by the provider).",
+      },
+      enquiry_opened_at: { description: "When the enquiry opened (instant, UTC)." },
+      finding: {
+        description:
+          "The enquiry's finding: substantiated, partly_substantiated, not_substantiated, inconclusive or no_s42_enquiry.",
+      },
+      finding_recorded_at: { description: "When the finding was recorded (instant, UTC)." },
+      msp_asked: {
+        description:
+          "Making Safeguarding Personal: true when the person, or an advocate for them, was asked what they wanted.",
+      },
+      msp_not_asked_reason: { description: "Why the person, or an advocate, was not asked." },
+      msp_desired_outcomes: {
+        description: "What the person wanted from the enquiry, in their words.",
+      },
+      msp_achieved: { description: "Whether what they wanted was achieved: fully, partly or not." },
+      staff_removed_for_harm: {
+        description:
+          "True when a member of staff was removed from regulated activity, or would have been, because they harmed or posed a risk of harm.",
+      },
+      dbs_decision: {
+        description:
+          "The DBS referral decision (Safeguarding Vulnerable Groups Act 2006 s.35): referred or not_required.",
+      },
+      dbs_reason: { description: "Why a DBS referral is not required, or a note on the referral." },
+      dbs_decided_at: { description: "When the DBS referral decision was made (instant, UTC)." },
+      protective_measures: {
+        description:
+          "What staff caring for the person must do to keep them safe while the concern is open.",
+      },
+      protective_measures_updated_at: {
+        description: "When the protective measures were last changed (instant, UTC).",
+      },
+      closed_at: { description: "When the concern was closed (instant, UTC)." },
+      closed_by: { description: "Who closed the concern (tenant_user.id)." },
+      closed_reason: { description: "Why the concern could close." },
+      overdue_notified_at: {
+        description: "When the overdue-referral alert went out, if it did (instant, UTC).",
+      },
+      retention_class: { description: "The record class: serious_incident." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

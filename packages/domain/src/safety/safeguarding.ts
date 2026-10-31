@@ -160,3 +160,72 @@ export function safeguardingReferralTarget(
     wording: `Target: refer within ${hours} hours. The law says refer without delay.`,
   };
 }
+
+/** States in which the concern is still open: the clock runs, and the protective measures apply. */
+export const OPEN_SAFEGUARDING_STATES: readonly SafeguardingState[] = [
+  "concern",
+  "referred",
+  "enquiry",
+  "outcome",
+];
+
+export type SafeguardingClockStatus = "due" | "overdue" | "referred" | "not_referred";
+
+export interface SafeguardingClock {
+  readonly status: SafeguardingClockStatus;
+  readonly dueAt: Date;
+  /** Shown beside the clock: the target, and that the law says without delay. */
+  readonly wording: string;
+}
+
+/**
+ * The referral clock (HZ-126, HZ-013): due until the target passes, then overdue, until the concern
+ * is referred or a reason is recorded for not referring. Past the target it stays overdue: it is
+ * never closed by the clock itself.
+ */
+export function safeguardingClock(
+  state: SafeguardingState,
+  referralDueAt: Date,
+  now: Date,
+  rates: Pick<SafetyPhase2Rates, "safeguardingReferralHours">,
+): SafeguardingClock {
+  const wording = `Target: refer within ${rates.safeguardingReferralHours} hours. The law says refer without delay.`;
+  if (state === "no_referral") return { status: "not_referred", dueAt: referralDueAt, wording };
+  if (state !== "concern") return { status: "referred", dueAt: referralDueAt, wording };
+  return {
+    status: now.getTime() >= referralDueAt.getTime() ? "overdue" : "due",
+    dueAt: referralDueAt,
+    wording,
+  };
+}
+
+export interface SafeguardingMeasuresSource {
+  readonly state: SafeguardingState;
+  readonly protectiveMeasures: string | null;
+  readonly protectiveMeasuresUpdatedAt: Date | null;
+}
+
+export interface SafeguardingMeasure {
+  readonly text: string;
+  readonly updatedAt: Date;
+}
+
+/**
+ * What staff caring for the person see (HZ-126): the protective measures of every open concern,
+ * newest change first, and nothing about the allegation itself. An open concern with no measures
+ * recorded is counted, so the screen can say measures are not recorded rather than show nothing.
+ */
+export function protectiveMeasuresFor(concerns: readonly SafeguardingMeasuresSource[]): {
+  readonly measures: readonly SafeguardingMeasure[];
+  readonly openWithoutMeasures: number;
+} {
+  const open = concerns.filter((c) => OPEN_SAFEGUARDING_STATES.includes(c.state));
+  const measures = open
+    .filter((c) => c.protectiveMeasures?.trim() && c.protectiveMeasuresUpdatedAt)
+    .map((c) => ({
+      text: (c.protectiveMeasures ?? "").trim(),
+      updatedAt: c.protectiveMeasuresUpdatedAt as Date,
+    }))
+    .sort((x, y) => y.updatedAt.getTime() - x.updatedAt.getTime());
+  return { measures, openWithoutMeasures: open.length - measures.length };
+}
