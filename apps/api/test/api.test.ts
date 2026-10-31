@@ -452,6 +452,49 @@ describe("audit trail access", () => {
   });
 });
 
+describe("request ids in the audit trail (security review, 31 October 2026)", () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const resident = "0194d000-0000-7000-8600-000000000001";
+  /** Opens a care record with the request id given, and reads back what the audit row kept. */
+  const viewWith = async (requestId: string) => {
+    const response = await h.request(`/v1/people/${resident}`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      headers: { "x-request-id": requestId },
+    });
+    expect(response.status).toBe(200);
+    const echoed = response.headers.get("x-request-id") ?? "";
+    const rows = await asTenant<{ request_id: string | null }>(
+      DEMO.tenantId,
+      "SELECT request_id FROM audit_event WHERE action = 'people.person.view' AND request_id = $1",
+      [echoed],
+    );
+    return { echoed, audited: rows.map((r) => r.request_id) };
+  };
+
+  it("keeps a well-formed id on the audit row and in the response", async () => {
+    const { echoed, audited } = await viewWith("web-0194d000-request-1");
+    expect(echoed).toBe("web-0194d000-request-1");
+    expect(audited).toEqual(["web-0194d000-request-1"]);
+  });
+
+  it.each([
+    ["free text with personal data", "Ada Example 9990000000 ada@example.invalid"],
+    ["an id longer than 64 characters", "a".repeat(65)],
+    ["markup", "<img src=x onerror=alert(1)>"],
+  ])("replaces %s with a fresh id before anything is written", async (_label, sent) => {
+    const { echoed, audited } = await viewWith(sent);
+    expect(echoed).toMatch(UUID);
+    expect(audited).toEqual([echoed]);
+    const kept = await asTenant<{ n: number }>(
+      DEMO.tenantId,
+      "SELECT count(*)::int AS n FROM audit_event WHERE request_id = $1",
+      [sent],
+    );
+    expect(kept[0]?.n).toBe(0);
+  });
+});
+
 describe("offline sync", () => {
   // Each test starts with no sync tasks: they are retired (soft-deleted), so each reporter's day of
   // raised devices (HZ-008) starts again.
