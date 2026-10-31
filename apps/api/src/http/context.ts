@@ -39,7 +39,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
-import { endSsoSession, sessionFactorState, sessionSsoTenant } from "../auth/session-factor";
+import { endSsoSession, sessionFactorState, ssoTenantOf } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
@@ -216,7 +216,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (result) {
     // An SSO session is refused, and ended, on every route while its organisation's flag is off,
     // before anything moves its expiry on: the tenantless routes too (#33 re-check 3, M).
-    const ssoTenantId = await sessionSsoTenant(authPool, result.session.id);
+    const ssoTenantId = ssoTenantOf(result.session);
     if (ssoTenantId !== null && !(await ssoEnabledFor(c.get("services"), ssoTenantId))) {
       await endSsoSession(authPool, result.session.id);
       throw SSO_OFF();

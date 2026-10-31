@@ -3,7 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppEnv, Services } from "../http/context";
 import { ssoEnabledFor } from "../services/sso";
 import { isBlockedSsoPath } from "./better-auth";
-import { endSsoSession, sessionSsoTenant } from "./session-factor";
+import { endSsoSession, ssoTenantOf } from "./session-factor";
 
 /**
  * What a session made by single sign-on may do on Better Auth's own routes (#33 re-check H2):
@@ -72,7 +72,7 @@ export function ssoAuthGate(services: Services): MiddlewareHandler<AppEnv> {
       const found = await services.auth.api
         .getSession({ headers: request.headers, query: { disableRefresh: true } })
         .catch(() => null);
-      const ssoTenant = found ? await sessionSsoTenant(services.authPool, found.session.id) : null;
+      const ssoTenant = found ? ssoTenantOf(found.session) : null;
       if (found && ssoTenant !== null) {
         // Switching the flag off ends the organisation's SSO sessions (#33 re-check 2).
         if (!(await ssoEnabledFor(services, ssoTenant))) {

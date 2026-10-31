@@ -1529,7 +1529,12 @@ change in `record_version` and the audit trail.
     routes (401 `sso_session_ended`). An idle session is ended at its next request, so nothing it
     does in between keeps it alive, and switching the flag back on revives none. The flag is
     changed outside the API (Flagsmith or the `feature_flag` table), so no write path deletes the
-    rows at that moment. The operator console refuses any SSO session.
+    rows at that moment. The operator console refuses any SSO session. Sync tokens are separate:
+    one issued while the flag was on stays valid until it expires, at most 15 minutes later
+    (`SYNC_TOKEN_TTL_SECONDS`, packages/sync/src/streams/index.ts), because PowerSync checks the
+    token's signature and expiry, not the flag; the next token is refused with the session.
+    Which organisation a session is from is read from the session Better Auth resolved, never
+    from a second read of its row, so a request racing its end is still taken as SSO.
 25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
     sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
     five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked
