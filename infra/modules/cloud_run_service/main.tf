@@ -279,6 +279,33 @@ resource "google_cloud_run_v2_job" "this" {
             }
           }
         }
+
+        dynamic "volume_mounts" {
+          for_each = var.secret_volumes
+
+          content {
+            name       = volume_mounts.key
+            mount_path = volume_mounts.value.mount_path
+          }
+        }
+      }
+
+      dynamic "volumes" {
+        for_each = var.secret_volumes
+
+        content {
+          name = volumes.key
+
+          secret {
+            secret = volumes.value.secret
+
+            items {
+              version = "latest"
+              path    = volumes.value.file
+              mode    = 256
+            }
+          }
+        }
       }
     }
   }

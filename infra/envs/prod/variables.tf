@@ -65,11 +65,11 @@ variable "enable_flagsmith" {
 }
 
 variable "smtp" {
-  description = "SMTP relay for outgoing email (null: email off). The password is the smtp-password secret."
+  description = "SMTP relay for outgoing email (null until a provider is chosen). The user and password are the smtp-user and smtp-password secrets."
   type = object({
     host = string
     port = number
-    user = string
+    tls  = bool
   })
   default = null
 }

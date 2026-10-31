@@ -76,7 +76,7 @@ buckets for documents, exports, the write-once audit archive and bucket usage lo
   location to europe-west2 as part of the bootstrap so the default buckets are in London too.
 - No cross-region copy of anything.
 - Email has no Google Cloud service: an SMTP provider in the UK, on the sub-processor register
-  and in the DPIA, set with the `smtp` variable and the `smtp-password` secret.
+  and in the DPIA, set with the `smtp` variable and the `smtp-user` and `smtp-password` secrets.
 - Never use Railway, Render or Hetzner (no UK region) or Cloudflare (its jurisdiction
   restriction has no UK option) for anything that holds personal data.
 
@@ -129,7 +129,7 @@ terraform apply          # creates the project baseline, keys, network, database
    and the PowerSync and, if used, Flagsmith images, then push the first api and web images
    (the release job does this from then on).
 3. **Secrets.** `GCP_PROJECT_ID=${PROJECT} infra/scripts/seed-secrets.sh ${ENV}`. Add the
-   SMTP provider's password to `smtp-password` when email is set up.
+   SMTP provider's user and password to `smtp-user` and `smtp-password` when email is set up.
 4. **Migrations.** Run the migration job (it runs `db:bootstrap`, creating the roles and their
    passwords from the secrets, then the migrations):
 
@@ -177,19 +177,26 @@ apply, so an infrastructure change can never roll an application back.
 | --- | --- | --- |
 | Command | `node apps/api/dist/server.js`, `node apps/api/dist/worker.js` | image default |
 | Port and health check | 4000, `GET /health` | 3000, `GET /api/health` |
-| CA bundle | the Cloud SQL server CAs, mounted at `/secrets/db-ca/server-ca.pem` (`NODE_EXTRA_CA_CERTS`) | none |
 
-API and worker environment: `NODE_ENV`, `HARBOUR_ENV`, `APP_VERSION`, `GOOGLE_CLOUD_PROJECT`,
-`GOOGLE_CLOUD_REGION`, `BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `TRUSTED_PROXY_CIDRS`
-(the load balancer, Google's front ends and the subnet), `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`,
-`DOCUMENT_STORAGE=gcs`, `GCS_DOCUMENTS_BUCKET`, `GCS_EXPORTS_BUCKET`, `GCS_AUDIT_ARCHIVE_BUCKET`,
-`MALWARE_SCANNER=clamd`, `CLAMD_HOST=127.0.0.1`, `CLAMD_PORT=3310`, `EMAIL_TRANSPORT`
-(`smtp` or `none`), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `EMAIL_FROM_DOMAIN`,
-`SAFETY_CASE_VERSION`. Secrets (each a whole secret version): `DATABASE_APP_URL`,
+The images bundle no CA. The api, worker, migrate job and PowerSync mount the Cloud SQL server
+CA from the `db-server-ca` secret at `/secrets/cloudsql/server-ca.pem` and set
+`NODE_EXTRA_CA_CERTS` to that path; they connect to the private IP with TLS (`verify-ca`), with
+no Auth Proxy or connector.
+
+API and worker environment: `NODE_ENV`, `HARBOUR_ENV`, `APP_VERSION`, `GCP_PROJECT_ID`,
+`BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `TRUSTED_PROXY_CIDRS` (the load balancer,
+Google's front ends and the subnet), `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`,
+`DOCUMENT_STORAGE=gcs`, `GCS_DOCUMENTS_BUCKET` and `GCS_EXPORTS_BUCKET` (two different buckets),
+`GCS_KMS_KEY` (the `storage` key in europe-west2), `GCS_AUDIT_ARCHIVE_BUCKET`,
+`MALWARE_SCANNER=clamd`, `CLAMD_HOST=127.0.0.1`, `CLAMD_PORT=3310`, `EMAIL_FROM_DOMAIN`,
+`SAFETY_CASE_VERSION`, and, once an email provider is chosen, `SMTP_HOST`, `SMTP_PORT` and
+`SMTP_TLS` (unset until then). Secrets (each a whole secret version): `DATABASE_APP_URL`,
 `DATABASE_AUTH_URL`, `DATABASE_OPERATOR_URL`, `DATABASE_WORKER_URL`, `BETTER_AUTH_SECRET`,
 `EVIDENCE_LINK_SECRET`, `SYNC_SIGNING_KEY_PEM`, `SYNC_SIGNING_KEY_ID`,
 `HARBOUR_DB_PASSWORD_HARBOUR_APP`, `HARBOUR_DB_PASSWORD_HARBOUR_AUTH`,
-`HARBOUR_DB_PASSWORD_HARBOUR_WORKER`, `SMTP_PASSWORD`.
+`HARBOUR_DB_PASSWORD_HARBOUR_WORKER`, and `SMTP_USER` and `SMTP_PASSWORD` with the provider.
+Downloads stream through the API: no signed URLs, so the buckets allow no public or signed
+access and need no CORS.
 
 Migrate job: `DATABASE_HOST` (private IP), `DATABASE_PORT`, `DATABASE_NAME`,
 `DATABASE_SSL_MODE=verify-ca`, `DATABASE_ADMIN_USER=postgres`, `DATABASE_ADMIN_PASSWORD`,

@@ -22,8 +22,7 @@ locals {
       NODE_ENV                 = "production"
       HARBOUR_ENV              = var.environment
       SAFETY_CASE_VERSION      = var.safety_case_version
-      GOOGLE_CLOUD_PROJECT     = var.project_id
-      GOOGLE_CLOUD_REGION      = var.region
+      GCP_PROJECT_ID           = var.project_id
       NODE_EXTRA_CA_CERTS      = local.db_ca_file
       BETTER_AUTH_URL          = "https://${local.hosts.api}"
       WEB_ORIGINS              = "https://${local.hosts.web}"
@@ -34,17 +33,18 @@ locals {
       DOCUMENT_STORAGE         = "gcs"
       GCS_DOCUMENTS_BUCKET     = module.bucket_documents.name
       GCS_EXPORTS_BUCKET       = module.bucket_exports.name
+      GCS_KMS_KEY              = module.kms.key_ids["storage"]
       GCS_AUDIT_ARCHIVE_BUCKET = module.bucket_audit_archive.name
       MALWARE_SCANNER          = "clamd"
       CLAMD_HOST               = "127.0.0.1"
       CLAMD_PORT               = "3310"
       EMAIL_FROM_DOMAIN        = coalesce(var.email_from_domain, var.domain_name)
-      EMAIL_TRANSPORT          = var.smtp == null ? "none" : "smtp"
     },
+    # Unset until an email provider is chosen.
     var.smtp == null ? {} : {
       SMTP_HOST = var.smtp.host
       SMTP_PORT = tostring(var.smtp.port)
-      SMTP_USER = var.smtp.user
+      SMTP_TLS  = tostring(var.smtp.tls)
     },
   )
 
@@ -62,7 +62,10 @@ locals {
       SYNC_SIGNING_KEY_ID   = local.secret["api-sync-signing-key-id"]
     },
     { for r in ["harbour_app", "harbour_auth", "harbour_worker"] : "HARBOUR_DB_PASSWORD_${upper(r)}" => local.secret["db-${r}-password"] },
-    var.smtp == null ? {} : { SMTP_PASSWORD = local.secret["smtp-password"] },
+    var.smtp == null ? {} : {
+      SMTP_USER     = local.secret["smtp-user"]
+      SMTP_PASSWORD = local.secret["smtp-password"]
+    },
   )
 
   sync_config_file = coalesce(var.sync_config_path, "${path.module}/../../../packages/sync/src/streams/sync-config.yaml")
@@ -162,9 +165,9 @@ module "svc_worker" {
   depends_on = [module.secrets]
 }
 
-# What the API and worker may do with buckets: read and write documents and exports, append to
-# the audit archive (create only; no read, overwrite or delete), and sign upload URLs as
-# themselves.
+# What the API and worker may do with buckets: read and write documents and exports, and append
+# to the audit archive (create only; no read, overwrite or delete). No signed URLs: downloads
+# stream through the API.
 locals {
   app_accounts = {
     api    = module.svc_api.service_account_member
@@ -185,17 +188,6 @@ resource "google_storage_bucket_iam_member" "app" {
   bucket = each.value.bucket
   role   = each.value.role
   member = each.value.member
-}
-
-resource "google_service_account_iam_member" "sign_urls" {
-  for_each = {
-    api    = module.svc_api.service_account_email
-    worker = module.svc_worker.service_account_email
-  }
-
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${each.value}"
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:${each.value}"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -240,6 +232,7 @@ module "job_migrate" {
     },
     { for r in local.db_login_roles : "HARBOUR_DB_PASSWORD_${upper(r)}" => local.secret["db-${r}-password"] },
   )
+  secret_volumes = local.db_ca_volume
 
   network_id          = module.network.network_id
   subnet_id           = module.network.subnet_id

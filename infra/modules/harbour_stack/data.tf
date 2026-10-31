@@ -41,11 +41,13 @@ locals {
     k => "projects/${var.project_id}/locations/${var.region}/secrets/${local.name_prefix}-${k}"
   }
 
-  # The server CA is mounted as a file; connection URLs name it (sslrootcert).
+  # The Cloud SQL server CA is mounted as a file (the API image bundles no CA); connection URLs
+  # name it (sslrootcert) and NODE_EXTRA_CA_CERTS points at it. Private IP and TLS: no Auth
+  # Proxy or connector.
   db_ca_volume = {
-    db-ca = { secret = local.secret["db-server-ca"], mount_path = "/secrets/db-ca", file = "server-ca.pem" }
+    cloudsql = { secret = local.secret["db-server-ca"], mount_path = "/secrets/cloudsql", file = "server-ca.pem" }
   }
-  db_ca_file = "/secrets/db-ca/server-ca.pem"
+  db_ca_file = "/secrets/cloudsql/server-ca.pem"
 }
 
 module "secrets" {
@@ -142,14 +144,14 @@ resource "google_storage_bucket_iam_member" "usage_logs_writer" {
   member = "group:cloud-storage-analytics@google.com"
 }
 
-# Care documents, photos and attachments (signed uploads from web and mobile).
+# Care documents, photos and attachments. Uploads and downloads stream through the API: no
+# signed URLs and no browser access, so the bucket needs no CORS.
 module "bucket_documents" {
   source = "../gcs_bucket"
 
   project_id        = var.project_id
   name              = "${var.project_id}-documents"
   kms_key_id        = module.kms.key_ids["storage"]
-  cors_origins      = ["https://${local.hosts.web}"]
   access_log_bucket = module.bucket_logs.name
   force_destroy     = var.force_destroy_buckets
   labels            = local.labels

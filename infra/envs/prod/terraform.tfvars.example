@@ -15,7 +15,7 @@ billing_account_id    = null
 enable_flagsmith = false
 
 # Outgoing email through a UK SMTP provider on the sub-processor register (null: email off).
-# smtp = { host = "smtp.example.invalid", port = 587, user = "harbour-prod" }
+# smtp = { host = "smtp.example.invalid", port = 587, tls = true }
 
 # Every Cloud Armor preconfigured rule must be pinned before a prod plan (human action H-140).
 # List the versions with: gcloud compute security-policies list-preconfigured-expression-sets

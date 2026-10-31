@@ -15,4 +15,4 @@ billing_account_id    = null
 enable_flagsmith = false
 
 # Outgoing email through a UK SMTP provider on the sub-processor register (null: email off).
-# smtp = { host = "smtp.example.invalid", port = 587, user = "harbour-dev" }
+# smtp = { host = "smtp.example.invalid", port = 587, tls = true }

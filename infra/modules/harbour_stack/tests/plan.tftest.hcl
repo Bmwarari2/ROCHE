@@ -239,6 +239,26 @@ run "services_and_database" {
     error_message = "The main database must be regional (high availability) by default."
   }
 
+  # The images bundle no CA: the API, worker and migrate job mount the Cloud SQL server CA.
+  assert {
+    condition = alltrue([
+      for m in [module.svc_api, module.svc_worker, module.job_migrate] :
+      anytrue([for s in m.secret_ids : endswith(s, "/secrets/harbour-dev-db-server-ca")])
+    ])
+    error_message = "The API, worker and migrate job must mount the Cloud SQL server CA."
+  }
+
+  assert {
+    condition     = module.bucket_documents.name != module.bucket_exports.name
+    error_message = "Documents and exports must be different buckets."
+  }
+
+  # No email settings until a provider is chosen.
+  assert {
+    condition     = !anytrue([for s in module.svc_api.secret_ids : strcontains(s, "smtp-")])
+    error_message = "SMTP secrets must not be read until an email provider is chosen."
+  }
+
   # Each service may read only its own secrets: the web tier none, PowerSync no API secrets.
   assert {
     condition     = length(module.svc_web.secret_ids) == 0

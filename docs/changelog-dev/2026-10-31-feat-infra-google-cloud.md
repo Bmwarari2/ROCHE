@@ -38,9 +38,12 @@ are no Google Cloud credentials, so the code is validated and tested only.
 
 ## What is next
 
-- The application still speaks AWS: a Cloud Storage adapter for documents, exports and the
-  audit archive (`DOCUMENT_STORAGE=gcs`, `GCS_*_BUCKET`), SMTP email in place of SES
-  (`EMAIL_TRANSPORT`, `SMTP_*`), and `verify-ca` connections with the mounted Cloud SQL CA.
+- Wired to the application settings of `feat/api-google-cloud-adapters`: no CA in the image (the
+  Cloud SQL server CA is mounted from Secret Manager at `/secrets/cloudsql/server-ca.pem` for the
+  API, worker, migrate job and PowerSync, with `NODE_EXTRA_CA_CERTS`), `DOCUMENT_STORAGE=gcs`,
+  `GCP_PROJECT_ID`, `GCS_DOCUMENTS_BUCKET`, `GCS_EXPORTS_BUCKET`, `GCS_KMS_KEY`, and SMTP
+  (`SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`; `SMTP_USER` and `SMTP_PASSWORD` from Secret Manager)
+  left unset until a provider is chosen. No signed URLs, so no CORS and no token creator grant.
 - Cloud Armor answers a block with its own page, not the old `edge_blocked` JSON problem. Devices
   are still safe (they end a session only on a 401 or a session code); a custom error response
   on the load balancer would restore the JSON body.
@@ -57,6 +60,7 @@ are no Google Cloud credentials, so the code is validated and tested only.
 
 - `terraform fmt -check -recursive`; `terraform validate` for dev, staging and prod with
   `-lockfile=readonly`; `terraform test` in `modules/harbour_stack`: 12 runs passing (London
-  only, another region refused, keys rotate, nothing public, services and databases, Flagsmith
+  only, another region refused, keys rotate, nothing public, services and databases (the CA
+  mounted, documents and exports apart, no SMTP until chosen), Flagsmith
   and Cloud DNS, the audit lock only in prod, prod refused without every Cloud Armor pin, prod).
 - tflint and Trivy were not run locally (installing them was not allowed here); CI runs both.
