@@ -37,6 +37,12 @@ refuses both unless `NODE_ENV` is `development` or `test`, `HARBOUR_ENV` is not 
 container when `CI=true`), and the demo manager is linked in the demo tenant
 (`apps/api/scripts/demo-seed-guard.ts`). Never point it at a dev, staging or pilot database.
 
+With `HARBOUR_DEMO_E2E_PASSKEY=1` the seed also adds two invented organisations for the journeys,
+each with its own sign-in so the demo users keep one organisation: Starter Example Care
+(`starter.owner@example.invalid`, empty, for the sample data journey) and Second Example Care, whose
+one resident is Bea Elsewhere. `shared.coordinator@example.invalid` (Rowan Shared) works for both
+Second Example Care and the demo organisation, so signing in as them shows `/choose-organisation`.
+
 New cluster roles: when a migration needs a role your cluster does not have yet, `pnpm db:migrate`
 stops with `role "..." does not exist`. Run `pnpm db:bootstrap` again first: it is idempotent,
 creating missing roles and re-applying their memberships without touching data (it resets the
