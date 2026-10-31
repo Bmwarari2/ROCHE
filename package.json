@@ -59,10 +59,16 @@
         }
       }
     },
+    "overrides": {
+      "node-forge@<1.4.2": "1.4.2",
+      "undici@>=7.0.0 <7.30.1": "7.30.1",
+      "zod@>=4.0.0 <4.6.6": "4.6.6"
+    },
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-86w9-cpqp-85rv",
-        "GHSA-vfj7-8cjw-p6xm"
+        "GHSA-vfj7-8cjw-p6xm",
+        "GHSA-qr28-fpjm-wq7f",
+        "GHSA-mrhx-c7xc-m3w5"
       ]
     }
   },
