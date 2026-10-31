@@ -336,6 +336,8 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
       [pack.id],
     );
     expect(detail.links).toHaveLength(1);
+    // The manifest carries the link's version, so the web can issue a new link against it.
+    expect(detail.links[0]?.version).toBe(old?.version);
     const byComposer = await as(
       "manager",
       `/v1/evidence-packs/${pack.id}/links/${old?.id}/reissue`,

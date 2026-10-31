@@ -27,15 +27,15 @@ change.
 | people.md | `people` | 9.2, 18 | 0 (schema), 1 | Written by the lead engineer in Phase 0 |
 | [care.md](care.md) | `care` | 10.1, 10.4 | 1 | Written for Phase 1 |
 | [safety.md](safety.md) | `safety` | 11.1 | 1 | Written for Phase 1 |
-| medicines.md | `medicines` | 10.2, 10.3 | 2 | Planned |
-| [quality.md](quality.md) | `quality` | 11.2 | 1 (inspector packs, statement of purpose), 2 | Phase 1 sections written (slice 11) |
-| workforce.md | `workforce` | 12.1, 12.2, 12.4 | 2 | Planned |
-| scheduling.md | `scheduling` | 12.3 | 2 | Planned |
+| [medicines.md](medicines.md) | `medicines` | 10.2, 10.3 | 2 | Stub with the Phase 2 plan; Phase 2 slice 2 writes it in full |
+| [quality.md](quality.md) | `quality` | 11.2 | 1 (inspector packs, statement of purpose), 2 | Phase 1 sections written (slice 11); Phase 2 sections by Phase 2 slice 8 |
+| [workforce.md](workforce.md) | `workforce` | 12.1, 12.2, 12.4 | 2 | Stub with the Phase 2 plan; Phase 2 slice 4 writes it in full |
+| [scheduling.md](scheduling.md) | `scheduling` | 12.3 (and CARE-004 from 10.1) | 2 | Stub with the Phase 2 plan; Phase 2 slice 5 writes it in full |
 | [operations.md](operations.md) | `operations` | 13 | 1 (downtime pack), 3 | Phase 1 sections written (slice 11) |
 | finance.md | `finance` | 14 | 3 | Planned |
 | [comms.md](comms.md) | `comms` | 15.1, 15.3 (communications) | 1 | Written for Phase 1 (slice 11: templates; slice 12: family feed, notifications, visit booking) |
 | [insights.md](insights.md) | `insights` | 15.2 | 1 | Written for Phase 1 (role dashboards, INSI-001) |
-| integrations.md | `integrations` | 15.3 | 0 (framework) | Planned |
+| [integrations.md](integrations.md) | `integrations` | 15.3 | 0 (framework, in platform.md), 2 | Stub with the Phase 2 plan; each Phase 2 lane H slice writes its section |
 | ai.md | `ai` | 16 | 6 | Planned |
 
 Mobile behaviour (section 17) is specified inside each module's spec under "Offline behaviour", with

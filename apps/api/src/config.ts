@@ -61,6 +61,12 @@ const Env = z.object({
    */
   HANDOVER_COMPILE_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(12),
   /**
+   * Account deletion requests a member may send in 24 hours (MOB-011): each new one raises a task
+   * and an email for a manager, so a member cannot flood them. A product setting, not a statutory
+   * figure.
+   */
+  ACCOUNT_DELETION_REQUESTS_PER_DAY: z.coerce.number().int().positive().default(3),
+  /**
    * Invitation links opened or accepted (no one signed in yet), per minute per API instance: per
    * client address, and per token (counted by its SHA-256).
    */
