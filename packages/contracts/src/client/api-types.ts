@@ -13527,6 +13527,1079 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/deaths": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Death records in scope, open first (SAFE-014) */
+    get: {
+      parameters: {
+        query?: {
+          status?: components["schemas"]["DeathRecordStatus"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Death records */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Open the death record for a death recorded on an exit (once; the worker also does) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OpenDeath"];
+        };
+      };
+      responses: {
+        /** @description The death record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/deaths/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A death record: the judgement, each step and the mortality review */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The death record */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Record the clinician's judgement: expected or not, and whether the cause may be unnatural
+     * @description Harbour never decides either: the record says whose judgement it is. Until both are recorded the steps assume an unexpected death whose cause may be unnatural, so the police steps are never missed.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DeathJudgement"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/deaths/{id}/steps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a step of the death as done, or not needed with the reason
+     * @description Append-only: the latest for a step counts. A notification step is done only in the notification centre; here it can only be recorded as not needed, with a reason of at least 20 characters. The mortality review is recorded on its own.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordDeathStep"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/deaths/{id}/review": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Record the mortality review: its findings and lessons */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DeathReview"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/deaths/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Close the death record once every step is done or not needed and the review recorded */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseDeath"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DeathView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/missing-episodes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Missing person episodes in scope, still missing first (SAFE-015) */
+    get: {
+      parameters: {
+        query?: {
+          status?: components["schemas"]["MissingEpisodeStatus"];
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Episodes */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Open a missing person episode on its missing person (or absconding) incident
+     * @description Records when the person was noticed missing (and last seen), whether the risk assessment says call the police at once, and whether the person is under DoLS or the Mental Health Act; raises the police call task due at the target (HZ-127). One open episode per person. The client's id makes a resend a no-op.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["OpenMissingEpisode"];
+        };
+      };
+      responses: {
+        /** @description Already opened with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeView"];
+          };
+        };
+        /** @description Opened */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/missing-episodes/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A missing person episode: its timeline, the police call, and what closing needs */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The episode */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/missing-episodes/{id}/events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add to the episode's timeline or search log
+     * @description Append-only. The police called need their reference, and tell the incident's classifier that the police are involved, so the CQC notification is drafted in the notification centre (regulation 18(2)(f); HZ-013). Found ends the police call task. The welfare check and the debrief need safety.incident.manage.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["MissingTimelineEntry"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/missing-episodes/{id}/close": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Close the episode once the person is found, their welfare checked and the debrief held */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CloseMissingEpisode"];
+        };
+      };
+      responses: {
+        /** @description Closed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MissingEpisodeView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/herbert-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The person's Herbert Protocol profile, whether it is out of date, and a prefill */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The profile */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HerbertProfileView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Save the person's Herbert Protocol profile as reviewed on a date (version 0 starts it)
+     * @description What the person looks like and where they may go are required; the photograph is one of the person's documents; the review date is never later than today. Saving finishes the profile's review task.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveHerbertProfile"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["HerbertProfileView"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/locations/{id}/downtime-pack": {
     parameters: {
       query?: never;
@@ -26501,6 +27574,308 @@ export interface components {
     };
     NotRequiredNotification: {
       reason: string;
+      version: number;
+    };
+    DeathList: {
+      items: components["schemas"]["DeathSummary"][];
+      truncated: boolean;
+    };
+    DeathSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date-time */
+      diedAt: string;
+      status: components["schemas"]["DeathRecordStatus"];
+      /** Format: date-time */
+      reviewDueAt: string;
+      reviewOverdue: boolean;
+      outstanding: number;
+      version: number;
+    };
+    /** @enum {string} */
+    DeathRecordStatus: "open" | "closed" | "withdrawn";
+    DeathView: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      exitRecordId: string;
+      /** Format: uuid */
+      incidentId: string | null;
+      /** Format: date-time */
+      diedAt: string;
+      expected: boolean | null;
+      possiblyUnnatural: boolean | null;
+      judgedBy: string | null;
+      learningDisabilityOrAutism: boolean;
+      status: components["schemas"]["DeathRecordStatus"];
+      missingFacts: ("expected" | "possiblyUnnatural")[];
+      steps: {
+        step: components["schemas"]["DeathStep"];
+        state: components["schemas"]["DeathStepState"];
+        /** Format: date-time */
+        at: string | null;
+        /** Format: uuid */
+        notificationId: string | null;
+        /** @enum {string|null} */
+        notificationStatus: "draft" | "ready" | "submitted" | "not_required" | null;
+        reason: string | null;
+      }[];
+      history: {
+        /** Format: uuid */
+        id: string;
+        step: components["schemas"]["DeathStep"];
+        outcome: components["schemas"]["DeathStepOutcome"];
+        /** Format: date-time */
+        at: string;
+        note: string | null;
+        reference: string | null;
+        /** Format: date-time */
+        recordedAt: string;
+        /** Format: uuid */
+        recordedBy: string | null;
+      }[];
+      review: {
+        /** Format: date-time */
+        dueAt: string;
+        overdue: boolean;
+        findings: string | null;
+        lessons: string | null;
+        /** Format: date-time */
+        reviewedAt: string | null;
+        /** Format: uuid */
+        reviewedBy: string | null;
+      };
+      closeProblems: string[];
+      /** Format: date-time */
+      closedAt: string | null;
+      withdrawnReason: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    DeathStep:
+      | "verification_of_death"
+      | "family_informed"
+      | "medical_examiner_pack"
+      | "cqc_reg16_notification"
+      | "leder_notification"
+      | "police_informed"
+      | "preserve_room_and_equipment"
+      | "mortality_review";
+    /** @enum {string} */
+    DeathStepState: "done" | "not_needed" | "waiting" | "outstanding";
+    /** @enum {string} */
+    DeathStepOutcome: "done" | "not_needed";
+    OpenDeath: {
+      /** Format: uuid */
+      exitRecordId: string;
+    };
+    DeathJudgement: {
+      expected: boolean;
+      possiblyUnnatural: boolean;
+      judgedBy: string;
+      version: number;
+    };
+    RecordDeathStep: {
+      /** Format: uuid */
+      id: string;
+      step: components["schemas"]["DeathStep"];
+      outcome: components["schemas"]["DeathStepOutcome"];
+      /** Format: date-time */
+      at: string;
+      note?: string | null;
+      reference?: string | null;
+    };
+    DeathReview: {
+      findings: string;
+      lessons: string;
+      version: number;
+    };
+    CloseDeath: {
+      version: number;
+    };
+    MissingEpisodeList: {
+      items: components["schemas"]["MissingEpisodeSummary"][];
+      truncated: boolean;
+    };
+    MissingEpisodeSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      incidentId: string;
+      status: components["schemas"]["MissingEpisodeStatus"];
+      /** Format: date-time */
+      noticedMissingAt: string | null;
+      /** Format: date-time */
+      policeCallDueAt: string | null;
+      policeCallLate: boolean;
+      version: number;
+    };
+    /** @enum {string} */
+    MissingEpisodeStatus: "open" | "found" | "closed";
+    MissingEpisodeView: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      incidentId: string;
+      status: components["schemas"]["MissingEpisodeStatus"];
+      immediateRisk: boolean;
+      underDolsOrMha: boolean;
+      timeline: {
+        /** Format: uuid */
+        id: string;
+        kind: components["schemas"]["MissingTimelineKind"];
+        /** Format: date-time */
+        at: string;
+        reference: string | null;
+        area: string | null;
+        note: string | null;
+        /** Format: date-time */
+        recordedAt: string;
+        /** Format: uuid */
+        recordedBy: string | null;
+      }[];
+      /** Format: date-time */
+      policeCallDueAt: string | null;
+      policeCallLate: boolean;
+      policeReference: string | null;
+      cqcNotificationPrompt: boolean;
+      herbertProfile: components["schemas"]["HerbertProfileState"];
+      herbertProfileVersionAtOpening: number | null;
+      notifications: {
+        /** Format: uuid */
+        id: string;
+        kind: string;
+        /** @enum {string} */
+        status: "draft" | "ready" | "submitted" | "not_required";
+      }[];
+      closeProblems: string[];
+      canClose: boolean;
+      /** Format: date-time */
+      closedAt: string | null;
+      version: number;
+    };
+    /** @enum {string} */
+    MissingTimelineKind:
+      | "last_seen"
+      | "noticed_missing"
+      | "search_started"
+      | "search"
+      | "sighting"
+      | "police_called"
+      | "found"
+      | "welfare_check"
+      | "debrief"
+      | "note";
+    /** @enum {string} */
+    HerbertProfileState: "none" | "current" | "out_of_date";
+    OpenMissingEpisode: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      incidentId: string;
+      /** Format: uuid */
+      personId: string;
+      immediateRisk: boolean;
+      /** Format: date-time */
+      noticedMissingAt: string;
+      /** Format: date-time */
+      lastSeenAt?: string | null;
+    };
+    MissingTimelineEntry: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["MissingTimelineKind"];
+      /** Format: date-time */
+      at: string;
+      reference?: string | null;
+      area?: string | null;
+      note?: string | null;
+    };
+    CloseMissingEpisode: {
+      version: number;
+    };
+    HerbertProfileView: {
+      /** Format: uuid */
+      personId: string;
+      profile: {
+        /** Format: uuid */
+        photoDocumentId: string | null;
+        physicalDescription: string;
+        distinguishingFeatures: string | null;
+        usualClothing: string | null;
+        medicalNeeds: string | null;
+        mobility: string | null;
+        communication: string | null;
+        placesLikely: string;
+        peopleLikely: string | null;
+        routines: string | null;
+        phoneOrTracker: string | null;
+        previousEpisodes: string | null;
+        approach: string | null;
+        reviewedWith: string | null;
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        reviewedOn: string;
+        /** Format: uuid */
+        reviewedBy: string;
+        version: number;
+      } | null;
+      state: components["schemas"]["HerbertProfileState"];
+      /** Format: date */
+      reviewDueOn: string | null;
+      prefill: {
+        /** Format: uuid */
+        photoDocumentId: string | null;
+        distinguishingFeatures: string | null;
+        usualClothing: string | null;
+        medicalNeeds: string | null;
+        mobility: string | null;
+        communication: string | null;
+        peopleLikely: string | null;
+        routines: string | null;
+        phoneOrTracker: string | null;
+        previousEpisodes: string | null;
+        approach: string | null;
+        reviewedWith: string | null;
+        physicalDescription: string | null;
+        placesLikely: string | null;
+      };
+    };
+    SaveHerbertProfile: {
+      /** Format: uuid */
+      photoDocumentId: string | null;
+      physicalDescription: string;
+      distinguishingFeatures: string | null;
+      usualClothing: string | null;
+      medicalNeeds: string | null;
+      mobility: string | null;
+      communication: string | null;
+      placesLikely: string;
+      peopleLikely: string | null;
+      routines: string | null;
+      phoneOrTracker: string | null;
+      previousEpisodes: string | null;
+      approach: string | null;
+      reviewedWith: string | null;
+      /** Format: date */
+      reviewedOn: string;
       version: number;
     };
     /** @description A location's downtime pack, with its freshness worked out now (HZ-021) */
