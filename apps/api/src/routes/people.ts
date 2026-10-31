@@ -296,9 +296,9 @@ export const peopleRouter = createRouter()
           .from(person)
           .where(eq(person.id, id));
         if (!visible) return null;
-        // A removed person is gone from every ordinary read (row-level security and retention do
-        // not hide one); their history stays for whoever may read the audit log and record history
-        // for them (security review round 2).
+        // A removed person leaves the people list, but row-level security and retention do not hide
+        // one: their history is only for whoever may read the audit log and record history for
+        // them (security review round 2).
         const removed = visible.deletedAt !== null;
         if (removed && !(await mayReadRemoved(tx, access, id))) return null;
         const versions = await tx

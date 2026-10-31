@@ -82,6 +82,8 @@ Security re-review: OK to merge, with these fixed on the branch.
 - Likelihood and severity show as numbers, not the scale's labels (`LIKELIHOOD_LABELS`,
   `SEVERITY_LABELS`).
 - Consent and DoLS outcomes, a consent's capacity status and other coded fields show as stored.
+- Of the person reads, only the people list was seen to filter `deleted_at`; `GET /v1/people/{id}`
+  and the other person routes were not checked here.
 
 ## What is next
 
