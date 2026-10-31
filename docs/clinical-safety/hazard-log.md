@@ -68,9 +68,10 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-123](#hz-123-staffing-below-the-tenants-assessed-need-or-skill-mix-without-a-visible-warning) | Staffing below the tenant's assessed need or skill mix without a visible warning | Major / Medium / 3 | Major / Low / 3 until the rota shows the comparison (slices 21, 59), then Major / Very low / 2 (engineering proposal; the CSO rates it, H-710) | Open | None (Phase 2) | Phase 2 (slices 12, 21, 59) |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
 
-Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
+Fourteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, HZ-112 until its mobile control is built, and HZ-123 until the rota shows the staffing comparison) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
 Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062 to HZ-069) are blocks that were reserved for branches built at the same time; no hazard has been removed.
 
@@ -2920,6 +2921,62 @@ person receiving care.
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | `apps/mobile/src/sync/session-signals.test.ts`: `classifyForbidden` reads `mfa_verification_required` as a session code; `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 mfa_verification_required from the sync token as an ended session`, `hazard HZ-006 ends the session on a 403 mfa_verification_required instead of parking the entry as refused` | Passing |
 | `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, a backup code and the five-code limit under step-up, no factor enrolled, About me links, residents' money at exit and task links over HTTP, and no API or domain source giving step-up a sign-in time; `mfa-session-factor.test.ts`: a first enrolment's code records no factor; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
+
+---
+
+## HZ-123 Staffing below the tenant's assessed need or skill mix without a visible warning
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-123 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `scheduling` module (lane C) |
+| Source | Master prompt sections 10.1 (the dependency tool) and 12.3 (the safe staffing planner); Regulation 18 (staffing); [phase-2.md](../plans/phase-2.md) hazards table (slices 12, 21, 59); [scheduling.md](../specs/scheduling.md) section 13; related to HZ-124 (an ineligible worker rostered) and HZ-011 (scope) |
+
+**Description**: a shift is staffed with fewer care hours, or fewer staff with a needed skill (a registered nurse, someone competent to give medicines, moving and handling, a driver), than the organisation's own dependency scale requires for the people living there, and nobody sees a warning; or the required figure shown is lower than it should be, so a short rota looks sufficient.
+
+**Causes**: a person with no category, a category on another location's scale or one the current scale no longer has counted as needing nothing; no scale in force shown as zero hours; a category left unreviewed after the person's needs changed; a scale lowered in error by one person; people on leave or in hospital returning without the figure changing; who is at the location
+on a future date taken from today's status (a person being admitted on Monday left out with no
+warning, someone in hospital today treated as away all week; #153 review M1); a figure of 0 shown
+when nobody is counted, or a lower bound shown as a plain number (M3); a comparison that drops the
+requirement's warnings and says "met" (M2); a scale version that moves the shift times mid-day,
+leaving a gap or an overlap; a requirement computed over a narrower scope than the whole location (only assigned people), so people are left out; a figure read as Harbour's judgement of safe staffing rather than the organisation's own method; periods mis-timed on clock-change days; the comparison shown by colour alone.
+
+**Effects**: care delayed or missed (falls, pressure damage, missed medicines, unmet personal care) because too few staff, or staff without the needed skill, were on shift; a breach of Regulation 18 the provider cannot see or explain.
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3** (engineering proposal; the CSO rates it at the Phase 2 workshop, H-710, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | No scale in force gives `no_scale` with a warning and no figure, never 0, for the whole date or for each period before the first approval (`staffingRequirement`) | Built in Phase 2 slice 12 (domain and API) |
+| Design | A person with no category in force, a category on another scale, or a category or one-to-one period the version in force lacks is not counted, is named in a warning, and marks the requirement incomplete; the figure is then "at least" N hours, or none at all when nobody is counted; the method says the hours may be higher than shown | Built in Phase 2 slice 12 (figure from #153 review M3) |
+| Design | Who is at the location is worked out for the date asked (`presenceOn`): a planned admission counts from its date and is said; someone away today is away on that date, and "not known" on a later date (no return date is recorded); someone being admitted with no planned date, or a date before the person's current status began, is "not known"; anyone not known makes the result incomplete, by name | Built in Phase 2 slice 12 (#153 review M1) |
+| Design | The comparison carries every warning on the requirement and says "Meets the hours and staff your scale requires, but read the warnings" (`met_with_warnings`) rather than "met" while any stands; with no figure it is `incomplete` and gives no shortfall | Built in Phase 2 slice 12 (#153 review M2) |
+| Design | A version that moves the shift times applies from the next UK day, so a day never has a gap or overlap; on clock-change nights the method and a warning say the care minutes are not adjusted | Built in Phase 2 slice 12 (#153 review) |
+| Design | The comparison is `met` only when the requirement is complete and neither the hours nor any skill minimum falls short; `below` lists the shortfall in words; `incomplete` and `no_scale` are never shown as met; every status has a word (`STAFFING_STATUS_WORDS`) for the icon and word on screen (`compareStaffing`) | Built in Phase 2 slice 12 (domain); shown on the rota in slices 21 and 59 |
+| Design | A category recorded on an earlier version is counted by its key and flagged for review; one older than the scale's review interval is flagged as overdue | Built in Phase 2 slice 12 |
+| Design | People on leave or in hospital are listed with the hours they would add, not silently dropped (H-713) | Built in Phase 2 slice 12 |
+| Design | The API refuses the requirement unless the request's scope covers the whole location (`scope_not_whole_location`, audited) | Built in Phase 2 slice 12 |
+| Design | A scale version is fixed once approved and approved only by a member who neither wrote nor changed it (domain and database); categories are append-only with the reason and who decided, from an approved version only, with a known category and periods (database guard, migration 0074) | Built in Phase 2 slice 12 |
+| Design | Every figure is labelled as the organisation's own tool: the source (scale, version, approval) and `DEPENDENCY_TOOL_NOTICE` on every result; no score, risk level or judgement of safe staffing (medical-device boundary section 6) | Built in Phase 2 slice 12 |
+| Design | Periods are UK wall-clock windows measured in elapsed time, tested across both clock changes; the version in force is taken at each period's start | Built in Phase 2 slice 12 |
+| Design | The rota shows the comparison beside each shift, before publishing, with the method; it advises and never blocks | Slices 21 and 59 |
+| Deployer control | The organisation writes, checks and approves its own scale (periods, care minutes, skill mix, review interval), reviews people's categories when needs change, and decides what to do about a shortfall (H-712) | Before relying on required hours |
+| Training and user documentation | Managers are told the figures are their own method, what "not complete" means, and that a met status is only as good as their scale and their people's categories | Slice 82 |
+
+**Target residual risk**: severity Major, likelihood Low, **risk 3** until the rota shows the comparison (slices 21 and 59), then Very low, **risk 2** (engineering proposal; the CSO rates it, H-710). Justification for 3 meanwhile: slice 12 computes the requirement and the comparison but no rota screen shows them yet, and the adequacy of the scale's figures is the organisation's judgement, which Harbour cannot check.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/scheduling/dependency.test.ts`: `hazard HZ-123` cases (adds up the organisation's figures with the method; names the organisation's own scale as the source, never Harbour, and neither the requirement nor the comparison carries a score or risk field; no figure without a scale; a period before the first approval shows no scale; an uncategorised person gives "at least", and nobody counted gives no figure; a person on another scale, with a missing category or period, or whose category starts later is left out and named; who is at the location on a date, from status, status start and planned admission; people away listed with their hours; away with no return date, admission with no date and a date the record cannot place make the result incomplete; a planned admission counted from its date; review overdue flagged; earlier and later versions flagged; the version per period, and a version that moves shift times starting the next day; clock-change nights measured and said; the comparison met, met with warnings, below and incomplete, carrying every warning, the shortfall in words, never met without a scale); the definition and chain tables in the same file | Passing (Phase 2 slice 12) |
+| `packages/db/test/dependency.test.ts`: `hazard HZ-123` (scale writes only where permitted; one live scale per location; approval never by an author or contributor; versions fixed once approved; categories append-only, in scope, only from an approved version with a known category and periods; one chain per person) and `hazard HZ-011` (no scale, version or category reaches another organisation) | Passing (Phase 2 slice 12) |
+| `apps/api/test/dependency.test.ts`: `hazard HZ-123` (approval by a second member; a stale current record refused; required hours with the source, notice and method, people not counted named and the figure "at least"; someone in hospital away today and not known next week; a planned admission counted from its date and an undated one left out with a warning; an unknown period refused; refused to a scope that does not cover the location, audited; no figure where no scale is in force; no scale once archived) | Passing (Phase 2 slice 12) |
+| Rota comparison shown before publishing, with Playwright and axe | Planned, slices 21 and 59 |
 
 ---
 

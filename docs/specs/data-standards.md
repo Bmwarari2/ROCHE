@@ -662,6 +662,22 @@ Schedule 3; registration bodies are the UK statutory registers.
 | `compliance_item.expires_on`, `recheck_due_on` | Harbour | `YYYY-MM-DD` | Worked out from the detail when saved |
 | `document.category` `staff_hr_document` | Harbour | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
 | `task.details` of a `workforce.compliance_expiry` task | Harbour | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
+## Dependency tool (Phase 2, slice 12)
+Code lists for [scheduling.md](scheduling.md) section 13. No national standard defines a
+dependency scale or its categories: the scale is the organisation's own, so its keys are the
+organisation's codes, not a national code, and an export carries the scale version beside every
+category so a receiving system can read it.
+| `dependency_scale_version.definition.periods` | Harbour | `[{ key, label, startMinute }]`; `startMinute` is minutes after midnight, UK local time (`minute_of_day`, 0 to 1439), strictly increasing | Each period ends where the next starts; the last ends at the first's start the next day. Lengths are elapsed time across clock changes. |
+| `dependency_scale_version.definition.categories` | Harbour (the organisation's own scale) | `[{ key, label, description, careMinutes: [{ periodKey, minutes }] }]`; keys lower case letters, digits and underscores, starting with a letter, at most 40 characters; whole minutes, 0 or more, one entry per period | Care minutes per person per period. Never a national dependency code. |
+| `dependency_scale_version.definition.skillMix` | Harbour | `[{ skill, periodKey, minimumStaff }]`; skills `registered_nurse`, `medicines_competent`, `moving_and_handling`, `driver` (`STAFFING_SKILLS`) | Whole staff, 1 or more, once per skill and period. |
+| `dependency_scale_version.definition.reviewIntervalDays` | Harbour | Whole days, 1 or more, or null | A category older than this is flagged for review, still counted. |
+| `dependency_scale_version.state` | Harbour | `draft`, `approved`, `superseded`, `discarded` (`DEPENDENCY_SCALE_STATES`) | |
+| `dependency_assessment.category_key` | Harbour | A category key of the version in `scale_version_id` | Health data (B1). |
+| `dependency_assessment.one_to_one` | Harbour | `[{ periodKey, minutes }]`; whole minutes, more than 0, once per period | One-to-one minutes beyond the category's. Two-to-one support is not modelled yet (H-714). |
+| `dependency_assessment.kind` | Harbour | `initial`, `review`, `correction` (`DEPENDENCY_ASSESSMENT_KINDS`) | A correction applies from the corrected record's date; a review from its own date, on or after it. |
+| `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
+| `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
+| `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
 
 ## Platform operational tables (not part of the MODS export)
 

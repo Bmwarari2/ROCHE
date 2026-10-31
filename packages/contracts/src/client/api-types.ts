@@ -22333,6 +22333,972 @@ export interface paths {
     };
     trace?: never;
   };
+  "/v1/dependency-scales": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's dependency scales
+     * @description Each scale with the version in use and its open draft, each draft with its problems. The scale is the organisation's own tool. Holders of scheduling.dependency.manage, care.dependency.assess, scheduling.rota.manage or scheduling.rota.read.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Scales */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Make a dependency scale with its first draft
+     * @description scheduling.dependency.manage at the location, or across the organisation for the organisation-wide scale (locationId null). One live scale per location. The draft is saved with its problems listed; it needs none to be approved. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateDependencyScale"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Rename a dependency scale
+     * @description scheduling.dependency.manage where the scale applies, against `version`. Audited.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RenameDependencyScale"];
+        };
+      };
+      responses: {
+        /** @description Renamed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Archive a dependency scale
+     * @description scheduling.dependency.manage where the scale applies, with a reason, against `version`. An archived scale applies nowhere: its location's required hours show no scale until another is approved. Final. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndDependencyScale"];
+        };
+      };
+      responses: {
+        /** @description Archived */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A dependency scale's versions, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Versions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleVersionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start a new draft from the version in use
+     * @description scheduling.dependency.manage where the scale applies. The approved version stays in use until the new draft is approved. One draft at a time. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Drafted */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleVersionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}/versions/{versionId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Change a draft
+     * @description scheduling.dependency.manage where the scale applies, drafts only, against the version you loaded. You join its contributors, so you cannot approve it. Audited.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EditDependencyScaleVersion"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleVersionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}/versions/{versionId}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a draft
+     * @description scheduling.dependency.manage where the scale applies, never by its author or anyone who changed it; only a draft with no problems that differs from the version in use. It supersedes that version and applies from now. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApproveDependencyScaleVersion"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleVersionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dependency-scales/{id}/versions/{versionId}/discard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Discard a draft
+     * @description scheduling.dependency.manage where the scale applies, with a reason. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          versionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndDependencyScale"];
+        };
+      };
+      responses: {
+        /** @description Discarded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyScaleVersionItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/dependency": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's dependency categories
+     * @description Every record, newest first, with the one in force now and the corrected ones marked. A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The person's categories */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonDependency"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a person's dependency category
+     * @description care.dependency.assess in the person's scope. From the approved version of the scale at the person's location, with the reason and who decided. The first record is `initial`; a later one supersedes the current record (`supersedesId`, as loaded): a review from its own date, a correction from the corrected record's date. Sending the same id again returns what was stored. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordDependency"];
+        };
+      };
+      responses: {
+        /** @description Already stored with these details */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyRecordItem"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DependencyRecordItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/staffing-requirement": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Required care hours for a location and shift
+     * @description The organisation's own dependency scale added up for the people living at the location, per shift period of the UK date (or one period), with the method, the source and the notice; never a judgement of safe staffing. No scale in force gives no figure, never 0; people not counted are named. Needs scheduling.rota.manage and care.plan.read across the whole location (a narrower scope would leave people out). A care-record view, audited.
+     */
+    get: {
+      parameters: {
+        query: {
+          date: string;
+          period?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Required care hours */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["StaffingRequirementList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -29367,6 +30333,243 @@ export interface components {
       authorityScope?: components["schemas"]["AuthorityScope"];
       notes?: string | null;
       version: number;
+    };
+    DependencyScaleList: {
+      items: components["schemas"]["DependencyScaleItem"][];
+      notice: string;
+    };
+    DependencyScaleItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string | null;
+      name: string;
+      /** Format: date-time */
+      archivedAt: string | null;
+      archiveReason: string | null;
+      current: components["schemas"]["DependencyScaleVersionItem"];
+      draft: components["schemas"]["DependencyScaleVersionItem"];
+      version: number;
+    };
+    DependencyScaleVersionItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      scaleId: string;
+      versionNumber: number;
+      state: components["schemas"]["DependencyScaleState"];
+      definition: components["schemas"]["DependencyScaleDefinition"];
+      /** Format: uuid */
+      authorId: string;
+      contributorIds: string[];
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+      /** Format: date-time */
+      supersededAt: string | null;
+      discardReason: string | null;
+      issues: components["schemas"]["DependencyScaleIssue"][];
+      version: number;
+    } | null;
+    /** @enum {string} */
+    DependencyScaleState: "draft" | "approved" | "superseded" | "discarded";
+    /** @description The organisation's own dependency scale: its shift periods, categories with care minutes per period, skill-mix minimums and review interval */
+    DependencyScaleDefinition: {
+      periods: {
+        key: string;
+        label: string;
+        startMinute: number;
+      }[];
+      categories: {
+        key: string;
+        label: string;
+        description: string | null;
+        careMinutes: components["schemas"]["PeriodMinutes"][];
+      }[];
+      skillMix: {
+        skill: components["schemas"]["StaffingSkill"];
+        periodKey: string;
+        minimumStaff: number;
+      }[];
+      reviewIntervalDays: number | null;
+    };
+    /** @description Minutes in one of the scale's shift periods */
+    PeriodMinutes: {
+      periodKey: string;
+      minutes: number;
+    };
+    /** @enum {string} */
+    StaffingSkill: "registered_nurse" | "medicines_competent" | "moving_and_handling" | "driver";
+    DependencyScaleIssue: {
+      problem: string;
+      path: string;
+      message: string;
+    };
+    CreateDependencyScale: {
+      name: string;
+      /** Format: uuid */
+      locationId: string | null;
+      definition: components["schemas"]["DependencyScaleDefinition"];
+    };
+    RenameDependencyScale: {
+      name: string;
+      version: number;
+    };
+    /** @description Archive a scale or discard a draft, with why */
+    EndDependencyScale: {
+      reason: string;
+      version: number;
+    };
+    DependencyScaleVersionList: {
+      items: components["schemas"]["DependencyScaleVersionItem"][];
+    };
+    EditDependencyScaleVersion: {
+      definition: components["schemas"]["DependencyScaleDefinition"];
+      version: number;
+    };
+    ApproveDependencyScaleVersion: {
+      version: number;
+    };
+    PersonDependency: {
+      inForce: components["schemas"]["DependencyRecordItem"];
+      /** Format: uuid */
+      currentId: string | null;
+      items: components["schemas"]["DependencyRecordItem"][];
+      notice: string;
+    };
+    DependencyRecordItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      scaleId: string;
+      /** Format: uuid */
+      scaleVersionId: string;
+      versionNumber: number | null;
+      categoryKey: string;
+      categoryLabel: string | null;
+      oneToOne: components["schemas"]["PeriodMinutes"][];
+      kind: components["schemas"]["DependencyKind"];
+      /** Format: date */
+      effectiveFrom: string;
+      reason: string;
+      /** Format: uuid */
+      decidedBy: string;
+      /** Format: uuid */
+      recordedBy: string | null;
+      /** Format: date-time */
+      recordedAt: string;
+      /** Format: uuid */
+      supersedesId: string | null;
+      inForce: boolean;
+      corrected: boolean;
+    } | null;
+    /** @enum {string} */
+    DependencyKind: "initial" | "review" | "correction";
+    RecordDependency: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["DependencyKind"];
+      categoryKey: string;
+      /** @default [] */
+      oneToOne: components["schemas"]["PeriodMinutes"][];
+      /** Format: date */
+      effectiveFrom: string;
+      reason: string;
+      /** Format: uuid */
+      decidedBy: string;
+      /** Format: uuid */
+      supersedesId: string | null;
+    };
+    StaffingRequirementList: {
+      items: components["schemas"]["StaffingRequirementItem"][];
+      /** Format: date-time */
+      asAt: string;
+    };
+    StaffingRequirementItem: {
+      /** @enum {string} */
+      status: "computed" | "no_scale";
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      date: string;
+      period: {
+        key: string;
+        label: string;
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+        minutes: number;
+      } | null;
+      source: {
+        /** @enum {string} */
+        kind: "organisation_scale";
+        /** Format: uuid */
+        scaleId: string;
+        scaleName: string;
+        /** Format: uuid */
+        versionId: string;
+        versionNumber: number;
+        /** Format: uuid */
+        approvedBy: string | null;
+        /** Format: date-time */
+        approvedAt: string | null;
+      } | null;
+      notice: string;
+      /** @enum {string} */
+      figure: "exact" | "at_least" | "none";
+      careMinutes: number | null;
+      oneToOneMinutes: number | null;
+      requiredMinutes: number | null;
+      awayMinutes: number | null;
+      categories: {
+        key: string;
+        label: string;
+        minutesEach: number;
+        people: number;
+        minutes: number;
+      }[];
+      oneToOne: {
+        /** Format: uuid */
+        personId: string;
+        minutes: number;
+      }[];
+      people: {
+        /** Format: uuid */
+        personId: string;
+        /** @enum {string} */
+        presence:
+          | "present"
+          | "planned_admission"
+          | "away"
+          | "away_return_unknown"
+          | "admission_date_unknown"
+          | "not_yet_admitted"
+          | "unknown";
+        /** @enum {string} */
+        standing: "assessed" | "not_assessed" | "other_scale" | "not_in_scale_version";
+        /** Format: uuid */
+        recordId: string | null;
+        categoryKey: string | null;
+        categoryLabel: string | null;
+        careMinutes: number;
+        oneToOneMinutes: number;
+        flags: ("earlier_version" | "later_version" | "review_overdue")[];
+      }[];
+      skillMix: {
+        skill: components["schemas"]["StaffingSkill"];
+        minimumStaff: number;
+      }[];
+      complete: boolean;
+      warnings: {
+        code: string;
+        message: string;
+        personIds: string[];
+      }[];
+      method: string[];
     };
   };
   responses: never;
