@@ -7,7 +7,8 @@ import {
   type DocumentCategoryKey,
   type DocumentStoragePort,
   documentStorageKey,
-  isUnderLegalHold,
+  type HeldDocumentVersion,
+  isDocumentUnderLegalHold,
   type LegalHoldView,
   type MalwareScanPort,
   safeFileName,
@@ -163,6 +164,76 @@ export async function activeHolds(tx: Transaction): Promise<LegalHoldView[]> {
     .where(isNull(legalHold.releasedAt));
 }
 
+/**
+ * Each document's whole version chain (every version before and after it, destroyed or not), so
+ * a hold on any version holds them all (security review of #134, M1). Versions link back through
+ * `previous_version_id`, which has no foreign key: walk back to the first version, then forward
+ * from it. A document whose chain never reaches a first version (a missing or unreadable earlier
+ * version, or a loop) gets no entry, and `documentHeld` counts it as held (review of #134, L3).
+ */
+export async function documentVersionChains(
+  tx: Transaction,
+  ids: readonly string[],
+): Promise<Map<string, HeldDocumentVersion[]>> {
+  const chains = new Map<string, HeldDocumentVersion[]>();
+  if (ids.length === 0) return chains;
+  const { rows } = await tx.execute<{
+    start_id: string;
+    id: string;
+    person_id: string | null;
+    subject_type: string | null;
+    subject_id: string | null;
+    legal_hold: boolean;
+  }>(sql`
+    WITH RECURSIVE back (start_id, id, previous_id) AS (
+      SELECT d.id, d.id, d.previous_version_id FROM document d
+       WHERE d.id = ANY(ARRAY[${sql.join(
+         ids.map((id) => sql`${id}`),
+         sql`, `,
+       )}]::uuid[])
+      UNION
+      SELECT b.start_id, p.id, p.previous_version_id
+        FROM back b JOIN document p ON p.id = b.previous_id
+    ),
+    firsts AS (SELECT start_id, id AS first_id FROM back WHERE previous_id IS NULL),
+    forward (first_id, id) AS (
+      SELECT DISTINCT first_id, first_id FROM firsts
+      UNION
+      SELECT f.first_id, d.id FROM forward f JOIN document d ON d.previous_version_id = f.id
+    )
+    SELECT firsts.start_id, d.id, d.person_id, d.subject_type, d.subject_id, d.legal_hold
+      FROM firsts
+      JOIN forward f ON f.first_id = firsts.first_id
+      JOIN document d ON d.id = f.id
+  `);
+  for (const r of rows) {
+    const list = chains.get(r.start_id) ?? [];
+    list.push({
+      id: r.id,
+      personId: r.person_id,
+      subjectType: r.subject_type,
+      subjectId: r.subject_id,
+      legalHold: r.legal_hold,
+    });
+    chains.set(r.start_id, list);
+  }
+  return chains;
+}
+
+/**
+ * Whether a legal hold covers a document (`isDocumentUnderLegalHold` over its whole chain), as
+ * both destruction and the document view judge it. A chain that could not be read back to its
+ * first version fails closed: held (review of #134, L3 and L4).
+ */
+export function documentHeld(
+  id: string,
+  chains: ReadonlyMap<string, readonly HeldDocumentVersion[]>,
+  holds: readonly LegalHoldView[],
+): boolean {
+  const chain = chains.get(id);
+  return chain === undefined || isDocumentUnderLegalHold(chain, holds);
+}
+
 export async function toDocumentItems(
   tx: Transaction,
   rows: readonly DocumentRow[],
@@ -178,6 +249,10 @@ export async function toDocumentItems(
       ),
     );
   const holds = await activeHolds(tx);
+  const chains = await documentVersionChains(
+    tx,
+    rows.map((r) => r.id),
+  );
   return rows.map((r) => ({
     id: r.id,
     category: r.category as DocumentItem["category"],
@@ -194,10 +269,8 @@ export async function toDocumentItems(
     status: r.status as DocumentItem["status"],
     scanStatus: r.scanStatus as DocumentItem["scanStatus"],
     retentionClass: r.retentionClass,
-    legalHold: isUnderLegalHold(
-      { personId: r.personId, subjectType: "document", subjectId: r.id },
-      holds,
-    ),
+    // The same judgement as destruction (review of #134, L4).
+    legalHold: documentHeld(r.id, chains, holds),
     createdAt: r.createdAt.toISOString(),
     signatures: signatures
       .filter((s) => s.documentId === r.id)

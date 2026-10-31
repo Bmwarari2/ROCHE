@@ -142,6 +142,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     permissions: [
       ...pointOfCare,
       "care.plan.write",
+      "care.dependency.assess",
       "care.capacity.write",
       "care.dols.manage",
       "care.respect.record",
@@ -170,6 +171,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "location",
     permissions: [
       ...pointOfCare,
+      "care.dependency.assess",
       "medicines.cd.witness",
       "medicines.cd.administer",
       "workforce.competence.observe",

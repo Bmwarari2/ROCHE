@@ -11,6 +11,7 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
+import { callerRequestIdOf } from "./http/request-id";
 import { MemoryThrottle } from "./http/throttle";
 import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
@@ -68,6 +69,7 @@ import {
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
+import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
 import { staffFilesRouter } from "./routes/staff-files";
@@ -170,7 +172,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
 
   app.use("*", async (c, next) => {
     c.set("services", services);
-    c.set("requestId", c.req.header("x-request-id") ?? randomUUID());
+    // The audit chain's request id is always the API's own; a caller's canonical UUID is only
+    // logged beside it (request-id.ts).
+    const requestId = randomUUID();
+    c.set("requestId", requestId);
+    const callerRequestId = callerRequestIdOf(c.req.header("x-request-id"));
+    if (callerRequestId) logger.info({ requestId, callerRequestId }, "caller request id");
     await next();
     c.header("x-request-id", c.get("requestId"));
   });
@@ -331,6 +338,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
   app.route("/", peopleDetailsRouter);
+  app.route("/", schedulingDependencyRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

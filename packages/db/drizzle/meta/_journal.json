@@ -507,9 +507,16 @@
       "breakpoints": true
     },
     {
+      "idx": 74,
+      "version": "7",
+      "when": 1793466037912,
+      "tag": "0074_dependency_tool",
+      "breakpoints": true
+    },
+    {
       "idx": 79,
       "version": "7",
-      "when": 1793457159832,
+      "when": 1793466037913,
       "tag": "0079_training_competence",
       "breakpoints": true
     }

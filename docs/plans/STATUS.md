@@ -4,14 +4,14 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 (section 20 rule 9). The build is complete only when every register row is `done` and every phase
 gate passes on `main` (section 19, definition of complete).
 
-**Overall: 0% done** (0 of 233 register rows `done`; 65 `partial`, 168 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
-| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules) |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Lane C domain rules pushed: slice 5 (Working Time, SCHED-003) on `feat/sched-domain-working-time` (#136), and slice 6 (pay rules: SCHED-005, 006, 007, 009, 010; ADR-0086, ADR-0087) stacked on it on `feat/sched-pay-rules`; all six rows `partial`; [scheduling.md](../specs/scheduling.md) sections 4 and 4b; human actions H-580 to H-585. Slice 12 (dependency tool, CARE-004 and SCHED-001 `partial`) is #153 on `feat/sched-dependency-tool`: scheduling.md section 13, migration 0074, HZ-123, H-710 to H-716; clinical review round 1 fixed |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -92,7 +92,6 @@ on #138; `feat/safety-complaints` slice 18 (0080) on #137.
 **In progress when paused** (branch, migration file, human actions):
 - slice 3 medicines administration, `feat/meds-domain-administration` (stacked on #135; HZ-116,
   HZ-119, ADR-0082);
-- slice 12 dependency tool, `feat/sched-dependency-tool` (0074; HZ-123; H-710 to H-719);
 - slice 13 safeguarding log, `feat/safety-safeguarding-log` (0075; HZ-126; H-595 to H-599);
 - slice 15 DSAR workbench, `feat/platform-dsar-workbench` (0077; ADR-0090; H-612 to H-619);
 - slice 17 training and competence, `feat/work-training-competence` (0079; H-690 to H-699);

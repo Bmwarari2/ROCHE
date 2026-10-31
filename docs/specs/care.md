@@ -15,6 +15,10 @@ communication needs at the top of every screen (HZ-001, HZ-007).
 | --- | --- |
 | CARE-001 care and support plan; CARE-002 risk assessments; CARE-003 Waterlow, Braden and MUST; CARE-006 NG249 falls; CARE-007 NEWS2; CARE-009 daily notes; CARE-010 core charts; CARE-012 body maps; CARE-013 tasks, rounds and handover; CARE-014 activities, life story and visiting; CARE-015 ReSPECT and DNACPR; CARE-021 consent, capacity and best interests; CARE-022 DoLS register | Oral health, pain, mood, dependency, continence and Barthel tools (Phase 2); RESTORE2 and SBARD drill (Phase 5); remaining charts (Phase 2); end-of-life depth, dementia and LD tools, PBS, delegated healthcare, CHC (Phase 5) |
 
+CARE-004, the dependency tool (each person's category from the organisation's own scale, with
+one-to-one hours), is specified in [scheduling.md](scheduling.md) section 13 with the staffing
+planner that reads it; it is not a validated tool and has no score (HZ-123).
+
 ## 2. Schema
 
 All tables carry `id` (UUIDv7), `tenant_id`, `created_at`, `created_by` and forced RLS through

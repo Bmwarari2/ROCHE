@@ -8,9 +8,21 @@ import {
   TaskSeriesItem,
   TaskTransitionRequest,
 } from "@harbour/contracts";
-import { person, type Transaction, task, taskSeries } from "@harbour/db";
+import {
+  activityRecord,
+  assessment,
+  bodyMapMark,
+  careNote,
+  observation,
+  person,
+  type Transaction,
+  task,
+  taskSeries,
+  visitLog,
+} from "@harbour/db";
 import {
   can,
+  checkTaskEvidence,
   checkTaskTransition,
   isPermission,
   PLAN_ACTION_SOURCE_TYPE,
@@ -623,6 +635,58 @@ function rethrowReference(error: unknown): never {
   throw error;
 }
 
+/**
+ * The entry a transition cites as evidence, as the caller's own read finds it (row-level security:
+ * another organisation's, another home's or a missing id are all not found), or null.
+ */
+async function citedEntry(
+  tx: Transaction,
+  type: string,
+  id: string,
+): Promise<{ personId: string; chart?: string | null } | null> {
+  const one = async (rows: Promise<{ personId: string; chart?: string | null }[]>) =>
+    (await rows)[0] ?? null;
+  switch (type) {
+    case "observation":
+      return one(
+        tx
+          .select({ personId: observation.personId, chart: observation.chart })
+          .from(observation)
+          .where(eq(observation.id, id)),
+      );
+    case "care_note":
+      return one(
+        tx.select({ personId: careNote.personId }).from(careNote).where(eq(careNote.id, id)),
+      );
+    case "body_map_mark":
+      return one(
+        tx
+          .select({ personId: bodyMapMark.personId })
+          .from(bodyMapMark)
+          .where(eq(bodyMapMark.id, id)),
+      );
+    case "activity_record":
+      return one(
+        tx
+          .select({ personId: activityRecord.personId })
+          .from(activityRecord)
+          .where(eq(activityRecord.id, id)),
+      );
+    case "visit_log":
+      return one(
+        tx.select({ personId: visitLog.personId }).from(visitLog).where(eq(visitLog.id, id)),
+      );
+    case "assessment":
+      return one(
+        tx.select({ personId: assessment.personId }).from(assessment).where(eq(assessment.id, id)),
+      );
+    default:
+      return null;
+  }
+}
+
+const EVIDENCE_REFUSED = "That record cannot stand as evidence for this task.";
+
 async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRequest) {
   const access = useScopeOf(c, TASK_READ_SCOPE);
   const now = new Date();
@@ -650,6 +714,31 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
         evidenceRequired: row.evidenceRequired,
       });
       if (!check.ok) throw problems.invalid(check.message);
+      // A record cited as evidence must be one Harbour accepts, about this task's person, and the
+      // evidence this task asks for (HZ-029, HZ-001). Every refusal reads the same, so an id
+      // cannot be probed; the audit keeps why, with opaque ids only.
+      const cites = body.evidenceId !== undefined || body.evidenceType !== undefined;
+      if (cites) {
+        const refuse = (reason: string) =>
+          new AuditedRefusal(problems.invalid(EVIDENCE_REFUSED), {
+            action: `platform.task.${body.to}`,
+            outcome: "denied",
+            resourceType: "task",
+            resourceId: id,
+            reason,
+            scope: { evidenceType: body.evidenceType ?? null, evidenceId: body.evidenceId ?? null },
+          });
+        if (body.to !== "done") throw refuse("evidence_without_completion");
+        const found =
+          body.evidenceType && body.evidenceId
+            ? await citedEntry(tx, body.evidenceType, body.evidenceId)
+            : null;
+        const problem = checkTaskEvidence(
+          { personId: row.personId, kind: row.kind, evidenceRequired: row.evidenceRequired },
+          { type: body.evidenceType ?? null, id: body.evidenceId ?? null, found },
+        );
+        if (problem) throw refuse(problem);
+      }
       const finished = TERMINAL_TASK_STATUSES.includes(body.to);
       const [updated] = await tx
         .update(task)
