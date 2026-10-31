@@ -203,6 +203,11 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.whistleblowing.read": { description: "Read speak-up concerns (anonymised)" },
+  "safety.speak_up.manage": {
+    description:
+      "Freedom to Speak Up lead: receive, manage and reply to speak-up concerns (a silo permission, ADR-0089)",
+    careRecord: true,
+  },
   "safety.disclosure.approve": { description: "Approve coroner, police and solicitor disclosures" },
   // quality
   "quality.audit.manage": { description: "Run audits and mock inspections" },
@@ -346,6 +351,17 @@ export const PERMISSIONS = {
   "ai.copilot.use": { description: "Use the AI management copilot (advisory only)" },
   "ai.copilot.manage": { description: "Configure the AI module and provider" },
 } as const satisfies Record<string, PermissionDefinition>;
+
+/**
+ * Silo permissions (ADR-0089): held only through a role that carries nothing else, never by a role
+ * built from "every permission", never through an access grant, and never together with a role
+ * that manages users or roles. Row-level security repeats it (migration 0086).
+ */
+export const SILO_PERMISSIONS = ["safety.speak_up.manage"] as const;
+
+export function isSiloPermission(permission: string): boolean {
+  return (SILO_PERMISSIONS as readonly string[]).includes(permission);
+}
 
 export type Permission = keyof typeof PERMISSIONS;
 

@@ -83,6 +83,7 @@ import { sampleDataRouter } from "./routes/sample-data";
 import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { speakUpRouter } from "./routes/speak-up";
 import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -109,6 +110,11 @@ export const PUBLIC_MAX_BODY_BYTES = 4 * 1024;
  * registration, whose attestation is the largest at a few kilobytes.
  */
 export const AUTH_MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Largest public speak-up body: a concern of up to 10,000 characters, each up to four bytes in
+ * UTF-8, with room for the JSON around it (security review M2).
+ */
+export const SPEAK_UP_MAX_BODY_BYTES = 48 * 1024;
 /** The public routes reached with no session that take a body, capped at PUBLIC_MAX_BODY_BYTES. */
 const PUBLIC_BODY_PATHS = ["/p/*", "/v1/invitations/lookup", "/v1/invitations/accept"] as const;
 
@@ -228,7 +234,12 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     });
   // Registered before the handler below, which answers without calling on.
   app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
-  for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
+  for (const path of PUBLIC_BODY_PATHS) {
+    const cap = capped(PUBLIC_MAX_BODY_BYTES);
+    // A speak-up concern may be long; it has its own cap below (security review M2).
+    app.use(path, (c, next) => (c.req.path.startsWith("/p/speak-up/") ? next() : cap(c, next)));
+  }
+  app.use("/p/speak-up/*", capped(SPEAK_UP_MAX_BODY_BYTES));
 
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>
     withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
@@ -325,6 +336,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
   app.route("/", complaintsRouter);
+  app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);

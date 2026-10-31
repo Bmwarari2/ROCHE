@@ -56,6 +56,7 @@ export const DATA_CATEGORIES = {
   family_portal_content: "Photos and updates shared with families",
   marketing_contacts: "Enquirers and contacts who agreed to marketing",
   ai_interaction_log: "Pseudonymised prompts and outputs of the AI module",
+  speak_up: "Speak-up concerns, who raised them when named or confidential, casework and replies",
 } as const;
 export type DataCategory = keyof typeof DATA_CATEGORIES;
 
@@ -225,6 +226,21 @@ export const PROCESSING_PURPOSES = {
       "applicant.unsuccessful: 6 months after the last application closes; applicant.talent_pool: 12 months from the applicant's agreement, which they may withdraw",
     trigger: { kind: "feature", flag: "module.workforce" },
     dataCategories: ["staff_employment"],
+  },
+  B16: {
+    title: "Whistleblowing and speaking up",
+    dataSubjects:
+      "Staff and agency workers who raise concerns, people a concern is about, people receiving care it mentions",
+    lawfulBasis: {
+      independent: "Art 6(1)(f) legitimate interests (PIDA protection, safe care)",
+      public: "Art 6(1)(e) public task",
+    },
+    specialCategory:
+      "Art 9(2)(b) with Sch 1 para 1 (employment), or Art 9(2)(h) with Sch 1 para 2 where a concern reveals health; Art 10 with Sch 1 para 10 where it alleges a crime",
+    consent: false,
+    retention: "As complaints until the controller sets a whistleblowing class (H-721)",
+    trigger: { kind: "always" },
+    dataCategories: ["speak_up"],
   },
 } as const satisfies Record<string, ProcessingPurpose>;
 

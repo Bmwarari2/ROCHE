@@ -89,6 +89,7 @@ const QUEUES = {
   unroutedReport: "unrouted-daily-report",
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
+  speakUpIntake: "speak-up-intake-sweep",
   evidenceBundles: "evidence-bundle-sweep",
   fullExports: "full-exports",
   exportExpiry: "export-expiry",
@@ -174,6 +175,10 @@ await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
 });
 
+// Public speak-up intake windows that have passed (ADR-0089): counts only, no personal data.
+await work(QUEUES.speakUpIntake, async () => {
+  await workerPool.query("DELETE FROM speak_up_intake WHERE window_end < now()");
+});
 await work(QUEUES.evidenceBundles, async () => {
   await sweepEvidenceBundlesJob(deps);
 });
@@ -239,6 +244,7 @@ await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
 // Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
 await boss.schedule(QUEUES.invitations, "17 3 * * *");
+await boss.schedule(QUEUES.speakUpIntake, "23 * * * *");
 
 // Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).
 await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");

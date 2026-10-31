@@ -7850,6 +7850,555 @@
           "version"
         ]
       },
+      "AnonymousSpeakUpRaised": {
+        "type": "object",
+        "properties": {
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "replyToken": {
+            "$ref": "#/components/schemas/SpeakUpReplyToken"
+          },
+          "replyTokenExpiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "receivedOn",
+          "replyToken",
+          "replyTokenExpiresOn"
+        ]
+      },
+      "SpeakUpReplyToken": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[A-Za-z0-9_-]{43}$"
+      },
+      "RaiseAnonymousSpeakUp": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SpeakUpCategory"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          },
+          "wantsReplies": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "category",
+          "summary",
+          "wantsReplies"
+        ]
+      },
+      "SpeakUpCategory": {
+        "type": "string",
+        "enum": [
+          "care_quality_or_safety",
+          "staff_safety",
+          "conduct",
+          "bullying_or_harassment",
+          "fraud_or_finance",
+          "other"
+        ]
+      },
+      "SpeakUpThread": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/SpeakUpIdentity"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SpeakUpCategory"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SpeakUpState"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpMessage"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "identity",
+          "category",
+          "summary",
+          "receivedOn",
+          "state",
+          "outcome",
+          "messages"
+        ]
+      },
+      "SpeakUpIdentity": {
+        "type": "string",
+        "enum": [
+          "named",
+          "confidential",
+          "anonymous"
+        ]
+      },
+      "SpeakUpState": {
+        "type": "string",
+        "enum": [
+          "received",
+          "acknowledged",
+          "under_review",
+          "outcome_shared",
+          "closed"
+        ]
+      },
+      "SpeakUpMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromReporter": {
+            "type": "boolean"
+          },
+          "author": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "fromReporter",
+          "author",
+          "body",
+          "createdAt"
+        ]
+      },
+      "SpeakUpTokenRequest": {
+        "type": "object",
+        "properties": {
+          "replyToken": {
+            "$ref": "#/components/schemas/SpeakUpReplyToken"
+          }
+        },
+        "required": [
+          "replyToken"
+        ]
+      },
+      "AnonymousSpeakUpReply": {
+        "type": "object",
+        "properties": {
+          "replyToken": {
+            "$ref": "#/components/schemas/SpeakUpReplyToken"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "replyToken",
+          "body"
+        ]
+      },
+      "RaiseSpeakUp": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "identity": {
+            "type": "string",
+            "enum": [
+              "named",
+              "confidential"
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/SpeakUpCategory"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "identity",
+          "category",
+          "summary"
+        ]
+      },
+      "SpeakUpThreadList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpThread"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PostSpeakUpMessage": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "SpeakUpCaseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpCase"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "possibleFlood": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "cap": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "count",
+              "cap"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "possibleFlood"
+        ]
+      },
+      "SpeakUpCase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/SpeakUpIdentity"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SpeakUpCategory"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SpeakUpState"
+          },
+          "acknowledgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcomeSharedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "canReply": {
+            "type": "boolean"
+          },
+          "reporter": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpState"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "identity",
+          "category",
+          "summary",
+          "receivedOn",
+          "state",
+          "acknowledgedAt",
+          "outcome",
+          "outcomeSharedAt",
+          "closedReason",
+          "closedAt",
+          "canReply",
+          "reporter",
+          "members",
+          "moves",
+          "version"
+        ]
+      },
+      "SpeakUpCaseDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/SpeakUpIdentity"
+          },
+          "category": {
+            "$ref": "#/components/schemas/SpeakUpCategory"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SpeakUpState"
+          },
+          "acknowledgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcomeSharedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "canReply": {
+            "type": "boolean"
+          },
+          "reporter": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
+          "moves": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpState"
+            }
+          },
+          "version": {
+            "type": "integer"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpeakUpMessage"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "identity",
+          "category",
+          "summary",
+          "receivedOn",
+          "state",
+          "acknowledgedAt",
+          "outcome",
+          "outcomeSharedAt",
+          "closedReason",
+          "closedAt",
+          "canReply",
+          "reporter",
+          "members",
+          "moves",
+          "version",
+          "messages"
+        ]
+      },
+      "SpeakUpStep": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "$ref": "#/components/schemas/SpeakUpState"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "outcome": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "SetSpeakUpMembers": {
+        "type": "object",
+        "properties": {
+          "memberIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "memberIds"
+        ]
+      },
+      "SpeakUpLeadChanged": {
+        "type": "object",
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "changed"
+        ]
+      },
+      "SetSpeakUpLead": {
+        "type": "object",
+        "properties": {
+          "tenantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appoint": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tenantUserId",
+          "appoint"
+        ]
+      },
       "WorkflowInstanceList": {
         "type": "object",
         "properties": {
@@ -44330,6 +44879,959 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/speak-up/{tenantId}": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Raise a concern anonymously (no sign-in)",
+        "description": "No session, so no device, session or member is recorded. Stores no identity, creator or IP address; the audit names no actor and only the lead reads it; no event is published. With wantsReplies the response holds a reply token once, with the last date it works: keep it to read replies and reply. Limited per network, per organisation per minute and per organisation per day, counted in Postgres.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseAnonymousSpeakUp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Raised",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousSpeakUpRaised"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such organisation, or no concern for that reply token",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The concern is closed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/speak-up/{tenantId}/thread": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Read an anonymous concern and its replies with its reply token",
+        "description": "No sign-in. The token goes in the body, never a URL. Throttled.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakUpTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The concern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpThread"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such organisation, or no concern for that reply token",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The concern is closed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/p/speak-up/{tenantId}/messages": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Reply on an anonymous concern with its reply token",
+        "description": "No sign-in. The token goes in the body. Audited with no actor. Throttled.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnonymousSpeakUpReply"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The concern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpThread"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such organisation, or no concern for that reply token",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The concern is closed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; wait as Retry-After says",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Raise a named or confidential concern",
+        "description": "Any member. Named: the lead and the members named on the case know who raised it. Confidential: only the lead knows. The concern stores no creator; who raised it is kept only where those people can read it; the audit names no actor, IP address or device; no event is published.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseSpeakUp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Raised",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpThread"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/mine": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The concerns you raised with your name known, and their replies",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your concerns",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpThreadList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/mine/{id}/messages": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Reply on a concern you raised",
+        "description": "Audited with no actor, IP address or device.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostSpeakUpMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The concern",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpThread"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/cases": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Concerns you hold as the Freedom to Speak Up lead or as a member of the case",
+        "description": "Newest first, a page at a time (pass nextCursor back as cursor). The lead also sees when today's anonymous concerns have reached the organisation's daily limit.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cases",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpCaseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/cases/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "A case with its messages",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpCaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/cases/{id}/messages": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Write to whoever raised the concern, on the case",
+        "description": "The lead or a member of the case. An anonymous reporter reads it with their token.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostSpeakUpMessage"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpCaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/cases/{id}/step": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Move a concern on: acknowledge, review, share the outcome, close",
+        "description": "The Freedom to Speak Up lead only. Sharing the outcome needs it in words; closing needs a reason and, when whoever raised it can be told, the outcome shared first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakUpStep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpCaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/cases/{id}/members": {
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Name the members who work on the case",
+        "description": "The Freedom to Speak Up lead only. Members see the case and its messages, and who raised it only when it is named. Removing a member keeps who was named and when.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpeakUpMembers"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpCaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speak-up/lead": {
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Appoint or remove the Freedom to Speak Up lead",
+        "description": "Needs platform.user.manage, without holding the lead's silo permission (app.set_speak_up_lead, ADR-0089). Nobody appoints themselves, and the lead never also manages users or roles. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSpeakUpLead"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done, or nothing to change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeakUpLeadChanged"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

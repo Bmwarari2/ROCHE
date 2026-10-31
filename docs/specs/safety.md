@@ -293,9 +293,8 @@ Rate keys: `safeguarding.referral_hours`, `complaint.acknowledge_working_days`,
 `ahra.recent_record_response_days`, `ahra.recent_record_days`.
 
 Permissions used (all in the catalogue): `safety.safeguarding.manage`, `safety.complaint.manage`,
-`safety.whistleblowing.read` (a read permission moves a speak-up concern today because the catalogue
-has no other; slice 24 must add the Freedom to Speak Up lead's own manage permission and move
-`SPEAK_UP_WORKFLOW` to it before any route uses it, ADR-0089), `safety.incident.manage` (deaths, missing person, disclosure requests),
+`safety.speak_up.manage` (the Freedom to Speak Up lead's silo permission, slice 24, ADR-0089;
+`SPEAK_UP_WORKFLOW` uses only it), `safety.incident.manage` (deaths, missing person, disclosure requests),
 `safety.disclosure.approve`.
 
 Tests: `safeguarding.test.ts`, `complaints.test.ts`, `whistleblowing.test.ts`, `deaths.test.ts`,
@@ -428,6 +427,41 @@ security checks it again (`app.holds_permission_at`).
   non-personal columns (`app.capture_version_redacted`), because every member reads
   `record_version`.
 - Web screens are slice 62.
+
+Whistleblowing and speaking up (Phase 2 slice 24; rule 3 above; SAFE-012; ADR-0089;
+`apps/api/src/routes/speak-up.ts`; tables `speak_up_concern`, `speak_up_reporter`,
+`speak_up_case_member` and `speak_up_message` in migration 0086). A silo: row-level security opens a
+concern to holders of `safety.speak_up.manage`, which only the built-in Freedom to Speak Up lead role
+carries, to the members the lead names on the case, and to whoever raised a named or confidential
+concern. The database refuses a role mixing the silo permission with any other, a grant of it,
+self-appointment, and holding it with user or role management. Concerns never use the shared
+workflow, version history or outbox tables, which wider roles read.
+- `POST /p/speak-up/{tenantId}` raises an anonymous concern with no sign-in, so no session, device
+  or member is recorded. It stores no identity, creator or IP address. With `wantsReplies` it
+  returns a reply token once (256 random bits, stored only as its SHA-256), with the last date it
+  works (`speak_up.reply_token_days`, to verify).
+  `POST /p/speak-up/{tenantId}/thread` and `.../messages` read and reply with the token in the
+  body, never a URL. Public requests are limited in Postgres per network (an IPv6 /64 or IPv4
+  address as a keyed HMAC), per organisation per minute and, for new concerns, per organisation per
+  UK day (`SPEAK_UP_*` settings). Bodies may be up to 48 KiB.
+- `POST /v1/speak-up` raises a named or confidential concern through `app.raise_speak_up`, the only
+  writer of `speak_up_reporter`. The concern's creator columns stay empty.
+  `GET /v1/speak-up/mine` and `POST /v1/speak-up/mine/{id}/messages` follow it; the reporter sees
+  what the case says, never which member said it.
+- `GET /v1/speak-up/cases`, `GET /v1/speak-up/cases/{id}` and `POST .../messages` serve the lead and
+  the case's members (MFA required). Who raised it shows to the lead, and to members only when named.
+  The list pages by cursor; the lead sees "possible flood" when today's anonymous concerns reach the
+  daily limit.
+- `PUT /v1/speak-up/lead` (`platform.user.manage`) appoints or removes the lead through
+  `app.set_speak_up_lead`, without the caller holding the silo permission.
+- `POST /v1/speak-up/cases/{id}/step` (the lead) moves `SPEAK_UP_WORKFLOW`: sharing the outcome
+  needs it in words, and closing needs a reason and, when someone can be told, the outcome shared
+  first. `PUT /v1/speak-up/cases/{id}/members` (the lead) names and removes case members.
+- Audit: a raise, a reporter's reply and an anonymous read are audited with no actor, IP address,
+  device or request id (scope `{ actor: "anonymous" | "reporter" }`). The lead's and members' own
+  actions are audited as theirs. Every audit event about a concern is read only by the lead
+  (`audit_speak_up_silo`); the chain still verifies for every reader. No outbox event is published.
+  Web screens are a later slice.
 
 Built in slice 7 (`apps/api/src/routes/incidents.ts`, `statutory-notifications.ts`,
 `apps/api/src/services/safety.ts`; tables in migrations 0018 and 0019): `POST /v1/incidents` takes a

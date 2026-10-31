@@ -1200,6 +1200,58 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.speak_up_concern": {
+    context: "safety",
+    description:
+      "Speak-up concerns: named, confidential or anonymous, with their state and outcome.",
+    treatment: "not_exported",
+    retention: "complaint",
+    personal: true,
+    reasonNotExported:
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+    columns: {},
+  },
+  "public.speak_up_reporter": {
+    context: "safety",
+    description: "Who raised a named or confidential speak-up concern.",
+    treatment: "not_exported",
+    retention: "complaint",
+    personal: true,
+    reasonNotExported:
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+    columns: {},
+  },
+  "public.speak_up_case_member": {
+    context: "safety",
+    description: "Members the Freedom to Speak Up lead named on a speak-up case.",
+    treatment: "not_exported",
+    retention: "complaint",
+    personal: true,
+    reasonNotExported:
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+    columns: {},
+  },
+  "public.speak_up_message": {
+    context: "safety",
+    description: "Messages between the reporter and the Freedom to Speak Up lead or case members.",
+    treatment: "not_exported",
+    retention: "complaint",
+    personal: true,
+    reasonNotExported:
+      "A restricted speak-up silo (ADR-0089): the organisation-wide export never carries it, so the owner who downloads the export cannot read concerns; the Freedom to Speak Up lead exports it separately (H-721).",
+    columns: {},
+  },
+  "public.speak_up_intake": {
+    context: "safety",
+    description:
+      "Counts of public speak-up requests per network, per organisation per minute and per day, so a flood cannot bury a real concern.",
+    treatment: "not_exported",
+    retention: "operational",
+    personal: false,
+    reasonNotExported:
+      "Operational rate-limit counters (ADR-0089): a network is held only as a keyed hash that changes daily, and windows that have passed are swept hourly.",
+    columns: {},
+  },
   "public.candour_record": {
     context: "safety",
     description:

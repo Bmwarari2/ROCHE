@@ -179,7 +179,10 @@ describe("hazard HZ-011 row-level security coverage", () => {
     const { rows } = await db.pool("harbour_owner").query<{ table_name: string }>(
       `SELECT c.table_name FROM information_schema.columns c
        WHERE c.table_schema = 'public' AND c.column_name = 'version'
-         AND c.table_name NOT IN ('tenant_group', 'operator_user')
+         -- The speak-up silo keeps no history in record_version, which every member reads
+         -- (ADR-0089); speak-up.test.ts proves it.
+         AND c.table_name NOT IN ('tenant_group', 'operator_user', 'speak_up_concern',
+           'speak_up_case_member')
          AND NOT EXISTS (
            SELECT 1 FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid
            WHERE k.relname = c.table_name AND t.tgname = 'capture_version'
