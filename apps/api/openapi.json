@@ -1186,12 +1186,22 @@
             "items": {
               "$ref": "#/components/schemas/RecordVersion"
             }
+          },
+          "latestChanged": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "table",
           "recordId",
-          "versions"
+          "versions",
+          "latestChanged"
         ],
         "description": "Human-readable history of a mutable record"
       },
@@ -5848,6 +5858,12 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
           }
         },
         "required": [
@@ -5861,7 +5877,8 @@
           "reviewedBy",
           "reviewedAt",
           "actionsTaken",
-          "supersedesId"
+          "supersedesId",
+          "staff"
         ]
       },
       "ReviewBreakGlassReport": {

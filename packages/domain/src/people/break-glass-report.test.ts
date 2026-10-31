@@ -93,6 +93,7 @@ describe("hazard HZ-011 weekly break-glass report", () => {
       byReason: [],
       flagged: [],
       searches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
+      unplacedSearches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
     });
   });
 
@@ -230,6 +231,24 @@ describe("hazard HZ-011 weekly break-glass report", () => {
       { reason: "emergency_care", events: threshold },
       { reason: "not_categorised", events: 1 },
     ]);
+  });
+
+  it("keeps searches that showed no one at any location in their own section", () => {
+    const search = (id: string, tenantUserId: string) => ({
+      id,
+      tenantUserId,
+      reasonCode: "safeguarding" as const,
+      openedAt: new Date("2026-10-22T09:00:00Z"),
+    });
+    const placed = [search("bgs-placed", "user-a")];
+    const unplaced = Array.from({ length: threshold }, (_, n) => search(`bgs-none-${n}`, "user-z"));
+    const report = breakGlassWeeklyReport([], WEEK, threshold, placed, unplaced);
+    expect(report.searches.byUser.map((u) => u.tenantUserId)).toEqual(["user-a"]);
+    expect(report.unplacedSearches).toMatchObject({ total: threshold, distinctUsers: 1 });
+    expect(report.unplacedSearches.byUser[0]).toMatchObject({
+      tenantUserId: "user-z",
+      flags: ["repeated_use"],
+    });
   });
 
   it("refuses a threshold that would flag every opening", () => {
