@@ -279,6 +279,7 @@
   "people.exit.link.notification": "Open the notification: {item}",
   "people.exit.link.returns": "Counted from the property and keys still held: record each return under property and keys to return.",
   "people.exit.derived": "Counted from its own records, not ticked by hand.",
+  "people.exit.awaitingDraft": "Waiting for the notification to be drafted. It is submitted, or marked not required, on its own page, never ticked here.",
   "people.exit.markDone": "Mark as done",
   "people.exit.markDoneNamed": "Mark as done: {item}",
   "people.exit.markNotRequired": "Mark as not required",

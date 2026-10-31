@@ -435,6 +435,10 @@ test("hazard HZ-013 a death drafts its notifications, which the checklist links 
   await expect(main(page).locator("[data-person-status='deceased']").first()).toContainText("Died");
   // An unexpected death asks for the coroner referral.
   await expect(item(page, /^Coroner referral recorded/)).toBeVisible();
+  // Until the safety module drafts it, the regulator's notification waits and offers no tick.
+  const waiting = item(page, "Death notification to the regulator");
+  await expect(waiting).toContainText("Waiting for the notification to be drafted.");
+  await expect(waiting.getByRole("button")).toHaveCount(0);
 
   // The safety module drafts the notifications from the death (the worker's outbox relay, once).
   execFileSync("pnpm", ["outbox:run"], { cwd: API_DIR, stdio: "ignore" });

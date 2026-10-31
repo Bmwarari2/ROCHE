@@ -2,6 +2,7 @@ import type { ExitOut, PersonStatus } from "@harbour/contracts";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  awaitingDraft,
   checklistParts,
   derivedLink,
   type ExitAction,
@@ -173,10 +174,27 @@ describe("checklist items", () => {
     const withFinance = exitActions("discharged", exit(), (p) => MANAGER.has(p));
     const withoutFinance = exitActions("discharged", exit(), (p) => NURSE.has(p));
     const money = entry("residents_money_returned", { owner: "finance" });
-    expect(itemEditable(money, withFinance)).toBe(true);
-    expect(itemEditable(money, withoutFinance)).toBe(false);
-    expect(itemEditable(entry("gp_informed"), withoutFinance)).toBe(true);
-    expect(itemEditable(entry("property_returned", { derived: true }), withFinance)).toBe(false);
+    expect(itemEditable(money, withFinance, "cqc")).toBe(true);
+    expect(itemEditable(money, withoutFinance, "cqc")).toBe(false);
+    expect(itemEditable(entry("gp_informed"), withoutFinance, "cqc")).toBe(true);
+    expect(itemEditable(entry("property_returned", { derived: true }), withFinance, "cqc")).toBe(
+      false,
+    );
+  });
+
+  it("hazard HZ-013 never offers a statutory notification to tick by hand while it is being drafted", () => {
+    const all = exitActions("deceased", exit({ kind: "death" }), () => true);
+    const regulator = entry("regulator_death_notification", { owner: "safety" });
+    const examiner = entry("medical_examiner_information", { owner: "safety" });
+    expect(all.has("notificationItems")).toBe(true);
+    expect(itemEditable(regulator, all, "cqc")).toBe(false);
+    expect(itemEditable(examiner, all, "ciw")).toBe(false);
+    expect(awaitingDraft(regulator, "cqc")).toBe(true);
+    // Outside England the regulator's notification is not drafted: the notification holder records it.
+    expect(itemEditable(regulator, all, "ciw")).toBe(true);
+    expect(awaitingDraft(regulator, "ciw")).toBe(false);
+    const noSubmit = exitActions("deceased", exit({ kind: "death" }), (p) => MANAGER.has(p));
+    expect(itemEditable(regulator, noSubmit, "ciw")).toBe(false);
   });
 
   it("hazard HZ-013 links a drafted notification to its page, and property to the returns", () => {

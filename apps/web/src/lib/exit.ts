@@ -24,6 +24,8 @@ export type ExitAction =
   | "items"
   /** Confirm residents' money, the deposit or the DWP (finance.ledger.approve, step-up). */
   | "financeItems"
+  /** Record a statutory notification the safety module does not draft (safety.notification.submit, step-up). */
+  | "notificationItems"
   /** Return property and keys (people.property.manage). */
   | "returns"
   | "awaitReturns"
@@ -70,6 +72,7 @@ export function exitActions(
   if (open && exit && (LIVE.includes(status) ? exit.state === "planned" : LEFT.includes(status))) {
     if (admissions || movements) actions.add("items");
     if (may("finance.ledger.approve")) actions.add("financeItems");
+    if (may("safety.notification.submit")) actions.add("notificationItems");
   }
 
   if (LEFT.includes(status) && exit) {
@@ -86,9 +89,37 @@ export function exitActions(
 }
 
 /** Whether the viewer may change this item, with the actions the tab offers. */
-export function itemEditable(entry: ExitEntry, actions: ReadonlySet<ExitAction>): boolean {
+export function itemEditable(
+  entry: ExitEntry,
+  actions: ReadonlySet<ExitAction>,
+  regulator: ExitOut["context"]["regulator"],
+): boolean {
   if (entry.derived) return false;
+  if (entry.owner === "safety") {
+    return !draftedInSafety(entry, regulator) && actions.has("notificationItems");
+  }
   return entry.owner === "finance" ? actions.has("financeItems") : actions.has("items");
+}
+
+/**
+ * A statutory notification item the safety module drafts (HZ-013): the regulator's death
+ * notification in England, the medical examiner's pack and LeDeR. It follows its draft and is
+ * never ticked by hand, before the draft exists too.
+ */
+export function draftedInSafety(
+  entry: Pick<ExitEntry, "key" | "owner">,
+  regulator: ExitOut["context"]["regulator"],
+): boolean {
+  if (entry.owner !== "safety") return false;
+  return entry.key !== "regulator_death_notification" || regulator === "cqc";
+}
+
+/** A drafted notification item whose draft does not exist yet: the tab says it is waiting. */
+export function awaitingDraft(
+  entry: Pick<ExitEntry, "key" | "owner" | "derived">,
+  regulator: ExitOut["context"]["regulator"],
+): boolean {
+  return !entry.derived && draftedInSafety(entry, regulator);
 }
 
 /** Where an item counted from its own records is done: its notification, or the returns. */

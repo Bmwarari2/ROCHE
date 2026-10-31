@@ -9,8 +9,11 @@ Branch `feat/web-exit`.
   (whether it was expected and the LeDeR question are always asked, never assumed), then shows the
   checklist with who owns each item, who it tells and when, and what is required by law.
 - Items are marked done, or not required with a reason where the checklist allows it. Statutory
-  notifications (the regulator's death notification, the medical examiner's information pack,
-  LeDeR) are never ticked by hand: they link to their notification page and follow it (HZ-013).
+  notifications the safety module drafts (the regulator's death notification in England, the
+  medical examiner's information pack, LeDeR) are never ticked by hand, before their draft exists
+  too: the tab says they are waiting to be drafted, then links to the notification page, and the
+  API refuses a hand tick (HZ-013). Outside England the regulator's notification is recorded by a
+  holder of `safety.notification.submit`, with step-up.
 - Property and keys still held are returned on the same tab, with who received them and who
   signed. Confirming the person's money or deposit needs a fresh sign-in and someone other than
   whoever recorded the exit; both refusals are said in words.
@@ -21,6 +24,10 @@ Branch `feat/web-exit`.
   unique NHS number) so the journeys and onboarding can start a person without seeding; the bed
   board gives each room's version so a room held after a death can be cleared; `pnpm --filter
   @harbour/api outbox:run` relays the outbox once for local journeys.
+
+- The property return form has no witness field, so returning a valuable or an item nobody could
+  sign for is refused by the API (it needs a second member of staff); record those through the
+  API until the form takes a witness.
 
 ## What is next
 
@@ -40,4 +47,15 @@ Branch `feat/web-exit`.
 
 ## Review rounds
 
-- None yet.
+- Self-review (accessibility and security reviewer agents): archiving asks again; unique names on
+  buttons and inline forms; a planned exit's details are kept when the departure is recorded; a
+  neutral duplicate refusal; `outbox:run` uses the shared demo-seed guard.
+- PR #116 security review: `POST /v1/people` refuses an NHS number held only out of the caller's
+  scope in the same words as an invalid one, audits both duplicate refusals (denied, without the
+  number) and is limited per user (`ENQUIRY_REQUESTS_PER_MINUTE`, default 10); the date of birth is
+  from 1900 and not in the future; unexpected errors are logged by name, database code and stack
+  frames only (`loggableError`), never the message, which can repeat a query's parameters;
+  drafted notification items cannot be ticked by hand before their draft (M2); clearing a money,
+  deposit or DWP flag the plan set needs `finance.ledger.approve` with step-up, and flag changes
+  are audited; the person who recorded the departure, as well as whoever planned the exit, may not
+  confirm the money returned. Idempotent enquiries (HZ-029) are listed as a known gap in care.md.

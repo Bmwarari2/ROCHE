@@ -861,6 +861,7 @@
     "people.exit.link.notification",
     "people.exit.link.returns",
     "people.exit.derived",
+    "people.exit.awaitingDraft",
     "people.exit.markDone",
     "people.exit.markDoneNamed",
     "people.exit.markNotRequired",

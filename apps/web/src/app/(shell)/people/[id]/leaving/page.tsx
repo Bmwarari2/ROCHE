@@ -19,6 +19,7 @@ import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { tabHref, writeAccess } from "@/lib/care-record";
 import {
+  awaitingDraft,
   checklistParts,
   derivedLink,
   type ExitAction,
@@ -203,7 +204,10 @@ function ChecklistItem({
       {entry.derived && !link ? (
         <p className="m-0 text-body-dense">{t("people.exit.derived")}</p>
       ) : null}
-      {itemEditable(entry, actions) ? (
+      {awaitingDraft(entry, exit.context.regulator) ? (
+        <p className="m-0 text-body-dense">{t("people.exit.awaitingDraft")}</p>
+      ) : null}
+      {itemEditable(entry, actions, exit.context.regulator) ? (
         <ItemActions
           personId={personId}
           path={path}
