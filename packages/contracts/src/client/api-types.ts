@@ -20027,6 +20027,72 @@ export interface paths {
     };
     trace?: never;
   };
+  "/v1/workforce/colleagues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Colleagues to choose from
+     * @description workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage or workforce.casework.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed or a case member.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Colleagues */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ColleagueList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/policies": {
     parameters: {
       query?: never;
@@ -32781,6 +32847,7 @@ export interface components {
       caseType: components["schemas"]["CaseType"];
       /** Format: uuid */
       subjectTenantUserId: string;
+      subjectName: string | null;
       stage: components["schemas"]["CaseStage"];
       /** Format: date */
       stageSince: string;
@@ -32809,6 +32876,7 @@ export interface components {
         caseType: components["schemas"]["CaseType"];
         /** Format: uuid */
         subjectTenantUserId: string;
+        subjectName: string | null;
         stage: components["schemas"]["CaseStage"];
         /** Format: date */
         stageSince: string;
@@ -32855,6 +32923,7 @@ export interface components {
         };
       };
       members: components["schemas"]["CaseMember"][];
+      staff: components["schemas"]["StaffName"][];
       hearings: components["schemas"]["CaseHearing"][];
       timeline: components["schemas"]["CaseEvent"][];
       daysAtStage: number | null;
@@ -33339,6 +33408,9 @@ export interface components {
        * @enum {string|null}
        */
       declinedReason: "no_consent_to_share" | "not_employed_here" | "duplicate_request" | null;
+    };
+    ColleagueList: {
+      items: components["schemas"]["StaffName"][];
     };
     PolicyList: {
       items: components["schemas"]["PolicySummary"][];

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { StaffName } from "./staff";
 
 /**
  * Employee relations casework (workforce.md section 2c, rules 15 to 18 and section 5; WORK-010;
@@ -97,6 +98,7 @@ export const CaseSummary = z
     id: uuid,
     caseType: CaseType,
     subjectTenantUserId: uuid,
+    subjectName: z.string().nullable(),
     stage: CaseStage,
     stageSince: isoDate,
     openedOn: isoDate,
@@ -184,6 +186,8 @@ export const CaseDetail = z
     }),
     referrals: z.object({ dbs: referralView, regulator: referralView }),
     members: z.array(CaseMember),
+    /** The names of everyone the case names (its members and the member of staff it is about). */
+    staff: z.array(StaffName),
     hearings: z.array(CaseHearing),
     timeline: z.array(CaseEvent),
     /** Calendar days at the current stage (no target applied; Acas: without unreasonable delay). */

@@ -21591,6 +21591,12 @@
             "type": "string",
             "format": "uuid"
           },
+          "subjectName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "stage": {
             "$ref": "#/components/schemas/CaseStage"
           },
@@ -21620,6 +21626,7 @@
           "id",
           "caseType",
           "subjectTenantUserId",
+          "subjectName",
           "stage",
           "stageSince",
           "openedOn",
@@ -21676,6 +21683,12 @@
               "subjectTenantUserId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "subjectName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "stage": {
                 "$ref": "#/components/schemas/CaseStage"
@@ -21773,6 +21786,7 @@
               "id",
               "caseType",
               "subjectTenantUserId",
+              "subjectName",
               "stage",
               "stageSince",
               "openedOn",
@@ -21863,6 +21877,12 @@
               "$ref": "#/components/schemas/CaseMember"
             }
           },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
           "hearings": {
             "type": "array",
             "items": {
@@ -21886,6 +21906,7 @@
           "case",
           "referrals",
           "members",
+          "staff",
           "hearings",
           "timeline",
           "daysAtStage"
@@ -23441,6 +23462,20 @@
         "required": [
           "expectedVersion",
           "state"
+        ]
+      },
+      "ColleagueList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "PolicyList": {
@@ -52805,6 +52840,65 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/colleagues": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Colleagues to choose from",
+        "description": "workforce.recruitment.manage, workforce.staff_file.read, workforce.staff_file.manage or workforce.casework.manage. The organisation's members of staff, by name and job title only, for choosing a panel, a colleague shadowed or a case member.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Colleagues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ColleagueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

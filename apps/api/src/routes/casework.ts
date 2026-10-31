@@ -58,6 +58,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { staffNames } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -228,11 +229,16 @@ const event = (
   extra: Partial<typeof employeeCaseEvent.$inferInsert> = {},
 ) => tx.insert(employeeCaseEvent).values({ caseId, kind, occurredOn, ...extra });
 
-function summaryOf(row: CaseRow, myRoles: readonly CaseMemberRole[]): CaseSummary {
+function summaryOf(
+  row: CaseRow,
+  myRoles: readonly CaseMemberRole[],
+  subjectName: string | null,
+): CaseSummary {
   return {
     id: row.id,
     caseType: row.caseType as CaseType,
     subjectTenantUserId: row.subjectTenantUserId,
+    subjectName,
     stage: row.stage as CaseStage,
     stageSince: row.stageSince,
     openedOn: row.openedOn,
@@ -286,12 +292,29 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
     .orderBy(asc(employeeCaseEvent.createdAt), asc(employeeCaseEvent.id));
   const facts = await factsOf(tx, row);
   const due = referralDecisionsDue(facts, (row.closedReason ?? null) as CaseClosingReason | null);
+  const names = await staffNames(tx, [
+    row.subjectTenantUserId,
+    ...members.flatMap((m) => [m.tenantUserId, m.addedBy]),
+    ...hearings.map((h) => h.ledBy),
+    ...events.map((e) => e.recordedBy),
+  ]);
+  const staff = [
+    ...new Set([
+      row.subjectTenantUserId,
+      ...members.flatMap((m) => [m.tenantUserId, m.addedBy]),
+      ...hearings.map((h) => h.ledBy),
+      ...events.map((e) => e.recordedBy),
+    ]),
+  ].flatMap((id) => {
+    const found = names(id);
+    return found ? [found] : [];
+  });
   const stageSteps = events
     .filter((e) => e.toStage !== null && (e.kind === "opened" || e.kind === "stage_changed"))
     .map((e) => ({ stage: e.toStage as CaseStage, on: e.occurredOn }));
   return {
     case: {
-      ...summaryOf(row, myRoles),
+      ...summaryOf(row, myRoles, names(row.subjectTenantUserId)?.displayName ?? null),
       summary: row.summary,
       subjectRegistered: row.subjectRegistered,
       outcome: (row.outcome ?? null) as CaseOutcome | null,
@@ -321,6 +344,7 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
       },
     },
     members: members.map(memberOf),
+    staff,
     hearings: hearings.map(hearingOf),
     timeline: events.map((e) => ({
       id: e.id,
@@ -402,10 +426,17 @@ export const caseworkRouter = createRouter()
               .orderBy(asc(employeeCase.openedOn), asc(employeeCase.id))
           : [];
         await audit(c, tx, access, { action: A.listed, resourceType: "employee_case" });
+        const names = await staffNames(
+          tx,
+          rows.map((r) => r.subjectTenantUserId),
+        );
         return rows.map((r) =>
           summaryOf(
             r,
-            mine.filter((m) => m.caseId === r.id).map((m) => m.memberRole as CaseMemberRole),
+            mine
+              .filter((m) => m.caseId === r.id && m.removedAt === null)
+              .map((m) => m.memberRole as CaseMemberRole),
+            names(r.subjectTenantUserId)?.displayName ?? null,
           ),
         );
       });

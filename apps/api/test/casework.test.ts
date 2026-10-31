@@ -410,6 +410,25 @@ describe("a disciplinary case to an appeal decided (rules 15 to 18)", () => {
   });
 });
 
+describe("colleagues to choose from (slice 58)", () => {
+  it("lists members of staff by name for the caseworker, never to a care worker", async () => {
+    const listed = await as("quality", "/v1/workforce/colleagues");
+    expect(listed.status).toBe(200);
+    const items = (await json<{ items: { id: string; displayName: string }[] }>(listed)).items;
+    expect(items.map((i) => i.id)).toContain(DEMO.users.nurse.id);
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect((await as("carer", "/v1/workforce/colleagues")).status).toBe(403);
+  });
+
+  it("names the case's people on the case", async () => {
+    const seen = await json<{ staff: { id: string }[]; case: { subjectName: string | null } }>(
+      await as("quality", `/v1/workforce/cases/${caseId}`),
+    );
+    expect(seen.case.subjectName).toBe(DEMO.users.carer.name);
+    expect(seen.staff.map((s) => s.id)).toContain(DEMO.users.carer.id);
+  });
+});
+
 describe("audit (ids and codes only)", () => {
   it("records every action against the case id, never the summary, grounds or names", async () => {
     const events = await sql<{ action: string; resource_id: string | null; scope: unknown }>(
