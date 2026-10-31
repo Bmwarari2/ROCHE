@@ -67,12 +67,16 @@ test("the owner records a request, starts the clock and reviews a record", async
   await identity.getByLabel("How you confirmed it").selectOption({ label: "staff know them" });
   await identity.getByRole("button", { name: "Confirm and start the clock" }).click();
   await arrived(page, "Identity confirmed. The clock has started.");
-  await expect(region(page, /^Clock$/).getByText(/^Respond by \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
+  await expect(
+    region(page, "Where the request stands").getByText(/^Respond by \d{2}\/\d{2}\/\d{4}/),
+  ).toBeVisible();
 
   const pause = region(page, "Pause or extend the clock");
   await pause.getByRole("button", { name: "Pause the clock" }).click();
   await arrived(page, "The clock is paused.");
-  await expect(region(page, /^Clock$/).getByText("Paused", { exact: true })).toBeVisible();
+  await expect(
+    region(page, "Where the request stands").getByText("Paused", { exact: true }),
+  ).toBeVisible();
   await region(page, "Pause or extend the clock")
     .getByRole("button", { name: "Restart the clock" })
     .click();
@@ -100,7 +104,9 @@ test("the owner records a request, starts the clock and reviews a record", async
     .getByRole("checkbox")
     .first()
     .check();
-  await decision.getByLabel("Reason").fill("It names another person supported (third-party data).");
+  await decision
+    .getByRole("textbox", { name: "Reason" })
+    .fill("It names another person supported (third-party data).");
   await accessible(page, "a redaction decision");
   await decision.getByRole("button", { name: "Save the decision" }).click();
   await arrived(page, "Your decision on the record is saved.");
@@ -166,6 +172,7 @@ test("the owner follows a request from a new member of staff to the response", a
   await accessible(page, "the response to check");
   const respond = region(page, "Record the response");
   await respond.getByLabel("Outcome").selectOption({ label: "Sent in full" });
+  await respond.getByLabel(/^I have sent the response\./).check();
   await respond.getByRole("button", { name: "Record the response and close the request" }).click();
   await arrived(page, "The response is recorded and the request is closed.");
   await expect(region(page, /^Response$/).getByText(/^Sent in full, on/)).toBeVisible();

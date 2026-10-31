@@ -1,5 +1,5 @@
 import { Card, EmptyState, StatusChip } from "@harbour/ui";
-import { MessageSquareWarning } from "lucide-react";
+import { CircleAlert, MessageSquareWarning } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DataRightsFrame } from "@/components/data-rights/DataRightsFrame";
@@ -61,6 +61,7 @@ export default async function ComplaintsPage() {
                       className="inline-flex min-h-target items-center font-semibold underline"
                     >
                       {t("dataRights.complaint.list.item", {
+                        date: formatDate(complaint.receivedOn) ?? "",
                         name: complaint.complainantName,
                         about: t("dataRights.complaint.about", { about: complaint.about }),
                       })}
@@ -72,7 +73,11 @@ export default async function ComplaintsPage() {
                       })}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusChip status={ack.status} label={ack.label} />
+                      <StatusChip
+                        status={ack.status}
+                        label={ack.label}
+                        {...(ack.late ? { icon: CircleAlert } : {})}
+                      />
                       <StatusChip status={update.status} label={update.label} />
                     </div>
                   </li>

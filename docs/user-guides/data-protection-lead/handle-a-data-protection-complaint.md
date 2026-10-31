@@ -28,8 +28,8 @@ the complainant is due. The days come from your organisation's settings and the 
 2. Under **Acknowledgement**, enter the day you acknowledged it, then **Record acknowledgement**.
 3. Each time you tell the complainant how it is going, record it under **Update to the
    complainant**.
-4. Under **Outcome**, write the outcome, confirm you told them they can complain to the ICO, then
-   **Close complaint**. A closed complaint cannot change.
+4. Under **Outcome**, write the outcome, confirm you told them they can complain to the ICO, tick
+   the box to confirm closing, then **Close complaint**. A closed complaint cannot change.
 
 ## Good to know
 

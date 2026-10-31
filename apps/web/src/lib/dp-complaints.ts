@@ -70,7 +70,11 @@ export function acknowledgementWords(
     case "done":
       return { status: "done", label: t("dataRights.complaint.ack.done", { date: on }) };
     case "done_late":
-      return { status: "done", label: t("dataRights.complaint.ack.late", { date: on }) };
+      return {
+        status: "done",
+        late: true,
+        label: t("dataRights.complaint.ack.late", { date: on }),
+      };
     case "not_applicable":
       return {
         status: "due",

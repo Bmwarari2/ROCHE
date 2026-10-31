@@ -1,8 +1,9 @@
 import { ButtonLink, Card, StatusChip } from "@harbour/ui";
-import { ArrowLeft, CircleAlert, Download, FileSearch, SearchX } from "lucide-react";
+import { CircleAlert, Download, FileSearch, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { Notice } from "@/components/care/Notice";
 import { ClockChip } from "@/components/data-rights/ClockChip";
 import { DataRightsFrame } from "@/components/data-rights/DataRightsFrame";
@@ -13,6 +14,7 @@ import {
   IdentityForm,
   PauseForm,
 } from "@/components/data-rights/DsarForms";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
@@ -30,7 +32,16 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { firstParam } from "@/lib/record-metadata";
 
-export const metadata: Metadata = { title: t("dataRights.requests.title") };
+const read = cache(async (id: string) =>
+  (await tenantApi()).GET("/v1/dsar-cases/{id}", { params: { path: { id } } }),
+);
+
+/** The page title names the record by its date, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const data = isUuid(id) ? (await read(id)).data : undefined;
+  return { title: t("dataRights.request.pageTitle", { date: formatDate(data?.receivedOn) ?? "" }) };
+}
 
 type Params = Promise<{ readonly id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -76,6 +87,11 @@ export default async function RequestPage({
   if (found.response.status === 404) notFound();
   if (!found.data) failWith(found.error, found.response, path);
   const c = found.data;
+  // The person's communication needs, so the response goes in the format they need (AIS).
+  const person =
+    c.subject.kind === "person" && c.subject.personId
+      ? (await api.GET("/v1/people/{id}", { params: { path: { id: c.subject.personId } } })).data
+      : undefined;
   const items =
     c.collectedAt === null
       ? null
@@ -86,7 +102,6 @@ export default async function RequestPage({
   const open = c.status === "open";
   const paused = c.pauses.some((p) => p.to === null);
   const blocker = bundleBlocker(c);
-  const channel = t("dataRights.new.channelOption", { channel: c.channel });
 
   return (
     <DataRightsFrame
@@ -94,12 +109,12 @@ export default async function RequestPage({
       eyebrow={t("dataRights.request.kind", { kind: c.requestKind })}
       title={c.subject.name}
     >
-      <p className="m-0">
-        <Link href={REQUESTS_PAGE} className="inline-flex items-center gap-1">
-          <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
-          {t("dataRights.case.back")}
+      <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
+        <Link href={REQUESTS_PAGE} className="inline-flex min-h-target items-center underline">
+          {t("dataRights.requests.title")}
         </Link>
-      </p>
+      </nav>
+      {person ? <PersonNeeds person={person} /> : null}
       {done && DONE.has(done) ? (
         <RecordedArrival message={t("dataRights.case.done", { done })} param="done" />
       ) : null}
@@ -114,6 +129,7 @@ export default async function RequestPage({
       ) : null}
 
       <Card as="section" title={t("dataRights.case.clock")} headingLevel={2}>
+        {/* The clock, and who is asking: both say where the request stands. */}
         <div className="flex flex-col gap-2">
           <ClockChip clock={c.clock} respondedOn={c.respondedOn} withWords />
           {c.clock?.startedOn ? (
@@ -146,9 +162,9 @@ export default async function RequestPage({
               ? t("dataRights.case.requesterOther", {
                   name: c.requesterName ?? "",
                   authority: t("dataRights.new.authorityOption", { authority: c.authority }),
-                  channel: channel.toLowerCase(),
+                  channel: c.channel,
                 })
-              : t("dataRights.case.requesterSelf", { channel: channel.toLowerCase() })}
+              : t("dataRights.case.requesterSelf", { channel: c.channel })}
           </p>
           <p className="m-0 text-text-secondary">
             {t("dataRights.requests.received", { date: formatDate(c.receivedOn) ?? "" })}
@@ -230,7 +246,11 @@ export default async function RequestPage({
                 </ul>
               </div>
             ) : null}
+            <h3 className="m-0 text-body font-semibold">
+              {t(paused ? "dataRights.pause.end" : "dataRights.pause.start")}
+            </h3>
             <PauseForm id={id} version={c.version} paused={paused} />
+            <h3 className="m-0 text-body font-semibold">{t("dataRights.extension.submit")}</h3>
             {c.extension ? (
               <p className="m-0">
                 {t("dataRights.extension.done", {
@@ -329,6 +349,7 @@ export default async function RequestPage({
                           <td className="py-2">
                             {open ? (
                               <Link
+                                className="inline-flex min-h-target items-center underline"
                                 href={itemPage(id, item.id)}
                                 aria-label={t("dataRights.items.reviewLabel", { part, record })}
                               >

@@ -1,19 +1,33 @@
 import { ButtonLink, Card } from "@harbour/ui";
-import { ArrowLeft, Download, SearchX } from "lucide-react";
+import { Download, SearchX } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { Notice } from "@/components/care/Notice";
 import { DataRightsFrame } from "@/components/data-rights/DataRightsFrame";
 import { RespondForm } from "@/components/data-rights/DsarForms";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { dataRightsShown } from "@/lib/data-rights";
 import { bundleBlocker, bundlePage, fieldText, partName, requestPage } from "@/lib/dsar";
+import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: t("dataRights.bundle.pageTitle") };
+const read = cache(async (id: string) =>
+  (await tenantApi()).GET("/v1/dsar-cases/{id}", { params: { path: { id } } }),
+);
+
+/** The page title names the record by its date, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const data = isUuid(id) ? (await read(id)).data : undefined;
+  return {
+    title: t("dataRights.bundle.pageTitleFor", { date: formatDate(data?.receivedOn) ?? "" }),
+  };
+}
 
 type Params = Promise<{ readonly id: string }>;
 
@@ -40,6 +54,11 @@ export default async function BundlePage({ params }: { readonly params: Params }
   if (found.response.status === 404) notFound();
   if (!found.data) failWith(found.error, found.response, path);
   const c = found.data;
+  // The person's communication needs, so the response goes in the format they need (AIS).
+  const person =
+    c.subject.kind === "person" && c.subject.personId
+      ? (await api.GET("/v1/people/{id}", { params: { path: { id: c.subject.personId } } })).data
+      : undefined;
   // Closed, or not ready: the request page says what is left to do.
   if (c.status !== "open" || bundleBlocker(c) !== null) redirect(requestPage(id));
   const bundle = await api.GET("/v1/dsar-cases/{id}/bundle", { params: { path: { id } } });
@@ -47,12 +66,12 @@ export default async function BundlePage({ params }: { readonly params: Params }
   const b = bundle.data;
   return (
     <DataRightsFrame tab="requests" title={title} eyebrow={c.subject.name}>
-      <p className="m-0">
-        <Link href={requestPage(id)} className="inline-flex items-center gap-1">
-          <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
+      <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
+        <Link href={requestPage(id)} className="inline-flex min-h-target items-center underline">
           {t("dataRights.item.back")}
         </Link>
-      </p>
+      </nav>
+      {person ? <PersonNeeds person={person} /> : null}
       <Card as="section" title={t("dataRights.bundle.records")} headingLevel={2}>
         <div className="flex flex-col gap-4">
           <p className="m-0 max-w-prose">{t("dataRights.bundle.intro")}</p>
@@ -95,7 +114,7 @@ export default async function BundlePage({ params }: { readonly params: Params }
             {b.records.slice(0, SHOWN_RECORDS).map((r) => (
               <li key={`${r.table}-${r.recordId}`}>
                 <details className="rounded-input border border-border p-3">
-                  <summary className="cursor-pointer font-semibold">
+                  <summary className="flex min-h-target cursor-pointer items-center font-semibold">
                     {t("dataRights.bundle.record", {
                       part: partName(r.table),
                       record: r.recordId.slice(0, 8),

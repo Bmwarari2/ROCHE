@@ -38,6 +38,19 @@ Branch `feat/web-data-rights`, from `feat/platform-dsar-workbench` (#149) with
 - Guides: handle a data rights request, record and handle a data breach, handle a data protection
   complaint (data protection lead).
 
+- **Accessibility review** (fixed):
+  - The "Parts to take out" error goes to the first box.
+  - The person's communication needs show on the request and response pages.
+  - Page titles and headings name each record by its date.
+  - List link names and the acknowledge buttons are unique.
+  - Each channel is said as a whole phrase.
+  - Targets are 44 px.
+  - "Late" is a done chip with an alert icon in all three registers.
+  - The pause and extension forms have their own headings.
+  - One breadcrumb pattern is used on every page.
+  - The months field has a hint.
+  - Responding and closing each need a ticked confirmation that it cannot be changed afterwards.
+
 ## Not built yet
 
 - A request from a person's contact about their own information (the API takes it; the form does
@@ -50,8 +63,7 @@ Branch `feat/web-data-rights`, from `feat/platform-dsar-workbench` (#149) with
 - A quality lead without `platform.user.manage` cannot pick a member of staff as the subject (the
   members list needs it); the form says to ask the owner. An API list of subjects for DSAR holders
   would close this.
-- Table and field names on the request and record pages are made from the database names ("Care
-  note"); the export catalogue's descriptions are not served to the web yet.
+- From the accessibility review, left for an API change or later: parts, fields and records are named from database names and short ids ("Care note", record 01a19371); they should be named by the API's labels and by date and author. The breach decision's "deciding differently" box appears without a spoken announcement. Error punctuation differs between the registers; both styles are allowed in body text.
 
 ## Human actions logged
 

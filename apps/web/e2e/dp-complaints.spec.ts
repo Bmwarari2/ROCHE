@@ -131,6 +131,7 @@ test("the owner records, acknowledges, updates and closes a complaint", async ({
   await expect(close.getByRole("alert")).toContainText("complain to the ICO");
   await bothThemes(page, "closing refused");
   await close.getByLabel("The outcome told the complainant they can complain to the ICO").check();
+  await close.getByLabel("Close this complaint. It cannot be changed afterwards.").check();
   await close.getByRole("button", { name: "Close complaint" }).click();
   await arrived(page, "Complaint closed.");
   await expect(region(page, "Where it stands")).toContainText(`Closed on ${today.shown}`);

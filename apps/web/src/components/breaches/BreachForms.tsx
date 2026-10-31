@@ -559,7 +559,7 @@ export function TellIndividualsForm({
   );
 }
 
-const CLOSE_FIELDS = ["lessons"] as const;
+const CLOSE_FIELDS = ["lessons", "confirm"] as const;
 
 /** Closes the entry with its lessons (rule 23); once closed nothing changes. */
 export function CloseBreachForm({
@@ -574,13 +574,18 @@ export function CloseBreachForm({
   const { result, setResult, pending, send } = useBreachSend(path);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const lessons = text(new FormData(event.currentTarget), "lessons");
+    const form = new FormData(event.currentTarget);
+    const lessons = text(form, "lessons");
+    const problems: FieldProblem[] = [];
     if (lessons.length < 20 || lessons.length > 4000) {
-      setResult(
-        collectedRefusal([
-          { field: "lessons", message: t("dataRights.breach.close.lessonsRequired") },
-        ]),
-      );
+      problems.push({ field: "lessons", message: t("dataRights.breach.close.lessonsRequired") });
+    }
+    if (form.get("confirm") !== "on") {
+      problems.push({ field: "confirm", message: t("dataRights.closeConfirmRequired") });
+    }
+    const refusal = collectedRefusal(problems);
+    if (refusal) {
+      setResult(refusal);
       return;
     }
     send("closed", () => closeBreach(id, { expectedVersion: version, lessons }));
@@ -598,6 +603,12 @@ export function CloseBreachForm({
         formatCount={(remaining) => characterCount(remaining)}
         error={errorFor(result, "lessons")}
       />
+      <Checkbox
+        id={ids.confirm}
+        name="confirm"
+        label={t("dataRights.breach.close.confirm")}
+        error={errorFor(result, "confirm")}
+      />
       <div>
         <Button type="submit" disabled={pending} icon={<Lock {...icon} />}>
           {pending ? t("common.saving") : t("dataRights.breach.close.submit")}
@@ -612,9 +623,12 @@ export function CloseBreachForm({
 export function AcknowledgeNotice({
   breachId,
   noticeId,
+  describedBy,
 }: {
   readonly breachId: string;
   readonly noticeId: string;
+  /** The notice's heading, so each button says which notice it acknowledges. */
+  readonly describedBy?: string;
 }) {
   const { result, pending, send } = useBreachSend(breachPath(breachId));
   return (
@@ -624,6 +638,7 @@ export function AcknowledgeNotice({
           variant="secondary"
           disabled={pending}
           icon={<CheckCheck {...icon} />}
+          {...(describedBy ? { "aria-describedby": describedBy } : {})}
           onClick={() => send("acknowledged", () => acknowledgeNotice(breachId, noticeId))}
         >
           {pending ? t("common.saving") : t("dataRights.breach.notice.acknowledge")}

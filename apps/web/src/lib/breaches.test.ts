@@ -155,7 +155,10 @@ describe("PLAT-022 the breach register: the ICO clock in words", () => {
       "Check the ICO clock with Harbour support",
     ],
   ])("%s", (_name, entry, status, label, words) => {
-    expect(breachClockWords(entry, t)).toEqual({ status, label, words });
+    const got = breachClockWords(entry, t);
+    expect(got).toMatchObject({ status, label, words });
+    // Late is done with an alert icon, the same in every register.
+    expect(got.late === true).toBe(label === "Reported late");
   });
 
   it("follows the API's deadline in BST too, never a figure of its own", () => {

@@ -44,7 +44,8 @@ Open the breach. Each step is shown only while it applies.
    report**. A late report needs the reason for the delay.
 5. **Telling the people affected**: Harbour fills in a notice from its template. Finish every part
    in square brackets, enter the day you told them, then **Record notice**.
-6. **Closing**: write what you have learned, then **Close breach**. A closed breach cannot change.
+6. **Closing**: write what you have learned, tick the box to confirm, then **Close breach**. A
+   closed breach cannot change.
 
 ## Notices from Thapsus
 

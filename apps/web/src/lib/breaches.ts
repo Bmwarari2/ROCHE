@@ -26,6 +26,8 @@ export const breachPath = (id: string) => `${BREACHES_PAGE}/${id}`;
 export interface Chip {
   readonly status: StatusChipStatus;
   readonly label: string;
+  /** Done, but after the deadline: drawn with an alert icon, the same in every register. */
+  readonly late?: boolean;
 }
 
 /** "14:00" and "02/11/2026" for an instant, both in UK time. */
@@ -82,6 +84,7 @@ export function breachClockWords(
     case "reported_late":
       return {
         status: "done",
+        late: true,
         label: t("dataRights.breach.clock.chip", { state: "reported_late" }),
         words: t("dataRights.breach.clock.reportedLate", {
           at: formatDateTime(b.report?.reportedAt) ?? "",

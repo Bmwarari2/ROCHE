@@ -1,7 +1,9 @@
 import { Card, StatusChip } from "@harbour/ui";
+import { CircleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { DataRightsFrame } from "@/components/data-rights/DataRightsFrame";
 import { CloseComplaintForm, ComplaintDateForm } from "@/components/dp-complaints/ComplaintForms";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
@@ -22,7 +24,18 @@ import { firstParam } from "@/lib/record-metadata";
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = { title: t("dataRights.complaint.detail.title") };
+const read = cache(async (id: string) =>
+  (await tenantApi()).GET("/v1/data-protection/complaints/{id}", { params: { path: { id } } }),
+);
+
+/** The page title names the record by its date, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const data = isUuid(id) ? (await read(id)).data : undefined;
+  return {
+    title: t("dataRights.complaint.detail.heading", { date: formatDate(data?.receivedOn) ?? "" }),
+  };
+}
 
 const DONE = new Set(["recorded", "acknowledged", "contacted", "closed"]);
 
@@ -69,7 +82,9 @@ export default async function ComplaintPage({
   return (
     <DataRightsFrame
       tab="complaints"
-      title={t("dataRights.complaint.detail.title")}
+      title={t("dataRights.complaint.detail.heading", {
+        date: formatDate(complaint.receivedOn) ?? "",
+      })}
       eyebrow={me.tenant.name}
     >
       <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
@@ -88,7 +103,11 @@ export default async function ComplaintPage({
               status={complaint.status === "closed" ? "done" : "info"}
               label={t("dataRights.complaint.status", { status: complaint.status })}
             />
-            <StatusChip status={ack.status} label={ack.label} />
+            <StatusChip
+              status={ack.status}
+              label={ack.label}
+              {...(ack.late ? { icon: CircleAlert } : {})}
+            />
             <StatusChip status={update.status} label={update.label} />
           </div>
           {complaint.clock.acknowledgement !== "not_applicable" ? (

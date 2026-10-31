@@ -1,8 +1,9 @@
 import { Card, StatusChip } from "@harbour/ui";
-import { Lightbulb } from "lucide-react";
+import { CircleAlert, Lightbulb } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import {
   AcknowledgeNotice,
   AssessBreachForm,
@@ -34,7 +35,18 @@ import { firstParam } from "@/lib/record-metadata";
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = { title: t("dataRights.breach.detail.title") };
+const read = cache(async (id: string) =>
+  (await tenantApi()).GET("/v1/data-protection/breaches/{id}", { params: { path: { id } } }),
+);
+
+/** The page title names the record by its date, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const data = isUuid(id) ? (await read(id)).data : undefined;
+  return {
+    title: t("dataRights.breach.detail.heading", { dateTime: formatDateTime(data?.awareAt) ?? "" }),
+  };
+}
 
 const DONE = new Set([
   "recorded",
@@ -121,7 +133,9 @@ export default async function BreachPage({
   return (
     <DataRightsFrame
       tab="breaches"
-      title={t("dataRights.breach.detail.title")}
+      title={t("dataRights.breach.detail.heading", {
+        dateTime: formatDateTime(breach.awareAt) ?? "",
+      })}
       eyebrow={me.tenant.name}
     >
       <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
@@ -137,7 +151,11 @@ export default async function BreachPage({
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <StatusChip status={chip.status} label={chip.label} />
-            <StatusChip status={clock.status} label={clock.label} />
+            <StatusChip
+              status={clock.status}
+              label={clock.label}
+              {...(clock.late ? { icon: CircleAlert } : {})}
+            />
           </div>
           <p className="m-0">{clock.words}</p>
           <Facts breach={breach} />
@@ -151,7 +169,7 @@ export default async function BreachPage({
               const numbers = noticeNumbers(notice, t);
               return (
                 <li key={notice.id} className="flex flex-col gap-3">
-                  <h3 className="m-0 text-body font-semibold">
+                  <h3 id={`notice-${notice.id}`} className="m-0 text-body font-semibold">
                     {t("dataRights.breach.notice.sent", {
                       at: formatDateTime(notice.sentAt) ?? "",
                       followUp: notice.followsId ? "yes" : "no",
@@ -185,7 +203,11 @@ export default async function BreachPage({
                       })}
                     />
                   ) : (
-                    <AcknowledgeNotice breachId={breach.id} noticeId={notice.id} />
+                    <AcknowledgeNotice
+                      breachId={breach.id}
+                      noticeId={notice.id}
+                      describedBy={`notice-${notice.id}`}
+                    />
                   )}
                 </li>
               );

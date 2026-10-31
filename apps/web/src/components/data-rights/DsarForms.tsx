@@ -443,6 +443,7 @@ export function ExtensionForm({ id, version }: { readonly id: string; readonly v
         id={ids.months}
         name="months"
         label={t("dataRights.extension.months")}
+        hint={t("dataRights.extension.monthsHint")}
         inputMode="numeric"
         maxLength={2}
         className="max-w-[8rem]"
@@ -586,31 +587,25 @@ export function DecisionForm({
       />
       {decision === "redact" ? (
         <fieldset
-          id={ids.redactedFields}
           className="m-0 flex flex-col gap-2 border-0 p-0"
-          aria-describedby={[
-            `${ids.redactedFields}-hint`,
-            errorFor(result, "redactedFields") ? `${ids.redactedFields}-error` : null,
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          aria-describedby={`${ids.redactedFields}-hint`}
         >
           <legend className="font-semibold">{t("dataRights.item.fieldsToRedact")}</legend>
           <p id={`${ids.redactedFields}-hint`} className="hb-field__hint m-0">
             {t("dataRights.item.fieldsHint")}
           </p>
-          {errorFor(result, "redactedFields") ? (
-            <p id={`${ids.redactedFields}-error`} className="hb-field__error m-0">
-              {errorFor(result, "redactedFields")}
-            </p>
-          ) : null}
-          {fields.map((field) => (
+          {/* The first box takes the error and the summary's link, so focus lands on it. */}
+          {fields.map((field, index) => (
             <Checkbox
               key={field}
+              {...(index === 0 ? { id: ids.redactedFields } : {})}
               name="redactedFields"
               value={field}
               label={partName(field)}
               defaultChecked={current.redactedFields.includes(field)}
+              {...(index === 0 && errorFor(result, "redactedFields")
+                ? { error: errorFor(result, "redactedFields") }
+                : {})}
             />
           ))}
         </fieldset>
@@ -647,7 +642,7 @@ const OUTCOMES = ["fulfilled", "partly_fulfilled", "refused", "withdrawn"] as co
 
 /** Records the response and closes the request (rule 5); needs a fresh step-up. */
 export function RespondForm({ id, version }: { readonly id: string; readonly version: number }) {
-  const ids = useFieldIds(["outcome", "outcomeReason", "respondedOn"]);
+  const ids = useFieldIds(["outcome", "outcomeReason", "respondedOn", "confirm"]);
   const { result, setResult, pending, send } = useSend();
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -665,6 +660,8 @@ export function RespondForm({ id, version }: { readonly id: string; readonly ver
       t("dataRights.bundle.respondedOnSubject"),
       problems,
     );
+    if (form.get("confirm") !== "on")
+      problems.push({ field: "confirm", message: t("dataRights.closeConfirmRequired") });
     const refusal = collectedRefusal(problems);
     if (refusal || respondedOn === null) {
       setResult(refusal);
@@ -709,6 +706,12 @@ export function RespondForm({ id, version }: { readonly id: string; readonly ver
         name="respondedOn"
         legend={t("dataRights.bundle.respondedOn")}
         result={result}
+      />
+      <Checkbox
+        id={ids.confirm}
+        name="confirm"
+        label={t("dataRights.bundle.confirm")}
+        error={errorFor(result, "confirm")}
       />
       <div>
         <Button type="submit" disabled={pending} icon={<Send {...icon} />}>

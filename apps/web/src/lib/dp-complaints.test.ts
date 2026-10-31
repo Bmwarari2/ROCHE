@@ -52,7 +52,10 @@ describe("PLAT-022 data protection complaints: the acknowledgement clock in word
       "Check the clock with Harbour support",
     ],
   ] as const)("%s", (_name, c, acknowledgedOn, status, label) => {
-    expect(acknowledgementWords({ clock: c, acknowledgedOn }, t)).toEqual({ status, label });
+    const got = acknowledgementWords({ clock: c, acknowledgedOn }, t);
+    expect(got).toMatchObject({ status, label });
+    // Late is done with an alert icon, the same in every register.
+    expect(got.late === true).toBe(label.startsWith("Acknowledged late"));
   });
 });
 

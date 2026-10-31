@@ -152,6 +152,7 @@ test("the owner records, assesses, decides, reports and closes a breach", async 
   await close
     .getByLabel("Lessons learned")
     .fill("Addresses are now checked by a second person before letters are posted.");
+  await close.getByLabel("Close this breach. It cannot be changed afterwards.").check();
   await close.getByRole("button", { name: "Close breach" }).click();
   await arrived(page, "Breach closed.");
   await expect(region(page, "Where it stands")).toContainText("Closed");

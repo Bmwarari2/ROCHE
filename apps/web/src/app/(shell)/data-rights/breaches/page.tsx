@@ -1,5 +1,5 @@
 import { Card, EmptyState, StatusChip } from "@harbour/ui";
-import { ShieldAlert } from "lucide-react";
+import { CircleAlert, ShieldAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RecordBreachForm } from "@/components/breaches/BreachForms";
@@ -70,7 +70,11 @@ export default async function BreachesPage() {
                     ) : null}
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusChip status={chip.status} label={chip.label} />
-                      <StatusChip status={clock.status} label={clock.label} />
+                      <StatusChip
+                        status={clock.status}
+                        label={clock.label}
+                        {...(clock.late ? { icon: CircleAlert } : {})}
+                      />
                     </div>
                     <p className="m-0">{clock.words}</p>
                   </li>

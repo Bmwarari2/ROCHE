@@ -54,7 +54,12 @@ export default async function RequestsPage() {
                 <h3 className="m-0 text-body font-semibold">
                   <Link
                     href={requestPage(c.id)}
-                    aria-label={t("dataRights.requests.open", { name: c.subject.name })}
+                    className="inline-flex min-h-target items-center underline"
+                    aria-label={t("dataRights.requests.open", {
+                      name: c.subject.name,
+                      kind: c.requestKind,
+                      date: formatDate(c.receivedOn) ?? "",
+                    })}
                   >
                     {c.subject.name}
                   </Link>

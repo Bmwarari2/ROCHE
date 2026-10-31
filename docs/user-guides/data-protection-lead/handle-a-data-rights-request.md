@@ -24,7 +24,7 @@ rights**.
 
 ## Follow the clock
 
-The **Clock** shows where the request stands, as an icon and a word:
+**Where the request stands** shows the clock, as an icon and a word:
 
 | You see | It means |
 | --- | --- |
@@ -54,8 +54,9 @@ holidays and your organisation's settings.
    the reason) or **Hold it back** (give the reason). Harbour never takes anything out for you.
 5. **4. Send the response**: once every record is decided, choose **Check the response and send
    it**. Read it, choose **Download the response to send**, and send it to the requester.
-6. Under **Record the response**, choose the **Outcome** and the day, then **Record the response
-   and close the request**. A late response stays marked late.
+6. Under **Record the response**, choose the **Outcome** and the day, tick the box to confirm you
+   have sent it, then choose **Record the response and close the request**. A late response stays
+   marked late.
 
 After that, **Download exactly what was sent** gives you the same file again.
 

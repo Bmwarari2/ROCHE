@@ -55,8 +55,8 @@ export function clockView(
   const responded = formatDate(respondedOn) ?? "";
   const late = clock.state === "closed" && clock.late === true;
   return {
-    status: late ? "overdue" : (CLOCK_CHIPS[clock.state] ?? "notRecorded"),
-    label: t("dataRights.clock.state", { state: clock.state }),
+    status: CLOCK_CHIPS[clock.state] ?? "notRecorded",
+    label: t("dataRights.clock.state", { state: late ? "closed_late" : clock.state }),
     words:
       clock.state === "closed" && !responded
         ? t("dataRights.clock.closedUndated")

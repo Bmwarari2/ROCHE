@@ -1,8 +1,9 @@
 import { Card, StatusChip } from "@harbour/ui";
-import { ArrowLeft, CircleAlert, Users } from "lucide-react";
+import { CircleAlert, Users } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { Notice } from "@/components/care/Notice";
 import { DataRightsFrame } from "@/components/data-rights/DataRightsFrame";
 import { DecisionForm } from "@/components/data-rights/DsarForms";
@@ -18,10 +19,19 @@ import {
   requestPage,
   splitHighlights,
 } from "@/lib/dsar";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: t("dataRights.item.title") };
+const read = cache(async (id: string) =>
+  (await tenantApi()).GET("/v1/dsar-cases/{id}", { params: { path: { id } } }),
+);
+
+/** The page title names the record by its date, never who it is about. */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  const data = isUuid(id) ? (await read(id)).data : undefined;
+  return { title: t("dataRights.item.pageTitle", { date: formatDate(data?.receivedOn) ?? "" }) };
+}
 
 type Params = Promise<{ readonly id: string; readonly itemId: string }>;
 
@@ -59,12 +69,11 @@ export default async function ItemPage({ params }: { readonly params: Params }) 
       title={title}
       eyebrow={t("dataRights.item.part", { part: partName(item.tableName) })}
     >
-      <p className="m-0">
-        <Link href={requestPage(id)} className="inline-flex items-center gap-1">
-          <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
+      <nav aria-label={t("common.breadcrumb")} className="text-body-dense">
+        <Link href={requestPage(id)} className="inline-flex min-h-target items-center underline">
           {t("dataRights.item.back")}
         </Link>
-      </p>
+      </nav>
       <div className="flex flex-wrap items-center gap-2">
         <StatusChip status={chip.status} label={chip.label} />
         {item.reviewedAt ? (

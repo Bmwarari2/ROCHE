@@ -281,7 +281,7 @@ export function ComplaintDateForm({
   );
 }
 
-const CLOSE_FIELDS = ["closedOn", "outcome", "icoRightStated"] as const;
+const CLOSE_FIELDS = ["closedOn", "outcome", "icoRightStated", "confirm"] as const;
 
 /**
  * Closes the complaint (rule 25, checkComplaintClosure): the day, the outcome, and confirmation
@@ -322,6 +322,9 @@ export function CloseComplaintForm({
         message: t("dataRights.dpRefusal", { code: "ico_right_required" }),
       });
     }
+    if (form.get("confirm") !== "on") {
+      problems.push({ field: "confirm", message: t("dataRights.closeConfirmRequired") });
+    }
     const refusal = collectedRefusal(problems);
     if (refusal || !closed.ok || !closed.date) {
       setResult(refusal);
@@ -359,6 +362,12 @@ export function CloseComplaintForm({
         name="icoRightStated"
         label={t("dataRights.complaint.close.icoRight")}
         error={errorFor(result, "icoRightStated")}
+      />
+      <Checkbox
+        id={ids.confirm}
+        name="confirm"
+        label={t("dataRights.complaint.close.confirm")}
+        error={errorFor(result, "confirm")}
       />
       <div>
         <Button type="submit" disabled={pending} icon={<Lock {...icon} />}>

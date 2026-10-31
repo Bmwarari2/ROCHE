@@ -41,13 +41,16 @@ describe("PLAT-022 the DSAR clock in words, never colour alone", () => {
     expect(view.words).toContain(words);
   });
 
-  it("a closed case says when it was answered, and a late one stays marked overdue", () => {
+  it("a closed case says when it was answered, and a late one says late", () => {
     expect(clockView(clock("closed", { late: false }), "2026-10-20", t)).toEqual({
       status: "done",
       label: "Responded",
       words: "Responded on 20/10/2026.",
     });
-    expect(clockView(clock("closed", { late: true }), "2026-11-05", t).status).toBe("overdue");
+    // Late is done with an alert icon in every register (ClockChip), never a plain tick.
+    const late = clockView(clock("closed", { late: true }), "2026-11-05", t);
+    expect(late.status).toBe("done");
+    expect(late.label).toBe("Responded late");
   });
 
   it("a clock the API could not work out says so", () => {
