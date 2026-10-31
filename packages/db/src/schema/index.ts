@@ -20,6 +20,7 @@ export * from "./quality-framework";
 export * from "./records";
 export * from "./safeguarding";
 export * from "./safety";
+export * from "./safety-records";
 export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";

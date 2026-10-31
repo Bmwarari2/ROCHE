@@ -193,7 +193,10 @@ export const PERMISSIONS = {
     careRecord: true,
   },
   "safety.safeguarding.manage": { description: "Manage the safeguarding log", careRecord: true },
-  "safety.complaint.manage": { description: "Manage complaints and compliments" },
+  "safety.complaint.manage": {
+    description: "Manage complaints and compliments",
+    careRecord: true,
+  },
   "safety.whistleblowing.read": { description: "Read speak-up concerns (anonymised)" },
   "safety.disclosure.approve": { description: "Approve coroner, police and solicitor disclosures" },
   // quality

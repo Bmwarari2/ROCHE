@@ -44,6 +44,7 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
  */
 export type ExportRetention =
   | "care_record"
+  | "complaint"
   | "audit_event"
   | "dpia"
   | "serious_incident"
@@ -881,6 +882,115 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       created_at: "exported",
       created_by: "exported",
+    },
+  },
+  "public.complaint": {
+    context: "safety",
+    description:
+      "Complaints under regulation 16 of the 2014 Regulations: who complained, what about, the acknowledgement and response with the Ombudsman signposted, any appeal, and pauses while waiting for the complainant (COMPLAINT_WORKFLOW).",
+    treatment: "tenant_rows",
+    retention: "complaint",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The home the complaint is about (location.id)." },
+      person_id: "exported",
+      complainant_name: { description: "The complainant's name, as they gave it." },
+      complainant_relationship: {
+        description: "Who the complainant is to the service.",
+        codes: {
+          person_using_service: "The person using the service.",
+          family_or_friend: "A relative or friend.",
+          representative: "A representative, advocate or attorney.",
+          professional: "A professional (for example a GP or social worker).",
+          member_of_public: "A member of the public.",
+          other: "Someone else.",
+        },
+      },
+      complainant_contact: { description: "How to reach the complainant, as they gave it." },
+      channel: {
+        description: "How the complaint arrived.",
+        codes: {
+          in_person: "In person.",
+          phone: "By phone.",
+          email: "By email.",
+          letter: "By letter.",
+          other: "Another way.",
+        },
+      },
+      received_at: { description: "When the complaint was received (instant, UTC)." },
+      knew_of_matter_on: {
+        description:
+          "When the complainant first knew of the matter (UK date): the Ombudsman's time limit runs from here.",
+      },
+      summary: { description: "What the complaint is about, in words." },
+      state: {
+        description:
+          "Where the complaint stands (COMPLAINT_WORKFLOW): received, acknowledged, investigating, responded, appealed, appeal_responded or closed.",
+      },
+      pauses: {
+        description:
+          "Times the response target was paused waiting for the complainant, JSON list of { from, to, reason } (UK dates, inclusive).",
+      },
+      acknowledged_at: { description: "When the complaint was acknowledged (instant, UTC)." },
+      response: {
+        description:
+          "The response, JSON { outcome, actionsTaken, ombudsmanSignposted, documentId }; outcome is upheld, partly_upheld or not_upheld.",
+      },
+      responded_at: { description: "When the response was sent (instant, UTC)." },
+      appeal_received_at: { description: "When an appeal was received (instant, UTC)." },
+      appeal_reason: { description: "Why the complainant appealed, in words." },
+      appeal_response: {
+        description: "The response to the appeal, JSON as for response.",
+      },
+      appeal_responded_at: {
+        description: "When the response to the appeal was sent (instant, UTC).",
+      },
+      closed_reason: { description: "Why the complaint closed, in words." },
+      closed_at: { description: "When the complaint closed (instant, UTC)." },
+      recorded_by: { description: "The member of staff who recorded it (tenant_user.id)." },
+      retention_class: { description: "The retention class (always complaint)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.compliment": {
+    context: "safety",
+    description:
+      "Compliments received, with the staff they praise and the quality statements they are evidence for. A compliment never runs a clock.",
+    treatment: "tenant_rows",
+    retention: "complaint",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      location_id: { description: "The home the compliment is about (location.id)." },
+      person_id: "exported",
+      from_name: { description: "Who sent the compliment, as they gave their name." },
+      from_relationship: {
+        description:
+          "Who they are to the service: person_using_service, family_or_friend, representative, professional, member_of_public or other.",
+      },
+      received_at: { description: "When the compliment was received (instant, UTC)." },
+      summary: { description: "What the compliment says, in words." },
+      staff_ids: { description: "Members of staff it praises (tenant_user.id)." },
+      evidence_statement_ids: {
+        description: "The quality statements it is evidence for (framework identifiers).",
+      },
+      document_id: { description: "A copy of the card, letter or message (document.id)." },
+      recorded_by: { description: "The member of staff who recorded it (tenant_user.id)." },
+      retention_class: { description: "The retention class (always complaint)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
     },
   },
   "public.candour_record": {

@@ -7218,6 +7218,595 @@
           "version"
         ]
       },
+      "ComplaintItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "complainantName": {
+            "type": "string"
+          },
+          "complainantRelationship": {
+            "$ref": "#/components/schemas/ComplainantRelationship"
+          },
+          "complainantContact": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ComplaintChannel"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "knewOfMatterOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ComplaintState"
+          },
+          "pauses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplaintPause"
+            }
+          },
+          "acknowledgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ComplaintResponse"
+          },
+          "respondedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "appealReceivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "appealReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appealResponse": {
+            "$ref": "#/components/schemas/ComplaintResponse"
+          },
+          "appealRespondedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "closedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "clocks": {
+            "type": "object",
+            "properties": {
+              "acknowledgeBy": {
+                "type": "string",
+                "format": "date"
+              },
+              "respondBy": {
+                "type": "string",
+                "format": "date"
+              },
+              "pausedWorkingDays": {
+                "type": "integer"
+              },
+              "wording": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "acknowledgeBy",
+              "respondBy",
+              "pausedWorkingDays",
+              "wording"
+            ]
+          },
+          "ombudsman": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "normallyBy": {
+                "type": "string",
+                "format": "date"
+              },
+              "wording": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "normallyBy",
+              "wording"
+            ]
+          },
+          "recordedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "personId",
+          "complainantName",
+          "complainantRelationship",
+          "complainantContact",
+          "channel",
+          "receivedAt",
+          "knewOfMatterOn",
+          "summary",
+          "state",
+          "pauses",
+          "acknowledgedAt",
+          "response",
+          "respondedAt",
+          "appealReceivedAt",
+          "appealReason",
+          "appealResponse",
+          "appealRespondedAt",
+          "closedReason",
+          "closedAt",
+          "clocks",
+          "ombudsman",
+          "recordedBy",
+          "version"
+        ]
+      },
+      "ComplainantRelationship": {
+        "type": "string",
+        "enum": [
+          "person_using_service",
+          "family_or_friend",
+          "representative",
+          "professional",
+          "member_of_public",
+          "other"
+        ]
+      },
+      "ComplaintChannel": {
+        "type": "string",
+        "enum": [
+          "in_person",
+          "phone",
+          "email",
+          "letter",
+          "other"
+        ]
+      },
+      "ComplaintState": {
+        "type": "string",
+        "enum": [
+          "received",
+          "acknowledged",
+          "investigating",
+          "responded",
+          "appealed",
+          "appeal_responded",
+          "closed"
+        ]
+      },
+      "ComplaintPause": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "reason"
+        ]
+      },
+      "ComplaintResponse": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/ComplaintOutcome"
+          },
+          "actionsTaken": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          },
+          "ombudsmanSignposted": {
+            "type": "boolean"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "outcome",
+          "actionsTaken",
+          "ombudsmanSignposted",
+          "documentId"
+        ]
+      },
+      "ComplaintOutcome": {
+        "type": "string",
+        "enum": [
+          "upheld",
+          "partly_upheld",
+          "not_upheld"
+        ]
+      },
+      "CreateComplaint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "complainantName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "complainantRelationship": {
+            "$ref": "#/components/schemas/ComplainantRelationship"
+          },
+          "complainantContact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ComplaintChannel"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "knewOfMatterOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "locationId",
+          "complainantName",
+          "complainantRelationship",
+          "channel",
+          "receivedAt",
+          "knewOfMatterOn",
+          "summary"
+        ]
+      },
+      "ComplaintList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplaintItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ComplaintStep": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "acknowledged",
+              "investigating",
+              "responded",
+              "appealed",
+              "appeal_responded",
+              "closed"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000
+          },
+          "response": {
+            "$ref": "#/components/schemas/ComplaintResponse"
+          },
+          "appeal": {
+            "type": "object",
+            "properties": {
+              "receivedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "receivedAt",
+              "reason"
+            ]
+          }
+        },
+        "required": [
+          "to",
+          "version"
+        ]
+      },
+      "SetComplaintPauses": {
+        "type": "object",
+        "properties": {
+          "pauses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplaintPause"
+            },
+            "maxItems": 50
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "pauses",
+          "version"
+        ]
+      },
+      "ComplimentItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "fromName": {
+            "type": "string"
+          },
+          "fromRelationship": {
+            "$ref": "#/components/schemas/ComplainantRelationship"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
+          },
+          "evidenceStatementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "recordedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "locationId",
+          "personId",
+          "fromName",
+          "fromRelationship",
+          "receivedAt",
+          "summary",
+          "staff",
+          "evidenceStatementIds",
+          "documentId",
+          "recordedBy",
+          "version"
+        ]
+      },
+      "CreateCompliment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "fromRelationship": {
+            "$ref": "#/components/schemas/ComplainantRelationship"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 10000
+          },
+          "staffIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 50,
+            "default": []
+          },
+          "evidenceStatementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 50,
+            "default": []
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "locationId",
+          "fromName",
+          "fromRelationship",
+          "receivedAt",
+          "summary"
+        ]
+      },
+      "ComplimentList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComplimentItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "TagCompliment": {
+        "type": "object",
+        "properties": {
+          "evidenceStatementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 50
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "evidenceStatementIds",
+          "version"
+        ]
+      },
       "WorkflowInstanceList": {
         "type": "object",
         "properties": {
@@ -34176,6 +34765,679 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/complaints": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record a complaint (Regulation 16); starts its clocks",
+        "description": "Needs safety.complaint.manage at the complaint's home. Starts the complaint workflow with the acknowledgement target written onto it, and publishes safety.complaint.received (ids only).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateComplaint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Complaints at the homes where you manage them, newest first",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/ComplaintState"
+            },
+            "required": false,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complaints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/complaints/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One complaint, with its clocks and the Ombudsman's time limit",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complaint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/complaints/{id}/step": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Take the next complaint step: acknowledge, investigate, respond, appeal or close",
+        "description": "A response (first or after an appeal) needs the outcome, what was done, the Ombudsman signposted and a kept copy (complaintResponseProblems); an appeal needs when it arrived and why; closing needs a reason. The workflow engine checks the step and the permission; the new state's deadline is written onto the workflow.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintStep"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/complaints/{id}/pauses": {
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record when the response target is paused, waiting for the complainant",
+        "description": "UK dates, inclusive, each with a reason (waiting for consent or information). Only before the response; the response target moves by the working days paused, and the new deadline is written onto the workflow.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetComplaintPauses"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/compliments": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record a compliment, optionally tagged as evidence for quality statements",
+        "description": "Needs safety.complaint.manage at its home. Never runs a clock. Publishes safety.compliment.recorded (ids and statement identifiers only) for the evidence library's links (slice 14).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompliment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplimentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Compliments at the homes where you manage complaints, newest first",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compliments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplimentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/compliments/{id}/evidence": {
+      "put": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Tag a compliment with the quality statements it is evidence for",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagCompliment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tagged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplimentItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
             "content": {
               "application/problem+json": {
                 "schema": {

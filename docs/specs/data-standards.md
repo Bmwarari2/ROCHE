@@ -439,6 +439,14 @@ mapping of incident types to LFPSE categories is an open item below.
 | `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
 | `statutory_notification.status` | Harbour (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
 | `candour_record.state` | Regulation 20 of the 2014 Regulations (`CANDOUR_WORKFLOW`) | `threshold_assessment`, `not_notifiable`, `verbal_due`, `no_contact`, `written_due`, `enquiries_open`, `closed` | |
+| `complaint.state` | Regulation 16 of the 2014 Regulations (`COMPLAINT_WORKFLOW`) | `received`, `acknowledged`, `investigating`, `responded`, `appealed`, `appeal_responded`, `closed` (reason) | Targets in working days from `complaint.acknowledge_working_days` and `complaint.response_working_days`, paused while waiting for the complainant |
+| `complaint.complainant_relationship`, `compliment.from_relationship` | Harbour | `person_using_service`, `family_or_friend`, `representative`, `professional`, `member_of_public`, `other` | |
+| `complaint.channel` | Harbour | `in_person`, `phone`, `email`, `letter`, `other` | |
+| `complaint.knew_of_matter_on` | Local Government Act 1974 s.34D(4) | ISO date (UK) | The Ombudsman's time limit (`lgsco.time_limit_months`) runs from it |
+| `complaint.pauses` | Harbour | `[{ from, to, reason }]`, ISO dates, inclusive | |
+| `complaint.response`, `appeal_response` | Harbour (`complaintResponseProblems`) | `{ outcome: upheld, partly_upheld or not_upheld, actionsTaken, ombudsmanSignposted: true, documentId }` | A response is refused without the Ombudsman signposted and a kept copy |
+| `compliment.evidence_statement_ids` | The compliance framework's quality statement identifiers (slice 14) | Up to 50 identifiers | Not checked against the framework until slice 14 lands |
+| `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |
 | `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
 
 ## Safeguarding log (Phase 2, slice 13)
