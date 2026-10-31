@@ -84,7 +84,9 @@ test("hazard HZ-008 a change in need brings the care plan review forward, and th
     .filter({ hasText: "Dev Fixture" })
     .filter({ hasText: "Care plan review after a change" });
   await expect(row).toBeVisible();
-  await expect(row.locator("[data-status]")).toHaveText(/Due|Overdue/);
+  // The state as an icon and a word; the person's communication needs beside their name (AIS).
+  await expect(row.locator("[data-status]").filter({ hasText: /^(Due|Overdue)$/ })).toHaveCount(1);
+  await expect(row.getByRole("cell").last()).not.toBeEmpty();
   await bothThemes(page, "reviews due tracker");
   await row.getByRole("link", { name: "Dev Fixture" }).click();
   await expect(page).toHaveURL(new RegExp(`/people/${PERSON}/reviews$`));

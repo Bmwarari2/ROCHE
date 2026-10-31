@@ -7,6 +7,7 @@ import {
   packIdentity,
   reasonLongEnough,
   sectionsInOrder,
+  sendOffered,
 } from "./transfer-pack";
 
 // Invented person (section 20): Frank Dummy, NHS number in the 999 range.
@@ -194,5 +195,18 @@ describe("openTransfer and checksToDo", () => {
       }),
     );
     expect(checks.map((c) => c.key)).toEqual(["skin_checked"]);
+  });
+});
+
+describe("sendOffered", () => {
+  it.each([
+    ["a pack for this person", { status: 200, hasPack: true, matchesRecord: true }, true],
+    ["too many packs this minute", { status: 429, hasPack: false, matchesRecord: false }, true],
+    ["the service failing", { status: 503, hasPack: false, matchesRecord: false }, true],
+    ["no answer at all", { status: 0, hasPack: false, matchesRecord: false }, true],
+    ["the API's refusal", { status: 422, hasPack: false, matchesRecord: false }, false],
+    ["a pack for someone else", { status: 200, hasPack: true, matchesRecord: false }, false],
+  ])("hazards HZ-023 and HZ-001 with %s: offered %s", (_, preview, expected) => {
+    expect(sendOffered(preview)).toBe(expected);
   });
 });

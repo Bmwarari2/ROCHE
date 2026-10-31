@@ -104,3 +104,19 @@ export function checksToDo(
 ): HospitalTransferOut["returnChecks"] {
   return transfer.returnChecks.filter((check) => check.doneAt === null);
 }
+
+/**
+ * Whether the hospital tab offers the send form (people.md section 6a rule 5; HZ-023, HZ-001):
+ * always, unless the API refused the pack (422: not receiving care, identity incomplete, wrong
+ * person) or the pack it gave does not match the record on the screen. A preview that failed for
+ * any other reason (too many packs this minute, the service busy) never keeps a person from being
+ * sent: the API makes and checks the pack again when they are.
+ */
+export function sendOffered(preview: {
+  readonly status: number;
+  readonly hasPack: boolean;
+  readonly matchesRecord: boolean;
+}): boolean {
+  if (preview.status === 422) return false;
+  return !(preview.hasPack && !preview.matchesRecord);
+}

@@ -82,6 +82,10 @@ test("hazards HZ-001 and HZ-023 the pack as it would be made now names the perso
   await expect(preview.locator("[data-pack-name]")).toHaveText("Frank Dummy");
   await expect(preview.locator("[data-pack-dob]")).toHaveText("25/01/1946");
   await expect(preview.locator("[data-pack-nhs]")).toHaveText("999 000 0069");
+  // When the pack was made, and that it is made again on sending (HZ-002, HZ-023).
+  await expect(preview.locator("[data-pack-made]")).toContainText(
+    /^Made at \d{2}\/\d{2}\/\d{4}.*The pack is made again/,
+  );
   // Missing safety-critical sections read "Not recorded", listed first and never blank (HZ-023).
   await expect(preview.locator("[data-pack-missing]")).toContainText(
     /safety-critical sections? (is|are) not recorded/,

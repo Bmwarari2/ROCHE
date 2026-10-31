@@ -40,8 +40,22 @@ Branch `feat/web-reviews-transfer`.
 
 - None.
 
+## Review rounds
+
+- Round 1 (clinical safety and accessibility reviewers): the send form now stays offered when the
+  preview fails for any reason but the API's refusal or a pack for someone else (`sendOffered`; a
+  rate limit or fault must never block a transfer); the tracker never shows the all-clear when the
+  people list could not be read and counts reviews it cannot name; the pack shows when it was
+  made, and no tick while something is missing or needs checking; communication needs on the
+  tracker (AIS); a failed print is said in a notice that takes focus; warnings carry an icon;
+  44 px links; whole sentences for translators.
+- Not changed: the rate-table keys stay beside each due date, as the `ReviewDue.basis` contract
+  asks, so a manager can check where a date comes from. Correcting a review record and the CSO
+  questions (the 30-a-minute pack limit on an emergency path; reviews outside the viewer's scope)
+  are left open.
+
 ## Tests
 
-- `apps/web/src/lib/reviews.test.ts` (8), `apps/web/src/lib/transfer-pack.test.ts` (12),
+- `apps/web/src/lib/reviews.test.ts` (8), `apps/web/src/lib/transfer-pack.test.ts` (18),
   `apps/web/src/lib/care-record.test.ts` (tabs); `apps/web/e2e/reviews.spec.ts` (3) and
   `apps/web/e2e/transfer-pack.spec.ts` (3), axe in the light and dark themes on every state.

@@ -4,6 +4,8 @@ import { DataTable, type DataTableColumn, EmptyState } from "@harbour/ui";
 import { CircleCheck } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { CommunicationSummary } from "@/lib/people";
+import { CommunicationStatus } from "./CommunicationStatus";
 
 /** One review due, already in words: the table only lays it out. */
 export interface TrackerTableRow {
@@ -15,6 +17,8 @@ export interface TrackerTableRow {
   readonly dueLabel: string;
   readonly location: string | null;
   readonly chip: ReactNode;
+  /** The person's communication needs, shown wherever they are named (AIS; HZ-023). */
+  readonly communication: CommunicationSummary;
 }
 
 /**
@@ -35,6 +39,7 @@ export function ReviewTracker({
     readonly due: string;
     readonly state: string;
     readonly location: string;
+    readonly communication: string;
     readonly empty: string;
   };
 }) {
@@ -44,7 +49,10 @@ export function ReviewTracker({
       header: labels.person,
       rowHeader: true,
       cell: (row) => (
-        <Link href={`/people/${row.personId}/reviews`} className="underline">
+        <Link
+          href={`/people/${row.personId}/reviews`}
+          className="inline-flex min-h-target items-center underline"
+        >
           {row.name}
         </Link>
       ),
@@ -52,6 +60,13 @@ export function ReviewTracker({
     { id: "review", header: labels.review, cell: (row) => row.review },
     { id: "due", header: labels.due, sortValue: (row) => row.dueOn, cell: (row) => row.dueLabel },
     { id: "state", header: labels.state, cell: (row) => row.chip },
+    {
+      id: "communication",
+      header: labels.communication,
+      cell: (row) => (
+        <CommunicationStatus summary={row.communication} flagLabel={labels.communication} compact />
+      ),
+    },
     ...(showLocation
       ? [{ id: "location", header: labels.location, cell: (row: TrackerTableRow) => row.location }]
       : []),

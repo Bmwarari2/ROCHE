@@ -4,11 +4,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ReviewChip } from "@/components/people/ReviewChip";
 import { ReviewTracker, type TrackerTableRow } from "@/components/people/ReviewTracker";
+import { WarningLine } from "@/components/people/WarningLine";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
 import { formatDate } from "@/lib/format";
 import { peopleLabel, t } from "@/lib/i18n";
-import { personNames } from "@/lib/people";
+import { type CommunicationSummary, communicationSummary, personNames } from "@/lib/people";
 import { trackerRows } from "@/lib/reviews";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -64,6 +65,9 @@ export default async function ReviewsDuePage() {
         .then((r) => ({ location, data: r.data ?? null })),
     ),
   ]);
+  const communication = new Map<string, CommunicationSummary>(
+    (list.data?.items ?? []).map((person) => [person.id, communicationSummary(person, t)]),
+  );
   const names = new Map(
     (list.data?.items ?? []).map((person) => {
       const n = personNames(person);
@@ -72,13 +76,13 @@ export default async function ReviewsDuePage() {
   );
   const locationNames = new Map(me.locations.map((l) => [l.id, l.name]));
   const unreadable = results.filter((r) => r.data === null).map((r) => r.location.name);
-  const rows: TrackerTableRow[] = trackerRows(
-    results.flatMap((r) =>
-      (r.data?.items ?? []).map((item) => ({ ...item, locationId: r.location.id })),
-    ),
-    names,
-    locationNames,
-  ).map((row) => ({
+  const due = results.flatMap((r) =>
+    (r.data?.items ?? []).map((item) => ({ ...item, locationId: r.location.id })),
+  );
+  const named = trackerRows(due, names, locationNames);
+  // Reviews for people the viewer's list does not name are counted, never dropped in silence.
+  const leftOut = list.data ? due.length - named.length : 0;
+  const rows: TrackerTableRow[] = named.map((row) => ({
     id: `${row.personId}-${row.kind}-${row.dueOn}`,
     personId: row.personId,
     name: row.name,
@@ -87,6 +91,10 @@ export default async function ReviewsDuePage() {
     dueLabel: formatDate(row.dueOn) ?? row.dueOn,
     location: row.locationName,
     chip: <ReviewChip state={row.state} />,
+    communication: communication.get(row.personId) ?? {
+      kind: "not_recorded",
+      label: t("common.notRecorded"),
+    },
   }));
   const location = me.locations.find((l) => l.id === locationId);
 
@@ -99,23 +107,42 @@ export default async function ReviewsDuePage() {
         description={t("people.reviews.tracker.intro")}
       />
       {unreadable.map((name) => (
-        <p key={name} role="alert" className="m-0 font-semibold">
+        <WarningLine key={name} alert>
           {t("people.reviews.tracker.unavailable", { location: name })}
-        </p>
+        </WarningLine>
       ))}
-      <ReviewTracker
-        rows={rows}
-        showLocation={locations.length > 1}
-        labels={{
-          caption: t("people.reviews.tracker.caption"),
-          person: t("people.reviews.tracker.person"),
-          review: t("people.reviews.tracker.review"),
-          due: t("people.reviews.tracker.due"),
-          state: t("people.reviews.tracker.state"),
-          location: t("people.reviews.tracker.location"),
-          empty: t("people.reviews.tracker.none"),
-        }}
-      />
+      {leftOut > 0 ? (
+        <WarningLine data-reviews-left-out="">
+          {t("people.reviews.tracker.leftOut", { count: leftOut })}
+        </WarningLine>
+      ) : null}
+      {list.data && unreadable.length === 0 ? null : (
+        <a
+          href="/people/reviews"
+          className="inline-flex min-h-target items-center self-start underline"
+        >
+          {t("common.retry")}
+        </a>
+      )}
+      {/* Never the all-clear when the names could not be read (HZ-008). */}
+      {!list.data ? (
+        <WarningLine alert>{t("people.reviews.tracker.listUnavailable")}</WarningLine>
+      ) : (
+        <ReviewTracker
+          rows={rows}
+          showLocation={locations.length > 1}
+          labels={{
+            caption: t("people.reviews.tracker.caption"),
+            person: t("people.reviews.tracker.person"),
+            review: t("people.reviews.tracker.review"),
+            due: t("people.reviews.tracker.due"),
+            state: t("people.reviews.tracker.state"),
+            location: t("people.reviews.tracker.location"),
+            communication: t("people.header.communicationNeeds"),
+            empty: t("people.reviews.tracker.none"),
+          }}
+        />
+      )}
     </div>
   );
 }

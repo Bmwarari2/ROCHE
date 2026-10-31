@@ -6,6 +6,7 @@ import { ArrivalNotice } from "@/components/care/ArrivalNotice";
 import { NoAccess } from "@/components/care/NoAccess";
 import { ReadOnlyNotice } from "@/components/care/ReadOnlyNotice";
 import { RecordFrame } from "@/components/care/RecordFrame";
+import { FocusedWarning } from "@/components/people/FocusedWarning";
 import {
   HandoverForm,
   ReturnCheckButton,
@@ -13,6 +14,7 @@ import {
   SendToHospitalForm,
 } from "@/components/people/HospitalForms";
 import { TransferPackView } from "@/components/people/TransferPackView";
+import { WarningLine } from "@/components/people/WarningLine";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { can, tabHref, writeAccess } from "@/lib/care-record";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -20,7 +22,7 @@ import { t } from "@/lib/i18n";
 import { problemMessage } from "@/lib/outcome";
 import { getPerson } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
-import { needsAcknowledgement, openTransfer, packIdentity } from "@/lib/transfer-pack";
+import { needsAcknowledgement, openTransfer, packIdentity, sendOffered } from "@/lib/transfer-pack";
 import { ukToday } from "@/lib/uk-time";
 
 type Params = Promise<{ id: string }>;
@@ -43,9 +45,9 @@ const DONE_MESSAGES = {
 
 function WrongPerson() {
   return (
-    <p role="alert" className="m-0 max-w-prose font-semibold" data-pack-wrong-person="">
+    <WarningLine alert data-pack-wrong-person="">
       {t("people.transfer.wrongPerson")}
-    </p>
+    </WarningLine>
   );
 }
 
@@ -86,7 +88,6 @@ function AwayCard({
               </div>
               <p className="m-0 max-w-prose text-body-dense">{t("people.transfer.printHint")}</p>
             </div>
-            <h4 className="m-0 text-body font-semibold">{t("people.transfer.sentTitle")}</h4>
             <TransferPackView pack={transfer.pack} identity={identity} />
           </>
         ) : (
@@ -227,15 +228,26 @@ async function HospitalTab({
   );
   const canCheck = canWrite || writeAccess(person, me.permissions, "care.plan.write").canWrite;
 
-  // The pack as it would be made now, only while there is no transfer under way.
+  // The pack as it would be made now, only while there is no transfer under way. Asked for even
+  // when the transfers could not be read: sending must never wait on another read (HZ-023).
   const [preview, property] =
-    transfers.data && !away && person.status !== "in_hospital"
+    !away && person.status !== "in_hospital"
       ? await Promise.all([
           api.GET("/v1/people/{id}/transfer-pack", { params: { path: { id } } }),
           api.GET("/v1/people/{id}/property", { params: { path: { id } } }),
         ])
       : [null, null];
   const previewIdentity = preview?.data ? packIdentity(preview.data, id) : null;
+  // Only the API's refusal (not receiving care, identity incomplete, wrong person) or a pack that
+  // does not match this record keeps the send form away. A preview that failed for any other
+  // reason (too many packs this minute, the service busy) leaves it: the API makes and checks the
+  // pack again when the person is sent, and a transfer must never wait (HZ-023, HZ-001).
+  const previewRefused = preview?.response.status === 422;
+  const mayOfferSend = sendOffered({
+    status: preview?.response.status ?? 0,
+    hasPack: Boolean(preview?.data),
+    matchesRecord: previewIdentity !== null,
+  });
   const toSend = property?.data
     ? property.data.items
         .filter((item) => property.data.toSendWithPerson.includes(item.id))
@@ -252,15 +264,24 @@ async function HospitalTab({
       </div>
       {doneKey ? <ArrivalNotice key={`${done}-${at}`}>{t(doneKey)}</ArrivalNotice> : null}
       {print === "busy" || print === "failed" ? (
-        <p role="alert" className="m-0 max-w-prose font-semibold">
+        <FocusedWarning key={print}>
           {t("people.transfer.printFailed", { reason: print })}
-        </p>
+        </FocusedWarning>
       ) : null}
       {!transfers.data ? (
-        <p role="alert" className="m-0 font-semibold">
-          {problemMessage(transfers.error, t).message || t("people.transfer.unavailable")}
-        </p>
-      ) : away ? (
+        <div className="flex flex-col gap-1">
+          <WarningLine alert>
+            {problemMessage(transfers.error, t).message || t("people.transfer.unavailable")}
+          </WarningLine>
+          <a
+            href={tabHref(id, "hospital")}
+            className="inline-flex min-h-target items-center self-start underline"
+          >
+            {t("common.retry")}
+          </a>
+        </div>
+      ) : null}
+      {away ? (
         <>
           <AwayCard personId={id} transfer={away} canWrite={canWrite} />
           {canWrite ? (
@@ -270,7 +291,9 @@ async function HospitalTab({
           ) : null}
         </>
       ) : person.status === "in_hospital" ? (
-        <p className="m-0 max-w-prose">{t("people.transfer.inHospitalElsewhere")}</p>
+        transfers.data ? (
+          <WarningLine>{t("people.transfer.inHospitalElsewhere")}</WarningLine>
+        ) : null
       ) : (
         <>
           {afterReturn?.returnChecks.some((check) => check.doneAt === null) ? (
@@ -279,19 +302,25 @@ async function HospitalTab({
           <Card as="section" title={t("people.transfer.previewTitle")} headingLevel={3}>
             {preview?.data ? (
               previewIdentity ? (
-                <TransferPackView pack={preview.data} identity={previewIdentity} />
+                <TransferPackView pack={preview.data} identity={previewIdentity} preview />
               ) : (
                 <WrongPerson />
               )
-            ) : (
-              <p role="alert" className="m-0 max-w-prose font-semibold" data-pack-refused="">
+            ) : previewRefused ? (
+              <WarningLine alert data-pack-refused="">
                 {t("people.transfer.previewUnavailable", {
                   detail: problemMessage(preview?.error, t).message,
                 })}
-              </p>
+              </WarningLine>
+            ) : (
+              <WarningLine alert data-pack-preview-failed="">
+                {t("people.transfer.previewFailed", {
+                  detail: problemMessage(preview?.error, t).message,
+                })}
+              </WarningLine>
             )}
           </Card>
-          {preview?.data && previewIdentity ? (
+          {mayOfferSend ? (
             canWrite ? (
               <Card as="section" title={t("people.transfer.send.title")} headingLevel={3}>
                 <SendToHospitalForm personId={id} version={person.version} items={toSend} />
