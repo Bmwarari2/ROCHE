@@ -84,15 +84,42 @@ function heldFlags(form: FormData) {
   };
 }
 
-function HeldFlags() {
+/** What a planned exit already says, so recording that the person has left keeps it. */
+export interface PlannedDefaults {
+  readonly holdsResidentsMoney: boolean;
+  readonly holdsDeposit: boolean;
+  readonly hasLoanEquipment: boolean;
+  readonly homeIsDwpAppointee: boolean;
+  readonly destinationType: string | null;
+  readonly receivingProviderName: string | null;
+  readonly reason: string | null;
+}
+
+function HeldFlags({ defaults }: { readonly defaults?: PlannedDefaults }) {
   return (
     <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
       <legend className="mb-2 font-semibold">{t("people.exit.flags.legend")}</legend>
       <p className="m-0 text-body-dense text-text-secondary">{t("people.exit.flags.hint")}</p>
-      <Checkbox name="holdsResidentsMoney" label={t("people.exit.flags.holdsResidentsMoney")} />
-      <Checkbox name="holdsDeposit" label={t("people.exit.flags.holdsDeposit")} />
-      <Checkbox name="hasLoanEquipment" label={t("people.exit.flags.hasLoanEquipment")} />
-      <Checkbox name="homeIsDwpAppointee" label={t("people.exit.flags.homeIsDwpAppointee")} />
+      <Checkbox
+        name="holdsResidentsMoney"
+        defaultChecked={defaults?.holdsResidentsMoney ?? false}
+        label={t("people.exit.flags.holdsResidentsMoney")}
+      />
+      <Checkbox
+        name="holdsDeposit"
+        defaultChecked={defaults?.holdsDeposit ?? false}
+        label={t("people.exit.flags.holdsDeposit")}
+      />
+      <Checkbox
+        name="hasLoanEquipment"
+        defaultChecked={defaults?.hasLoanEquipment ?? false}
+        label={t("people.exit.flags.hasLoanEquipment")}
+      />
+      <Checkbox
+        name="homeIsDwpAppointee"
+        defaultChecked={defaults?.homeIsDwpAppointee ?? false}
+        label={t("people.exit.flags.homeIsDwpAppointee")}
+      />
     </fieldset>
   );
 }
@@ -135,12 +162,15 @@ export function LeavingForm({
   version,
   mode,
   plannedKind,
+  planned,
 }: {
   readonly personId: string;
   readonly path: string;
   readonly version: number;
   readonly mode: "plan" | "record" | "left";
   readonly plannedKind?: "discharge" | "transfer";
+  /** For `"left"`: the plan's flags, destination and reason, shown filled in and sent again. */
+  readonly planned?: PlannedDefaults;
 }) {
   const { result, setResult, pending, send } = useExitSend(path);
   const ids = useFieldIds([
@@ -180,14 +210,7 @@ export function LeavingForm({
       ...(destination ? { destinationType: destination } : {}),
       ...(provider ? { receivingProviderName: provider } : {}),
       ...(reason ? { reason } : {}),
-      ...(mode === "left"
-        ? {
-            holdsResidentsMoney: false,
-            holdsDeposit: false,
-            hasLoanEquipment: false,
-            homeIsDwpAppointee: false,
-          }
-        : heldFlags(form)),
+      ...heldFlags(form),
     };
     if (mode === "plan") {
       send("planned", () => planExit(personId, { kind: exitKind, details }));
@@ -244,6 +267,7 @@ export function LeavingForm({
           name="destinationType"
           label={t("people.exit.destination.label")}
           emptyOption={t("people.exit.destination.empty")}
+          defaultValue={planned?.destinationType ?? ""}
           options={DESTINATIONS.map((value) => ({
             value,
             label: t("people.exit.destination", { destination: value }),
@@ -255,17 +279,19 @@ export function LeavingForm({
             name="receivingProviderName"
             label={t("people.exit.receivingProvider")}
             maxLength={200}
+            defaultValue={planned?.receivingProviderName ?? ""}
           />
         ) : null}
         <TextArea
           id={ids.reason}
           name="reason"
           label={mode === "plan" ? t("people.exit.reasonOptional") : t("people.exit.reason")}
+          defaultValue={planned?.reason ?? ""}
           maxLength={MOVE_REASON_MAX}
           formatCount={(remaining) => characterCount(remaining)}
           error={errorFor(result, "reason")}
         />
-        {mode === "left" ? null : <HeldFlags />}
+        <HeldFlags {...(planned ? { defaults: planned } : {})} />
         <div>
           <Button type="submit" disabled={pending}>
             {t("people.exit.leaving.submit", { mode })}
@@ -476,6 +502,7 @@ export function ItemActions({
         <form
           className="flex flex-col gap-3"
           noValidate
+          aria-label={t("people.exit.notRequiredNamed", { item: itemTitle })}
           onSubmit={(event) => {
             event.preventDefault();
             const reason = text(new FormData(event.currentTarget), "reason");
@@ -553,23 +580,43 @@ export function MoveButton({
   readonly version: number;
 }) {
   const { result, pending, send } = useExitSend(path);
+  const [confirming, setConfirming] = useState(false);
+  const hintId = useFieldIds(["hint"]).hint;
   const click = () => {
     if (move === "archive") send("archived", () => archiveRecord(personId, { version }));
     else if (move === "close") send("closed", () => moveExit(personId, { to: "closed", version }));
     else send("awaiting", () => moveExit(personId, { to: "awaiting_return", version }));
   };
+  // Archiving cannot be undone: it asks again, saying what it does (CONTENT.md rule 4).
   return (
     <div className="flex flex-col gap-2">
-      <p className="m-0 max-w-prose">{t("people.exit.move.hint", { move })}</p>
-      <div>
-        <Button
-          variant={move === "archive" ? "destructive" : "primary"}
-          disabled={pending}
-          onClick={click}
-        >
-          {t("people.exit.move.button", { move })}
-        </Button>
-      </div>
+      <p id={hintId} className="m-0 max-w-prose">
+        {t("people.exit.move.hint", { move })}
+      </p>
+      {move === "archive" && confirming ? (
+        <div className="flex flex-col gap-2">
+          <p className="m-0 font-semibold">{t("people.exit.archiveConfirm")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="destructive" disabled={pending} onClick={click}>
+              {t("people.exit.archiveConfirmButton")}
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              {t("people.exit.archiveKeep")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button
+            variant={move === "archive" ? "destructive" : "primary"}
+            disabled={pending}
+            aria-describedby={hintId}
+            onClick={move === "archive" ? () => setConfirming(true) : click}
+          >
+            {t("people.exit.move.button", { move })}
+          </Button>
+        </div>
+      )}
       <Feedback result={result} path={path} />
     </div>
   );
@@ -624,7 +671,7 @@ export function CancelPlan({
                 inline.hide();
               }}
             >
-              {t("common.cancel")}
+              {t("people.exit.keepPlan")}
             </Button>
           </div>
         </form>

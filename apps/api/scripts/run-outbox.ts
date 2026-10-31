@@ -9,7 +9,13 @@ import { createLogger } from "../src/logger";
  * drafted the death notifications (HZ-013). Development only.
  */
 const config = loadConfig();
-if (config.NODE_ENV === "production") throw new Error("run-outbox is for development only");
+const host = new URL(config.DATABASE_WORKER_URL).hostname;
+if (
+  config.NODE_ENV === "production" ||
+  !["localhost", "127.0.0.1", "::1", "[::1]"].includes(host)
+) {
+  throw new Error("run-outbox is for a local development database only");
+}
 const logger = createLogger("warn");
 const workerPool = createPool(config.DATABASE_WORKER_URL, { max: 1 });
 const appPool = createPool(config.DATABASE_APP_URL, { max: 2 });

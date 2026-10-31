@@ -185,6 +185,18 @@ async function tickRemaining(page: Page, except: RegExp) {
   throw new Error("The checklist did not finish");
 }
 
+/** Archives the record: it asks again first, as archiving cannot be undone. */
+async function archive(page: Page) {
+  await main(page).getByRole("button", { name: "Archive the record" }).click();
+  await expect(main(page).getByText(/^Archive this record\? It cannot be undone/)).toBeVisible();
+  await expectAccessible(page, "archive, asked again");
+  await clickAndWait(
+    page,
+    main(page).getByRole("button", { name: "Yes, archive the record" }),
+    "Record archived.",
+  );
+}
+
 /** The record offers nothing once archived, and says so with an icon and a word. */
 async function expectArchived(page: Page, id: string) {
   await openLeaving(page, id);
@@ -251,7 +263,7 @@ test("hazard HZ-001 a planned discharge is worked through its checklist, returns
 
   // One item is not required, with a reason; the rest are done.
   const involved = item(page, "The person and their representatives involved in the plan");
-  await involved.getByRole("button", { name: /^Not required: / }).click();
+  await involved.getByRole("button", { name: /^Mark as not required: / }).click();
   await involved.getByRole("button", { name: "Save as not required" }).click();
   await expect(involved.getByText("Say why it is not required.").first()).toBeVisible();
   await involved
@@ -335,11 +347,7 @@ test("hazard HZ-001 a planned discharge is worked through its checklist, returns
   await expect(page.getByTestId("exit-summary")).toContainText("Closed");
   await expect(main(page).getByRole("button", { name: /^Mark as / })).toHaveCount(0);
   await checkBothThemes(page, "closed discharge, ready to archive");
-  await clickAndWait(
-    page,
-    main(page).getByRole("button", { name: "Archive the record" }),
-    "Record archived.",
-  );
+  await archive(page);
   await expectArchived(page, id);
 });
 
@@ -382,11 +390,7 @@ test("hazard HZ-001 a transfer to another provider is recorded at once and archi
     main(page).getByRole("button", { name: "Close the checklist" }),
     "Checklist closed.",
   );
-  await clickAndWait(
-    page,
-    main(page).getByRole("button", { name: "Archive the record" }),
-    "Record archived.",
-  );
+  await archive(page);
   await expectArchived(page, id);
 });
 
@@ -496,11 +500,7 @@ test("hazard HZ-013 a death drafts its notifications, which the checklist links 
     main(page).getByRole("button", { name: "Close the checklist" }),
     "Checklist closed.",
   );
-  await clickAndWait(
-    page,
-    main(page).getByRole("button", { name: "Archive the record" }),
-    "Record archived.",
-  );
+  await archive(page);
   await expectArchived(page, id);
 
   // The room held after the death is cleared, so the next run finds its beds free.

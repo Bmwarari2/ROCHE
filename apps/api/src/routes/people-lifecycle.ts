@@ -106,6 +106,14 @@ import {
  * and the welcome checklist. Every rule is the domain's; reads and writes are audited by record id.
  */
 
+const NHS_NUMBER_KEY = "person_tenant_nhs_number_key";
+
+/** The constraint a unique violation names. */
+function constraintOf(error: unknown): string | undefined {
+  const e = error as { constraint?: string; cause?: { constraint?: string } };
+  return e.constraint ?? e.cause?.constraint;
+}
+
 /** The database's refusal of a real person while sample data is loaded (migration 0069). */
 function sampleRefusal(error: unknown): boolean {
   const e = error as { message?: string; cause?: { message?: string } };
@@ -512,12 +520,13 @@ export const peopleLifecycleRouter = createRouter()
           })
           .returning({ id: person.id })
           .catch((error: unknown) => {
-            if (dbCode(error) === "23505") {
+            // Neutral words: the person may be at a location the caller cannot see (HZ-011).
+            if (dbCode(error) === "23505" && constraintOf(error) === NHS_NUMBER_KEY) {
               throw new HttpProblem(
                 409,
                 "nhs_number_in_use",
                 "The person was not recorded.",
-                "Someone with this NHS number is already recorded. Search for them instead of recording them again.",
+                "Someone with this NHS number is already recorded in this organisation. Check the number, or ask your Registered Manager before recording them again.",
               );
             }
             if (sampleRefusal(error)) {

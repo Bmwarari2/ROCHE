@@ -480,7 +480,18 @@ async function LeavingTab({
           version={person.version}
           mode={exit?.state === "planned" ? "left" : "record"}
           {...(exit?.state === "planned" && exit.kind !== "death"
-            ? { plannedKind: exit.kind }
+            ? {
+                plannedKind: exit.kind,
+                planned: {
+                  holdsResidentsMoney: exit.context.holdsResidentsMoney,
+                  holdsDeposit: exit.context.holdsDeposit,
+                  hasLoanEquipment: exit.context.hasLoanEquipment,
+                  homeIsDwpAppointee: exit.context.homeIsDwpAppointee,
+                  destinationType: detail(exit, "destinationType"),
+                  receivingProviderName: detail(exit, "receivingProviderName"),
+                  reason: detail(exit, "reason"),
+                },
+              }
             : {})}
         />
       ) : null}
