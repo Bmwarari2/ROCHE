@@ -3,7 +3,11 @@
  * encrypted database so the People list can be exercised without the API. Every value is invented:
  * names from the Example family, NHS numbers from the 999 test range, no SNOMED codes.
  */
+
+import { offlineWindowDays } from "@harbour/sync/client";
 import type { Me } from "../auth/auth-client";
+import { OFFLINE_DAYS_META_ID, OFFLINE_DAYS_META_KEY } from "../sync/offline-days";
+import type { WriteScope } from "../sync/write-scope";
 
 export const DEMO_TENANT_ID = "00000000-0000-4000-8000-00000000d001";
 export const DEMO_LOCATION_ID = "00000000-0000-4000-8000-00000000d101";
@@ -157,6 +161,16 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
     sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
     params: ["00000000-0000-4000-8000-00000000d501", DEMO_SEEDED_AT_KEY, now],
   });
+  // The window's days as a token would give them, so the round says what the demo holds: the day
+  // of seeding, the day before and tomorrow (UTC), a demo choice, not a tenant figure.
+  statements.push({
+    sql: "INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)",
+    params: [
+      OFFLINE_DAYS_META_ID,
+      OFFLINE_DAYS_META_KEY,
+      JSON.stringify(offlineWindowDays(seededAt, 2).sort()),
+    ],
+  });
   return statements;
 }
 
@@ -167,7 +181,7 @@ export function demoSeedStatements(seededAt: Date): SqlStatement[] {
 // header reads "not recorded".
 // ------------------------------------------------------------------------------------------------
 
-const [ADA, BEA] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? ""];
+const [ADA, BEA, CAL] = [demoPeople[0]?.id ?? "", demoPeople[1]?.id ?? "", demoPeople[2]?.id ?? ""];
 const DEMO_PLAN_ID = "00000000-0000-4000-8000-00000000d601";
 
 function insert(table: string, row: Record<string, string | number | null>): SqlStatement {
@@ -178,12 +192,46 @@ function insert(table: string, row: Record<string, string | number | null>): Sql
   };
 }
 
+/**
+ * What the demo member may record: everyone at the demo home, as a token's write scope would say,
+ * so the round can be marked in demo mode (the demo has no sync token).
+ */
+export const demoWriteScope: WriteScope = {
+  locationIds: [DEMO_LOCATION_ID],
+  assigned: false,
+  personIds: null,
+  peopleLocationIds: [DEMO_LOCATION_ID],
+};
+
 /** Care records for the demo people; entries are timed relative to when the demo was seeded. */
 export function demoCareStatements(seededAt: Date): SqlStatement[] {
   const now = seededAt.toISOString();
   const hoursAgo = (hours: number) =>
     new Date(seededAt.getTime() - hours * 3_600_000).toISOString();
   const tenant = { tenant_id: DEMO_TENANT_ID };
+  // An open round task due `hours` after seeding, with a 30-minute window each side.
+  const demoTask = (
+    id: string,
+    person: string,
+    hours: number,
+    fields: Record<string, string | number>,
+  ): Record<string, string | number | null> => ({
+    id,
+    ...tenant,
+    location_id: DEMO_LOCATION_ID,
+    person_id: person,
+    required_permission: "care.note.write",
+    status: "open",
+    priority: "routine",
+    evidence_required: 0,
+    from_earlier_plan: 0,
+    due_at: hoursAgo(-hours),
+    window_start: hoursAgo(-hours + 0.5),
+    window_end: hoursAgo(-hours - 0.5),
+    updated_at: now,
+    version: 1,
+    ...fields,
+  });
   const entry = (id: string, person: string, hours: number) => ({
     id,
     ...tenant,
@@ -380,6 +428,32 @@ export function demoCareStatements(seededAt: Date): SqlStatement[] {
       correction_reason: null,
       late_entry: 0,
     }),
+    // The round (care.md section 6): one task of each state the screen words. Times follow the
+    // seeding, so the first is overdue, the second due now and the third later; the second needs
+    // its entry recorded and the third is from an earlier plan (HZ-024).
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc01", ADA, -1.5, {
+        kind: "care.reposition",
+        title: "Reposition",
+      }),
+    ),
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc02", BEA, 0, {
+        kind: "care.fluids",
+        title: "Offer a drink and record it",
+        evidence_required: 1,
+      }),
+    ),
+    insert(
+      "task",
+      demoTask("00000000-0000-4000-8000-00000000dc03", CAL, 3, {
+        kind: "care.personal_care",
+        title: "Evening personal care",
+        from_earlier_plan: 1,
+      }),
+    ),
     insert("care_note", {
       ...entry("00000000-0000-4000-8000-00000000db01", ADA, 20),
       category: "personal_care",

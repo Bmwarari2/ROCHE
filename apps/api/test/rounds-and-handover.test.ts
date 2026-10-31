@@ -579,6 +579,24 @@ describe("the round view (CARE-013)", () => {
       notice: "From an earlier plan: check the current plan",
     });
     expect(EARLIER_PLAN_NOTICE).toBe("From an earlier plan: check the current plan");
+    // The same notice is kept on the task itself, for the phone (migration 0071; gate item (b)).
+    const flags = await query<{ id: string; from_earlier_plan: boolean }>(
+      `SELECT t.id, t.from_earlier_plan FROM task t JOIN task_series s ON s.id = t.series_id
+       WHERE t.person_id = $1 AND t.status IN ('open', 'in_progress')
+         AND s.source_type = 'care_plan_action'`,
+      [resident(4)],
+    );
+    expect(flags.find((f) => f.id === old?.id)?.from_earlier_plan).toBe(true);
+    // Every other open round of the person agrees with the round view's notice.
+    const notices = new Map(
+      view.areas
+        .flatMap((a) => a.stops)
+        .flatMap((s) => s.tasks)
+        .map((t) => [t.id, t.planAction?.notice ?? null] as const),
+    );
+    for (const f of flags.filter((x) => notices.has(x.id))) {
+      expect(f.from_earlier_plan).toBe(notices.get(f.id) !== null);
+    }
   });
 
   it("hazard HZ-003 lists a person's medicines actions on their stop and in the plan as not a round", async () => {
@@ -798,6 +816,56 @@ describe("the shift handover (care.md rule 8, COMMS-006)", () => {
       action: "care.handover.compile",
       actor_tenant_user_id: DEMO.users.carer.id,
     });
+  });
+
+  it("hazard HZ-018 words each item from its source as a catalogue key and parameters, kept with the item (gate item (a), H-300)", async () => {
+    const about = (n: number, kind: string) =>
+      current.items.find((i) => i.personId === resident(n) && i.kind === kind)?.summary;
+    expect(about(1, "fall")).toEqual({
+      key: "handover.summary.fall",
+      params: { source: "care_note" },
+    });
+    expect(about(2, "refusal")).toEqual({
+      key: "handover.summary.refusal",
+      params: { source: "care_note", chart: "other" },
+    });
+    expect(about(3, "body_map_mark")).toEqual({
+      key: "handover.summary.bodyMapMark",
+      params: { markType: "bruise", view: "front", region: "left_shin", side: "left" },
+    });
+    expect(about(5, "news2")).toMatchObject({
+      key: "handover.summary.news2",
+      params: { band: "high", scored: "yes", score: expect.any(Number) },
+    });
+    expect(about(5, "alert")).toMatchObject({
+      key: "handover.summary.alert",
+      // What it is about, from the observation that raised it; never whether it was acknowledged.
+      params: { alert: "care_urgent_result", reason: "news2_threshold" },
+    });
+    const doors = current.items.find((i) => i.personId === null && i.sourceType === "task");
+    expect(doors?.summary?.params).toEqual({
+      title: "Check the fire doors",
+      planAction: "",
+      earlierPlan: "no",
+    });
+    expect(about(5, "alert")?.params).not.toHaveProperty("acknowledged");
+    // The overdue round of resident 4's dropped schedule says it is from an earlier plan, with the
+    // plan action it carried out (HZ-024; #50 review round 1, clinical M3).
+    const earlier = current.items.find(
+      (i) => i.personId === resident(4) && i.summary?.params.earlierPlan === "yes",
+    );
+    expect(earlier?.summary?.params.planAction).toEqual(expect.any(String));
+    expect(String(earlier?.summary?.params.planAction).length).toBeGreaterThan(0);
+    // Every item has one, stored with it, never a person's name.
+    expect(current.items.every((i) => i.summary?.key.startsWith("handover.summary."))).toBe(true);
+    const stored = await query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM handover_item WHERE handover_id = $1 AND summary IS NULL",
+      [current.id],
+    );
+    expect(stored[0]?.n).toBe(0);
+    const names = current.people.flatMap((p) => [p.givenName, p.familyName, p.preferredName]);
+    const words = current.items.flatMap((i) => Object.values(i.summary?.params ?? {}));
+    expect(words.filter((w) => names.includes(String(w)))).toEqual([]);
   });
 
   const read = async (user: "carer" | "manager", id: string = current.id) =>

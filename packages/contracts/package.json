@@ -10,7 +10,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "generate:client": "openapi-typescript ../../apps/api/openapi.json -o src/client/api-types.ts && biome format --write src/client/api-types.ts"
+    "generate:client": "openapi-typescript ../../apps/api/openapi.json -o src/client/api-types.ts && biome format --write --files-max-size=4194304 src/client/api-types.ts"
   },
   "devDependencies": {
     "@harbour/config": "workspace:*",
