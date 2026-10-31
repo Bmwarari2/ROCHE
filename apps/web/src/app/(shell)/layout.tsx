@@ -10,6 +10,7 @@ import { accentStyle, brandingShown, logoSrc } from "@/lib/branding";
 
 import { breakGlassReportShown } from "@/lib/break-glass-report";
 import { readNotifications } from "@/lib/dashboard-data";
+import { dependencyShown } from "@/lib/dependency";
 import { downtimeNavShown } from "@/lib/downtime";
 import { dpiaShown } from "@/lib/dpia";
 import { evidencePacksShown } from "@/lib/evidence-packs";
@@ -21,6 +22,7 @@ import { incidentsNavLabel } from "@/lib/incidents";
 import { templatesNavShown } from "@/lib/letters";
 import { MANAGE, onboardingShown } from "@/lib/onboarding";
 import { retentionShown } from "@/lib/retention";
+import { myShiftsShown, rotaShown } from "@/lib/rota";
 import { roundShown } from "@/lib/round";
 import { searchShown } from "@/lib/search";
 import { statementShown } from "@/lib/statement-of-purpose";
@@ -76,6 +78,9 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
+        rota: rotaShown(me.permissions) ? t("shell.nav.rota") : undefined,
+        myShifts: myShiftsShown(me.permissions) ? t("shell.nav.myShifts") : undefined,
+        dependency: dependencyShown(me.permissions) ? t("shell.nav.dependency") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,

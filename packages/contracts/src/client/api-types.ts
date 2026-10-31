@@ -25068,6 +25068,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/rota-workers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Who may be put on a shift at a location
+     * @description scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Members */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaWorkerList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/shifts/{id}/eligibility": {
     parameters: {
       query?: never;
@@ -33223,6 +33291,14 @@ export interface components {
     CancelShift: {
       version: number;
       reason: string;
+    };
+    RotaWorkerList: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+        jobTitle: string | null;
+      }[];
     };
     EligibilityItem: {
       /** Format: uuid */

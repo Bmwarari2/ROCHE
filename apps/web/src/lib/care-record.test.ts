@@ -50,6 +50,7 @@ describe("record tabs", () => {
       "body-map",
       "advance-care",
       "capacity",
+      "dependency",
       "activities",
       "reviews",
       "hospital",

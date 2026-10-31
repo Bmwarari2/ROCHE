@@ -23,6 +23,7 @@ export type RecordTab =
   | "body-map"
   | "advance-care"
   | "capacity"
+  | "dependency"
   | "activities"
   | "reviews"
   | "hospital"
@@ -64,6 +65,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "body-map", needs: "care.note.read" },
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
+  // The organisation's own dependency category (scheduling.md section 12; CARE-004).
+  { tab: "dependency", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
   { tab: "hospital", needs: "people.movement.record" },

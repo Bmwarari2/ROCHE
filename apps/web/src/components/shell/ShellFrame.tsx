@@ -12,6 +12,8 @@ import {
 import {
   Archive,
   Bell,
+  CalendarClock,
+  CalendarDays,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
@@ -26,6 +28,7 @@ import {
   Mail,
   Newspaper,
   Palette,
+  Scale,
   ScrollText,
   Search,
   ShieldAlert,
@@ -88,6 +91,9 @@ export interface ShellFrameLabels {
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly rota?: string | undefined;
+  readonly myShifts?: string | undefined;
+  readonly dependency?: string | undefined;
   readonly dataProtection?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
   readonly branding?: string | undefined;
@@ -124,6 +130,9 @@ export interface ShellFrameProps {
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
   if (pathname.startsWith("/handover")) return "handover";
+  if (pathname.startsWith("/rota")) return "rota";
+  if (pathname.startsWith("/my-shifts")) return "my-shifts";
+  if (pathname.startsWith("/settings/dependency")) return "dependency";
   if (pathname.startsWith("/round")) return "round";
   // Statutory notifications belong with incidents, never the notification centre.
   if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
@@ -246,6 +255,19 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.rota
+      ? [{ id: "rota", label: labels.rota, href: "/rota", icon: <CalendarDays {...icon} /> }]
+      : []),
+    ...(labels.myShifts
+      ? [
+          {
+            id: "my-shifts",
+            label: labels.myShifts,
+            href: "/my-shifts",
+            icon: <CalendarClock {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.incidents
       ? [
           {
@@ -322,6 +344,16 @@ export function ShellFrame({
             label: labels.team,
             href: "/settings/team",
             icon: <UserPlus {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dependency
+      ? [
+          {
+            id: "dependency",
+            label: labels.dependency,
+            href: "/settings/dependency",
+            icon: <Scale {...icon} />,
           },
         ]
       : []),

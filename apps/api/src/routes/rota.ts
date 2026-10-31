@@ -16,6 +16,7 @@ import {
   RotaCheck,
   RotaItem,
   RotaList,
+  RotaWorkerList,
   ShiftPatternItem,
   ShiftPatternList,
   ShiftTemplateItem,
@@ -1039,6 +1040,48 @@ export const rotaRouter = createRouter()
   // ----------------------------------------------------------------------------------------
   // Assigning (HZ-124)
   // ----------------------------------------------------------------------------------------
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/locations/{id}/rota-workers",
+      tags: ["scheduling"],
+      summary: "Who may be put on a shift at a location",
+      description:
+        "scheduling.rota.manage reaching the location: the active members with a role in force there or across the organisation, by name, with their job title (the rota builder's picker). Whether each may work a given shift is the eligibility route's answer. No address, no sign-in, no staff file detail.",
+      security,
+      request: { params: IdParam },
+      responses: { 200: jsonBody(RotaWorkerList, "Members"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "scheduling.rota.manage");
+      const { id } = c.req.valid("param");
+      requireLocationInScope(access, id);
+      const items = await withTenant(c, (tx) =>
+        withSystemRights(tx, async () => {
+          const rows = await tx.execute<{
+            id: string;
+            display_name: string;
+            job_title: string | null;
+          }>(sql`
+            SELECT DISTINCT u.id, u.display_name, u.job_title
+              FROM public.tenant_user u
+              JOIN public.role_assignment ra ON ra.tenant_user_id = u.id
+             WHERE u.status = 'active' AND u.deleted_at IS NULL
+               AND ra.deleted_at IS NULL AND ra.valid_from <= now()
+               AND (ra.valid_to IS NULL OR ra.valid_to > now())
+               AND (ra.location_id = ${id} OR ra.location_id IS NULL)
+             ORDER BY u.display_name, u.id
+             LIMIT 2000`);
+          return rows.rows.map((r) => ({
+            id: r.id,
+            displayName: r.display_name,
+            jobTitle: r.job_title,
+          }));
+        }),
+      );
+      return c.json({ items }, 200);
+    },
+  )
   .openapi(
     createRoute({
       method: "get",

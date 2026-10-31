@@ -372,3 +372,23 @@ export const MyShiftList = z
     ),
   })
   .meta({ id: "MyShiftList" });
+
+/** Who may be put on a shift at a location: active members with a role there or organisation-wide. */
+export const RotaWorkerList = z
+  .object({ items: z.array(StaffMember) })
+  .meta({ id: "RotaWorkerList" });
+
+export type ShiftKind = z.infer<typeof ShiftKind>;
+export type ShiftTemplateItem = z.infer<typeof ShiftTemplateItem>;
+export type ShiftPatternItem = z.infer<typeof ShiftPatternItem>;
+export type ShiftItem = z.infer<typeof ShiftItem>;
+export type RotaItem = z.infer<typeof RotaItem>;
+export type RotaSummary = z.infer<typeof RotaSummary>;
+export type RosterBlockerItem = z.infer<typeof RosterBlockerItem>;
+export type EligibilityItem = z.infer<typeof EligibilityItem>;
+export type AssignmentResult = z.infer<typeof AssignmentResult>;
+export type WorkerWorkingTime = z.infer<typeof WorkerWorkingTime>;
+export type StaffingComparisonItem = z.infer<typeof StaffingComparisonItem>;
+export type RotaCheck = z.infer<typeof RotaCheck>;
+export type MyShiftList = z.infer<typeof MyShiftList>;
+export type RotaWorkerList = z.infer<typeof RotaWorkerList>;
