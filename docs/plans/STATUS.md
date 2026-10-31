@@ -127,6 +127,11 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   window, and no dose given ahead of an earlier one that day; the maximum over every 24 hours
   containing a dose; no override without a competence sign-off; corrections checked as new
   records; a when-required entry needs an interval or a maximum; human actions H-1060 to H-1066.
+  The second clinical review's findings fixed too: a dose that has already happened (taken by the
+  person or family, recorded after it was given, or a correction) is recorded and flagged for
+  review, never refused; the corrector's competence gates a correction; same-instant dosing records
+  must agree; the earlier-dose check looks back 24 hours; a CD correction says what it puts right;
+  H-1067 and H-1068.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):

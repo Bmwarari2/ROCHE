@@ -139,7 +139,7 @@ export interface PrnStatus {
 
 export const PRN_NOTICES = {
   noMaximum:
-    "No maximum in 24 hours is recorded for this medicine. Check with the prescriber before giving more than one dose in 24 hours.",
+    "No maximum in 24 hours is recorded for this medicine: the prescribed minimum interval applies. Ask the prescriber if you are unsure how much may be given in 24 hours.",
   maximumReached:
     "The most allowed in 24 hours has been given. Do not give more: contact the prescriber.",
   notSynced: "The last dose shown was recorded on this device and has not reached Harbour yet.",

@@ -126,9 +126,12 @@ or says whether one is safe. Time windows, the paracetamol gap and the PRN maxim
 prescriber's or the tenant's figures, applied to entries a person tagged; Harbour adds no interval
 of its own and matches no ingredient. A dose over the prescribed 24-hour maximum is refused and the
 prescriber decides; a dose inside an interval needs a person's reason. A dose the person took
-themselves, or their family gave, is recorded as a fact; over the maximum it is flagged and
-escalated to the nurse in charge, whose organisation's policy decides what follows: Harbour adds no
-clinical advice (#162 clinical review; H-1062). "Remaining" is the prescriber's maximum less the
+themselves, or their family gave, or that staff record after giving it, or a correction, is
+recorded as a fact; where a dose about to be given would be refused it is flagged and sent to the
+nurse in charge to review, and over the maximum escalated urgently, the organisation's policy
+deciding what follows: Harbour adds no clinical advice (#162 clinical reviews; H-1062, H-1067). With
+no maximum recorded, the notice points to the prescribed interval and the prescriber, never a limit
+of Harbour's own. "Remaining" is the prescriber's maximum less the
 total recorded, arithmetic on a figure a person set (section 3), and says nothing about whether
 another dose is safe; the CSO confirms that reading (H-1065). A dose in another unit is named as
 not counted, never converted. A scheduled dose is not recorded before its window opens, which is

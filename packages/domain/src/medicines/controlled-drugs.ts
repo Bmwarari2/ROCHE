@@ -70,6 +70,12 @@ export interface CdEntry {
   readonly quantity: number;
   /** The entry a correction puts right. */
   readonly correctsId: string | null;
+  /**
+   * What a correction puts right: the quantity (a signed change to the balance) or another detail,
+   * such as the time (no change), so a correction of nothing cannot pass for a mistyped 0. Null for
+   * every other movement.
+   */
+  readonly corrects: "quantity" | "detail" | null;
   /** Why, for a correction. */
   readonly reason: string | null;
   readonly balanceAfter: number;
@@ -87,6 +93,8 @@ export type CdEntryProblem =
   | "balance_negative"
   | "correction_needs_entry"
   | "correction_needs_reason"
+  | "correction_needs_kind"
+  | "correction_kind_mismatch"
   | "not_a_correction"
   | "witness_required"
   | "witness_blank"
@@ -131,9 +139,14 @@ export function checkCdEntry(
     );
   }
   const size = Math.abs(entry.quantity);
-  // A margin correction of the time, the page reference or another detail changes no quantity.
-  const correctsDetail = entry.movement === "correction" && entry.quantity === 0;
-  if (
+  // A margin correction of the time or another detail says so, and changes no quantity.
+  const correctsDetail = entry.movement === "correction" && entry.corrects === "detail";
+  if (correctsDetail && entry.quantity !== 0) {
+    add(
+      "correction_kind_mismatch",
+      "A correction of a detail, such as the time, changes no quantity. Record 0, or correct the quantity instead.",
+    );
+  } else if (
     !correctsDetail &&
     (!isDoseQuantity(size) || (entry.movement !== "correction" && entry.quantity < 0))
   ) {
@@ -162,7 +175,13 @@ export function checkCdEntry(
     if (!entry.reason || entry.reason.trim() === "") {
       add("correction_needs_reason", "Say what was wrong.");
     }
-  } else if (entry.correctsId !== null) {
+    if (entry.corrects === null) {
+      add(
+        "correction_needs_kind",
+        "Say whether the correction puts right the quantity or another detail, such as the time.",
+      );
+    }
+  } else if (entry.correctsId !== null || entry.corrects !== null) {
     add("not_a_correction", "Only a correction refers to another entry.");
   }
   const noWitness = entry.noWitnessReason !== null && entry.noWitnessReason.trim() !== "";

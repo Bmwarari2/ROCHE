@@ -166,7 +166,8 @@ export function checkDosingRecord(
 export type VariableDoseProblem =
   | "no_dosing_record"
   | "dosing_record_not_checked"
-  | "dosing_record_differs";
+  | "dosing_record_differs"
+  | "dosing_records_disagree";
 
 export type VariableDose =
   | { readonly ok: true; readonly quantity: number; readonly recordId: string }
@@ -178,12 +179,14 @@ export type VariableDose =
     };
 
 /**
- * The dose to give at a variable-dose time. The newest dosing record (by when it was recorded) that
- * covers the day and time decides: its dose when a second person checked it and found it matches
- * its source; otherwise no dose (`dosing_record_not_checked`, `dosing_record_differs`), never an
- * older record's dose, because a newer record is the clinic's newer instruction. With no record
- * covering the day and time, no dose either (`no_dosing_record`). Records recorded at the same
- * instant are ordered by id, so the answer never depends on the order they arrive in.
+ * The dose to give at a variable-dose time. The newest dosing record (by `recordedAt`, the server's
+ * time: dosing records are recorded and checked online, never on a device offline) that covers the
+ * day and time decides: its dose when a second person checked it and found it matches its source;
+ * otherwise no dose (`dosing_record_not_checked`, `dosing_record_differs`), never an older record's
+ * dose, because a newer record is the clinic's newer instruction. With no record covering the day
+ * and time, no dose either (`no_dosing_record`). Records made at the same instant must all be
+ * checked and give the same dose; when they disagree, no dose (`dosing_records_disagree`), so the
+ * answer never depends on which arrived first.
  */
 export function variableDoseFor(
   records: readonly DosingRecord[],
@@ -191,20 +194,21 @@ export function variableDoseFor(
   date: string,
   time: string,
 ): VariableDose {
-  const covers = (r: DosingRecord) => r.doses.find((d) => d.date === date && d.time === time);
-  const newest = records
-    .filter((r) => entryIds.has(r.entryId) && covers(r) !== undefined)
-    .sort(
-      (a, b) =>
-        b.recordedAt.getTime() - a.recordedAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
-    )[0];
-  if (newest === undefined) return { ok: false, problem: "no_dosing_record", recordId: null };
-  if (newest.secondCheck === null) {
-    return { ok: false, problem: "dosing_record_not_checked", recordId: newest.id };
+  const doseIn = (r: DosingRecord) => r.doses.find((d) => d.date === date && d.time === time);
+  const covering = records.filter((r) => entryIds.has(r.entryId) && doseIn(r) !== undefined);
+  if (covering.length === 0) return { ok: false, problem: "no_dosing_record", recordId: null };
+  const newestAt = Math.max(...covering.map((r) => r.recordedAt.getTime()));
+  const newest = covering
+    .filter((r) => r.recordedAt.getTime() === newestAt)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const first = newest[0] as DosingRecord;
+  const unchecked = newest.find((r) => r.secondCheck === null);
+  if (unchecked) return { ok: false, problem: "dosing_record_not_checked", recordId: unchecked.id };
+  const differs = newest.find((r) => r.secondCheck?.outcome !== "matches_source");
+  if (differs) return { ok: false, problem: "dosing_record_differs", recordId: differs.id };
+  const quantities = new Set(newest.map((r) => doseIn(r)?.quantity));
+  if (quantities.size > 1) {
+    return { ok: false, problem: "dosing_records_disagree", recordId: first.id };
   }
-  if (newest.secondCheck.outcome !== "matches_source") {
-    return { ok: false, problem: "dosing_record_differs", recordId: newest.id };
-  }
-  const dose = covers(newest) as DosingRecordDraft["doses"][number];
-  return { ok: true, quantity: dose.quantity, recordId: newest.id };
+  return { ok: true, quantity: doseIn(first)?.quantity as number, recordId: first.id };
 }

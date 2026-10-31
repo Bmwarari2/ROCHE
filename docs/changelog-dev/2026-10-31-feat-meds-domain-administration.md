@@ -92,6 +92,33 @@ Each finding reproduced by the reviewer's probe and fixed with a table-driven `h
   HZ-009 verification rows; the two early-window rate rows say what the figure now does; the
   medical-device boundary's slice 3 paragraph (the dose already taken, "remaining", other units).
 
+## #162 second clinical review (31/10/2026)
+
+The clinical-safety-reviewer agent, run on the fixes above, found them complete but raised one high
+finding and nine others, now fixed:
+
+- High (HZ-004): checking a correction like a new dose refused true records: a dose given early in
+  error, over the maximum or by a member whose competence had lapsed could never be recorded as
+  given, so the false record stood and the dose was missing from the next dose's checks. A dose that
+  has already happened is now a fact in every case: a correction, a dose staff record after giving
+  it (`givenBeforeRecorded`, with why), and a dose the person or family gave. The rules that refuse
+  a dose about to be given flag it instead (`ReviewFlag`, `REVIEW_FLAG_WORDS`), with a `warning`
+  escalation for the nurse in charge to review, or `urgent` over the maximum. On the round they
+  still refuse; only record problems (person, dose, amount, unit for staff, reasons) refuse a fact.
+- Medium: a correction checks the competence of whoever records it (`correctedBy`), now; the
+  member it names, who gave the dose then, is flagged, never refused (H-1068). A dose the person or
+  family gave in another unit is recorded as given and flagged, never converted; its amount-differs
+  message no longer calls it a medication error. A dose they gave from an entry held or stopped, or
+  a variable dose with no usable dosing record, is recorded and flagged (H-1062).
+- Low: dosing records are ordered by the server's time and records made at the same instant must
+  agree (`dosing_records_disagree`); the no-maximum notice points to the prescribed interval, with
+  no limit of Harbour's own; the earlier-dose check looks back 24 hours, not to midnight; a
+  correction of a when-required dose stays on its MAR day (`RecordedAdministration.at`); review
+  flags now reach the nurse in charge; a CD correction says whether it puts right the quantity or a
+  detail (`corrects`), so a correction of nothing cannot pass for a mistyped 0.
+- Human actions H-1067 (a dose that has happened flagged, not refused; the escalations' severities;
+  re-rating HZ-004, HZ-005 and HZ-119) and H-1068 (whose competence a correction checks).
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -122,3 +149,5 @@ Each finding reproduced by the reviewer's probe and fixed with a table-driven `h
 - After the #162 clinical review: 623 medicines tests (518 before); the whole domain package 6,129
   tests, passing under the three time zones, with 99.69% line coverage (medicines 99.43%, every
   medicines file at 99% or more). `pnpm exec biome ci .` and `pnpm typecheck` clean.
+- After the second review: 644 medicines tests; the whole domain package 6,150 tests under the
+  three time zones, 99.69% line coverage (medicines 99.45%).

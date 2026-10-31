@@ -102,10 +102,22 @@ describe("hazard HZ-005 a variable dose is given only from a dosing record that 
       { ok: true, quantity: 3, recordId: "dosing-1" },
     ],
     [
-      "two records made at the same instant, whatever order they come in",
+      "two records made at the same instant giving different doses: none, whatever their order",
       [checked(recorded(newerDraft, "dosing-3", recordedAt)), first],
       "2026-11-03",
-      { ok: true, quantity: 1, recordId: "dosing-3" },
+      { ok: false, problem: "dosing_records_disagree", recordId: "dosing-1" },
+    ],
+    [
+      "two records made at the same instant giving the same dose",
+      [checked(recorded(CLINIC_RECORD, "dosing-3", recordedAt)), first],
+      "2026-11-03",
+      { ok: true, quantity: 2.5, recordId: "dosing-1" },
+    ],
+    [
+      "two records made at the same instant, one not yet checked",
+      [recorded(CLINIC_RECORD, "dosing-3", recordedAt), first],
+      "2026-11-03",
+      { ok: false, problem: "dosing_record_not_checked", recordId: "dosing-3" },
     ],
   ])(
     "hazard HZ-005 the newest record covering the day decides: %s",

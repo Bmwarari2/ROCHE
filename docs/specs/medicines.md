@@ -345,8 +345,9 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     `medicines.dose_window.late_minutes` after; an entry tagged time-critical has the narrower
     `medicines.time_critical.*` (never wider than the regular window). No outcome is recorded
     before the window opens (`dose_not_due_yet`), so a later dose (this evening's, tomorrow's) is
-    never recorded at the morning round and nothing is filled in ahead; a dose the person already
-    took is the exception (rule 17). Given inside the window before its due time a dose is early,
+    never recorded at the morning round and nothing is filled in ahead; a dose that has already
+    happened (taken by the person, given by family, recorded after it was given, or a correction)
+    is recorded and flagged for review instead (rule 17). Given inside the window before its due time a dose is early,
     from its due time to the end of the window on time, after it late; early and late need a
     reason. Windows are elapsed time, so on the days the clocks change they are as long as any
     other (#162 clinical review; H-1064 asks the CSO for an upper limit on a tenant's figures).
@@ -357,7 +358,8 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 16. **Minimum intervals** (HZ-004, HZ-009, HZ-010; `intervals.ts`). A dose inside the entry's own
     prescribed interval (counting every version of the entry), or inside the paracetamol interval of
     a dose from any entry tagged paracetamol, before or after it, needs an override reason and is
-    flagged; for a dose the person already took, the reason is what happened. Gaps are elapsed time between drift-corrected instants (`driftCorrectedTime`: the
+    flagged; for a dose that has already happened, the reason is what happened. Gaps are elapsed
+    time between drift-corrected instants (`driftCorrectedTime`: the
     device time plus the offset measured at its last sync; drift beyond
     `sync.clock_drift_flag_minutes` is flagged), so a clock change neither shortens nor lengthens one.
 17. **Recording a dose** (HZ-001, HZ-003, HZ-004, HZ-005; `checkAdministration`). Refused without a
@@ -370,15 +372,23 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     to, outside the limits the prescriber set, other); "other" and "withheld" always need words.
     "Given" needs the amount in the entry's unit: the prescribed amount, within a prescribed range,
     or the checked dosing record's dose; another amount needs what happened and is flagged as a
-    possible medication error. A dose is not given while an earlier dose of the same entry that
-    day has no outcome (`earlier_dose_outstanding`, naming it): that one is recorded first.
-    "Taken by the person themselves" and "given by family" record a dose staff did not give: on an
-    entry with a 24-hour maximum they need the amount, which always counts towards it; being facts,
-    they are always recorded, never refused by the window, an earlier dose outstanding or the
-    maximum: they are flagged instead, and one over the maximum is flagged "over maximum" and
-    returns an urgent escalation for the API to raise through the escalation chain (H-1062). Flags
-    carried: early, late, before window, earlier dose outstanding, over maximum, interval override,
-    competence override, amount differs, other unit not counted, entry not yet checked.
+    possible medication error. A dose is not given while an earlier dose of the same entry in the
+    24 hours before it has no outcome (`earlier_dose_outstanding`, naming each by time and date):
+    that one is recorded first. "Taken by the person themselves" and "given by family" record a
+    dose staff did not give: on an entry with a 24-hour maximum they need the amount, which always
+    counts towards it (one in another unit is recorded as given, never converted, and flagged as
+    not counted). A dose that has already happened is a fact, so it is always recorded: such a
+    dose, a dose staff record after giving it (`givenBeforeRecorded`, with why), and every
+    correction (rule 23) are never refused by the window, an earlier dose outstanding, the entry
+    in force, the dosing record or the maximum, nor, for a record made after the event, by the
+    competence of whoever gave it then. They are flagged instead (`ReviewFlag`: before window,
+    earlier dose outstanding, entry not usable, no usable dosing record, amount in another unit,
+    competence not current) and sent to the nurse in charge to review (a `warning` escalation in
+    words); one over the maximum is flagged "over maximum" and escalated `urgent`. The API raises
+    both through the escalation chain, whose recipients and acknowledgement slice 48 sets (H-1062,
+    H-1067). On the round, about to give a dose, every one of those rules refuses it. Flags
+    carried: early, late, interval override, competence override, amount differs, other unit not
+    counted, over maximum, entry not yet checked and the review flags.
 18. **Variable doses** (HZ-005, HZ-116; `dosing-record.ts`). A variable-dose entry's day doses come
     from a dosing record transcribed from its source (for example the anticoagulant clinic's), for
     each day and prescribed time, and checked by a second person with current competence who
@@ -388,7 +398,9 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     (`dosing_record_not_checked`, `dosing_record_differs`) and an older record is never used
     instead; with none, `no_checked_dosing_record`. An older record still gives a day the newer one
     does not cover (H-1060 asks whether a newer record should replace older ones from its first
-    date).
+    date). "Newest" is by the server's time (dosing records are recorded and checked online); two
+    records made at the same instant must all be checked and agree, or the dose is refused
+    (`dosing_records_disagree`).
 19. **When required: maximum and last given** (HZ-004; `prnStatus`, `prnMaximumExceeded`,
     `prnDosesNotCounted`). A dose that would take the total over the prescribed maximum in any 24
     hours containing it, before or after it (so a dose entered later than others is counted
@@ -397,8 +409,9 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     unit is never converted and never left out silently: it is named as not counted. The round
     shows when it was last given, by whom and whether it has synced, the 24-hour total, what
     remains (the prescriber's maximum less the total, H-1065), and when the interval allows the
-    next, with every notice that applies: no maximum recorded, the maximum given, the last dose not
-    synced, a dose in another unit not counted. Harbour does not add up paracetamol across products
+    next, with every notice that applies: no maximum recorded (the prescribed interval applies, with
+    no limit of Harbour's own), the maximum given, the last dose not synced, a dose in another unit
+    not counted. Harbour does not add up paracetamol across products
     against a daily total; each entry's own maximum applies (H-1063).
 20. **When-required outcomes** (`prnOutcomeDueAt`). The outcome of a when-required dose falls due
     `medicines.prn.outcome_check_minutes` after it and is listed until recorded.
@@ -417,11 +430,16 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     with a reason; the outstanding doses, time-critical first, go to the handover and stay
     outstanding. A record may be amended on its device by its author until it syncs; after that it
     is locked, and a correction is a new record that refers to the latest record for the same
-    person and dose, with a reason, and can never move to another dose. What the correction says
-    meets every rule of rule 17 (competence, the entry in force, the window, an earlier dose
-    outstanding, the amount, intervals and the maximum), so "refused" corrected to "given" is
-    checked as a dose given then; only the duplicate check against the record it corrects is left
-    out, and that record is left out of the history (`checkCorrection`).
+    person and dose (a when-required dose: the same entry and MAR day), with a reason, and can
+    never move to another dose. Whoever records the correction (its author, or a holder of
+    `medicines.record.manage`) needs current competence then, or an override of an expired one
+    (H-1068). What the correction says meets every rule of rule 17 as a record made after the
+    event, the member it names being whoever gave the dose then: "refused" corrected to "given" is
+    checked as a dose given then, refused for a missing or unexplained amount, and flagged for
+    review (or escalated urgently over the maximum) where a dose about to be given would be
+    refused, because refusing would leave a false record and a dose given out of the history
+    (#162 second clinical review; H-1067). Only the duplicate check against the record it corrects
+    is left out, and that record is left out of the history (`checkCorrection`).
 24. **Controlled drugs register page** (`controlled-drugs.ts`). One page per person and dm+d VMP
     (drug, form and strength); entries in time order; movements receipt, administration, disposal,
     transfer out, destruction and correction. A stock check compares the count with the page and
@@ -430,8 +448,9 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
 25. **Running balance** (`cdBalanceAfter`). Every entry stores the balance after it, checked against
     the previous entry's; it never goes below none; liquids keep 3 decimal places.
 26. **Margin corrections**. A mistake is never edited: a correction entry names the entry it puts
-    right, says why, and changes the balance by a signed amount (none when it corrects something
-    other than the quantity, such as the time); only a correction refers to another entry.
+    right, says why, says whether it puts right the quantity (a signed change to the balance) or
+    another detail such as the time (no change, so a correction of nothing cannot pass for a
+    mistyped 0), and only a correction refers to another entry or says what it corrects.
 27. **Witnesses** (HZ-116; `checkCdEntry`, `defaultCdWitnessPolicy`). Every entry has a second
     signature from a witness who is not the recorder; a blank witness is refused. Where the tenant's policy is `required` (by
     default residential, nursing, respite and children's homes) a witness is always needed; where it
@@ -535,10 +554,11 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   `administration.test.ts` (person, dose and outcome; another person's medicine; not scheduled;
   already recorded; coded reasons; entries not givable; the amount; variable doses; the window and
   an earlier dose outstanding, on the days the clocks change too; intervals and the override; the
-  24-hour maximum; doses already taken, counted, flagged and escalated; competence and the
-  override; closing a round; the row lock and corrections checked as new records),
+  24-hour maximum; doses already taken, or given before they were recorded, counted, flagged for
+  review and escalated; competence and the override; closing a round; the row lock and
+  corrections checked as records made after the event, with the corrector's competence),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
-  balance; corrections, including one that changes no quantity; witness rules by policy and
+  balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
   service; a blank witness; destruction; stock checks).
 - Database (slice 16): RLS and HZ-011 isolation for each table; the write-once trigger on check,
   stop and replacement; `expected_version` on changes.
@@ -636,6 +656,11 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   beyond the time-critical window never being wider); whether showing "remaining" stays inside
   the device boundary (default: shown, as arithmetic on the prescriber's figure); and a
   when-required entry needing a limit at transcription (default: refused without one).
+- H-1067 and H-1068 (CSO; #162 second clinical review): that a correction, or a dose staff record
+  after giving it, is flagged for review and escalated rather than refused by the rules that
+  decide whether a dose may be given (default built), with the escalations' severities and the
+  re-rating of HZ-004, HZ-005 and HZ-119; and whose competence a correction checks (default: the
+  corrector's now, gating; the competence of whoever gave the dose then, flagged).
 - H-556 (CSO with a pharmacist; with H-516): the controlled drugs defaults: the witness policy by
   service type, destruction always witnessed, corrections as signed balance changes beside the
   entry, the stock check every 7 days.
@@ -665,6 +690,6 @@ schema, API, web or mobile changes in this slice.
 | `intervals.ts` | `GivenDose`, `entryVersionIds`, `intervalConflicts`, `prnStatus`, `PRN_NOTICES`, `prnMaximumExceeded`, `prnDosesNotCounted`, `prnOutcomeDueAt`, `prnOutcomesOutstanding` | Rules 16, 19, 20 |
 | `competence.ts` | `medicinesCompetenceAt`, `checkCompetenceGate`, `CompetenceOverride` | Rules 21, 22 |
 | `dosing-record.ts` | `checkDosingRecordDraft`, `recordDosingRecord`, `checkDosingRecord`, `variableDoseFor` (`VariableDose`) | Rule 18 |
-| `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `checkAdministration` (with `AdministrationEscalation`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
+| `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
 | `controlled-drugs.ts` | `cdPageKey`, `cdBalanceAfter`, `checkCdEntry`, `defaultCdWitnessPolicy`, `cdPageBalance`, `cdStockCheck`, `cdStockCheckDueAt` | Rules 24 to 27 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | Every medicines figure (cycle, windows, intervals, PRN outcome, CD stock check, competence and override) |

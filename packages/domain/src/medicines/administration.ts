@@ -15,7 +15,7 @@
  */
 
 import type { Severity } from "../platform/notifications";
-import { formatUkDate, formatUkTime, ukStartOfDay } from "../shared/time";
+import { formatUkDate, formatUkTime } from "../shared/time";
 import { type CompetenceOverride, type CompetenceProblem, checkCompetenceGate } from "./competence";
 import { type Dose, formatDose } from "./dose";
 import { type DosingRecord, type VariableDoseProblem, variableDoseFor } from "./dosing-record";
@@ -33,7 +33,7 @@ import {
   type UncheckedEntryPolicy,
 } from "./mar-entry";
 import type { MedicinesRates } from "./rates";
-import type { MarDose } from "./schedule";
+import { type MarDose, ukDateOf } from "./schedule";
 import { doseWindow, isTimeCritical, recordedTiming } from "./timing";
 
 export const ADMINISTRATION_OUTCOMES = [
@@ -101,8 +101,9 @@ export const DOSE_TAKEN_OUTCOMES: ReadonlySet<AdministrationOutcome> = new Set([
 
 /**
  * Outcomes recording a dose staff did not give but the person already took: facts, so the rules
- * that decide whether staff may give a dose (its window, an earlier dose outstanding, the 24-hour
- * maximum) flag them rather than refuse them, and they are always recorded (H-1062).
+ * that decide whether staff may give a dose (its window, an earlier dose outstanding, the entry in
+ * force, the dosing record, the 24-hour maximum) flag them for review rather than refuse them, and
+ * they are always recorded (H-1062).
  */
 export const DOSE_ALREADY_TAKEN_OUTCOMES: ReadonlySet<AdministrationOutcome> = new Set([
   "self_administered",
@@ -134,8 +135,15 @@ export interface AdministrationInput {
   /** The scheduled dose already has an outcome: a change is a correction of that record. */
   readonly alreadyRecorded: boolean;
   /**
-   * The due times of this entry's scheduled doses that already have an outcome, at least those on
-   * the dose's day, so a dose is not given while an earlier one that day has none.
+   * Set, with why, when staff record a dose they have already given (it was given before it could
+   * be recorded): a fact, so the rules that decide whether a dose may be given flag it for the nurse
+   * in charge to review instead of refusing it, and it is never left off the record (H-1067). Null
+   * on the round, where those rules refuse the dose before it is given.
+   */
+  readonly givenBeforeRecorded: { readonly reason: string } | null;
+  /**
+   * The due times of this entry's scheduled doses that already have an outcome, at least those in
+   * the 24 hours before the dose, so a dose is not given while an earlier one has none.
    */
   readonly recordedDueTimes: readonly Date[];
   /** The entry and its earlier versions (`entryVersionIds`). */
@@ -163,9 +171,11 @@ export type AdministrationProblem =
   | "amount_wrong_unit"
   | "amount_not_a_dose"
   | "amount_differs_needs_reason"
+  | "given_before_recorded_reason_required"
   | "no_checked_dosing_record"
   | "dosing_record_not_checked"
   | "dosing_record_differs"
+  | "dosing_records_disagree"
   | "timing_reason_required"
   | "interval_override_required"
   | "prn_maximum_reached";
@@ -177,22 +187,43 @@ export type AdministrationFlag =
   | "competence_override"
   | "amount_differs"
   | "entry_not_yet_checked"
-  /** A dose already taken before its window opened. */
-  | "before_window"
-  /** A dose already taken while an earlier dose that day has no outcome. */
-  | "earlier_dose_outstanding"
+  /** A dose of the medicine in another unit is near this one and not in the 24-hour total. */
+  | "other_unit_not_counted"
   /** A dose already taken that went over the 24-hour maximum (escalated urgently). */
   | "over_maximum"
-  /** A dose of the medicine in another unit is near this one and not in the 24-hour total. */
-  | "other_unit_not_counted";
+  | ReviewFlag;
+
+/**
+ * What a dose that has already happened (taken by the person, given by family, given before it was
+ * recorded, or a correction) is flagged with, where a dose about to be given would be refused. Each
+ * is sent to the nurse in charge to review (`review` escalation).
+ */
+export type ReviewFlag =
+  | "before_window"
+  | "earlier_dose_outstanding"
+  | "entry_not_usable"
+  | "no_usable_dosing_record"
+  | "amount_in_other_unit"
+  | "competence_not_current";
+
+/** The words for each review flag, in the review escalation and wherever the record shows it. */
+export const REVIEW_FLAG_WORDS: Readonly<Record<ReviewFlag, string>> = {
+  before_window: "the dose was taken before its window opened",
+  earlier_dose_outstanding: "an earlier dose had no outcome",
+  entry_not_usable: "the entry may not be given from at that time",
+  no_usable_dosing_record: "no checked dosing record gave the day's dose",
+  amount_in_other_unit: "the amount is in another unit, so it is not in the 24-hour total",
+  competence_not_current: "the member who gave it had no current medicines competence",
+};
 
 /**
  * An escalation the API raises through the notification centre's chain when the record is saved
- * (slice 48). Urgent: the person has taken more than the prescriber allows in 24 hours.
+ * (slice 48, which sets who receives it and its acknowledgement): `urgent` when the person has taken
+ * more than the prescriber allows in 24 hours; `warning` for a record flagged for review.
  */
 export interface AdministrationEscalation {
-  readonly severity: Extract<Severity, "urgent">;
-  readonly reason: "over_maximum";
+  readonly severity: Extract<Severity, "urgent" | "warning">;
+  readonly reason: "over_maximum" | "review";
   readonly message: string;
 }
 
@@ -232,22 +263,33 @@ const VARIABLE_DOSE_MESSAGES: Readonly<Record<VariableDoseProblem, string>> = {
     "The latest dosing record for this day has not been checked. Do not give it until a second person has checked it against its source; an older record is never used instead.",
   dosing_record_differs:
     "The check of the latest dosing record for this day found a difference from its source. Do not give it: tell the nurse in charge, who records the corrected dosing record.",
+  dosing_records_disagree:
+    "Two dosing records made at the same time give different doses for this day. Do not give it: tell the nurse in charge.",
 };
 const VARIABLE_DOSE_PROBLEMS: Readonly<Record<VariableDoseProblem, AdministrationProblem>> = {
   no_dosing_record: "no_checked_dosing_record",
   dosing_record_not_checked: "dosing_record_not_checked",
   dosing_record_differs: "dosing_record_differs",
+  dosing_records_disagree: "dosing_records_disagree",
 };
 
-/** The words that name a day's earlier doses with no outcome, and what to do first. */
+const DAY_MS = 86_400_000;
+
+const listWords = (items: readonly string[]) =>
+  items.length === 1
+    ? (items[0] as string)
+    : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+
+/** The words that name earlier doses with no outcome, and what to do first. */
 function earlierDosesMessage(doses: readonly MarDose[]): string {
-  const times = doses.map((d) => d.time);
-  const on = formatUkDate((doses[0] as MarDose).dueAt);
-  if (times.length === 1) {
-    return `The ${times[0]} dose on ${on} has no outcome. Record what happened to it before giving this one.`;
-  }
-  const list = `${times.slice(0, -1).join(", ")} and ${times[times.length - 1]}`;
-  return `The ${list} doses on ${on} have no outcome. Record what happened to them before giving this one.`;
+  const days = [...new Set(doses.map((d) => formatUkDate(d.dueAt)))];
+  const list =
+    days.length === 1
+      ? `${listWords(doses.map((d) => d.time))} on ${days[0]}`
+      : listWords(doses.map((d) => `${d.time} on ${formatUkDate(d.dueAt)}`));
+  return doses.length === 1
+    ? `The dose at ${list} has no outcome. Record what happened to it before giving this one.`
+    : `The doses at ${list} have no outcome. Record what happened to them before giving this one.`;
 }
 
 /** Whether an amount matches what was prescribed: the amount, within the range, or the dosing record's. */
@@ -261,10 +303,30 @@ function amountMatches(
   return variableQuantity !== null && quantity === variableQuantity;
 }
 
-/** Checks one administration record; returns every problem, or the flags the record carries. */
+/**
+ * Checks one administration record; returns every problem, or the flags the record carries and
+ * what the API escalates. On the round the rules that decide whether a dose may be given refuse it;
+ * a dose the person took themselves, or given by family, or that staff record after giving it
+ * (`givenBeforeRecorded`), is a fact, and those rules flag it for review instead.
+ */
 export function checkAdministration(
   input: AdministrationInput,
   rates: AdministrationRates,
+): AdministrationCheck {
+  return checkRecord(input, rates, input.outcome === "given" && input.givenBeforeRecorded !== null);
+}
+
+/**
+ * The rules for a record. `afterTheEvent`: the record is of something that has already happened
+ * (a dose given before it was recorded, or any correction), so the rules that decide whether a
+ * dose may be given, and the competence of whoever gave it then, flag it for review instead of
+ * refusing it: refusing would leave a dose given off the record, and out of the intervals and the
+ * maximum for the next one (#162 second clinical review).
+ */
+function checkRecord(
+  input: AdministrationInput,
+  rates: AdministrationRates,
+  afterTheEvent: boolean,
 ): AdministrationCheck {
   const issues: AdministrationIssue[] = [];
   const add = (problem: AdministrationProblem, message: string) =>
@@ -325,20 +387,43 @@ export function checkAdministration(
 
   const flags: AdministrationFlag[] = [];
   const escalations: AdministrationEscalation[] = [];
+  const review: ReviewFlag[] = [];
   const alreadyTaken = DOSE_ALREADY_TAKEN_OUTCOMES.has(outcome);
+  // A dose that has already happened is a fact: the rules that decide whether a dose may be given
+  // flag it for the nurse in charge instead of refusing it (H-1062, H-1067).
+  const fact = alreadyTaken || afterTheEvent;
+  const refuseOrReview = (problem: AdministrationProblem, message: string, flag: ReviewFlag) => {
+    if (fact) {
+      flags.push(flag);
+      review.push(flag);
+    } else add(problem, message);
+  };
+  if (outcome === "given" && input.givenBeforeRecorded !== null) {
+    if (blank(input.givenBeforeRecorded.reason)) {
+      add(
+        "given_before_recorded_reason_required",
+        "Say why the dose is recorded only after it was given.",
+      );
+    }
+  }
 
   if (dose !== null) {
     const window = doseWindow(dose.dueAt, isTimeCritical(entry), rates);
     const timing = recordedTiming(window, input.at);
     // Never before its own window: a later dose (this evening's, tomorrow's) is not recorded at the
-    // morning round, and no outcome is filled in ahead of time. A dose the person already took is
-    // a fact, recorded with what happened (HZ-004 review).
-    if (timing === "before_window" && !alreadyTaken) {
-      add(
+    // morning round, and no outcome is filled in ahead of time (HZ-004 review).
+    if (timing === "before_window") {
+      refuseOrReview(
         "dose_not_due_yet",
         `This dose is not due yet. Its window opens at ${formatUkTime(window.opensAt)} on ${formatUkDate(window.opensAt)}: record it then.`,
+        "before_window",
       );
-    } else if (DOSE_TAKEN_OUTCOMES.has(outcome) && timing !== "on_time") {
+    }
+    if (
+      DOSE_TAKEN_OUTCOMES.has(outcome) &&
+      timing !== "on_time" &&
+      (fact || timing !== "before_window")
+    ) {
       if (blank(input.timingReason)) {
         add(
           "timing_reason_required",
@@ -346,25 +431,25 @@ export function checkAdministration(
             ? "This dose was taken before its window opened. Say what happened."
             : `This dose is ${timing}. Say why.`,
         );
-      } else flags.push(timing);
+      } else if (timing !== "before_window") flags.push(timing);
     }
 
-    // A dose is not given while an earlier dose of the medicine that day has no outcome: what
-    // happened to that one is recorded first (HZ-004 review).
-    if (outcome === "given" || alreadyTaken) {
+    // A dose is not given while an earlier dose of the medicine, in the 24 hours before it, has no
+    // outcome: what happened to that one is recorded first (HZ-004 review).
+    if (DOSE_TAKEN_OUTCOMES.has(outcome)) {
       const recorded = new Set(input.recordedDueTimes.map((d) => d.getTime()));
       const earlier = marEntryDoses(entry, {
-        from: ukStartOfDay(dose.date),
+        from: new Date(dose.dueAt.getTime() - DAY_MS + 1),
         to: dose.dueAt,
       }).filter(
-        (d) =>
-          d.date === dose.date &&
-          d.dueAt.getTime() < dose.dueAt.getTime() &&
-          !recorded.has(d.dueAt.getTime()),
+        (d) => d.dueAt.getTime() < dose.dueAt.getTime() && !recorded.has(d.dueAt.getTime()),
       );
-      if (earlier.length > 0 && alreadyTaken) flags.push("earlier_dose_outstanding");
-      else if (earlier.length > 0) {
-        add("earlier_dose_outstanding", earlierDosesMessage(earlier));
+      if (earlier.length > 0) {
+        refuseOrReview(
+          "earlier_dose_outstanding",
+          earlierDosesMessage(earlier),
+          "earlier_dose_outstanding",
+        );
       }
     }
   }
@@ -372,8 +457,13 @@ export function checkAdministration(
   let prescribed: Dose | null = null;
   if (DOSE_TAKEN_OUTCOMES.has(outcome)) {
     const status = marEntryStatus(entry, input.at, input.policy);
-    if (!status.mayGive)
-      add("entry_not_usable", status.notice ?? `${status.words}: do not give from this entry.`);
+    if (!status.mayGive) {
+      refuseOrReview(
+        "entry_not_usable",
+        status.notice ?? `${status.words}: do not give from this entry.`,
+        "entry_not_usable",
+      );
+    }
     if (entry.secondCheck === null) flags.push("entry_not_yet_checked");
 
     const prescribedDose =
@@ -387,7 +477,11 @@ export function checkAdministration(
       if (variable?.ok) variableQuantity = variable.quantity;
       else {
         const problem = variable?.problem ?? "no_dosing_record";
-        add(VARIABLE_DOSE_PROBLEMS[problem], VARIABLE_DOSE_MESSAGES[problem]);
+        refuseOrReview(
+          VARIABLE_DOSE_PROBLEMS[problem],
+          VARIABLE_DOSE_MESSAGES[problem],
+          "no_usable_dosing_record",
+        );
       }
     }
     prescribed =
@@ -410,10 +504,15 @@ export function checkAdministration(
     }
     let counted: number | null = null;
     if (amount !== null && prescribedDose !== null) {
-      if (amount.unitCode !== prescribedDose.unit.code) {
-        add("amount_wrong_unit", "Record the amount in the unit on the MAR.");
-      } else if (!(Number.isFinite(amount.quantity) && amount.quantity > 0)) {
+      if (!(Number.isFinite(amount.quantity) && amount.quantity > 0)) {
         add("amount_not_a_dose", "Record the amount given as a number more than zero.");
+      } else if (amount.unitCode !== prescribedDose.unit.code) {
+        // Staff record what they give in the unit on the MAR. What the person or their family gave
+        // is recorded as they gave it, never converted, and so not counted (H-1062).
+        if (alreadyTaken) {
+          flags.push("amount_in_other_unit");
+          review.push("amount_in_other_unit");
+        } else add("amount_wrong_unit", "Record the amount in the unit on the MAR.");
       } else {
         counted = amount.quantity;
         if (
@@ -423,7 +522,9 @@ export function checkAdministration(
           if (blank(input.amountDifferenceReason)) {
             add(
               "amount_differs_needs_reason",
-              "The amount is not the prescribed dose. Say what happened; it is reviewed as a possible medication error.",
+              alreadyTaken
+                ? "The amount taken is not the prescribed dose. Say what happened; the nurse in charge reviews it."
+                : "The amount is not the prescribed dose. Say what happened; it is reviewed as a possible medication error.",
             );
           } else flags.push("amount_differs");
         }
@@ -438,7 +539,7 @@ export function checkAdministration(
           first.rule === "paracetamol" ? "the paracetamol rule" : "the prescribed minimum interval";
         add(
           "interval_override_required",
-          alreadyTaken
+          fact
             ? `This dose was taken within ${rule} of another. Say what happened.`
             : `A dose was taken within ${rule}. Do not give it unless the prescriber agrees; if you must, say why.`,
         );
@@ -446,20 +547,19 @@ export function checkAdministration(
     }
 
     // The maximum counts every dose taken, over every 24 hours containing this one. Staff never
-    // give over it; a dose already taken over it is recorded, flagged and escalated (H-1062).
-    if (counted !== null) {
+    // give over it; a dose that has already happened over it is recorded, flagged and escalated
+    // urgently (H-1062).
+    if (counted !== null && prescribedDose !== null) {
       const over = prnMaximumExceeded(entry, input.versionIds, input.history, counted, input.at);
-      if (over && alreadyTaken && prescribedDose !== null) {
+      if (over && fact) {
         flags.push("over_maximum");
-        const taken = formatDose({
-          kind: "amount",
-          quantity: over.given + counted,
-          unit: prescribedDose.unit,
-        });
+        const unit = prescribedDose.unit;
+        const taken = formatDose({ kind: "amount", quantity: over.given + counted, unit });
+        const max = formatDose({ kind: "amount", quantity: over.max, unit });
         escalations.push({
           severity: "urgent",
           reason: "over_maximum",
-          message: `More than the most allowed in 24 hours has been taken: ${taken} against a maximum of ${formatDose({ kind: "amount", quantity: over.max, unit: prescribedDose.unit })}. Tell the nurse in charge now, who follows your organisation's policy and contacts the prescriber.`,
+          message: `More than the most allowed in 24 hours has been taken: ${taken} against a maximum of ${max}. Tell the nurse in charge now, who follows your organisation's policy and contacts the prescriber.`,
         });
       } else if (over) {
         add(
@@ -473,6 +573,9 @@ export function checkAdministration(
     }
   }
 
+  // Whoever records an outcome now needs current competence (or an override of an expired one).
+  // In a record made after the event, the member named is the one who gave the dose then: their
+  // competence is a fact to review, never a reason to leave the dose off the record.
   const gate = checkCompetenceGate(
     input.administrator.id,
     input.administrator.competence,
@@ -480,8 +583,20 @@ export function checkAdministration(
     input.at,
     rates,
   );
-  if (!gate.ok) add(gate.problem, gate.message);
+  if (!gate.ok && afterTheEvent) {
+    flags.push("competence_not_current");
+    review.push("competence_not_current");
+  } else if (!gate.ok) add(gate.problem, gate.message);
   else if (gate.overridden) flags.push("competence_override");
+
+  if (review.length > 0) {
+    const words = review.map((f) => REVIEW_FLAG_WORDS[f]);
+    escalations.push({
+      severity: "warning",
+      reason: "review",
+      message: `Recorded for the nurse in charge to review under your organisation's policy: ${listWords(words)}.`,
+    });
+  }
 
   if (issues.length > 0) return { ok: false, issues };
   return { ok: true, flags, prescribed, escalations };
@@ -526,6 +641,8 @@ export interface RecordedAdministration {
   readonly personId: string;
   readonly entryId: string;
   readonly dueAt: Date | null;
+  /** When the dose was given or the outcome happened. */
+  readonly at: Date;
   readonly recordedBy: string;
   /** Set when the server received it: the MAR row is then locked. */
   readonly serverReceivedAt: Date | null;
@@ -565,21 +682,33 @@ export type AdministrationCorrectionCheck =
 
 /**
  * A correction is a new record that refers to the one it corrects (`supersedes_id`), with a reason;
- * it corrects the latest record for the dose, and it stays about the same person and dose, so it
- * can never move a record onto another dose. What the corrected record says meets every rule a new
- * record does (`checkAdministration`: competence, the entry in force, the window, an earlier dose
- * outstanding, the amount, intervals and the maximum), so "refused" corrected to "given" is checked
- * as a dose given at that time. Only the duplicate check against the record it corrects is left
- * out, and that record (by its id) is left out of the history, so it neither counts twice nor
- * stands in the way of its own correction.
+ * it corrects the latest record for the dose, and it stays about the same person and dose (for a
+ * when-required dose, the same entry and MAR day), so it can never move a record onto another dose.
+ * Whoever records the correction needs current medicines competence now (rule 22). What the
+ * corrected record says meets every rule a new record does (`checkAdministration`: the entry in
+ * force, the window, an earlier dose outstanding, the dosing record, the amount, intervals, the
+ * maximum and the competence of the member who gave it), as a record made after the event: what
+ * would refuse a dose about to be given flags it for review, and over the maximum escalates it
+ * urgently, because refusing would leave a false record and a dose given out of the history (#162
+ * second clinical review; H-1067). So "refused" corrected to "given" is checked as a dose given
+ * then, and never lost. Only the duplicate check against the record it corrects is left out, and
+ * that record (by its id) is left out of the history, so it neither counts twice nor stands in the
+ * way of its own correction.
  */
 export function checkCorrection(
   original: RecordedAdministration,
   correction: {
     /** Why the record is corrected. */
     readonly reason: string;
-    /** What the corrected record says, as a new record would give it. */
+    /** What the corrected record says: who gave the dose or recorded the outcome, and when. */
     readonly record: AdministrationInput;
+    /** Who records the correction, and when (the author, or a holder of `medicines.record.manage`). */
+    readonly correctedBy: {
+      readonly id: string;
+      readonly competence: MedicinesCompetence;
+      readonly override: CompetenceOverride | null;
+      readonly at: Date;
+    };
   },
   rates: AdministrationRates,
 ): AdministrationCorrectionCheck {
@@ -594,11 +723,14 @@ export function checkCorrection(
     issues.push({ problem: "correction_reason_required", message: "Say why it is corrected." });
   }
   const record = correction.record;
-  const sameDue = (original.dueAt?.getTime() ?? null) === (record.dueAt?.getTime() ?? null);
+  const sameDose =
+    original.dueAt === null && record.dueAt === null
+      ? ukDateOf(original.at) === ukDateOf(record.at)
+      : original.dueAt?.getTime() === record.dueAt?.getTime();
   if (
     record.personId !== original.personId ||
     (record.entry !== null && record.entry.id !== original.entryId) ||
-    !sameDue
+    !sameDose
   ) {
     issues.push({
       problem: "correction_moves_dose",
@@ -606,15 +738,21 @@ export function checkCorrection(
         "A correction stays with the person and the dose it corrects. Record another dose as a record of its own.",
     });
   }
-  const content = checkAdministration(
+  const by = correction.correctedBy;
+  const gate = checkCompetenceGate(by.id, by.competence, by.override, by.at, rates);
+  if (!gate.ok) issues.push({ problem: gate.problem, message: gate.message });
+  const content = checkRecord(
     {
       ...record,
       alreadyRecorded: false,
       history: record.history.filter((d) => d.id !== original.id),
     },
     rates,
+    true,
   );
   if (!content.ok) issues.push(...content.issues);
   if (issues.length > 0 || !content.ok) return { ok: false, issues };
-  return content;
+  return gate.ok && gate.overridden
+    ? { ...content, flags: [...content.flags, "competence_override"] }
+    : content;
 }

@@ -27,6 +27,7 @@ const cd = (id: string, overrides: Partial<CdEntry> = {}): CdEntry => ({
   movement: "administration",
   quantity: 1,
   correctsId: null,
+  corrects: null,
   reason: null,
   balanceAfter: 0,
   at: at(2, 8),
@@ -118,6 +119,7 @@ describe("a mistake is put right by a correction entry beside it, never by editi
   it("takes a correction that names the entry it corrects and why", () => {
     const correction = cd("cd-3", {
       movement: "correction",
+      corrects: "quantity",
       quantity: 1,
       balanceAfter: 28,
       correctsId: "cd-2",
@@ -143,8 +145,28 @@ describe("a mistake is put right by a correction entry beside it, never by editi
       { quantity: 0, balanceAfter: 27, reason: " " },
       ["correction_needs_reason"],
     ],
+    [
+      "says it corrects a detail but changes the quantity",
+      { quantity: 1, balanceAfter: 28, reason: "Time was 08:10" },
+      ["correction_kind_mismatch"],
+    ],
+    [
+      "corrects the quantity by nothing (a mistyped 0)",
+      { corrects: "quantity", quantity: 0, balanceAfter: 27, reason: "Miscount" },
+      ["bad_quantity"],
+    ],
+    [
+      "does not say what it puts right",
+      { corrects: null, quantity: 0, balanceAfter: 27, reason: "Time was 08:10" },
+      ["bad_quantity", "correction_needs_kind"],
+    ],
   ])("hazard HZ-116 a margin correction that %s", (_name, overrides, expected) => {
-    const base = cd("cd-3", { movement: "correction", correctsId: "cd-2", at: at(2, 9) });
+    const base = cd("cd-3", {
+      movement: "correction",
+      corrects: "detail",
+      correctsId: "cd-2",
+      at: at(2, 9),
+    });
     expect(problems([receipt, given], { ...base, ...overrides })).toEqual(expected);
   });
 
@@ -161,6 +183,7 @@ describe("a mistake is put right by a correction entry beside it, never by editi
   ])("refuses a correction that %s", (_name, overrides, expected) => {
     const base = cd("cd-3", {
       movement: "correction",
+      corrects: "quantity",
       quantity: 1,
       balanceAfter: 28,
       correctsId: "cd-2",
@@ -170,8 +193,11 @@ describe("a mistake is put right by a correction entry beside it, never by editi
     expect(problems([receipt, given], { ...base, ...overrides })).toEqual(expected);
   });
 
-  it("lets only a correction refer to another entry", () => {
+  it("lets only a correction refer to another entry, or say what it corrects", () => {
     expect(problems([receipt], cd("cd-2", { ...given, correctsId: "cd-1" }))).toEqual([
+      "not_a_correction",
+    ]);
+    expect(problems([receipt], cd("cd-2", { ...given, corrects: "detail" }))).toEqual([
       "not_a_correction",
     ]);
   });
