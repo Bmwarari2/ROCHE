@@ -40,6 +40,7 @@ import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { expireImportBatches } from "../services/platform-imports";
 import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
@@ -624,6 +625,18 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
   );
   if (deleted > 0) deps.logger.info({ deleted }, "evidence pack bundles deleted");
   return deleted;
+}
+
+/**
+ * Staged imports past `expires_at` (platform.md rule 25): each is expired as the system, which
+ * deletes its staged rows in the same transaction; audited with the row count.
+ */
+export async function expireImportsJob(deps: TaskDeps): Promise<number> {
+  const expired = await eachTenant(deps, "import-expiry", (tx, tenantId) =>
+    expireImportBatches(tx, tenantId),
+  );
+  if (expired > 0) deps.logger.info({ expired }, "staged imports expired");
+  return expired;
 }
 
 /**

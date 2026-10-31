@@ -53,7 +53,12 @@ export const PERMISSIONS = {
     stepUp: true,
     careRecord: true,
   },
-  "platform.import.run": { description: "Run the migration import wizard" },
+  "platform.import.run": {
+    // An import stages and creates care records (people), so it needs MFA; it works only across
+    // the whole organisation (platform.md rule 18), and its commit and undo need a step-up.
+    description: "Run the migration import wizard across the organisation",
+    careRecord: true,
+  },
   "platform.billing.read": { description: "See the tenant's Harbour subscription and invoices" },
   "platform.search.use": {
     description: "Search the people, staff, documents and notes you can already see",

@@ -689,6 +689,51 @@ never stored: they are worked out from these fields and the rate table.
 | `dp_complaint.complainant_kind` | Harbour | `person_supported`, `representative`, `family`, `staff`, `other` | `complainant_name` (1 to 200 characters) and `complainant_contact` (as given) are personal data. |
 | `dp_complaint.about` | data-protection-complaints.md section 1 | `access`, `accuracy`, `sharing`, `security`, `retention`, `other` | |
 | `dp_complaint` dates | DPA 2018 as amended (DUAA 2025) | `received_on`, `acknowledged_on`, `last_contact_on`, `closed_on` (UK dates, none before receipt) | Acknowledgement due `dp_complaint.acknowledge_days` after receipt for complaints from 19/06/2026; closing needs an outcome (20 to 10,000 characters) stating the right to complain to the ICO (`ico_right_stated`). |
+## Import wizard (Phase 2, slice 26)
+The import contract for people (PLAT-014; [platform.md](platform.md) Phase 2 rules 11 to 26;
+ADR-0092; HZ-130). An upload is CSV (UTF-8, a byte order mark allowed, one header row, RFC 4180
+quoting, comma separated, CRLF or LF) or JSON rows (objects of text). Each column is matched to a
+field below by the upload's `mapping` (heading to field key, or `null` to leave the column out), or
+by the field key or its label, ignoring case, spaces, hyphens and underscores; anything else refuses
+the upload, naming the column by its position. At most 5,000 rows, 60 columns and 2,000 characters a
+cell (`IMPORT_LIMITS`, product limits). Every value is checked before anything is created; a batch
+commits whole or not at all.
+| Field key (label) | Maps to | Format on import | Rules |
+| `given_name` (Given name) | `person.given_name` | Text, up to 100 characters | Required |
+| `family_name` (Family name) | `person.family_name` | Text, up to 100 characters | Required |
+| `preferred_name` (Preferred name) | `person.preferred_name` | Text, up to 100 characters | |
+| `date_of_birth` (Date of birth) | `person.date_of_birth` | `dd/mm/yyyy` only (a real date; stored `YYYY-MM-DD`) | Required; from 01/01/1900 to today. ISO dates, month-first dates that cannot be real, and two-digit years are refused |
+| `nhs_number` (NHS number) | `person.nhs_number` | 10 digits, spaces and hyphens allowed (stored without) | Modulus 11 check; on one row only; refused when already on a record in the organisation; a 999-range test number or 0000000000 refused unless the environment takes them (`IMPORT_TEST_NHS_NUMBERS`, demonstration and test only) |
+| `local_identifier` (Local identifier) | `person.local_identifier` | Text, up to 60 characters | Needed when there is no NHS number; on one row only; refused when already on a record in the organisation |
+| `sex_code` (Sex) | `person.sex_code` | Sex codes above | |
+| `gender_identity` (Gender) | `person.gender_identity` | Gender codes above | |
+| `allergy_status` (Allergy status) | Reported only; `person.allergy_status` is `unknown` | `unknown`, `no_known_allergies`, `has_allergies` (blank is `unknown`) | What the previous system said, checked as a code and reported by the dry run, never stored as the person's status: every imported person's allergy status is `unknown` ("not recorded"), confirmed by no one, until a member of staff checks it and records it on the record (HZ-007). A stated `no_known_allergies` or `has_allergies` is kept as a code on the person's allergy status check task (`task.details.importedAllergyStatus`), paired by NHS number or local identifier |
+| `postcode` (Postcode) | `person.postcode` | A full UK postcode | Stored upper case with one space (`zz993zz` as `ZZ99 3ZZ`) |
+Every text value is refused if it holds a control character or a lone UTF-16 surrogate, at upload
+(by row and field) and again in the dry run. Imported people are created at the batch's location
+with status `active` and `person.import_batch_id` set to the batch; no photo, room, placement or
+admission record is made. The same date of birth as an existing person or another row, where either
+has no NHS number, with names that agree (the same, swapped, the same family name, or the same
+given name), compared as letters only and by the first given name as well as the whole, is a
+warning (`possible_duplicate`) naming the other row or record, which the committer acknowledges by
+its key. A pair of rows is warned of once, on the later row, naming the earliest row it matches; a
+row names at most three existing records (`recordMatchesCapped`); a file with more than 50 rows on
+one date of birth, or more than 500 possible duplicates, is refused (`IMPORT_WARNING_LIMITS`,
+product limits), so every warning found is listed and can be acknowledged.
+| `import_batch.record_type` | Harbour | `people` | Contacts, allergies and staff follow (slice 51). |
+| `import_batch.status` | Harbour | `staged`, `committed`, `undone`, `discarded`, `expired` | Forward only (a guard in migration 0088). `expires_at` is `uploaded_at` plus `import.staging_expiry_days`; `dry_run_errors` and `dry_run_warnings` are counts; `closed_by` is empty when the system expired it. No file name, heading or value is kept. |
+| `import_row.cells` | Harbour | JSON object: field key to the cell's text exactly as uploaded; `row_number` from 1, the first row under the header | Quarantine: personal data, deleted when the batch commits, is discarded or expires; not exported (the organisation holds its file). |
+| `import_commit.record_ids`, `record_count` | Harbour | Array of `person.id` (UUIDv7); a count | Kept after an undo as opaque ids; `undone_at` and `undone_by` set once. |
+| `person.import_batch_id` | Harbour | `import_batch.id` (UUIDv7) or empty | The batch that created the person; set only as the batch commits and never changed; an undo removes only people carrying it. Exported; not synced to devices. |
+| Dry-run report codes | Harbour | Errors: `unknown_column`, `required`, `too_long`, `invalid_nhs_number`, `invalid_date`, `date_in_future`, `date_too_early`, `invalid_code`, `invalid_postcode`, `control_character`, `identifier_required`, `test_nhs_number`, `duplicate`, `already_in_harbour` (with the record's `personId`), `too_many_same_birth_date` and `too_many_possible_duplicates` (row 0, the file). Warnings: `possible_duplicate`, with `match` (`same_name`, `names_swapped`, `same_family_name`, `same_given_name`), `otherRow` or `personId`, and a `key` | Each by row number and field key with plain words; never the value or the heading. The report also lists the rows whose file stated no status, no known allergies or allergies, the warning keys, `mayCommit`, `needsAcknowledgement`, `recordMatchesCapped`, `phonesInUse` and `whatHappens` (plain words). The commit's `acknowledgedWarnings` lists exactly the keys found (at most 500), and `acceptNoUndo` is needed while `phonesInUse` (`no_undo_not_accepted`); its result lists the people whose status the file stated with their tasks (`allergyStatusToConfirm`: `personId`, `taskId`, `stated`), `undoAvailable` and `undoClosesAt`. |
+| `task` (kind `people.allergy_status_check`) | Harbour | `source_type` `import_batch`, `source_id` the batch; `required_permission` `people.person.update`; `assignee_role_key` `registered_manager`; `priority` `urgent` for `has_allergies`, else `routine`; `details.importedAllergyStatus` `no_known_allergies` or `has_allergies` | One per imported person whose file stated a status (HZ-007); the title says what the file said in words. Removed by an undo while still open. |
+| `import_batch` view: `undoAvailable`, `undoClosesAt` | Harbour | Boolean; ISO 8601 date-time or empty | `undoAvailable` is true only while committed, not undone, within `import.undo_window_days` and before a phone may hold the people; `undoClosesAt` is empty otherwise. |
+| Undo refusals | Harbour | `already_undone`, `window_passed`, `sent_to_devices`, `changed_since`, `referenced_since`, `not_committed` | `sent_to_devices`: a sync token carrying people was issued in the organisation from one token's lifetime before the commit. |
+| Import audit scope | Harbour | `platform.import.uploaded` (`recordType`, `rows`, `columns`, `columnsLeftOut`); `platform.import.dry_run` (`rows`, `validRows`, `errors`, `warnings`, `byCode`); `platform.import.committed` (`records`, `possibleDuplicatesAcknowledged`, `allergyStatusChecks`, `noUndoAccepted`, or `replayed`); `people.person.imported` (`importBatchId`, one per person); `platform.import.undone` (`records`); `platform.import.discarded` and `platform.import.expired` (`rows`) | Ids and counts only. |
+Not yet in the contract (open, slice 26 later part and slice 51): the round trip with the full export
+(HZ-071), whose `person.csv` writes `YYYY-MM-DD` dates and Harbour column names and would come back
+through a JSON or export-format mapping keeping `import_source_id`; contacts, allergies, staff and
+medicines.
 
 ## Phase 1 tables completed for the gate
 

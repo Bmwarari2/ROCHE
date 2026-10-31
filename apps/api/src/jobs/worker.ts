@@ -16,6 +16,7 @@ import {
   escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
+  expireImportsJob,
   generatePlanTaskSeries,
   materialiseTaskSeries,
   outboxHandlers,
@@ -88,6 +89,7 @@ const QUEUES = {
   fullExports: "full-exports",
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
+  importExpiry: "import-expiry",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -181,6 +183,9 @@ await work(QUEUES.exportExpiry, async () => {
 await work(QUEUES.statementOverdue, async () => {
   await escalateStatementsOfPurpose(deps);
 });
+await work(QUEUES.importExpiry, async () => {
+  await expireImportsJob(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -229,6 +234,8 @@ await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
 // Every minute: an export asked for starts at once; every 15 minutes, archives past expiry go.
 await boss.schedule(QUEUES.fullExports, "* * * * *");
 await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
+// Hourly: a staged import's rows (personal data in quarantine) go within the hour of expiry.
+await boss.schedule(QUEUES.importExpiry, "31 * * * *");
 
 logger.info("Harbour worker started");
 

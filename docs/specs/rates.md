@@ -156,6 +156,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dp_complaint.update_interval_months | 1 | months | 2026-06-19 | - | uk | docs/compliance/data-protection-complaints.md section 2 (keep the complainant informed at least monthly; tenant default, the Act says only "keep informed") | to-verify |
 | dsar.due_soon_days | 7 | days | 2018-05-25 | - | uk | Harbour default for the "due soon" warning on the DSAR register (no statutory figure) | to-verify |
 | import.undo_window_days | 7 | days | 2026-10-31 | - | all | Harbour default for undoing an import batch (phase-2.md slice 9, ADR-0092; no statutory figure) | to-verify |
+| import.staging_expiry_days | 7 | days | 2026-10-31 | - | all | Harbour default for data minimisation: how long an uploaded import's staged rows are kept before they are deleted unless committed or discarded first (platform.md rule 19, ADR-0092; UK GDPR Art 5(1)(c) and (e); no statutory figure) | to-verify |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
 | cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -343,6 +344,12 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the
   DSAR warning and the import undo window are product choices. A tenant may override each; the DPO
   confirms the defaults (H-610).
+- `import.staging_expiry_days` (7): how long an uploaded import's staged rows (personal data in
+  quarantine, never yet anyone's record) are kept before the nightly sweep deletes them, unless the
+  batch is committed or discarded first, which deletes them at once (Phase 2 slice 26). A data
+  minimisation default, not a statutory figure: long enough to correct a file over a working week,
+  short enough that an abandoned upload does not linger. A tenant may shorten it; the DPO confirms
+  it (H-681).
 - `sponsor.salary_floor.care_worker_hourly` (12.82): the gov.uk going-rates page lists £25,000 a year
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
