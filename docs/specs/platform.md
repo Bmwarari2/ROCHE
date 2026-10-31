@@ -677,6 +677,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - `POST /v1/retention/destroy`: re-checks each id, keeps a tombstone row without the title, writes
   an append-only `destruction_certificate` per record class (ids, rule, reason, method), then
   deletes every stored version. Held, current or unknown ids are returned as skipped.
+  - What a hold covers (`isDocumentUnderLegalHold`): a document is held when any version of it
+    (its whole chain through `previous_version_id`) is flagged `legal_hold`, is held itself, is
+    about a held person, or belongs to a held record (its `subject_type` and `subject_id`); a
+    hold on any version holds them all (security review of #134, M1).
   - Holds: placing a hold and destroying both take the organisation's retention lock (a
     transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
     reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
@@ -686,7 +690,10 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
     outbox event per document commit together, before any bytes are touched; the bytes are
     deleted after the commit, so a failed transaction never leaves bytes gone without a
     certificate. The worker deletes them again from the outbox event (idempotent, only for a
-    document recorded as destroyed) until the storage accepts it, backing off up to an hour.
+    document recorded as destroyed, the key made from the tenant and document ids, never read
+    from the row) until the storage accepts it, backing off up to an hour. On S3 a deletion counts
+    only when the batch delete reports no per-object error and a fresh listing finds no version
+    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6).
   - A failed deletion is detected by the worker's `worker.job.failed` line (queue
     `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
     (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished

@@ -45,7 +45,10 @@ Branch `fix/api-hardening`.
 
 ## What is next
 
-- A 4 KiB `bodyLimit` on the API's public JSON routes (above), with the evidence branch.
+- The API's public body caps are on `fix/api-public-body-limit` (its own pull request).
+- Follow-up (L5 below): read a witness's family portal link through a security-definer function
+  returning a boolean, so a link to someone outside the caller's scope is seen too. It needs a
+  migration, and migrations are held at 0071 until #123 merges.
 
 ## Human actions logged
 
@@ -67,3 +70,34 @@ Branch `fix/api-hardening`.
   `people-lifecycle`, `api`, `documents`, `exports`, `downtime`, `operator-sub-processors`,
   `sample-data`, `evidence-link`, `invitations` and `request-id` (360 passing), and the web unit
   tests (1062 passing).
+
+## Review rounds
+
+- Merge of `main` after #114 (documents, tasks and retention screens): an ordinary merge commit.
+  The candidates read keeps #114's title rule and audited ids; the destruction keeps the
+  retention lock, the certificate before the bytes and the post-commit deletion, and uses #114's
+  `certificateItem`. #114 adds no other destroy path (its screens call the same route).
+- Security review of #134:
+  - M1: a hold now covers a document through any version of it, its own `legal_hold` flag, its
+    person, or the record it belongs to (`isDocumentUnderLegalHold` in
+    `packages/domain/src/platform/retention.ts`, judged over the whole version chain read through
+    `previous_version_id`). Table-driven domain tests, and API tests for each gap that fail with
+    the old check.
+  - M2: `S3DocumentStorage.destroy` throws `StorageDeleteFailed` when the batch delete reports any
+    per-object error, and lists the versions again afterwards, throwing if any remain; so the
+    outbox event stays unpublished and alarmed until the bytes are gone. Tested with a double of
+    the S3 client (`apps/api/src/integrations/storage.test.ts`).
+  - M3: a property witness must hold `people.property.manage` through a staff role in force at the
+    person's home (`mayWitnessAt`, replacing `isStaffAt`). Care workers, visiting professionals
+    and inspectors are refused, and so is anyone holding a portal role. Note for the product: a
+    care worker can no longer witness; a team leader, nurse or manager can.
+  - M4: every audit row gets a UUID the API makes, whatever the caller sent; a caller's
+    `x-request-id` is only logged beside it (one `caller request id` line) and only when it is a
+    canonical lower-case UUID, which is all the web forwards. platform.md corrected.
+  - L5: not done here (it needs a migration, held at 0071 until #123 merges); logged above. Partly
+    covered meanwhile: a witness holding any portal role is refused, which row-level security
+    does not hide, so the gap left is an open link with no portal role, to someone outside the
+    caller's scope.
+  - L6: the worker (and the route's post-commit attempt) make the key with
+    `documentStorageKey(tenant, document id)`; a test changes `storage_key` to another live
+    document's and checks only the destroyed document's bytes go.
