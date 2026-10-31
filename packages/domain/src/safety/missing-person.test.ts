@@ -9,11 +9,12 @@ const police = rates.missingPersonPoliceCallMinutes;
 const episode = (events: MissingEvent[], extra: Partial<MissingEpisode> = {}): MissingEpisode => ({
   events,
   underDolsOrMha: false,
+  immediateRisk: false,
   herbertProfileReviewedOn: new Date("2026-09-01T00:00:00Z"),
   ...extra,
 });
 
-describe("missing person (safety.md Phase 2 rule 5)", () => {
+describe("hazard HZ-013 missing person (safety.md Phase 2 rule 5)", () => {
   it("sets the police call target from when the person was noticed missing", () => {
     const state = missingPersonState(
       episode([{ kind: "noticed_missing", at: at(0) }]),

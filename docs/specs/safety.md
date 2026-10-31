@@ -246,7 +246,7 @@ to verify, shown as targets, never as statutory deadlines. Figures come through
    token.
 4. **Deaths** (`deaths.ts`; SAFE-014). Expected or unexpected is the clinician's recorded
    judgement, never decided by Harbour. The steps each needs: verification of death, family told,
-   the medical examiner information pack, the Regulation 16 notification, a LeDeR notification for a
+   the medical examiner information pack, the notification under Regulation 16 of the CQC (Registration) Regulations 2009, a LeDeR notification for a
    person with a learning disability or autism; for an unexpected death, also the police (where the
    cause may be unnatural or suspicious) and leaving the room and equipment as they are until told
    otherwise. A mortality review is due `mortality_review.due_days` days after the death (a tenant
@@ -285,8 +285,9 @@ Rate keys: `safeguarding.referral_hours`, `complaint.acknowledge_working_days`,
 `ahra.recent_record_response_days`, `ahra.recent_record_days`.
 
 Permissions used (all in the catalogue): `safety.safeguarding.manage`, `safety.complaint.manage`,
-`safety.whistleblowing.read` (slice 24 adds the Freedom to Speak Up lead's own manage permission,
-ADR-0089), `safety.incident.manage` (deaths, missing person, disclosure requests),
+`safety.whistleblowing.read` (a read permission moves a speak-up concern today because the catalogue
+has no other; slice 24 must add the Freedom to Speak Up lead's own manage permission and move
+`SPEAK_UP_WORKFLOW` to it before any route uses it, ADR-0089), `safety.incident.manage` (deaths, missing person, disclosure requests),
 `safety.disclosure.approve`.
 
 Tests: `safeguarding.test.ts`, `complaints.test.ts`, `whistleblowing.test.ts`, `deaths.test.ts`,

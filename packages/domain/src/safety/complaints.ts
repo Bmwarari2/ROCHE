@@ -110,7 +110,19 @@ export function complaintClocks(
   holidays: BankHolidays,
 ): ComplaintClocks {
   const received = ukIsoDate(receivedAt);
-  const paused = pauses.reduce((sum, p) => sum + workingDaysIn(p, holidays), 0);
+  // Overlapping pauses count once, and days before the complaint arrived never (clinical review).
+  const merged: ComplaintPause[] = [];
+  const clamped = pauses
+    .map((p) => ({ from: p.from < received ? received : p.from, to: p.to }))
+    .filter((p) => p.from <= p.to)
+    .sort((a, b) => (a.from < b.from ? -1 : 1));
+  for (const p of clamped) {
+    const last = merged.at(-1);
+    if (last && p.from <= last.to) {
+      merged[merged.length - 1] = { from: last.from, to: p.to > last.to ? p.to : last.to };
+    } else merged.push(p);
+  }
+  const paused = merged.reduce((sum, p) => sum + workingDaysIn(p, holidays), 0);
   return {
     acknowledgeBy: addWorkingDays(received, rates.complaintAcknowledgeWorkingDays, holidays),
     respondBy: addWorkingDays(received, rates.complaintResponseWorkingDays + paused, holidays),

@@ -51,7 +51,7 @@ const move = (
     stepUpFresh: false,
   });
 
-describe("the safeguarding log (safety.md Phase 2 rule 1)", () => {
+describe("hazard HZ-013 the safeguarding log (safety.md Phase 2 rule 1)", () => {
   it.each([
     ["concern", "referred", null, true],
     ["concern", "no_referral", null, false],
@@ -132,6 +132,13 @@ describe("the safeguarding log (safety.md Phase 2 rule 1)", () => {
         dbsReferral: { decision: "referred", reason: null, at: new Date() },
       }),
     ).toEqual([]);
+  });
+
+  it("needs the DBS referral decision even when no s.42 referral is made", () => {
+    expect(
+      safeguardingStepProblems("no_referral", { ...empty, staffRemovedForHarm: true })[0],
+    ).toContain("DBS referral decision");
+    expect(safeguardingStepProblems("no_referral", empty)).toEqual([]);
   });
 
   it("names the local authority", () => {

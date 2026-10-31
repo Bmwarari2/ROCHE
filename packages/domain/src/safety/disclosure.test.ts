@@ -100,10 +100,10 @@ describe("disclosure requests (safety.md Phase 2 rule 6)", () => {
       rates,
     );
     expect(recent).toEqual({
-      dueAt: addUkDays(received, rates.ahraRecentRecordResponseDays),
+      dueAt: addUkDays(received, rates.ahraRecentRecordResponseDays - 1), // "beginning with" the day received
       recent: true,
     });
     const old = ahraDueAt(received, addUkDays(received, -(rates.ahraRecentRecordDays + 1)), rates);
-    expect(old).toEqual({ dueAt: addUkDays(received, rates.ahraResponseDays), recent: false });
+    expect(old).toEqual({ dueAt: addUkDays(received, rates.ahraResponseDays - 1), recent: false });
   });
 });

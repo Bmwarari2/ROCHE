@@ -12,7 +12,7 @@ const base: DeathFacts = {
   possiblyUnnatural: false,
 };
 
-describe("deaths (safety.md Phase 2 rule 4)", () => {
+describe("hazard HZ-013 deaths (safety.md Phase 2 rule 4)", () => {
   it.each<[string, Partial<DeathFacts>, string[]]>([
     [
       "an expected death",

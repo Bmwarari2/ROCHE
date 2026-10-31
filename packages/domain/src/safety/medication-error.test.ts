@@ -8,7 +8,7 @@ const answered: MedicationErrorAnswers = {
   deliberateOrRepeated: "no",
 };
 
-describe("medication errors and near misses (safety.md Phase 2 rule 7)", () => {
+describe("hazard HZ-003 medication errors and near misses (safety.md Phase 2 rule 7)", () => {
   it("is a near miss with no tasks when nothing reached the person", () => {
     expect(medicationErrorTriage(answered)).toEqual({
       nearMiss: true,
@@ -38,7 +38,7 @@ describe("medication errors and near misses (safety.md Phase 2 rule 7)", () => {
     );
   });
 
-  it("asks every open question and errs towards advice while they are open", () => {
+  it("asks every open question and raises every follow-up while they are open", () => {
     const triage = medicationErrorTriage({
       kinds: [],
       reachedPerson: null,
@@ -52,6 +52,11 @@ describe("medication errors and near misses (safety.md Phase 2 rule 7)", () => {
       "deliberateOrRepeated",
     ]);
     expect(triage.nearMiss).toBeNull();
-    expect(triage.tasks.map((t) => t.task)).toEqual(["clinical_advice"]);
+    // Every follow-up is raised until a "no" answer rules it out (clinical review round 1).
+    expect(triage.tasks.map((t) => t.task)).toEqual([
+      "clinical_advice",
+      "controlled_drug_report",
+      "safeguarding_consideration",
+    ]);
   });
 });

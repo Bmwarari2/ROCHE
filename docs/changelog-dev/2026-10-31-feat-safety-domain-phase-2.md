@@ -31,6 +31,19 @@ SAFE-015, SAFE-016 and MEDS-012 (domain rules only; no database, API or screens;
   medication error task asks for clinical advice, it gives none).
 - No personal data stored or processed by this slice (pure functions).
 
+## Review rounds
+
+- Round 1 (clinical safety reviewer): the CQC notification prompt for a missing person now also
+  follows any police report (Regulation 18(2)(f) of the 2009 Registration Regulations); "call the
+  police at once" is built for a person the risk assessment marks so; a person found before a call
+  was due is not a late call; the Herbert Protocol review date no longer overflows the month; the
+  DBS referral decision is needed however a safeguarding concern ends; every medication follow-up
+  is raised until a "no" rules it out; overlapping complaint pauses count once and days before
+  receipt never; Access to Health Records periods run "beginning with" the day received; the death
+  notification names the 2009 Regulations; hazard ids in the test names, and HZ-013 and HZ-003
+  verification rows. Left for slice 24: speak-up steps use `safety.whistleblowing.read` until the
+  Freedom to Speak Up lead's manage permission exists (ADR-0089).
+
 ## What is open
 
 - The medication error questions join the incident classifier only with a migration: the database

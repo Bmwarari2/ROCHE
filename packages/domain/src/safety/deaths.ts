@@ -45,7 +45,8 @@ export function deathPlan(
   const reasons: Partial<Record<DeathStep, string>> = {
     medical_examiner_pack:
       "Every death not referred straight to the coroner is reviewed by a medical examiner",
-    cqc_reg16_notification: "Regulation 16: notify CQC of the death of a person using the service",
+    cqc_reg16_notification:
+      "Regulation 16 of the Care Quality Commission (Registration) Regulations 2009: notify CQC of the death of a person using the service",
   };
   if (facts.learningDisabilityOrAutism) {
     steps.push("leder_notification");

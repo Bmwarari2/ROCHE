@@ -81,6 +81,19 @@ export interface SafeguardingRecordView {
   } | null;
 }
 
+/** The DBS referral duty (SVGA 2006 s.35) applies however the concern ends (clinical review). */
+function dbsProblems(record: SafeguardingRecordView, problems: string[]): void {
+  if (!record.staffRemovedForHarm) return;
+  const dbs = record.dbsReferral;
+  if (!dbs) {
+    problems.push(
+      "Record the DBS referral decision: a member of staff was removed, or would have been, for harm or risk of harm.",
+    );
+  } else if (dbs.decision === "not_required" && !dbs.reason?.trim()) {
+    problems.push("Say why a DBS referral is not required.");
+  }
+}
+
 /** What a step needs before it can be taken. */
 export function safeguardingStepProblems(
   to: SafeguardingState,
@@ -106,6 +119,9 @@ export function safeguardingStepProblems(
           "Record the enquiry's finding, or that the local authority made no s.42 enquiry.",
         );
       break;
+    case "no_referral":
+      dbsProblems(record, problems);
+      break;
     case "closed": {
       const mine = record.personalOutcomes;
       if (!mine) {
@@ -121,15 +137,7 @@ export function safeguardingStepProblems(
           "Say why the person, or an advocate for them, was not asked what they wanted.",
         );
       }
-      if (record.staffRemovedForHarm) {
-        const dbs = record.dbsReferral;
-        if (!dbs)
-          problems.push(
-            "Record the DBS referral decision: a member of staff was removed, or would have been, for harm or risk of harm.",
-          );
-        else if (dbs.decision === "not_required" && !dbs.reason?.trim())
-          problems.push("Say why a DBS referral is not required.");
-      }
+      dbsProblems(record, problems);
       break;
     }
     default:

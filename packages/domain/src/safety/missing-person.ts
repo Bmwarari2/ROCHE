@@ -35,6 +35,8 @@ const ORDER: readonly MissingEventKind[] = [
 export interface MissingEpisode {
   readonly events: readonly MissingEvent[];
   readonly underDolsOrMha: boolean;
+  /** The tenant's risk assessment says call the police at once (for example a person with dementia). */
+  readonly immediateRisk: boolean;
   /** When the Herbert Protocol profile was last reviewed, or null when there is none. */
   readonly herbertProfileReviewedOn: Date | null;
 }
@@ -79,14 +81,26 @@ export function missingPersonState(
     previous = event;
   }
   if (police && !police.reference?.trim()) problems.push("Record the police reference.");
-  const dueAt = noticed
-    ? new Date(noticed.at.getTime() + rates.missingPersonPoliceCallMinutes * 60_000)
-    : null;
-  const policeCallLate = dueAt !== null && (police ? police.at > dueAt : now > dueAt);
+  // At once when the tenant's risk assessment says so; otherwise the tenant's target.
+  const waitMs = episode.immediateRisk ? 0 : rates.missingPersonPoliceCallMinutes * 60_000;
+  const dueAt = noticed ? new Date(noticed.at.getTime() + waitMs) : null;
+  // Found before a call was due is not a late call (clinical review round 1).
+  const foundInTime = found !== undefined && dueAt !== null && found.at <= dueAt;
+  const policeCallLate =
+    dueAt !== null && !foundInTime && (police ? police.at > dueAt : (found?.at ?? now) > dueAt);
   let herbert: MissingState["herbertProfile"] = "none";
   if (episode.herbertProfileReviewedOn) {
-    const stale = new Date(episode.herbertProfileReviewedOn);
-    stale.setUTCMonth(stale.getUTCMonth() + rates.herbertProtocolReviewMonths);
+    const r = episode.herbertProfileReviewedOn;
+    // Months added without overflow: 31 August plus 6 months is 28 or 29 February.
+    const first = new Date(
+      Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + rates.herbertProtocolReviewMonths, 1),
+    );
+    const lastDay = new Date(
+      Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    const stale = new Date(
+      Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(r.getUTCDate(), lastDay)),
+    );
     herbert = now > stale ? "out_of_date" : "current";
   }
   const closeProblems: string[] = [];
@@ -101,7 +115,9 @@ export function missingPersonState(
     policeCallDueAt: police ? null : dueAt,
     policeCallLate,
     problems: [...problems, ...closeProblems],
-    cqcNotificationPrompt: episode.underDolsOrMha,
+    // Reg 18(2)(f) of the 2009 Registration Regulations: any incident reported to the police is
+    // notifiable, as well as a person under a DoLS authorisation or the Mental Health Act.
+    cqcNotificationPrompt: episode.underDolsOrMha || police !== undefined,
     herbertProfile: herbert,
     canClose: problems.length === 0 && closeProblems.length === 0,
   };

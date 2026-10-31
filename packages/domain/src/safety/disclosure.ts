@@ -105,11 +105,7 @@ export function ahraDueAt(
 ): { readonly dueAt: Date; readonly recent: boolean } {
   const recentFrom = addUkDays(receivedAt, -rates.ahraRecentRecordDays);
   const recent = latestRecordAddedAt.getTime() >= recentFrom.getTime();
-  return {
-    dueAt: addUkDays(
-      receivedAt,
-      recent ? rates.ahraRecentRecordResponseDays : rates.ahraResponseDays,
-    ),
-    recent,
-  };
+  // The period runs "beginning with" the day of the application, so that day is day one.
+  const days = recent ? rates.ahraRecentRecordResponseDays : rates.ahraResponseDays;
+  return { dueAt: addUkDays(receivedAt, days - 1), recent };
 }

@@ -70,6 +70,22 @@ describe("complaints (safety.md Phase 2 rule 2)", () => {
     );
   });
 
+  it("counts overlapping pauses once and ignores days before the complaint arrived", () => {
+    const clocks = complaintClocks(
+      new Date("2026-11-02T10:00:00Z"),
+      [
+        { from: "2026-10-26", to: "2026-11-03" },
+        { from: "2026-11-06", to: "2026-11-10" },
+        { from: "2026-11-09", to: "2026-11-11" },
+        { from: "2026-11-20", to: "2026-11-19" },
+      ],
+      rates,
+      new Set(),
+    );
+    // 2 and 3 November, then 6 to 11 November (four working days): six in all.
+    expect(clocks.pausedWorkingDays).toBe(6);
+  });
+
   it("needs the outcome, what was done, the Ombudsman and a copy before a response goes", () => {
     expect(
       complaintResponseProblems({

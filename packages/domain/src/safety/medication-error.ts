@@ -44,7 +44,7 @@ export interface MedicationErrorTriage {
 }
 
 /** "Not sure yet" counts as yes for tasks, so nothing waits on an unanswered question. */
-const maybe = (answer: Tri | null) => answer === "yes" || answer === "unsure";
+const maybe = (answer: Tri | null) => answer !== "no";
 
 export function medicationErrorTriage(answers: MedicationErrorAnswers): MedicationErrorTriage {
   const open: MedicationErrorTriage["openQuestions"][number][] = [];
@@ -54,11 +54,7 @@ export function medicationErrorTriage(answers: MedicationErrorAnswers): Medicati
   if (answers.deliberateOrRepeated === null) open.push("deliberateOrRepeated");
   const tasks: { task: MedicationErrorTask; reason: string }[] = [];
   // An omitted dose reaches the person by its absence: advice is needed then too.
-  if (
-    maybe(answers.reachedPerson) ||
-    answers.kinds.includes("omitted_dose") ||
-    answers.reachedPerson === null
-  ) {
+  if (maybe(answers.reachedPerson) || answers.kinds.includes("omitted_dose")) {
     tasks.push({
       task: "clinical_advice",
       reason: "Ask the GP, a pharmacist or NHS 111 what to do now, and record the advice",
