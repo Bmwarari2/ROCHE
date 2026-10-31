@@ -24,8 +24,8 @@ import {
 import {
   checkSignature,
   type DocumentCategoryKey,
+  documentStorageKey,
   type GeneralDocumentCategory,
-  isUnderLegalHold,
   narrowestScope,
   type Permission,
   type RetentionRule,
@@ -33,7 +33,7 @@ import {
   scopeFor,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -52,6 +52,8 @@ import {
   careEndedOn,
   contentHeaders,
   destroyingOnFailure,
+  documentHeld,
+  documentVersionChains,
   imagePrintableOf,
   readDocumentContent,
   storeDocument,
@@ -626,10 +628,23 @@ export const documentsRouter = createRouter()
       responses: { 200: jsonBody(LegalHoldList, "Holds"), ...errorResponses },
     }),
     async (c) => {
-      await requirePermission(c, RETENTION_PERMISSION);
-      const rows = await withTenant(c, (tx) =>
-        tx.select().from(legalHold).orderBy(desc(legalHold.placedAt)).limit(500),
-      );
+      const access = await requirePermission(c, RETENTION_PERMISSION);
+      // Holds name people and give reasons: the read is audited by count, as every records read
+      // is (section 5.5; security review, 31 October 2026).
+      const rows = await withTenant(c, async (tx) => {
+        const found = await tx
+          .select()
+          .from(legalHold)
+          .orderBy(desc(legalHold.placedAt))
+          .limit(500);
+        await auditInTx(tx, access, {
+          action: "platform.legal_hold.list",
+          resourceType: "legal_hold",
+          scope: { count: found.length },
+          requestId: c.get("requestId"),
+        });
+        return found;
+      });
       return c.json({ items: rows.map(holdItem) }, 200);
     },
   )
@@ -654,6 +669,7 @@ export const documentsRouter = createRouter()
         throw problems.invalid("Choose a person, or a record type and id.");
       }
       const row = await withTenant(c, async (tx) => {
+        await lockRetention(tx, access.tenantId);
         const [placed] = await tx
           .insert(legalHold)
           .values({
@@ -812,7 +828,7 @@ export const documentsRouter = createRouter()
       tags: ["platform"],
       summary: "Destroy documents past retention and issue destruction certificates",
       description:
-        "Each id is checked again: anything held, not yet due or not found is skipped. Stored bytes (every version) are deleted; the metadata row is kept as a tombstone with the title removed.",
+        "Each id is checked again under the organisation's retention lock, with the documents locked: anything held (including a hold placed while this ran), not yet due or not found is skipped. The tombstone (title removed) and the destruction certificate are committed first; the stored bytes (every version) are deleted after, and a deletion that fails is retried from the outbox (platform.document.destroyed) until it succeeds.",
       security,
       request: { body: { content: { "application/json": { schema: DestroyDocuments } } } },
       responses: { 200: jsonBody(DestructionResult, "Destroyed"), ...errorResponses },
@@ -820,18 +836,22 @@ export const documentsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, RETENTION_PERMISSION);
       const req = c.req.valid("json");
-      const { storage } = c.get("services");
-      const result = await withTenant(c, async (tx) => {
+      const { storage, logger } = c.get("services");
+      const { result, stored } = await withTenant(c, async (tx) => {
         const now = new Date();
-        const eligible = await eligibleDocuments(tx, access.tenantId, now, req.documentIds);
+        // A hold placed before this point is committed and read below; one placed after waits
+        // for this transaction (`lockRetention`). The documents are locked against a concurrent
+        // destruction or change, and re-read as they now stand (security review, 31 October 2026).
+        await lockRetention(tx, access.tenantId);
+        const eligible = await eligibleDocuments(tx, access.tenantId, now, req.documentIds, true);
         const byClass = new Map<string, typeof eligible>();
         for (const e of eligible) {
           byClass.set(e.row.retentionClass, [...(byClass.get(e.row.retentionClass) ?? []), e]);
         }
         const certificates = [];
+        const stored: { id: string }[] = [];
         for (const [recordClass, docs] of byClass) {
-          for (const d of docs) await storage.destroy(d.row.storageKey);
-          await tx
+          const updated = await tx
             .update(document)
             .set({
               status: "destroyed",
@@ -844,23 +864,38 @@ export const documentsRouter = createRouter()
                 document.id,
                 docs.map((d) => d.row.id),
               ),
-            );
+            )
+            .returning({ id: document.id });
+          if (updated.length === 0) continue;
           const [certificate] = await tx
             .insert(destructionCertificate)
             .values({
               recordClass,
               subjectType: "document",
-              subjectIds: docs.map((d) => d.row.id),
-              recordCount: docs.length,
+              subjectIds: updated.map((d) => d.id),
+              recordCount: updated.length,
               retentionRule: docs[0]?.rule ?? {},
               reason: req.reason,
               method: `storage_delete_all_versions:${storage.provider}`,
               executedAt: now,
             })
             .returning();
-          if (certificate) certificates.push(certificate);
+          if (!certificate) throw problems.conflict();
+          certificates.push(certificate);
+          // The bytes are deleted only once this commits; the event retries the deletion until
+          // it succeeds (outboxHandlers in jobs/tasks.ts), so none outlive a failed attempt.
+          for (const d of updated) {
+            await publish(tx, {
+              context: "platform",
+              aggregateType: "document",
+              aggregateId: d.id,
+              type: "platform.document.destroyed",
+              payload: { certificateId: certificate.id },
+            });
+            stored.push(d);
+          }
         }
-        const destroyed = new Set(eligible.map((e) => e.row.id));
+        const destroyed = new Set(stored.map((d) => d.id));
         await auditInTx(tx, access, {
           action: "platform.retention.destroy",
           resourceType: "document",
@@ -869,13 +904,42 @@ export const documentsRouter = createRouter()
           requestId: c.get("requestId"),
         });
         return {
-          certificates: certificates.map(certificateItem),
-          skipped: req.documentIds.filter((id) => !destroyed.has(id)),
+          result: {
+            certificates: certificates.map(certificateItem),
+            skipped: req.documentIds.filter((id) => !destroyed.has(id)),
+          },
+          stored,
         };
       });
+      // Committed: the tombstones and certificates stand, so the bytes go now. A deletion that
+      // fails here is left to the outbox event, which the worker retries until it succeeds.
+      for (const d of stored) {
+        // The key is made from the ids, as the worker makes it (review of #134, L6).
+        await storage.destroy(documentStorageKey(access.tenantId, d.id)).catch((error: unknown) => {
+          logger.warn(
+            {
+              requestId: c.get("requestId"),
+              documentId: d.id,
+              err: { name: error instanceof Error ? error.name : "Error" },
+            },
+            "destroyed document's bytes left for the retry",
+          );
+        });
+      }
       return c.json(result, 200);
     },
   );
+
+/**
+ * One organisation's retention lock, held until the transaction ends: placing a legal hold and
+ * destroying documents both take it, so a destruction always sees every hold committed before it
+ * decides, and a hold placed meanwhile waits until the destruction has committed (security
+ * review, 31 October 2026). Releasing a hold needs no lock: a destruction that misses a release
+ * only skips a document it could have destroyed.
+ */
+async function lockRetention(tx: Transaction, tenantId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`retention:${tenantId}`}))`);
+}
 
 function certificateItem(cert: typeof destructionCertificate.$inferSelect) {
   return {
@@ -906,15 +970,17 @@ function holdItem(row: typeof legalHold.$inferSelect) {
 /**
  * Documents that are past retention, not held and not destroyed. The trigger for care-record
  * classes is when care ended (discharge or death); documents of people still receiving care are
- * never eligible. Tenant overrides of the retention class win over the global row.
+ * never eligible. Tenant overrides of the retention class win over the global row. `forUpdate`
+ * locks the documents read until the transaction ends (destruction); the holds are read after.
  */
 async function eligibleDocuments(
   tx: Transaction,
   tenantId: string,
   now: Date,
   onlyIds?: readonly string[],
+  forUpdate = false,
 ) {
-  const rows = await tx
+  const query = tx
     .select()
     .from(document)
     .where(
@@ -926,6 +992,7 @@ async function eligibleDocuments(
     )
     .orderBy(asc(document.createdAt))
     .limit(5000);
+  const rows = forUpdate ? await query.for("update") : await query;
   const classes = await tx
     .select()
     .from(retentionClass)
@@ -934,6 +1001,10 @@ async function eligibleDocuments(
     classes.find((r) => r.recordClass === recordClass && r.tenantId === tenantId) ??
     classes.find((r) => r.recordClass === recordClass && r.tenantId === null);
   const holds = await activeHolds(tx);
+  const versions = await documentVersionChains(
+    tx,
+    rows.map((r) => r.id),
+  );
   const ended = await careEndedOn(
     tx,
     rows.flatMap((r) => (r.personId ? [r.personId] : [])),
@@ -961,10 +1032,9 @@ async function eligibleDocuments(
       },
       {
         triggerDate,
-        legalHold: isUnderLegalHold(
-          { personId: row.personId, subjectType: "document", subjectId: row.id },
-          holds,
-        ),
+        // Every version, its flag, its person and the record it belongs to; a chain that cannot
+        // be read back to its first version counts as held (security review of #134, M1 and L3).
+        legalHold: documentHeld(row.id, versions, holds),
       },
       now,
     );
