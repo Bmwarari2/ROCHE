@@ -42,6 +42,10 @@ import { generatePlanTasks } from "../services/plan-tasks";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
 import {
+  escalateOverdueSafeguardingReferrals,
+  SAFEGUARDING_UNROUTED_ACTION,
+} from "../services/safeguarding";
+import {
   detectLocationOutbreaks,
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
@@ -349,6 +353,7 @@ export const UNROUTED_ACTIONS = [
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   NOTIFICATION_UNROUTED_ACTION,
+  SAFEGUARDING_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
@@ -477,6 +482,22 @@ export async function escalateStatutoryNotifications(
     escalateOverdueNotifications(tx, tenantId, now),
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
+  return escalated;
+}
+
+/**
+ * Safeguarding concerns past their referral target (safety.md "Safeguarding log", HZ-126): one
+ * alert to the holders of `safety.safeguarding.manage`, escalated through the tenant's chain until
+ * the concern is referred or a reason not to refer is recorded.
+ */
+export async function escalateSafeguardingReferrals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const escalated = await eachTenant(deps, "safeguarding-referral-escalation", (tx, tenantId) =>
+    escalateOverdueSafeguardingReferrals(tx, tenantId, now),
+  );
+  if (escalated > 0) deps.logger.info({ escalated }, "overdue safeguarding referrals escalated");
   return escalated;
 }
 

@@ -68,6 +68,7 @@ import {
 } from "./routes/platform";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
+import { safeguardingRouter } from "./routes/safeguarding";
 import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
@@ -315,6 +316,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", handoversRouter);
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
+  app.route("/", safeguardingRouter);
   app.route("/", statutoryNotificationsRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);

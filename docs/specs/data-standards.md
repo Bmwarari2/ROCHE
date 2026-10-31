@@ -455,6 +455,27 @@ mapping of incident types to LFPSE categories is an open item below.
 | `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |
 | `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
 
+## Safeguarding log (Phase 2, slice 13)
+
+Code lists for `safeguarding_concern` ([safety.md](safety.md), "Safeguarding log"; migration 0075).
+They mirror `packages/domain/src/safety/safeguarding.ts` and `ABUSE_TYPES`; the database CHECKs, the
+contract and the API tests keep them in step. No national data standard exists for a provider's
+safeguarding log; the local authority's referral form sets what a referral carries.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `safeguarding_concern.abuse_types` | Care and support statutory guidance 14.17 | One or more of `physical`, `domestic`, `sexual`, `psychological`, `financial_or_material`, `modern_slavery`, `discriminatory`, `organisational`, `neglect`, `self_neglect` | Never empty |
+| `safeguarding_concern.state` | Harbour (`SAFEGUARDING_WORKFLOW`) | `concern`, `no_referral` (reason and who decided), `referred`, `enquiry`, `outcome`, `closed` (reason, who and when) | `no_referral` and `closed` end it |
+| `safeguarding_concern.referral_due_at` | Tenant target (`safeguarding.referral_hours`, [rates.md](rates.md)) | Instant, UTC | The law says without delay; shown as Harbour's target |
+| `safeguarding_concern.referral_method` | Harbour | `phone`, `online_form`, `email`, `in_person` | With the local authority, time and reference |
+| `safeguarding_concern.enquiry_kind` | Care Act 2014 s.42(2) | `s42_local_authority`, `s42_caused_to_provider` | With when it opened |
+| `safeguarding_concern.finding` | Safeguarding Adults Collection (NHS England) outcome of the enquiry, at concept level | `substantiated`, `partly_substantiated`, `not_substantiated`, `inconclusive`, `no_s42_enquiry` | Cross-checked with the SAC definitions before Phase 5 (H-597) |
+| `safeguarding_concern.msp_asked`, `msp_desired_outcomes`, `msp_achieved` | Making Safeguarding Personal; Safeguarding Adults Collection "outcomes expressed and achieved" | Boolean; free text; `fully`, `partly`, `not` | A reason when not asked |
+| `safeguarding_concern.staff_harm` | Safeguarding Vulnerable Groups Act 2006 s.35 (removed, or would or might have been) | `removed`, `would_have_removed`, `not_removed`, `no_staff_involved` | No default: answered before the outcome and before the concern ends |
+| `safeguarding_concern.dbs_decision` | Safeguarding Vulnerable Groups Act 2006 s.35 | `referred`, `not_required` (reason) | Needed before the concern ends when `staff_harm` is `removed` or `would_have_removed` (whether `not_required` may then be recorded is H-599) |
+| `safeguarding_concern.measures_outcome` | Harbour | `carried_into_care_plan`, `no_longer_needed` | Needed before a concern with protective measures ends |
+| `safeguarding_concern.retention_class` | [retention.md](retention.md) | `serious_incident` | DPO to confirm (H-596) |
+
 ## Lifecycle records (Phase 1)
 
 Code lists for the tables in [people.md](people.md) section 2. MODS and NHS Data Dictionary

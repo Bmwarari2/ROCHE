@@ -48,6 +48,7 @@ import {
   type OutbreakAssessment,
   type OutbreakSignal,
   type OutputDeadline,
+  type Permission,
   type PostFallTaskKind,
   type PressureUlcerCategory,
   placesCover,
@@ -1047,13 +1048,23 @@ export async function submitHolders(
   locationId: string | null,
   now: Date,
 ): Promise<string[]> {
+  return permissionHolders(tx, "safety.notification.submit", locationId, now);
+}
+
+/** Active staff holding `permission` at a location, by role or current grant (as submitHolders). */
+export async function permissionHolders(
+  tx: Transaction,
+  permission: Permission,
+  locationId: string | null,
+  now: Date,
+): Promise<string[]> {
   const holders = await tx
     .selectDistinct({ id: roleAssignment.tenantUserId })
     .from(roleAssignment)
     .innerJoin(role, eq(role.id, roleAssignment.roleId))
     .where(
       and(
-        sql`${role.permissions} @> ARRAY['safety.notification.submit']::text[]`,
+        sql`${role.permissions} @> ARRAY[${permission}]::text[]`,
         isNull(roleAssignment.deletedAt),
         isNull(role.archivedAt),
         lte(roleAssignment.validFrom, now),
@@ -1065,7 +1076,7 @@ export async function submitHolders(
     .from(accessGrant)
     .where(
       and(
-        sql`${accessGrant.permissions} @> ARRAY['safety.notification.submit']::text[]`,
+        sql`${accessGrant.permissions} @> ARRAY[${permission}]::text[]`,
         isNull(accessGrant.deletedAt),
         isNull(accessGrant.revokedAt),
         lte(accessGrant.validFrom, now),
@@ -1079,12 +1090,7 @@ export async function submitHolders(
   return candidates.filter((id) => {
     const mine = rows.get(id);
     if (mine === undefined) return false;
-    const places = placesHoldingPermission(
-      mine.assignments,
-      mine.grants,
-      "safety.notification.submit",
-      now,
-    );
+    const places = placesHoldingPermission(mine.assignments, mine.grants, permission, now);
     return locationId === null
       ? places.organisationWide || places.locationIds.length > 0
       : placesCover(places, locationId);

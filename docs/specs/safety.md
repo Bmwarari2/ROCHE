@@ -294,6 +294,90 @@ Tests: `safeguarding.test.ts`, `complaints.test.ts`, `whistleblowing.test.ts`, `
 every transition and its refusals, every clock across a bank holiday and both clock changes, every
 step list.
 
+### Safeguarding log (plan slice 13: SAFE-006; HZ-126)
+
+Schema and API for Phase 2 rule 1 (migration 0075). The web screens are slice 62.
+
+**Table.** `safeguarding_concern` (mutable, versioned, retention class `serious_incident`): one
+concern about one adult using the service. Columns: location, person, the incident it came from,
+the Phase 1 s.42 draft it was opened from (`notification_id`, one concern per draft), the
+pressure-ulcer adult safeguarding decision guide task it came from (`decision_guide_task_id`), the
+abuse types (one or more of the ten in the statutory guidance, 14.17; `ABUSE_TYPES`), what the
+concern is, `raised_at` and `raised_by`, `referral_due_at`, `state` (`SAFEGUARDING_WORKFLOW`), the
+decision not to refer (reason and who decided), the referral (local authority, method, when,
+reference), the enquiry (local authority's s.42 enquiry or one caused to the provider, when it
+opened), the finding, the Making Safeguarding Personal record (asked or why not, what the person
+wanted, achieved fully, partly or not), `staff_harm` (`removed`, `would_have_removed`, `not_removed`
+or `no_staff_involved`; unanswered until a manager answers it) and the DBS referral decision, the
+protective measures for staff (with when they last changed) and where they went when the concern
+ended (`measures_outcome`: `carried_into_care_plan` or `no_longer_needed`), closure (when, by whom,
+why) and when the overdue alert last went out.
+
+Check constraints repeat the step rules (`safeguardingStepProblems` from slice 7 and
+`safeguardingLogProblems` from this slice, review round 1): a reason and who decided for not
+referring; the local authority and time for a referral; Making Safeguarding Personal before the
+referral decision (the person or an advocate asked, and what they want, or why they were not
+asked), and whether it was achieved before closing; the enquiry's kind; a finding at outcome; the
+staff question answered before the outcome and before the concern ends, and the DBS decision when a
+member of staff was removed or would have been (SVGA 2006 s.35); where the protective measures go
+before a concern ends; and only an ended concern may be soft-deleted. Whoever raised a concern
+cannot decide alone that it is not referred, or close it (`distinctFromCreator`). The description
+stays in the raiser's words: it is not changed after raising. No DELETE grant for the application:
+a concern is closed, never removed (sample data removal deletes concerns about invented sample
+people only). The log stays on the server; it is not published to devices (whether protective
+measures must reach the phone at the point of care is H-599).
+
+**Scope.** As incidents (ADR-0033) with the concern's one person, for reading: the restrictive
+`SELECT` policy is `app.incident_in_scope(location_id, raised_by, ARRAY[person_id])`, so tenant-wide
+roles, the member of staff who raised it and anyone who can see the person read the row. Writing
+(`INSERT`, `UPDATE`) needs the person in scope, or tenant scope, so raising in one's own name never
+reaches a person the caller cannot see. The log's list leaves out a concern the caller raised about
+someone the manage permission does not reach (ADR-0071). What each reader sees is the API's: the
+log itself needs `safety.safeguarding.manage`; anyone who may report an incident about the person
+may raise a concern; staff caring for the person (`care.plan.read`) read only the protective
+measures of open concerns, never the allegation (HZ-126).
+
+**Clocks.** The referral target is `safeguarding.referral_hours` after `raised_at` (a tenant target;
+the law says without delay, and the view says so), counted in elapsed hours, so a clock change does
+not move it. `safeguardingClock` gives `due`, `overdue`, `referred` or `not_referred`; past the
+target a concern stays overdue until it is referred or a reason not to refer is recorded. The
+worker's sweep (`escalateOverdueSafeguardingReferrals`, beside the statutory notification sweep)
+tells the holders of `safety.safeguarding.manage` at the home where the person lives now, urgently,
+in app and by push, through the tenant's escalation chain `safety.safeguarding.overdue` (default: the
+owner role after `statutory_notification.escalation_minutes`), and publishes
+`safety.safeguarding.overdue`. It alerts again each day while the concern waits
+(`SAFEGUARDING_REALERT_MS`), so acknowledging an alert in the notification centre never silences it.
+Referring or deciding not to refer acknowledges the alerts, and a decision not to refer tells the
+other managers of the log at the person's home (whether it needs a second person's agreement is
+H-599). An overdue concern no active member of staff can manage is audited once a day as
+`safety.safeguarding.unrouted` (as HZ-013 does for notifications).
+
+**From the Phase 1 drafts.** A concern may be opened from a `safeguarding_s42` draft: the person,
+location and incident come from the draft. Recording the referral on the concern does not submit the
+draft, which keeps its own clock and is recorded as submitted (with step-up) by a holder of
+`safety.notification.submit`; the concern's view shows the draft's status and warns while the
+concern is referred and the draft is still open.
+
+**API** (audited with opaque ids only; reads as `safety.safeguarding.view`, writes as
+`safety.safeguarding.<action>`):
+
+| Route | Permission | What it does |
+| --- | --- | --- |
+| `POST /v1/safeguarding/concerns` | `safety.incident.report`, reaching the person | Raise a concern (optional client id: a replay returns the same concern) |
+| `GET /v1/safeguarding/concerns` | `safety.safeguarding.manage` | The log in scope, open first, with each clock |
+| `GET /v1/safeguarding/concerns/{id}` | `safety.safeguarding.manage` | One concern, its clock, the linked draft's status and what each next step still needs |
+| `PUT /v1/safeguarding/concerns/{id}` | `safety.safeguarding.manage` | Record the referral, enquiry, finding, Making Safeguarding Personal, the staff answer, DBS decision, protective measures and where they go (`expected version`; never the description) |
+| `POST /v1/safeguarding/concerns/{id}/step` | `safety.safeguarding.manage` | Move the workflow (`safeguardingStepProblems`; a reason for not referring and for closing) |
+| `GET /v1/people/{id}/safeguarding/measures` | `care.plan.read` | The protective measures of the person's open concerns (`protectiveMeasuresFor`) |
+
+Outbox events: `safety.safeguarding.raised`, `safety.safeguarding.moved`,
+`safety.safeguarding.overdue`. Notifications: `safety.safeguarding.overdue` (urgent),
+`safety.safeguarding.not_referred` (warning); titles and bodies carry no personal data.
+
+Tests: `packages/domain/src/safety/safeguarding.test.ts` (HZ-126 clock and measures),
+`packages/db/test/safeguarding-log.test.ts` (isolation, scope, no delete, versions, the integrity
+checks), `apps/api/test/safeguarding.test.ts` (routes, scope through the API, the sweep).
+
 ## 5. API and events
 
 `/v1/incidents` (create, list in scope, get, update, close), `/v1/incidents/{id}/classifier`
