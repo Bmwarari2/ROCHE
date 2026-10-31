@@ -28,3 +28,8 @@ Branch `feat/web-history-journey`.
 ## Tests
 
 - `history.spec.ts` passes locally against the dev servers (Postgres 16).
+
+## Status update (31/10/2026)
+
+- `docs/plans/STATUS.md`: the pick-up section lists the six branches pushed on 31/10/2026 in merge
+  order, the open items they found, and the remaining Phase 1 work.
