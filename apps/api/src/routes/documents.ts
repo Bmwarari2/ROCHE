@@ -24,7 +24,8 @@ import {
 import {
   checkSignature,
   type DocumentCategoryKey,
-  isUnderLegalHold,
+  type HeldDocumentVersion,
+  isDocumentUnderLegalHold,
   narrowestScope,
   type Permission,
   type RetentionRule,
@@ -982,6 +983,10 @@ async function eligibleDocuments(
     classes.find((r) => r.recordClass === recordClass && r.tenantId === tenantId) ??
     classes.find((r) => r.recordClass === recordClass && r.tenantId === null);
   const holds = await activeHolds(tx);
+  const versions = await versionChains(
+    tx,
+    rows.map((r) => r.id),
+  );
   const ended = await careEndedOn(
     tx,
     rows.flatMap((r) => (r.personId ? [r.personId] : [])),
@@ -1009,10 +1014,9 @@ async function eligibleDocuments(
       },
       {
         triggerDate,
-        legalHold: isUnderLegalHold(
-          { personId: row.personId, subjectType: "document", subjectId: row.id },
-          holds,
-        ),
+        // Every version, its flag, its person and the record it belongs to (security review,
+        // 31 October 2026); the document alone if its chain could not be read.
+        legalHold: isDocumentUnderLegalHold(versions.get(row.id) ?? [versionOf(row)], holds),
       },
       now,
     );
@@ -1025,4 +1029,72 @@ async function eligibleDocuments(
     }
   }
   return eligible;
+}
+
+const versionOf = (row: {
+  id: string;
+  personId: string | null;
+  subjectType: string | null;
+  subjectId: string | null;
+  legalHold: boolean;
+}): HeldDocumentVersion => ({
+  id: row.id,
+  personId: row.personId,
+  subjectType: row.subjectType,
+  subjectId: row.subjectId,
+  legalHold: row.legalHold,
+});
+
+/**
+ * Each document's whole version chain (every version before and after it, destroyed or not), so
+ * a hold on any version holds them all (security review, 31 October 2026). Versions link back
+ * through `previous_version_id`: walk back to the first version, then forward from it.
+ */
+async function versionChains(
+  tx: Transaction,
+  ids: readonly string[],
+): Promise<Map<string, HeldDocumentVersion[]>> {
+  const chains = new Map<string, HeldDocumentVersion[]>();
+  if (ids.length === 0) return chains;
+  const { rows } = await tx.execute<{
+    start_id: string;
+    id: string;
+    person_id: string | null;
+    subject_type: string | null;
+    subject_id: string | null;
+    legal_hold: boolean;
+  }>(sql`
+    WITH RECURSIVE back (start_id, id, previous_id) AS (
+      SELECT d.id, d.id, d.previous_version_id FROM document d
+       WHERE d.id = ANY(ARRAY[${sql.join(
+         ids.map((id) => sql`${id}`),
+         sql`, `,
+       )}]::uuid[])
+      UNION
+      SELECT b.start_id, p.id, p.previous_version_id
+        FROM back b JOIN document p ON p.id = b.previous_id
+    ),
+    firsts AS (SELECT start_id, id AS first_id FROM back WHERE previous_id IS NULL),
+    forward (first_id, id) AS (
+      SELECT DISTINCT first_id, first_id FROM firsts
+      UNION
+      SELECT f.first_id, d.id FROM forward f JOIN document d ON d.previous_version_id = f.id
+    )
+    SELECT firsts.start_id, d.id, d.person_id, d.subject_type, d.subject_id, d.legal_hold
+      FROM firsts
+      JOIN forward f ON f.first_id = firsts.first_id
+      JOIN document d ON d.id = f.id
+  `);
+  for (const r of rows) {
+    const list = chains.get(r.start_id) ?? [];
+    list.push({
+      id: r.id,
+      personId: r.person_id,
+      subjectType: r.subject_type,
+      subjectId: r.subject_id,
+      legalHold: r.legal_hold,
+    });
+    chains.set(r.start_id, list);
+  }
+  return chains;
 }

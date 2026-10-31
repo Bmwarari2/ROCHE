@@ -601,6 +601,91 @@ describe("legal holds and destruction (section 5.1)", () => {
     }
   });
 
+  describe("what a hold covers (security review, 31 October 2026)", () => {
+    /** A document about resident 3, whose care ended nine years ago. */
+    const store = async (title: string, subject: Record<string, string> = {}) =>
+      json<DocumentItem>(
+        await upload(
+          "manager",
+          { category: "person_document", title, personId: resident(3), ...subject },
+          PDF,
+          "application/pdf",
+        ),
+      );
+    const newVersion = async (of: DocumentItem) =>
+      json<DocumentItem>(
+        await as("manager", `/v1/documents/${of.id}/versions`, {
+          method: "POST",
+          raw: { bytes: PDF, contentType: "application/pdf" },
+        }),
+      );
+    const hold = async (subjectType: string, subjectId: string) => {
+      const placed = await as("owner", "/v1/legal-holds", {
+        method: "POST",
+        body: { subjectType, subjectId, reason: "Claim notified by the insurer" },
+      });
+      expect(placed.status).toBe(201);
+    };
+    const destroy = async (documentIds: string[]) =>
+      json<DestructionResult>(
+        await as("owner", "/v1/retention/destroy", {
+          method: "POST",
+          body: { documentIds, reason: "Annual records review" },
+        }),
+      );
+    const candidates = async () =>
+      (await json<RetentionCandidateList>(await as("owner", "/v1/retention/candidates"))).items.map(
+        (i) => i.documentId,
+      );
+
+    beforeAll(async () => {
+      await dischargedLongAgo(resident(3));
+    });
+
+    it("holds a document through a hold on the record it belongs to", async () => {
+      const incidentId = crypto.randomUUID();
+      const statement = await store("Statement about the fall", {
+        subjectType: "incident",
+        subjectId: incidentId,
+      });
+      const unrelated = await store("Statement about another fall", {
+        subjectType: "incident",
+        subjectId: crypto.randomUUID(),
+      });
+      expect(await candidates()).toContain(statement.id);
+      await hold("incident", incidentId);
+      expect(await candidates()).not.toContain(statement.id);
+      const result = await destroy([statement.id, unrelated.id]);
+      expect(result.skipped).toEqual([statement.id]);
+      expect(result.certificates).toMatchObject([{ recordCount: 1 }]);
+    });
+
+    it("holds every version when any one version is held", async () => {
+      const first = await store("Tenancy agreement");
+      const second = await newVersion(first);
+      expect(second.previousVersionId).toBe(first.id);
+      await hold("document", first.id);
+      expect(await candidates()).not.toContain(second.id);
+      expect((await destroy([second.id])).skipped).toEqual([second.id]);
+
+      const older = await store("Room agreement");
+      const later = await newVersion(older);
+      const latest = await newVersion(later);
+      await hold("document", latest.id);
+      expect((await destroy([older.id, later.id])).skipped).toEqual([older.id, later.id]);
+    });
+
+    it("honours a document's own legal hold flag", async () => {
+      const flagged = await store("Consent form");
+      await asDemoTenant((c) =>
+        c.query("UPDATE document SET legal_hold = true WHERE id = $1", [flagged.id]),
+      );
+      expect(await candidates()).not.toContain(flagged.id);
+      expect((await destroy([flagged.id])).skipped).toEqual([flagged.id]);
+      expect(await h.handle.services.storage.get(await storageKeyOf(flagged.id))).not.toBeNull();
+    });
+  });
+
   it("keeps holds and destruction to tenant-wide records roles", async () => {
     expect((await as("carer", "/v1/legal-holds")).status).toBe(403);
     // The Registered Manager is location-scoped and cannot destroy records either.
