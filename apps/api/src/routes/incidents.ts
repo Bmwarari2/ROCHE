@@ -22,6 +22,7 @@ import {
   bodyMapMark,
   candourRecord,
   classifierAnswer,
+  document,
   incident,
   incidentPerson,
   investigation,
@@ -223,6 +224,57 @@ async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: st
     throw problems.forbidden();
   }
   return found;
+}
+
+/** The candour record's times say when something was done, so none may be later than now. */
+function candourTimeProblems(body: UpdateCandour, now: Date) {
+  const future = (iso: string | null | undefined) => Boolean(iso && new Date(iso) > now);
+  if (future(body.verbal?.at)) {
+    throw problems.invalid("The time they were told cannot be in the future.");
+  }
+  if (future(body.written?.sentAt)) {
+    throw problems.invalid("The time the written notification was sent cannot be in the future.");
+  }
+  if ((body.contactAttempts ?? []).some((a) => future(a.at))) {
+    throw problems.invalid("The time of an attempt to contact them cannot be in the future.");
+  }
+  if (future(body.enquiryResultsSharedAt)) {
+    throw problems.invalid("The time the results were shared cannot be in the future.");
+  }
+}
+
+/**
+ * Every document the candour record cites (the written record of the conversation, the written
+ * notification's copy, the correspondence) must be a document about the relevant person that the
+ * caller can see (review L5).
+ */
+async function checkCandourDocuments(
+  tx: Transaction,
+  body: UpdateCandour,
+  personId: string | null,
+) {
+  const ids = [
+    ...(body.verbal?.writtenRecordId ? [body.verbal.writtenRecordId] : []),
+    ...(body.written?.documentId ? [body.written.documentId] : []),
+    ...(body.correspondenceDocumentIds ?? []),
+  ];
+  if (ids.length === 0) return;
+  const unique = [...new Set(ids)];
+  const found = personId
+    ? await tx
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            inArray(document.id, unique),
+            eq(document.personId, personId),
+            isNull(document.deletedAt),
+          ),
+        )
+    : [];
+  if (found.length !== unique.length) {
+    throw problems.invalid("A document cited must be on the relevant person's record.");
+  }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -712,7 +764,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Close an incident (someone other than the person who raised it)",
       description:
-        "Refused while a notification is a draft or ready, a classifier question is open or the candour record is open (incidentCloseProblems), and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or more than one person we support was affected by a notifiable incident (one candour record covers one person) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
       security,
       request: {
         params: IncidentParam,
@@ -737,7 +789,11 @@ export const incidentsRouter = createRouter()
         // closer cannot see.
         const blockers = await withTenantWideScope(tx, async () => {
           const notifications = await tx
-            .select({ kind: statutoryNotification.kind, status: statutoryNotification.status })
+            .select({
+              kind: statutoryNotification.kind,
+              status: statutoryNotification.status,
+              noLongerIndicated: statutoryNotification.noLongerIndicated,
+            })
             .from(statutoryNotification)
             .where(
               and(
@@ -746,9 +802,27 @@ export const incidentsRouter = createRouter()
               ),
             );
           const [candour] = await tx
-            .select({ state: candourRecord.state })
+            .select({
+              state: candourRecord.state,
+              notifiable: candourRecord.thresholdNotifiable,
+              personId: candourRecord.personId,
+            })
             .from(candourRecord)
             .where(eq(candourRecord.incidentId, id));
+          // The duty of candour applies to the people we support affected by the incident; one
+          // candour record covers one of them (HZ-013, review H1 and H2).
+          const affected = await tx
+            .select({ personId: incidentPerson.personId })
+            .from(incidentPerson)
+            .where(
+              and(
+                eq(incidentPerson.incidentId, id),
+                eq(incidentPerson.kind, "service_user"),
+                eq(incidentPerson.role, "affected"),
+                isNull(incidentPerson.deletedAt),
+              ),
+            );
+          const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
           return incidentCloseProblems({
             notifications: notifications.map((n) => ({
               kind: n.kind,
@@ -756,6 +830,17 @@ export const incidentsRouter = createRouter()
             })),
             openQuestions: row.openQuestions,
             candourState: candour?.state ?? null,
+            candour: {
+              indicated:
+                (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
+                notifications.some(
+                  (n) =>
+                    n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
+                ),
+              notifiable: candour?.notifiable ?? null,
+              personId: candour?.personId ?? null,
+              people: [...new Set(affected.flatMap((p) => (p.personId ? [p.personId] : [])))],
+            },
           });
         });
         if (blockers.length > 0) throw problems.invalid(blockers.join(" "));
@@ -987,6 +1072,10 @@ export const incidentsRouter = createRouter()
         if (body.threshold && new Date(body.threshold.decidedAt) > now) {
           throw problems.invalid("The decision cannot be dated in the future.");
         }
+        if (body.threshold && new Date(body.threshold.decidedAt) < row.occurredAt) {
+          throw problems.invalid("The decision cannot be dated before the incident happened.");
+        }
+        candourTimeProblems(body, now);
         let [record] = await tx
           .select()
           .from(candourRecord)
@@ -1004,6 +1093,12 @@ export const incidentsRouter = createRouter()
             now,
           );
         }
+        // A document cited must be on the relevant person's record, as the reader sees it.
+        await checkCandourDocuments(
+          tx,
+          body,
+          body.personId !== undefined ? body.personId : record.personId,
+        );
         const thresholdChanged =
           body.threshold !== undefined &&
           (body.threshold?.notifiable ?? null) !== record.thresholdNotifiable;
@@ -1208,6 +1303,10 @@ export const incidentsRouter = createRouter()
           const before = previous.find((p) => p.id === action.id);
           const actionId = action.id ?? crypto.randomUUID();
           let taskId = before?.taskId ?? null;
+          // An action done or cancelled and now open again gets a new task: its old one is
+          // finished (review L1), so without a new one it would never be done.
+          const reopened = Boolean(before && before.status !== "open" && action.status === "open");
+          if (reopened) taskId = null;
           if (!taskId && action.status === "open" && action.ownerTenantUserId && action.dueOn) {
             // Being the assignee lets someone complete the task, so its owner must hold the
             // task's permission where the incident is, as the task engine requires of every

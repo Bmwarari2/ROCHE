@@ -874,6 +874,225 @@ describe("duty of candour and investigations", () => {
     expect(complete.status).toBe(422);
   });
 
+  /** A PDF about a resident, as if added to their record. */
+  async function documentAbout(n: number): Promise<string> {
+    const query = new URLSearchParams({
+      category: "person_document",
+      title: "Note of the conversation",
+      personId: resident(n),
+    });
+    const response = await h.request(`/v1/documents?${query}`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      raw: {
+        bytes: new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n"),
+        contentType: "application/pdf",
+      },
+    });
+    expect(response.status).toBe(201);
+    return (await json<{ id: string }>(response)).id;
+  }
+
+  const candour = (incidentId: string, body: Record<string, unknown>, method = "PUT") =>
+    as("manager", `/v1/incidents/${incidentId}/candour${method === "POST" ? "/step" : ""}`, {
+      method,
+      body,
+    });
+  const closeDetail = async (incidentId: string) => {
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incidentId}`));
+    const response = await as("manager", `/v1/incidents/${incidentId}/close`, {
+      method: "POST",
+      body: { reason: "Everything is done.", version: current.version },
+    });
+    expect(response.status).toBe(422);
+    return (await json<{ detail: string }>(response)).detail;
+  };
+  /** Records the decision, then finishes the record as no contact (no documents needed). */
+  async function finishWithoutContact(incidentId: string, personId: string) {
+    let view = await json<CandourView>(
+      await candour(incidentId, {
+        personId,
+        threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+        version: 0,
+      }),
+    );
+    view = await json<CandourView>(
+      await candour(incidentId, { to: "verbal_due", version: view.record?.version }, "POST"),
+    );
+    view = await json<CandourView>(
+      await candour(incidentId, {
+        contactAttempts: [{ at: new Date().toISOString(), note: "Phoned twice, no answer." }],
+        version: view.record?.version,
+      }),
+    );
+    const done = await candour(
+      incidentId,
+      { to: "no_contact", reason: "No answer after two calls.", version: view.record?.version },
+      "POST",
+    );
+    expect(done.status).toBe(200);
+  }
+
+  it("hazard HZ-013 refuses to close a notifiable incident with no candour record (review H2)", async () => {
+    const incident = await created("manager", {
+      type: "medication",
+      people: [affected(4)],
+      answers: [
+        { key: "candour.unintended_or_unexpected", value: "yes" },
+        { key: "harm.body_structure_changed", value: "yes" },
+      ],
+    });
+    expect(incident.classifier?.outputs.map((o) => o.kind)).toContain("candour");
+    expect(await closeDetail(incident.id)).toContain(
+      "Record the duty of candour threshold decision before closing.",
+    );
+    await finishWithoutContact(incident.id, resident(4));
+    expect(await closeDetail(incident.id)).not.toContain("duty of candour");
+  });
+
+  it("hazard HZ-013 refuses to close until each person affected is told (review H1)", async () => {
+    const incident = await created("manager", {
+      type: "medication",
+      people: [affected(4), affected(5)],
+      answers: [
+        { key: "candour.unintended_or_unexpected", value: "yes" },
+        { key: "harm.body_structure_changed", value: "yes" },
+      ],
+    });
+    await finishWithoutContact(incident.id, resident(4));
+    expect(await closeDetail(incident.id)).toContain(
+      "The duty of candour applies to more than one person",
+    );
+  });
+
+  it("hazard HZ-091 refuses candour times later than now, a decision before the incident and another person's document (review L5)", async () => {
+    const incident = await created("manager", {
+      type: "medication",
+      people: [affected(4)],
+      answers: [],
+      occurredAt: ago(2 * HOUR),
+    });
+    const early = await candour(incident.id, {
+      personId: resident(4),
+      threshold: { notifiable: true, decidedAt: ago(3 * HOUR), decidedBy: "A GP" },
+      version: 0,
+    });
+    expect(early.status).toBe(422);
+    expect((await json<{ detail: string }>(early)).detail).toBe(
+      "The decision cannot be dated before the incident happened.",
+    );
+    const view = await json<CandourView>(
+      await candour(incident.id, {
+        personId: resident(4),
+        threshold: { notifiable: true, decidedAt: ago(HOUR), decidedBy: "A GP" },
+        version: 0,
+      }),
+    );
+    const version = view.record?.version;
+    const verbal = (at: string, writtenRecordId: string | null) => ({
+      at,
+      byRepresentatives: ["The Registered Manager"],
+      inPerson: true,
+      accountGiven: true,
+      enquiriesAdvised: true,
+      apologyGiven: true,
+      writtenRecordId,
+    });
+    const refused = async (body: Record<string, unknown>, detail: string) => {
+      const response = await candour(incident.id, { ...body, version });
+      expect(response.status).toBe(422);
+      expect((await json<{ detail: string }>(response)).detail).toBe(detail);
+    };
+    const later = new Date(Date.now() + HOUR).toISOString();
+    await refused(
+      { verbal: verbal(later, null) },
+      "The time they were told cannot be in the future.",
+    );
+    await refused(
+      {
+        written: {
+          sentAt: later,
+          documentId: null,
+          includesAccount: true,
+          includesEnquiries: true,
+          includesApology: true,
+        },
+      },
+      "The time the written notification was sent cannot be in the future.",
+    );
+    await refused(
+      { contactAttempts: [{ at: later, note: "Phoned, no answer." }] },
+      "The time of an attempt to contact them cannot be in the future.",
+    );
+    await refused(
+      { enquiryResultsSharedAt: later },
+      "The time the results were shared cannot be in the future.",
+    );
+    const someoneElses = await documentAbout(5);
+    await refused(
+      { verbal: verbal(ago(MIN), someoneElses) },
+      "A document cited must be on the relevant person's record.",
+    );
+    await refused(
+      { correspondenceDocumentIds: [newId()] },
+      "A document cited must be on the relevant person's record.",
+    );
+    const theirs = await documentAbout(4);
+    const saved = await candour(incident.id, {
+      verbal: verbal(ago(MIN), theirs),
+      correspondenceDocumentIds: [theirs],
+      version,
+    });
+    expect(saved.status).toBe(200);
+  });
+
+  it("hazard HZ-091 gives a reopened action a new task (review L1)", async () => {
+    const incident = await created("manager", { type: "near_miss", people: [] });
+    const action = {
+      action: "Inspect every sling on the unit.",
+      ownerTenantUserId: DEMO.users.nurse.id,
+      dueOn: "2026-12-01",
+    };
+    const first = await json<InvestigationView>(
+      await as("manager", `/v1/incidents/${incident.id}/investigation`, {
+        method: "PUT",
+        body: { actions: [action], version: 0 },
+      }),
+    );
+    const made = first.record?.actions[0];
+    const done = await json<InvestigationView>(
+      await as("manager", `/v1/incidents/${incident.id}/investigation`, {
+        method: "PUT",
+        body: {
+          actions: [{ ...action, id: made?.id, status: "done" }],
+          version: first.record?.version,
+        },
+      }),
+    );
+    const reopened = await json<InvestigationView>(
+      await as("manager", `/v1/incidents/${incident.id}/investigation`, {
+        method: "PUT",
+        body: {
+          actions: [{ ...action, id: made?.id, status: "open" }],
+          version: done.record?.version,
+        },
+      }),
+    );
+    const again = reopened.record?.actions[0];
+    expect(again?.taskId).toBeTruthy();
+    expect(again?.taskId).not.toBe(made?.taskId);
+    const statuses = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ id: string; status: string }>(
+        "SELECT id, status FROM task WHERE id = ANY($1::uuid[])",
+        [[made?.taskId, again?.taskId]],
+      );
+      return Object.fromEntries(rows.map((r) => [r.id, r.status]));
+    });
+    expect(statuses[made?.taskId ?? ""]).toBe("done");
+    expect(statuses[again?.taskId ?? ""]).toBe("open");
+  });
+
   it("hazard HZ-091 refuses an action's task for an owner who could never complete it", async () => {
     const incident = await created("manager", { type: "near_miss", people: [] });
     const action = (ownerTenantUserId: string) => ({
