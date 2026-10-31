@@ -53,10 +53,12 @@ import { publish } from "../outbox";
 import { COVER_TASK_KIND } from "../services/device-holds";
 import {
   assigneeMayComplete,
+  EVIDENCE_ONLY_TASK_KINDS,
   escalationMinutes,
   GENERAL_TASK_PERMISSION,
   materialiseSeries,
   mayBeGiven,
+  SELF_ESCALATED_TASK_KINDS,
   taskStaff,
   toTaskItem,
 } from "../services/tasks";
@@ -105,6 +107,7 @@ async function completionRefusal(
   row: typeof task.$inferSelect,
   now: Date,
 ): Promise<string | null> {
+  if (EVIDENCE_ONLY_TASK_KINDS.includes(row.kind)) return "completed_by_its_evidence";
   const permission = row.requiredPermission;
   if (isPermission(permission) && can(access.effective, permission)) {
     const here = await inScopeOf(tx, scopeFor(access.effective, permission), () =>
@@ -764,6 +767,14 @@ async function transition(c: Context<AppEnv>, id: string, body: TaskTransitionRe
         });
       }
       if (row.version !== body.version) throw problems.conflict();
+      // A task that only resolving its cause finishes (#120 review round 4, M1): the duty of
+      // candour holding an incident open ends when nothing holds it, never by a person marking
+      // the task done, skipped or cancelled, which would restart its escalation.
+      if (SELF_ESCALATED_TASK_KINDS.includes(row.kind) && body.to !== "in_progress") {
+        throw problems.invalid(
+          "This task finishes on its own once the duty of candour no longer holds the incident open: finish the duty of candour on the incident.",
+        );
+      }
       const check = checkTaskTransition(asTaskStatus(row.status), {
         to: body.to,
         reason: body.reason ?? null,

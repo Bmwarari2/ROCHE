@@ -18,6 +18,7 @@ export const SAFETY_PHASE2_RATE_KEYS = {
   ahraResponseDays: "ahra.response_days",
   ahraRecentRecordResponseDays: "ahra.recent_record_response_days",
   ahraRecentRecordDays: "ahra.recent_record_days",
+  speakUpReplyTokenDays: "speak_up.reply_token_days",
 } as const;
 
 export type SafetyPhase2RateName = keyof typeof SAFETY_PHASE2_RATE_KEYS;

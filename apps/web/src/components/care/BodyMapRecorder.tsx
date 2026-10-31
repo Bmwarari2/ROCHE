@@ -121,6 +121,18 @@ export function BodyMapRecorder({
     const category = String(form.get("pressureCategory") ?? "");
     const deviceRelated = readYesNo(form.get("deviceRelated"));
     const bruiseExplained = readYesNo(form.get("bruiseExplained"));
+    // The API refuses these too; asking here says which question is missing before sending.
+    if (markType === "pressure_ulcer" && !category) {
+      return setResult(
+        refused(t("care.bodyMap.categoryRequired"), "invalid", ["pressureCategory"]),
+      );
+    }
+    if (markType === "pressure_ulcer" && deviceRelated === null) {
+      return setResult(refused(t("care.bodyMap.deviceRequired"), "invalid", ["deviceRelated"]));
+    }
+    if (markType === "bruise" && bruiseExplained === null) {
+      return setResult(refused(t("care.bodyMap.bruiseRequired"), "invalid", ["bruiseExplained"]));
+    }
     const when = readEntryWhen(form, "occurredAt", t, outages);
     if (!when.ok) return setResult(collectedRefusal(when.problems));
     startTransition(async () => {
@@ -240,6 +252,7 @@ export function BodyMapRecorder({
                   name="pressureCategory"
                   label={t("care.bodyMap.category")}
                   emptyOption={t("care.bodyMap.categoryEmpty")}
+                  required
                   options={CATEGORIES.map((category) => ({
                     value: category,
                     label: t("care.bodyMap.categoryOption", { category }),
@@ -250,6 +263,7 @@ export function BodyMapRecorder({
                   error={errorFor(result, "deviceRelated")}
                   legend={t("care.bodyMap.deviceRelated")}
                   name="deviceRelated"
+                  required
                   layout="inline"
                   options={[
                     { value: "yes", label: t("care.common.yes") },
@@ -264,6 +278,7 @@ export function BodyMapRecorder({
                 error={errorFor(result, "bruiseExplained")}
                 legend={t("care.bodyMap.bruiseExplained")}
                 name="bruiseExplained"
+                required
                 layout="inline"
                 options={[
                   { value: "yes", label: t("care.common.yes") },
@@ -328,7 +343,9 @@ export function BodyMapRecorder({
           </Button>
         </div>
       </form>
-      <FormFeedback result={result} success={t("care.bodyMap.saved")} fieldIds={ids} />
+      {/* The API's answer does not say whether follow-up tasks were raised (only for marks still
+          present), so the saved message never predicts them (HZ-027 review). */}
+      <FormFeedback result={result} success={t("care.bodyMap.savedFollowUp")} fieldIds={ids} />
     </div>
   );
 }

@@ -10,7 +10,14 @@ import { getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { LETTER_MANAGE, templateName, templatesForLetters, typedFieldsOf } from "@/lib/letters";
+import {
+  emailTemplatesLeftOut,
+  LETTER_MANAGE,
+  mergeFieldNames,
+  templateName,
+  templatesForLetters,
+  typedFieldsOf,
+} from "@/lib/letters";
 import { getPerson, readOrFail } from "@/lib/person-record";
 import { firstParam, recordMetadata } from "@/lib/record-metadata";
 
@@ -71,27 +78,34 @@ async function LettersTab({
         lettersRefused === "mfa_verification_required" ? (
           <p className="m-0">{t("errors.mfaVerifyRequired")}</p>
         ) : (
-          <LetterComposer
-            personId={id}
-            path={path}
-            templates={usable.map((template) => ({
-              id: template.id,
-              name: templateName(template, t),
-              kind: template.kind,
-              typed: template.current ? typedFieldsOf(template.current) : [],
-            }))}
-            incidents={
-              incidents
-                ? incidents.items.map((incident) => ({
-                    id: incident.id,
-                    label: t("comms.letters.incidentOption", {
-                      type: incident.type,
-                      when: formatDateTime(incident.occurredAt) ?? "",
-                    }),
-                  }))
-                : null
-            }
-          />
+          <>
+            {emailTemplatesLeftOut(templates?.items ?? []) ? (
+              <p className="m-0 max-w-prose text-body-dense text-text-secondary">
+                {t("comms.letters.emailNotYet")}
+              </p>
+            ) : null}
+            <LetterComposer
+              personId={id}
+              path={path}
+              templates={usable.map((template) => ({
+                id: template.id,
+                name: templateName(template, t),
+                kind: template.kind,
+                typed: template.current ? typedFieldsOf(template.current) : [],
+              }))}
+              incidents={
+                incidents
+                  ? incidents.items.map((incident) => ({
+                      id: incident.id,
+                      label: t("comms.letters.incidentOption", {
+                        type: incident.type,
+                        when: formatDateTime(incident.occurredAt) ?? "",
+                      }),
+                    }))
+                  : null
+              }
+            />
+          </>
         )}
       </Card>
       <Card as="section" title={t("comms.letters.sentTitle")} headingLevel={3}>
@@ -114,7 +128,7 @@ async function LettersTab({
                 {letter.personalFields.length > 0 ? (
                   <p className="m-0 text-body-dense">
                     {t("comms.templates.personalFields", {
-                      fields: letter.personalFields.join(", "),
+                      fields: mergeFieldNames(letter.personalFields),
                     })}
                   </p>
                 ) : null}

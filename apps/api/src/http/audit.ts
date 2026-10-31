@@ -75,6 +75,23 @@ export async function auditInTx(
 }
 
 /**
+ * Appends several audit events in one statement inside the caller's transaction (for example one
+ * per record a bulk import creates), in the order given, so the hash chain follows that order.
+ */
+export async function auditManyInTx(
+  tx: Transaction,
+  access: TenantAccess,
+  inputs: readonly AuditInput[],
+): Promise<void> {
+  const chunk = 500;
+  for (let start = 0; start < inputs.length; start += chunk) {
+    await tx
+      .insert(auditEvent)
+      .values(inputs.slice(start, start + chunk).map((input) => values(access, input)));
+  }
+}
+
+/**
  * Appends an audit event in its own transaction, for refusals and events that must be kept even
  * when the request fails. Without an access context the event is a platform event (NULL tenant).
  */

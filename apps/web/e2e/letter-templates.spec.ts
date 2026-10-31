@@ -51,7 +51,7 @@ test("hazard HZ-051 a draft shows each problem at its field, and its author cann
   page,
 }) => {
   await signIn(page, "manager@example.invalid");
-  await page.getByRole("navigation").getByRole("link", { name: "Letters" }).click();
+  await page.getByRole("navigation").getByRole("link", { name: "Letter templates" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Letter and email templates" }),
   ).toBeVisible();

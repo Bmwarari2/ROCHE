@@ -11,7 +11,7 @@ import {
   type TaskStatus,
   taskTimeState,
 } from "@harbour/domain";
-import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import { accessRowsOfMember } from "./access-rows";
 import {
   COVER_TASK_KIND,
@@ -260,6 +260,13 @@ const PLAN_WRITE_PERMISSION = "care.plan.write";
 export const OVERDUE_FIRST_RESPONDERS = ["clinical_lead", "team_leader"] as const;
 
 /**
+ * Tasks with their own escalation ladder, which this engine leaves alone: the duty of candour
+ * holding an incident open goes to Registered Managers, then owners, who manage incidents, every
+ * day until it is resolved (`services/candour-blocked.ts`; #120 review round 3, M2).
+ */
+export const SELF_ESCALATED_TASK_KINDS: readonly string[] = ["safety.candour_close_blocked"];
+
+/**
  * Which overdue tasks a run takes (review round 4): `due`, those not audited as unrouted in the
  * last day (every minute, so a batch is never crowded by tasks no one can be told about; security
  * review round 7, L3); `retry`, the tasks other than sync tasks audited as unrouted in the last
@@ -350,6 +357,7 @@ export async function escalateOverdueTasks(
           inArray(task.status, ["open", "in_progress"]),
           eq(task.escalationLevel, 0),
           isNull(task.deletedAt),
+          notInArray(task.kind, [...SELF_ESCALATED_TASK_KINDS]),
           lt(lateAt, threshold),
           run === "due"
             ? // A task no one could be told about waits for the hourly retry (any other task) or a
@@ -494,6 +502,13 @@ export const GENERAL_TASK_PERMISSION = "platform.task.manage";
  * (the assign route checks it).
  */
 export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action"];
+
+/**
+ * Task kinds only their evidence completes, never a transition: a read-and-sign reminder is done
+ * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
+ * done or skipped without the signature.
+ */
+export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = ["quality.policy_read_and_sign"];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */
 export function anyoneMayBeGiven(row: {

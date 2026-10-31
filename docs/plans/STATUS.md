@@ -5,13 +5,17 @@ Read this and the [feature register](../specs/feature-register.md) at the start 
 gate passes on `main` (section 19, definition of complete).
 
 **Overall: 0% done** (0 of 233 register rows `done`; 70 `partial`, 163 `todo`). Rows become `done`
+**Overall: 0% done** (0 of 233 register rows `done`; 76 `partial`, 157 `todo`). Rows become `done`
 only when they link spec, code, tests and user documentation; no user guides exist yet.
+only when they link spec, code, tests and user documentation; user guides exist for the Phase 1
+screens (#128, `docs/user-guides/`).
 
 | Phase | Scope | State |
 | --- | --- | --- |
 | 0 Foundations | Repo, CI, docs, design system, tenancy and RLS, auth, audit, notifications, forms skeleton, rate table, integrations framework, operator API, API, web and mobile skeletons, Terraform | Merged to `main` (#1, with web copy, `TextArea` and `AccountMenu` in #7). See [phase-0.md](phase-0.md) |
 | 1 Residential MVP | People lifecycle, care plans, assessments, notes, charts, body map, tasks and handover, MCA and DoLS, incidents and classifier, downtime pack, offline Care mode, family feed | In progress: [phase-1.md](phase-1.md). On `main`: plan (#2), task and workflow engine (#3), documents and retention (#4), validated tools (#5), notes, charts, body map and care profile (#6), working days (#8), handover and round rules (#9), database pool resilience (#10), people lifecycle rules (#11), care planning schema and API (#12), consent, capacity, DoLS and incident rules (#13) and their schema and API (#14), one rule for event times typed during a clock change (#16), the web person record (#17), and the spec and rules for slice 11 packs and governance (#18), slice 12 family feed (#19) and slice 13 search, export, onboarding and DPIA (#20), offline Care mode with device holds (#15), local CI while Actions minutes are exhausted (#23), the people lifecycle schema and API (#21), the slice 5 tasks, rounds and handover API (#24), sync and device integrity (#25), the care API follow-ups from the #15 reviews (#26) and data scope per permission, a security fix (#27, ADR-0071). Hosted CI runs again from 12/10/2026 (the repository is public) |
 | 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Planned: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Lane C domain rules pushed: slice 5 (Working Time, SCHED-003) on `feat/sched-domain-working-time` (#136), and slice 6 (pay rules: SCHED-005, 006, 007, 009, 010; ADR-0086, ADR-0087) stacked on it on `feat/sched-pay-rules`; all six rows `partial`; [scheduling.md](../specs/scheduling.md) sections 4 and 4b; human actions H-580 to H-585. Slice 12 (dependency tool, CARE-004 and SCHED-001 `partial`) is #153 on `feat/sched-dependency-tool`: scheduling.md section 13, migration 0074, HZ-123, H-710 to H-716; clinical review round 1 fixed |
+| 2 Medicines and workforce | eMAR and CDs, recruitment, training, competence, casework, rota, pay rules, quality and governance | Started: [phase-2.md](phase-2.md) (31/10/2026; 85 slices in lanes A to H, migrations 0072 to 0110, human actions H-510 to H-549). Slice 5 (Working Time rules, SCHED-003 `partial`) pushed on `feat/sched-domain-working-time`: [scheduling.md](../specs/scheduling.md) written, 17 verified `wtr.*` rate rows, H-580 and H-581; next in lane C is slice 6 (pay rules); slice 2 (medicines record and reconciliation rules, MEDS-001 domain only; HZ-121) is PR #135 on `feat/meds-domain-record`, in clinical review |
 | 3 Money and buildings | Funding, billing, council portals, residents' money, P&L, facilities, catering, enquiries, group reporting | Not started |
 | 4 Home care and family | Packages, runs, ECM, supported living, portals, Manage mode | Not started |
 | 5 Clinical depth and NHS | Delegated healthcare, PBS, end of life, CHC, pharmacy, DSCR evidence, GP Connect and PDS | Not started |
@@ -19,6 +23,39 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 7 Expansion | Nation packs, children's homes | Not started |
 
 ## Where to pick up (resumed 31/10/2026)
+
+**Usability gaps from the user guides** (`fix/web-ux-gaps-from-guides`): the web-only gaps found
+while writing the guides in #128 are fixed there. Still open, because each needs an API, domain or
+security change rather than a web one:
+- Acknowledging an overdue statutory notification alert stops its escalation chain although the
+  notification is still not submitted (API, `platform.ts` acknowledge; the safeguarding log already
+  re-alerts daily, #155).
+- The inspector's evidence pack link has no page to enter the one-time code: the `/p/evidence`
+  routes answer JSON on the API's origin with an HttpOnly session cookie, so a web page needs a
+  cross-origin cookie or a proxy decision (security review).
+- Body map marks recorded on the web are not linked to an incident (API: the incident form has no
+  marks input; the body map route does not take an incident id). The hints now say so.
+- The downtime pack needs step-up, but `operations.downtime.read` is not marked step-up in the
+  permission catalogue, so the generated matrix does not say so (domain; marking it would make the
+  whole Downtime page need step-up).
+- The break-glass search alert links to `/settings/audit`, which does not exist, and the record
+  alert sends people to an audit log with no screen; "data protection lead" means the quality lead
+  role for one alert and the named lead for the other (API).
+- The DPIA signature's typed name is not checked against the account (domain and API).
+- A deputy manager cannot record a statutory notification as submitted without an acting-up
+  grant, and acting-up grants have no screen (a web screen over the grants API, its own slice).
+
+**Phase 2 slice 66, the data rights screens** (`feat/web-data-rights`, from #149 with #156 merged
+in): Data rights in the menu for holders of `quality.dsar.manage` across the organisation, with the
+DSAR workbench (clock in words, identity, pause and extension, collection with the "not searched"
+list first, record review with other people's names marked, the response with step-up and a file
+to send), the breach register (ICO clock in words from the rate table) and data protection
+complaints (acknowledgement and update clocks). Journeys with axe in light and dark pass locally.
+Fixed on the way: the DSAR record view and bundle read every column (`to_jsonb`), which the
+invitation table's column grants refuse, so any member of staff's request failed (belongs in
+#149). Not built yet: a contact's own request, rectification decisions, correcting breach facts,
+complaint links, and a record that no longer exists (H-881). Merge order: #149, then #156, then
+this branch (the merge kept migration 0082 after 0077, with 0082's journal time after 0077's).
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.
@@ -84,6 +121,30 @@ its work in progress (`wip(...)` commits) and stop. Resume by reading this secti
 - #137 slice 7 (safety rules), #138 slice 8 (quality rules), #140 white-label branding (PLAT-002),
   #142 slice 6 (pay rules: NMW, holiday, SSP, family pay, AWR, auto-enrolment; figures verified),
   #143 body limits on the API's public routes, #144 a task completion's cited evidence is checked.
+- #150 Phase 2 slice 26, the import wizard API for people (PLAT-014, migration 0088, ADR-0092,
+  HZ-130, H-680 to H-684): security and clinical review rounds 1 and 2 fixed on the branch. It
+  adds the no-login role `harbour_import_owner`, so `pnpm db:bootstrap` runs before 0088 in each
+  environment (H-684); merge after the lower Phase 2 numbers or renumber.
+**In progress:** white-label branding (PLAT-002); workflow approvals and SLAs (PLAT-011 gap); API
+hardening (`x-request-id` validation, property witness must be staff at the location, retention
+destroy race and storage-before-certificate, legal holds audit); Phase 2 slice 2 (MEDS-001 domain,
+pushed, below) and slice 5 (SCHED-003 Working Time domain).
+
+**Phase 2 domain slices** (they touch only new folders, so they need not wait for the Phase 1
+gate; [phase-2.md](phase-2.md), "When it starts"):
+- `feat/meds-domain-record` (slice 2, lane A, MEDS-001 `partial`): `medicines.md` written in full;
+  `packages/domain/src/medicines/` (dm+d identifiers, structured doses, schedules over the MAR cycle
+  with clock changes, MAR entry states and the second check, reconciliation); HZ-121 added; HZ-003,
+  HZ-005 and HZ-009 domain tests passing; human actions H-550 to H-553. PR #135, after five
+  clinical review rounds: one version in force at a time; the day count kept from the last dose
+  due; source lines that say what they mean; refusals in place of the complicated version
+  sequences (no change part-way through a day with doses, later versions withdrawn only with a
+  reason, a change keeping the product and its course end, one entry per product); corrections
+  that take effect at once; no dose due before an entry was recorded; and a reconciliation that
+  checks what was scheduled and lets a letter extend a course. The overall counts above, and the
+  register's Platform core and Quality rows (which `main` had left at 6 and 11 `todo`), now match
+  the register's rows. Next in lane A: slice 3 (administration, PRN and CD rules, ADR-0082), then
+  slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
@@ -121,7 +182,10 @@ trigger does not cover the branding columns, and the organisation switcher shows
 be a definer function; staff-file reminder tasks are invisible to HR's role; HR-only documents have
 no destruction rule; a complaint about a sample person blocks sample removal; list endpoints audit
 counts, not ids; the 14 UX gaps from the user guides (#128); whether archived people stay on the
-residents list.
+residents list; a "created in error" status for a person (people lifecycle: what it does to their
+tasks, phones, reports and audit trail), so a person imported or added by mistake can be marked as
+such rather than left a current resident once an import can no longer be undone (#150 review
+round 2; the CSO decides whether it must come before a real tenant imports, H-680).
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:
 - Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the
