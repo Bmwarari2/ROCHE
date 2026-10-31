@@ -33,8 +33,16 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/sync/device-report":
     "any member reports what their device holds; written in the system's view (HZ-006)",
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
+  "POST /p/evidence/code":
+    "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
+  "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
+  "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
+  "POST /operator/sub-processor-notices":
+    "an operator route (announcing a notice; each organisation read in its own context)",
+  "POST /operator/tenants/{tenantId}/owner-invitation":
+    "an operator route (the first owner's invitation, through app.invite_first_owner)",
 };
 
 const SRC = fileURLToPath(new URL("../src", import.meta.url));

@@ -31,7 +31,7 @@ import {
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { auditInTx } from "../http/audit";
-import { requirePermission, withTenant } from "../http/context";
+import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
@@ -56,7 +56,7 @@ const FAIL_SAFE_WINDOW_DAYS = 1;
 /**
  * The day and night shift start times (minutes after midnight, UK time) for each nation, from the
  * rate table. A nation whose figures are missing or out of order is left out, so the phone says it
- * cannot tell which handover to expect rather than guessing (ADR-0072).
+ * cannot tell which handover to expect rather than guessing (ADR-0074).
  */
 async function shiftPatternsByNation(
   tx: Parameters<Parameters<typeof withTenant>[1]>[0],
@@ -246,7 +246,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // Where handovers reach the phone, the shift pattern of each nation the organisation
           // has homes in (the rate table's two shifts, until rotas define them per location), so
           // the phone can work out, offline, which handover it should hold and say when it is not
-          // compiled yet or not final (care.md section 6, screens gate (e); ADR-0072).
+          // compiled yet or not final (care.md section 6, screens gate (e); ADR-0074).
           const handoverShifts =
             handovers.locationIds.length > 0 || handovers.assigned
               ? await shiftPatternsByNation(
@@ -631,7 +631,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         // device changes nothing. MFA is asked wherever the member's roles call for it, as on the
         // care routes.
         const access = c.get("access");
-        if (!access.mfaSatisfied) throw problems.mfaRequired();
+        if (!access.mfaSatisfied) throw mfaRefusal(access);
         await withTenant(c, (tx) => reportQuota.take(tx, access.tenantUserId));
         const report = c.req.valid("json");
         const receivedAt = new Date();

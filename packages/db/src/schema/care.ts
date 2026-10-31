@@ -18,7 +18,14 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdColumns, eventColumns, id, mutableColumns, tenantId } from "./_columns";
+import {
+  createdColumns,
+  eventColumns,
+  id,
+  mutableColumns,
+  searchVector,
+  tenantId,
+} from "./_columns";
 import { outage } from "./operations";
 import { contact, person } from "./people";
 import { document, location, tenantUser } from "./platform";
@@ -194,6 +201,8 @@ export const careNote = pgTable(
     /** personal_care, nutrition, mood, activity, visit, health, night, other. */
     category: text("category").notNull(),
     body: text("body").notNull(),
+    /** Search vector of the note text. */
+    searchBody: searchVector("search_body", sql`app.search_vector(body)`),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     attachmentDocumentIds: uuid("attachment_document_ids")
       .array()
@@ -931,7 +940,7 @@ export const handoverItem = pgTable(
      * packages/domain), so a screen words it in the reader's language without reading the source
      * (the phone holds neither incidents, alerts nor skipped tasks; H-300). The parameters are codes
      * (a NEWS2 band, a chart, an incident type, an alert kind, a mark's type and region) and, for a
-     * task, its title and the reason it was not done. Null on items compiled before migration 0056.
+     * task, its title and the reason it was not done. Null on items compiled before migration 0071.
      */
     summary: jsonb("summary"),
     ...createdColumns(),

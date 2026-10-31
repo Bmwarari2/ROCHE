@@ -126,6 +126,11 @@ export const Me = z
     roleKeys: z.array(z.string()),
     scope: DataScope,
     flags: z.record(z.string(), z.boolean()),
+    /**
+     * HZ-072: true while the organisation has sample data in place, so every screen shows the
+     * sample data banner (platform-completions.md rules 29 to 32).
+     */
+    sampleData: z.boolean(),
   })
   .meta({ id: "Me", description: "The signed-in user, their active tenant and effective access" });
 export type Me = z.infer<typeof Me>;
@@ -486,13 +491,24 @@ export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";
 export * from "./devices";
-export { DeviceDeletionFlag } from "./entries";
+export * from "./dpia";
+export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
 export * from "./escalation-policy";
+export * from "./exports";
+export * from "./family-feed";
 export * from "./handover";
+export * from "./invitations";
+export * from "./letters";
 export * from "./mca";
+export * from "./members";
+export * from "./onboarding";
+export * from "./operations";
 export * from "./people";
 export * from "./person-summary";
+export * from "./quality";
 export * from "./records";
 export * from "./safety";
+export * from "./search";
 export * from "./staff";
+export * from "./sub-processors";
 export * from "./tasks";

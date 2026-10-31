@@ -42,6 +42,7 @@ mock_provider "random" {}
 variables {
   environment          = "dev"
   domain_name          = "dev.harbour.example.invalid"
+  safety_case_version  = "v0.0"
   state_bucket_name    = "harbour-tfstate-000000000000"
   budget_monthly_limit = 600
 }
@@ -74,6 +75,11 @@ run "dev_defaults" {
   assert {
     condition     = module.observability.log_metric_filter_patterns.worker_job_failed == "{ $.event = \"worker.job.failed\" }"
     error_message = "The failed job alarm must match the worker's worker.job.failed event."
+  }
+
+  assert {
+    condition     = module.observability.log_metric_filter_patterns.export_foreign_rows == "{ $.event = \"security.export.foreign_rows\" }"
+    error_message = "The export foreign rows alarm must match the worker's security.export.foreign_rows event (HZ-070)."
   }
 
   # Each filter reads the worker's own log group, and each alarm reads the metric its filter

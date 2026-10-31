@@ -51,7 +51,8 @@ event_file() {
 openapi_breaking() {
   if git cat-file -e "$BASE:apps/api/openapi.json" 2>/dev/null; then
     git show "$BASE:apps/api/openapi.json" >"$LOG_DIR/base-openapi.json"
-    oasdiff breaking "$LOG_DIR/base-openapi.json" apps/api/openapi.json --fail-on ERR
+    oasdiff breaking "$LOG_DIR/base-openapi.json" apps/api/openapi.json --fail-on ERR \
+      --err-ignore apps/api/openapi-breaking-ignore.txt
   else
     echo "No OpenAPI document on the base commit."
   fi
@@ -69,7 +70,7 @@ e2e_database() {
     pnpm --filter @harbour/db bootstrap &&
     pnpm --filter @harbour/db migrate &&
     pnpm --filter @harbour/db seed &&
-    HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users
+    HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off HARBOUR_DEMO_E2E_PASSKEY=1 pnpm --filter @harbour/api seed:users
 }
 
 EVENT="$(event_file)"

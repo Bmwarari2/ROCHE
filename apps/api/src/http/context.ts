@@ -1,9 +1,9 @@
 import { DEVICE_HEADER, HANDOVER_OWNER_HEADER, TENANT_HEADER } from "@harbour/contracts";
 import {
-  authPasskey,
   authSession,
   type Database,
   deviceSession,
+  familyPortalUser,
   person,
   type RequestContext,
   rateTable,
@@ -24,12 +24,13 @@ import {
   narrowestScope,
   type Permission,
   type PermissionScope,
+  requiresStepUp,
   resolveAccess,
   scopeFor,
   touchesCareRecords,
   widestScope,
 } from "@harbour/domain";
-import { and, count, eq, like, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, like, lt, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import type pg from "pg";
@@ -38,14 +39,18 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
+import { sessionFactorState } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
+import type { MockEmail } from "../integrations/adapters";
+import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
 import { writeAudit } from "./audit";
 import { HttpProblem, problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
+import type { MemoryThrottle } from "./throttle";
 
 // The device id is the PowerSync client id, a UUID. Anything else is not trusted into the audit
 // trail or a task, and reads as no device (security review round 4; #21 S-L6).
@@ -66,11 +71,31 @@ export interface Services {
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;
+  /** The full export's archives (the exports bucket). */
+  readonly exportStorage: DocumentStoragePort;
   readonly scanner: MalwareScanPort;
   /** Per-user limit on the transfer pack routes (S2). */
   readonly transferPackLimiter: RateLimiter;
   /** Per-user limit on compiling a handover through the API. */
   readonly handoverCompileLimiter: RateLimiter;
+  /** A tenant's adapter for a channel: its configured provider, else the mock (or, in production, none). */
+  readonly adapterFor: (
+    tenantId: string,
+    channel: "email" | "sms" | "push",
+    tx: Transaction,
+  ) => Promise<ChannelAdapter>;
+  /** What the email mock was handed (development and tests; never used in production). */
+  readonly mockEmail: MockEmail;
+  /** Evidence pack link requests (no one signed in): per client address and per link. */
+  readonly evidenceLinkThrottles: {
+    readonly address: MemoryThrottle;
+    readonly link: MemoryThrottle;
+  };
+  /** Invitation links opened or accepted: per client address and per token hash. */
+  readonly invitationThrottles: {
+    readonly address: MemoryThrottle;
+    readonly token: MemoryThrottle;
+  };
 }
 
 export interface SessionInfo {
@@ -105,8 +130,20 @@ export interface TenantAccess {
   readonly context: RequestContext;
   /** The scopes of the permissions this request has required so far, narrowed into `context`. */
   readonly required: readonly PermissionScope[];
+  /**
+   * True when the member needs no MFA, or this session was signed in or confirmed with a passkey
+   * or an authenticator code (#43 review M5, ADR-0072); having one enrolled is not enough.
+   */
   readonly mfaSatisfied: boolean;
-  /** How long a sign-in counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
+  /** True when a factor is enrolled (so a refusal asks the person to use it, not to set one up). */
+  readonly mfaEnrolled: boolean;
+  /**
+   * True when this session proved a second factor (a passkey, an authenticator code or a backup
+   * code) within the step-up window, judged on the database's clock when the request began.
+   * Step-up counts from this, never from a password sign-in (ADR-0072 amendment).
+   */
+  readonly stepUpFresh: boolean;
+  /** How long a factor's use counts as fresh for a step-up permission (`STEP_UP_WINDOW_SECONDS`). */
   readonly stepUpWindowSeconds: number;
   readonly deviceId: string | null;
   readonly ip: string | null;
@@ -122,6 +159,8 @@ export interface OperatorIdentity {
   readonly id: string;
   readonly authUserId: string;
   readonly role: "support" | "admin";
+  /** True when this session used a second factor within the step-up window (ADR-0072). */
+  readonly stepUpFresh: boolean;
 }
 
 export type AppEnv = {
@@ -192,15 +231,6 @@ export async function membershipsFor(appPool: pg.Pool, authUserId: string): Prom
   }));
 }
 
-async function hasPasskey(authPool: pg.Pool, authUserId: string): Promise<boolean> {
-  const db = drizzle(authPool);
-  const [row] = await db
-    .select({ n: count() })
-    .from(authPasskey)
-    .where(eq(authPasskey.userId, authUserId));
-  return (row?.n ?? 0) > 0;
-}
-
 async function loadAccess(
   db: Database,
   tenantId: string,
@@ -223,7 +253,26 @@ async function loadAccess(
       .from(tenantUser)
       .where(eq(tenantUser.id, tenantUserId));
     const rows = await accessRowsOfMember(tx, tenantUserId);
-    const effective = resolveAccess(rows.assignments, rows.grants, now);
+    // A member linked to a family contact is a portal session: portal roles only, no grants, no
+    // person scope, and the family policies in the database (ADR-0061).
+    const [link] = await tx
+      .select({ id: familyPortalUser.id })
+      .from(familyPortalUser)
+      .where(
+        and(
+          eq(familyPortalUser.tenantUserId, tenantUserId),
+          isNull(familyPortalUser.revokedAt),
+          isNull(familyPortalUser.deletedAt),
+        ),
+      )
+      .limit(1);
+    const family = link !== undefined;
+    const effective = resolveAccess(
+      rows.assignments,
+      rows.grants,
+      now,
+      family ? "portal" : "staff",
+    );
     // A session bound to a device a manager has since revoked is refused whatever device it names
     // (care.md section 6, Device integrity part 2; #25 review round 2, M1).
     const onRevokedDevice = await sessionOnRevokedDevice(tx, sessionId);
@@ -248,6 +297,7 @@ async function loadAccess(
       : null;
     return {
       effective,
+      family,
       mfaRequired: user?.mfaRequired ?? true,
       onRevokedDevice,
       sessionBound: bound !== undefined,
@@ -338,40 +388,51 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));
   // The idle timeout is off unless the environment turns it on (HZ-111, H-353).
   const browser = services.config.SESSION_IDLE_TIMEOUT === "on" && !bearerRequest(c);
-  const { effective, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } = await loadAccess(
-    services.db,
-    membership.tenantId,
-    membership.tenantUserId,
-    session.sessionId,
-    deviceId,
-    now,
-    browser,
-  );
+  const { effective, family, mfaRequired, onRevokedDevice, sessionBound, idleMinutes } =
+    await loadAccess(
+      services.db,
+      membership.tenantId,
+      membership.tenantUserId,
+      session.sessionId,
+      deviceId,
+      now,
+      browser,
+    );
   // A session bound to a device a manager has revoked is refused whatever it names (#25 review
   // rounds 2 and 3, M1 and M2), except its device's report, so the server still hears what the
   // device holds. Its sessions are never ended: a device given a 401 could not tell it was revoked.
   if (onRevokedDevice && !(c.req.method === "POST" && c.req.path === DEVICE_REPORT_PATH)) {
     throw problems.deviceRevoked();
   }
-  const mfaSatisfied =
-    !mfaRequired ||
-    session.twoFactorEnabled ||
-    (await hasPasskey(services.authPool, session.authUserId));
+  // A session from before this check, or signed in with a password alone, fails closed until
+  // the person confirms it is them with a passkey or an authenticator code (ADR-0072). Asked even
+  // when MFA is not required: step-up needs the time a factor was last used on this session.
+  const factor = await sessionFactorState(
+    services.authPool,
+    session,
+    services.config.STEP_UP_WINDOW_SECONDS,
+  );
+  // A portal session always needs it: the feed is care-record data (comms.md section 3).
+  const mfa = mfaRequired || family ? factor.mfa : "satisfied";
   const access: TenantAccess = {
     tenantId: membership.tenantId,
     tenantUserId: membership.tenantUserId,
     session,
     memberships,
     effective,
-    // No one until the route requires a permission (ADR-0071).
+    // No one until the route requires a permission (ADR-0071); a portal session never reaches
+    // anyone through the person scope, only through the family policies (ADR-0061).
     context: {
       tenantId: membership.tenantId,
       userId: membership.tenantUserId,
       scope: "none",
       locationIds: [],
+      ...(family ? { family: true } : {}),
     },
     required: [],
-    mfaSatisfied,
+    mfaSatisfied: mfa === "satisfied",
+    mfaEnrolled: factor.mfa !== "enrol",
+    stepUpFresh: factor.stepUpFresh,
     stepUpWindowSeconds: services.config.STEP_UP_WINDOW_SECONDS,
     deviceId,
     ip: clientIp(c),
@@ -437,7 +498,40 @@ export function contextOf(
   };
 }
 
-type Refusal = "mfa_enrolment_required" | "missing_permission" | "step_up_required";
+type Refusal =
+  | "mfa_enrolment_required"
+  | "mfa_verification_required"
+  | "missing_permission"
+  | "step_up_required";
+
+/**
+ * True when the session used a second factor within the step-up window (section 5.3; ADR-0072
+ * amendment). A password sign-in alone never counts, however recent.
+ */
+export function stepUpFresh(access: TenantAccess): boolean {
+  return access.stepUpFresh;
+}
+
+/**
+ * The time a domain check is given as the session's step-up (`stepUpAt`): `now` when the database
+ * judged its factor fresh, else null. Never a sign-in time.
+ */
+export function stepUpAtFor(access: TenantAccess, now: Date): Date | null {
+  return access.stepUpFresh ? now : null;
+}
+
+/**
+ * The refusal for a step-up the session has not met: confirm the factor enrolled, or set one up
+ * first when there is none (a password can never step up; ADR-0072 amendment).
+ */
+export function stepUpRefusal(access: TenantAccess): HttpProblem {
+  return access.mfaEnrolled ? problems.stepUp() : problems.mfaRequired();
+}
+
+/** The refusal for a session whose MFA is not satisfied: enrol a factor, or use the one enrolled. */
+export function mfaRefusal(access: TenantAccess): HttpProblem {
+  return access.mfaEnrolled ? problems.mfaVerify() : problems.mfaRequired();
+}
 
 /** Why the session may not use a permission now (MFA, held, step-up), or null when it may. */
 export function refusalOf(
@@ -445,11 +539,18 @@ export function refusalOf(
   permission: Permission,
   now: Date = new Date(),
 ): Refusal | null {
-  if (touchesCareRecords(permission) && !access.mfaSatisfied) return "mfa_enrolment_required";
+  if (touchesCareRecords(permission) && !access.mfaSatisfied) {
+    return access.mfaEnrolled ? "mfa_verification_required" : "mfa_enrolment_required";
+  }
+  // Step-up needs a second factor used on this session within the window; a member who holds the
+  // permission but has none enrolled is asked to set one up (ADR-0072 amendment, HZ-112).
+  if (requiresStepUp(permission) && can(access.effective, permission) && !access.mfaEnrolled) {
+    return "mfa_enrolment_required";
+  }
   const decision = authorise(
     access.effective,
     permission,
-    access.session.sessionCreatedAt,
+    stepUpAtFor(access, now),
     now,
     access.stepUpWindowSeconds,
   );
@@ -464,7 +565,9 @@ function refusal(c: Context<AppEnv>, permission: Permission): Refusal | null {
 async function authoriseOrRefuse(c: Context<AppEnv>, permission: Permission): Promise<void> {
   const reason = refusal(c, permission);
   if (reason === null) return;
-  if (reason === "mfa_enrolment_required") throw problems.mfaRequired();
+  if (reason === "mfa_enrolment_required" || reason === "mfa_verification_required") {
+    throw mfaRefusal(c.get("access"));
+  }
   await writeAudit(c.get("services").appPool, c.get("access"), {
     action: permission,
     outcome: "denied",
@@ -598,9 +701,9 @@ export async function inScopeOf<T>(
 
 /**
  * The permissions the session may use for the domain's own checks (review round 1, L7): those it
- * holds whose MFA it meets, as `requirePermission` judges them. One that needs a fresh sign-in
- * stays in: every domain check given these is also given the session's freshness and refuses it
- * as `step_up_required`, so the person is asked to sign in again rather than told they lack it.
+ * holds whose MFA it meets, as `requirePermission` judges them. One that needs step-up stays in:
+ * every domain check given these is also given the session's freshness and refuses it as
+ * `step_up_required`, so the person is asked to confirm their factor rather than told they lack it.
  */
 export function usablePermissions(
   access: TenantAccess,
@@ -609,7 +712,13 @@ export function usablePermissions(
   return new Set(
     [...access.effective.permissions].filter((p) => {
       const refused = refusalOf(access, p, now);
-      return refused === null || refused === "step_up_required";
+      // A step-up permission held with no factor enrolled stays in too: its check sees no fresh
+      // factor and the refusal asks the person to set one up (`stepUpRefusal`).
+      const stepUpUnenrolled =
+        refused === "mfa_enrolment_required" &&
+        requiresStepUp(p) &&
+        (access.mfaSatisfied || !touchesCareRecords(p));
+      return refused === null || refused === "step_up_required" || stepUpUnenrolled;
     }),
   );
 }

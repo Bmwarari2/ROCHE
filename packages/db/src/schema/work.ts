@@ -161,7 +161,7 @@ export const task = pgTable(
     /**
      * True for a round of a care plan series that its plan no longer drives (the plan is not active,
      * or the series has ended): the round view's "From an earlier plan: check the current plan"
-     * (`planRoundNotice`; HZ-024). Kept by the database (migration 0056's triggers, from the series
+     * (`planRoundNotice`; HZ-024). Kept by the database (migration 0071's triggers, from the series
      * and its plan), never written by the API, so the phone can say it offline.
      */
     fromEarlierPlan: boolean("from_earlier_plan").notNull().default(false),

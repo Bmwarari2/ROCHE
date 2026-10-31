@@ -299,7 +299,8 @@ export function checkNoticeResponse(input: {
   readonly actorTenantUserId: string;
   /** The tenant's designated DPO or named data protection lead(s), from governance settings. */
   readonly designatedLeadIds: readonly string[];
-  readonly lastMfaSignInAt: Date | null;
+  /** When the session last used a second factor (passkey, authenticator or backup code), never a sign-in time (ADR-0072 amendment): step-up needs one within the window. */
+  readonly stepUpAt: Date | null;
   readonly stepUpWindowSeconds: number;
   readonly grounds?: string;
   readonly now: Date;
@@ -313,7 +314,7 @@ export function checkNoticeResponse(input: {
   const decision = authorise(
     input.access,
     "platform.dpia.sign",
-    input.lastMfaSignInAt,
+    input.stepUpAt,
     input.now,
     input.stepUpWindowSeconds,
   );
@@ -334,4 +335,68 @@ export function checkNoticeResponse(input: {
     return fail("grounds_required");
   }
   return { ok: true };
+}
+
+// ------------------------------------------------------------------------------------------------
+// Responses as stored (append-only rows)
+// ------------------------------------------------------------------------------------------------
+
+export interface StoredNoticeResponse {
+  readonly subProcessorKey: string;
+  readonly noticeId: string | null;
+  readonly kind: "acknowledged" | "objected" | "objection_resolved";
+  readonly grounds: string | null;
+  readonly resolution: ObjectionResolution | null;
+  readonly respondedAt: Date;
+}
+
+const latest = <T extends { readonly respondedAt: Date }>(rows: readonly T[]): T | null =>
+  rows.reduce<T | null>(
+    (last, row) => (last === null || row.respondedAt > last.respondedAt ? row : last),
+    null,
+  );
+
+/**
+ * One notice's response for one organisation, from its append-only rows: the latest
+ * acknowledgement, and the latest objection with the first resolution recorded after it.
+ */
+export function noticeResponseFrom(
+  noticeId: string,
+  rows: readonly StoredNoticeResponse[],
+): NoticeResponse {
+  const own = rows.filter((r) => r.noticeId === noticeId);
+  const acknowledged = latest(own.filter((r) => r.kind === "acknowledged"));
+  const objected = latest(own.filter((r) => r.kind === "objected"));
+  const resolved = objected
+    ? own
+        .filter((r) => r.kind === "objection_resolved" && r.respondedAt >= objected.respondedAt)
+        .sort((a, b) => a.respondedAt.getTime() - b.respondedAt.getTime())[0]
+    : undefined;
+  return {
+    acknowledgedAt: acknowledged?.respondedAt ?? null,
+    objection: objected
+      ? {
+          at: objected.respondedAt,
+          grounds: objected.grounds ?? "",
+          resolvedAt: resolved?.respondedAt ?? null,
+          resolution: resolved?.resolution ?? null,
+        }
+      : null,
+  };
+}
+
+/**
+ * The onboarding checklist's acknowledgements: for each sub-processor, the latest time the
+ * organisation acknowledged it (its register entry or a notice about it).
+ */
+export function subProcessorAcknowledgementsFrom(
+  rows: readonly StoredNoticeResponse[],
+): { readonly key: string; readonly acknowledgedAt: Date }[] {
+  const byKey = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.kind !== "acknowledged") continue;
+    const at = byKey.get(row.subProcessorKey);
+    if (!at || row.respondedAt > at) byKey.set(row.subProcessorKey, row.respondedAt);
+  }
+  return [...byKey].map(([key, acknowledgedAt]) => ({ key, acknowledgedAt }));
 }

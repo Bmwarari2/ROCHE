@@ -47,6 +47,14 @@ import { type AppEnv, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
+  downtimeAudit,
+  downtimeOut,
+  downtimeRefusal,
+  entryDowntime,
+  onDowntimeError,
+  paperSource,
+} from "../services/back-entry";
+import {
   careProfile,
   careRates,
   completeOpenTasks,
@@ -194,7 +202,14 @@ export const careRouter = createRouter()
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "care_note", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
+        {
+          kind: "care_note",
+          clientId: body.id,
+          occurredAt: body.occurredAt,
+          recordedBy: author,
+          payload: body,
+          admission,
+        },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -222,6 +237,15 @@ export const careRouter = createRouter()
               rates.clockDriftMinutes,
             );
             await checkSuperseded(tx, careNote, body.supersedesId, personId);
+            // Back-entry and the normal route (operations.md rules 11 to 13; HZ-017).
+            const downtime = await entryDowntime(tx, "care_note", body, {
+              personId,
+              locationId: person.locationId,
+              occurredAt: times.occurredAt,
+              recordedAt: times.deviceTime ?? now,
+              now,
+              rates,
+            });
             const link = await planLink(
               tx,
               access,
@@ -254,9 +278,11 @@ export const careRouter = createRouter()
                 taskOutcome: link?.outcome ?? null,
                 supersedesId: body.supersedesId ?? null,
                 correctionReason: body.correctionReason ?? null,
+                ...downtime,
               })
-              .onConflictDoNothing()
-              .returning();
+              .onConflictDoNothing({ target: careNote.id })
+              .returning()
+              .catch(onDowntimeError(personId));
             const row =
               inserted ??
               (
@@ -293,6 +319,7 @@ export const careRouter = createRouter()
                 resourceType: "care_note",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {
@@ -414,7 +441,14 @@ export const careRouter = createRouter()
       const now = new Date();
       const item = await withLateEntryReview(
         c,
-        { kind: "observation", clientId: body.id, occurredAt: body.occurredAt, recordedBy: author },
+        {
+          kind: "observation",
+          clientId: body.id,
+          occurredAt: body.occurredAt,
+          recordedBy: author,
+          payload: body,
+          admission,
+        },
         () =>
           withTenant(c, async (tx) => {
             // A replayed upload (the same device id) returns the stored entry before anything is
@@ -446,6 +480,15 @@ export const careRouter = createRouter()
               rates.clockDriftMinutes,
             );
             await checkSuperseded(tx, observation, body.supersedesId, personId);
+            // Back-entry and the normal route (operations.md rules 11 to 13; HZ-017).
+            const downtime = await entryDowntime(tx, "observation", body, {
+              personId,
+              locationId: person.locationId,
+              occurredAt: times.occurredAt,
+              recordedAt: times.deviceTime ?? now,
+              now,
+              rates,
+            });
             const profile = await careProfile(tx, personId);
             const { flags, triggers } = chartRules(
               body.values,
@@ -493,9 +536,11 @@ export const careRouter = createRouter()
                 taskOutcome: link?.outcome ?? null,
                 supersedesId: body.supersedesId ?? null,
                 correctionReason: body.correctionReason ?? null,
+                ...downtime,
               })
-              .onConflictDoNothing()
-              .returning();
+              .onConflictDoNothing({ target: observation.id })
+              .returning()
+              .catch(onDowntimeError(personId));
             const row =
               inserted ??
               (
@@ -518,6 +563,7 @@ export const careRouter = createRouter()
               });
               // A result recorded before a move to hospital or on leave still alerts the nurse in
               // charge; after a discharge or death only the safety prompts are raised (rule 3).
+              const paper = await paperSource(tx, row);
               await raiseCareTriggers(
                 tx,
                 {
@@ -525,6 +571,7 @@ export const careRouter = createRouter()
                   locationId: person.locationId,
                   sourceType: "observation",
                   sourceId: row.id,
+                  paper,
                 },
                 raising,
                 now,
@@ -560,6 +607,7 @@ export const careRouter = createRouter()
                     sourceType: "observation",
                     sourceId: row.id,
                     occurredOn: ukIsoDate(times.occurredAt),
+                    paper,
                   },
                   [
                     {
@@ -575,6 +623,7 @@ export const careRouter = createRouter()
                 resourceType: "observation",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {
@@ -587,7 +636,14 @@ export const careRouter = createRouter()
                 aggregateType: "person",
                 aggregateId: personId,
                 type: "care.observation.recorded",
-                payload: { observationId: row.id, chart: row.chart },
+                payload: {
+                  observationId: row.id,
+                  chart: row.chart,
+                  // Entered from paper: the outage and the time written on the form (HZ-017).
+                  ...(row.lateEntryReason === "downtime"
+                    ? { outageId: row.outageId, paperAt: row.occurredAt.toISOString() }
+                    : {}),
+                },
               });
             }
             return observationItem(
@@ -834,6 +890,8 @@ export const careRouter = createRouter()
           clientId: body.id,
           occurredAt: body.occurredAt,
           recordedBy: author,
+          payload: body,
+          admission,
         },
         () =>
           withTenant(c, async (tx) => {
@@ -866,6 +924,15 @@ export const careRouter = createRouter()
             );
             await checkSuperseded(tx, bodyMapMark, body.supersedesId, personId);
             await checkMarkIncident(tx, body.incidentId, personId);
+            // Back-entry and the normal route (operations.md rules 11 to 13; HZ-017).
+            const downtime = await entryDowntime(tx, "body_map_mark", body, {
+              personId,
+              locationId: person.locationId,
+              occurredAt: times.occurredAt,
+              recordedAt: times.deviceTime ?? now,
+              now,
+              rates,
+            });
             const link = await planLink(
               tx,
               access,
@@ -913,10 +980,13 @@ export const careRouter = createRouter()
                 taskOutcome: link?.outcome ?? null,
                 supersedesId: body.supersedesId ?? null,
                 correctionReason: body.correctionReason ?? null,
+                ...downtime,
               })
-              .onConflictDoNothing()
+              .onConflictDoNothing({ target: bodyMapMark.id })
               .returning()
               .catch((error: unknown) => {
+                const refused = downtimeRefusal(error, personId);
+                if (refused) throw refused;
                 const code =
                   (error as { code?: string }).code ??
                   (error as { cause?: { code?: string } }).cause?.code;
@@ -942,6 +1012,7 @@ export const careRouter = createRouter()
                   locationId: person.locationId,
                   sourceType: "body_map_mark",
                   sourceId: row.id,
+                  paper: await paperSource(tx, row),
                 },
                 triggersAfterChange(
                   markTriggers({
@@ -982,6 +1053,7 @@ export const careRouter = createRouter()
                 resourceType: "body_map_mark",
                 resourceId: row.id,
                 reason: body.correctionReason,
+                scopeExtra: downtimeAudit(downtime),
                 requestId: c.get("requestId"),
               });
               await auditHandedOver(tx, access, handover, {
@@ -1273,6 +1345,7 @@ function noteItem(
 ) {
   return {
     ...entryOut(row, superseded, extras),
+    ...downtimeOut(row, extras.outages),
     category: row.category as CareNoteItem["category"],
     body: row.body,
     tags: row.tags,
@@ -1292,6 +1365,7 @@ function observationItem(
 ): ObservationItem {
   return {
     ...entryOut(row, superseded, extras),
+    ...downtimeOut(row, extras.outages),
     chart: row.chart,
     values: row.values as Record<string, unknown>,
     flags: row.flags as Record<string, unknown>,
@@ -1314,6 +1388,7 @@ function markItem(
   const num = (v: string | null) => (v === null ? null : Number(v));
   return {
     ...entryOut(row, superseded, extras),
+    ...downtimeOut(row, extras.outages),
     view: row.view as "front" | "back",
     region: row.region,
     side: row.side as "left" | "right" | "midline",

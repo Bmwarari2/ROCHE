@@ -17,7 +17,24 @@ export const LOGIN_ROLES = [
 
 export type LoginRole = (typeof LOGIN_ROLES)[number];
 
-export const NOLOGIN_ROLES = ["harbour_membership_reader"] as const;
+/**
+ * Owners of security-definer functions, each with only the privileges its functions need:
+ * `harbour_membership_reader` (the membership lookup), `harbour_invitation_owner` (invitation
+ * lookup, acceptance, the first owner's invitation and the lapsed-invitation sweep; migration
+ * 0054), `harbour_evidence_link_reader` (an evidence pack link found by its token; migration 0057),
+ * `harbour_family_reader` (whether a family session may see a feed update, `app.family_can_see`;
+ * migration 0061), `harbour_notice_resolver` (Thapsus reading and resolving objections to
+ * sub-processor notices; migration 0067), `harbour_sample_owner` (counting sample and real people
+ * and removing a sample batch; migration 0069).
+ */
+export const NOLOGIN_ROLES = [
+  "harbour_membership_reader",
+  "harbour_invitation_owner",
+  "harbour_evidence_link_reader",
+  "harbour_family_reader",
+  "harbour_notice_resolver",
+  "harbour_sample_owner",
+] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
 
@@ -51,8 +68,19 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
       await client.query(`CREATE ROLE ${role} NOLOGIN NOBYPASSRLS`);
     }
   }
-  // The owner must be able to hand ownership of the membership lookup function to its NOLOGIN role.
+  // The owner must be able to hand ownership of the definer functions to their NOLOGIN roles.
+  // The membership reader's grant predates this; the invitation owner's is SET only, never
+  // INHERIT, so its USING (true) policies never apply to harbour_owner's own queries.
   await client.query("GRANT harbour_membership_reader TO harbour_owner");
+  await client.query(
+    "GRANT harbour_invitation_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE",
+  );
+  await client.query(
+    "GRANT harbour_evidence_link_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE",
+  );
+  await client.query("GRANT harbour_family_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_notice_resolver TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {

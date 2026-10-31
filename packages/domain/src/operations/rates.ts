@@ -12,6 +12,7 @@ export const OPERATIONS_RATE_KEYS = {
   downtimePackValidHours: "downtime_pack.valid_hours",
   backEntryDueHours: "downtime.back_entry_due_hours",
   duplicateMatchMinutes: "downtime.duplicate_match_minutes",
+  maxOutageHours: "downtime.max_outage_hours",
   lateEntryHours: "care_note.late_entry_hours",
   clockDriftMinutes: "sync.clock_drift_flag_minutes",
 } as const;

@@ -104,7 +104,7 @@ function catalogueDatabase(): DatabaseTable[] {
 
 describe("hazard HZ-071 the export catalogue describes every table and column", () => {
   it("keys every table by schema and table, all in the public schema", () => {
-    for (const key of Object.keys(EXPORT_TABLES)) expect(key).toMatch(/^public\.[a-z_]+$/);
+    for (const key of Object.keys(EXPORT_TABLES)) expect(key).toMatch(/^public\.[a-z][a-z0-9_]*$/);
   });
 
   it("describes every table, with a reason and no columns for each one it leaves out", () => {
@@ -243,12 +243,15 @@ describe("hazard HZ-070 export plan reads only what may leave", () => {
   });
 
   it.each([
-    ["document", "storage_key"],
-    ["integration_connection", "secret_ref"],
-    ["tenant_user", "auth_user_id"],
-  ])("never exports %s.%s", (name, column) => {
+    ["document", "storage_key", ["storage_key", "search_title"]],
+    ["integration_connection", "secret_ref", ["secret_ref"]],
+    ["tenant_user", "auth_user_id", ["auth_user_id", "search_name"]],
+    // Search vectors (migration 0066) are rebuilt from the exported columns.
+    ["person", "search_names", ["search_names", "search_room"]],
+    ["care_note", "search_body", ["search_body"]],
+  ])("never exports %s.%s", (name, column, omitted) => {
     expect(table(name)?.columns.map((c) => c.name)).not.toContain(column);
-    expect(table(name)?.omittedColumns).toEqual([column]);
+    expect(table(name)?.omittedColumns).toEqual(omitted);
   });
 
   it("adds the UK date of the date of death beside the instant (HZ-071)", () => {
@@ -1054,7 +1057,7 @@ describe("hazard HZ-070 export request: free, MFA step-up, one at a time", () =>
   const stale = new Date(NOW.getTime() - (STEP_UP_SECONDS + 1) * 1000);
   const context = (extra: Partial<ExportRequestContext> = {}): ExportRequestContext => ({
     access: accessFor("owner"),
-    lastMfaSignInAt: fresh,
+    stepUpAt: fresh,
     now: NOW,
     stepUpWindowSeconds: STEP_UP_SECONDS,
     tenant: { status: "active", dataPurgedAt: null },
@@ -1090,8 +1093,8 @@ describe("hazard HZ-070 export request: free, MFA step-up, one at a time", () =>
       null,
     ],
     ["changes since an earlier snapshot", { since: PAST }, null],
-    ["a stale MFA sign-in", { lastMfaSignInAt: stale }, "step_up_required"],
-    ["no MFA sign-in", { lastMfaSignInAt: null }, "step_up_required"],
+    ["a stale MFA sign-in", { stepUpAt: stale }, "step_up_required"],
+    ["no MFA sign-in", { stepUpAt: null }, "step_up_required"],
     ["a Registered Manager", { access: accessFor("registered_manager") }, "missing_permission"],
     ["the quality lead", { access: accessFor("quality_lead") }, "missing_permission"],
     [
@@ -1171,7 +1174,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
       export: { id: "e1", status, requestedBy: "u1", expiresAt },
       actorTenantUserId: "u1",
       access: accessFor("owner"),
-      lastMfaSignInAt: fresh,
+      stepUpAt: fresh,
       now: NOW,
       stepUpWindowSeconds: STEP_UP_SECONDS,
       ...extra,
@@ -1184,7 +1187,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
     ["another owner", { actorTenantUserId: "u2" }, "ready", "not_requester"],
     [
       "the requester with an old MFA sign-in",
-      { lastMfaSignInAt: new Date(NOW.getTime() - 3_600_000) },
+      { stepUpAt: new Date(NOW.getTime() - 3_600_000) },
       "ready",
       "step_up_required",
     ],
@@ -1196,7 +1199,7 @@ describe("hazard HZ-070 the export link expires and works only for the requester
     ],
     [
       "after expiry",
-      { now: expiresAt, lastMfaSignInAt: new Date(expiresAt.getTime() - 60_000) },
+      { now: expiresAt, stepUpAt: new Date(expiresAt.getTime() - 60_000) },
       "ready",
       "expired",
     ],

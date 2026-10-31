@@ -44,6 +44,8 @@ export const EXPORT_MANIFEST_FILE = "manifest.json";
 export const EXPORT_DESTROYED_FILE = "destroyed.csv";
 export const EXPORT_CURRENT_SUMMARY_FILE = "current_summary.csv";
 export const EXPORT_DOCUMENTS_FOLDER = "documents/";
+/** The archive under the export's storage prefix (`exportStoragePrefix`). */
+export const EXPORT_ARCHIVE_FILE = "export.zip";
 /**
  * How long a storage URL minted for one download lasts: a technical constant, not a policy
  * figure. The URL is minted only after `checkExportDownload` passes (HZ-070).
@@ -1067,8 +1069,8 @@ const REQUEST_MESSAGES: Record<ExportRequestProblem, string> = {
 
 export interface ExportRequestContext {
   readonly access: EffectiveAccess;
-  /** The last sign-in completed with the second step (TOTP or passkey): step-up needs one. */
-  readonly lastMfaSignInAt: Date | null;
+  /** When the session last used a second factor (passkey, authenticator or backup code), never a sign-in time (ADR-0072 amendment): step-up needs one within the window. */
+  readonly stepUpAt: Date | null;
   readonly now: Date;
   readonly stepUpWindowSeconds: number;
   /** Any status, including suspended or closed: the export is free and never withheld. */
@@ -1095,7 +1097,7 @@ export function checkExportRequest(context: ExportRequestContext): ExportRequest
   const decision = authorise(
     context.access,
     "platform.export.create",
-    context.lastMfaSignInAt,
+    context.stepUpAt,
     context.now,
     context.stepUpWindowSeconds,
   );
@@ -1168,7 +1170,7 @@ export interface ExportDownloadContext {
   readonly export: ExportView;
   readonly actorTenantUserId: string;
   readonly access: EffectiveAccess;
-  readonly lastMfaSignInAt: Date | null;
+  readonly stepUpAt: Date | null;
   readonly now: Date;
   readonly stepUpWindowSeconds: number;
 }
@@ -1189,7 +1191,7 @@ export function checkExportDownload(context: ExportDownloadContext): ExportDownl
   const decision = authorise(
     context.access,
     "platform.export.create",
-    context.lastMfaSignInAt,
+    context.stepUpAt,
     context.now,
     context.stepUpWindowSeconds,
   );

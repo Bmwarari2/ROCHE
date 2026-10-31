@@ -31,12 +31,23 @@ export const problems = {
       "You do not have access to this. Ask your manager if you need it.",
     ),
   stepUp: () =>
-    new HttpProblem(403, "step_up_required", "Please confirm it is you before continuing."),
+    new HttpProblem(
+      403,
+      "step_up_required",
+      "Confirm with your passkey or authenticator code before continuing.",
+    ),
   mfaRequired: () =>
     new HttpProblem(
       403,
       "mfa_enrolment_required",
       "Set up an authenticator app or a passkey before you open care records.",
+    ),
+  // MFA is enrolled but this session did not use it (#43 review M5, ADR-0072).
+  mfaVerify: () =>
+    new HttpProblem(
+      403,
+      "mfa_verification_required",
+      "Sign in again with your passkey or authenticator app before you open care records.",
     ),
   featureDisabled: (detail?: string) =>
     new HttpProblem(403, "feature_disabled", "This is switched off for your organisation.", detail),

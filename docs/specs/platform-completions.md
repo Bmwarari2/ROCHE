@@ -302,13 +302,17 @@ the second step (TOTP or a passkey) within the step-up window.
     the downtime pack and bulk prints; a single record's print is watermarked; screens show the
     badge. The central outbound guard in the integrations adapter wrapper calls
     `checkOutboundForSample` before any email, SMS, push, webhook or partner message.
-32. **Removed in one step.** Removal deletes the whole batch or nothing: every row must be sample,
-    none under a legal hold, none referred to by a real record (`checkSampleDataRemoval`). The
-    deletion is done by a narrow security-definer function, `app.remove_sample_batch(batch uuid)`,
-    owned by a dedicated no-login role, which deletes only rows
-    `WHERE tenant_id = app.current_tenant_id() AND is_sample AND sample_batch_id = $1`, in the same
-    transaction as the check; `harbour_app` is never granted DELETE. Audit events about sample
-    records stay (opaque ids only) and the removal is audited.
+32. **Removed in one step.** Removal deletes the whole batch or nothing, with a fresh step-up: every
+    person must be sample and none under an active legal hold (`checkSampleDataRemoval`). What staff
+    recorded about the sample people while practising goes with them, hard deleted (they are
+    invented): an allow-list of the tables of records about a person (`app.sample_removal_tables()`, the one list the function and the grants read), children before parents, each
+    limited to the organisation and the batch's people; a released legal hold goes too. A record
+    outside that list that still refers to them (an outage, a downtime pack, an escalation policy
+    link) stops the removal (`referenced_by_other_records`). The deletion is done by a narrow
+    security-definer function, `app.remove_sample_batch(batch uuid, request_id text)`, owned by a
+    dedicated no-login role, in the same transaction as the check; `harbour_app` is never granted
+    DELETE, and the append-only triggers allow a delete only inside that function. Audit events
+    about sample records stay (opaque ids only) and the removal is audited with counts per table.
 
 ## 3. Permissions
 
@@ -443,6 +447,288 @@ normalisers (people) that the current summary reuses. 2,486 tests in the domain 
 than before the slice), 99.7% line coverage; 3 catalogue tests in `packages/db`. Five rate-table
 rows added, all to verify. No schema, migration, API, web or mobile change in this slice.
 
+## 10a. As built (slice 13 part 1, the export's record and routes)
+
+- `tenant_export` (migration 0062, numbered after #71's 0060 and the family feed's 0061; merge
+  after both): forced RLS with the tenant policy; only holders of `platform.export.create` across
+  the organisation, and the export worker (no member, the organisation's view), see or change a
+  row; a request is queued in the requester's own name; the partial unique index allows one queued
+  or running export per organisation; a guard keeps who asked and what, moves the status forward
+  only (`queued` to `running`, `failed` or `revoked`; `running` to `ready`, `failed` or `revoked`;
+  `ready` to `expired` or `revoked`; the rest final), revokes in the reviser's own name and never
+  soft-deletes; the single download is set once, by the requester, while ready and unexpired. The
+  data migration renames `platform.data.export` to `platform.export.create` in role copies and
+  grants, audited per tenant. The other new slice 13 permissions are left to their own steps.
+- Routes (`apps/api/src/routes/exports.ts`): `POST /v1/exports` (step-up; 202 queued, or 200 with
+  the export already in hand; `sinceExportId` for the changes since an earlier snapshot),
+  `GET /v1/exports` (step-up, as every export route), `POST /v1/exports/{id}/revoke` (step-up;
+  deletes the archive) and `GET /v1/exports/{id}/download` (step-up; `checkExportDownload`; the
+  download recorded before the bytes leave, then the archive deleted by the worker; a second fetch is 410
+  `export_already_downloaded`). The API streams the archive itself rather than minting a storage
+  URL, so the one-time fetch holds. Requested, revoked and downloaded are audited, refusals too.
+- Storage: the exports bucket (`S3_EXPORTS_BUCKET`; eu-west-2, SSE-KMS, lifecycle expiry) at
+  `tenants/<tenant>/exports/<export>/export.zip`, through the storage port, which now writes and
+  reads streams (multipart upload, at most one 8 MiB part in memory). The download opens the
+  archive before claiming the single fetch (a failed read leaves it untaken), streams it, and the
+  worker deletes it from the outbox event (`platform.export.downloaded`, `.revoked`), retried
+  until it is gone. #77 review: a ready export's archive, manifest, snapshot and expiry are frozen;
+  the rename is limited to organisation-wide roles and grants, the old name dropped elsewhere,
+  every change audited.
+- Next (part 2): the worker job that builds the archive (one `REPEATABLE READ` snapshot as
+  `harbour_app`, the table files, documents, current summary, `schema.json` and the manifest,
+  `ready` or `failed`, audited), the expiry sweep that deletes the archive, and the notification.
+
+## 10b. As built (slice 13 part 2, the export worker)
+
+- `runQueuedExports` (`apps/api/src/jobs/exports.ts`, queue `full-exports`, every minute): for
+  every organisation, whatever its status (rule 15), claims the oldest queued export as the job
+  (no member, the organisation's view) and builds it (`services/export-build.ts`): as
+  `harbour_app` with the organisation's context, in one `REPEATABLE READ` read-only transaction
+  (`snapshotAt` is its start); the tables and columns from the database's own catalogue, planned
+  with `planExport`; each table read through a cursor twice in the same snapshot (CSV, then JSON
+  Lines), rows decided by `exportRowDecision` (soft-deleted out unless held; legal holds on the
+  row, the record or its person) and, for a changes-since export, `exportRowChangedSince`; the
+  documents' bytes streamed from the documents bucket when `exportDocumentDecision` includes them;
+  `destroyed.csv` from the destruction certificates; `current_summary.csv` from the transfer pack's
+  statements and `currentSummaryRow`; `schema.json`; the audit chain checked; `manifest.json` from
+  `buildExportManifest`. Every file goes straight into a streamed ZIP (`services/zip-writer.ts`:
+  deflate, data descriptors, ZIP64 end records; a single file of 4 GiB or more fails the export)
+  that the exports bucket receives as a multipart upload. Complete: `ready` with the expiry from
+  `export.link_expiry_hours` (capped by the maximum), audited `platform.export.ready` with counts,
+  and the requester told in the app and by email, ids only ("Your data export is ready", a link to
+  the export page). Incomplete or an error: `failed` with its problems, audited (only when it was still queued or
+  running), the requester told by ids only, the archive deleted, `worker.job.failed` logged; another
+  organisation's row raises `security.export.foreign_rows` (CloudWatch alarm
+  `<prefix>-export-foreign-rows`). Cancelled while it was built: the archive is deleted and no one
+  is told it is ready. #78 review: the ZIP writer reads its source and drains the deflater together
+  and stops both on a failure; a write waits on the archive's reader only until it drains, closes
+  or fails, and a failed upload stops the archive; the snapshot transaction is rolled back and its
+  connection released (or discarded) on every failure, with `idle_in_transaction_session_timeout`
+  and `statement_timeout` as backstops; the request context is set with `applyRequestContext`,
+  holds read with `isUnderLegalHold`, and a destroyed document's tombstone is listed in
+  `destroyed.csv` with its certificate rather than exported.
+- `sweepExports` (queue `export-expiry`, every 15 minutes): deletes each archive past its expiry,
+  then marks the export expired and records `platform.export.expired` (archive deleted), so a
+  failed delete is tried again; an export running more than `EXPORT_RUNNING_LIMIT_HOURS` (12, a
+  technical limit) is failed and its archive deleted.
+- Not yet: sample data (no flag until the sample data step); the web export page (part 3). The
+  current summary loads the organisation's people, allergies, advance care records and care
+  profiles at once (bounded by the number of people); the tables never are.
+
+## 10c. As built (slice 13 part 3, the export page)
+
+- `/settings/export` (`apps/web/src/app/(shell)/settings/export`, `lib/exports.ts`), in the
+  navigation as "Data export" for holders of `platform.export.create` only; anyone else is told in
+  words. Every export route needs a step-up with a second factor, so the page sends the person to
+  confirm it is you before it lists anything; an action whose step-up lapsed shows the step-up
+  notice in words naming the passkey and the authenticator code, with the way back.
+- Ask for an export (offered while none is being made); each export's state as an icon and a word
+  (waiting to start, being prepared, ready to download, downloaded, expired, failed, cancelled;
+  an unknown state warns), when its link expires, its size and the manifest's warnings.
+- Download (the requester's own, ready and not yet fetched) opens a sheet first: the file can be
+  downloaded only once and holds the records of everyone the organisation supports and employs, so
+  it is saved straight away somewhere only authorised people can open. The file streams through a
+  same-origin route handler (`/settings/export/{id}/download`), never cached; a refusal returns to
+  the page with what happened in words that take focus, or to signing in again.
+- Cancel after a confirmation. Arrivals carry `at`, so the same outcome twice is said twice.
+- `pnpm --filter @harbour/api exports:run` runs the worker's job once for local journeys; the demo
+  owner gets the end-to-end passkey alongside the manager (`HARBOUR_DEMO_E2E_PASSKEY=1`).
+
+## 10d. As built (slice 13, the DPIA in-app)
+
+- Migration 0063: the `dpia` table, one row per version (forced RLS; read with any DPIA
+  permission; written by holders of `platform.dpia.prepare`; one version open and one signed at a
+  time) and the organisation's data protection governance on `tenant` (the named lead, a member of
+  the organisation; sector; privacy notice; DPA date; use beyond direct care; optional processing;
+  AI provider). The guard keeps a version's identity and preparers (who only ever grow: whoever
+  changes or prepares it joins them), returns a changed prepared version to draft, lets only the
+  named lead holding `platform.dpia.sign` sign a prepared version unchanged in their own name
+  (never a preparer, also a check constraint, with the signature, statement and basis present),
+  and lets a signed version change only to be superseded, by the named lead with a later version
+  prepared, and only if that later version is signed in the same transaction (a deferred check).
+  Nothing is deleted. On `tenant`, `tenant_governance_guard` lets only a holder of
+  `platform.tenant.manage` change the governance columns, and only a member whose role holds
+  `platform.dpia.sign` be named lead (`app.member_holds_role_permission`).
+- Routes (`apps/api/src/routes/dpia.ts`): `GET /v1/dpia` (state, review triggers, settings,
+  missing configuration, the open and signed versions); `PUT /v1/dpia/draft` (saves answers,
+  residual ratings and ICO reference with Harbour's prefill refreshed, `expectedVersion`);
+  `POST /v1/dpia/draft/prepare` (freezes it with its SHA-256); `POST /v1/dpia/{id}/sign`
+  (step-up; `checkDpiaSignOff`, every problem at once as 422 `dpia_not_signable`; the row locked,
+  and the version in force superseded only when this one is signed); `PUT
+  /v1/settings/data-protection` (`platform.tenant.manage`, `expectedVersion`; naming a different
+  lead needs step-up and a member who may sign, audits the old and new lead ids and tells the lead
+  replaced, with ids only). The prefill
+  reads the configuration (`services/dpia.ts`): locations and regulators, service types, modules
+  in force (an AI provider chosen counts the AI module as planned), SMS when connected, device
+  modes, the offline window and retention schedule, and counts. Saved, prepared, signed (and
+  refused) and governance changes are audited with ids and changed field names only.
+- Next: the onboarding checklist (rule 26), which reads the DPIA state, with the decision
+  records it needs (settings, retention, DCB0160); sub-processor notices (rules 24 and 25); the
+  web screens.
+
+## 10e. As built (slice 13, the onboarding checklist)
+
+- Migration 0064 (after 0063): `tenant_setting_decision`, `retention_decision` and
+  `dcb0160_record`, append-only (forced RLS; read with `platform.onboarding.read` or `.manage`;
+  written only by a holder of `platform.onboarding.manage` in their own name; no UPDATE, DELETE or
+  TRUNCATE), and `tenant.staff_file_option`, which only that holder changes
+  (`tenant_staff_file_guard`).
+- Domain: `checkSettingDecision` (setting its own figure needs a rate table row of its own),
+  `checkRetentionDecision` (rule 26's kinds per class; lengthening or setting needs the
+  organisation's own period, a lengthened one longer than the default; the staff file option on
+  its own) and `checkDcb0160Recording` (the current safety case only), table-driven.
+- Decision routes (`apps/api/src/routes/onboarding.ts`, `platform.onboarding.manage`): `POST
+  /v1/onboarding/setting-decisions`, `POST /v1/onboarding/retention-decisions`, `PUT
+  /v1/onboarding/staff-file-option` (the organisation record's `expectedVersion`) and `POST
+  /v1/onboarding/dcb0160`, each audited (`platform.setting.decided`, `platform.retention.decided`,
+  `platform.dcb0160.recorded`), refusals as 422 `decision_not_recordable` and audited too.
+  `SAFETY_CASE_VERSION` in the API's configuration names the safety case for the release.
+- Default taken (section 20 rule 2): decisions, including the clinical settings and the DCB0160
+  record, are made by holders of `platform.onboarding.manage` (the owner), as section 3 says;
+  whether the clinical ones need the clinical lead's own permission is for the CSO (H-122).
+- `GET /v1/onboarding` (`platform.onboarding.read` or `.manage`): the checklist from
+  `onboardingChecklist`, the safety case the DCB0160 assessment must cover, the staff file option
+  and the organisation record's version. The state (`services/onboarding.ts`) reads the records:
+  locations and their Registered Managers, members' roles and second factors, the rate table's
+  tenant defaults and the retention schedule against the decisions, the DPIA state (shared with
+  the DPIA routes: `dpiaStateFor`, `tenantFlags`), sub-processors in use, escalation chains,
+  validated tools (switched on at any location counts, HZ-014) against the policy links, each
+  current person's readiness, and the latest DCB0160 record. Not yet stored, so read plainly
+  rather than guessed done: sub-processor acknowledgements (rules 24 and 25; never done until
+  then, not a go-live item), device modes and the sample flag (rules 29 to 32; both unknown, so
+  `shared_devices_enrolled` and `sample_data_removed` stay open and block go-live, "Harbour does
+  not record this yet"; #86 security review H1), the opt-out check date (every current person counts as not
+  checked) and a recorded "no decision in place" resuscitation statement (only an active ReSPECT
+  or DNACPR record counts, so such a person stays outstanding). Members count by their own
+  status, so an invited member has not joined. For each retention class the latest decision
+  stands. `SAFETY_CASE_VERSION` must be set in production (Terraform passes it; CI takes the
+  newest report in `docs/clinical-safety/safety-case/`), and a test checks the default names a
+  report there.
+
+## 10h. As built (slice 13, sub-processor notices, organisation side)
+
+- Migration 0065: `sub_processor_notice` (global, Thapsus's; everyone reads, only the operator
+  role announces; never changes) and `sub_processor_response` (append-only, forced RLS; read
+  with a DPIA or onboarding permission; written by the application only as the named data
+  protection lead holding `platform.dpia.sign` through a role, in their own name, acknowledging
+  or objecting; the operator role records a resolution).
+- Domain: `noticeResponseFrom` (the latest acknowledgement, the latest objection and the first
+  resolution after it) and `subProcessorAcknowledgementsFrom` (the checklist's acknowledgements),
+  table-driven.
+- Routes (`apps/api/src/routes/sub-processors.ts`): `GET /v1/sub-processors` (the sub-processors
+  in use, each acknowledged or not since its latest notice, and every notice with its state and
+  when the organisation's window ends); `POST /v1/sub-processors/{key}/acknowledge` (the register
+  entry, or a notice with `noticeId`); `POST /v1/sub-processor-notices/{id}/object` (grounds of 20
+  characters or more, within the window). Both answers need `platform.dpia.sign` with step-up by
+  the named lead (`checkNoticeResponse`), refusals as 422 `notice_response_refused`, audited with
+  ids and keys only, never the grounds. The onboarding checklist's `sub_processors_acknowledged`
+  now reads the responses and notices. Review of #92: responses are read through roles only
+  (`app.holds_role_permission_somewhere`), and the grounds are returned only to DPIA permission
+  holders; the register entry is not acknowledged while a notice about it has an open objection;
+  each notice's window uses the organisation's notice period in force on the UK date it was
+  announced.
+- Operator side (`apps/api/src/routes/operator-sub-processors.ts`; migration 0067): an admin with
+  a fresh step-up announces a notice (`POST /operator/sub-processor-notices`); the organisations
+  it affects are worked out from their configuration (`subProcessorConfigFor`, never people),
+  every organisation not closed counting, suspended ones included (their data is still
+  processed); the effective date may not come before the longest of their notice periods
+  (`checkNoticeTiming`, 422 `notice_too_short`). Announcing, reading objections (`GET
+  /operator/sub-processor-notices/{id}/objections`) and resolving one (`POST
+  /operator/tenants/{tenantId}/sub-processor-notices/{id}/resolution`) go only through definer
+  functions owned by the NOLOGIN role `harbour_notice_resolver` (`app.announce_sub_processor_notice`,
+  `app.sub_processor_objections`, `app.resolve_sub_processor_objection`): they take the admin
+  from the transaction's `app.operator_id`, need an open objection to resolve (409
+  `no_open_objection`), and write each organisation's audit event and an outbox event in the same
+  transaction; the worker then tells its lead (or owners) once, by a dedupe key, retrying until
+  it has. The operator role has no direct access to notices or responses, and the other
+  application roles cannot execute the functions.
+- Next: the web screens.
+
+## 10f. As built (slice 13 web, the DPIA page)
+
+- `/settings/data-protection` (any DPIA permission; "Data protection" in the module menu): where
+  the DPIA stands as an icon and a word, why a review is due and what Harbour still needs; the
+  governance form for `platform.tenant.manage` (the lead from the active members, the DPO, sector,
+  privacy notice, DPA date in day, month and year boxes, use beyond direct care, the optional
+  processing; the AI provider is kept as it is); the open version's answers and residual risk
+  ratings with the ICO reference, and "Mark ready to sign", for `platform.dpia.prepare`; and the
+  prepared version's signature for `platform.dpia.sign`, showing the version's SHA-256 the typed
+  name binds to. Naming a different lead and signing say how to step up (`StepUpNotice`), with
+  the way back. The demo organisation now has a CQC provider ID (`1-DEMO000000`), so its DPIA can
+  be signed in the journey.
+
+## 10g. As built (slice 13 web, the onboarding checklist page)
+
+- `/settings/onboarding` ("Getting started" in the module menu, `platform.onboarding.read` or
+  `.manage`): progress, whether anything blocks go-live, and each item done or not as an icon and
+  words ("Not done: blocks go-live" for a go-live item), with the API's reason and, for people
+  readiness, each person (a link to their record) with what they lack. A holder of
+  `platform.onboarding.manage` records the decisions on the page: accept a setting Harbour chose;
+  keep Harbour's period for a kind of record or say the organisation does not keep it (the API
+  says which a class takes); choose the staff file option; record the DCB0160 assessment for the
+  release's safety case. A refused decision shows the API's words. Each setting shows the figure
+  being accepted (`settings` in the checklist response). Accepting a clinical setting names the
+  clinical lead or CSO who reviewed it (`reviewedBy`), and recording DCB0160 names who made the
+  assessment (`assessedBy`): an active member, refused otherwise (`reviewer_required`,
+  `reviewer_not_member`), kept as a member id in the audit event (HZ-027).
+- Gaps: the reasons come from the domain in English (not yet through the Welsh catalogue), and
+  settings and record classes show their keys until the settings and retention screens give
+  them names; setting the organisation's own figure or period waits for those screens.
+
+## 10s. As built (slice 13, search)
+
+### Part 1, the index
+
+Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-processor notices, which merges first), expand only:
+
+| Piece | Built as |
+| --- | --- |
+| `app.search_terms(text)` | Immutable, `SECURITY INVOKER`, not leakproof: NFKD, lower case, the `unaccent` dictionary named explicitly, apostrophes joined, every other character a separator. Equal to `searchTerms` on the domain fixtures (tested) |
+| `app.search_vector(text)` and `app.harbour_search` | The terms as an unstemmed `tsvector` (a copy of the `simple` configuration), so queries use `to_tsquery('app.harbour_search', $n)` with the bound queries from `normaliseSearchQuery` |
+| Generated columns | `person.search_names` (given, family and preferred names) and `person.search_room`; `tenant_user.search_name` (display name only); `document.search_title` (title and display file name, never contents); `care_note.search_body`. Plain-text copies of their columns: purged with the row, internal in the export catalogue, and beyond crypto-shredding if their source is later encrypted (H-380). Adding them rewrites the four tables under an exclusive lock: before go-live with the release, then only in a maintenance window or by the batched alternative ([search-index runbook](../runbooks/search-index.md)) |
+| Indexes | None new. The exact NHS number match uses the unique constraint on `(tenant_id, nhs_number)`. No GIN index: under forced row-level security only a leakproof condition can be an index condition ahead of the policy, and `@@` is not, so the app role could never use one (tested with `EXPLAIN`). Each search reads the tenant's rows by an existing index on `tenant_id` and filters them within the policy (ADR-0070, as built). After a Postgres upgrade the vectors are rebuilt (runbook section 2; HZ-001) |
+| Break-glass search | Migration 0070 (part 4): `break_glass_event.kind` (`open` or `search`); a search names no person and its `expires_at` is when it ran (a CHECK), so it can never widen the break-glass scope |
+
+### Part 2, the route
+
+`POST /v1/search` (`feat/platform-search-api`, stacked on the index): `apps/api/src/routes/search.ts`,
+`apps/api/src/services/search.ts`, contracts in `packages/contracts/src/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| Request | `platform.search.use`. The words in the JSON body (never the address, so no access log holds them), the kinds asked for, and whether to include people who have left. At most `search.requests_per_minute` searches a member a minute (rate table; 429 with Retry-After after), and `statement_timeout` of 5 seconds on the search's transaction |
+| Plan | `buildSearchPlan` with the session's MFA (care record kinds need MFA on this session, ADR-0072), the end of the roles that give search, and the agency flag (a member whose row cannot be read is refused); rotas arrive in Phase 2, so an agency worker has no shift recorded and is refused (`no_shift_recorded`). `access.agency.post_shift_hours` from the rate table |
+| Reading | One query per kind (per document category), each in the scope of the permission it rests on (`inScopeOf`, ADR-0071) with break-glass left out, so a person opened by break-glass is found only by break-glass search (rule 9). The tenant first, then the bound prefix query; whole-word matches marked `exact`. Every query in SQL keeps to what the plan allows, so the second filter drops nothing in routine use: colleagues in the plan's staff scope (working across the organisation or at one of the user's locations), never a deleted person's notes or documents, and never a note a correction replaced. Each query orders best matches first (whole-word, then rank, then id) before its limit of 100 rows; a kind that reaches it marks the results `capped`, and the screen asks for another word. People's own fields with their communication needs, colleagues' names, roles and locations (never contact details, and never a member whose roles are all portal roles), documents' titles (never contents) and notes' excerpts (160 characters) with their author |
+| Results | `filterSearchResults`: the plan applied again to every row, people first, same-name warnings, counts only of what may be seen; rows the plan still drops mean the queries and the plan disagree: `security.search.dropped_by_plan` in the log and a `platform.search.dropped_by_plan` audit event, with opaque counts only. Names-and-rooms roles see the age, never the date of birth or NHS number. `Cache-Control: no-store` |
+| Audit | `platform.search.run` with `searchAuditEvent` (the ids shown, people shown as care-record views); refusals `platform.search.refused` with the problem; never the words typed |
+| Refusals | Query problems 422 (`invalid` with the message); no permission, nothing to search, people who have left without the permission, access ended and no shift 403 with the problem as the code; MFA 403 asking to confirm or set up a second step |
+
+### Part 3, the page
+
+`/search` (`feat/web-search`, stacked on the route), "Search" in the side bar for
+`platform.search.use`: `apps/web/src/app/(shell)/search/page.tsx`,
+`apps/web/src/components/search/SearchBox.tsx`, `apps/web/src/lib/search.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| The box | A `search` landmark with a form that posts (so pressing Enter before the scripts load never puts the words in the address), a labelled search box, "Look in" (everything, people, colleagues, documents, notes) and, for `platform.search.archived` only, "Include people who have left the service". Enter searches; the words go to the API through a server action in the request body, never in the address |
+| Results | Take focus at their heading ("3 results"). They say where the search looked (across the organisation, at your locations, or among the people assigned to you; colleagues likewise), whether people who have left were included, each kind left out and why, words ignored, and when there are more. People show photo or initials, name with preferred name, date of birth (or age for names-and-rooms roles), NHS number, location, room and status as a word, and their communication needs; a same-name warning in the warning style, saying to check the photo and the date of birth or age, whichever is shown (HZ-001). "Searching" is announced; a capped search asks for another word. Each result links to the person, the document or the person's notes |
+| Refusals | In words at the box: nothing typed, a mistyped NHS number, no shift recorded, access ended, people who have left without the permission, MFA |
+| Follow-ups | Offline search on mobile labelled "This device only"; the weekly break-glass report listing searches beside the openings |
+
+### Part 4, break-glass search
+
+`POST /v1/search/break-glass` and "Search outside your access" on `/search`
+(`feat/platform-break-glass-search`; migration 0070, after other lanes' 0067 to 0069).
+
+| Piece | Built as |
+| --- | --- |
+| Who | `platform.search.use` and `people.person.break_glass`, with step-up (a second factor within the window), refused and audited as opening a record is. A reason code and a typed reason of 20 to 1,000 characters; a full name (two words or more, whole words, names only, never rooms) or an exact NHS number; fewer than `break_glass.search_max_per_day` such searches by the member in 24 hours |
+| Reading | Across the organisation, never another (tenant first, under forced RLS), at most 10 people, identity only: name, preferred name, date of birth, NHS number and status, never location or room. Read-only: a result links to the person's address, where the ordinary break-glass step opens the record |
+| Record and alert | A `search` break-glass record holds the typed reason and reason code; it opens nothing. The Registered Manager of each home whose people were shown and the organisation's data protection lead are told in generic words (never the searcher); with no one to tell, an `platform.search.break_glass_alert_unrouted` audit event. At the daily limit the search is refused (429), audited, and the data protection lead told |
+| Audit | `platform.search.break_glass` with `searchAuditEvent` and the break-glass record's id (people shown as care-record views); never the words or the reason. Refusals `platform.search.refused` with the problem and `breakGlass: true` |
+| Web | A sheet with the query, the reason code and the reason; problems at their fields; the passkey notice after a password sign-in; results read-only with same-name warnings |
+
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim
@@ -450,6 +736,9 @@ rows added, all to verify. No schema, migration, API, web or mobile change in th
   `security_log` class (H-121).
 - Whether a one-person organisation whose owner is the only possible signer needs an exception to
   rule 21 (H-115).
+- The staff file option is not reopened when Harbour changes the staff file rows of the schedule:
+  the tenant row does not keep when the option was chosen. Record the choice as a
+  `retention_decision` (or keep its time) when the retention screens are built.
 - Which onboarding items block go-live, and the person-readiness items (H-122).
 - Whether the export controls bring HZ-071 to the target residual rating; until the Clinical Safety
   Officer accepts it, the residual stays 4 and blocks release (H-119).

@@ -1,12 +1,19 @@
 "use client";
 
-import { CircleAlert, History, type LucideIcon, RefreshCw, WifiOff } from "lucide-react";
+import {
+  CircleAlert,
+  FlaskConical,
+  History,
+  type LucideIcon,
+  RefreshCw,
+  WifiOff,
+} from "lucide-react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "../../lib/cx";
 import { iconProps } from "../../lib/icon";
 import { Button } from "../Button/Button";
 
-export type BannerVariant = "offline" | "syncing" | "syncFailed" | "stale";
+export type BannerVariant = "offline" | "syncing" | "syncFailed" | "stale" | "sample";
 
 interface BannerDefaults {
   role: "status" | "alert";
@@ -45,6 +52,14 @@ const bannerDefaults: Record<BannerVariant, BannerDefaults> = {
     title: "This information may be out of date",
     description: "Check when it was last updated before you act on it.",
   },
+  // Sample data mode (HZ-072): a steady reminder on every screen, so invented people are never
+  // taken for real ones. Polite: it is there from the start, not news.
+  sample: {
+    role: "status",
+    Icon: FlaskConical,
+    title: "Sample data is in use",
+    description: "People marked Sample are invented for practice. Remove them before go-live.",
+  },
 };
 
 export interface BannerProps extends Omit<HTMLAttributes<HTMLDivElement>, "title" | "role"> {
@@ -64,7 +79,10 @@ export interface BannerProps extends Omit<HTMLAttributes<HTMLDivElement>, "title
   action?: ReactNode;
 }
 
-/** Full-width message for offline and sync state. Every state has an icon and words. */
+/**
+ * Full-width message for offline and sync state, and for sample data. Every state has an icon and
+ * words.
+ */
 export function Banner({
   variant,
   title,

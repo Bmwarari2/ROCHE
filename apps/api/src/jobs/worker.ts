@@ -1,13 +1,18 @@
 import { createDatabase, createPool } from "@harbour/db";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "../config";
+import { createDocumentServices, createExportStorage } from "../integrations/documents";
 import { createAdapterResolver } from "../integrations/registry";
 import { createLogger, idleErrorLogger } from "../logger";
+import { sweepInvitations } from "../services/invitations";
+import { runQueuedExports, sweepExports } from "./exports";
 import { runJob } from "./run-job";
 import {
+  buildDowntimePacks,
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
   generatePlanTaskSeries,
@@ -22,6 +27,7 @@ import {
   reportUnroutedDaily,
   retryUnroutedTasks,
   runEscalations,
+  sweepEvidenceBundlesJob,
 } from "./tasks";
 
 /**
@@ -36,7 +42,14 @@ const workerPool = createPool(
   idleErrorLogger(logger, "worker"),
 );
 const appPool = createPool(config.DATABASE_APP_URL, { max: 4 }, idleErrorLogger(logger, "app"));
-const deps = { workerPool, appDb: createDatabase(appPool), logger };
+// The auth role, only to delete sign-ins an invitation's acceptance left unlinked (#48 review H1).
+const authPool = createPool(config.DATABASE_AUTH_URL, { max: 1 }, idleErrorLogger(logger, "auth"));
+const deps = {
+  workerPool,
+  appDb: createDatabase(appPool),
+  logger,
+  exportStorage: createExportStorage(config),
+};
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
 const handlers = outboxHandlers(deps);
@@ -62,6 +75,12 @@ const QUEUES = {
   handovers: "shift-handovers",
   taskEscalationRetries: "task-escalation-retries",
   unroutedReport: "unrouted-daily-report",
+  downtimePacks: "downtime-packs",
+  invitations: "invitation-sweep",
+  evidenceBundles: "evidence-bundle-sweep",
+  fullExports: "full-exports",
+  exportExpiry: "export-expiry",
+  statementOverdue: "statement-of-purpose-overdue",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -122,6 +141,32 @@ await work(QUEUES.taskEscalationRetries, async () => {
 await work(QUEUES.unroutedReport, async () => {
   await reportUnroutedDaily(deps);
 });
+await work(QUEUES.downtimePacks, async () => {
+  await buildDowntimePacks(deps);
+});
+await work(QUEUES.invitations, async () => {
+  await sweepInvitations({ workerPool, appPool, authPool, logger });
+});
+
+await work(QUEUES.evidenceBundles, async () => {
+  await sweepEvidenceBundlesJob(deps);
+});
+// The full export (PLAT-015): reads the documents bucket, writes the exports bucket.
+const exportDeps = {
+  ...deps,
+  appPool,
+  storage: createDocumentServices(config).storage,
+  exportStorage: deps.exportStorage,
+};
+await work(QUEUES.fullExports, async () => {
+  await runQueuedExports(exportDeps);
+});
+await work(QUEUES.exportExpiry, async () => {
+  await sweepExports(exportDeps);
+});
+await work(QUEUES.statementOverdue, async () => {
+  await escalateStatementsOfPurpose(deps);
+});
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
 await boss.schedule(QUEUES.outbox, "* * * * *");
@@ -153,12 +198,25 @@ await boss.schedule(QUEUES.handovers, "*/5 * * * *");
 await boss.schedule(QUEUES.taskEscalationRetries, "53 * * * *");
 // Daily: one operator signal per organisation with unrouted safety work (on-call.md).
 await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
+// Nightly, and again every hour as a catch-up: each location gets one nightly downtime pack per UK
+// night, so a failed run is retried and a run that already built it does nothing (rule 8, HZ-021).
+await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
+// Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
+await boss.schedule(QUEUES.invitations, "17 3 * * *");
+
+// Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).
+await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");
+// Hourly: a revision is due at CQC by the day (regulation 12(3)); each is alerted once.
+await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
+// Every minute: an export asked for starts at once; every 15 minutes, archives past expiry go.
+await boss.schedule(QUEUES.fullExports, "* * * * *");
+await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
 
 logger.info("Harbour worker started");
 
 const shutdown = async () => {
   await boss.stop({ graceful: true });
-  await Promise.all([workerPool.end(), appPool.end()]);
+  await Promise.all([workerPool.end(), appPool.end(), authPool.end()]);
   process.exit(0);
 };
 process.on("SIGTERM", shutdown);

@@ -1,6 +1,7 @@
-import type { DeviceDeletionFlag } from "@harbour/contracts";
+import type { DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
-import { Clock, Copy, History } from "lucide-react";
+import { Clock, Copy, FileText, History } from "lucide-react";
+import { backEntryLabel, entryReference } from "@/lib/downtime";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { EntryLifecycleBadges, type TaskOutcome } from "./LifecycleBadges";
@@ -11,7 +12,10 @@ import { EntryLifecycleBadges, type TaskOutcome } from "./LifecycleBadges";
  * device clock that differed from the server's is shown too; an entry recorded after the person
  * left, or one that did not complete the round it named, says what happened
  * (EntryLifecycleBadges); and an entry its device recorded deleting says so, because it may be a
- * duplicate of care recorded again (#26 review round 2, C3). Icon and word, never colour alone.
+ * duplicate of care recorded again (#26 review round 2, C3). A record entered from a paper
+ * downtime form carries its label (the paper time, the outage, when it was entered), and one
+ * written later and not from paper its reason, so neither reads as written at the time
+ * (operations.md rule 12; HZ-017). Icon and word, never colour alone.
  */
 export function EntryBadges({
   entry,
@@ -23,6 +27,10 @@ export function EntryBadges({
     recordedAfterExit?: boolean;
     taskOutcome?: TaskOutcome | null;
     deviceDeletion?: DeviceDeletionFlag | null;
+    backEntry?: EntryBackEntry | null;
+    notFromPaper?: EntryNotFromPaper | null;
+    /** The entry's id: its short reference is shown beside the paper label for reconciliation. */
+    id?: string;
   };
 }) {
   const lifecycle = {
@@ -33,9 +41,36 @@ export function EntryBadges({
     lifecycle.recordedAfterExit ||
     (lifecycle.taskOutcome !== null && lifecycle.taskOutcome !== "completed");
   const deletion = entry.deviceDeletion ?? null;
-  if (!entry.lateEntry && !entry.clockDrift && !hasLifecycle && deletion === null) return null;
+  const backEntry = entry.backEntry ?? null;
+  const notFromPaper = entry.notFromPaper ?? null;
+  const downtime = backEntry !== null || notFromPaper !== null;
+  // The same reference the outage's reconciliation lists, so the manager can find it (HZ-092).
+  const reference = entry.id
+    ? ` · ${t("care.entry.reference", { reference: entryReference(entry.id) })}`
+    : "";
+  if (!entry.lateEntry && !entry.clockDrift && !hasLifecycle && deletion === null && !downtime) {
+    return null;
+  }
   return (
     <>
+      {backEntry ? (
+        <>
+          <StatusChip status="info" label={t("care.entry.backEntry")} icon={FileText} />
+          <span className="text-body-dense text-text-secondary" data-back-entry="">
+            {backEntryLabel(backEntry, t)}
+            {reference}
+          </span>
+        </>
+      ) : null}
+      {notFromPaper ? (
+        <>
+          <StatusChip status="info" label={t("care.entry.notFromPaper")} icon={FileText} />
+          <span className="text-body-dense text-text-secondary" data-not-from-paper="">
+            {t("care.entry.notFromPaperReason", { reason: notFromPaper.reason })}
+            {reference}
+          </span>
+        </>
+      ) : null}
       {entry.lateEntry ? (
         <>
           <StatusChip status="due" label={t("care.entry.lateEntry")} icon={Clock} />

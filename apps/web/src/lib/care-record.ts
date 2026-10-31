@@ -22,12 +22,19 @@ export type RecordTab =
   | "advance-care"
   | "capacity"
   | "activities"
+  | "letters"
+  | "family-updates"
   | "history";
 
 interface TabDefinition {
   readonly tab: RecordTab;
   /** The permission needed to read what the tab shows. */
-  readonly needs: "care.plan.read" | "care.note.read" | "people.person.read";
+  readonly needs:
+    | "care.plan.read"
+    | "care.note.read"
+    | "people.person.read"
+    | "comms.letter.manage"
+    | "comms.feed.publish";
 }
 
 /** In the order the tabs appear: plan and assessments first, then the daily record. */
@@ -42,6 +49,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
+  { tab: "letters", needs: "comms.letter.manage" },
+  { tab: "family-updates", needs: "comms.feed.publish" },
   { tab: "history", needs: "people.person.read" },
 ];
 

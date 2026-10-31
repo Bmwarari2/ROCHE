@@ -37,7 +37,7 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000001";
 
 describe("record tabs", () => {
-  it("lists the eleven sections in order, the overview first and history last", () => {
+  it("lists the thirteen sections in order, the overview first and history last", () => {
     expect(RECORD_TABS.map((d) => d.tab)).toEqual([
       "overview",
       "care-plan",
@@ -49,6 +49,8 @@ describe("record tabs", () => {
       "advance-care",
       "capacity",
       "activities",
+      "letters",
+      "family-updates",
       "history",
     ]);
   });
@@ -65,6 +67,14 @@ describe("record tabs", () => {
     );
     expect(notesOnly).toEqual(["overview", "notes", "charts", "body-map", "activities", "history"]);
     expect(visibleTabs(PERSON, []).length).toBe(0);
+    // Letters only for those who make them (comms.letter.manage), never from reading the record.
+    expect(
+      visibleTabs(PERSON, ["people.person.read", "comms.letter.manage"]).map((v) => v.tab),
+    ).toEqual(["overview", "letters", "history"]);
+    // Family updates only for those who publish them (comms.feed.publish).
+    expect(
+      visibleTabs(PERSON, ["people.person.read", "comms.feed.publish"]).map((v) => v.tab),
+    ).toEqual(["overview", "family-updates", "history"]);
   });
 
   it("checks permissions by name", () => {
@@ -230,6 +240,7 @@ describe("reading the header data with the API's schemas (hazards HZ-001 and HZ-
     iddsiFoodLevel: "not_recorded",
     iddsiDrinkLevel: "not_recorded",
     statusChangedAt: "2026-09-01T10:00:00.000Z",
+    sample: false,
     resuscitation: {
       status: "do_not_attempt_cpr",
       conflicting: false,
@@ -437,6 +448,7 @@ describe("hazard HZ-011 hazard HZ-073 every write form is offered only where the
       iddsiFoodLevel: "not_recorded",
       iddsiDrinkLevel: "not_recorded",
       statusChangedAt: "2026-09-01T10:00:00.000Z",
+      sample: false,
       resuscitation: { status: "not_recorded" },
       version: 1,
       access: breakGlass,

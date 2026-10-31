@@ -45,9 +45,13 @@ export type ExportTreatment = "tenant_rows" | "tenant_overrides_only" | "not_exp
 export type ExportRetention =
   | "care_record"
   | "audit_event"
+  | "dpia"
   | "serious_incident"
   | "downtime_pack"
   | "downtime_record"
+  | "evidence_pack"
+  | "organisation_document"
+  | "invitation"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -795,7 +799,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   },
   "public.break_glass_event": {
     context: "people",
-    description: "Records opened outside scope, with the typed justification and review.",
+    description:
+      "Records opened, and break-glass searches made, outside scope, with the typed justification and review.",
     treatment: "tenant_rows",
     retention: "audit_event",
     personal: true,
@@ -803,7 +808,17 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       tenant_user_id: "exported",
-      person_id: "exported",
+      kind: {
+        description:
+          "open (a record opened outside scope) or search (a break-glass search; the people shown are in its audit event).",
+      },
+      person_id: {
+        description: "The person whose record was opened (person.id); empty for a search.",
+      },
+      shown_location_ids: {
+        description:
+          "For a search, the homes whose people were shown (location.id), for the weekly report.",
+      },
       justification: {
         description: "The typed justification for opening or finding a record outside scope.",
       },
@@ -1023,6 +1038,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       category: { description: "Note category." },
       body: { description: "The note text." },
+      search_body: {
+        description:
+          "Search index of the note text (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       tags: { description: "Tags on the note." },
       attachment_document_ids: { description: "Attached documents (document.id list)." },
     },
@@ -1353,6 +1373,25 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.dcb0160_record": {
+    context: "platform",
+    description:
+      "The organisation's DCB0160 clinical safety assessments as recorded for onboarding (platform-completions.md rules 26 and 27; append-only): which Harbour safety case each covers, who recorded it and when.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      safety_case_version: {
+        description: "The Harbour safety case version the assessment covers.",
+      },
+      recorded_by: "exported",
+      recorded_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.destruction_certificate": {
     context: "platform",
     description: "Certificates for records destroyed past retention (ids, class, rule, method).",
@@ -1545,6 +1584,48 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.dpia": {
+    context: "platform",
+    description:
+      "The organisation's DPIA, one row per version (platform-completions.md rules 17 to 22): Harbour's prefill, the organisation's answers and residual risk ratings, who prepared it, and its signature by the data protection lead. A signed version never changes.",
+    treatment: "tenant_rows",
+    retention: "dpia",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      dpia_version: { description: "The DPIA's version number, from 1.", unit: "version number" },
+      status: {
+        description: "Where the version stands.",
+        codes: {
+          draft: "Being prepared.",
+          prepared: "Ready to sign.",
+          signed: "Signed by the data protection lead.",
+          superseded: "Signed, then replaced by a later version.",
+        },
+      },
+      prefill: { description: "What Harbour filled in from the configuration (JSON)." },
+      answers: { description: "The organisation's answers, by section and field (JSON)." },
+      residual_risk: { description: "The residual risk rated for each risk (JSON)." },
+      ico_reference: { description: "ICO prior consultation reference (Article 36), if any." },
+      prepared_by: { description: "Everyone who wrote part of this version (tenant_user ids)." },
+      version_sha256: {
+        description: "SHA-256 of the version as prepared, which the signature binds.",
+      },
+      prepared_at: "exported",
+      signed_by: "exported",
+      signed_at: "exported",
+      typed_name: { description: "The name the signer typed." },
+      statement: { description: "What the signer agreed to." },
+      basis: { description: "What the signed version covered, for re-review (JSON)." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.document": {
     context: "platform",
     description:
@@ -1556,7 +1637,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       id: "exported",
       tenant_id: "exported",
       category: {
-        description: "person_photo, care_attachment, person_document or organisation_document.",
+        description:
+          "person_photo, feed_photo, care_attachment, person_document or organisation_document.",
       },
       title: "exported",
       retention_class: { description: "Retention class from the category (retention.md)." },
@@ -1574,6 +1656,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       subject_id: "exported",
       person_id: "exported",
       file_name: { description: "Display file name, made safe on upload (may name a person)." },
+      search_title: {
+        description:
+          "Search index of the title and file name (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       status: {
         description: "available, quarantined (failed or missed the malware scan) or destroyed.",
       },
@@ -1753,6 +1840,8 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "How the pack was built.",
         codes: {
           server_nightly: "The nightly job built it.",
+          server_rebuild:
+            "The system built it again after someone moved in, out or away, or their status changed.",
           server_on_demand: "A member built it on demand.",
           kiosk_cache: "A kiosk built it from its own cache when the server could not be reached.",
         },
@@ -1821,6 +1910,168 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       owner_tenant_user_id: { description: "The entry's author (tenant_user.id)." },
       review_task_id: { description: "The Registered Manager's review task (task.id)." },
       flagged_at: { description: "When the server flagged it (instant, UTC)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.evidence_pack": {
+    context: "quality",
+    description:
+      "Inspector evidence packs (quality.md rules 1 to 10): the request (recipient, purpose, dates, locations, statements, people in scope), who shaped it and its release, revocation or discard. The manifest is kept as proof of the disclosure.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      recipient_name: { description: "The named recipient (an inspector or commissioner)." },
+      recipient_organisation: { description: "The recipient's organisation." },
+      recipient_email: { description: "The recipient's work email address, in lower case." },
+      purpose: {
+        description: "Why the recipient asked for the evidence, in the composer's words.",
+      },
+      date_from: { description: "First UK date of the evidence asked for (inclusive)." },
+      date_to: { description: "Last UK date of the evidence asked for (inclusive)." },
+      location_ids: { description: "The locations the evidence comes from (location ids)." },
+      quality_statement_ids: {
+        description: "The quality statements asked for (statement ids); empty for every statement.",
+      },
+      person_ids: { description: "The people in scope, chosen explicitly (person ids)." },
+      staff_names: {
+        description: "Whether staff appear by role or by name.",
+        codes: { role_only: "Staff appear by their role.", include: "Staff names are shown." },
+      },
+      composed_by: "exported",
+      composed_at: "exported",
+      editor_ids: {
+        description: "Members who changed the draft after it was composed (tenant_user ids).",
+      },
+      state: { description: "draft, released, revoked or discarded." },
+      watermark: { description: "The words printed on every page of the pack." },
+      released_by: {
+        description: "Who released the pack (tenant_user.id); never anyone who shaped it.",
+      },
+      released_at: "exported",
+      revoked_by: { description: "Who revoked the pack (tenant_user.id), if anyone." },
+      revoked_at: "exported",
+      revocation_reason: { description: "Why the pack was revoked." },
+      discarded_by: { description: "Who discarded the draft (tenant_user.id), if anyone." },
+      discarded_at: "exported",
+      discard_reason: { description: "Why the draft was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.evidence_pack_bundle": {
+    context: "quality",
+    description:
+      "The shown values of an evidence pack's included fields, from which the PDF is drawn; deleted when the pack's link ends or the pack is revoked or discarded.",
+    treatment: "not_exported",
+    retention: "evidence_pack",
+    personal: true,
+    reasonNotExported:
+      "A temporary copy of care records that are exported in their own tables; it is deleted when the link ends, and the manifest (evidence_pack_item) records what was disclosed.",
+    columns: {},
+  },
+  "public.evidence_pack_item": {
+    context: "quality",
+    description:
+      "Each record considered for an evidence pack (append-only): included with its field outcomes and reasons, or left out with its reason (internal manifest). A hand redaction adds a row that supersedes the item.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      pack_id: "exported",
+      supersedes_id: { description: "The item row this one replaces (a hand redaction), if any." },
+      record_type: { description: "The kind of record (incident, care_note and so on)." },
+      record_id: { description: "The record's id in its own table." },
+      record_version: { description: "The version of the record disclosed.", unit: "version" },
+      title: { description: "The generic label Harbour built for the record (never free text)." },
+      occurred_at: "exported",
+      quality_statement_ids: { description: "The quality statements it is evidence for." },
+      exclusion_reason: {
+        description: "Why it was left out; empty when included.",
+        codes: {
+          restricted_record: "A restricted record, never in a pack.",
+          outside_date_range: "Outside the dates asked for.",
+          location_not_requested: "At a location not asked for.",
+          not_tagged: "Not tagged as evidence.",
+          statement_not_requested: "Tagged only to statements not asked for.",
+          person_not_in_scope: "About nobody in the pack's scope.",
+        },
+      },
+      fields: {
+        description:
+          "Each field's key, label, kind, outcome (included, redacted or withheld), reason, and who redacted it by hand; never the shown values or a redacted copy.",
+      },
+      redacted_by: { description: "Members who redacted a field by hand (tenant_user ids)." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.evidence_pack_link": {
+    context: "quality",
+    description:
+      "The time-limited link an evidence pack is opened by (ADR-0050): its recipient, issue, expiry, revocation, failed code attempts and last open.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      pack_id: "exported",
+      recipient_email: { description: "The address the link and its codes go to." },
+      token_hash: {
+        description: "SHA-256 of the link's token; a credential, never exported.",
+        class: "secret",
+      },
+      issued_by: "exported",
+      issued_at: "exported",
+      replaces_link_id: { description: "The link this one replaced on a re-issue, if any." },
+      expires_at: "exported",
+      revoked_at: "exported",
+      revoked_by: { description: "Who revoked the link (tenant_user.id), if anyone." },
+      revocation_reason: {
+        description: "Why the link was revoked.",
+        codes: { pack_revoked: "The pack was revoked.", reissued: "A new link replaced it." },
+      },
+      failed_code_attempts: {
+        description: "Wrong codes entered; never goes down, and the link locks at the limit.",
+        unit: "count",
+      },
+      last_opened_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.evidence_pack_link_code": {
+    context: "quality",
+    description:
+      "One-time codes sent to an evidence pack link's recipient: when each was issued, how long it lasted and when it was used.",
+    treatment: "tenant_rows",
+    retention: "evidence_pack",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      link_id: "exported",
+      code_hash: {
+        description: "Hash of the one-time code; a credential, never exported.",
+        class: "secret",
+      },
+      issued_at: "exported",
+      valid_until: { description: "When the code lapses (instant, UTC)." },
+      used_at: { description: "When the code was used (instant, UTC); empty if never." },
       created_at: "exported",
       created_by: "exported",
     },
@@ -2076,6 +2327,102 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.family_portal_user": {
+    context: "comms",
+    description:
+      "Family portal accounts linked to the contact the sharing decisions name (ADR-0061); revoked with a reason, never deleted.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      tenant_user_id: { description: "The family member's portal account (tenant_user.id)." },
+      person_id: "exported",
+      contact_id: { description: "The contact the account acts as (contact.id)." },
+      revoked_at: "exported",
+      revoked_by: { description: "Who revoked the link (tenant_user.id)." },
+      revoked_reason: { description: "Why the link was revoked." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.feed_item": {
+    context: "comms",
+    description:
+      "Family feed updates (comms.md rules 7 to 12; append-only): the section, the record it came from, when it happened and the words shown to the family.",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      kind: { description: "The kind of update (FEED_ITEM_KINDS)." },
+      section: { description: "The section of the record it belongs to (FEED_ITEM_SECTIONS)." },
+      care_plan_domain: { description: "For a care plan update: the care plan section." },
+      source_kind: { description: "The kind of record it came from (FEED_SOURCE_KINDS)." },
+      source_id: { description: "The record it came from." },
+      occurred_at: "exported",
+      composed_at: { description: "When it was written for the family." },
+      text: { description: "The words shown to the family." },
+      photo_document_id: { description: "For a photo: the photo (document.id)." },
+      phrase_key: { description: "The approved phrase used, if any (FEED_PHRASES)." },
+      composed_by: { description: "Who published it (tenant_user.id)." },
+      confirmed_by: { description: "Who confirmed flagged words (tenant_user.id)." },
+      confirmation_reason: { description: "Why the flagged words could be published." },
+      supersedes_item_id: { description: "The update this one corrects." },
+      other_people_identifiable: { description: "For a photo: whether anyone else can be seen." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.feed_item_withdrawal": {
+    context: "comms",
+    description: "Family feed updates taken down (comms.md rule 4; append-only).",
+    treatment: "tenant_rows",
+    retention: "care_record",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      feed_item_id: { description: "The update taken down (feed_item.id)." },
+      reason: { description: "Why (FEED_WITHDRAWAL_REASONS)." },
+      withdrawn_by: { description: "Who took it down (tenant_user.id)." },
+      withdrawn_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.feed_view": {
+    context: "comms",
+    description:
+      "Each time a family member saw an update (comms.md rule 4; append-only): the decision that allowed it and the section, status and capacity finding then.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      feed_item_id: { description: "The update seen (feed_item.id)." },
+      contact_id: { description: "The contact the family member acted as (contact.id)." },
+      sharing_decision_id: { description: "The sharing decision that allowed the view." },
+      section: { description: "The section of the record." },
+      care_plan_domain: { description: "For a care plan update: the care plan section." },
+      person_status: { description: "The person's status at the time." },
+      capacity_for_sharing: { description: "The capacity finding for sharing at the time." },
+      viewed_by: { description: "The family member's portal account (tenant_user.id)." },
+      viewed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.feature_flag": {
     context: "platform",
     description: "Modules switched on or off for the organisation and its locations.",
@@ -2252,7 +2599,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       added_at: { description: "When it joined the handover (instant, UTC)." },
       summary: {
         description:
-          "What the item says, JSON: key (a catalogue key, handover.summary.*) and params (codes such as a NEWS2 band and score, a chart, an incident type, an alert kind, a mark's type and region, and for a task its title, and why it was not done); empty for items compiled before migration 0056.",
+          "What the item says, JSON: key (a catalogue key, handover.summary.*) and params (codes such as a NEWS2 band and score, a chart, an incident type, an alert kind, a mark's type and region, and for a task its title, and why it was not done); empty for items compiled before migration 0071.",
       },
       created_at: "exported",
       created_by: "exported",
@@ -2554,6 +2901,56 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.invitation": {
+    context: "platform",
+    description:
+      "Invitations to join the organisation: who was invited, by whom, when the link lapsed and whether it was accepted or revoked (platform.md, Invitations and MFA enrolment).",
+    treatment: "tenant_rows",
+    retention: "invitation",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      tenant_user_id: { description: "The member of staff invited (tenant_user.id)." },
+      email: {
+        description:
+          "The work email address the invitation was sent to; empty once it was accepted, revoked or lapsed.",
+      },
+      token_hash: {
+        description: "SHA-256 of the invitation link's token; a credential, never exported.",
+        class: "secret",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      created_by_operator: {
+        description:
+          "The Thapsus operator who sent the first owner's invitation (operator_user.id), else empty.",
+      },
+      expires_at: "exported",
+      accepted_at: "exported",
+      accepted_auth_user_id: {
+        description: "Harbour's own identifier of the sign-in the member was linked to.",
+        class: "internal",
+      },
+      claimed_auth_user_id: {
+        description: "Harbour's own identifier of the sign-in an acceptance created.",
+        class: "internal",
+      },
+      claimed_at: "exported",
+      revoked_at: "exported",
+      revoked_by: { description: "Who revoked the invitation (tenant_user.id), if anyone." },
+      revocation_reason: {
+        description: "Why it was revoked.",
+        codes: {
+          superseded: "A newer invitation replaced it.",
+          revoked: "A manager withdrew it.",
+          member_removed: "The member was suspended or removed.",
+          member_changed: "The member's address, roles or grants changed.",
+          expired: "It lapsed unused.",
+        },
+      },
+    },
+  },
   "public.investigation": {
     context: "safety",
     description: "The investigation of an incident: method, findings, actions and lessons.",
@@ -2637,6 +3034,113 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       released_at: "exported",
       released_by: "exported",
       release_reason: { description: "Why it was released." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.letter": {
+    context: "comms",
+    description:
+      "Letters and emails made from approved templates (comms.md rules 24 and 25; append-only): the template version, the person, the recipient, the channel, the personal-data fields used and whether special category data was present. Never an email's content; a letter's rendered PDF is a document about the person. Each row's retention is in retention_class.",
+    treatment: "tenant_rows",
+    retention: "serious_incident",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      template_version_id: { description: "The approved template version it was made from." },
+      person_id: "exported",
+      recipient_kind: {
+        description: "Who it went to.",
+        codes: { person: "The person themselves.", contact: "One of the person's contacts." },
+      },
+      contact_id: { description: "The contact it went to, when it went to a contact." },
+      channel: {
+        description: "How it went.",
+        codes: { letter: "A letter (post, by hand or the portal).", email: "An email." },
+      },
+      personal_fields: {
+        description: "The merge fields used that hold personal data (keys of MERGE_FIELDS).",
+      },
+      special_category: { description: "Whether special category data was merged (letters only)." },
+      results_to_follow: {
+        description: "A duty of candour letter sent before the results of further enquiries.",
+      },
+      incident_id: { description: "The incident an incident or candour letter is about." },
+      incident_serious: { description: "Whether that incident is graded serious." },
+      document_id: { description: "The rendered letter (document.id); none for an email." },
+      delivery_reference: { description: "The email provider's reference; none for a letter." },
+      sent_by: { description: "Who sent it (tenant_user.id)." },
+      sent_at: "exported",
+      retention_class: {
+        description:
+          "serious_incident for an incident or candour letter about a serious incident, otherwise care_record.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.letter_template": {
+    context: "comms",
+    description:
+      "Letter and email templates (comms.md rules 18 to 23): the kind and channel, fixed once made, and the approved version in use. No personal data.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      kind: {
+        description: "What the template is for.",
+        codes: {
+          admission: "Admission.",
+          fee_review: "Fee review.",
+          incident_follow_up: "Incident follow-up (letter only).",
+          duty_of_candour: "Duty of candour (letter only).",
+          general: "General.",
+        },
+      },
+      channel: {
+        description: "Letter or email.",
+        codes: { letter: "A letter.", email: "An email." },
+      },
+      current_version_id: { description: "The approved version in use, if any." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.letter_template_version": {
+    context: "comms",
+    description:
+      "Versions of each template (TEMPLATE_WORKFLOW): the name, email subject and body with merge fields, who wrote, edited, approved and retired each version.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      template_id: "exported",
+      version_number: { description: "The version's number within its template.", unit: "version" },
+      state: { description: "draft, approved, superseded, retired or discarded." },
+      name: { description: "The template's name in this version." },
+      subject: { description: "The email subject (merge fields with no personal data only)." },
+      body: { description: "The body text with {{merge.fields}}." },
+      author_id: { description: "Who wrote the version (tenant_user.id)." },
+      contributor_ids: { description: "The author and everyone who changed the draft." },
+      approved_by: { description: "Who approved it; never its author or an editor." },
+      approved_at: "exported",
+      retired_by: { description: "Who retired it." },
+      retired_at: "exported",
+      retirement_reason: { description: "Why it was retired." },
+      discard_reason: { description: "Why the draft was discarded." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2945,6 +3449,13 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         },
       },
       status_changed_at: { description: "When the current status began (instant, UTC)." },
+      is_sample: {
+        description:
+          "An invented person loaded as sample data (rule 29); sample rows are never exported, so always false here.",
+      },
+      sample_batch_id: {
+        description: "The sample batch an invented person came with (empty here).",
+      },
       nhs_number: {
         description: "NHS number, 10 digits without spaces, check digit validated (MODS).",
       },
@@ -2979,6 +3490,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       room_label: {
         description: "Display copy of the current room; the history is in bed occupancy records.",
+      },
+      search_names: {
+        description:
+          "Search index of the names (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
+      search_room: {
+        description:
+          "Search index of the room (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
       },
       communication_needs: {
         description:
@@ -3402,6 +3923,32 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: "exported",
     },
   },
+  "public.retention_decision": {
+    context: "platform",
+    description:
+      "The organisation's decisions on each kind of record's retention period, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      record_class: { description: "The kind of record (retention.md record_class)." },
+      kind: {
+        description: "What was decided.",
+        codes: {
+          accepted: "Harbour's period accepted.",
+          lengthened: "The organisation keeps it longer, with its own period.",
+          period_set: "The organisation's policy sets the period, now set.",
+          not_used: "The organisation does not keep this kind of record.",
+        },
+      },
+      decided_by: "exported",
+      decided_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.review_record": {
     context: "people",
     description:
@@ -3570,6 +4117,25 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.sample_batch": {
+    context: "platform",
+    description:
+      "Sample data batches (platform-completions.md rules 29 to 32): who loaded invented people to learn Harbour, when, how many, and when the batch was removed.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      loaded_by: "exported",
+      loaded_at: "exported",
+      people: { description: "How many invented people the batch loaded.", unit: "people" },
+      removed_by: "exported",
+      removed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.service": {
     context: "platform",
     description: "Services run at each location, with their service type.",
@@ -3718,6 +4284,56 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.statement_of_purpose_version": {
+    context: "quality",
+    description:
+      "Versions of the statement of purpose (quality.md rules 11 to 15): the Schedule 3 content, who wrote and approved each version, the change summary and the CQC notification of each revision.",
+    treatment: "tenant_rows",
+    retention: "organisation_document",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      version_number: { description: "The version's number in the organisation.", unit: "version" },
+      state: { description: "draft, approved, superseded or discarded." },
+      kind: {
+        description: "Whether it is the statement CQC already held or a revision.",
+        codes: { baseline: "The statement CQC already held.", revision: "A revision." },
+      },
+      content: {
+        description:
+          "The statement's Schedule 3 sections, including the provider's and registered managers' business contact details.",
+      },
+      author_id: { description: "Who wrote the version (tenant_user.id)." },
+      contributor_ids: { description: "The author and everyone who changed the draft." },
+      supersedes_id: { description: "The version this one replaced on approval, if any." },
+      change_summary: {
+        description: "What changed from the previous version, section by section.",
+      },
+      registration_prompts: {
+        description: "Registration applications the change may need (Harbour's prompts).",
+      },
+      approved_by: {
+        description:
+          "Who approved the version (tenant_user.id); never its author or a contributor.",
+      },
+      approved_at: "exported",
+      notification_due_at: {
+        description:
+          "When written details of the revision are due at CQC (approval plus cqc.statement_of_purpose.revision_notice_days, UK days).",
+      },
+      notified_at: { description: "When the revision was sent to CQC." },
+      notified_by: { description: "Who recorded that it was sent (tenant_user.id)." },
+      notification_evidence: { description: "The CQC reference, or how it was sent." },
+      discard_reason: { description: "Why the draft was discarded." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
   "public.statutory_notification": {
     context: "safety",
     description:
@@ -3802,6 +4418,51 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.sub_processor_notice": {
+    context: "platform",
+    description:
+      "Thapsus's notices of a new or replacement sub-processor (platform-completions.md rules 24 and 25), the same for every organisation.",
+    treatment: "not_exported",
+    retention: "audit_event",
+    personal: false,
+    reasonNotExported:
+      "Thapsus's own notices, the same for every organisation and published in sub-processors.md; the organisation's responses are exported with the notice id and sub-processor key.",
+    columns: {},
+  },
+  "public.sub_processor_response": {
+    context: "platform",
+    description:
+      "The organisation's responses to sub-processors (rules 24 and 25; append-only): its data protection lead acknowledging one it uses (a notice, or the register at onboarding) or objecting to a notice with its grounds, and how Thapsus resolved an objection.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      sub_processor_key: { description: "The sub-processor (the key in sub-processors.md)." },
+      notice_id: { description: "The notice answered; empty for acknowledging the register." },
+      kind: {
+        description: "What the row records.",
+        codes: {
+          acknowledged: "The data protection lead acknowledged it.",
+          objected: "The data protection lead objected, within the notice period.",
+          objection_resolved: "Thapsus recorded how the objection was resolved.",
+        },
+      },
+      grounds: { description: "Why the organisation objected (an objection only)." },
+      resolution: {
+        description: "How an objection was resolved.",
+        codes: {
+          objection_withdrawn: "The organisation withdrew it; the sub-processor may be used.",
+          not_used_for_tenant: "Thapsus agreed not to use it for this organisation.",
+          services_ended: "The organisation ended the affected services.",
+        },
+      },
+      responded_by: "exported",
+      responded_at: "exported",
+      created_at: "exported",
     },
   },
   "public.support_access_request": {
@@ -3984,6 +4645,90 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       dpo_email: { description: "Their email address." },
       caldicott_guardian: { description: "Caldicott Guardian." },
       siro: { description: "Senior information risk owner." },
+      data_protection_lead_id: {
+        description: "The member named as data protection officer or lead, who signs the DPIA.",
+      },
+      sector: {
+        description: "Whether the organisation is a public authority (its lawful bases differ).",
+        codes: { independent: "An independent provider.", public: "A public authority." },
+      },
+      privacy_notice_url: { description: "Where its privacy notice is published (https)." },
+      dpa_signed_on: { description: "The UK date it signed the data processing agreement." },
+      uses_data_beyond_direct_care: {
+        description:
+          "Whether it uses care data beyond direct care (national data opt-out); empty until it says.",
+      },
+      marketing_enabled: { description: "True when it uses Harbour for marketing (consent)." },
+      ai_free_text_enabled: { description: "True when AI may read free text (consent)." },
+      ai_provider: { description: "The AI provider it chose, when the AI module is planned." },
+      staff_file_option: {
+        description: "How long staff files are kept, as the organisation chose (retention.md).",
+        codes: {
+          "staff_file.after_leaving": "For the period in retention.md after employment ends.",
+          "staff_file.to_75th_birthday": "Until the person's 75th birthday.",
+        },
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.tenant_export": {
+    context: "platform",
+    description:
+      "The organisation's full exports (platform-completions.md rules 10 to 16): who asked and when, where each stands, the snapshot it was read from, the manifest checksum and the single download. The archive itself is deleted at expiry.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      kind: {
+        description: "What was exported.",
+        codes: {
+          full: "Everything the organisation holds.",
+          changes_since: "Rows created, changed or removed since an earlier export's snapshot.",
+        },
+      },
+      since: { description: "For a changes-since export: the earlier snapshot (instant, UTC)." },
+      status: {
+        description: "Where the export stands.",
+        codes: {
+          queued: "Asked for, not started.",
+          running: "Being prepared.",
+          ready: "Ready to download.",
+          failed: "Could not be completed; never offered for download.",
+          expired: "Its link lapsed and its archive was deleted.",
+          revoked: "Cancelled; its archive was deleted.",
+        },
+      },
+      requested_by: "exported",
+      requested_at: "exported",
+      started_at: "exported",
+      snapshot_at: {
+        description: "When the one read-only snapshot every file was read from was taken (UTC).",
+      },
+      ready_at: "exported",
+      expires_at: "exported",
+      failed_at: "exported",
+      revoked_at: "exported",
+      revoked_by: "exported",
+      schema_version: {
+        description: "The export format's schema version (EXPORT_SCHEMA_VERSION).",
+      },
+      storage_key: {
+        description: "Where Harbour kept the archive in storage.",
+        class: "internal",
+      },
+      bytes: { description: "The archive's size.", unit: "bytes" },
+      manifest_sha256: { description: "SHA-256 of manifest.json, in lower-case hexadecimal." },
+      problems: { description: "Why the export was incomplete, if it was (JSON)." },
+      warnings: { description: "Warnings listed in the manifest (JSON)." },
+      downloaded_at: "exported",
+      downloaded_by: { description: "Who downloaded the archive (tenant_user.id): the requester." },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -4009,6 +4754,30 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       deleted_at: "exported",
     },
   },
+  "public.tenant_setting_decision": {
+    context: "platform",
+    description:
+      "The organisation's decisions on the settings Harbour chose for it, for onboarding (platform-completions.md rules 26 and 27; append-only): a later decision is a new row.",
+    treatment: "tenant_rows",
+    retention: "audit_event",
+    personal: false,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      rate_key: { description: "The setting's rate table key." },
+      kind: {
+        description: "What was decided.",
+        codes: {
+          accepted: "Harbour's default accepted.",
+          set: "The organisation set its own figure.",
+        },
+      },
+      decided_by: "exported",
+      decided_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.tenant_user": {
     context: "platform",
     description: "Staff and other users of the organisation: name, work email, job title, status.",
@@ -4023,6 +4792,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         class: "internal",
       },
       display_name: { description: "The user's name." },
+      search_name: {
+        description:
+          "Search index of the display name (derived from the columns above; migration 0066); not exported.",
+        class: "internal",
+      },
       email: { description: "Work email address." },
       job_title: { description: "Job title." },
       status: { description: "invited, active, suspended or left." },

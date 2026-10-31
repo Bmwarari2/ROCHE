@@ -275,14 +275,83 @@ kind, with their communication needs). A restricted reader is told part of it is
 "About this incident" (times, who raised it, severity and harm) and no narrative or contacts.
 Types, statuses and labels are the catalogue's, never the API's English. After review round 1
 (#42): the incident page shows the questions about statutory notifications still to answer as a
-warning chip, says when notifications are not checked yet or not checked outside England, and
-says it does not show the questions or notifications yet (until part 2, H-256); the page title
+warning chip and (part 2) the statutory notifications, before the people, with an overdue chip
+at the top linking to them: each with its clock (overdue for how long, due, submitted, not
+required), its status as its own chip, its deadlines in the law's terms from the classifier's
+outputs (without delay from when the clock started; RIDDOR's second deadline), who it is about
+for one person, its recipient and, on a draft still open, its warnings with a next step
+(provisional; waiting for answers; no longer indicated; a Harbour target, as soon as possible
+for a safeguarding concern or a missing person). Open questions, the kinds waiting for them,
+checks that decide whether one is needed (RIDDOR's absence check, the safeguarding decision
+guide, an outbreak's links, the candour decision), outputs drafted on another record, "not
+checked yet" and "outside England" warn; "no notification found" is said only when none of these
+is there (#49 review round 1). Kinds and recipients are the catalogue's, checked against
+`NOTIFICATION_KINDS`; RIDDOR's threshold is read from `/v1/rates`. A draft stays `provisional`
+after the answer that made it changes, so the web shows only "no longer indicated" on such a
+draft; the questions' text, the exclusions, the reasoning and the tasks' own words are English
+from the API and not shown (the page gives the count and its own words). The page title
 names the incident by its date; a location the reader cannot see reads "Location not shown to
 you"; when the API's limit of 500 is reached the list fetches the open and under-review incidents
 besides and says older incidents are not listed. Gaps logged, no API change: staff are "you" or
 "a colleague" (no staff names, H-73); the list has no paging past 500; infection details are not
 shown; the overdue alert links to `/notifications/statutory/{id}`, which the web does not have
 until the notification pages.
+
+Web statutory notification pages, slice 9 part 3, read only (`apps/web/src/app/(shell)/
+notifications/statutory/`, `apps/web/src/lib/statutory-notifications.ts`): for holders of
+`safety.incident.manage`, as the API's reads require (anyone else is told the page is not for
+them), and kept under Incidents in the sidebar, never the notification centre.
+`/notifications/statutory` lists the notifications for the chosen location in two sections, still
+to do (an unknown clock, then overdue, then due soonest) and submitted or not required, each with
+its kind linking to its page, its clock and status (icons and words), who it is about (people the
+reader cannot see are numbered consistently across the list, and the list says so), its due time,
+location, recipient, warnings and the person's communication needs; each status is read on its
+own, so finished ones never push an unfinished one past the API's limit of 1,000, and a cut
+unfinished read warns that unfinished notifications may be missing (#52 review).
+`/notifications/statutory/{id}`, the page the overdue alert links to, shows the clock, status,
+who it is about (unnumbered when not shown), warnings (waiting for answers read from its
+incident), every deadline in the law's terms (kept once done), the record it was drafted on (the
+incident, named and linked with its status; the person's DoLS register; or their record), why
+Harbour drafted it, what it must include and the sources (the API's English, marked as English;
+a source is linked only on https) and how it ended (when and by whom it was submitted, the
+regulator's reference, whether a document is attached, why it is not required). Both pages and the
+incident page say when the clocks were worked out; on the incident page each notification links to
+its page for a holder of `safety.incident.manage`. Not shown yet: the prepared form, the DoLS
+statement and the API's reason a draft is no longer indicated; the forms follow.
+
+Web incident forms, slice 9 part 4a (`apps/web/src/app/(shell)/incidents/new/`,
+`apps/web/src/components/safety/`, `apps/web/src/lib/incident-forms.ts`): `/incidents/new` records
+an incident for holders of `safety.incident.report`, from the incidents list (a location where the
+member works) or from a person's record, offered there only when the person's `access.reaching`
+lists the permission (ADR-0071). Emergency services, GP and, for a person, whether they died are
+yes or no questions with nothing chosen (`CreateIncident` defaults the first two to false, so the
+form never leaves them out, HZ-090); a fall asks the two point-of-care questions, each needing an
+answer. The incident's UUIDv7 is made by the form and sent with every attempt. On the incident
+page the open questions are offered in the catalogue's words, which repeat `CLASSIFIER_QUESTIONS`
+word for word (a question or option the catalogue does not know is shown in the API's English,
+marked): every question to a holder of `safety.incident.manage`, the falls questions to the person
+who raised it, none on a closed or partly hidden incident. Gaps logged, no API change: the web
+cannot tell where each permission reaches (no per-permission locations in `/v1/me`, no `access` on
+`IncidentDetail`), so the API's refusal is the last word; answers have no client id; "when found",
+other people, body-map marks, infection details, the family told and LeDeR facts are not on the
+form yet (STATUS item 19, H-262).
+
+Web review and notification forms, slice 9 part 4b (`apps/web/src/lib/incident-review.ts`,
+`apps/web/src/components/safety/IncidentManage.tsx` and `NotificationManage.tsx`; HZ-091): the
+incident page's "Review and close", for a holder of `safety.incident.manage` on an incident seen
+whole and not closed, starts the review, sends it back to open with a reason, or closes it with a
+reason; close is never offered to the person who raised it (rule 11, the domain's
+`INCIDENT_WORKFLOW`), and while a notification is a draft or ready or a question is open the card
+lists what to do first, linked, instead of the form. The notification page prepares it (one
+answer per line of `requiredContent`, stored under that line cut to 80 characters, plus "Other
+details"; marking it ready needs every line answered), records it as submitted once ready (when,
+chosen every time, and the regulator's reference) and decides "not required" with a reason. Each
+form needs its permission held and, for a notification about a person, listed in that person's
+`access.reaching` (ADR-0071); submitting and "not required" ask for a fresh sign-in as break-glass
+does (sign in again, then back to the page). Every write sends the version the page was drawn
+from; a stale page is refused in words that do not blame anyone else. Gaps logged, no API change:
+no `access` on `IncidentDetail`, no candour state on the incident, no upload for the submitted
+form, and no stable key for a line of required content (STATUS item 19, H-266).
 
 ## 6. Offline behaviour
 
@@ -323,7 +392,7 @@ authorities is a legal obligation (Article 6(1)(c)) recorded on the notification
   `packages/db/test/mca-and-incidents.test.ts` and `apps/api/test/incidents.test.ts`.
 - Web and mobile: Playwright journey from a fall to a submitted Reg 18 draft; Maestro offline
   incident capture. Built so far: `apps/web/e2e/incidents.spec.ts` reads the list and an
-  incident, and the restricted view, with axe (slice 9, part 1).
+  incident with its drafts, clocks and warnings, and the restricted view, with axe (slice 9).
 
 ## 10. Open questions
 

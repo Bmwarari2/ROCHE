@@ -72,6 +72,7 @@ import {
 
 const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
   person_photo: "people.person.update",
+  feed_photo: "comms.feed.publish",
   care_attachment: "care.note.write",
   person_document: "people.person.update",
   organisation_document: "platform.document.manage",
@@ -113,6 +114,7 @@ const RECORD_READ: Permission = "people.person.read";
  */
 export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
   person_photo: "people.person.read",
+  feed_photo: "people.person.read",
   person_document: "people.person.read",
   care_attachment: "care.note.read",
   organisation_document: null,
@@ -137,6 +139,7 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
  */
 const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
   person_photo: "people.person.update",
+  feed_photo: "comms.feed.publish",
   person_document: "people.person.update",
   care_attachment: "care.note.write",
   organisation_document: null,
@@ -302,7 +305,13 @@ export const documentsRouter = createRouter()
             .optional(),
           subjectId: z.uuid().optional(),
           category: z
-            .enum(["person_photo", "care_attachment", "person_document", "organisation_document"])
+            .enum([
+              "person_photo",
+              "feed_photo",
+              "care_attachment",
+              "person_document",
+              "organisation_document",
+            ])
             .optional(),
         }),
       },

@@ -29,6 +29,8 @@ const person = new Table(
     communication_needs: column.text,
     /** 'unknown' | 'no_known_allergies' | 'has_allergies' (HZ-007: unknown is not "none"). */
     allergy_status: column.text,
+    /** 1 for an invented sample person (HZ-072): shown with the "Sample" badge. */
+    is_sample: column.integer,
     updated_at: column.text,
     version: column.integer,
   },
@@ -361,7 +363,7 @@ const task = new Table(
     restore_code: column.text,
     /**
      * 1 for a round of a care plan series its plan no longer drives: say "From an earlier plan:
-     * check the current plan" with it (HZ-024; kept by the database, migration 0056).
+     * check the current plan" with it (HZ-024; kept by the database, migration 0071).
      */
     from_earlier_plan: column.integer,
     escalation_level: column.integer,
@@ -420,7 +422,7 @@ const handover_item = new Table(
      * What the item says, JSON: `key` (a catalogue key, `handover.summary.*`, worded on the phone as
      * `mobile.` + key) and `params` (codes, the NEWS2 score, and a task's title and the reason it
      * was not done), so the phone words items whose sources it does not hold (H-300). Empty on
-     * items compiled before migration 0056.
+     * items compiled before migration 0071.
      */
     summary: column.text,
   },

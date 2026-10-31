@@ -1373,8 +1373,8 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   (#33 review round 2; H-303); and (f) a task whose evidence entry is saved on the phone shows
   "evidence recorded, waiting to upload" until the entry uploads, so it is not recorded twice
   (#36 review round 1, clinical M3; HZ-029).
-  The data for items (a), (b) and (e) is built (`feat/mobile-round-gate-data`, migration 0056,
-  provisional number; ADR-0072):
+  The data for items (a), (b) and (e) is built (`feat/mobile-round-gate-data`, migration 0071;
+  ADR-0074):
   - (a) each `handover_item` carries `summary`, a catalogue key (`handover.summary.*`, one per
     kind; `HANDOVER_SUMMARY_KEYS`) and its parameters. The parameters are codes, the NEWS2 score,
     and a task's title and the reason it was not done. It is compiled with the item from its
@@ -1467,6 +1467,38 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
   web screens for devices, refused-entry copies and flagged-entry details, and the settings screens
   for escalation policy links and coded reasons
   (slice 9).
+
+### Web: the shift handover (slice 5 web part 1)
+
+`apps/web/src/app/(shell)/handover`, `apps/web/src/components/care/HandoverActions.tsx`,
+`apps/web/src/lib/handover.ts`; tests in `apps/web/src/lib/handover.test.ts` and
+`apps/web/e2e/handover.spec.ts`.
+
+- `/handover` goes to the chosen location, or lists the locations the viewer works at.
+  `/handover/{location}` shows the shift running now (compiled, or "Compile this shift's
+  handover") and the last week's, each open or locked, with a warning when the incoming shift
+  has not acknowledged it.
+- `/handover/{location}/{handover}` lists the items the reader may see by person (full name, room
+  and communication needs), each kind in an icon and words, its time, "Added since it was
+  compiled" and "New to you", and a link to its record; notes on each item and on the whole
+  handover while it is open; who has read it and who has new items to read. "I have read this
+  handover" sends `you.seenToken` with a UUIDv7; `handover_changed` reloads the page and says
+  what to do. Compiling again adds anything new; too many compiles a minute is said in words.
+
+### Web: the round view (slice 5 web part 2)
+
+`apps/web/src/app/(shell)/round`, `apps/web/src/components/care/RoundTaskActions.tsx`,
+`apps/web/src/lib/round.ts`; tests in `apps/web/src/lib/round.test.ts` and
+`apps/web/e2e/round.spec.ts`.
+
+- `/round/{location}` reads `GET /v1/locations/{id}/round` (the shift running now) and lists it by
+  area, then room: each person's name, room and communication needs; each task's plan action or
+  title, time state in an icon and words, due time, urgent, started and catch-up chips, the
+  earlier-plan notice, and the person's actions that are not rounds. `?person=` shows one person's
+  stops. A view that is not complete says so.
+- Start (`in_progress`), Done and Not done (`skipped`, with a reason of at least 3 characters) go
+  to `POST /v1/tasks/{id}/transition` with the task's version; a task that needs a record links to
+  the person's charts instead. The round opens again saying what was done, with focus there.
 
 ## 7. Clinical safety
 

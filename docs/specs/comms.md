@@ -47,7 +47,7 @@ allows (ADR-0002, ADR-0061).
 | --- | --- | --- | --- |
 | `feed_item` | append-only | person, kind (`FEED_ITEM_KINDS`), section, care plan domain, source kind and id, occurred at, composed at, text, photo document, phrase key, composed by, confirmed by and reason (rule 12), `supersedes_item_id`, other-people-identifiable attestation (photos) | `care_record` |
 | `feed_item_withdrawal` | append-only | item, reason (`FEED_WITHDRAWAL_REASONS`), by, at | `care_record` |
-| `care_note_share` | append-only | care note, the words written for the family, marked by, marked at (rule 8; the clinical note is never copied) | `care_record` |
+| (no `care_note_share`) | - | Not built: publishing a note's update is the marking (rule 8). The update holds the words written for the family (`feed_item.text`), the note (`source_id`), who marked and published it (`composed_by`) and when (`composed_at`); the clinical note is never copied (CSO to confirm, H-370) | - |
 | `feed_view` | append-only | item, person, contact, decision, section, care plan domain, person status, capacity for sharing, viewed at (the exposure history, rule 4) | `audit_event.care_record` |
 | `family_portal_user` | mutable | tenant user, contact (the link a family session is resolved from; ADR-0061) | `care_record` (with the contact) |
 | `family_channel` | mutable, versioned | contact, kind (`email`, `sms`, `push`), address (email, E.164 number or push token), verified at, updates on, opted out at and how, suspended at and why | `care_record` (with the contact); push tokens deleted at sign-out |
@@ -187,11 +187,13 @@ by the caller.
    (`LIVE_PERSON_STATUSES`: active, on leave, in hospital, from people/lifecycle.ts). Discharge and
    death close sharing (people.md rules 2 and 13, the `close_sharing` effect); a correction of a
    discharge or death recorded in error does not reopen it until a manager reinstates the decision.
-   Nothing new is composed for a closed record. A family member who had a decision then sees
-   "Updates are paused. The home will be in touch." (`FEED_PAUSED_STATEMENT`, wording for the CSO,
-   H-110), never a feed that is suddenly empty; someone who never had a decision sees no change. A
-   death or a discharge is never announced through the feed or a notification: staff tell the
-   family in person or by phone.
+   Nothing new is composed for a closed record. A feed closed by the person's status looks exactly
+   like a feed with no decision in force: the same statement, no entries and no status-specific
+   notice, so the portal can never tell a family about a death or discharge before the home does
+   (#75 and #76 review; the domain's `FEED_PAUSED_STATEMENT` is not shown). A death or a discharge
+   is never announced through the feed or a notification: staff tell the family in person or by
+   phone. Whether staff may post a closing message once the next of kin have been told is for the
+   CSO (H-110).
 4. **Withdrawal hides from then on; what was seen stays seen.** Withdrawing or suspending a decision
    closes its sections at the next request. It cannot undo a view, so every view is kept
    (`feed_view`, with the decision that allowed it and the capacity finding then): `feedExposure`
@@ -240,7 +242,8 @@ by the caller.
    whoever a decision allows. Observations, charts, assessments, validated tool results, body
    maps, medicines and incidents have no feed kind at all.
 8. **Shared notes** only when a member of staff has marked the note as shareable and written the
-   words for the family (`care_note_share`); the clinical note itself never passes through.
+   words for the family, which publishing records on the update (who and when; H-370); the
+   clinical note itself never passes through.
 9. **Third parties are stripped.** Staff-written words (shared notes, photo captions, activity
    names) are normalised first (`normaliseFeedText`: Unicode NFKC, invisible format characters
    such as zero-width spaces, joiners, soft hyphens and direction controls removed) and lookalike
@@ -399,13 +402,15 @@ by the caller.
     - every person-bound value must belong to the person the letter is about, and a recipient must
       be that person's contact; otherwise the letter is refused (HZ-051);
     - values are formatted in British style (dd/mm/yyyy, 24-hour UK time, pounds and pence);
-    - for HTML email every value and every piece of the template's own text is escaped
+    - for an HTML email every value and every piece of the template's own text is escaped
       (`escapeHtml`), paragraphs become `<p>` and line breaks `<br>`; nothing in a template or value
-      can inject markup;
+      can inject markup (as built, Harbour sends email as plain text through SES, the rendered
+      `text` as the body, checked by the port's guard, `outboundBodyProblem`);
     - the rendered email subject is checked again for header-breaking characters (a value could
       carry one) and must pass the outbound title check (`outboundTitleProblem`);
-    - a letter's text goes to the PDF renderer (Typst) as data, never as markup: values and template
-      text are passed as strings the template prints, so nothing typed can run as Typst code;
+    - a letter's text goes to the PDF writer as data, never as markup: as built, the pack PDF
+      writer of ADR-0040 (Typst is not used) takes the rendered text as plain lines, so nothing
+      typed can run as code;
     - a duty of candour letter needs the candour record's relevant person and the recipient, and
       they must match (rule 21);
     - the result lists the personal-data fields used and whether special category data is present,
@@ -568,7 +573,7 @@ Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-
   `packages/domain/src/shared/email.test.ts`.
 - Database (schema step): section 2.1 (family scope, `app.family_can_see`, the isolation tests and
   CHECK constraints); RLS coverage and HZ-011 isolation for every new table; append-only grants for
-  `feed_item`, `feed_item_withdrawal`, `care_note_share` and `feed_view`.
+  `feed_item`, `feed_item_withdrawal` and `feed_view`.
 - Database (templates): RLS for the new tables; fixed approved versions; append-only `letter`.
 - API: `hazard HZ-022 the family feed returns nothing without a sharing decision in force`;
   withdrawal and suspension close the feed on the next request; every view writes `feed_view`;
@@ -627,3 +632,127 @@ decision about photos through `PhotoBestInterestsView` until the care schema add
 and outcome. The publishing hold reads `FeedIncidentView` and candour states until safety exposes
 the next-of-kin contact. The template type here (`FamilyNotificationTemplate`) is what the planner
 reads; the API maps the COMMS-007 approved template to it.
+
+Slice 11 (letter and email templates, schema: migration 0059; `feat/comms-letter-templates`):
+`packages/db/src/schema/comms.ts`.
+
+| Table | Built as |
+| --- | --- |
+| `letter_template` | Mutable, versioned. Kind and channel fixed once made; a letter-only kind (`LETTER_ONLY_KINDS`) cannot be an email template (CHECK). `current_version_id`, the approved version in use, is set only by the version workflow (approval puts a version in use; retirement takes it out). Read by holders of `comms.template.write`, `.approve` or `comms.letter.manage` anywhere in the organisation; made by holders of write. No personal data |
+| `letter_template_version` | Mutable while a draft, then fixed. Starts as a draft in its author's name, numbered next; a subject exactly when the template is an email; one draft and one approved version per template. A draft's editors join its contributors; approval by a holder of approve who is neither author nor contributor, of content that differs from the version in use, supersedes it inside the same trigger. Retired with a reason by a holder of approve; a draft discarded with a reason by a holder of write |
+| `letter` | Append-only. Follows its person (`app.person_visible`); made in the sender's name by a holder of `comms.letter.manage` at the person's location, only from an approved version and on its template's channel; to the person or one of their own contacts (a composite key to `contact` by person); a letter's document is one of the person's own; no special category data in an email (CHECK); the incident and its grade come from the incident itself (only on an incident follow-up or candour letter, and only an incident about this person; serious when its retention is `serious_incident` or its harm severe or fatal), and `retention_class` follows (`serious_incident` or `care_record`). Out of reach of an evidence pack link session. Holds the personal-data field keys used, never an email's content |
+
+Tests: `packages/db/test/letter-templates.test.ts`; the RLS coverage test lists `letter` as
+append-only; the export catalogue describes every column. The API (template routes, preview and
+sending, the PDF and the email body) follows.
+
+Slice 11 (letter and email templates, API part 2a; `feat/comms-letter-templates-api`):
+`apps/api/src/routes/letter-templates.ts`, contracts in `packages/contracts/src/letters.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `GET /v1/merge-fields` | The catalogue (`MERGE_FIELDS`) with each field's type, data class and where it may go; holders of `comms.template.write`, `.approve` or `comms.letter.manage` |
+| `GET /v1/letter-templates`, `GET .../{id}/versions` | Each template with the version in use and its open draft (or every version, newest first), each with its problems in words (`checkTemplateDefinition`), the personal-data fields it uses and plain-English suggestions (`templateStyleWarnings`) |
+| `POST /v1/letter-templates` | Write: a template with its first draft; a letter-only kind as email is refused (422) before the database refuses it too; a draft with problems is saved and they are listed; `comms.template.drafted` |
+| `POST .../versions`, `PUT .../versions/{versionId}`, `.../discard` | Write: a new draft from the version in use (one at a time, 409), changes to a draft against the loaded version (the editor joins the contributors), discarding with a reason; `.drafted`, `.edited`, `.discarded` |
+| `POST .../versions/{versionId}/approve`, `.../retire` | Approve: `checkTemplateApproval` (not the author or an editor, no problems, different from the version in use), then the database's guard; the old version superseded; retiring with a reason takes the template out of use; `.approved`, `.retired` |
+
+Audit rows hold ids and codes only, never typed reasons (H-223). The email port gains a plain-text
+`body` (H-225): SES sends it in place of the title and link, and the evidence pack code email now
+has a generic subject ("Your code to open an evidence pack") with the code and guidance in the
+body. Tests: `apps/api/test/letter-templates.test.ts`, `adapters.test.ts`, `evidence-link.test.ts`.
+Next, part 2b: preview, sending and the letters list, with the PDF writer.
+
+Slice 11 (letters, API part 2b; `feat/comms-letters-api`): `apps/api/src/routes/letters.ts`,
+`apps/api/src/services/letters.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/letters/preview` | Shows who the letter is about (full name, preferred name, room, photo; rule 25, HZ-001) and returns the version and text hash the send repeats. `comms.letter.manage` in the person's scope with MFA, plus `safety.incident.manage` when an incident is named. The template's version in use rendered with `renderTemplate`: every value from the record (person, recipient, location, provider, sender, today's date, `fee.notice_days` from `cma.fee_review_notice_days`, the incident's date and description) except the admission and fee details the sender types (`SENDER_TYPED_FIELDS`; anything else typed is refused). The recipient is the person or one of their own current contacts (not removed, not past `valid_until`); an incident must be about this person alone (one involving anyone else is refused, `incident_involves_others`, since its account may name them); a person who has died is refused (no template kind is written for after a death yet). Stores nothing; `comms.letter.previewed` with field keys |
+| `POST /v1/people/{id}/letters` | As the preview, with `confirmed` and the preview's `templateVersionId` and `textHash` (SHA-256 of the subject and text): a letter that would differ from what the sender checked (a new version approved, a value changed) is refused with 409 `letter_changed`, audited `preview_changed`. ADR-0051 checked again on what was rendered. A letter is rendered to PDF by the pack PDF writer (ADR-0040; values as text) and stored as a `person_document` about the person. **Email is refused** (422, `email_sending_not_available`, audited) until the worker-based send exists (a pending letter row, a worker job keyed on the letter id, then the provider's id recorded), so an email can never be sent twice or sent unrecorded. The `letter` row keeps the field keys, never the content; `comms.letter.sent` and the outbox `comms.letter.sent` |
+| `GET /v1/people/{id}/letters` | `comms.letter.manage` with MFA (a comms permission, not only the person in scope): template version, recipient, channel, field keys, document; the incident only to holders of `safety.incident.manage`; never content; `comms.letter.listed` |
+
+Not yet: duty of candour letters (refused until the candour record names the relevant person,
+rule 21); sending email (the worker-based send above); a family-facing incident summary for
+incidents involving several people. Tests:
+`apps/api/test/letters.test.ts`.
+
+Slice 11 (letters web, part 1: template management; `feat/web-letters`): `/letters`,
+`/letters/new` and `/letters/{id}` in `apps/web`, with `apps/web/src/lib/letters.ts`,
+`app/actions/letters.ts` and `components/comms/`. A "Letters" link in the side bar for holders
+of `comms.template.write`, `.approve` or `comms.letter.manage`. The list shows each template with
+the version in use and any draft (with its number of problems). Drafts are written and changed with
+each problem the API found shown at its field (subject, channel or text) and the plain-English
+suggestions listed; the merge fields are listed with what each holds and where it may not go. An
+approver who wrote or edited the draft is not offered approval and is told why; someone else
+approves it, seeing the stored words read-only beside Approve (editing is behind "Edit draft", and
+Approve is not offered while the form is open). The form is keyed on the draft's version, so it
+always shows the words now stored; the saved draft's problems are also listed as links to their
+fields, a channel problem shown by the fixed channel. A new draft starts from the version in use; a draft is discarded, and the version in
+use retired, each with a reason. Every write sends the version the page showed, and the page then
+says what was done (a new `at` each time). Tests: `apps/web/src/lib/letters.test.ts`,
+`apps/web/e2e/letter-templates.spec.ts` (axe on every state). Next, part 2: the person's letters
+tab (preview, send, the list).
+
+Slice 11 (letters web, part 2: the letters tab; `feat/web-letters-send`):
+`/people/{id}/letters` in `apps/web`, `components/comms/LetterComposer.tsx`. A "Letters" tab on
+the record for holders of `comms.letter.manage` (MFA, as the API asks). The sender chooses a
+template in use (not duty of candour; incident follow-up only for holders of
+`safety.incident.manage`, with the person's incident chosen), types only the admission or fee
+details its words use (dates as day, month and year; money in pounds and pence, sent in whole
+pence), and previews it. The preview takes focus and shows who the letter is about (name, room,
+photo; rule 25, HZ-001), who it is to, the subject and words, and the personal details used.
+Sending needs a tick that it was checked and repeats the preview's version and text hash; a 409
+`letter_changed` shows the new preview, with the tick cleared, to check again. The API's refusals
+(email sending not available yet, an incident involving others, a template no longer in use) are
+said in words. The letters sent are listed with a link to each letter's document. Letters go to
+the person only: the record has no contacts list to choose a recipient from yet (STATUS). Tests:
+`apps/web/src/lib/letters.test.ts`, `apps/web/e2e/letters.spec.ts` (axe on every state).
+
+Slice 12 (the family feed, schema; migration 0061, after #71's 0060; `feat/comms-family-feed`):
+`packages/db/src/schema/comms.ts`.
+
+| Table or function | Built as |
+| --- | --- |
+| `family_portal_user` | Mutable. A portal account, a person and the contact the decisions name; one open link per account and contact; revoked with a reason, never reopened or deleted. A member always reads their own links; staff read and write them in the person's scope with `people.sharing.manage`. The database refuses a person assignment for a linked account, and a link for an assigned one |
+| `feed_item`, `feed_item_withdrawal`, `feed_view` | Append-only, with the section 2 CHECK constraints. Staff follow the person scope; a family session (`app.family` with a member and scope `none`) sees an update only when `app.family_can_see` allows it and, once taken down, only if it saw it before (`app.family_item_shown`); it writes only its own views, for its own contacts and updates it can see. Updates are published by holders of `comms.feed.publish` and taken down by holders of `comms.feed.withdraw` in their own name where the person lives; the database stamps the times |
+| `app.family_can_see` | Section 2.1, as a definer function owned by `harbour_family_reader` (a new NOLOGIN role; `pnpm db:bootstrap` before migrating), fixed search path, reading only the columns the rule needs. `packages/db/test/family-feed.test.ts` runs it and `checkFeedItemVisibility` over the same table of cases |
+
+Slice 12 (the family feed, API part 1; `feat/comms-family-feed-api`): `apps/api/src/routes/family-feed.ts`,
+contracts in `packages/contracts/src/family-feed.ts`.
+
+| Route | Built as |
+| --- | --- |
+| Portal sessions | A member with an open link is resolved as a portal session (`resolveAccess(..., "portal")`): portal roles only, no grants, scope `none`, `app.family` set |
+| `GET /v1/family/feed` | Portal sessions with `comms.feed.read` (MFA). Per linked person: the updates the database shows, judged again by `buildFamilyFeed` with the decisions, suspension periods, status and capacity finding read in the system's view (never returned); photos stay closed until part 1b reads their basis; a feed closed by the person's status reads exactly like one with no decision (same statement, no entries, no `lastUpdateAt`); the people read come only from the caller's links, never the request; MFA always, whatever `mfa_required` says; one `feed_view` per entry and a `comms.feed.viewed` audit event with ids and counts; `no-store` |
+| `GET`/`POST /v1/people/{id}/family-portal-links`, `.../{linkId}/revoke` | `people.sharing.manage`: only an account holding portal roles alone, whose verified email is the contact's email, can be linked (otherwise 422 `account_not_contact`, audited); `comms.portal_link.create`, `.revoke`, `.list`. The sharing decisions themselves are the people-sharing routes |
+| `GET /v1/people/{id}/feed`, `POST /v1/feed-items/{id}/withdraw` | `comms.feed.publish` or `.withdraw` to list (with any withdrawal); `.withdraw` to take one down (`checkFeedWithdrawal`, once, 409 after); `comms.feed.item_withdrawn` audit and outbox event |
+
+Slice 12 (the family feed, part 1b, publishing; `feat/comms-feed-publish`):
+`apps/api/src/routes/feed-publish.ts`, `apps/api/src/services/feed-publish.ts`.
+
+| Route | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/feed` | `comms.feed.publish` where the person lives (the database checks it again). One update from one of the person's own records: a care note shared in words written for the family (publishing them is the marking of rule 8, by the publisher, now; the note's own words never pass through, so `care_note_share` is not needed), an activity in approved phrasing, or a photo the publisher chose, only from the person's `feed_photo` documents (a document category added here: identification photos, wound photos and other care attachments, letters and other documents are refused, audited `photo_not_for_feed`; HZ-022, HZ-060), with the publisher's check that nobody else can be recognised (`composed_by` records who checked). No time taken is recorded, so a photo update is dated when it was added. A note or activity since corrected is refused (`source_corrected`), and so is one older than `FEED_SOURCE_MAX_AGE_DAYS` (14 days, a product rule; `source_too_old`, audited; HZ-061). A reused id for another record is refused (409). `composeFeedItem` with the residents at the location, the staff (first names only until the tenant setting, H-107), the publishing holds (an open incident whose family is not recorded as told holds publishing until safety exposes the next-of-kin step; open candour steps) and the photo basis, all read in the system's view and never returned. A photo needs the person's consent to photos (rule 6; master prompt 5.1); a best-interests basis waits for its schema (H-106). Event and wellbeing words need `confirmationReason`. The id is the form's UUID: a retry with the same record returns the update (200). Audited `comms.feed.item_published` and `comms.feed.publish_refused` with ids and problem codes only; outbox `comms.feed.item_published` |
+| `GET /v1/family/feed` | Now reads the photo basis, so photo updates show only while the consent holds |
+
+Who sees an update is still decided by the sharing decisions (`app.family_can_see`, then
+`buildFamilyFeed`). Next: `GET /v1/people/{id}/feed/exposure`, visits and care plan updates as
+sources, then part 2, the web feed and staff screens.
+
+Slice 12 part 2a, the staff screen (`feat/web-family-feed`, stacked on part 1b):
+`apps/web/src/app/(shell)/people/[id]/family-updates/page.tsx`, `apps/web/src/lib/family-feed.ts`.
+
+| Piece | Built as |
+| --- | --- |
+| `POST /v1/people/{id}/feed/preview` | `comms.feed.publish`. The same compose rule as publishing, with nothing stored: the words the family would read and the reading-age suggestions, or each problem with its code (a corrected record and a photo not chosen for the feed included, so the form can say them at the record). Another person's record is 404. Audited `comms.feed.previewed` with the source kind and problem codes only |
+| The "Family updates" tab | `comms.feed.publish` (MFA). Choose a note, an activity or a photo; notes and activities from the last 14 days that no correction has replaced, and only `feed_photo` documents (HZ-022). Words for the family for a note, a caption and the "nobody else can be recognised" check for a photo. Preview: each problem at its field (words, record, photo check, confirmation reason); a hold or a closed record leads the summary (HZ-061); a reason field appears only when the words need a manager's confirmation (rule 12). Any change after the preview asks for a new one. Publishing sends exactly the request previewed, with the UUIDv7 made for that preview (a new one for each preview), kept for a retry whose outcome is unknown; if the API returns an update already published with that id whose words differ from the preview, the form says so as a problem, never "published" (HZ-061). A list of records that could not be read is said so, never shown as none. The list of updates published (newest first, when it happened and was published, by you or a colleague; a taken-down update struck through with "Taken down" and its reason as an icon and words) and, for `comms.feed.withdraw`, taking one down with a reason. Never "none published" when the list could not be read |
+
+Slice 12 part 2b, the family's page (`feat/web-family-portal`, stacked on part 2a):
+`apps/web/src/app/(shell)/updates/page.tsx`.
+
+| Piece | Built as |
+| --- | --- |
+| `/updates` | A portal session with `comms.feed.read` (MFA; a family member is sent here from the home page, and the side bar shows "Updates"). Read on every visit, never cached. Only what `GET /v1/family/feed` returns: the statement that these are everyday updates and not the full care record, the updates, and in place of one the viewer saw and that was taken down, "Taken down" (icon and word) with the notice. The time it was checked is always shown, with the last update's time when there is one, so an empty feed is never read as "nothing has happened since" (HZ-061). A feed closed by the person's status or a withdrawn decision reads exactly as one with no decision: the page adds nothing of its own. A photo update says when the photo was added, never when it was taken. MFA not yet confirmed: a notice in plain words (a passkey, or a code from an app on their phone) with the way to set one up. A family member whose link was revoked or not yet made has no permissions and no roles then, like staff not yet given a role: any account with no access at all is sent here and told how to get it. A family member sees no staff navigation: no people list and no location switcher |
+| Who the updates are about | The API names no person in a portal session, so a member linked to more than one person sees the feeds numbered ("1 of 2"), not named, until the feed returns a name the decision allows (HZ-001; follow-up) |
+| End-to-end | `seed-users.ts` with `HARBOUR_DEMO_E2E_PASSKEY=1` (local testing only) adds Ada Example's invented next of kin as a portal account (and stops with an error if no contact on her record has that email) with a verified email, the family representative role alone, the link to that contact and the end-to-end passkey |

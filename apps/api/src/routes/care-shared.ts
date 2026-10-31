@@ -3,6 +3,7 @@ import {
   type DeviceDeletionFlag,
   HandoverHeaders,
   IDEMPOTENCY_KEY_HEADER,
+  type SyncRefusedEntry,
 } from "@harbour/contracts";
 import type { Transaction } from "@harbour/db";
 import type { CareTrigger, PersonRecordKind } from "@harbour/domain";
@@ -14,15 +15,24 @@ import {
   type AppEnv,
   permissionsReaching,
   requirePermission,
+  stepUpFresh,
   type TenantAccess,
   withTenant,
 } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
+import { BackEntryForReview, entryOutages } from "../services/back-entry";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
 import { refuseRevokedDevice } from "../services/devices";
-import { type HeldHandover, handedOverByOf, heldHandoverOf } from "../services/held-handover";
+import {
+  type HandedOverAdmission,
+  type HeldHandover,
+  handedOverByOf,
+  heldHandoverOf,
+} from "../services/held-handover";
+import type { OutageRow } from "../services/outages";
 import { CareEventAfterExit, loadPerson, raiseLateEntryReview } from "../services/people";
+import { copyRefusedEntry, refusedCopyQuota } from "../services/refused-entries";
 import { NO_STAFF, type StaffLookup, staffNames } from "../services/staff";
 
 /**
@@ -164,9 +174,11 @@ export const iso = (d: Date | null) => (d ? d.toISOString() : null);
 export interface EntryExtras {
   readonly staff: StaffLookup;
   readonly deletion: ReadonlyMap<string, DeviceDeletionFlag>;
+  /** The outages back-entries name, for their labels (operations.md rule 12). */
+  readonly outages: ReadonlyMap<string, OutageRow>;
 }
 
-export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
+export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map(), outages: new Map() };
 
 /**
  * Reads the extras for the entries of one table a response returns, in the reader's transaction.
@@ -175,7 +187,12 @@ export const NO_EXTRAS: EntryExtras = { staff: NO_STAFF, deletion: new Map() };
 export async function entryExtras(
   tx: Transaction,
   table: FlaggedEntryTable,
-  rows: readonly { id: string; createdBy: string | null; handedOverBy?: string | null }[],
+  rows: readonly {
+    id: string;
+    createdBy: string | null;
+    handedOverBy?: string | null;
+    outageId?: string | null;
+  }[],
 ): Promise<EntryExtras> {
   if (rows.length === 0) return NO_EXTRAS;
   const staff = await staffNames(
@@ -189,6 +206,7 @@ export async function entryExtras(
       table,
       rows.map((r) => r.id),
     ),
+    outages: await entryOutages(tx, rows),
   };
 }
 
@@ -310,9 +328,7 @@ export async function planLink(
         // sign-in counts only while it is fresh (review round 2).
         await permissionsReaching(tx, access, personId, { freshOnly: true }),
     occurredAt,
-    stepUpFresh:
-      handedOver ||
-      Date.now() - access.session.sessionCreatedAt.getTime() <= access.stepUpWindowSeconds * 1000,
+    stepUpFresh: handedOver || stepUpFresh(access),
   });
 }
 
@@ -384,6 +400,10 @@ export interface RefusedEntry {
   readonly occurredAt?: string | null | undefined;
   /** Who wrote it, when not the caller (a handed-over entry's owner). */
   readonly recordedBy?: string | undefined;
+  /** The request as sent, kept on the server when a back-entry is refused for review. */
+  readonly payload?: unknown;
+  /** A hand-over's plan for the entry, admitted with the copy instead (Device integrity part 6). */
+  readonly admission?: HandedOverAdmission | null | undefined;
 }
 
 /**
@@ -400,6 +420,9 @@ export async function withLateEntryReview<T>(
   try {
     return await write();
   } catch (error) {
+    if (error instanceof BackEntryForReview) {
+      throw await keepForReview(c, entry, error);
+    }
     if (error instanceof CareEventAfterExit) {
       const access = c.get("access");
       await withTenant(c, async (tx) => {
@@ -424,6 +447,62 @@ export async function withLateEntryReview<T>(
     }
     throw error;
   }
+}
+
+/**
+ * A back-entry refused for review (operations.md section 14; HZ-006, HZ-017): a device's second
+ * correction of the same paper record, or a paper record (or an entry not from paper) for an
+ * outage already reconciled. The server keeps the entry as sent with the person's refused-entry
+ * review task for the nurse in charge (`copyRefusedEntry`, with a hand-over's admission), so its
+ * content is never lost or only on one phone, and the refusal says so. A second correction from
+ * the web is not kept: the form corrects the current version. A copy that cannot be kept leaves
+ * the refusal as it was (the device sends it again), logged by opaque ids.
+ */
+async function keepForReview(
+  c: Context<AppEnv>,
+  entry: RefusedEntry,
+  error: BackEntryForReview,
+): Promise<HttpProblem> {
+  const access = c.get("access");
+  if (entry.payload === undefined) return error;
+  if (!error.fromWebToo && (!access.deviceId || !entry.clientId)) return error;
+  try {
+    await copyRefusedEntry(
+      c.get("services").db,
+      access,
+      {
+        table: entry.kind,
+        entryId: entry.clientId ?? crypto.randomUUID(),
+        personId: error.personId,
+        httpStatus: error.status,
+        code: error.code,
+        message: error.keptDetail,
+        refusedAt: new Date().toISOString(),
+        payload: entry.payload,
+      } as SyncRefusedEntry,
+      {
+        author: entry.recordedBy ?? access.tenantUserId,
+        deviceId: access.deviceId,
+        now: new Date(),
+        requestId: c.get("requestId"),
+        admission: entry.admission ?? null,
+        quota: refusedCopyQuota(),
+      },
+    );
+  } catch (failure) {
+    c.get("services").logger.warn(
+      {
+        requestId: c.get("requestId"),
+        personId: error.personId,
+        entryId: entry.clientId ?? null,
+        code: error.code,
+        failure: failure instanceof HttpProblem ? failure.code : "error",
+      },
+      "refused back-entry not kept for review",
+    );
+    return error;
+  }
+  return new HttpProblem(error.status, error.code, error.title, error.keptDetail);
 }
 
 /** Follow-ups that stay relevant whoever is left to act: the incident and safeguarding prompts. */

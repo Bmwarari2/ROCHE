@@ -22,6 +22,12 @@ export interface OutboundMessage {
 
 export interface EmailMessage extends OutboundMessage {
   readonly to: string;
+  /**
+   * Plain-text body, for an email that must say more than a title (an evidence pack code with its
+   * guidance, a letter sent by email under ADR-0051). Without one the body is the title and the
+   * link. Never logged.
+   */
+  readonly body?: string;
 }
 
 export interface SmsMessage extends OutboundMessage {
@@ -87,6 +93,32 @@ export function outboundTitleProblem(title: string): string | null {
   return null;
 }
 
+/** Why: a letter by email is a letter, not a book (`MAX_TEMPLATE_BODY_LENGTH` plus values). */
+export const MAX_OUTBOUND_BODY_LENGTH = 40_000;
+
+/**
+ * Last-line check on an email body (#70 review): no link of any kind (a body carries what the
+ * approved template says, and a link goes in `link` alone), and nothing shaped like an NHS number.
+ */
+export function outboundBodyProblem(body: string): string | null {
+  if (body.length > MAX_OUTBOUND_BODY_LENGTH) return "Body is too long.";
+  const lower = body.toLowerCase();
+  if (
+    lower.includes("http://") ||
+    lower.includes("https://") ||
+    lower.includes("www.") ||
+    lower.includes("mailto:")
+  ) {
+    return "Body contains a link.";
+  }
+  // The NHS number's own grouping (3, 3, 4 digits), as the title check reads it; a telephone
+  // number, which a letter may carry, is not refused.
+  if (/\b\d{3}[\s-]?\d{3}[\s-]?\d{4}\b/.test(body)) {
+    return "Body looks like it contains an NHS number.";
+  }
+  return null;
+}
+
 export type DeliveryOutcome =
   | { readonly status: "sent"; readonly providerMessageId: string }
   | { readonly status: "pending"; readonly retryInSeconds: number; readonly error: string }
@@ -132,6 +164,10 @@ export interface DocumentStoragePort {
   get(key: string): Promise<Uint8Array | null>;
   destroy(key: string): Promise<void>;
   health(): Promise<HealthResult>;
+  /** Writes an object from a stream of unknown length without holding it in memory (the export). */
+  putStream(key: string, source: AsyncIterable<Uint8Array>, contentType: string): Promise<void>;
+  /** Reads an object as a stream; null when there is none. */
+  getStream(key: string): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
 /** `unavailable` keeps the upload quarantined: a document is never served unscanned in production. */

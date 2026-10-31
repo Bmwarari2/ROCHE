@@ -121,6 +121,25 @@ against a 60-bed demo tenant.
 - Bad, because near matches on names are a wrong-person risk at the point of care (HZ-001); it can
   be added later behind a "did you mean" step that shows identity fields.
 
+### As built (slice 13, migration 0066)
+
+The composite GIN indexes in point 2 were not added. Point 4 holds: under forced row-level
+security `@@` cannot be an index condition ahead of the policy, so the app role could never use a
+GIN index on the vectors (an `EXPLAIN` test shows the tenant as the index condition and the match as
+a filter). Each search reads the tenant's rows by an existing `tenant_id` index and filters them;
+this is cheap at Harbour's per-tenant volumes and saves the write cost of a GIN index on every
+note. The timing check against a 60-bed tenant remains the trigger to revisit (for example a
+partial index per tenant, or a leakproof-safe design reviewed as a new ADR). The exact NHS
+number match uses the existing unique constraint on `(tenant_id, nhs_number)`.
+
+A stored `tsvector` holds the words of its column in plain text. If a column it is built from is later envelope-encrypted (retention-and-deletion.md section 4), its vector would still hold the words, in the live database and in backups for 35 days, beyond the reach of key destruction; so encrypting `care_note.body` (or a name) means dropping or redesigning its vector in the same change (H-380).
+
+Adding the stored columns rewrites `person`, `tenant_user`, `document` and `care_note` under
+an exclusive lock: before go-live this runs with the release; with live tenants it needs the
+maintenance window or the batched expand in the [search-index runbook](../runbooks/search-index.md),
+which also rebuilds the vectors after a Postgres upgrade, since `normalize` and `unaccent` can
+change the terms (HZ-001).
+
 ## More information
 
 Revisit if a tenant's search exceeds the point-of-care budget at realistic volumes, if fuzzy name

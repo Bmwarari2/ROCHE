@@ -34,10 +34,23 @@ const Env = z.object({
    * without them every sign-in shares one throttle bucket.
    */
   TRUSTED_PROXY_CIDRS: z.string().default(""),
+  /**
+   * Sign-in attempts allowed per client address per minute. The end-to-end run raises it: its
+   * servers sit behind no proxy, so every journey's sign-in shares one address. Never above 10 in
+   * production.
+   */
+  AUTH_SIGN_IN_PER_MINUTE: z.coerce.number().int().min(1).max(1000).default(10),
   POWERSYNC_URL: z.url().default("http://localhost:8080"),
   /** PKCS#8 PEM for the ES256 key that signs PowerSync tokens; generated per process when absent locally. */
   SYNC_SIGNING_KEY_PEM: z.string().optional(),
   SYNC_SIGNING_KEY_ID: z.string().default("harbour-sync-1"),
+  /**
+   * Harbour's clinical safety case for the release this API runs (docs/clinical-safety/
+   * safety-case/), which an organisation's DCB0160 assessment must cover to go live. Production
+   * must name it (the release pipeline sets it from the report signed for the release); the API
+   * image carries no docs, so a test checks the named report exists rather than the server.
+   */
+  SAFETY_CASE_VERSION: z.string().trim().min(1).max(40).default("v0.0"),
   /** Seconds a sign-in counts as fresh for step-up actions (section 5.3). */
   STEP_UP_WINDOW_SECONDS: z.coerce.number().int().positive().default(600),
   /** Transfer pack previews, creations and prints per user a minute, per API instance (S2). */
@@ -47,10 +60,33 @@ const Env = z.object({
    * reads a shift's records at a location (the worker compiles every handover anyway).
    */
   HANDOVER_COMPILE_REQUESTS_PER_MINUTE: z.coerce.number().int().positive().default(12),
+  /**
+   * Invitation links opened or accepted (no one signed in yet), per minute per API instance: per
+   * client address, and per token (counted by its SHA-256).
+   */
+  INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
+  INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN: z.coerce.number().int().positive().default(10),
+  /**
+   * The server key for evidence pack links (ADR-0050): one-time codes are stored as an HMAC under
+   * it, and the link session cookie is signed with it. From Secrets Manager in deployed
+   * environments; the local default is refused in production.
+   */
+  EVIDENCE_LINK_SECRET: z
+    .string()
+    .min(32)
+    .default("local-development-evidence-link-secret-0123456789"),
+  /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
+  EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
+  /** How long a verified link session lasts in the browser (never past the link's own expiry). */
+  EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */
   DOCUMENT_STORAGE: z.enum(["local", "s3"]).default("local"),
   LOCAL_DOCUMENTS_DIR: z.string().default(".data/documents"),
   S3_DOCUMENTS_BUCKET: z.string().optional(),
+  /** The full export's archives (PLAT-015): the exports bucket in AWS (SSE-KMS, lifecycle expiry). */
+  LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),
+  S3_EXPORTS_BUCKET: z.string().optional(),
   /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
@@ -106,14 +142,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.BETTER_AUTH_SECRET.startsWith("local-development")) {
       throw new Error("BETTER_AUTH_SECRET must be set in production");
     }
+    if (parsed.EVIDENCE_LINK_SECRET.startsWith("local-development")) {
+      throw new Error("EVIDENCE_LINK_SECRET must be set in production");
+    }
     if (!parsed.SYNC_SIGNING_KEY_PEM)
       throw new Error("SYNC_SIGNING_KEY_PEM must be set in production");
+    // A live organisation's DCB0160 assessment must cover the release it runs (HZ-014 and the
+    // clinical risk management plan section 7), so the local default is never assumed.
+    if (!env.SAFETY_CASE_VERSION) throw new Error("SAFETY_CASE_VERSION must be set in production");
     // The local defaults point at localhost; a deployed task without its secret must not start.
     for (const key of DATABASE_URL_KEYS) {
       if (!env[key]) throw new Error(`${key} must be set in production`);
     }
     if (parsed.DOCUMENT_STORAGE !== "s3" || !parsed.S3_DOCUMENTS_BUCKET) {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
+    }
+    if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
+    if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
+      throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");

@@ -40,4 +40,14 @@ export const conflictResponse = {
   409: problem("Changed by someone else since you loaded it; reload and try again"),
 } as const;
 
+/** A route with a per-member limit (`requireWithinLimit`). */
+export const limitedResponse = {
+  429: problem("Too many requests; wait as Retry-After says and try again"),
+} as const;
+
+/** A route that may have nothing to give just now (503), saying what to do instead. */
+export const unavailableResponse = {
+  503: problem("Not available just now; the problem says what to use instead"),
+} as const;
+
 export const security: Record<string, string[]>[] = [{ bearerAuth: [] }, { cookieAuth: [] }];

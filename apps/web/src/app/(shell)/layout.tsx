@@ -1,10 +1,21 @@
 import type { LocationSummary } from "@harbour/contracts";
 import type { ReactNode } from "react";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
+import { SampleDataBanner } from "@/components/shell/SampleDataBanner";
 import { ShellFrame } from "@/components/shell/ShellFrame";
 import { getShellContext, tenantApi } from "@/lib/api";
+import { downtimeNavShown } from "@/lib/downtime";
+import { dpiaShown } from "@/lib/dpia";
+import { exportShown } from "@/lib/exports";
+import { familyUpdatesShown, isFamilyMember } from "@/lib/family-feed";
+import { handoverShown } from "@/lib/handover";
 import { peopleLabel, t } from "@/lib/i18n";
 import { incidentsNavLabel } from "@/lib/incidents";
+import { templatesNavShown } from "@/lib/letters";
+import { MANAGE, onboardingShown } from "@/lib/onboarding";
+import { roundShown } from "@/lib/round";
+import { searchShown } from "@/lib/search";
+import { teamShown } from "@/lib/team";
 
 /** "CQC location 1-000000001", for the location switcher. */
 function locationDescription(location: LocationSummary): string | undefined {
@@ -29,7 +40,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
       user={{ name: me.user.name, email: me.user.email }}
       organisation={{ id: me.tenant.id, name: me.tenant.name }}
       memberships={me.memberships}
-      locations={me.locations.map((location) => {
+      // A family member's portal session works at no location: no location switcher.
+      locations={(isFamilyMember(me) ? [] : me.locations).map((location) => {
         const description = locationDescription(location);
         return { id: location.id, name: location.name, ...(description ? { description } : {}) };
       })}
@@ -44,8 +56,20 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         allLocations: t("shell.locationSwitcher.all"),
         navigation: t("shell.nav.label"),
         home: t("shell.nav.home"),
-        people: peopleLabel(me.tenant.terminology),
+        people: me.permissions.includes("people.person.read")
+          ? peopleLabel(me.tenant.terminology)
+          : undefined,
+        search: searchShown(me.permissions) ? t("shell.nav.search") : undefined,
+        round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
+        handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
+        downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
+        updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
+        letters: templatesNavShown(me.permissions) ? t("shell.nav.letters") : undefined,
+        team: teamShown(me.permissions) ? t("shell.nav.team") : undefined,
+        dataExport: exportShown(me.permissions) ? t("shell.nav.export") : undefined,
+        dataProtection: dpiaShown(me.permissions) ? t("shell.nav.dataProtection") : undefined,
+        onboarding: onboardingShown(me.permissions) ? t("shell.nav.onboarding") : undefined,
         notifications: t("shell.nav.notifications"),
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
@@ -55,6 +79,7 @@ export default async function ShellLayout({ children }: { readonly children: Rea
       }}
     >
       <OfflineBanner />
+      <SampleDataBanner present={me.sampleData} mayManage={me.permissions.includes(MANAGE)} />
       {children}
     </ShellFrame>
   );

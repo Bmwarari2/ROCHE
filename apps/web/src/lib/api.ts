@@ -4,6 +4,7 @@ import { type ApiClient, createApiClient } from "@harbour/contracts/client";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { clientAddress, trustedProxies } from "./client-address";
 import { LOCATION_COOKIE, selectLocation, selectTenant, TENANT_COOKIE } from "./context-cookies";
 import { redirectForProblem } from "./problems";
 
@@ -19,7 +20,9 @@ export const API_URL = (
 ).replace(/\/+$/, "");
 
 /** Request headers passed on to the API: the session cookie, and what the audit log records. */
-const FORWARDED = ["cookie", "user-agent", "x-forwarded-for", "x-request-id"] as const;
+const FORWARDED = ["cookie", "user-agent", "x-request-id"] as const;
+
+const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 
 async function forwardedHeaders(): Promise<Record<string, string>> {
   const incoming = await headers();
@@ -28,6 +31,9 @@ async function forwardedHeaders(): Promise<Record<string, string>> {
     const value = incoming.get(name);
     if (value) out[name] = value;
   }
+  // Only the address the trusted proxies saw, never what the client wrote to the left of it.
+  const address = clientAddress(incoming.get("x-forwarded-for"), TRUSTED_PROXIES);
+  if (address) out["x-forwarded-for"] = address;
   return out;
 }
 

@@ -69,7 +69,7 @@ export interface SyncTokenClaims {
    * The day and night shift start times (minutes after midnight, UK time) of each nation the
    * organisation has homes in (`england`, `wales` and so on), from the rate table, sent where the
    * handover family reaches. Not read by any stream: the phone works out from it which handover it
-   * should hold, offline, and says when that one is not compiled yet or not final (ADR-0072). A
+   * should hold, offline, and says when that one is not compiled yet or not final (ADR-0074). A
    * nation whose figures are missing is left out, and the phone then says it cannot tell.
    */
   readonly handover_shifts?: Readonly<

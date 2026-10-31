@@ -42,6 +42,38 @@ export const LODGE = {
 
 const ACTIVATE = "UPDATE tenant_user SET auth_user_id = $1, status = 'active' WHERE id = $2";
 
+/**
+ * Marks every session that has no second-factor record as signed in with an authenticator code,
+ * as a completed TOTP sign-in would (ADR-0072). Sessions here are made by password sign-in, then
+ * two-factor is switched on; without this they would be refused care records.
+ */
+export async function markSessionsVerified(authPool: pg.Pool): Promise<void> {
+  await authPool.query(
+    `INSERT INTO auth.verification (id, identifier, value, expires_at)
+     SELECT gen_random_uuid()::text, 'session-factor:' || s.id, 'totp', s.expires_at
+       FROM auth.session s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM auth.verification v WHERE v.identifier = 'session-factor:' || s.id)`,
+  );
+}
+
+/**
+ * Moves a session's sign-in, and the second factor it last used, back `seconds` (0 makes both
+ * now). Step-up counts from the factor (ADR-0072 amendment), so a test that wants a stale step-up
+ * ages both. `session` is the session's id or its raw token (the bearer value before the dot).
+ */
+export async function ageSession(authPool: pg.Pool, session: string, seconds: number) {
+  await authPool.query(
+    `WITH s AS (
+       UPDATE auth.session SET created_at = now() - make_interval(secs => $2)
+        WHERE id = $1 OR token = $1 RETURNING id)
+     UPDATE auth.verification v SET created_at = now() - make_interval(secs => $2)
+       FROM s WHERE v.identifier = 'session-factor:' || s.id
+        AND v.value IN ('passkey', 'totp', 'backup_code')`,
+    [session, seconds],
+  );
+}
+
 export interface Harness {
   readonly db: TestDatabase;
   readonly handle: AppHandle;
@@ -250,6 +282,7 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
   await db
     .pool("harbour_auth")
     .query("UPDATE auth.user SET two_factor_enabled = true WHERE id <> $1", [authIds.nurse]);
+  await markSessionsVerified(db.pool("harbour_auth"));
 
   return {
     db,

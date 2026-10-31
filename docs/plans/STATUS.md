@@ -18,6 +18,63 @@ only when they link spec, code, tests and user documentation; no user guides exi
 | 6 Intelligence | AI copilot, report builder, benchmarks, public API, operator billing | Not started |
 | 7 Expansion | Nation packs, children's homes | Not started |
 
+## Paused on 16/10/2026: where to pick up
+
+The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
+is half-built on a branch: every pull request was merged or is listed here.
+
+**Merged on 16/10/2026** (#51 to #102, mobile excepted): outages and back-entry, statutory
+notification pages, invitations, members and the Team screens, step-up only from a recently used
+second factor, evidence packs and public inspector links, statement of purpose (API), downtime
+screens, the shift handover and round screens, letter templates and letters (API and screens), the
+family feed end to end (schema, API, publishing, staff tab, family page), the free full export end
+to end, in-app DPIA sign-off and its page, the onboarding checklist and its page, sub-processor
+notices (organisation and operator sides), search and break-glass search, sample data mode, a fix
+for definer functions left executable by PUBLIC (#97), the Phase 1 gate gap report (#100) and
+ADR-0073 (one development-log file per pull request).
+
+**Mobile** stays paused by the owner: do not work on `apps/mobile`, the phone sync streams or the
+screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
+
+**Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
+
+1. Small gate gaps still open: the axe journey for `/people/[id]/history`.
+2. Clinical safety case v0.1 (only v0.0 exists).
+3. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
+   013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`); the
+   weekly break-glass report (PLAT-006); candour, medical examiner and investigations (SAFE-007,
+   008, 010); evidence pack composing and statement of purpose (QUAL-003, QUAL-009).
+4. White-label branding (PLAT-002) and role dashboards (INSI-001).
+5. The DPIA template's Phase 1 risks and measures.
+6. User guides per role and `docs/demo/` with the Phase 1 walkthrough (every register row needs
+   its user guide before it can be `done`).
+7. A second demo tenant with a shared user, for the choose-organisation journey; Lighthouse CI.
+8. When Phase 1 is complete: run the Cloudflare security-audit skill read-only, then fix what it
+   finds; then Phase 2 (non-mobile).
+
+**Follow-ups logged on 16/10/2026 that are not yet in the items below**:
+- Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the
+  notifications centre and the evidence pack; the onboarding copy says sample people are left out
+  of notifications, but the "a sample incident drafts no statutory notification" test is still
+  planned (soften the copy or add the test); the stored files of a removed sample person's
+  documents stay in the bucket; after a step-up the onboarding page should return to its
+  sample data section; the mobile badge (paused).
+- `evidence-link.test.ts` "a session for one link opens no other" failed once on #87 and passed on
+  re-run with no related change: make it robust.
+- The person-linked family feed is numbered ("1 of 2") until the API can name the person.
+
+**Ways of working that saved time** (keep them):
+- Migrations merge in number order; after each lands, the next pull request merges `main` and
+  regenerates its journal entry and snapshot with drizzle-kit (`migration-journal.test.ts` fails
+  otherwise). The next free number is 0071.
+- Definer functions: set the ACL before the ownership change, or as the owner
+  (`definer-acls.test.ts`, ADR-0002).
+- Development log entries are one file per pull request in `docs/changelog-dev/` (ADR-0073), so
+  open pull requests no longer conflict over the log.
+- E2E journeys that record something should date it hours back: the downtime journey leaves an
+  outage open, and anything inside it needs back-entry details.
+- Step-up in journeys needs a passkey (`signInWithDemoPasskey`); a password alone never counts.
+
 ## Next items (in order)
 
 1. Data scope per permission is merged (#27, with the round 5 check's alarm fix;
@@ -137,6 +194,122 @@ only when they link spec, code, tests and user documentation; no user guides exi
    channels, notifications, visit booking and the family portal policy of ADR-0061; search, the
    full export, DPIA, onboarding and sample data), then slice 14; the rest of the web record
    (slice 9) and Care mode part 2 (slice 10) alongside ([phase-1.md](phase-1.md)).
+   - Slice 12 part 1, the family feed schema and API (`feat/comms-family-feed` and the stacked `feat/comms-family-feed-api`, migration 0061,
+     after #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
+     `feed_item_withdrawal`, `feed_view`; portal sessions resolved from the links (`app.family`,
+     scope `none`); `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role:
+     run `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity
+     test; `GET /v1/family/feed`, the portal link routes, `GET /v1/people/{id}/feed` and
+     `POST /v1/feed-items/{id}/withdraw`. Part 1b, publishing from records
+     (`feat/comms-feed-publish`): in review, `POST /v1/people/{id}/feed` for notes, activities and
+     photos (consent to photos required), the feed reading the photo basis. Follow-ups: visits and
+     care plan updates as sources; the exposure route; the next-of-kin step from safety in place of
+     "family not recorded as told"; the staff-name tenant setting (H-107). Part 2a
+     (`feat/web-family-feed`, stacked on part 1b): the preview route and the staff "Family updates"
+     tab (choose a record, words for the family, problems at each field, preview, publish once,
+     take down with a reason), with a Playwright journey. Part 2b (`feat/web-family-portal`,
+     stacked on 2a): the family's `/updates` page (statement, time checked, updates, taken-down
+     notices; a closed feed reads as no decision), a family member's home, and a demo portal
+     account for the journeys. Follow-up: name the person on each feed once the API returns a
+     name the decision allows (numbered for now; HZ-001). Then channels, notifications and visit
+     booking. Open: the portal feed names no person (a family session cannot read `person`), so
+     part 2 needs a name the decision allows (HZ-001); tables with only the tenant policy
+     (`tenant_user`, `location`, roles) are readable by any member including a portal session,
+     as for staff with scope `none`, and need a review before the portal goes live.
+
+   - Slice 13, search part 1, the index (`feat/platform-search-schema`, migration 0066;
+     platform-completions.md section 10s; PLAT-013, ADR-0070): `app.search_terms` equal to the
+     domain's terms, generated vectors on people, colleagues, documents and notes; no GIN index (unusable by the app role under forced RLS; ADR-0070 as built). Part 2, the route
+     (`feat/platform-search-api`, stacked): `POST /v1/search` with the plan, each kind in its own
+     permission's scope without break-glass, the second filter, ranking and audit without the words.
+     Part 3, the page (`feat/web-search`, stacked): `/search` with the scope said, same-name
+     warnings and keyboard use, and a Playwright journey. Next: break-glass search with
+     `break_glass_event.kind`, then offline search on mobile.
+   - Slice 13, the DPIA in-app (`feat/platform-dpia-onboarding`, migration 0063;
+     platform-completions.md section 10d): `dpia` versions with forced RLS and a guard (signed by
+     the named lead who prepared none of it, never changed after), the tenant's data protection
+     governance, and the prepare, save, sign and settings routes.
+   - Slice 13, sub-processor notices, organisation side (`feat/platform-sub-processor-notices`,
+     migration 0065; platform-completions.md section 10h): notices and append-only responses with
+     forced RLS; the named lead acknowledges or objects within the window; the checklist reads
+     the acknowledgements.
+   - The operator side (`feat/platform-sub-processor-operator`, migration 0067): announce with
+     the timing check and tell each affected organisation; read and resolve objections only
+     through definer functions owned by the new NOLOGIN role `harbour_notice_resolver` (run
+     `pnpm db:bootstrap` before migrating). Next: sample data mode, then the web screens.
+   - Sample data mode for people (`feat/platform-sample-data`, migration 0069 after #95's 0067
+     and #97's 0068; rules 29 to 32, HZ-072): `sample_batch` and the person sample flag;
+     `POST` and `DELETE /v1/onboarding/sample-data` load one batch of invented people before any
+     real person exists and remove it in one step through `app.remove_sample_batch`, owned by the
+     new NOLOGIN role `harbour_sample_owner` (run `pnpm db:bootstrap` before migrating); the
+     `person_sample_guard` trigger keeps real and sample people apart whichever role writes; the
+     checklist item reads the records; the full export leaves sample people out. Open: the web
+     mobile badge and banner (the people streams carry `is_sample`; mobile sync is paused; the web
+     badge, banner and controls are in `feat/web-sample-data`); sample flags on records about sample people for the other
+     surfaces (removal already takes those records with the people); the downtime pack and other
+     surfaces calling `forSurface`; the stored files of a removed sample person's documents stay in
+     the documents bucket until a sweep for files with no row exists.
+   - Slice 13, the onboarding checklist, part 1 (`feat/platform-onboarding-records`, migration
+     0064 after #81's 0063; platform-completions.md section 10e): append-only setting, retention
+     and DCB0160 decision records with forced RLS, the staff file option, and the decision rules.
+     Open: the policies use `app.holds_permission_anywhere`, so a holder of
+     `platform.onboarding.read` or `.manage` limited to one location reads and records the
+     organisation-wide decisions too (the onboarding roles are organisation-wide today); revisit if
+     a location role ever carries them.
+   - Part 2, the decision routes (`feat/platform-onboarding-decisions`): setting, retention, staff
+     file and DCB0160 decisions, audited with refusals.
+   - Part 3, the checklist (`feat/platform-onboarding-checklist`): `GET /v1/onboarding` works
+     every item out from the records; the go-live check now reads the escalation policy links
+     (HZ-014).
+   - Web, the DPIA page (`feat/web-dpia-onboarding`, platform-completions.md section 10f): the
+     governance, preparing and signing in-app, with step-up notices and a journey with axe. The
+     signing form is offered only to the named lead who prepared none of it. Open: the typed name
+     is checked for length and bound to the version's SHA-256, never against the signer's account
+     name (the API records the session's member as signer); decide whether it must match before a
+     pilot. `db:seed` now refuses to seed the demo tenant in production unless
+     `HARBOUR_SEED_DEMO=0` (reference data only).
+   - Web, the onboarding checklist page (`feat/web-onboarding-checklist`, section 10g): every
+     item from the records, with the decisions recorded on the page; a clinical setting and the
+     DCB0160 assessment name the clinical lead or CSO who reviewed or made it, kept as a member id
+     in the audit event (the decision tables do not store it yet: add a column when the schema is
+     next touched). Open before Welsh or a pilot: the checklist shows settings and record classes
+     by their keys, and the domain's reasons in English. Next: sub-processor notices (rules 24
+     and 25), then sample data mode.
+   - Slice 13 part 1, the free full export's record and routes (`feat/platform-full-export`,
+     migration 0062 after 0060 and 0061; platform-completions.md section 10a): `tenant_export`
+     with forced RLS (owner and the worker only), one at a time, a forward-only status guard and
+     the single download; the `platform.data.export` rename in role copies and grants; request,
+     list, cancel and the one-time download, step-up and audited. Part 2 (`feat/platform-full-export-worker`, stacked on #77): the worker builds
+     each queued export in one snapshot into a streamed ZIP in the exports bucket (tables,
+     documents, current summary, schema, manifest), tells the requester, and the sweep deletes
+     archives past expiry; platform-completions.md section 10b. Part 3 (`feat/web-full-export`, stacked): the export page
+     (section 10c) with a Playwright journey that runs the worker's job once (`exports:run`) and
+     downloads with the owner's end-to-end passkey;
+     sample data rows join the export when the sample flag exists. The archive lives in the
+     exports bucket (`S3_EXPORTS_BUCKET`), streamed both ways; the worker deletes it after the
+     download or a cancel (outbox, retried). Interim: the tenant has no `data_purged_at` yet, so
+     `checkExportRequest` is given none.
+   - Slice 12 part 1, the family feed schema (`feat/comms-family-feed`, migration 0061, after
+     #71's 0060; COMMS-001, ADR-0061, HZ-022): in review. `family_portal_user`, `feed_item`,
+     `feed_item_withdrawal`, `feed_view`; family sessions (`app.family`, scope `none`);
+     `app.family_can_see` (definer, `harbour_family_reader`, a new NOLOGIN role: run
+     `pnpm db:bootstrap` before migrating) mirrors `checkFeedItemVisibility`, with a parity test.
+     Next, the API part stacked on it (`feat/comms-family-feed-api`), then part 1b, publishing
+     from source records, then part 2, the web.
+   - Follow-ups from the #75 and #76 review (no code yet):
+     - linking a family account rests on a verified email matching the contact's; replace it with
+       an invitation sent to the contact that the family member accepts (the invitation store of
+       0054 with a family kind);
+     - the feed's checks are spread over three transactions (the family read, the system's view of
+       the decisions, the view writes); a decision changed between them is judged on the earlier
+       read; fold them into one or re-check on write;
+     - a family session reads withdrawal rows for every section of its own people, not only the
+       sections a decision opens (ids and reason codes only); narrow the policy;
+     - `feed_view.sharing_decision_id` is not checked against the decision that opened the update
+       (the API supplies it); a definer check that it names the caller's contact and covers the
+       section;
+     - the "as at" time on an empty open feed (HZ-061, for the web part);
+     - closing message after next of kin are told: for the CSO (H-110).
    - Slice 11 part 1, downtime pack and outage schema (`feat/operations-downtime-schema`,
      migrations 0050 and 0051; operations.md section 12): in review. Next, part 2: the
      expand-only back-entry columns on `care_note`, `observation`, `body_map_mark`,
@@ -189,6 +362,202 @@ only when they link spec, code, tests and user documentation; no user guides exi
      - part 3 must ask for an outside-the-outage reason when someone corrects a reviewed
        back-entry whose time is after the true end, because the database refuses such a correction
        without one (wording H-208).
+   - Slice 11 part 3a-1, downtime pack API (`feat/operations-downtime-pack-read`, stacked on
+     part 2; operations.md section 13): built, PR to follow part 2. Then part 3a-2, the printed
+     pack (`feat/operations-downtime-pack-api`), part 3b, the nightly job, rebuilds after moves
+     and the places route (`feat/operations-downtime-api`), and part 3c, outages and back-entry
+     through the API. Follow-ups: the kiosk fetch route and photos on
+     the printed pages (mobile step).
+   - Follow-ups from #45 review round 1 (security and clinical):
+     - opening a pack is audited once for the pack, not once per person on it (per-person audit
+       rows for care-record views);
+     - the HZ-001 withhold check does not run for the sections the builder stamps with the
+       person's own id (the medicines and evacuation places);
+     - a risk prints its residual band, or its initial band when no residual one is set, without
+       saying which;
+     - the pack does not leave out sample people (HZ-072) until sample data mode exists;
+     - "nothing changed since" compares change times with the information's time on the database
+       clock: a change in a transaction that began before the build and committed after it reads
+       as older than the pack, so is caught only by the next rebuild (a fingerprint column is the
+       fuller fix).
+   - Slice 11 part 3a-2, the printed downtime pack (`feat/operations-downtime-pack-api`, stacked
+     on part 3a-1; operations.md section 13): built, PR to follow part 3a-1.
+   - Follow-ups from #46 review round 1:
+     - render the PDF in a worker thread, so a large home's pack does not hold the API's event
+       loop;
+     - the CPR wording and its emphasis for the CSO (H-100, H-212);
+     - unconfirmed places on the front sheet (H-201, H-213);
+     - double-sided printing would put two people's pages on one sheet: a deployer control to print
+       single-sided (H-214);
+     - an out-of-date pack's header is words only; whether it needs more emphasis (H-209).
+   - Slice 11 part 3b, nightly packs, rebuilds after moves and the places route
+     (`feat/operations-downtime-api`, stacked on part 3a-2, migration 0055; operations.md section
+     13): built, PR to follow part 3a-2.
+   - Slice 11 part 3c, the outages API (`feat/operations-outages-api`, stacked on part 3b;
+     operations.md section 13): built, PR open. Carries the #32 round 1 requirement that part 3
+     emits the `operations.outage.*` audit and outbox events of section 5 (plus
+     `.reconciliation_viewed` and `.corrected` audits). Next, part 3d: back-entry on the care
+     routes and the sync upload, with rule 13, the refusal after reconciliation, a second offline
+     correction of a back-entry going to the refused-entry review (HZ-006), and the #38 round 2
+     outside-the-outage reason when correcting a reviewed back-entry after the true end (H-208),
+     which belongs to the care correction routes. Follow-ups: the late flag still reads the
+     rate in the database without saying when `care_note.late_entry_hours` is missing (#32
+     round 2); the back-entry task's title is English only.
+   - Slice 11 part 3d, back-entry through the care routes (`feat/operations-back-entry-api`;
+     operations.md section 14): built, PR open. Back-entry and rule 13 on the five care write
+     routes, the refusal after reconciliation (H-204), one correction per paper record with a
+     device's second going to the refused-entry review (HZ-006), and the outside-the-outage
+     reason on a correction after the true end (H-208). The sync upload writes no care tables,
+     so needs no change. Also a test that a closed outage's end cannot be corrected past its
+     closure plus `sync.clock_drift_flag_minutes` (#51 round 2). Follow-ups:
+     - back-entry fields in the sync streams and on the phone (mobile step, Lane C), and the web
+       forms (rule 12 label on the record);
+     - paper found after reconciliation, and an entry not from paper inside a reconciled outage,
+       are refused and kept for the refused-entry review (#54 round 1); the final path waits for
+       the CSO (H-216), as does whether old readings from paper should alert at all;
+     - the paper time must equal `occurredAt`: a client sending a different instant is refused,
+       never moved;
+     - a correction of a back-entry about someone who has since moved is refused by the database
+       (the outage is at the old location; existing #38 follow-up).
+   - Follow-ups from #51 review round 1:
+     - a declared outage left open has no SLA or reminder (CSO to decide, H-215);
+     - prove by a test that the reconciliation's output about people outside the reconciler's
+       scope is ids and counts only (it is by construction: `outageEntries` selects ids, people,
+       kinds and times);
+     - an outage declared after it ended is closed at once, so it can no longer be cancelled,
+       only corrected.
+   - Follow-ups from #47 review round 1:
+     - rebuilds run in the outbox handlers; a queue of their own, deduplicated per location, would
+       keep a slow home's rebuild from delaying other events;
+     - the nightly job covers active locations only;
+     - the kiosk route needs a location-bound branch for reads with no member before it is built;
+     - the seeded places wording still needs the CSO's confirmation (H-201).
+   - Slice 11, evidence pack and statement of purpose part 1, schema (`feat/quality-evidence-pack`,
+     migration 0057; quality.md section 12): six tables with forced RLS, the workflow guards,
+     separation of duties in the database, hashed tokens and codes, bundle deletion and the
+     definer token lookup (new NOLOGIN role `harbour_evidence_link_reader`: run `pnpm
+     db:bootstrap` first, H-220, numbered H-216 until #60 review round 1; storage split for the DPO, H-217). Next, part 2, the API: the
+     routes, public link routes and audit and outbox events of section 5, the PDF through the
+     downtime pack writer (ADR-0040), the bundle deletion sweep at link end and the
+     notification-overdue job. Follow-ups: an inspector with a Harbour account
+     (`quality.evidence.read`, scope `none`) opening a pack released to their address needs its
+     own policy; the migration number 0057 follows 0056 (#50), so its journal `when` must stay
+     after #50's at merge.
+   - Requirements for part 2 from #56 security review round 1 (the schema fixes are in #56: bundle
+     editors are contributors, no redacted copies or long free text in the manifest, the token
+     lookup takes the hex digest, cross-tenant tests for every table):
+     - (Medium) a pg-boss sweep deletes bundles when a link ends or expires, with a test; part 2
+       does not ship without it;
+     - (Low) the public routes run as `app.is_system()`: set a per-transaction `app.link_id` and a
+       restrictive policy for system sessions so they reach that link alone;
+     - (Low) the API increments `failed_code_attempts` on a wrong code (tested), stores codes as an
+       HMAC with a server key rather than an unsalted SHA-256, and caps live codes per link.
+   - Slice 11, evidence pack and statement of purpose part 2a, the evidence pack routes and the
+     bundle sweep (`feat/quality-evidence-pack-api`; quality.md section 13): compose, add records
+     (care notes, observations, incidents), hand redaction, release with the link, re-issue,
+     revoke and discard, with audit and outbox events; the `evidence-bundle-sweep` job (the #56
+     Medium requirement, tested). Next: part 2b, the statement of purpose routes and the
+     notification-overdue job (stacked); part 2c, the public link routes (`app.link_id` and a
+     link-session policy in migration 0058, codes as an HMAC with a server key, the failed-attempt
+     count, a cap on live codes, the session cookie) and the PDF through the ADR-0040 writer.
+     Follow-ups: the other seven record types of the field map; staff shown as their role from the
+     closed list (as built every staff name prints "[member of staff]", H-218); a superseded
+     incident version cannot be added after it changes, only a new pack.
+   - Slice 11 part 2b, the statement of purpose routes and the notification-overdue job
+     (`feat/quality-statement-of-purpose-api`, stacked on part 2a; quality.md section 14): built,
+     PR open. Follow-ups: the overdue alert's words and who receives it (every active holder of
+     `safety.notification.submit` anywhere, H-219); the CQC notification wording or template
+     itself is not generated (the record holds the reference or how it was sent).
+   - #61 review round 1, fixed in #61: the overdue alert names the version and the due date; the
+     28 UK days are tested across the October clock change; step-up on recording the notification
+     is tested; HZ-080 logged (DCB0129 scope for the CSO, H-224); H-219 asks about a "due soon"
+     reminder.
+   - #60 review round 1 (clinical and security), fixed in #60: release re-reads every record and
+     is refused, saying which, when one was corrected or changed since it was added; corrections,
+     back-entries from paper (paper time, outage, reference), the recording time and a wrong
+     device clock are labelled in the pack; observation readings have a label and unit per chart
+     field and only the chart schema's own values count as codes; care-note tags are free text;
+     times carry GMT or BST; the token responses say `no-store` (the API logs no request bodies).
+     For the CSO and DPO: H-221 to H-223. Follow-up: reason codes in audit rows (H-223).
+   - Slice 11 part 2c, the public link routes and the PDF (`feat/quality-evidence-pack-public`,
+     stacked on #60, migration 0058; quality.md section 15): the #56 Low requirements (the link
+     session with `app.link_id`, codes as an HMAC under `EVIDENCE_LINK_SECRET`, the failed count
+     in the same transaction, a cap on open codes) and the PDF; built, PR open. Follow-ups: the web
+     page that reads the token from the link's fragment and posts it (web step); throttles are per
+     API instance (a shared table, as for invitations); the code email has a generic subject and the code in its body
+     (built in part 2a of the letter templates, H-225); an inspector with a Harbour account
+     (`quality.evidence.read`) still needs its own route.
+   - #66 review round 1 (security and clinical), fixed in #66: the printed pack says when it was
+     composed and released (GMT or BST) and that it shows the records as they stood at release
+     (H-222 stays open for the CSO); a field with no value prints "Withheld: not available in this
+     pack"; link sessions read none of the audit trail, staff, alerts, tasks, documents, roles,
+     grants or outbox, and cannot revoke their link (0058); the per-address throttle falls back to
+     one shared bucket when no address is known; audit rows take the address from the trusted hop;
+     the session cookie is `__Host-`, path `/`, encrypted (AES-256-GCM) and signed.
+     Logged, not blocking this merge: the code email's subject and body need an email port with a
+     body (H-225; blocks a live tenant); the SES body's "Open Harbour..." line would confuse an
+     external recipient.
+   - Slice 11, letter and email templates part 1, schema (`feat/comms-letter-templates`,
+     migration 0059, stacked on #66 for the migration order; comms.md section 11): the three
+     tables with forced RLS, the version workflow and separation of duties in the database, and
+     letters only from approved versions to the person or their own contacts. Next, part 2, the
+     API: template and version routes, merge fields, preview and sending with the PDF writer, the
+     email port's body (H-225; the evidence pack code email moves its guidance into the body),
+     audit and outbox events.
+   - #69 security review round 1 (no High or blocking Medium); fixed in #69: the incident and its
+     grade come from the incident (about the letter's own person, on incident and candour letters
+     only) and set the retention class; link sessions reach none of the template and letter tables.
+     For part 2 and the retention slice:
+     - letters are readable by anyone with the person in scope: gate reads on a comms permission
+       in the API (or the SELECT policy);
+     - no crypto-shred path for `letter` yet (the retention slice);
+     - audit events come from the API (the tables have no audit triggers of their own);
+     - part 2 must: require `comms.letter.manage` (and `safety.incident.manage` for the
+       `incident.*` and `candour.*` fields), MFA on reads, store `delivery_reference` as the
+       provider's opaque id only, `personal_fields` as keys only, never an email's content, and
+       log no personal data.
+   - Slice 11, letter and email templates part 2a, the template routes and the email body
+     (`feat/comms-letter-templates-api`, stacked on #69; comms.md section 11): merge fields,
+     templates and versions with approval, retirement and discarding; the email port's body,
+     which closes the item 5 note on the evidence pack code email (generic subject, the code and
+     guidance in the body, H-225). Next, part 2b: preview, sending and the letters list with the
+     PDF writer and the part 2 must-dos above.
+   - #70 review round 1 (security and clinical), fixed in #70: every version write matches the
+     version the caller loaded (an edit landing between the read and an approval is refused with
+     409, audited); the letter-only refusal is audited. For part 2b: check an email's body before
+     it leaves (no link, and no personal field beyond the approved, rendered template), as
+     `guarded` checks the title in `adapters.ts`; run the ADR-0051 check on the rendered body too.
+   - Slice 11, letters part 2b, preview, sending and the list (`feat/comms-letters-api`, stacked
+     on #70; comms.md section 11): built, PR open, with the part 2 must-dos (comms.letter.manage
+     with MFA on every route including reads, safety.incident.manage for incident letters, values
+     from the record except typed admission and fee details, the provider's message id only, field
+     keys only, no email content stored), the body guard and ADR-0051 on the rendered output.
+     Follow-ups: duty of candour letters need the relevant person on the candour record; a letter's
+     PDF document keeps `care_record` retention even when the letter is `serious_incident` (the
+     retention slice); letter PDFs carry no letterhead or address block layout yet (H-228).
+   - #72 review round 1 (security and clinical), fixed in #72: the send must match the preview
+     (version and text hash, 409 otherwise); only current contacts; an incident involving anyone
+     else is refused; email sending refused (422) until the worker-based send; the preview shows the
+     person (name, room, photo); people who have died are refused; the list shows incidents only to
+     holders of `safety.incident.manage`; the body guard catches hyphenated NHS numbers and
+     `mailto:`. Follow-ups:
+     - the worker-based email send: insert a pending `letter` row (an expand change: a status
+       column), a pg-boss job keyed on the letter id sends once (the port's idempotency key is the
+       letter id), then the provider's message id is recorded; an email is never sent twice or
+       unrecorded (HZ-051);
+     - a family-facing incident summary, written for the family and approved, so incidents
+       involving several people can be written about without the internal account;
+     - letters after a death (to the next of kin or the estate), with the template kinds they need.
+   - Slice 11, letters web part 1, template management (`feat/web-letters`; COMMS-007, HZ-051):
+     in review. `/letters` (list), `/letters/new`, `/letters/{id}` (draft with each problem at its
+     field, approval by someone else with the reason shown to the author or an editor, a new draft,
+     discard and retire with a reason, earlier versions). Next, part 2 stacked on it: the person's
+     letters tab (preview showing name, room and photo; send with the preview's version and hash;
+     409 `letter_changed` shows the new preview; the list).
+   - Slice 11, letters web part 2, the letters tab (`feat/web-letters-send`, stacked on part 1;
+     COMMS-007, HZ-051, HZ-001): in review. Follow-ups: letters to a contact need the contacts on
+     the record (the API has no contacts list for the web yet); an incident follow-up offers the
+     person's incidents only to holders of `safety.incident.manage`.
 6. Phase 0 follow-ups carried into Phase 1: operator console web UI and read-only impersonation
    session; invitations and MFA enrolment flow end to end; record history PDF export; device push
    registration; user guides per role (moves PLAT and MOB rows to `done`). The OpenFeature
@@ -405,9 +774,9 @@ only when they link spec, code, tests and user documentation; no user guides exi
     its care record mid-shift (H-351); organisations can override the timeout floor and ceiling
     (harmless while the timeout is off).
 19. The incident screens, the rest (slice 9, SAFE-001 to SAFE-003; the incidents list and an
-    incident's read view are on `feat/web-incidents`): part 2, the statutory notifications on the
-    incident page with their clocks and warnings (`feat/web-incident-notifications`, stacked on
-    part 1); the statutory notification pages (`/notifications/statutory` with every draft's clock
+    incident's read view are on `feat/web-incidents`, the notifications with their clocks on the
+    incident page on `feat/web-incident-notifications`): the statutory notification pages
+    (`/notifications/statutory` with every draft's clock
     for `safety.incident.manage`, and `/notifications/statutory/{id}` with its deadlines, required
     content and sources, which the overdue alert already links to; the sidebar's `/notifications`
     section must not claim that path); then the forms, each offered only where `access.reaching`
@@ -416,27 +785,271 @@ only when they link spec, code, tests and user documentation; no user guides exi
     questions in the catalogue's words, review and close (`safety.incident.manage`, never the
     person who raised it), prepare a notification, and submit it or mark it not required with
     step-up (`safety.notification.submit`). API gaps ([safety.md](../specs/safety.md) section 5):
-    no staff names (H-73); the list has no paging past 500.
+    no staff names (H-73); the list has no paging past 500; a draft stays `provisional` after the
+    answer that made it changes; the questions, exclusions, reasoning and tasks are English only.
     - Follow-ups from #42 review round 1 (H-256 asks the CSO whether part 1 may ship before part
       2): `emergencyServicesCalled` and `gpContacted` default to false in `CreateIncident`, so
       "No" may mean nobody was asked; the sidebar's Incidents icon (a warning triangle) reads as
       an alert when the sidebar is folded to its icons; a reader without `people.person.read`
       sees several "A person we support" with nothing to tell them apart; no demo account lacks
       `safety.incident.read`, so the hidden Incidents item is unit tested only.
-20. Invitations and MFA enrolment (feat/platform-invitations; PLAT-004): the spec and rules are
-    built (platform.md, Invitations and MFA enrolment; `invitations.ts`), with a test that no
-    one-time code is offered by SMS or email, and review round 1 of #43 folded in (the token only
-    in the URL fragment and POST bodies; locked, hashing security-definer functions under their own
-    owner role, with the sign-in's email checked inside; inviters must hold every permission of the
-    member's roles, the address copied by the database and cleared when the invitation closes; an
-    operator may invite only a first owner, through a definer function; an expiry ceiling;
-    throttling per client address and token; a lapsed-invitation sweep; members never created
-    without MFA). Next, stacked on #43 (numbered provisionally): migration 0054 with the table,
-    the functions and their database tests; then the invite, lookup, accept, revoke, list and sweep
-    routes; the operator's owner invitation and the invitation email; the web accept page with the
-    password rules and the redirect to enrolment, with Playwright and axe (H-355). Then
-    `fix/platform-mfa-session-factor` (#43 review M5): MFA counts only when the session used a
-    passkey or a verified TOTP code, not merely when one is enrolled.
+    - Follow-ups from #42 review round 2: `INCIDENT_LIST_LIMIT` repeats the API's 500 (the API
+      should return a `truncated` flag, or the limit should be a shared contract constant);
+      communication needs for people outside the reader's people list are left out silently
+      (say "not shown to you"); the list gives no sign that an incident's notifications have not
+      been checked yet; the "What happened" field repeats its section's heading; the breadcrumb
+      link has no 44 px target; the journey neither opens nor scans the closed incident's page
+      with axe; when needs are recorded the incident page says "Communication needs" twice (the
+      label and the flag), so drop the flag's label there or hide the label visually.
+    - Follow-ups from #49 review round 1 (H-256 to H-260 ask the CSO): the clocks are worked out
+      when the page is drawn, with no "as of" time and no refresh; a submitted death notification
+      for a death later recorded in error shows as submitted on the incident (the correction task
+      is the only cue); the local warning line (`SafetyWarning`) belongs in `@harbour/ui`; the
+      reviewers' copy suggestions go to the CSO's wording review (H-258); the open questions are
+      counted twice, in the header chip and the section's notice; the classifier's tasks carry no
+      done state, so "RIDDOR may be needed: check on ..." stays after the check until the
+      incident is classified again (H-259).
+    - Follow-ups from #49 review round 2: the outbreak line "Needed, and drafted on another
+      record" neither names nor links that record, nor shows its status; "person N" on a
+      notification has nothing to match in the people section; there is no cue at the top of the
+      page for the "not checked yet" and "outside England" notices; the reviewers' optional copy
+      points go to H-258.
+    - Built on `feat/web-statutory-notifications` (read only): `/notifications/statutory` (still
+      to do, then submitted or not required, each with its clock, status, who it is about, due
+      time, location, recipient and warnings) and `/notifications/statutory/{id}` (clock, status,
+      warnings, every deadline, the record it was drafted on named and linked with its status,
+      reasons, required content, sources and how it ended), for `safety.incident.manage` as the
+      API requires; the sidebar keeps Incidents current there. Done from the #49 follow-ups on
+      these pages: an "as of" line on every clock list (and the incident page), a hidden person
+      unnumbered on their own page and numbered consistently across the list with a line saying
+      so, and the source record named and linked with its status; the incident page links each
+      notification to its page for managers. Still open: the forms (next PR); the outbreak line on
+      the incident page still neither names nor links its record (the API gives no link from an
+      output to a draft on another incident); the list's limit of 1,000 repeats the API's; a
+      holder of `safety.notification.submit` without `safety.incident.manage` (no built-in role,
+      but a custom one) reaches the overdue alert's page and is told it is not for them (the API
+      reads need `manage`; H-260); the prepared form (`content`), the DoLS 18(4B) statement and
+      `noLongerIndicatedReason` are not shown, and reasons, required content and sources are the
+      API's English (marked `lang="en-GB"`); RIDDOR's threshold is read for the label only on a
+      notification's page (from its incident's date), so the list says "the reporting
+      threshold".
+    - Review round 1 of #52 (fixed): the list reads draft, ready, submitted and not-required
+      notifications separately, so a recent overdue draft is never pushed off by old finished
+      ones, and warns when an unfinished read is cut; communication needs beside who a
+      notification is about; an unreadable due time sorts first; deadlines on a finished
+      notification are headed as history; the page title names the kind. H-260: a holder of
+      `safety.notification.submit` without `safety.incident.manage` (whom the overdue alert sends
+      to the notification's page) now sees who can act (the Registered Manager or whoever manages
+      incidents there) on the forbidden page; letting them read it needs the API to accept
+      `submit` on the reads. For the CSO (with H-257 and H-258): accept the deadlines on a
+      finished notification shown as "Deadlines it had to meet", and "Clocks worked out at ...
+      Reload the page to bring them up to date." with no automatic refresh.
+    - Built on `feat/web-incident-forms` (part 4a): `/incidents/new` records an incident
+      (`safety.incident.report`) from the incidents list (the reporter's locations) or from a
+      person's record (offered only where `access.reaching` lists it; about them at their home),
+      with emergency services, GP and death asked every time, never assumed no (the #42
+      follow-up, HZ-090), the falls questions on a fall (HZ-027) and a UUIDv7 kept across retries;
+      the incident page offers its open questions in the catalogue's words (every one to a
+      manager, the falls questions to whoever raised it). Still to do: part 4b (review and close,
+      prepare, submit or mark not required with step-up). Gaps logged, no API change: `/v1/me`
+      gives no per-permission locations, and `IncidentDetail` has no `access` block, so the
+      location choice lists where the member works and the questions form follows the held
+      permissions (the API refuses where the scope does not reach, ADR-0071); classifier answers
+      carry no client id (a retry stores the same answer again, harmlessly); the form does not
+      yet ask when the person was found (H-262), nor add other people, staff or visitors,
+      body-map marks, infection details, the family told or LeDeR facts.
+    - Follow-ups from #55 review round 1 (H-263, H-264): per-permission locations on `/v1/me`
+      (so the location choice lists only where `safety.incident.report` reaches); with no person
+      on the incident `died` is sent as false and the form cannot add a person; incident-specific
+      tests for a future time and the hour the clocks change; the Welsh wording of the questions
+      is not checked against the domain (only English is); "not sure" for emergency services
+      and GP needs a contract change (API follow-up).
+    - Built on `feat/web-incident-review-submit` (part 4b, stacked on #55; HZ-091, H-265,
+      H-266): the incident page's "Review and close" for `safety.incident.manage` (start the
+      review; send it back to open or close, each with a reason; never close for the person who
+      raised it; what to do first, linked, while a notification or question is open); the
+      notification page prepares it (an answer per line of required content, ready only when
+      all are answered), records it as submitted once ready (time chosen every time, the
+      regulator's reference) and decides "not required" with a reason, each where its
+      permission reaches the person (`access.reaching`), with step-up as break-glass does it
+      (sign in again, back to the page). Every write sends the page's version, so a stale page
+      is refused in words. Gaps logged, no API change: no client id on these writes (the version
+      stands in: a retry after a lost connection is refused as changed, and says it may be the
+      person's own attempt); `IncidentDetail` has no `access` block, so review and close follow
+      the held permission (the API decides scope); the candour record is not on the incident, so
+      an open one is said only by the API's refusal; the web cannot attach the submitted form
+      (uploads), so the reference is required; what was typed is lost at the step-up sign-in;
+      the prepared answers are keyed by the API's English line (cut to 80 characters), so a
+      reworded line leaves an earlier answer under the old words (shown only in the API's
+      content; a `requiredContent` key in the contract would fix it); "Who submitted" names
+      the member only as "you" or "another member" (H-73).
+    - #58 review round 1 (built): "not required" on a notification Harbour found needed says
+      so and takes a 20-character reason and a confirmation (H-265); the forms leave success to
+      the page, which announces only a matching status and drops `?done=`; no future tolerance
+      on the submission time. Left: "just now" still sends the server's time, since
+      `SubmitNotification.submittedAt` is required (an API change would let the API stamp it);
+      the step-up notice and the separation-of-duties refusal are checked with axe in component
+      tests only, since the journey cannot force a stale sign-in (needs a test hook) and close is
+      never offered to the person who raised the incident.
+20. Invitations and MFA enrolment (PLAT-004): the spec and rules are on `main` (#43); the store is
+    in feat/platform-invitations-schema: migration 0054 (the `invitation` table, the
+    `harbour_invitation_owner` role and its definer functions for lookup, claim, acceptance, the
+    first owner's invitation, the member-change trigger and the two sweeps), with database tests.
+    Next: the invite, lookup, accept, revoke, list and sweep routes (the worker deletes unlinked
+    sign-ins through the auth pool); the operator's owner invitation (setting `app.operator_id`)
+    and the invitation email; the web accept page with the password rules and the redirect to
+    enrolment, with Playwright and axe (H-355). Then `fix/platform-mfa-session-factor` (#43 review
+    M5): MFA counts only when the session used a passkey or a verified TOTP code, not merely when
+    one is enrolled. Follow-up: `harbour_membership_reader` is granted to `harbour_owner` with
+    `INHERIT`, so its open policies reach the owner's own queries; make it `SET` only as
+    `harbour_invitation_owner` is. Logged from #48 review round 1: `invitation_scope` lets a
+    locations-scoped role read and revoke every invitation in the organisation, so the routes must
+    narrow both to the members `platform.user.manage` reaches (as `app.may_invite` does for
+    sending), with a test; and the routes pass the token to the definer functions only as a bound
+    parameter, never interpolated into SQL or logged. Existing clusters run `pnpm db:bootstrap`
+    before migration 0054 (it creates `harbour_invitation_owner`).
+    Web part (`feat/web-invitation-accept-page`): `/invitation` reads the token from the fragment,
+    keeps it in the tab's session storage while the person signs in first, strips it from the
+    address bar and sends it only in request bodies to same-origin route handlers (`Referrer-Policy: no-referrer` on the
+    page); shows the organisation, the masked address and the expiry, then creates a sign-in (name,
+    password with the NCSC rules up front, shared as `passwordRuleBroken` in @harbour/domain), or
+    asks the person to sign in first, or joins with the current sign-in; then sign-in and
+    `/settings/security` enrolment. Expired, withdrawn, used, unknown and throttled links in plain
+    words. Follow-ups: the managers' side (pending invitations with withdraw, the invite form with
+    step-up) needs a members list route and a team page, neither of which exists yet; an e2e hook
+    to read the API's email outbox so the journey can create a sign-in end to end; the lookup does
+    not name the inviter, so the page names only the organisation.
+    - Members routes (`feat/platform-members-api`): `GET /v1/members` (members within the reach
+      of `platform.user.manage`, their roles, and the roles the manager may give and where) and
+      `POST /v1/members` (an invited member with one role, step-up, `app.may_assign_role` then
+      `app.may_invite`, idempotent on the client id, 409 `email_in_use`), with migration 0060
+      (row-level security on adding members and role assignments; numbered after #69's 0059, so
+      it merges after #69). Web part (`feat/web-invitation-screens`, stacked on it): Team in the
+      navigation for holders of `platform.user.manage` (`/settings/team`): the members it reaches
+      at the chosen location, each with their state and their latest invitation's as an icon and
+      a word; invite someone (name, work address, a role and where, checked with `CreateMember`
+      and the roles the manager may give); a member's page with their invitations, sending again
+      only while they are still invited and withdrawing only an open one, each after a
+      confirmation; Playwright with axe on every state (`team.spec.ts`). Accepted and expired
+      invitations are not reached in the journey (they need the emailed link or a day to pass);
+      their chips are unit tested. #71 security review: (M1, fixed) giving a role
+      counts only the giver's own roles, never an access grant (`app.holds_role_permission_at`),
+      so acting up never becomes a lasting role. Follow-ups: (1) the members list is narrowed in
+      the application only (`membersReached`), as the invitation routes are; the database lets
+      any `tenant_user` row be read in the organisation's view; (2) within one organisation, 409
+      `email_in_use` tells a manager an address belongs to someone they cannot see (an
+      organisation-wide probe; accepted, as the address must be unique, but logged); (3) no
+      restrictive UPDATE policy yet on `tenant_user` or `role_assignment` for the application
+      role (no route changes either); add them, with `app.may_assign_role`, before any role or
+      member editing route; (4) a giver whose own role assignment ends (`valid_to`) can still give
+      a role with no end; decide whether a given role may outlive the giver's.
+    - Routes built in feat/platform-invitation-routes: send, list, withdraw (narrowed to the
+      members `platform.user.manage` reaches, with tests), lookup and accept with no session
+      (token only as a bound parameter, throttled per address and per token), the operator's
+      first-owner invitation (`app.operator_id`), the email through the organisation's
+      `comms.email` adapter, and the nightly `invitation-sweep` job (lapsed invitations, then
+      unlinked sign-ins deleted through the auth role). Next: the web accept page with the
+      password rules and the redirect to enrolment, Playwright and axe (H-355, H-357).
+      Follow-ups: count the link throttle across API instances (a Postgres table keyed by
+      address or token hash, not by member: a Lane A migration); re-check each sign-in just before
+      the sweep deletes it (a sign-in linked between the listing and the deletion would go); give
+      the email port a body so the email can carry the organisation's name and the expiry
+      (H-357).
+    - Follow-ups from #53 security review: (L1) the sweep deletes an auth user without
+      re-checking, in the same transaction, that it is still unlinked; fix with one definer
+      function, or a lock that re-checks `app.auth_user_has_membership` just before the delete.
+      (L4) a throttled 429 on the invitation link routes is not audited; audit `rate_limited`
+      with the client address and a prefix of the token's hash only.
+    - `fix/platform-mfa-session-factor` (#43 review M5, ADR-0072, HZ-112, H-358): built. MFA counts only
+      when the session signed in or confirmed a code with a passkey, TOTP or backup code (a record in
+      `auth.verification`, no migration); a member with a factor whose session did not use it gets
+      `mfa_verification_required` and the web sends them to `/sign-in?reason=mfa`; the operator
+      console uses the same rule; sessions from before the deploy fail closed. Follow-ups: the mobile
+      app must add `mfa_verification_required` to `SESSION_PROBLEM_CODES` (mobile lane); step-up
+      permissions outside care records still need only a fresh sign-in, not a second factor;
+      Lane A may move the record to an `auth.session` column. Still open for Lane A (a migration):
+      `harbour_membership_reader` granted to `harbour_owner` `WITH INHERIT TRUE`; make it `SET` only.
+    - #57 security review round 1: a password-only session could enrol its own factor or remove the
+      member's; adding, showing or removing a factor now needs a session that used one once one is
+      enrolled (a first enrolment goes ahead), and a session gets five wrong codes. Next PR: step-up
+      outside care records (controlled drugs, residents' money, export, break-glass, notifications)
+      should need a session factor recorded within `STEP_UP_WINDOW_SECONDS`, not only a recent
+      password sign-in. When mobile resumes: add `mfa_verification_required` to
+      `SESSION_PROBLEM_CODES` (`apps/mobile/src/sync/session-signals.ts`).
+    - `fix/platform-step-up-factor` (ADR-0072 amendment, HZ-112, H-359): built. Step-up counts from
+      the second factor the session last used (its `auth.verification` row's `created_at`, no
+      migration) within `STEP_UP_WINDOW_SECONDS`, never from a password sign-in; a holder with no
+      factor enrolled gets `mfa_enrolment_required`; an in-session code or a passkey sign-in
+      refreshes it. Covers every `requirePermission` of a step-up permission, workflow moves
+      (notification submit, exits), `requireStepUp` (downtime pack, invitations, session revoke,
+      About me links), task links and the operator's owner invitation; table-driven tests over
+      every step-up permission and route family. Follow-ups: the domain checks that take
+      `lastMfaSignInAt` (export, DPIA sign-off, sub-processor notices, break-glass search) must be
+      given `stepUpAt` when their routes are built; the web could offer an in-place code prompt
+      instead of a full sign-in; mobile (paused) must send step-up actions through the same
+      confirmation.
+    - #63 security review round 1: the code completing a first enrolment records no factor (M1);
+      step-up freshness is judged in SQL on the database's clock (L1); the domain inputs are
+      `stepUpAt` and a source test checks every `authorise` call (L2); more HTTP tests (L3).
+
+21. Slice 11 web, the downtime screens (OPS-028; HZ-017, HZ-021, HZ-092; `feat/web-downtime`).
+    PR A built: `/downtime` (Downtime in the navigation for holders of `operations.downtime.read`
+    or `.manage`) and a location's page: the pack opened on its own page (freshness in an icon and
+    words, the header lines, when it was made, how many pages and warnings) and printed as a PDF
+    streamed from the API and never stored, both with a fresh sign-in and never prefetched, over
+    the hourly limit or with no pack the page says what to use instead; the outages with their
+    state; declare (only while none is open), close, correct, cancel and reconcile, with the
+    reasons and version the API needs, nothing chosen by default, and the reconciliation's counts,
+    blockers in the API's words, and a box to tick for each possible duplicate group and each
+    back-entry outside the window (H-267). A back-entered entry shows its label wherever its badges
+    are shown. PR B built (`feat/web-back-entry-forms`, stacked on #62): "From a paper downtime
+    form" on the notes, chart, body map, activity and visit forms while the person's location has
+    an open or closed outage (the outage, the date and time as written with nothing filled in, the
+    reference, the outside-the-outage reason), the not-from-paper reason when the API asks, the
+    H-208 reason on correcting a paper note, and the API's refusals in its words (H-268).
+    Follow-ups: the paper choice on corrections of chart entries, marks, activities and visits (no
+    web correction form for them yet). API gaps logged here, for Lane A:
+    - No read of the MAR and PEEP places (`GET /v1/locations/{id}/downtime-places` returning
+      `DowntimePlaces` with the location's `version`), so the web cannot show or confirm them: the
+      `PUT` needs the version. The places form waits on it (H-201 still met by the task and the
+      pack's wording).
+    - No per-location `reaching` (`/v1/me` has the permissions and work locations only), so the
+      location page offers an action where the permission is held anywhere and the person works at
+      the location; the API refuses it in words where it does not reach (ADR-0071). Add a
+      `reaching` list per location to `/v1/me` or a `GET /v1/locations/{id}` with `access`.
+    - The reconciliation returns entry ids only, so the screen lists short references, which
+      every record list now shows beside "Entered from a paper record" (#62 review round 1). Lane
+      A: return the person, the entry's kind and time and a link per entry in
+      `duplicateGroups` and `outsideWindowEntryIds`, so each can be opened from the screen
+      (HZ-092); the CSO decides whether reconciling may go live before then (H-267).
+22. Slice 5 web, the round and handover screens (CARE-013, COMMS-006; HZ-001, HZ-018;
+    `feat/web-rounds-handover`). Part 1 built: Handover in the navigation for holders of
+    `care.handover.manage`; a location's page with the shift running now (compiled, or compile
+    it) and the last week's; one handover's items by person (name, room and communication needs),
+    each kind in an icon and words with a link to its record, notes on items and on the whole
+    handover, who has read it, and "I have read this handover" with the token of the handover as
+    shown (H-269). Part 2 built (`feat/web-round-view`, stacked on part 1): the round by area and
+    room, each person's name, room and communication needs, each task's time state in an icon
+    and words, start, done and not done with a reason (H-270), one person's tasks on request.
+    Gap: the round view does not say which permission each task names, so the actions are
+    offered to those who record care (`care.note.write`) and the API refuses the rest in words.
+    Gaps: the handover items are references only, so the reader opens each record; the location
+    page offers compiling for the permission held anywhere (no per-location `reaching`).
+
+## Security notes
+
+- 2026-10-17, definer function execute rights (#97): migration 0061 revoked PUBLIC's execute
+  right on `app.family_can_see` and `app.family_item_shown` after handing them to their NOLOGIN
+  owner, when only that owner could revoke it, so every login role could execute them and learn,
+  yes or no, whether a sharing decision would show a family an update (no record contents).
+  Found in the #95 review; migration 0068 revokes it as the owner; `definer-acls.test.ts` keeps
+  every definer function to its listed callers; ADR-0002 and the add-migration skill carry the
+  rule. Exposure: database roles only (the API never lets a session call them directly); H-372
+  confirms Supabase's `anon` and `authenticated` roles never had USAGE on `app` in dev and staging.
+- 2026-10-17, migration ordering (#97 review): Drizzle skips a pending migration whose journal
+  `when` is earlier than the last one applied. `migration-journal.test.ts` checks `idx` and
+  `when` increase and tags match their `idx`; parallel branches regenerate their entry after
+  merging main (order #91, #95, #97, sample data).
 
 ## Human actions outstanding
 

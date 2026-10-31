@@ -11,23 +11,42 @@ import { type AppEnv, type Services, sessionMiddleware, tenantMiddleware } from 
 import { HttpProblem, problemResponse, problems } from "./http/problem";
 import { QuotaExceeded } from "./http/quota";
 import { RateLimiter } from "./http/rate-limit";
+import { MemoryThrottle } from "./http/throttle";
+import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
+import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger } from "./logger";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
+import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
+import { dpiaRouter } from "./routes/dpia";
+import { evidenceLinkRouter } from "./routes/evidence-link";
+import { evidencePacksRouter } from "./routes/evidence-packs";
+import { exportsRouter } from "./routes/exports";
+import { familyFeedRouter } from "./routes/family-feed";
+import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
+import { invitationsRouter } from "./routes/invitations";
+import { letterTemplatesRouter } from "./routes/letter-templates";
+import { lettersRouter } from "./routes/letters";
 import { mcaRouter } from "./routes/mca";
 import { membershipsRouter, meRouter } from "./routes/me";
 import { memberSessionsRouter } from "./routes/member-sessions";
+import { membersRouter } from "./routes/members";
+import { onboardingRouter } from "./routes/onboarding";
 import { createRouter } from "./routes/openapi";
+import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
+import { operatorInvitationsRouter } from "./routes/operator-invitations";
+import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
+import { outagesRouter } from "./routes/outages";
 import { peopleRouter } from "./routes/people";
 import { peopleExitRouter } from "./routes/people-exit";
 import { peopleLifecycleRouter } from "./routes/people-lifecycle";
@@ -44,8 +63,12 @@ import {
 } from "./routes/platform";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
+import { sampleDataRouter } from "./routes/sample-data";
+import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
+import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { SyncTokenSigner } from "./sync/token";
@@ -56,7 +79,13 @@ const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 
 /** Routes that need a session but not yet a chosen tenant, or no session at all. */
-const TENANTLESS = new Set(["/v1/memberships", "/v1/sync/jwks"]);
+const TENANTLESS = new Set([
+  "/v1/memberships",
+  "/v1/sync/jwks",
+  // An invitation link is opened and accepted before the person belongs to the organisation.
+  "/v1/invitations/lookup",
+  "/v1/invitations/accept",
+]);
 /** Identity-level routes: the person's own devices, whatever organisation they work in. */
 const isTenantless = (path: string) => TENANTLESS.has(path) || path.startsWith("/v1/me/sessions");
 
@@ -79,6 +108,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     { max: 3 },
     idleErrorLogger(logger, "operator"),
   );
+  const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
   const services: Services = {
     config,
     logger,
@@ -99,6 +129,16 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    adapterFor: createAdapterResolver({ production: config.NODE_ENV === "production", mocks }),
+    mockEmail: mocks.email,
+    evidenceLinkThrottles: {
+      address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
+      link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
+    },
+    invitationThrottles: {
+      address: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
+      token: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN, 60_000),
+    },
   };
   const signer = new SyncTokenSigner(config.SYNC_SIGNING_KEY_ID, config.SYNC_SIGNING_KEY_PEM);
 
@@ -159,6 +199,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
         problemResponse(c, new HttpProblem(413, "too_large", "The request is too large.")),
     }),
   );
+  // The public evidence pack link routes (ADR-0050): no session, never cached.
+  app.use("/p/*", async (c, next) => {
+    await next();
+    c.header("cache-control", "no-store");
+  });
   app.use("/v1/*", sessionMiddleware);
   app.use("/operator/*", async (c, next) => {
     await next();
@@ -174,6 +219,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", healthRouter);
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
+  app.route("/", searchRouter);
+  app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
   app.route("/", peopleRouter);
@@ -198,6 +245,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
   app.route("/", statutoryNotificationsRouter);
+  app.route("/", operationsRouter);
+  app.route("/", outagesRouter);
+  app.route("/", evidencePacksRouter);
+  app.route("/", statementOfPurposeRouter);
+  app.route("/", evidenceLinkRouter);
+  app.route("/", letterTemplatesRouter);
+  app.route("/", familyFeedRouter);
+  app.route("/", feedPublishRouter);
+  app.route("/", lettersRouter);
   app.route("/", ratesRouter);
   app.route("/", createSyncRouter(signer));
   app.route("/", devicesRouter);
@@ -205,6 +261,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", integrationsRouter);
   app.route("/", supportAccessRouter);
   app.route("/", operatorRouter);
+  app.route("/", invitationsRouter);
+  app.route("/", membersRouter);
+  app.route("/", exportsRouter);
+  app.route("/", dpiaRouter);
+  app.route("/", subProcessorsRouter);
+  app.route("/", onboardingRouter);
+  app.route("/", sampleDataRouter);
+  app.route("/", operatorInvitationsRouter);
+  app.route("/", operatorSubProcessorsRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

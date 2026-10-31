@@ -92,6 +92,7 @@ describe("hazard HZ-011 weekly break-glass report", () => {
       byPerson: [],
       byReason: [],
       flagged: [],
+      searches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
     });
   });
 
@@ -198,6 +199,36 @@ describe("hazard HZ-011 weekly break-glass report", () => {
       ["user-a", "person-3", 3],
       ["user-b", "person-1", 2],
       ["user-b", "person-2", 2],
+    ]);
+  });
+
+  it("lists the week's break-glass searches by user and reason, flagging repeated searching", () => {
+    const search = (tenantUserId: string, openedAt: string, extra = {}) => {
+      sequence += 1;
+      return {
+        id: `bgs-${String(sequence).padStart(2, "0")}`,
+        tenantUserId,
+        reasonCode: "emergency_care" as const,
+        openedAt: new Date(openedAt),
+        ...extra,
+      };
+    };
+    const searches = [
+      ...Array.from({ length: threshold }, () => search("user-a", "2026-10-20T10:00:00Z")),
+      search("user-b", "2026-10-21T10:00:00Z", { reasonCode: null }),
+      search("user-c", "2026-10-26T00:00:00Z"), // the week after
+    ];
+    const report = breakGlassWeeklyReport([], WEEK, threshold, searches);
+    // Searches name no one person: they never count as openings.
+    expect(report.totalEvents).toBe(0);
+    expect(report.searches).toMatchObject({ total: threshold + 1, distinctUsers: 2 });
+    expect(report.searches.byUser.map((u) => [u.tenantUserId, u.searches, u.flags])).toEqual([
+      ["user-a", threshold, ["repeated_use"]],
+      ["user-b", 1, []],
+    ]);
+    expect(report.searches.byReason).toEqual([
+      { reason: "emergency_care", events: threshold },
+      { reason: "not_categorised", events: 1 },
     ]);
   });
 

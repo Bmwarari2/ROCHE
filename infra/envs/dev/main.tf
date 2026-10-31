@@ -14,6 +14,8 @@ module "stack" {
   domain_name     = var.domain_name
   route53_zone_id = var.route53_zone_id
 
+  safety_case_version = var.safety_case_version
+
   github_repository           = var.github_repository
   create_github_oidc_provider = var.create_github_oidc_provider
   state_bucket_name           = var.state_bucket_name

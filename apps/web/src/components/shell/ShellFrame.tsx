@@ -9,7 +9,24 @@ import {
   type SidebarItem,
   type SwitcherOption,
 } from "@harbour/ui";
-import { Bell, House, LogOut, ShieldCheck, TriangleAlert, Users } from "lucide-react";
+import {
+  Archive,
+  Bell,
+  ClipboardList,
+  CloudOff,
+  FileLock,
+  House,
+  ListChecks,
+  ListTodo,
+  LogOut,
+  Mail,
+  Newspaper,
+  Search,
+  ShieldCheck,
+  TriangleAlert,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState, useTransition } from "react";
@@ -31,9 +48,28 @@ export interface ShellFrameLabels {
   readonly allLocations: string;
   readonly navigation: string;
   readonly home: string;
-  readonly people: string;
+  /** Shown only to people who may read the people list (people.person.read). */
+  readonly people?: string | undefined;
+  /** Shown only to people who read care plans (care.plan.read), whose round it is. */
+  readonly round?: string | undefined;
+  /** Shown only to people who take part in the shift handover (care.handover.manage). */
+  readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to people who open the downtime pack or manage outages. */
+  readonly downtime?: string | undefined;
+  /** Shown only in a family member's portal session (comms.feed.read). */
+  readonly updates?: string | undefined;
+  /** Shown only to people who may search (platform.search.use). */
+  readonly search?: string | undefined;
+  /** Shown only to people who write, approve or send from letter templates. */
+  readonly letters?: string | undefined;
+  /** Shown only to people who invite and manage staff (platform.user.manage). */
+  readonly team?: string | undefined;
+  /** Shown only to people who may export the organisation's data (platform.export.create). */
+  readonly dataExport?: string | undefined;
+  readonly dataProtection?: string | undefined;
+  readonly onboarding?: string | undefined;
   readonly notifications: string;
   /** Accessible text for the unread badge, for example "3 unread". */
   readonly unreadNotifications: string;
@@ -61,8 +97,21 @@ export interface ShellFrameProps {
 
 function currentSection(pathname: string): string {
   if (pathname.startsWith("/people")) return "people";
-  if (pathname.startsWith("/incidents")) return "incidents";
+  if (pathname.startsWith("/handover")) return "handover";
+  if (pathname.startsWith("/round")) return "round";
+  // Statutory notifications belong with incidents, never the notification centre.
+  if (pathname.startsWith("/incidents") || /^\/notifications\/statutory(\/|$)/.test(pathname)) {
+    return "incidents";
+  }
   if (pathname.startsWith("/notifications")) return "notifications";
+  if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/letters")) return "letters";
+  if (pathname.startsWith("/search")) return "search";
+  if (pathname.startsWith("/updates")) return "updates";
+  if (pathname.startsWith("/settings/team")) return "team";
+  if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/data-protection")) return "data-protection";
+  if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
 }
@@ -84,7 +133,9 @@ export function ShellFrame({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [collapsed, setCollapsed] = useState(false);
+  // Null until the browser has said whether this is a phone: the sidebar then collapses by CSS on a
+  // narrow screen, so the first paint never lays out the full-width sidebar there.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
@@ -139,7 +190,25 @@ export function ShellFrame({
 
   const items: SidebarItem[] = [
     { id: "home", label: labels.home, href: "/", icon: <House {...icon} /> },
-    { id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> },
+    ...(labels.people
+      ? [{ id: "people", label: labels.people, href: "/people", icon: <Users {...icon} /> }]
+      : []),
+    ...(labels.search
+      ? [{ id: "search", label: labels.search, href: "/search", icon: <Search {...icon} /> }]
+      : []),
+    ...(labels.round
+      ? [{ id: "round", label: labels.round, href: "/round", icon: <ListChecks {...icon} /> }]
+      : []),
+    ...(labels.handover
+      ? [
+          {
+            id: "handover",
+            label: labels.handover,
+            href: "/handover",
+            icon: <ClipboardList {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.incidents
       ? [
           {
@@ -147,6 +216,62 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.downtime
+      ? [
+          {
+            id: "downtime",
+            label: labels.downtime,
+            href: "/downtime",
+            icon: <CloudOff {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.updates
+      ? [{ id: "updates", label: labels.updates, href: "/updates", icon: <Newspaper {...icon} /> }]
+      : []),
+    ...(labels.letters
+      ? [{ id: "letters", label: labels.letters, href: "/letters", icon: <Mail {...icon} /> }]
+      : []),
+    ...(labels.team
+      ? [
+          {
+            id: "team",
+            label: labels.team,
+            href: "/settings/team",
+            icon: <UserPlus {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataExport
+      ? [
+          {
+            id: "export",
+            label: labels.dataExport,
+            href: "/settings/export",
+            icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.onboarding
+      ? [
+          {
+            id: "onboarding",
+            label: labels.onboarding,
+            href: "/settings/onboarding",
+            icon: <ListTodo {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataProtection
+      ? [
+          {
+            id: "data-protection",
+            label: labels.dataProtection,
+            href: "/settings/data-protection",
+            icon: <FileLock {...icon} />,
           },
         ]
       : []),
@@ -215,8 +340,9 @@ export function ShellFrame({
             items={items}
             currentId={currentSection(pathname)}
             label={labels.navigation}
-            collapsed={collapsed}
+            collapsed={collapsed ?? false}
             onCollapsedChange={setCollapsed}
+            {...(collapsed === null ? { className: "hb-sidebar--narrow-auto" } : {})}
             linkComponent={Link}
           />
         </div>

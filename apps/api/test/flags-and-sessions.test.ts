@@ -4,7 +4,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
+import {
+  ageSession,
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  OTHER,
+  PASSWORD,
+} from "./support/harness";
 
 /**
  * PLAT-003 and PLAT-004 follow-ups: `/v1/me` evaluates flags through the OpenFeature provider;
@@ -64,6 +72,7 @@ async function browserSignIn(who: Member): Promise<{ cookie: string; token: stri
     return { cookie: `harbour.session_token=${value}`, token: decodeURIComponent(value) };
   } finally {
     await auth().query("UPDATE auth.user SET two_factor_enabled = true WHERE email = $1", [email]);
+    await markSessionsVerified(auth());
   }
 }
 
@@ -231,10 +240,7 @@ describe("hazard HZ-110 a manager signs a member of staff out of every device", 
   it("hazard HZ-110 needs platform.user.manage and a fresh sign-in", async () => {
     expect((await revoke(h.tokens.carer ?? "", DEMO.users.nurse.id)).status).toBe(403);
     const manager = await browserSignIn("manager");
-    await auth().query(
-      "UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE token = $1",
-      [rawToken(manager.token)],
-    );
+    await ageSession(auth(), rawToken(manager.token) ?? "", 3600);
     const stale = await revoke(manager.token, DEMO.users.carer.id);
     expect(stale.status).toBe(403);
     expect(((await stale.json()) as { code: string }).code).toBe("step_up_required");

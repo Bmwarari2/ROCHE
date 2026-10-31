@@ -10,7 +10,14 @@ import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../src/app";
 import { createLogger } from "../src/logger";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import {
+  ageSession,
+  createHarness,
+  type Harness,
+  LODGE,
+  markSessionsVerified,
+  OTHER,
+} from "./support/harness";
 
 /**
  * Device integrity (care.md section 6; the follow-ups from the #15 reviews): device bindings,
@@ -72,19 +79,18 @@ async function freshSession(who: Who): Promise<{ token: string; id: string }> {
      SELECT $1, $2, user_id, now() + interval '1 day', now(), now() FROM auth.session WHERE token = $3`,
     [id, token, h.tokens[who]?.split(".")[0]],
   );
+  await markSessionsVerified(h.db.pool("harbour_auth"));
   return { token, id };
 }
 
 /** Moves a session's sign-in back an hour while `fn` runs, so a step-up needs a new sign-in. */
 async function staleSession(id: string, fn: () => Promise<void>) {
   const auth = h.db.pool("harbour_auth");
-  await auth.query("UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE id = $1", [
-    id,
-  ]);
+  await ageSession(auth, id, 3600);
   try {
     await fn();
   } finally {
-    await auth.query("UPDATE auth.session SET created_at = now() WHERE id = $1", [id]);
+    await ageSession(auth, id, 0);
   }
 }
 
@@ -268,14 +274,11 @@ const noteAt = (
 async function staleSignIn(who: Who, fn: () => Promise<void>) {
   const token = h.tokens[who]?.split(".")[0];
   const auth = h.db.pool("harbour_auth");
-  await auth.query(
-    "UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE token = $1",
-    [token],
-  );
+  await ageSession(auth, token ?? "", 3600);
   try {
     await fn();
   } finally {
-    await auth.query("UPDATE auth.session SET created_at = now() WHERE token = $1", [token]);
+    await ageSession(auth, token ?? "", 0);
   }
 }
 

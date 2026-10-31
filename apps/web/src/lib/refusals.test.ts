@@ -1,6 +1,7 @@
 import {
   BED_RAIL_RATE_KEYS,
   type BedRailLimits,
+  type ClassifierQuestionKey,
   checkActivity,
   checkAdvanceCareRecord,
   checkEntryTime,
@@ -9,6 +10,12 @@ import {
   checkSignOff,
   checkVisit,
   checkWithdrawal,
+  checkWorkflowTransition,
+  classifierAnswerProblem,
+  INCIDENT_WORKFLOW,
+  incidentCloseProblems,
+  STATUTORY_NOTIFICATION_WORKFLOW,
+  submissionEvidenceProblems,
   validateMark,
 } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
@@ -270,6 +277,24 @@ describe("refusals the API makes by rule", () => {
     ]);
   });
 
+  it("hazard HZ-013 recognises the API's incident checks and the classifier's answer rules", () => {
+    expect(keysOf("A closed incident cannot be changed.")).toEqual(["incidentClosed"]);
+    expect(keysOf("The location was not found.")).toEqual(["incidentLocation"]);
+    const answers: [ClassifierQuestionKey, unknown][] = [
+      ["police.involved", "maybe"],
+      ["harm.pain_days", -1],
+      ["service.utility_interruption_hours", 1.5],
+      ["riddor.excluded_cause", "weather"],
+      ["safeguarding.types", ["none", "physical"]],
+    ];
+    for (const [key, value] of answers) {
+      const problem = classifierAnswerProblem(key, value as never);
+      expect(problem, key).not.toBeNull();
+      // The API sends "<key>: <problem>".
+      expect(keysOf(`${key}: ${problem}`), key).toEqual(["classifierAnswer"]);
+    }
+  });
+
   it("knows nothing in an unknown or empty message", () => {
     expect(knownRefusals("Something new the API says.")).toEqual([]);
     expect(knownRefusals("")).toEqual([]);
@@ -311,5 +336,77 @@ describe("problemMessage", () => {
     expect(problemMessage({ code: "invalid", detail: "values.ml: Too small" }, t).message).toBe(
       t("care.errors.invalid"),
     );
+  });
+});
+
+describe("closing an incident and the notifications (HZ-013)", () => {
+  const step = (definition: typeof INCIDENT_WORKFLOW, state: "open" | "closed", reason = "") =>
+    checkWorkflowTransition(
+      definition,
+      { state, createdBy: "a" },
+      {
+        to: "closed",
+        actorId: "b",
+        permissions: new Set(["safety.incident.manage"]),
+        reason,
+        stepUpFresh: true,
+      },
+    );
+
+  it("hazard HZ-013 knows every reason closing is refused, joined as the API joins them", () => {
+    const detail = incidentCloseProblems({
+      notifications: [{ kind: "cqc_reg16_death", status: "draft" }],
+      openQuestions: ["death.expected"],
+      candourState: "verbal_due",
+    }).join(" ");
+    expect(keysOf(detail)).toEqual(["closeNotifications", "closeQuestions", "closeCandour"]);
+  });
+
+  it("knows the workflow's refusals", () => {
+    expect(keysOf(messageOf(step(INCIDENT_WORKFLOW, "open")))).toEqual(["stepReason"]);
+    expect(keysOf(messageOf(step(INCIDENT_WORKFLOW, "closed", "Done.")))).toEqual(["stepFinished"]);
+    const submitDraft = checkWorkflowTransition(
+      STATUTORY_NOTIFICATION_WORKFLOW,
+      { state: "draft", createdBy: "a" },
+      {
+        to: "submitted",
+        actorId: "b",
+        permissions: new Set(["safety.notification.submit"]),
+        stepUpFresh: true,
+      },
+    );
+    expect(keysOf(messageOf(submitDraft))).toEqual(["stepNotPossible"]);
+  });
+
+  it("knows the submission evidence refusals, at their fields", () => {
+    const missing = submissionEvidenceProblems(
+      { submittedAt: null, externalReference: null, evidenceDocumentId: null },
+      new Date(),
+    ).join(" ");
+    expect(keysOf(missing)).toEqual(["submittedAtMissing", "submissionReference"]);
+    const future = submissionEvidenceProblems(
+      {
+        submittedAt: new Date(Date.now() + 3_600_000),
+        externalReference: "R",
+        evidenceDocumentId: null,
+      },
+      new Date(),
+    ).join(" ");
+    const problem = problemMessage({ code: "invalid", detail: future }, t);
+    expect(problem.fields).toEqual({ submittedAt: t("care.refusal.submittedInFuture") });
+  });
+
+  it("knows a finished notification", () => {
+    expect(keysOf("A submitted or not-required notification cannot be changed.")).toEqual([
+      "notificationFinished",
+    ]);
+  });
+
+  it("says the separation of duties in words a manager can act on", () => {
+    const problem = problemMessage({ code: "separation_of_duties", detail: "x" }, t);
+    expect(problem).toEqual({
+      code: "separation_of_duties",
+      message: t("errors.separationOfDuties"),
+    });
   });
 });

@@ -579,7 +579,7 @@ describe("the round view (CARE-013)", () => {
       notice: "From an earlier plan: check the current plan",
     });
     expect(EARLIER_PLAN_NOTICE).toBe("From an earlier plan: check the current plan");
-    // The same notice is kept on the task itself, for the phone (migration 0056; gate item (b)).
+    // The same notice is kept on the task itself, for the phone (migration 0071; gate item (b)).
     const flags = await query<{ id: string; from_earlier_plan: boolean }>(
       `SELECT t.id, t.from_earlier_plan FROM task t JOIN task_series s ON s.id = t.series_id
        WHERE t.person_id = $1 AND t.status IN ('open', 'in_progress')

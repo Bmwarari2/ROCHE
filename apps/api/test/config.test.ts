@@ -1,9 +1,12 @@
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config";
 
 const PRODUCTION = {
   NODE_ENV: "production",
   BETTER_AUTH_SECRET: "a-deployed-secret-that-is-long-enough-0123456789",
+  EVIDENCE_LINK_SECRET: "a-deployed-evidence-link-key-long-enough-0123456789",
   SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----",
   DATABASE_APP_URL: "postgres://harbour_app@db.internal/harbour",
   DATABASE_AUTH_URL: "postgres://harbour_auth@db.internal/harbour",
@@ -11,7 +14,9 @@ const PRODUCTION = {
   DATABASE_WORKER_URL: "postgres://harbour_worker@db.internal/harbour",
   DOCUMENT_STORAGE: "s3",
   S3_DOCUMENTS_BUCKET: "harbour-dev-documents",
+  S3_EXPORTS_BUCKET: "harbour-dev-exports",
   MALWARE_SCANNER: "clamd",
+  SAFETY_CASE_VERSION: "v0.0",
 } as const;
 
 describe("loadConfig", () => {
@@ -21,12 +26,15 @@ describe("loadConfig", () => {
 
   it.each([
     "BETTER_AUTH_SECRET",
+    "EVIDENCE_LINK_SECRET",
     "SYNC_SIGNING_KEY_PEM",
     "DATABASE_APP_URL",
     "DATABASE_AUTH_URL",
     "DATABASE_OPERATOR_URL",
     "DATABASE_WORKER_URL",
     "S3_DOCUMENTS_BUCKET",
+    "S3_EXPORTS_BUCKET",
+    "SAFETY_CASE_VERSION",
   ])("refuses to start in production without %s", (key) => {
     const env: Record<string, string> = { ...PRODUCTION };
     delete env[key];
@@ -37,6 +45,11 @@ describe("loadConfig", () => {
     ["local document storage", { DOCUMENT_STORAGE: "local" }, "DOCUMENT_STORAGE"],
     ["the mock malware scanner", { MALWARE_SCANNER: "mock" }, "MALWARE_SCANNER"],
     ["the browser idle timeout (HZ-111)", { SESSION_IDLE_TIMEOUT: "on" }, "SESSION_IDLE_TIMEOUT"],
+    [
+      "more than 10 sign-ins a minute",
+      { AUTH_SIGN_IN_PER_MINUTE: "11" },
+      "AUTH_SIGN_IN_PER_MINUTE",
+    ],
     [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },
@@ -82,6 +95,7 @@ describe("loadConfig", () => {
     const config = loadConfig({ NODE_ENV: "development" });
     expect(config.DATABASE_OPERATOR_URL).toContain("localhost");
     expect(config.trustedProxies).toEqual([]);
+    expect(config.AUTH_SIGN_IN_PER_MINUTE).toBe(10);
   });
 
   it("splits comma-separated origins and proxy ranges", () => {
@@ -95,5 +109,15 @@ describe("loadConfig", () => {
       "https://admin.example.invalid",
     ]);
     expect(config.trustedProxies).toEqual(["10.20.0.0/16", "192.0.2.0/24"]);
+  });
+});
+
+describe("SAFETY_CASE_VERSION", () => {
+  it("names a safety case report that exists, by default", () => {
+    const dir = fileURLToPath(
+      new URL("../../../docs/clinical-safety/safety-case/", import.meta.url),
+    );
+    const version = loadConfig({}).SAFETY_CASE_VERSION;
+    expect(readdirSync(dir).some((f) => f.startsWith(`safety-case-${version}-`))).toBe(true);
   });
 });

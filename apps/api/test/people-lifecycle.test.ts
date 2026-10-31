@@ -47,7 +47,7 @@ import {
 } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
 import { assigneeMayComplete } from "../src/services/tasks";
-import { createHarness, type Harness, LODGE } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
 /**
@@ -141,12 +141,7 @@ async function asDemoTenant<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T>
 }
 
 async function setSessionAge(user: keyof Harness["tokens"], minutes: number) {
-  await h.db
-    .pool("harbour_auth")
-    .query(
-      "UPDATE auth.session SET created_at = now() - make_interval(mins => $2) WHERE token = $1",
-      [h.tokens[user]?.split(".")[0], minutes],
-    );
+  await ageSession(h.db.pool("harbour_auth"), h.tokens[user]?.split(".")[0] ?? "", minutes * 60);
 }
 
 async function summary(personId: string, user: keyof Harness["tokens"] = "manager") {
@@ -3806,9 +3801,37 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
          VALUES ($1, $2, 'Reviewing a complaint about the lodge', $3, $3::timestamptz + interval '1 hour')`,
         [LODGE.qualityLeadId, LODGE.personId, at],
       );
+      // Break-glass searches: one that showed someone at the lodge, one that showed no one.
+      for (const shown of [[LODGE.locationId], []]) {
+        await c.query(
+          `INSERT INTO break_glass_event (tenant_user_id, kind, person_id, shown_location_ids,
+             justification, opened_at, expires_at, reason_code)
+           VALUES ($1, 'search', NULL, $2::uuid[], 'Ambulance crew asking about a resident', $3, $3,
+             'emergency_care')`,
+          [DEMO.users.owner.id, shown, at],
+        );
+      }
     });
     expect(await reportBreakGlass(deps)).toBeGreaterThanOrEqual(2);
     expect(await reportBreakGlass(deps)).toBe(0);
+    // Searches are reported weekly too: each home's report lists those that showed its people,
+    // and every report lists a search that showed no one at any home.
+    const stored = await asDemoTenant((c) =>
+      c.query<{
+        location: string;
+        searches: { total: number; byUser: { tenantUserId: string }[] };
+      }>(
+        `SELECT location_id AS location, summary->'searches' AS searches
+         FROM break_glass_weekly_report WHERE week_start = $1`,
+        [week.start],
+      ),
+    );
+    const searchesAt = new Map(stored.rows.map((r) => [r.location, r.searches]));
+    expect(searchesAt.get(LODGE.locationId)?.total).toBe(2);
+    expect(searchesAt.get(DEMO.locationId)?.total).toBe(1);
+    expect(searchesAt.get(LODGE.locationId)?.byUser.map((u) => u.tenantUserId)).toEqual([
+      DEMO.users.owner.id,
+    ]);
     const alerts = await asDemoTenant((c) =>
       c.query<{ recipient: string; title: string; body: string }>(
         `SELECT recipient_tenant_user_id AS recipient, title, body FROM notification

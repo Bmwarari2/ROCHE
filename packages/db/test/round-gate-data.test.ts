@@ -7,7 +7,7 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
 import { ctx, ids, inContext, seedTwoTenants, TENANT_A } from "./support/fixtures";
 
 /**
- * Migration 0056 (provisional number): the screens gate data for the round and the handover on
+ * migration 0071: the screens gate data for the round and the handover on
  * the phone (STATUS item 15; care.md section 6). `task.from_earlier_plan` is the round view's
  * "From an earlier plan" notice kept by the database (HZ-024), and `handover_item.summary` is an
  * item's worded summary as a catalogue key and its parameters (HZ-018, H-300).
@@ -263,10 +263,10 @@ describe("hazard HZ-018 a handover item's summary is a catalogue key with its pa
   });
 });
 
-/** Runs the backfill section of migration 0056 again, as the owner. */
+/** Runs the backfill section of migration 0071 again, as the owner. */
 async function rerunBackfill() {
   const sql = readFileSync(
-    fileURLToPath(new URL("../drizzle/0056_round_gate_data.sql", import.meta.url)),
+    fileURLToPath(new URL("../drizzle/0071_round_gate_data.sql", import.meta.url)),
     "utf8",
   );
   const backfill = sql.slice(sql.indexOf("-- backfill: begin"), sql.indexOf("-- backfill: end"));

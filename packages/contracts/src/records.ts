@@ -7,7 +7,13 @@ const isoDateTime = z.iso.datetime({ offset: true });
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/i, "A SHA-256 hash in hex");
 
 export const DocumentCategoryKey = z
-  .enum(["person_photo", "care_attachment", "person_document", "organisation_document"])
+  .enum([
+    "person_photo",
+    "feed_photo",
+    "care_attachment",
+    "person_document",
+    "organisation_document",
+  ])
   .meta({ id: "DocumentCategoryKey" });
 export type DocumentCategoryKey = z.infer<typeof DocumentCategoryKey>;
 

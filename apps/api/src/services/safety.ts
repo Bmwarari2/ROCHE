@@ -11,7 +11,6 @@ import {
   location,
   notification,
   person,
-  rateTable,
   role,
   roleAssignment,
   statutoryNotification,
@@ -49,7 +48,6 @@ import {
   placesCover,
   placesHoldingPermission,
   postFallChecklist,
-  type RateRow,
   resolveDolsRates,
   resolveSafetyRates,
   SAFETY_RATE_KEYS,
@@ -62,7 +60,7 @@ import {
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
-import { bankHolidays, rateNumber } from "./rates";
+import { bankHolidays, rateNumber, rateRows } from "./rates";
 import { toldOf } from "./role-holders";
 import { startWorkflow } from "./workflow";
 
@@ -97,35 +95,19 @@ export async function withTenantWideScope<T>(tx: Transaction, fn: () => Promise<
   await tx.execute(
     sql`SELECT set_config('app.scope', 'tenant', true), set_config('app.location_ids', '', true)`,
   );
-  const result = await fn();
-  await tx.execute(
-    sql`SELECT set_config('app.scope', ${previous?.scope || "none"}, true),
-               set_config('app.location_ids', ${previous?.locations ?? ""}, true)`,
-  );
-  return result;
+  try {
+    return await fn();
+  } finally {
+    await tx.execute(
+      sql`SELECT set_config('app.scope', ${previous?.scope || "none"}, true),
+                 set_config('app.location_ids', ${previous?.locations ?? ""}, true)`,
+    );
+  }
 }
 
 // ------------------------------------------------------------------------------------------------
 // Rate-table figures
 // ------------------------------------------------------------------------------------------------
-
-async function rateRows(tx: Transaction, keys: readonly string[]): Promise<RateRow[]> {
-  const rows = await tx
-    .select()
-    .from(rateTable)
-    .where(inArray(rateTable.key, [...keys]));
-  return rows.map((r) => ({
-    key: r.key,
-    value: r.value,
-    unit: r.unit,
-    nation: r.nation,
-    validFrom: r.validFrom,
-    validTo: r.validTo,
-    tenantId: r.tenantId,
-    verificationStatus: r.verificationStatus,
-    source: r.source,
-  }));
-}
 
 /**
  * The safety figures in force on a date. The classifier reads them for England only; outside
@@ -1017,7 +999,7 @@ export const OVERDUE_ESCALATION_RATE_KEY = "statutory_notification.escalation_mi
  * The tenant's escalation chain for overdue statutory notifications. A tenant that has not set one
  * gets the default: the Nominated Individual (the owner role) after the rate table's minutes.
  */
-async function overdueChain(tx: Transaction, tenantId: string) {
+export async function overdueChain(tx: Transaction, tenantId: string) {
   const [existing] = await tx
     .select()
     .from(escalationChain)
@@ -1043,11 +1025,12 @@ async function overdueChain(tx: Transaction, tenantId: string) {
  * Who may submit at a location: role holders and current acting-up grants, where they hold the
  * permission (`placesHoldingPermission`: a role or grant with no location counts across the
  * organisation only for a role scoped to it or one marked organisation-wide; ADR-0071 review
- * round 1, L1 and L2).
+ * round 1, L1 and L2). With no location (the provider's statement of purpose): anyone holding it
+ * anywhere.
  */
 export async function submitHolders(
   tx: Transaction,
-  locationId: string,
+  locationId: string | null,
   now: Date,
 ): Promise<string[]> {
   const holders = await tx
@@ -1081,13 +1064,16 @@ export async function submitHolders(
   const rows = await accessRowsOf(tx, candidates);
   return candidates.filter((id) => {
     const mine = rows.get(id);
-    return (
-      mine !== undefined &&
-      placesCover(
-        placesHoldingPermission(mine.assignments, mine.grants, "safety.notification.submit", now),
-        locationId,
-      )
+    if (mine === undefined) return false;
+    const places = placesHoldingPermission(
+      mine.assignments,
+      mine.grants,
+      "safety.notification.submit",
+      now,
     );
+    return locationId === null
+      ? places.organisationWide || places.locationIds.length > 0
+      : placesCover(places, locationId);
   });
 }
 

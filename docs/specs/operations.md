@@ -340,8 +340,8 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     then refused until each current back-entry outside the window with no reason for it is in
     `reviewed_entry_ids`, so the reconciler looks at each one. A correction of the start or end is
     refused only when it would leave outside a back-entry that was inside the window before.
-- Not yet: the API, nightly job and PDF (part 3); outages and packs in the sync streams (with the
-  mobile step).
+- Not yet: back-entry through the care routes and the sync upload (part 3d); outages and packs
+  in the sync streams, and the kiosk fetch (with the mobile step).
 - Part 3 requirements (#32 review round 1):
   - A pack is hidden from the location's holders once someone it names moves away (H-200). The
     API builds a fresh pack on demand whenever anyone moves into, out of or away from the
@@ -379,3 +379,239 @@ Migrations 0050 and 0051; `packages/db/src/schema/operations.ts`; tests in
     H-208). A correction of an entry not from paper whose time is now outside the outage drops the
     link, as rule 13 then does not ask for it. A second correction of the same back-entry is
     refused (the unique index): the form corrects the current version.
+- Bulk export (#45 review round 1, security M2): a downtime pack holds the whole home's records,
+  so opening it, building one on request and printing one all need a fresh sign-in (step-up), as
+  any bulk export does (master prompt section 5.3; the JSON holds the same data as the PDF, #45
+  review round 2). The kiosk's own unlock is separate. Each member opens,
+  prints or builds packs at most `downtime_pack.requests_per_hour` times an hour.
+
+## 13. As built (slice 11 part 3a, downtime pack API)
+
+`apps/api/src/routes/operations.ts`, `services/downtime-pack.ts`; tests in
+`apps/api/test/downtime.test.ts`.
+
+- `GET /v1/locations/{id}/downtime-pack` (`operations.downtime.read` where the location is): the
+  latest pack the reader can open, built on the spot as `server_on_demand` when it no longer serves:
+  it does not name exactly the people receiving care there with their status now, anything it was
+  built from has changed since its information's time, or it has expired. So a pack hidden because
+  someone on it moved away is replaced for a holder at a reachable location. The freshness words
+  and the four header lines are worked out at the moment of the request (`downtimePackFreshness`,
+  `downtimePageHeader`, with any outage open at the location; during an outage, "anything recorded
+  since" is the earlier of the information's time and the outage's start). Opening and building
+  are audited (`operations.downtime_pack.opened`, `.generated`); a location out of reach reads as
+  not found and is audited as denied.
+- What a pack is built from (`sourcesChangedSince`; #45 review round 1, H1): the people (identity,
+  room, location, status, photo), their allergies, advance care records, eating and drinking
+  profile, contacts, care plans and sections, risk assessments and photo documents, and the
+  location (the places), soft deletes included. The information's time is the database's clock
+  before anything is read, and the comparison runs in the database to the microsecond, so a new
+  DNACPR, allergy or room swap after it means a new pack.
+- One build at a time per location (an advisory lock around the check and the build): a second
+  reader waits, then gets the pack just built. If a build fails, the latest pack is served with
+  `rebuildFailed` and a header line saying it could not be rebuilt and when it was made, the
+  failure is audited (outcome `error`) and logged by opaque id; with no pack at all the answer is
+  503 with what to use instead, never a bare error.
+- `POST /v1/locations/{id}/downtime-pack`: builds one now unless the latest still serves (`built`
+  says which). It needs a fresh sign-in (section 12, bulk export). Both routes count against
+  `downtime_pack.requests_per_hour` per member (429 with Retry-After beyond it).
+- Building reads only the location's own people receiving care, in the builder's view, and
+  publishes `operations.downtime_pack.generated` (location and pack ids) for kiosks. While the MAR
+  and PEEP places are unconfirmed, the pack prints "where it is kept is not set in Harbour: ask the
+  nurse in charge" (H-201). Allergies are each person's own current ones: inactive, resolved,
+  refuted, entered in error and deleted rows never print, as on the phone (`currentAllergiesOf`,
+  shared with the hospital transfer pack; HZ-007).
+
+Part 3a-2, the printed pack (`services/downtime-pack-pdf.ts`, `services/pdf.ts`):
+
+- `GET /v1/locations/{id}/downtime-pack?format=pdf` prints the same pack with the four header
+  lines, worked out at the moment of the request, on every page; a front sheet of warnings
+  (safety-critical first); and a page per person, starting on a new page, whose footer names
+  them on every page, continuation pages included (HZ-001). The PDF is drawn per request and
+  never stored, so it is never a `document`.
+- After #46 review round 1: printing needs a fresh sign-in (a bulk export, section 12) and counts
+  against the per-member limit before the pack is read; it is audited as printed only once the PDF
+  is drawn; HEAD on the pack routes is refused (405). Photos are not printed (H-211): every
+  person's page says to confirm who they are with a colleague who knows them, and the front sheet
+  says photos are not printed. When an ADRT is held, the resuscitation section prints "ADRT also
+  held: read it before any decision about resuscitation", and with no ReSPECT or DNACPR it never
+  reads "not recorded" (HZ-015; wording H-212). Header times carry BST or GMT on the day the clocks
+  change (HZ-009). "1 person" is singular.
+- The in-house PDF writer (ADR-0040) gains header lines on every page, a page break before a
+  block, and a footer naming whose page it is.
+
+Part 3b (`jobs/tasks.ts`, migration 0055, numbered after #48's 0054):
+
+- Nightly: the `downtime-packs` queue runs hourly; each location gets one `server_nightly` pack per
+  UK night, under an advisory lock, each location in its own savepoint, through `eachTenant`.
+- Rebuild on moves: after `people.person.admitted`, `went_on_leave`, `went_to_hospital`,
+  `returned`, `discharged`, `died` and `status_corrected`, the system builds the pack again
+  (`server_rebuild`, migration 0055) at the location the person was at and the one they are at,
+  when the latest no longer serves.
+- Places: `PUT /v1/locations/{id}/downtime-places` (`platform.location.manage`) sets them, and
+  with `confirm` confirms them in the caller's name and completes the `operations.downtime_places`
+  task, which the nightly job keeps open for the location's Registered Manager while they are
+  unconfirmed (H-201).
+- After #47 review round 1:
+  - A bed move (`POST /v1/people/{id}/bed-moves`) publishes `people.person.moved` (person, the
+    location they were at and the one they are at, room changed) in its transaction, and it is
+    one of the rebuild events, so both locations' packs are built again (H2). A places change
+    publishes `operations.downtime_places.changed`, and the system builds that location's pack
+    again.
+  - Each handler of an event runs on its own: a failed rebuild is logged for the operator by
+    opaque ids and left to the next read or the nightly job, and never holds back the death
+    notification; another handler's failure is raised again after the rebuild, so the event is
+    delivered again (both are idempotent). Rebuilds take the same per-location lock as reads.
+  - After the nightly run, a location with no pack in date gets an
+    `operations.downtime_pack_missing` task for its Registered Manager. The places task is raised
+    after the build, in its own savepoint, due at the end of the day
+    `downtime.places_confirm_due_days` from now rather than at once (HZ-008).
+  - The places route takes the location's `version` (409 when stale), refuses a deleted location,
+    and completes the task through the task workflow at its version.
+  - Migration 0055 also refuses a pack that names a stored document (`downtime_pack_no_document`):
+    the PDF is drawn per request.
+- Not yet: the kiosk's own fetch route (the mobile step; it fetches in the system's view for its
+  location, section 12); printing photos on the pages.
+
+Part 3c, outages (`routes/outages.ts`, `services/outages.ts`; tests in
+`apps/api/test/outages.test.ts`):
+
+- `GET /v1/locations/{id}/outages` (`people.person.read`): the location's outages, newest first,
+  for anyone who can see someone there (`app.outage_visible`), so a care worker can enter a paper
+  record against one.
+- `POST /v1/locations/{id}/outages` (`operations.downtime.manage` where the location is): checked
+  with `checkOutageDeclaration` against the location's outages, declared now in the caller's name
+  with its `operations.outage` workflow; audited, and `operations.outage.declared` (location,
+  outage, late flag) is published for the notification centre.
+- `POST /v1/outages/{id}/close` (`endedAt`, `version`): `checkOutageClosure`; the back-entry
+  deadline is the closure plus `downtime.back_entry_due_hours`; the workflow moves, an
+  `operations.outage_back_entry` task falls due for the Registered Manager then; audited, and
+  `operations.outage.closed` is published.
+- `GET /v1/outages/{id}/reconciliation`: in the organisation's view and current versions only,
+  the counts, the possible duplicates, the back-entries outside the window with no reason
+  (`outsideWindowEntryIds`), whether the caller entered or sent any paper record
+  (`enteredByYou`, as the database counts them, H-203) and what stops reconciling, in words;
+  audited as viewed.
+- `POST /v1/outages/{id}/reconcile` (`statement`, `reviewedEntryIds`, `version`): refused with
+  those words until each possible duplicate and each back-entry outside the window with no reason
+  is reviewed, and for anyone who entered or sent a paper record; stores the reviewed ids and the
+  forms entered, moves the workflow, completes the task; audited, and `operations.outage.reconciled`
+  is published.
+- `POST /v1/outages/{id}/cancel` (`reason`, `version`): an open outage only; the database refuses
+  once a paper record cites it. `POST /v1/outages/{id}/correct` (`startedAt`, `endedAt`,
+  `reason`, `version`): before reconciliation, an open outage staying open, checked as a
+  declaration against the others. Both audited.
+- A stale `version` is 409, as is an overlap found by the exclusion constraint at the same moment;
+  the database's other refusals come back as 422 in its words. A location out of reach is not
+  found, and audited as denied.
+- After #51 review round 1: an outage declared with its end is closed in the same transaction
+  (the back-entry task raised, `.closed` audited and published); an outage may run at most
+  `downtime.max_outage_hours` (168) to its end or to now, checked on declaring, closing and
+  correcting; a correction may not move the end past the closure plus
+  `sync.clock_drift_flag_minutes`; the outage is locked `FOR UPDATE` before each change;
+  `operations.outage.cancelled` and `.corrected` are published too; an outage at a location the
+  caller's permission does not reach is not found, and audited as denied; the reconciliation reads
+  only the columns it needs.
+- The blockers' words, the task's assignee and the longest outage wait for the CSO (H-215).
+- Not yet: back-entry on the care routes and the sync upload (part 3d), with the outside-the-outage
+  reason when a reviewed back-entry after the true end is corrected (H-208); the notification
+  centre's handling of `operations.outage.declared` (the comms step).
+
+## 14. As built (slice 11 part 3d, back-entry through the API)
+
+`apps/api/src/services/back-entry.ts`, used by the five care write routes (`POST
+/v1/people/{id}/notes`, `/observations`, `/body-map`, `/activities`, `/visits`); contracts
+`BackEntryInput`, `EntryBackEntry`, `EntryNotFromPaper`; tests in `apps/api/test/back-entry.test.ts`.
+
+- Each route takes `backEntry` (`outageId`, `paperDate`, `paperTime` as written, `occurrence` in
+  the repeated autumn hour, `outsideOutageReason`, `paperReference`) and `notFromPaperReason`, and
+  returns `backEntry` (with the rule 12 label, worked out from the outage on every read) and
+  `notFromPaper`. The device's sync upload writes no care tables (the phone sends each entry to
+  these routes), so these checks cover it; no sync change was needed.
+- A back-entry: `resolvePaperTime` and `checkBackEntry` against its outage at the person's
+  location; the entry's `occurredAt` must be the paper instant (refused otherwise, never moved);
+  a time outside the window `[start, end)` needs a reason of at least
+  `MIN_BACK_ENTRY_REASON_LENGTH` characters, at the end itself too, as the database counts it. An
+  outage already reconciled refuses it with 422 `outage_reconciled` and the H-204 words.
+- Rule 13 on every route (`checkEntryAgainstOutages`): an entry written later for a time inside
+  an outage, with no back-entry, is refused with 422 `back_entry_details_required` unless it says
+  why it is not from paper; it then names the outage. Written at the time (device time inside the
+  window and not late), it is ordinary and names none. An entry not from paper for a time inside a
+  reconciled outage is refused in words that point to the Registered Manager (H-216).
+- Corrections: a correction of a back-entry stays one of the same outage, its paper details carried
+  when it sends none. Each paper record is corrected once (an advisory lock per record and a check
+  before the insert): a second correction is 409 `back_entry_already_corrected`; from a device the
+  server keeps the entry as sent with the person's refused-entry review task
+  (`copyRefusedEntry`, HZ-006) and says the nurse in charge will review it, and the web is told to
+  correct the current version. A correction whose time is now outside the outage's window, for
+  example after closing set the true end before it (H-207), is refused with 422
+  `outside_outage_reason_required` and the H-208 words until `backEntry` carries an
+  `outsideOutageReason`. A correction of an entry not from paper keeps its reason; one that keeps
+  the entry's time is not asked again (rule 13), one that moves it is.
+- The database's refusals (`app.entry_outage_guard`, the back-entry CHECK) come back as 422
+  `back_entry_refused` in words. Every write's audit event carries `outageId` with `backEntry` or
+  `notFromPaper`.
+- After #54 review round 1:
+  - A write's audit event keeps the scope and places that authorised it, with the outage beside
+    them (`scopeExtra` in `auditInTx`).
+  - A paper record (or an entry not from paper) for a reconciled outage is kept by the server as
+    sent, with the person's refused-entry review task, from the web and a device alike, and the
+    refusal says so (H-216); a hand-over's copy is admitted against the device's hold.
+  - An alert raised by a back-entered observation, and its response tasks, say they come from a
+    paper record with the time written on it, and `care.observation.recorded` carries the outage
+    and the paper time (whether old readings should alert at all: H-216).
+  - The label falls back to the paper time and the entry's own times when the reader cannot see
+    the outage; the entry's time is checked against the paper time first; two corrections of one
+    paper record at the same moment get the same 409; an outage in another organisation or out of
+    reach reads as not found.
+- Not yet: back-entry fields in the sync streams and on the phone (mobile step); the web forms.
+
+## 15. As built (slice 11 web part A, the downtime screens)
+
+`apps/web/src/app/(shell)/downtime`, `apps/web/src/components/operations`,
+`apps/web/src/lib/downtime.ts`, `apps/web/src/app/actions/downtime.ts`; tests in
+`apps/web/src/lib/downtime.test.ts`, `apps/web/src/components/care/EntryBadges.test.ts` and
+`apps/web/e2e/downtime.spec.ts`.
+
+- `/downtime` goes to the chosen location, or lists the locations the viewer works at.
+  Downtime is in the navigation for holders of `operations.downtime.read` or `.manage`.
+- `/downtime/{location}`: the pack's card (open, print), the outages newest first with their
+  state as an icon and words (open; closed, paper records to enter, with the due time;
+  reconciled; cancelled; an unknown state warns), and the declare form while no outage is open.
+- `/downtime/{location}/pack` reads the pack (a fresh sign-in, the hourly limit, audited as
+  opened) and shows its freshness, the API's notice, the header lines and when it was made; it
+  names no one, so it gives the number of pages and warnings. `/downtime/{location}/pack/print`
+  streams the PDF from the API as an attachment with `no-store`; a refusal goes to sign in again
+  (step-up) or back to the location's page with what happened. Links to both are never
+  prefetched, as each read counts and is audited.
+- `/downtime/{location}/outages/{outage}`: the outage's details, then close, correct and cancel
+  (each with the version; a reason where the API needs one; no time filled in), and for a closed
+  outage the reconciliation: counts, the API's blockers in its words, a box per possible
+  duplicate group and per back-entry outside the window, and the statement. A reconciler who
+  entered or sent a paper record is told another manager must reconcile. Entries are listed by a
+  short reference (the last 8 characters of the id), which every record list shows beside
+  "Entered from a paper record"; the screen says to look in each person's record at the location
+  (#62 review round 1; HZ-092).
+- Actions are offered for the permission held where the viewer works; `/v1/me` has no
+  per-location `reaching` yet, so the API's refusal is the final word (STATUS item 21).
+- Not yet: the places form (no read route with the location's version) and the back-entry
+  fields on the care record forms (part B).
+
+## 16. As built (slice 11 web part B, paper records on the care record forms)
+
+`apps/web/src/lib/back-entry.ts`, `apps/web/src/components/care/WhenField.tsx`; tests in
+`apps/web/src/lib/back-entry.test.ts` and `apps/web/e2e/back-entry.spec.ts`.
+
+- The notes, chart entry, body map, activity and visit forms (shown only where the person's
+  `access.reaching` lists `care.note.write`) read the outages at the person's location; while
+  one is open or closed, "When" offers "From a paper downtime form": which outage (nothing
+  chosen), the date and time written on the form (UK time, nothing filled in; the repeated
+  autumn hour asks which, the skipped spring hour and a time ahead are refused), the form's
+  reference, and why when the time is outside the outage (`MIN_BACK_ENTRY_REASON_LENGTH`). The
+  entry's `occurredAt` is the paper instant; `backEntry` carries the rest.
+- When the API answers `back_entry_details_required`, the form asks why the entry is not from
+  paper and sends `notFromPaperReason`. Correcting a paper note whose time the API now finds
+  outside the outage (`outside_outage_reason_required`, H-208) asks why and sends the paper
+  details again with it. `outage_reconciled` and `back_entry_refused` are said in the API's
+  words (the record kept for the nurse in charge's review, H-216); a second correction of a
+  paper record says to reload and correct the current version.
+- Not yet: a correction form for chart entries, marks, activities and visits on the web.

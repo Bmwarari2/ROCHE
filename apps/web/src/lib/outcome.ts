@@ -93,11 +93,45 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     // it and enters the change again, never told someone else changed the record.
     case "already_saved_differently":
       return { code, message: t("care.errors.alreadySavedDifferently") };
+    // Paper records from an outage (operations.md section 14; HZ-017): the API's own words,
+    // which say what to do and, for a reconciled outage, that the record is kept for review.
+    case "back_entry_details_required": {
+      const message = detail || t("care.paper.detailsRequired");
+      return { code, message, fields: { notFromPaperReason: message } };
+    }
+    case "outside_outage_reason_required": {
+      const message = detail || t("care.paper.outsideReasonAgain");
+      return { code, message, fields: { outsideOutageReason: message } };
+    }
+    case "outage_reconciled":
+    case "back_entry_refused":
+    // The DPIA and onboarding decisions (PLAT-023, PLAT-018): the API's own words say every
+    // problem at once and what to do.
+    case "dpia_not_signable":
+    case "decision_not_recordable":
+      return { code, message: detail || t("care.errors.invalid") };
+    // Sample data mode (platform-completions.md rules 30 and 32; HZ-072): plain words for each
+    // refusal, from the catalogue.
+    case "real_people_exist":
+    case "already_loaded":
+    case "no_location":
+    case "nothing_to_remove":
+    case "held":
+    case "referenced_by_other_records":
+    case "remove_sample_data_first":
+      return { code, message: t("onboarding.sample.refusal", { code }) };
+    case "back_entry_already_corrected":
+      return { code, message: t("care.paper.alreadyCorrected") };
     case "missing_permission":
     case "mfa_enrolment_required":
       return { code, message: t("errors.forbidden") };
     case "step_up_required":
       return { code, message: t("errors.stepUpRequired") };
+    // The person who raised an incident never closes it (safety.md rule 11).
+    case "separation_of_duties":
+      return { code, message: t("errors.separationOfDuties") };
+    case "mfa_verification_required":
+      return { code, message: t("errors.mfaVerifyRequired") };
     case "not_found":
       return { code, message: t("errors.notFound") };
     default:
@@ -161,4 +195,33 @@ export function errorFor(result: ActionResult<unknown> | null, field: string): s
  * must reuse the entry's id to stay one entry. */
 export function outcomeUnknown(result: ActionResult<unknown>): boolean {
   return !result.ok && result.code === "unavailable";
+}
+
+/** One problem a form found at a field, with the boxes of a date or time it is about. */
+export interface FieldProblem {
+  readonly field: string;
+  readonly message: string;
+  readonly parts?: readonly string[];
+}
+
+/**
+ * Every problem a form found before sending, in the order of its fields, so the error summary
+ * lists them all at once (WCAG 3.3.1); null when there are none.
+ */
+export function collectedRefusal(problems: readonly FieldProblem[]): ActionResult<never> | null {
+  const [first] = problems;
+  if (!first) return null;
+  const fields: Record<string, string> = {};
+  const parts: Record<string, readonly string[]> = {};
+  for (const problem of problems) {
+    fields[problem.field] ??= problem.message;
+    if (problem.parts) parts[problem.field] ??= problem.parts;
+  }
+  return {
+    ok: false,
+    code: "invalid",
+    message: first.message,
+    fields,
+    ...(Object.keys(parts).length > 0 ? { parts } : {}),
+  };
 }

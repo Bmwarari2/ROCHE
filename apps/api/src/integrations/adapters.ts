@@ -5,6 +5,7 @@ import {
   type EmailPort,
   type HealthResult,
   type OutboundMessage,
+  outboundBodyProblem,
   outboundTitleProblem,
   type PortMap,
   type PortName,
@@ -54,7 +55,17 @@ class Unconfigured<M extends OutboundMessage> {
   }
 }
 
-/** Amazon SES in eu-west-2 (London). Plain text only: a generic title and a link. */
+/**
+ * The plain-text body SES sends: the message's own body when it has one, otherwise the title and
+ * the link into Harbour (H-225).
+ */
+export function emailTextBody(message: EmailMessage): string {
+  if (message.body !== undefined)
+    return message.body.endsWith("\n") ? message.body : `${message.body}\n`;
+  return `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`;
+}
+
+/** Amazon SES in eu-west-2 (London). Plain text only: a title, and a body or a link. */
 export class SesEmail implements EmailPort {
   readonly provider = "ses";
   private readonly client: SESv2Client;
@@ -75,7 +86,7 @@ export class SesEmail implements EmailPort {
               Subject: { Data: message.title, Charset: "UTF-8" },
               Body: {
                 Text: {
-                  Data: `${message.title}\n\n${message.link ? `Open Harbour to see the details: ${message.link}` : "Open Harbour to see the details."}\n`,
+                  Data: emailTextBody(message),
                   Charset: "UTF-8",
                 },
               },
@@ -145,7 +156,11 @@ export function guarded<
     provider: adapter.provider,
     health: () => adapter.health(),
     send: async (message: M) => {
-      const problem = outboundTitleProblem(message.title);
+      const problem =
+        outboundTitleProblem(message.title) ??
+        ("body" in message && typeof message.body === "string"
+          ? outboundBodyProblem(message.body)
+          : null);
       if (problem) return { ok: false, retryable: false, error: `Refused: ${problem}` };
       const previous = seen.get(message.idempotencyKey);
       if (previous?.ok) return previous;
@@ -180,7 +195,11 @@ export function createAdapter<K extends PortName>(
   };
   const provider = connection?.provider ?? (options.production ? "unconfigured" : "mock");
   let adapter: EmailPort | SmsPort | PushPort;
-  if (provider === "mock") {
+  // The mock never runs in production, even when a connection names it (#53 review L3): it would
+  // report sent and keep what it was handed (an invitation's link) in the API's memory.
+  if (provider === "mock" && options.production) {
+    adapter = new Unconfigured(port);
+  } else if (provider === "mock") {
     adapter = port === "comms.email" ? mocks.email : port === "comms.sms" ? mocks.sms : mocks.push;
   } else if (port === "comms.email" && provider === "ses") {
     adapter = new SesEmail(String(connection?.settings.from ?? ""));

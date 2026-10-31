@@ -18,7 +18,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import type { TenantAccess } from "../src/http/context";
 import { recordDeviceHold } from "../src/services/device-holds";
-import { createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER, PASSWORD } from "./support/harness";
 
 let h: Harness;
 
@@ -377,12 +377,8 @@ describe("hazard HZ-011 break-glass access", () => {
   });
 
   it("needs a fresh sign-in (step-up)", async () => {
-    await h.db
-      .pool("harbour_auth")
-      .query("UPDATE auth.session SET created_at = now() - interval '1 hour' WHERE token = $1", [
-        // The bearer value is the session token plus a signature.
-        h.tokens.owner?.split(".")[0],
-      ]);
+    // The bearer value is the session token plus a signature.
+    await ageSession(h.db.pool("harbour_auth"), h.tokens.owner?.split(".")[0] ?? "", 3600);
     const response = await demo("owner", "/v1/people/break-glass", {
       method: "POST",
       body: {
@@ -541,7 +537,7 @@ describe("offline sync", () => {
       entries_write_location_ids: [DEMO.locationId],
       entries_write_assigned: false,
     });
-    // The shift pattern of each nation it has homes in, for the phone's handover (ADR-0072).
+    // The shift pattern of each nation it has homes in, for the phone's handover (ADR-0074).
     const day = await json<RateValue>(
       await demo("manager", "/v1/rates/handover.day_shift_start_minute"),
     );

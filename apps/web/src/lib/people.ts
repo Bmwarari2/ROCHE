@@ -94,6 +94,18 @@ export function personNames(
   return { preferred, full, hasPreferred: preferred !== person.givenName };
 }
 
+/**
+ * A name as plain words, marked "(Sample)" for an invented sample person (HZ-072), for the places
+ * that name a person in a sentence or a list rather than beside the badge.
+ */
+export function sampleName(
+  person: { readonly sample?: boolean },
+  name: string,
+  t: Translator,
+): string {
+  return person.sample ? t("sample.named", { name }) : name;
+}
+
 /** Two letters for the photo placeholder, for example "AE" for Ada Example. */
 export function initials(person: Pick<PersonSummary, "givenName" | "familyName">): string {
   const first = Array.from(person.givenName.trim())[0] ?? "";
@@ -143,6 +155,8 @@ export interface PersonListItem {
   readonly communication: CommunicationSummary;
   /** Family name first, for sorting. */
   readonly sortName: string;
+  /** An invented sample person (HZ-072): shown with the "Sample" badge. */
+  readonly sample: boolean;
 }
 
 export function toPersonListItem(
@@ -166,5 +180,6 @@ export function toPersonListItem(
     allergy: allergySummary(person, t),
     communication: communicationSummary(person, t),
     sortName: `${person.familyName} ${person.givenName}`,
+    sample: person.sample,
   };
 }

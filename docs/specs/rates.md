@@ -170,7 +170,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | people.return_checks_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour default for the checks after a return from hospital (people.md rule 10): each check is a task due this many hours after the return, escalated by the task engine when overdue; no published figure; CSO to confirm (H-85); tenant default | to-verify |
 | exit.money_and_property_return_days | 28 | days | 2000-01-01 | - | all | Harbour default matching cma.deposit_return_days (master prompt 9.2); no statutory period for returning personal money and property; tenant default | to-verify |
 | downtime_pack.valid_hours | 36 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: a nightly downtime pack is in date for 36 hours from its information's time, longer than the nightly interval so one failed night does not leave a home with only an out-of-date pack (master prompt 13.4 "nightly"); tenant default; CSO to confirm (H-101) | to-verify |
+| downtime_pack.requests_per_hour | 30 | count | 2000-01-01 | - | all | Harbour security policy default, not a statutory figure: a member opens, prints or builds downtime packs at most 30 times an hour, as each is a whole-home record (operations.md section 12; #45 review round 1); tenant default | to-verify |
+| downtime.places_confirm_due_days | 1 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: the task to confirm where the paper MAR and PEEPs are kept is due at the end of the day this many days after it is raised, so it does not escalate the moment it appears (operations.md section 13; #47 review round 1; HZ-008); tenant default | to-verify |
 | downtime.duplicate_match_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: entries for the same person and kind within this many minutes of each other are listed as possible duplicates at outage reconciliation (master prompt 13.4 back-entry workflow); tenant default | to-verify |
+| downtime.max_outage_hours | 168 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an outage may run at most this many hours from its start to its end (or to now while open), so a mistyped date cannot open a window of months over which paper records and their reconciliation are read (#51 review round 1); tenant default; CSO to confirm (H-215) | to-verify |
 | downtime.back_entry_due_hours | 24 | hours | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: paper records from an outage are entered within 24 hours of its closure (master prompt 13.4 back-entry workflow); tenant default | to-verify |
 | evidence_pack.link_expiry_days.default | 7 | days | 2000-01-01 | - | all | Harbour policy default, not a statutory figure: an inspector evidence pack link lasts 7 days unless the sender chooses otherwise (master prompt 11.2 "time-limited link"); tenant default | to-verify |
 | evidence_pack.code_valid_minutes | 10 | minutes | 2000-01-01 | - | all | Harbour security policy, not a statutory figure: a one-time code for opening an evidence pack link is valid for at most 10 minutes (ADR-0050; OWASP ASVS 5.0 out-of-band verifier lifetime) | to-verify |
@@ -252,6 +255,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | export.link_expiry_hours | 72 | hours | 2000-01-01 | - | all | Harbour default: how long a ready full tenant export can be downloaded before the file is deleted (master prompt 5.1 asks for delivery by expiring link but sets no period; platform-completions.md rule 12); policy value, not statutory; tenant default | to-verify |
 | export.link_expiry_hours_max | 168 | hours | 2000-01-01 | - | all | Harbour ceiling on the tenant's export.link_expiry_hours setting, so no tenant can keep a full export downloadable for more than 7 days (platform-completions.md rule 12; security review); policy value, not statutory | to-verify |
 | break_glass.search_max_per_day | 5 | count | 2000-01-01 | - | all | Harbour default: break-glass searches one user may run in any 24 hours before further searches are refused and the data protection lead is told (platform-completions.md rule 9; security review); policy value, not statutory; tenant default | to-verify |
+| search.requests_per_minute | 30 | count | 2000-01-01 | - | all | Harbour default: searches one member may run in a minute before further searches are refused for a moment (platform-completions.md section 10s, part 2; #93 security review), so search cannot sweep the records a name at a time; policy value, not statutory; tenant default | to-verify |
 | dpia.review_interval_months | 12 | months | 2000-01-01 | - | all | DPIA template section 8 ("at least annually"); UK GDPR Art 35(11) requires a review at least when the risk changes but sets no interval, https://www.legislation.gov.uk/eur/2016/679/article/35 (platform-completions.md rule 22); tenant default | to-verify |
 | sub_processor.notice_days | 30 | days | 2000-01-01 | - | all | DPA template clause 6.2 (bracketed default, solicitor to confirm, H-32): notice before a new or replacement sub-processor, and the window for objecting (platform-completions.md rule 24); contractual, not statutory; tenant setting from the tenant's DPA | to-verify |
 | benchmark.occupancy_percentage.low | 86 | percent | 2000-01-01 | - | uk | master prompt 13.1 (sector context, about 86 to 89%) | master-prompt |
@@ -368,8 +372,17 @@ literals, and tests assert against the table, not a literal (section 7, section 
   (HZ-021). The CSO confirms the figure and the wording (H-101). Paper records from an outage are
   due within `downtime.back_entry_due_hours` of the outage's closure; overdue back-entry escalates
   to the Registered Manager. Entries for one person and kind within
-  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. No statute
+  `downtime.duplicate_match_minutes` of each other are listed as possible duplicates. An outage
+  runs at most `downtime.max_outage_hours` (168) from its start to its end, or to now while open;
+  a longer one is refused on declaring, closing and correcting. No statute
   sets any of these figures; the tenant's business continuity lead confirms them (H-98).
+- `downtime.places_confirm_due_days` (1): a policy default, not a statutory figure. The task asking
+  the Registered Manager to confirm where the paper MAR and PEEPs are kept is due at the end of the
+  UK day this many days after it is raised (H-201).
+- `downtime_pack.requests_per_hour` (30): a security policy default, not a statutory figure. Each
+  member opens, prints or builds downtime packs at most this many times an hour (a pack holds the
+  whole home's records), counted per member in Postgres like the transfer pack limit; a pack is
+  reused while nothing it was built from has changed ([operations.md](operations.md) section 12).
 - `evidence_pack.link_expiry_days.default` (7) and `.max` (30): policy defaults for the time-limited
   link to an inspector evidence pack ([quality.md](quality.md) rule 7). The sender may choose a
   shorter or longer expiry up to the maximum; a tenant may lower the maximum. No statute or CQC
@@ -392,6 +405,10 @@ literals, and tests assert against the table, not a literal (section 7, section 
   24 hours. Break-glass search exists to find one person in an emergency; more than a handful a
   day looks like browsing, so further searches are refused and the data protection lead is told.
   Tenant default, confirmed by the tenant's data protection lead (H-118).
+- `search.requests_per_minute` (30): how many searches one member may run in a minute. A person
+  looking for someone runs a few searches; dozens a minute looks like sweeping the records a name at
+  a time, so further searches wait (429 with Retry-After). Tenant default, confirmed by the tenant's
+  data protection lead (H-118).
 - `dpia.review_interval_months` (12): the yearly re-review of a signed DPIA (platform-completions.md
   rule 22). UK GDPR Art 35(11) requires a review "at least when there is a change of the risk"
   and sets no interval; the yearly review comes from Harbour's DPIA template (section 8, "at least

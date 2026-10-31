@@ -45,6 +45,8 @@ const turn = (overrides: Partial<ObservationItem>): ObservationItem => ({
   handedOverBy: null,
   handedOverByStaff: null,
   deviceDeletion: null,
+  backEntry: null,
+  notFromPaper: null,
   chart: "repositioning",
   values: { position: "left_side", skinChecked: true },
   flags: {},
@@ -314,5 +316,57 @@ describe("the NEWS2 result shown after saving (#26 review round 3, item 3)", () 
   it("hazard HZ-014 says none is configured when the save returned none", () => {
     expect(result(null)).toContain('data-escalation-policy="not_configured"');
     expect(result()).not.toContain("data-escalation-policy");
+  });
+});
+
+describe("ObservationList for a reading entered from paper", () => {
+  const fromPaper = (occurrence: "only" | "earlier" | "later", paperTime = "09:15") =>
+    turn({
+      chart: "vitals",
+      values: { respirationRate: 22, spo2: 95, onOxygen: false, systolic: 105, pulse: 95 },
+      lateEntry: true,
+      flags: {
+        news2: {
+          toolVersion: "RCP NEWS2 2017",
+          score: 6,
+          band: "medium",
+          clinicalRisk: "Medium",
+          response: "Key threshold for urgent response",
+          monitoring: "Minimum 1 hourly",
+          workings: [],
+        },
+      },
+      backEntry: {
+        outageId: "0193a000-0000-7000-8000-00000000a099",
+        paperDate: "2026-10-25",
+        paperTime,
+        occurrence,
+        outsideOutageReason: null,
+        paperReference: null,
+        label: null,
+      },
+    });
+
+  it("hazard HZ-017 puts the paper time beside the response, so the advice never reads as for now", () => {
+    const text = words(render([fromPaper("only")]));
+    const said =
+      "This reading is from 25/10/2026 09:15. Check it was escalated on paper, and check the person now.";
+    expect(text).toContain(said);
+    expect(text.indexOf(said)).toBeLessThan(text.indexOf("Key threshold for urgent response"));
+  });
+
+  it("hazard HZ-017 hazard HZ-009 says which repeated autumn time was written", () => {
+    expect(words(render([fromPaper("earlier", "01:30")]))).toContain(
+      "This reading is from 25/10/2026 01:30 BST.",
+    );
+    expect(words(render([fromPaper("later", "01:30")]))).toContain(
+      "This reading is from 25/10/2026 01:30 GMT.",
+    );
+  });
+
+  it("says nothing of paper for a reading taken at the time", () => {
+    expect(render([turn({ chart: "vitals", flags: fromPaper("only").flags })])).not.toContain(
+      "data-paper-reading",
+    );
   });
 });

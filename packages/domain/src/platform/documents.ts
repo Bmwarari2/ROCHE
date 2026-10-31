@@ -36,6 +36,18 @@ export const DOCUMENT_CATEGORIES = {
     retentionClass: "care_record",
     inline: true,
   },
+  /**
+   * A photo chosen for the family feed (comms.md rule 6; HZ-022, HZ-060): the only photos that can
+   * be published. Identification photos, wound photos and other care attachments never can.
+   */
+  feed_photo: {
+    label: "Photo for the family feed",
+    contentTypes: IMAGES,
+    maxBytes: 10 * MB,
+    personRequired: true,
+    retentionClass: "care_record",
+    inline: true,
+  },
   care_attachment: {
     label: "Care record attachment (wound photo, chart scan)",
     contentTypes: [...IMAGES, "application/pdf"],

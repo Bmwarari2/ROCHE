@@ -1,10 +1,30 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { errorFor, fieldErrors, outcomeUnknown, problemMessage, refused } from "./outcome";
+import {
+  collectedRefusal,
+  errorFor,
+  fieldErrors,
+  outcomeUnknown,
+  problemMessage,
+  refused,
+} from "./outcome";
 
 const t = createTranslator("en-GB");
 
 describe("problemMessage", () => {
+  it.each([
+    ["real_people_exist", "Sample data can only be loaded before you add real people."],
+    ["already_loaded", "Sample data is already loaded."],
+    ["nothing_to_remove", "There is no sample data to remove."],
+    [
+      "held",
+      "A legal hold is in place on a sample person. Release the hold, then remove the sample data.",
+    ],
+    ["no_location", "Add a location before you load sample data."],
+  ])("hazard HZ-072 says the sample data refusal %s in plain words", (code, message) => {
+    expect(problemMessage({ code, detail: "ignored" }, t)).toEqual({ code, message });
+  });
+
   it("hazard HZ-019 says a refusal by rule in the catalogue's words, tied to its fields", () => {
     const detail =
       "The mark is drawn on the person's left but the person's right was chosen. Check the side and try again.";
@@ -37,6 +57,7 @@ describe("problemMessage", () => {
     ["missing_permission", "errors.forbidden"],
     ["mfa_enrolment_required", "errors.forbidden"],
     ["step_up_required", "errors.stepUpRequired"],
+    ["mfa_verification_required", "errors.mfaVerifyRequired"],
     ["not_found", "errors.notFound"],
   ] as const)("maps %s to plain words", (code, key) => {
     expect(problemMessage({ code, detail: "ignored" }, t)).toEqual({ code, message: t(key) });
@@ -98,5 +119,22 @@ describe("problemMessage", () => {
     });
     expect(outcomeUnknown({ ok: false, code: "unavailable", message: "x" })).toBe(true);
     expect(outcomeUnknown(result)).toBe(false);
+  });
+});
+
+describe("collectedRefusal", () => {
+  it("lists every problem the form found, each at its field, with the boxes of a date", () => {
+    const result = collectedRefusal([
+      { field: "kind", message: "Choose what has stopped working" },
+      { field: "startedAt", message: "Enter when it started", parts: ["day", "month"] },
+    ]);
+    expect(result).toEqual({
+      ok: false,
+      code: "invalid",
+      message: "Choose what has stopped working",
+      fields: { kind: "Choose what has stopped working", startedAt: "Enter when it started" },
+      parts: { startedAt: ["day", "month"] },
+    });
+    expect(collectedRefusal([])).toBeNull();
   });
 });

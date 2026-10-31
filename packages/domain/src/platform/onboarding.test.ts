@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { readRateTable } from "../../test/rate-table";
 import { type EffectiveAccess, resolveAccess } from "./access";
 import {
+  checkDcb0160Recording,
+  checkRetentionDecision,
+  checkSettingDecision,
   isCqcLocationId,
   isOdsCode,
   ONBOARDING_ITEMS,
@@ -24,6 +27,7 @@ import {
   isOfcomDramaNumber,
   REAL_RECORD_CREATION_PATHS,
   SAMPLE_BADGE,
+  SAMPLE_PEOPLE,
   SAMPLE_WATERMARK,
   type SampleDataSurface,
   sampleFlagForNewRecord,
@@ -276,6 +280,37 @@ describe("onboarding checklist from the organisation's state", () => {
       true,
     ],
     [
+      "an accepted class whose latest decision is not one the class takes",
+      (s) => ({
+        ...s,
+        retentionDecisions: [
+          ...s.retentionDecisions,
+          {
+            recordClass: "care_record",
+            kind: "not_used",
+            decidedAt: new Date(LATER.getTime() + 60_000),
+          },
+        ],
+      }),
+      "retention_reviewed",
+      ["care_record"],
+      true,
+    ],
+    [
+      "device modes not yet recorded (fail closed)",
+      (s) => ({ ...s, devices: null }),
+      "shared_devices_enrolled",
+      [],
+      true,
+    ],
+    [
+      "sample data not yet recorded (fail closed)",
+      (s) => ({ ...s, sampleDataPresent: null }),
+      "sample_data_removed",
+      [],
+      true,
+    ],
+    [
       "a decision older than the schedule change",
       (s) => ({
         ...s,
@@ -464,7 +499,10 @@ describe("go-live clinical items worked out from state", () => {
       "an active shared device not enrolled",
       (s) => ({
         ...s,
-        devices: [...s.devices, { id: "d-9", mode: "kiosk", active: true, mdmEnrolled: false }],
+        devices: [
+          ...(s.devices ?? []),
+          { id: "d-9", mode: "kiosk", active: true, mdmEnrolled: false },
+        ],
       }),
       "shared_devices_enrolled",
       ["d-9"],
@@ -820,17 +858,17 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
   it.each<[string, Parameters<typeof checkSampleDataRemoval>[0], string | null]>([
     [
       "the whole batch, by the owner",
-      { access: accessFor("owner"), rows, realReferences: 0 },
+      { access: accessFor("owner"), rows, otherReferences: 0 },
       null,
     ],
     [
       "by a Registered Manager",
-      { access: accessFor("registered_manager"), rows, realReferences: 0 },
+      { access: accessFor("registered_manager"), rows, otherReferences: 0 },
       "missing_permission",
     ],
     [
       "an empty batch",
-      { access: accessFor("owner"), rows: [], realReferences: 0 },
+      { access: accessFor("owner"), rows: [], otherReferences: 0 },
       "nothing_to_remove",
     ],
     [
@@ -838,23 +876,160 @@ describe("hazard HZ-072 sample data is flagged, never mixed with real people, an
       {
         access: accessFor("owner"),
         rows: [...rows, { sample: false, legalHold: false }],
-        realReferences: 0,
+        otherReferences: 0,
       },
       "not_sample",
     ],
     [
       "a held row",
-      { access: accessFor("owner"), rows: [{ sample: true, legalHold: true }], realReferences: 0 },
+      { access: accessFor("owner"), rows: [{ sample: true, legalHold: true }], otherReferences: 0 },
       "held",
     ],
     [
-      "rows real records refer to",
-      { access: accessFor("owner"), rows, realReferences: 2 },
-      "referenced_by_real_records",
+      "rows another record outside the batch refers to",
+      { access: accessFor("owner"), rows, otherReferences: 2 },
+      "referenced_by_other_records",
     ],
   ])("removing %s", (_label, input, problem) => {
     const result = checkSampleDataRemoval(input);
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
   });
+});
+
+describe("rule 27 onboarding decisions are records, never ticks", () => {
+  it.each([
+    ["accepting a tenant default", "accepted", true, false, null],
+    ["setting its own figure", "set", true, true, null],
+    ["saying it set its own with no figure", "set", true, false, "no_own_setting"],
+    ["a setting Harbour did not choose", "accepted", false, false, "not_a_tenant_default"],
+  ] as const)("setting: %s", (_, kind, isTenantDefault, hasOwnSetting, expected) => {
+    expect(checkSettingDecision({ kind, isTenantDefault, hasOwnSetting })?.problem ?? null).toBe(
+      expected,
+    );
+  });
+
+  const DEFAULT = { trigger: "care_ended", period: 8, unit: "years" };
+  const POLICY = { trigger: "tenant_policy", period: 0, unit: "years" };
+  it.each([
+    ["accepting a default", "care_record", "accepted", DEFAULT, null, null],
+    [
+      "lengthening to 10 years",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 10, unit: "years" },
+      null,
+    ],
+    [
+      "lengthening by months",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 97, unit: "months" },
+      null,
+    ],
+    [
+      "lengthening to the same",
+      "care_record",
+      "lengthened",
+      DEFAULT,
+      { period: 96, unit: "months" },
+      "not_longer",
+    ],
+    ["lengthening with no period", "care_record", "lengthened", DEFAULT, null, "no_own_period"],
+    [
+      "marking a default class not used",
+      "care_record",
+      "not_used",
+      DEFAULT,
+      null,
+      "kind_not_for_class",
+    ],
+    ["setting a policy period", "cctv", "period_set", POLICY, { period: 1, unit: "months" }, null],
+    ["setting a policy period with none", "cctv", "period_set", POLICY, null, "no_own_period"],
+    ["marking a policy class not used", "cctv", "not_used", POLICY, null, null],
+    ["accepting a policy class", "cctv", "accepted", POLICY, null, "kind_not_for_class"],
+    [
+      "a staff file option",
+      "staff_file.after_leaving",
+      "accepted",
+      DEFAULT,
+      null,
+      "staff_file_is_an_option",
+    ],
+    ["an unknown class", "made_up", "accepted", null, null, "not_a_retention_class"],
+  ] as const)("retention: %s", (_, recordClass, kind, schedule, own, expected) => {
+    expect(checkRetentionDecision({ recordClass, kind, schedule, own })?.problem ?? null).toBe(
+      expected,
+    );
+  });
+});
+
+describe("rule 26 the DCB0160 assessment covers this release", () => {
+  it.each([
+    ["the current safety case", "v0.1", null],
+    ["the current one, with spaces", " v0.1 ", null],
+    ["an earlier safety case", "v0.0", "safety_case_not_current"],
+  ] as const)("%s", (_, safetyCaseVersion, expected) => {
+    expect(
+      checkDcb0160Recording({
+        safetyCaseVersion,
+        currentSafetyCaseVersion: "v0.1",
+        assessor: "active_member",
+      })?.problem ?? null,
+    ).toBe(expected);
+  });
+});
+
+describe("HZ-027 clinical decisions name who reviewed them", () => {
+  it.each([
+    ["a clinical setting with its reviewer", "active_member", null],
+    ["a clinical setting with no reviewer", null, "reviewer_required"],
+    [
+      "a clinical setting reviewed by someone not in the organisation",
+      "not_member",
+      "reviewer_not_member",
+    ],
+  ] as const)("setting: %s", (_, reviewer, expected) => {
+    expect(
+      checkSettingDecision({
+        kind: "accepted",
+        isTenantDefault: true,
+        hasOwnSetting: false,
+        clinical: { reviewer },
+      })?.problem ?? null,
+    ).toBe(expected);
+  });
+
+  it.each([
+    ["with its assessor", "active_member", null],
+    ["with no assessor", null, "reviewer_required"],
+    ["by someone not in the organisation", "not_member", "reviewer_not_member"],
+  ] as const)("DCB0160 assessment %s", (_, assessor, expected) => {
+    expect(
+      checkDcb0160Recording({
+        safetyCaseVersion: "v0.1",
+        currentSafetyCaseVersion: "v0.1",
+        assessor,
+      })?.problem ?? null,
+    ).toBe(expected);
+  });
+});
+
+describe("rule 29 the sample batch is plainly invented", () => {
+  it.each(SAMPLE_PEOPLE.map((p) => [`${p.givenName} ${p.familyName}`, p] as const))(
+    "%s passes checkSamplePerson",
+    (_, p) => {
+      expect(
+        checkSamplePerson({
+          familyName: p.familyName,
+          nhsNumber: p.nhsNumber,
+          emails: [],
+          phones: [],
+          address: null,
+        }),
+      ).toEqual([]);
+    },
+  );
 });

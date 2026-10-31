@@ -50,6 +50,7 @@ locals {
     NODE_ENV                = "production"
     HARBOUR_ENV             = var.environment
     APP_VERSION             = local.image_tags["api"]
+    SAFETY_CASE_VERSION     = var.safety_case_version
     AWS_REGION              = local.region
     NODE_EXTRA_CA_CERTS     = var.rds_ca_bundle_path
     BETTER_AUTH_URL         = "https://${local.hosts.api}"
@@ -77,6 +78,7 @@ locals {
       DATABASE_OPERATOR_URL = "${local.secret_arns["db/harbour_operator"]}:url::"
       DATABASE_WORKER_URL   = "${local.secret_arns["db/harbour_worker"]}:url::"
       BETTER_AUTH_SECRET    = "${local.secret_arns["api"]}:auth_secret::"
+      EVIDENCE_LINK_SECRET  = "${local.secret_arns["api"]}:evidence_link_secret::"
       SYNC_SIGNING_KEY_PEM  = "${local.secret_arns["api"]}:sync_signing_key_pem::"
       SYNC_SIGNING_KEY_ID   = "${local.secret_arns["api"]}:sync_signing_key_id::"
     },
@@ -304,6 +306,7 @@ module "svc_web" {
     HOSTNAME                = "0.0.0.0"
     API_BASE_URL            = "https://${local.hosts.api}"
     PUBLIC_WEB_URL          = "https://${local.hosts.web}"
+    TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     NEXT_TELEMETRY_DISABLED = "1"
   }
   secrets_kms_key_arn = module.kms.key_arns["secrets"]

@@ -10,9 +10,12 @@ import {
   withRequestContext,
 } from "@harbour/db";
 import {
+  type DocumentStoragePort,
   deliveryOutcome,
   dueEscalationSteps,
   type EscalationStep,
+  EXPORT_ARCHIVE_FILE,
+  exportStoragePrefix,
   nextEscalationAt,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
@@ -28,6 +31,8 @@ import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
+import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
@@ -39,6 +44,8 @@ import {
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
 } from "../services/safety";
+import { escalateOverdueStatements } from "../services/statement-of-purpose";
+import { tellAboutNotice } from "../services/sub-processors";
 import {
   ESCALATION_UNROUTED_ACTION,
   type EscalationRun,
@@ -58,6 +65,8 @@ export interface TaskDeps {
   readonly workerPool: pg.Pool;
   readonly appDb: Database;
   readonly logger: Logger;
+  /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
+  readonly exportStorage?: DocumentStoragePort;
 }
 
 /** An outbox handler receives a published event; handlers must be idempotent (at-least-once). */
@@ -529,8 +538,79 @@ export async function reportBreakGlass(deps: TaskDeps, now = new Date()): Promis
 }
 
 /**
+ * The nightly downtime pack for every location (operations.md rule 8; HZ-021), once per location
+ * and UK night; a location's failure is logged and the others go on.
+ */
+export async function buildDowntimePacks(deps: TaskDeps, now = new Date()): Promise<number> {
+  const built = await eachTenant(deps, "downtime-packs", (tx, tenantId) =>
+    buildNightlyPacks(tx, tenantId, now, (locationId, error) =>
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: "downtime-packs",
+          tenantId,
+          locationId,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      ),
+    ),
+  );
+  if (built > 0) deps.logger.info({ built }, "downtime packs built");
+  return built;
+}
+
+/**
+ * Evidence pack bundles (quality.md rule 10; HZ-050): deleted once the pack is revoked or
+ * discarded or its link has ended (revoked or expired); the manifest stays.
+ */
+export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()): Promise<number> {
+  const deleted = await eachTenant(deps, "evidence-bundle-sweep", (tx, tenantId) =>
+    sweepEvidenceBundles(tx, tenantId, now),
+  );
+  if (deleted > 0) deps.logger.info({ deleted }, "evidence pack bundles deleted");
+  return deleted;
+}
+
+/**
+ * Revised statements of purpose past their regulation 12(3) date (quality.md rule 15): the
+ * holders of safety.notification.submit are told once, through the overdue chain.
+ */
+export async function escalateStatementsOfPurpose(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const alerted = await eachTenant(deps, "statement-of-purpose-overdue", (tx, tenantId) =>
+    escalateOverdueStatements(tx, tenantId, now),
+  );
+  if (alerted > 0) deps.logger.info({ alerted }, "overdue statement of purpose revisions alerted");
+  return alerted;
+}
+
+/**
+ * The people lifecycle events after which a location's downtime pack is built again when it no
+ * longer serves the people receiving care there (operations.md section 12; HZ-021).
+ */
+export const PACK_REBUILD_EVENTS = [
+  "people.person.admitted",
+  "people.person.moved",
+  "people.person.went_on_leave",
+  "people.person.went_to_hospital",
+  "people.person.returned",
+  "people.person.discharged",
+  "people.person.died",
+  "people.person.status_corrected",
+] as const;
+
+/**
  * Module handlers for outbox events (idempotent: at-least-once delivery). The safety module drafts
- * the death notifications from `people.person.died` and flags them when the death is corrected.
+ * the death notifications from `people.person.died` and flags them when the death is corrected;
+ * operations builds the downtime pack again after any lifecycle event that changes who is
+ * receiving care at a location, their status or their room, and after the places change. Each
+ * handler of an event runs on its own (#47 review round 1, clinical M5): a failed rebuild never
+ * holds back the death notification, nor the reverse. A rebuild that fails is logged for the
+ * operator by opaque ids and left to the next read or the nightly job; any other failure is
+ * raised again after the rebuild has run, so the event is delivered again (both are idempotent).
  */
 export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
   const inTenant = <T>(tenantId: string, fn: (tx: Transaction) => Promise<T>) =>
@@ -543,7 +623,42 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
     const value = (payload as { exitRecordId?: unknown } | null)?.exitRecordId;
     return typeof value === "string" ? value : null;
   };
-  return new Map<string, OutboxHandler>([
+  const logRebuildFailure = (event: Parameters<OutboxHandler>[0], error: unknown) =>
+    deps.logger.error(
+      {
+        event: WORKER_JOB_FAILED_EVENT,
+        queue: "downtime-pack-rebuild",
+        tenantId: event.tenantId,
+        outboxEventId: event.id,
+        code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+      },
+      WORKER_JOB_FAILED_EVENT,
+    );
+  const rebuild: OutboxHandler = async (event) => {
+    const payload = event.payload as { personId?: unknown; locationId?: unknown } | null;
+    const personId = payload?.personId;
+    if (typeof personId !== "string") return;
+    const from = typeof payload?.locationId === "string" ? payload.locationId : null;
+    try {
+      await inTenant(event.tenantId, (tx) =>
+        rebuildAfterMove(tx, event.tenantId, personId, from, new Date()),
+      );
+    } catch (error) {
+      logRebuildFailure(event, error);
+    }
+  };
+  // A downloaded or cancelled export's archive goes (PLAT-015, HZ-070): a failure throws, so the
+  // relay backs off and retries until the archive is gone. Its key is built from the ids.
+  const deleteArchive: OutboxHandler = async (event) => {
+    const exportId = (event.payload as { exportId?: unknown } | null)?.exportId;
+    if (typeof exportId !== "string" || !deps.exportStorage) return;
+    await deps.exportStorage.destroy(
+      `${exportStoragePrefix(event.tenantId, exportId)}${EXPORT_ARCHIVE_FILE}`,
+    );
+  };
+  const handlers = new Map<string, OutboxHandler>([
+    ["platform.export.downloaded", deleteArchive],
+    ["platform.export.revoked", deleteArchive],
     [
       "people.person.died",
       async (event) => {
@@ -565,6 +680,47 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       },
     ],
   ]);
+  for (const type of PACK_REBUILD_EVENTS) {
+    const first = handlers.get(type);
+    handlers.set(type, async (event) => {
+      let failure: unknown = null;
+      try {
+        await first?.(event);
+      } catch (error) {
+        failure = error;
+      }
+      await rebuild(event);
+      if (failure) throw failure;
+    });
+  }
+  // Sub-processor notices and resolutions (rules 24 and 25): the lead is told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  for (const type of [
+    "platform.sub_processor.notice_announced",
+    "platform.sub_processor.objection_resolved",
+  ]) {
+    handlers.set(type, async (event) => {
+      const payload = event.payload as { noticeId?: unknown; responseId?: unknown } | null;
+      const noticeId = payload?.noticeId;
+      if (typeof noticeId !== "string") return;
+      const responseId = typeof payload?.responseId === "string" ? payload.responseId : null;
+      await inTenant(event.tenantId, (tx) =>
+        tellAboutNotice(tx, event.tenantId, event.eventType, noticeId, new Date(), responseId),
+      );
+    });
+  }
+  handlers.set("operations.downtime_places.changed", async (event) => {
+    const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
+    if (typeof locationId !== "string") return;
+    try {
+      await inTenant(event.tenantId, (tx) =>
+        rebuildLocation(tx, event.tenantId, locationId, "places_changed", new Date()),
+      );
+    } catch (error) {
+      logRebuildFailure(event, error);
+    }
+  });
+  return handlers;
 }
 
 export interface DeliveryDeps extends TaskDeps {

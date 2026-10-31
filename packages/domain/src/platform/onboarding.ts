@@ -238,13 +238,17 @@ export interface OnboardingState {
     /** Current people whose opt-out status has not been checked. */
     readonly peopleNotChecked: number;
   };
-  readonly sampleDataPresent: boolean;
-  readonly devices: readonly {
-    readonly id: string;
-    readonly mode: "personal" | "shared" | "kiosk";
-    readonly active: boolean;
-    readonly mdmEnrolled: boolean;
-  }[];
+  /** Null while Harbour does not record sample data yet: never read as "none". */
+  readonly sampleDataPresent: boolean | null;
+  /** Null while Harbour does not record device modes yet: never read as "no shared devices". */
+  readonly devices:
+    | readonly {
+        readonly id: string;
+        readonly mode: "personal" | "shared" | "kiosk";
+        readonly active: boolean;
+        readonly mdmEnrolled: boolean;
+      }[]
+    | null;
   readonly escalationChains: readonly {
     readonly key: string;
     readonly steps: readonly EscalationStep[];
@@ -412,7 +416,11 @@ function clinicalSettingsItem(state: OnboardingState): Outcome {
       };
 }
 
+/** A fact Harbour does not record yet is not known, so the item cannot be done (fail closed). */
+const NOT_YET_RECORDED = "Harbour does not record this yet, so it cannot be checked.";
+
 function devicesItem(state: OnboardingState): Outcome {
+  if (state.devices === null) return { done: false, reason: NOT_YET_RECORDED, outstanding: [] };
   const shared = state.devices.filter((d) => d.active && d.mode !== "personal");
   const missing = shared.filter((d) => !d.mdmEnrolled).map((d) => d.id);
   if (shared.length === 0) {
@@ -506,12 +514,17 @@ function retentionItem(state: OnboardingState): Outcome {
     if (c.recordClass.startsWith(STAFF_FILE_PREFIX)) continue;
     const allowed: readonly RetentionDecisionKind[] =
       c.trigger === "tenant_policy" ? ["period_set", "not_used"] : ["accepted", "lengthened"];
-    const decided = state.retentionDecisions.some(
-      (d) =>
-        d.recordClass === c.recordClass &&
-        allowed.includes(d.kind) &&
-        d.decidedAt.getTime() >= c.changedAt.getTime(),
-    );
+    // The latest decision for the class stands; an earlier one never counts once overtaken.
+    const latest = state.retentionDecisions
+      .filter((d) => d.recordClass === c.recordClass)
+      .reduce<OnboardingState["retentionDecisions"][number] | null>(
+        (last, d) => (last === null || d.decidedAt.getTime() > last.decidedAt.getTime() ? d : last),
+        null,
+      );
+    const decided =
+      latest !== null &&
+      allowed.includes(latest.kind) &&
+      latest.decidedAt.getTime() >= c.changedAt.getTime();
     if (!decided) pending.push(c.recordClass);
   }
   const staffOptions = state.retentionClasses.filter((c) =>
@@ -610,6 +623,9 @@ function optOutItem(state: OnboardingState): Outcome {
 }
 
 function sampleItem(state: OnboardingState): Outcome {
+  if (state.sampleDataPresent === null) {
+    return { done: false, reason: NOT_YET_RECORDED, outstanding: [] };
+  }
   return state.sampleDataPresent
     ? { done: false, reason: "Remove the sample data before you add real people.", outstanding: [] }
     : { done: true, reason: "There is no sample data.", outstanding: [] };
@@ -663,3 +679,157 @@ export function tenantDefaultRateKeys(
     .map((r) => r.key);
   return [...new Set(keys)].sort();
 }
+
+// ------------------------------------------------------------------------------------------------
+// Onboarding decisions (rule 27): a person decides, and the decision is a record with who and when
+// ------------------------------------------------------------------------------------------------
+
+export type SettingDecisionKind = "accepted" | "set";
+
+export type DecisionProblem =
+  | "not_a_tenant_default"
+  | "no_own_setting"
+  | "not_a_retention_class"
+  | "staff_file_is_an_option"
+  | "kind_not_for_class"
+  | "no_own_period"
+  | "not_longer"
+  | "safety_case_not_current"
+  | "reviewer_required"
+  | "reviewer_not_member";
+
+export interface DecisionIssue {
+  readonly problem: DecisionProblem;
+  readonly message: string;
+}
+
+/**
+ * A decision on a tenant-default setting: accepting Harbour's default, or saying the organisation
+ * has set its own, which needs its own figure in the rate table first. Never a tick on its own.
+ */
+/**
+ * Who reviewed or assessed a clinical decision (HZ-027, HZ-018): an active member of the
+ * organisation, named when the decision is recorded. `null` when none was named.
+ */
+export type NamedReviewer = "active_member" | "not_member" | null;
+
+function reviewerIssue(reviewer: NamedReviewer): DecisionIssue | null {
+  if (reviewer === null) {
+    return {
+      problem: "reviewer_required",
+      message: "Say who reviewed it: your clinical lead or Clinical Safety Officer.",
+    };
+  }
+  if (reviewer === "not_member") {
+    return {
+      problem: "reviewer_not_member",
+      message: "Choose an active member of your organisation as the reviewer.",
+    };
+  }
+  return null;
+}
+
+export function checkSettingDecision(input: {
+  readonly kind: SettingDecisionKind;
+  readonly isTenantDefault: boolean;
+  readonly hasOwnSetting: boolean;
+  /** For a clinical setting (`isClinicalSetting`): who reviewed it. Ignored for the others. */
+  readonly clinical?: { readonly reviewer: NamedReviewer };
+}): DecisionIssue | null {
+  if (!input.isTenantDefault) {
+    return {
+      problem: "not_a_tenant_default",
+      message: "This is not a setting Harbour chose for you.",
+    };
+  }
+  if (input.kind === "set" && !input.hasOwnSetting) {
+    return {
+      problem: "no_own_setting",
+      message: "Set your own figure first, then record the decision.",
+    };
+  }
+  return input.clinical ? reviewerIssue(input.clinical.reviewer) : null;
+}
+
+/** Months in a retention period, to compare periods given in years or months. */
+const monthsOf = (p: { readonly period: number; readonly unit: string }) =>
+  p.unit === "years" ? p.period * 12 : p.period;
+
+/**
+ * A decision on a retention class (rule 26): a class with a default is accepted, or lengthened to
+ * the organisation's own longer period; a class the organisation's policy sets has its period set,
+ * or is marked not used. Lengthening or setting needs the organisation's own period first, and a
+ * lengthened period must be longer than the default. The staff file option is chosen on its own.
+ */
+export function checkRetentionDecision(input: {
+  readonly recordClass: string;
+  readonly kind: RetentionDecisionKind;
+  /** The schedule's row for the class, or null when there is none. */
+  readonly schedule: {
+    readonly trigger: string;
+    readonly period: number;
+    readonly unit: string;
+  } | null;
+  /** The organisation's own period for the class, if it has one. */
+  readonly own: { readonly period: number; readonly unit: string } | null;
+}): DecisionIssue | null {
+  const { schedule, own, kind } = input;
+  if (schedule === null) {
+    return { problem: "not_a_retention_class", message: "There is no such kind of record." };
+  }
+  if (input.recordClass.startsWith(STAFF_FILE_PREFIX)) {
+    return {
+      problem: "staff_file_is_an_option",
+      message: "Choose how long staff files are kept with the staff file option.",
+    };
+  }
+  const byPolicy = schedule.trigger === "tenant_policy";
+  const allowed: readonly RetentionDecisionKind[] = byPolicy
+    ? ["period_set", "not_used"]
+    : ["accepted", "lengthened"];
+  if (!allowed.includes(kind)) {
+    return {
+      problem: "kind_not_for_class",
+      message: byPolicy
+        ? "Your policy sets this period: set it, or mark this kind of record not used."
+        : "Accept Harbour's period for this kind of record, or lengthen it.",
+    };
+  }
+  if ((kind === "lengthened" || kind === "period_set") && own === null) {
+    return {
+      problem: "no_own_period",
+      message: "Set your own period first, then record the decision.",
+    };
+  }
+  if (kind === "lengthened" && own !== null && monthsOf(own) <= monthsOf(schedule)) {
+    return {
+      problem: "not_longer",
+      message: "Your period must be longer than Harbour's; otherwise accept it.",
+    };
+  }
+  return null;
+}
+
+/**
+ * A DCB0160 assessment is recorded against Harbour's safety case for the release the organisation
+ * runs, as the recorder read it: an assessment of an earlier one does not cover this release.
+ */
+export function checkDcb0160Recording(input: {
+  readonly safetyCaseVersion: string;
+  readonly currentSafetyCaseVersion: string;
+  /** The CSO or clinical lead who made the assessment. */
+  readonly assessor: NamedReviewer;
+}): DecisionIssue | null {
+  return input.safetyCaseVersion.trim() === input.currentSafetyCaseVersion
+    ? reviewerIssue(input.assessor)
+    : {
+        problem: "safety_case_not_current",
+        message: `Assess the deployment against the current safety case, ${input.currentSafetyCaseVersion}.`,
+      };
+}
+
+export const STAFF_FILE_OPTIONS = [
+  "staff_file.after_leaving",
+  "staff_file.to_75th_birthday",
+] as const;
+export type StaffFileOption = (typeof STAFF_FILE_OPTIONS)[number];

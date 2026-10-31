@@ -4,7 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
  * Web journeys with axe (WCAG 2.2 AA). Starts the API (built: apps/api/dist) and the web app
  * (built: next build) unless they are already running locally. The database must hold the demo
  * tenant: `pnpm --filter @harbour/db migrate && pnpm --filter @harbour/db seed &&
- * HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off pnpm --filter @harbour/api seed:users`.
+ * HARBOUR_SEED_DEMO_USERS=1 HARBOUR_DEMO_MFA=off HARBOUR_DEMO_E2E_PASSKEY=1 pnpm --filter
+ * @harbour/api seed:users` (the last gives the demo manager the passkey the step-up journeys use).
  */
 const WEB_URL = process.env.WEB_URL ?? "http://localhost:3000";
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
@@ -33,6 +34,8 @@ export default defineConfig({
       command: "node dist/server.js",
       cwd: "../api",
       url: `${API_URL}/health`,
+      // Every journey signs in from one address here; the production limit (10) would refuse them.
+      env: { AUTH_SIGN_IN_PER_MINUTE: "600" },
       reuseExistingServer: !CI,
       timeout: 60_000,
       stdout: "ignore",
@@ -43,7 +46,7 @@ export default defineConfig({
       url: `${WEB_URL}/api/health`,
       reuseExistingServer: !CI,
       timeout: 120_000,
-      env: { API_URL, NEXT_TELEMETRY_DISABLED: "1" },
+      env: { API_URL, PUBLIC_WEB_URL: WEB_URL, NEXT_TELEMETRY_DISABLED: "1" },
       stdout: "ignore",
       stderr: "pipe",
     },
