@@ -234,6 +234,329 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/branding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's white-label name, accent and logo
+     * @description Any member: the shell shows them. Holds no personal data, so it is not audited as a view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Branding */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the display name and accent colour
+     * @description platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SaveBranding"];
+        };
+      };
+      responses: {
+        /** @description Saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/branding/logo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The organisation's logo (any member; the shell shows it)
+     * @description Not audited as a view: a logo is about no one and is shown on every page. 404 when there is none.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The logo */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set the organisation's logo (the body is the image)
+     * @description platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+        };
+      };
+      responses: {
+        /** @description Logo stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DocumentItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    /**
+     * Stop showing the organisation's logo
+     * @description platform.tenant.manage. The shell shows the product name again; the file stays in the document store until its retention ends. Audited (platform.branding.logo, removed).
+     */
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Removed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["Branding"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/search": {
     parameters: {
       query?: never;
@@ -22299,6 +22622,8 @@ export interface components {
         /** @enum {string} */
         terminology: "resident" | "client" | "person_we_support";
         brandAccent: string | null;
+        /** Format: uuid */
+        logoDocumentId: string | null;
         /** @enum {string} */
         nation: "england" | "wales" | "scotland" | "northern_ireland";
       };
@@ -22335,6 +22660,67 @@ export interface components {
       respondBy: string;
       routedToManager: boolean;
     };
+    Branding: {
+      registeredName: string;
+      displayName: string | null;
+      accent: string | null;
+      logo: {
+        /** Format: uuid */
+        documentId: string;
+        /** @enum {string} */
+        contentType: "image/jpeg" | "image/png" | "image/webp";
+      } | null;
+      version: number;
+    };
+    SaveBranding: {
+      displayName: string | null;
+      accent: string | null;
+      expectedVersion: number;
+    };
+    /** @description Document metadata; the bytes are at /content */
+    DocumentItem: {
+      /** Format: uuid */
+      id: string;
+      category: components["schemas"]["DocumentCategoryKey"];
+      title: string;
+      fileName: string | null;
+      contentType: string;
+      sizeBytes: number;
+      sha256: string;
+      documentVersion: number;
+      /** Format: uuid */
+      previousVersionId: string | null;
+      /** Format: uuid */
+      personId: string | null;
+      subjectType: string | null;
+      /** Format: uuid */
+      subjectId: string | null;
+      /** @enum {string} */
+      status: "available" | "quarantined" | "destroyed";
+      /** @enum {string} */
+      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
+      retentionClass: string;
+      legalHold: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      signatures: {
+        signerName: string;
+        /** @enum {string} */
+        signerCapacity: "staff" | "person" | "representative";
+        statement: string;
+        /** Format: date-time */
+        signedAt: string;
+        documentSha256: string;
+      }[];
+    };
+    /** @enum {string} */
+    DocumentCategoryKey:
+      | "person_photo"
+      | "feed_photo"
+      | "care_attachment"
+      | "person_document"
+      | "organisation_document"
+      | "organisation_logo";
     SearchResults: {
       items: components["schemas"]["SearchResultItem"][];
       counts: {
@@ -24216,49 +24602,6 @@ export interface components {
      * @enum {string}
      */
     WorkflowListView: "approvals" | "all";
-    /** @description Document metadata; the bytes are at /content */
-    DocumentItem: {
-      /** Format: uuid */
-      id: string;
-      category: components["schemas"]["DocumentCategoryKey"];
-      title: string;
-      fileName: string | null;
-      contentType: string;
-      sizeBytes: number;
-      sha256: string;
-      documentVersion: number;
-      /** Format: uuid */
-      previousVersionId: string | null;
-      /** Format: uuid */
-      personId: string | null;
-      subjectType: string | null;
-      /** Format: uuid */
-      subjectId: string | null;
-      /** @enum {string} */
-      status: "available" | "quarantined" | "destroyed";
-      /** @enum {string} */
-      scanStatus: "clean" | "infected" | "unavailable" | "not_scanned";
-      retentionClass: string;
-      legalHold: boolean;
-      /** Format: date-time */
-      createdAt: string;
-      signatures: {
-        signerName: string;
-        /** @enum {string} */
-        signerCapacity: "staff" | "person" | "representative";
-        statement: string;
-        /** Format: date-time */
-        signedAt: string;
-        documentSha256: string;
-      }[];
-    };
-    /** @enum {string} */
-    DocumentCategoryKey:
-      | "person_photo"
-      | "feed_photo"
-      | "care_attachment"
-      | "person_document"
-      | "organisation_document";
     DocumentList: {
       items: components["schemas"]["DocumentItem"][];
     };
