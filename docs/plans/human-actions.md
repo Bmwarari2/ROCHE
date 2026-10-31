@@ -4,6 +4,11 @@ Work only a person can do (master prompt sections 3, 19 and 20). The build never
 they gate a real tenant going live, which is Brian's decision. Each item says what the build has
 already produced for it. Update the status column as items are done.
 
+**Owner instruction, 31/10/2026 ([ADR-0098](../decisions/0098-production-on-google-cloud.md)):** every
+open question below, whoever owns it, takes the default in force (as built and marked to verify) so
+that development never waits. All of them are reviewed at the testing phase after development, before
+any real tenant goes live. Sign-offs, accounts, appointments and contracts still need the people named.
+
 Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be appointed), **DPO**
 (data protection officer or named lead), **Tenant** (each care provider at onboarding).
 

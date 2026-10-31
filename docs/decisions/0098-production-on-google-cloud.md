@@ -12,8 +12,8 @@ informed: CSO, DPO, advisers
 
 Section 6 of the master prompt, [ADR-0001](0001-technology-stack.md) and
 [ADR-0008](0008-production-hosting.md) place production on AWS eu-west-2 (London). On 31/10/2026
-the owner decided that production runs on Google Cloud instead. The same day he decided that every
-open decision he owns takes the default already in force. This ADR records both, the Google Cloud
+the owner decided that production runs on Google Cloud instead. The same day the owner decided that
+every open decision takes the default already in force until the testing phase. This ADR records both, the Google Cloud
 target and what it replaces. It deviates from the master prompt (section 6 names AWS); the
 constraints digest says such a deviation is recorded in an ADR, and this is that record. The master
 prompt itself is left as the owner wrote it.
@@ -183,15 +183,23 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
 - Good, because the code and Terraform plan already target it.
 - Bad, because the owner decided otherwise.
 
-## The owner's decision on his open decisions (31/10/2026)
+## The owner's decision on open decisions (31/10/2026)
 
-The owner decided that every open decision he owns takes the default already in force. In
+The owner decided first that every open decision owned by Brian takes the default already in force. In
 [human-actions.md](../plans/human-actions.md), every row owned by Brian and every row in "Product
 decisions still open" that has a default in force is marked "decided 31/10/2026: default accepted
 (owner)". Rows with no default to accept stay open. These are choosing a vendor (for example the
 SMS gateway H-09, the IDSP H-521 and the DBS route H-522), accounts, credentials and contracts, and
-pricing without a default. Rows owned by the CSO, DPO, advisers or tenants are unchanged. A default
-accepted here can still be changed later by a new ADR.
+pricing without a default.
+
+Later the same day the owner widened this: every open human question, whoever owns it (the CSO, the
+DPO, an adviser, the design partner or a tenant), takes the default in force, as built and marked to
+verify, so that no question holds back development. All of them are reviewed at the testing phase
+after development, before any real tenant goes live; the status of a row changes only when that
+review, or an earlier answer, decides it. This does not sign anything off: DCB0129 sign-offs, the
+DPIA, certifications, accounts, appointments and contracts still need the people named, and the
+go-live gates in the safety case and DPIA are unchanged. A default can still be changed by a new
+ADR.
 
 ## More information
 
