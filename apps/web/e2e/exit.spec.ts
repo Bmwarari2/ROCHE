@@ -441,8 +441,10 @@ test("hazard HZ-013 a death drafts its notifications, which the checklist links 
   await openLeaving(page, id);
   const regulator = item(page, "Death notification to the regulator");
   const examiner = item(page, "Information pack sent to the medical examiner");
+  // The regulator's notification is required by law; neither is ticked by hand.
+  await expect(regulator).toContainText("Required by law");
   for (const entry of [regulator, examiner]) {
-    await expect(entry).toContainText("Required by law");
+    await expect(entry.getByRole("link", { name: /^Open the notification: / })).toBeVisible();
     await expect(entry.getByRole("button")).toHaveCount(0);
   }
   await checkBothThemes(page, "death checklist with its notifications");
