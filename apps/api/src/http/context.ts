@@ -39,7 +39,7 @@ import {
   SESSION_EXPIRES_IN_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "../auth/better-auth";
-import { sessionFactorState } from "../auth/session-factor";
+import { sessionFactorState, sessionSsoTenant } from "../auth/session-factor";
 import type { Config } from "../config";
 import type { FlagService } from "../flags/provider";
 import type { MockEmail } from "../integrations/adapters";
@@ -391,6 +391,9 @@ export const tenantMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     }
     throw problems.notAMember();
   }
+  // An SSO session reaches only the organisation whose provider signed it in (#33 review H2).
+  const ssoTenant = await sessionSsoTenant(services.authPool, session.sessionId);
+  if (ssoTenant !== null && ssoTenant !== membership.tenantId) throw problems.notAMember();
 
   const now = new Date();
   const deviceId = deviceIdOf(c.req.header(DEVICE_HEADER));

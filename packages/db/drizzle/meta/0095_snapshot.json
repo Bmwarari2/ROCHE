@@ -24411,7 +24411,7 @@
         },
         "sso_connection_key_ref": {
           "name": "sso_connection_key_ref",
-          "value": "private_key_ref ~ '^harbour/sso/[a-z0-9][a-z0-9-]{0,62}(/[a-z0-9][a-z0-9-]{0,62}){0,2}$'"
+          "value": "private_key_ref ~ ('^harbour/sso/' || tenant_id::text || '/[a-z0-9][a-z0-9-]{0,62}$')"
         },
         "sso_connection_client_id": {
           "name": "sso_connection_client_id",

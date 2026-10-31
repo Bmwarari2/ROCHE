@@ -25,6 +25,24 @@ Branch `feat/platform-sso`. PLAT-005 (partial: OpenID Connect; SAML later, H-753
 - Hazard log: HZ-112 control and tests for SSO. Records of processing, data standards, feature
   register, human actions H-750 to H-755.
 
+## Security review (#33)
+
+- H1: discovery with the plugin's SSRF guards fully on (nothing trusted), after the connection's
+  checks, with a generic error; `ssoTrustedOrigins` removed (also M2: no provider is ever a trusted
+  origin).
+- H2: one provider account, one sign-in (checked across providers with the same issuer); an SSO
+  session is bound to its organisation (`session-sso-tenant` record, enforced in the tenant
+  middleware); a new issuer, client or discovery URL switches SSO off and unverifies the domains
+  (database trigger).
+- M1: `trustEmailVerified` (the resolver checks the claim) and adapter transactions; a real
+  callback test against a local mock provider (`test/sso-callback.test.ts`).
+- M3: keys under `harbour/sso/<tenant id>/` (API and database check), `DescribeSecret` for
+  existence; IAM tag condition in H-751.
+- L1: `link_sso_member` needs the provider's `auth.account` row; definer calls go through
+  `withRequestContext`; the facts function returns no address or key name (`app.sso_key_ref` gives
+  the key's name for a switched-on connection only). L2: SAML routes and the provider-less callback
+  refused before Better Auth. L3: the plugin has no nonce; recorded in ADR-0091 and H-756.
+
 ## Tests
 
 - `packages/domain/src/platform/sso.test.ts` (44, 25 new).

@@ -47,6 +47,7 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Single sign-on (migration 0095): the callback's facts and the invited member's link.
   "app.sso_sign_in_facts(text, text)": ["harbour_app"],
   "app.link_sso_member(text, text)": ["harbour_app"],
+  "app.sso_key_ref(text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

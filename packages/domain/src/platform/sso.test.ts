@@ -150,12 +150,15 @@ describe("PLAT-005 an SSO session still needs Harbour's own second factor", () =
   });
 });
 
+const TENANT = "0194d000-0000-7000-8000-000000000001";
+const OTHER_TENANT = "0194e000-0000-7000-8000-000000000001";
+
 describe("PLAT-005 SSO connection checks (rule 18)", () => {
   const ok = {
     issuer: "https://login.example.invalid/tenant",
     discoveryUrl: "https://login.example.invalid/tenant/.well-known/openid-configuration",
     clientId: "harbour-client",
-    privateKeyRef: "harbour/sso/acme-care",
+    privateKeyRef: `harbour/sso/${TENANT}/acme-care`,
     tokenEndpointAuthentication: "private_key_jwt" as const,
     allowedRoleKeys: ["care_worker"],
   };
@@ -176,6 +179,16 @@ describe("PLAT-005 SSO connection checks (rule 18)", () => {
       "key_ref_invalid",
     ],
     [
+      "another organisation's key",
+      { privateKeyRef: `harbour/sso/${OTHER_TENANT}/acme-care` },
+      "key_ref_invalid",
+    ],
+    [
+      "a key outside any organisation",
+      { privateKeyRef: "harbour/sso/acme-care" },
+      "key_ref_invalid",
+    ],
+    [
       "a client secret",
       { tokenEndpointAuthentication: "client_secret_basic" },
       "client_secret_not_allowed",
@@ -183,7 +196,7 @@ describe("PLAT-005 SSO connection checks (rule 18)", () => {
     ["an unknown role", { allowedRoleKeys: ["nobody"] }, "unknown_role"],
     ["no roles", { allowedRoleKeys: [] }, "roles_required"],
   ] as const)("%s", (_name, change, problem) => {
-    const result = checkSsoConnection({ ...ok, ...change }, known);
+    const result = checkSsoConnection({ ...ok, ...change }, known, TENANT);
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
   });

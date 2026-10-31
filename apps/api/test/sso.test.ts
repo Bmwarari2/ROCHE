@@ -2,15 +2,21 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createDatabase } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { SSO_DISABLED_PATHS } from "../src/auth/better-auth";
+import { createAuth, isBlockedSsoPath, SSO_DISABLED_PATHS } from "../src/auth/better-auth";
 import { FACTOR_ROUTES } from "../src/auth/session-factor";
-import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
-import { createSsoHooks, createSsoKeyStore } from "../src/services/sso";
-import { ageSession, createHarness, type Harness, markSessionsVerified } from "./support/harness";
+import { createSsoHooks, createSsoKeyStore, discoverWithoutTrust } from "../src/services/sso";
+import {
+  ageSession,
+  createHarness,
+  type Harness,
+  markSessionsVerified,
+  OTHER,
+} from "./support/harness";
 
 /**
  * Single sign-on through the API (PLAT-005; platform.md, Phase 2: single sign-on, rules 15 to 22;
@@ -20,12 +26,13 @@ import { ageSession, createHarness, type Harness, markSessionsVerified } from ".
  * for care records. The identity provider and DNS are mocked; invented members only.
  */
 
-const KEY_REF = "harbour/sso/demo";
+const KEY_REF = `harbour/sso/${DEMO.tenantId}/demo`;
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const PEM = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 const ISSUER = "https://login.example.invalid/demo";
 const PROVIDER = `harbour-${DEMO.tenantId}`;
 const DOMAIN = "example.invalid";
+const NOTES = "/v1/people/0194d000-0000-7000-8600-000000000001/notes";
 const INVITED = "0194d000-0000-7000-8000-0000000003a1";
 
 let h: Harness;
@@ -115,7 +122,7 @@ describe("PLAT-005 the configuration (rules 18, 19, 22)", () => {
     ],
     [
       "a key missing from the store",
-      { privateKeyRef: "harbour/sso/missing" },
+      { privateKeyRef: `harbour/sso/${DEMO.tenantId}/missing` },
       "sso_key_not_in_store",
     ],
     ["switching on with no verified domain", { enabled: true }, "sso_domain_required"],
@@ -224,12 +231,14 @@ describe("PLAT-005 the configuration (rules 18, 19, 22)", () => {
 describe("the SSO callback's policy (rules 15, 16, 20)", () => {
   const hooks = () =>
     createSsoHooks({
-      appPool: h.db.pool("harbour_app"),
+      db: createDatabase(h.db.pool("harbour_app")),
+      authPool: h.db.pool("harbour_auth"),
       keys: createSsoKeyStore(loadConfig({ SSO_TEST_KEYS: JSON.stringify({ [KEY_REF]: PEM }) })),
       logger: createLogger("silent"),
     });
-  const user = (email: string, emailVerified = true) => ({
+  const user = (email: string, emailVerified = true, accountId = `sub-${email.toLowerCase()}`) => ({
     providerId: PROVIDER,
+    accountKey: { issuer: ISSUER, accountId },
     providerUser: { email, emailVerified },
   });
 
@@ -271,6 +280,19 @@ describe("the SSO callback's policy (rules 15, 16, 20)", () => {
       .query(
         "INSERT INTO auth.user (id, name, email, email_verified) VALUES ('auth-ivy', 'Ivy Invited', 'ivy.invited@example.invalid', true)",
       );
+    // Linked only for a sign-in that came through this provider (#33 review L1).
+    await hooks().linkInvitedMember(PROVIDER, "auth-ivy");
+    expect(
+      (
+        await owner<{ status: string }>("SELECT status FROM tenant_user WHERE id = $1", [INVITED])
+      )[0]?.status,
+    ).toBe("invited");
+    await h.db
+      .pool("harbour_owner")
+      .query(
+        "INSERT INTO auth.account (id, account_id, provider_id, user_id, created_at, updated_at) VALUES ('acc-ivy', 'sub-ivy', $1, 'auth-ivy', now(), now())",
+        [PROVIDER],
+      );
     await hooks().linkInvitedMember(PROVIDER, "auth-ivy");
     const [member] = await owner<{ status: string; auth_user_id: string }>(
       "SELECT status, auth_user_id FROM tenant_user WHERE id = $1",
@@ -279,25 +301,25 @@ describe("the SSO callback's policy (rules 15, 16, 20)", () => {
     expect(member).toEqual({ status: "active", auth_user_id: "auth-ivy" });
   });
 
+  it("H2: refuses a provider account already linked to another sign-in, through this issuer or another organisation's", async () => {
+    // The manager's provider account is linked to the carer's sign-in (as if another
+    // organisation's provider with the same issuer had linked it).
+    await h.db
+      .pool("harbour_owner")
+      .query(
+        "INSERT INTO auth.account (id, account_id, provider_id, user_id, created_at, updated_at) VALUES ('acc-taken', 'sub-taken', $1, $2, now(), now())",
+        [PROVIDER, h.authIds.carer],
+      );
+    expect(
+      await hooks().resolveUser(user(DEMO.users.manager.email, true, "sub-taken")),
+    ).toMatchObject({ action: "reject", code: "sso_account_bound_elsewhere" });
+  });
+
   it("gives the plugin the key from the store, and none for anything else", async () => {
     expect(await hooks().resolvePrivateKey({ providerId: PROVIDER })).toEqual({
       privateKeyPem: PEM,
     });
     expect(await hooks().resolvePrivateKey({ providerId: "google" })).toEqual({});
-  });
-
-  it("starts the sign-in at the provider with PKCE and Harbour's client id", async () => {
-    const r = await h.request("/api/auth/sign-in/sso", {
-      method: "POST",
-      body: { providerId: PROVIDER, callbackURL: "http://localhost:3000/" },
-      origin: MOBILE_APP_ORIGIN,
-    });
-    const body = (await r.json()) as { url?: string };
-    expect(r.status, JSON.stringify(body)).toBe(200);
-    const url = new URL(body.url ?? "");
-    expect(`${url.origin}${url.pathname}`).toBe(`${ISSUER}/authorize`);
-    expect(url.searchParams.get("client_id")).toBe("harbour-demo");
-    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
   });
 });
 
@@ -326,5 +348,97 @@ describe("hazard HZ-112 SSO is never Harbour's second factor (rule 21)", () => {
       await markSessionsVerified(auth);
     }
     expect((await notes()).status).toBe(200);
+  });
+});
+
+describe("#33 security review", () => {
+  it.each([
+    ["a private address", "https://10.0.0.1"],
+    ["loopback by name", "https://localhost"],
+    ["a name that resolves to a private address", "https://vm"],
+    ["cloud metadata", "https://169.254.169.254"],
+  ])("H1: discovery to %s is refused, with a generic error", async (_name, issuer) => {
+    await expect(
+      discoverWithoutTrust(issuer, `${issuer}/.well-known/openid-configuration`),
+    ).rejects.toThrow(/^sso_discovery_failed$/);
+  });
+
+  it("H1: the connection is checked before any discovery, and discovery errors say nothing of the provider", async () => {
+    // A key outside the organisation's prefix is refused before discovery would run.
+    const r = await send(
+      "PUT",
+      "/v1/sso/connection",
+      "owner",
+      connection({ enabled: true, privateKeyRef: "harbour/sso/other/demo", expectedVersion: 1 }),
+    );
+    expect(r.status).toBe(422);
+  });
+
+  it("M2: no identity provider is ever a trusted origin", () => {
+    const auth = createAuth(loadConfig({}), h.db.pool("harbour_auth"));
+    const trusted = auth.options.trustedOrigins as string[];
+    expect(Array.isArray(trusted)).toBe(true);
+    expect(trusted.some((o) => o.includes("login.example.invalid"))).toBe(false);
+  });
+
+  it("H2: a new issuer switches SSO off until the domains are proved again", async () => {
+    const [before] = await owner<{ version: number }>("SELECT version FROM sso_connection");
+    const r = await send(
+      "PUT",
+      "/v1/sso/connection",
+      "owner",
+      connection({
+        issuer: "https://login2.example.invalid/demo",
+        discoveryUrl: "https://login2.example.invalid/demo/.well-known/openid-configuration",
+        enabled: true,
+        expectedVersion: before?.version,
+      }),
+    );
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { enabled: boolean }).enabled).toBe(false);
+    const domains = await owner<{ verified_at: Date | null }>(
+      "SELECT verified_at FROM sso_domain WHERE removed_at IS NULL",
+    );
+    expect(domains.every((d) => d.verified_at === null)).toBe(true);
+    const provider = await h.db
+      .pool("harbour_auth")
+      .query("SELECT 1 FROM auth.sso_provider WHERE provider_id = $1", [PROVIDER]);
+    expect(provider.rows).toHaveLength(0);
+  });
+
+  it("H2: an SSO session reaches only the organisation that signed it in", async () => {
+    const auth = h.db.pool("harbour_auth");
+    const token = (h.tokens.manager ?? "").split(".")[0];
+    await auth.query(
+      `INSERT INTO auth.verification (id, identifier, value, expires_at)
+       SELECT gen_random_uuid()::text, 'session-sso-tenant:' || s.id, $2, s.expires_at
+         FROM auth.session s WHERE s.token = $1`,
+      [token, OTHER.tenantId],
+    );
+    try {
+      const r = await h.request(NOTES, as("manager"));
+      expect(r.status).toBe(403);
+    } finally {
+      await auth.query(
+        `DELETE FROM auth.verification v USING auth.session s
+          WHERE s.token = $1 AND v.identifier = 'session-sso-tenant:' || s.id`,
+        [token],
+      );
+    }
+    expect((await h.request(NOTES, as("manager"))).status).toBe(200);
+  });
+
+  it("L2: SAML and the provider-less callback are refused before Better Auth", async () => {
+    for (const path of [
+      "/api/auth/sso/callback",
+      `/api/auth/sso/saml2/sp/acs/${PROVIDER}`,
+      "/api/auth/sso/saml2/sp/metadata",
+      `/api/auth/sso/saml2/logout/${PROVIDER}`,
+    ]) {
+      expect(isBlockedSsoPath(path), path).toBe(true);
+      const r = await h.request(path, { method: "POST", body: {} });
+      expect(r.status, path).toBe(404);
+    }
+    expect(isBlockedSsoPath(`/api/auth/sso/callback/${PROVIDER}`)).toBe(false);
   });
 });

@@ -30,7 +30,7 @@ export const ssoConnection = pgTable(
     issuer: text("issuer").notNull(),
     discoveryUrl: text("discovery_url").notNull(),
     clientId: text("client_id").notNull(),
-    /** The key's name in the managed secret store (`SSO_KEY_REF`). */
+    /** The key's name in the managed store, under `harbour/sso/<tenant id>/` (`isSsoKeyRefFor`). */
     privateKeyRef: text("private_key_ref").notNull(),
     /** The key id (`kid`) the provider registered, if it needs one. */
     privateKeyId: text("private_key_id"),
@@ -47,7 +47,7 @@ export const ssoConnection = pgTable(
     check("sso_connection_https", sql`issuer ~ '^https://' AND discovery_url ~ '^https://'`),
     check(
       "sso_connection_key_ref",
-      sql`private_key_ref ~ '^harbour/sso/[a-z0-9][a-z0-9-]{0,62}(/[a-z0-9][a-z0-9-]{0,62}){0,2}$'`,
+      sql`private_key_ref ~ ('^harbour/sso/' || tenant_id::text || '/[a-z0-9][a-z0-9-]{0,62}$')`,
     ),
     check("sso_connection_client_id", sql`length(btrim(client_id)) > 0`),
     check("sso_connection_roles", sql`cardinality(allowed_role_keys) > 0`),

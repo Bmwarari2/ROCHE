@@ -31,7 +31,7 @@ CREATE TABLE "sso_connection" (
 	CONSTRAINT "sso_connection_provider_id_key" UNIQUE("provider_id"),
 	CONSTRAINT "sso_connection_provider_id" CHECK (provider_id = 'harbour-' || tenant_id::text),
 	CONSTRAINT "sso_connection_https" CHECK (issuer ~ '^https://' AND discovery_url ~ '^https://'),
-	CONSTRAINT "sso_connection_key_ref" CHECK (private_key_ref ~ '^harbour/sso/[a-z0-9][a-z0-9-]{0,62}(/[a-z0-9][a-z0-9-]{0,62}){0,2}$'),
+	CONSTRAINT "sso_connection_key_ref" CHECK (private_key_ref ~ ('^harbour/sso/' || tenant_id::text || '/[a-z0-9][a-z0-9-]{0,62}$')),
 	CONSTRAINT "sso_connection_client_id" CHECK (length(btrim(client_id)) > 0),
 	CONSTRAINT "sso_connection_roles" CHECK (cardinality(allowed_role_keys) > 0)
 );
@@ -107,15 +107,16 @@ GRANT SELECT (tenant_id, provider_id, private_key_ref, allowed_role_keys, enable
 GRANT SELECT (tenant_id, domain, verified_at, removed_at) ON public.sso_domain
   TO harbour_invitation_owner;
 --> statement-breakpoint
+GRANT SELECT (user_id, provider_id) ON auth.account TO harbour_invitation_owner;
+--> statement-breakpoint
 -- The facts the SSO callback needs to run ssoSignInDecision (rules 15, 16, 20) before anyone is
--- signed in: the connection (with its key's store name, never the key), the verified domains and the member with that email, in the
--- organisation the provider id names. Changes nothing; returns no row for a provider Harbour did
--- not make.
+-- signed in: whether the connection is on, its allowed roles, the verified domains, and the member
+-- with that email (id, status, sign-in, roles), in the organisation the provider id names. Nothing
+-- else (#33 review L1): no address, no key name. Changes nothing; no row for a provider Harbour
+-- did not make.
 CREATE OR REPLACE FUNCTION app.sso_sign_in_facts(p_provider_id text, p_email text)
-RETURNS TABLE (tenant_id uuid, enabled boolean, private_key_ref text, allowed_role_keys text[],
-  verified_domains text[],
-  member_id uuid, member_email text, member_status text, member_auth_user_id text,
-  member_role_keys text[])
+RETURNS TABLE (tenant_id uuid, enabled boolean, allowed_role_keys text[], verified_domains text[],
+  member_id uuid, member_status text, member_auth_user_id text, member_role_keys text[])
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 DECLARE
   v_prev_tenant text := current_setting('app.tenant_id', true);
@@ -129,11 +130,11 @@ BEGIN
   PERFORM set_config('app.tenant_id', v_tenant::text, true);
   PERFORM set_config('app.scope', 'tenant', true);
   RETURN QUERY
-    SELECT c.tenant_id, c.enabled, c.private_key_ref, c.allowed_role_keys,
+    SELECT c.tenant_id, c.enabled, c.allowed_role_keys,
       coalesce((SELECT array_agg(d.domain ORDER BY d.domain) FROM public.sso_domain d
                 WHERE d.tenant_id = c.tenant_id AND d.verified_at IS NOT NULL
                   AND d.removed_at IS NULL), ARRAY[]::text[]),
-      tu.id, tu.email, tu.status::text, tu.auth_user_id,
+      tu.id, tu.status::text, tu.auth_user_id,
       coalesce((SELECT array_agg(DISTINCT r.key ORDER BY r.key)
                 FROM public.role_assignment ra
                 JOIN public.role r ON r.id = ra.role_id AND r.tenant_id = ra.tenant_id
@@ -148,6 +149,28 @@ BEGIN
     LIMIT 1;
   PERFORM set_config('app.tenant_id', coalesce(v_prev_tenant, ''), true);
   PERFORM set_config('app.scope', coalesce(v_prev_scope, ''), true);
+END
+$$;
+--> statement-breakpoint
+-- The store name of a switched-on connection's key, for the plugin's key callback at sign-in.
+CREATE OR REPLACE FUNCTION app.sso_key_ref(p_provider_id text)
+RETURNS text
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_prev_tenant text := current_setting('app.tenant_id', true);
+  v_tenant uuid;
+  v_ref text;
+BEGIN
+  IF p_provider_id !~ '^harbour-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+    RETURN NULL;
+  END IF;
+  v_tenant := substring(p_provider_id FROM 9)::uuid;
+  PERFORM set_config('app.tenant_id', v_tenant::text, true);
+  SELECT c.private_key_ref INTO v_ref FROM public.sso_connection c
+    WHERE c.tenant_id = v_tenant AND c.provider_id = p_provider_id AND c.enabled
+      AND c.deleted_at IS NULL;
+  PERFORM set_config('app.tenant_id', coalesce(v_prev_tenant, ''), true);
+  RETURN v_ref;
 END
 $$;
 --> statement-breakpoint
@@ -181,6 +204,11 @@ BEGIN
         AND d.verified_at IS NOT NULL AND d.removed_at IS NULL) THEN
     RAISE EXCEPTION 'domain_not_verified' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
+  -- The sign-in must have come through this organisation's provider (#33 review L1).
+  IF NOT EXISTS (SELECT 1 FROM auth.account a
+                 WHERE a.user_id = p_auth_user_id AND a.provider_id = p_provider_id) THEN
+    RAISE EXCEPTION 'sso_account_missing' USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
   IF EXISTS (SELECT 1 FROM public.tenant_user tu
              WHERE tu.tenant_id = v_tenant AND tu.auth_user_id = p_auth_user_id) THEN
     RAISE EXCEPTION 'already_member' USING ERRCODE = 'integrity_constraint_violation';
@@ -202,11 +230,11 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.sso_sign_in_facts(text, text), app.link_sso_member(text, text)
-  FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.sso_sign_in_facts(text, text), app.sso_key_ref(text),
+  app.link_sso_member(text, text) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.sso_sign_in_facts(text, text), app.link_sso_member(text, text)
-  TO harbour_app;
+GRANT EXECUTE ON FUNCTION app.sso_sign_in_facts(text, text), app.sso_key_ref(text),
+  app.link_sso_member(text, text) TO harbour_app;
 --> statement-breakpoint
 GRANT CREATE ON SCHEMA app TO harbour_invitation_owner;
 --> statement-breakpoint
@@ -214,4 +242,24 @@ ALTER FUNCTION app.sso_sign_in_facts(text, text) OWNER TO harbour_invitation_own
 --> statement-breakpoint
 ALTER FUNCTION app.link_sso_member(text, text) OWNER TO harbour_invitation_owner;
 --> statement-breakpoint
+ALTER FUNCTION app.sso_key_ref(text) OWNER TO harbour_invitation_owner;
+--> statement-breakpoint
 REVOKE CREATE ON SCHEMA app FROM harbour_invitation_owner;
+--> statement-breakpoint
+-- A new issuer or client is a new identity authority: single sign-on switches off and every
+-- domain must be proved again before it can switch back on (#33 review H2).
+CREATE OR REPLACE FUNCTION app.sso_connection_authority_changed() RETURNS trigger
+  LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF NEW.issuer IS DISTINCT FROM OLD.issuer OR NEW.client_id IS DISTINCT FROM OLD.client_id
+     OR NEW.discovery_url IS DISTINCT FROM OLD.discovery_url THEN
+    NEW.enabled := false;
+    UPDATE public.sso_domain SET verified_at = NULL, verified_by = NULL
+      WHERE tenant_id = NEW.tenant_id AND removed_at IS NULL AND verified_at IS NOT NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER sso_connection_authority_changed BEFORE UPDATE ON public.sso_connection
+  FOR EACH ROW EXECUTE FUNCTION app.sso_connection_authority_changed();

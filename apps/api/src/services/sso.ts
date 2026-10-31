@@ -1,8 +1,18 @@
 import { resolveTxt } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { discoverOIDCConfig } from "@better-auth/sso";
+import {
+  DescribeSecretCommand,
+  GetSecretValueCommand,
+  SecretsManagerClient,
+} from "@aws-sdk/client-secrets-manager";
+import {
+  fetchDiscoveryDocument,
+  normalizeDiscoveryUrls,
+  validateDiscoveryDocument,
+} from "@better-auth/sso";
+import { type Database, type Transaction, withRequestContext } from "@harbour/db";
 import { ssoSignInDecision, tenantOfSsoProvider } from "@harbour/domain";
+import { sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Config } from "../config";
 import type { Logger } from "../logger";
@@ -31,8 +41,15 @@ class AwsKeyStore implements SsoKeyStore {
       throw error;
     }
   }
+  /** Whether the key exists, without reading it (#33 review M3). */
   async has(ref: string): Promise<boolean> {
-    return (await this.get(ref)) !== null;
+    try {
+      await this.client.send(new DescribeSecretCommand({ SecretId: ref }));
+      return true;
+    } catch (error) {
+      if ((error as { name?: string }).name === "ResourceNotFoundException") return false;
+      throw error;
+    }
   }
 }
 
@@ -71,29 +88,57 @@ export function createTxtLookup(config: Config): TxtLookup {
   };
 }
 
-interface SignInFacts {
+interface SignInFacts extends Record<string, unknown> {
   tenant_id: string;
   enabled: boolean;
-  private_key_ref: string;
   allowed_role_keys: string[];
   verified_domains: string[];
   member_id: string | null;
-  member_email: string | null;
   member_status: string | null;
   member_auth_user_id: string | null;
   member_role_keys: string[];
 }
 
+/** Runs a definer call in the provider's organisation, with no member (#33 review L1). */
+function asProviderOrganisation<T>(
+  db: Database,
+  providerId: string,
+  fn: (tx: Transaction) => Promise<T>,
+): Promise<T> | null {
+  const tenantId = tenantOfSsoProvider(providerId);
+  if (!tenantId) return null;
+  return withRequestContext(db, { tenantId, userId: null, scope: "tenant", locationIds: [] }, fn);
+}
+
 async function signInFacts(
-  appPool: pg.Pool,
+  db: Database,
   providerId: string,
   email: string,
 ): Promise<SignInFacts | null> {
-  const { rows } = await appPool.query<SignInFacts>("SELECT * FROM app.sso_sign_in_facts($1, $2)", [
-    providerId,
-    email,
-  ]);
-  return rows[0] ?? null;
+  const result = await asProviderOrganisation(db, providerId, (tx) =>
+    tx.execute<SignInFacts>(sql`SELECT * FROM app.sso_sign_in_facts(${providerId}, ${email})`),
+  );
+  return (result?.rows[0] as SignInFacts | undefined) ?? null;
+}
+
+/**
+ * The Harbour sign-ins this identity provider account is already linked to: through this
+ * provider, or through any provider with the same issuer (another organisation pointing at the
+ * same identity provider), so one provider account belongs to one sign-in (#33 review H2).
+ */
+async function accountOwners(
+  authPool: pg.Pool,
+  providerId: string,
+  accountKey: { issuer: string; accountId: string },
+): Promise<string[]> {
+  const { rows } = await authPool.query<{ user_id: string }>(
+    `SELECT DISTINCT a.user_id FROM auth.account a
+      WHERE a.account_id = $1
+        AND (a.provider_id = $2 OR a.provider_id IN (
+          SELECT p.provider_id FROM auth.sso_provider p WHERE p.issuer = $3))`,
+    [accountKey.accountId, providerId, accountKey.issuer],
+  );
+  return rows.map((r) => r.user_id);
 }
 
 export type SsoResolution =
@@ -104,6 +149,7 @@ export type SsoResolution =
 export interface SsoHooks {
   resolveUser(input: {
     providerId: string;
+    accountKey: { issuer: string; accountId: string };
     providerUser: { email: string; emailVerified: boolean };
   }): Promise<SsoResolution>;
   /** No key (`{}`) makes the plugin refuse the sign-in. */
@@ -112,19 +158,24 @@ export interface SsoHooks {
   linkInvitedMember(providerId: string, authUserId: string): Promise<void>;
 }
 
+const ACCOUNT_ELSEWHERE =
+  "This identity provider account is already linked to another Harbour sign-in.";
+
 /** The hooks the SSO plugin calls; they run before anyone is signed in. */
 export function createSsoHooks(deps: {
-  appPool: pg.Pool;
+  db: Database;
+  authPool: pg.Pool;
   keys: SsoKeyStore;
   logger: Logger;
 }): SsoHooks {
+  const refuse = (tenantId: string | null, code: string, message: string): SsoResolution => {
+    deps.logger.info({ event: "sso.sign_in_refused", tenantId, code }, "sso.sign_in_refused");
+    return { action: "reject", code, message };
+  };
   return {
-    async resolveUser({ providerId, providerUser }) {
-      const facts = tenantOfSsoProvider(providerId)
-        ? await signInFacts(deps.appPool, providerId, providerUser.email)
-        : null;
-      if (!facts)
-        return { action: "reject", code: "sso_off", message: "Single sign-on is not set up." };
+    async resolveUser({ providerId, accountKey, providerUser }) {
+      const facts = await signInFacts(deps.db, providerId, providerUser.email);
+      if (!facts) return refuse(null, "sso_off", "Single sign-on is not set up.");
       const decision = ssoSignInDecision({
         ssoEnabled: facts.enabled,
         assertedEmail: providerUser.email,
@@ -135,43 +186,47 @@ export function createSsoHooks(deps: {
         // members, so a member row is what the check needs (rule 15).
         operator: false,
         member:
-          facts.member_id && facts.member_email && facts.member_status
+          facts.member_id && facts.member_status
             ? {
-                email: facts.member_email,
+                // The definer matched the member by this address.
+                email: providerUser.email,
                 status: facts.member_status as "active" | "invited",
                 kind: "staff",
                 roleKeys: facts.member_role_keys,
               }
             : null,
       });
-      if (!decision.ok) {
-        deps.logger.info(
-          { event: "sso.sign_in_refused", tenantId: facts.tenant_id, code: decision.problem },
-          "sso.sign_in_refused",
-        );
-        return { action: "reject", code: decision.problem, message: decision.message };
-      }
-      if (facts.member_auth_user_id)
+      if (!decision.ok) return refuse(facts.tenant_id, decision.problem, decision.message);
+      const owners = await accountOwners(deps.authPool, providerId, accountKey);
+      if (facts.member_auth_user_id) {
+        // Only the member's own sign-in, and only if the account is not someone else's.
+        if (owners.some((owner) => owner !== facts.member_auth_user_id))
+          return refuse(facts.tenant_id, "sso_account_bound_elsewhere", ACCOUNT_ELSEWHERE);
         return { action: "link", userId: facts.member_auth_user_id, profile: "preserve" };
-      // An invited member with no sign-in yet: Better Auth creates one, then
-      // linkInvitedMember links it.
+      }
+      // An invited member with no sign-in yet: Better Auth creates one, then linkInvitedMember
+      // links it; never when the provider account already belongs to a sign-in.
+      if (owners.length > 0)
+        return refuse(facts.tenant_id, "sso_account_bound_elsewhere", ACCOUNT_ELSEWHERE);
       return { action: "continue" };
     },
     async resolvePrivateKey({ providerId }) {
-      if (!tenantOfSsoProvider(providerId)) return {};
-      const facts = await signInFacts(deps.appPool, providerId, "");
-      if (!facts?.enabled) return {};
-      const pem = await deps.keys.get(facts.private_key_ref);
+      const result = await asProviderOrganisation(deps.db, providerId, (tx) =>
+        tx.execute<{ ref: string | null }>(sql`SELECT app.sso_key_ref(${providerId}) AS ref`),
+      );
+      const ref = (result?.rows[0] as { ref: string | null } | undefined)?.ref ?? null;
+      const pem = ref ? await deps.keys.get(ref) : null;
       return pem ? { privateKeyPem: pem } : {};
     },
     async linkInvitedMember(providerId, authUserId) {
-      if (!tenantOfSsoProvider(providerId)) return;
       try {
-        await deps.appPool.query("SELECT app.link_sso_member($1, $2)", [providerId, authUserId]);
+        await asProviderOrganisation(deps.db, providerId, (tx) =>
+          tx.execute(sql`SELECT app.link_sso_member(${providerId}, ${authUserId})`),
+        );
       } catch (error) {
         // An active member was linked by resolveUser instead; anything else leaves a sign-in with
         // no membership, which reaches nothing.
-        const code = String((error as { message?: string }).message ?? "");
+        const code = String((error as { cause?: { message?: string } }).cause?.message ?? "");
         if (!code.includes("already_member")) {
           deps.logger.warn(
             { event: "sso.link_failed", tenantId: tenantOfSsoProvider(providerId) },
@@ -206,23 +261,46 @@ export function createOidcDiscovery(config: Config): OidcDiscovery {
       userInfoEndpoint: `${issuer}/userinfo`,
     });
   }
-  return async (issuer, discoveryUrl) => {
-    const found = await discoverOIDCConfig({
-      issuer,
-      discoveryEndpoint: discoveryUrl,
-      existingConfig: { tokenEndpointAuthentication: "private_key_jwt" },
-      isTrustedOrigin: (url: string) => url.startsWith("https://"),
-    });
-    if (!found.authorizationEndpoint || !found.tokenEndpoint || !found.jwksEndpoint) {
-      throw new Error("discovery_incomplete");
-    }
-    return {
-      authorizationEndpoint: found.authorizationEndpoint,
-      tokenEndpoint: found.tokenEndpoint,
-      jwksEndpoint: found.jwksEndpoint,
-      userInfoEndpoint: found.userInfoEndpoint ?? null,
+  return discoverWithoutTrust;
+}
+
+/** Nothing is trusted: every fetch must reach a public host (no private, loopback or metadata). */
+const NOTHING_TRUSTED = () => false;
+
+/**
+ * Discovery with the plugin's SSRF guards fully on (#33 review H1): the discovery URL, and every
+ * endpoint it names, must be https on a publicly routable host that resolves to a public address,
+ * with no redirects; the document's issuer must match. Fails with a generic error, never echoing
+ * what the provider or the network said.
+ */
+export async function discoverWithoutTrust(
+  issuer: string,
+  discoveryUrl: string,
+): Promise<OidcEndpoints> {
+  const https = (url: string | undefined) => url?.startsWith("https://") === true;
+  if (!https(issuer) || !https(discoveryUrl)) throw new Error("sso_discovery_failed");
+  try {
+    const document = await fetchDiscoveryDocument(discoveryUrl, undefined, NOTHING_TRUSTED);
+    validateDiscoveryDocument(document, issuer);
+    const doc = normalizeDiscoveryUrls(document, issuer, NOTHING_TRUSTED);
+    const endpoints = {
+      authorizationEndpoint: doc.authorization_endpoint,
+      tokenEndpoint: doc.token_endpoint,
+      jwksEndpoint: doc.jwks_uri,
+      userInfoEndpoint: doc.userinfo_endpoint ?? null,
     };
-  };
+    if (
+      ![endpoints.authorizationEndpoint, endpoints.tokenEndpoint, endpoints.jwksEndpoint].every(
+        https,
+      )
+    )
+      throw new Error("sso_discovery_failed");
+    if (endpoints.userInfoEndpoint !== null && !https(endpoints.userInfoEndpoint))
+      throw new Error("sso_discovery_failed");
+    return endpoints;
+  } catch {
+    throw new Error("sso_discovery_failed");
+  }
 }
 
 export interface SsoProviderProjection {
@@ -272,40 +350,4 @@ export async function setSsoProviderDomain(authPool: pg.Pool, providerId: string
     providerId,
     domain,
   ]);
-}
-
-const SSO_PATH = /^\/api\/auth\/(?:sign-in\/sso|sso\/callback\/([^/]+))$/;
-
-/**
- * The identity providers' origins Better Auth must trust to fetch their token, key and user
- * endpoints: added only on the SSO sign-in and callback paths (the callback: that provider's
- * alone), so CSRF and redirect checks everywhere else keep Harbour's own origins (ADR-0091).
- */
-export async function ssoTrustedOrigins(authPool: pg.Pool, request?: Request): Promise<string[]> {
-  if (!request) return [];
-  const match = SSO_PATH.exec(new URL(request.url).pathname);
-  if (!match) return [];
-  const { rows } = await authPool.query<{ oidc_config: string | null }>(
-    match[1]
-      ? "SELECT oidc_config FROM auth.sso_provider WHERE provider_id = $1"
-      : "SELECT oidc_config FROM auth.sso_provider",
-    match[1] ? [match[1]] : [],
-  );
-  const origins = new Set<string>();
-  for (const row of rows) {
-    const config = JSON.parse(row.oidc_config ?? "{}") as Record<string, unknown>;
-    for (const key of [
-      "issuer",
-      "authorizationEndpoint",
-      "tokenEndpoint",
-      "jwksEndpoint",
-      "userInfoEndpoint",
-    ]) {
-      const value = config[key];
-      if (typeof value === "string" && value.startsWith("https://")) {
-        origins.add(new URL(value).origin);
-      }
-    }
-  }
-  return [...origins];
 }

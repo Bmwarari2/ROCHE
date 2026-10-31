@@ -144,6 +144,40 @@ async function domainProjection(tx: Transaction, row: ConnectionRow): Promise<Pr
     : { kind: "remove", providerId: row.providerId };
 }
 
+/** The connection's own checks (rule 18), run before discovery and again when saving. */
+async function checkConnection(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  input: z.infer<typeof SaveSsoConnection>,
+  tenantId: string,
+): Promise<void> {
+  const roles = await tx
+    .select({ key: role.key })
+    .from(role)
+    .where(and(isNull(role.deletedAt), isNull(role.archivedAt)));
+  const check = checkSsoConnection(
+    input,
+    roles.map((r) => r.key),
+    tenantId,
+  );
+  if (!check.ok) throw problems.invalid(check.problem);
+  if (!(await c.get("services").ssoKeys.has(input.privateKeyRef))) {
+    throw new HttpProblem(
+      422,
+      "sso_key_not_in_store",
+      "There is no key with that name in the secret store.",
+      "Ask Thapsus to add the key, then save again.",
+    );
+  }
+  if (input.enabled && (await firstVerifiedDomain(tx)) === "unverified.invalid") {
+    throw new HttpProblem(
+      422,
+      "sso_domain_required",
+      "Verify at least one email domain before switching single sign-on on.",
+    );
+  }
+}
+
 async function loadDomain(tx: Transaction, id: string): Promise<DomainRow> {
   const [row] = await tx
     .select()
@@ -192,45 +226,24 @@ export const ssoRouter = createRouter()
       const access = await requireChange(c);
       const input = c.req.valid("json");
       let projection: Projection | null = null;
+      // Checked before anything leaves Harbour (#33 review H1).
+      await withTenant(c, (tx) => checkConnection(c, tx, input, access.tenantId));
       // Endpoints are found now, so sign-in never fetches discovery (rule 18; ADR-0091).
       let endpoints: SsoProviderProjection["endpoints"] | null = null;
       if (input.enabled) {
         try {
           endpoints = await c.get("services").oidcDiscovery(input.issuer, input.discoveryUrl);
-        } catch (error) {
+        } catch {
           throw new HttpProblem(
             422,
             "sso_discovery_failed",
-            "We could not read the identity provider's settings from its discovery URL.",
-            (error as { code?: string }).code ?? "Check the issuer and discovery URL.",
+            "We could not read the identity provider's settings.",
+            "Check the issuer and discovery URL, which must be public https addresses.",
           );
         }
       }
       const body = await withTenant(c, async (tx) => {
-        const roles = await tx
-          .select({ key: role.key })
-          .from(role)
-          .where(and(isNull(role.deletedAt), isNull(role.archivedAt)));
-        const check = checkSsoConnection(
-          input,
-          roles.map((r) => r.key),
-        );
-        if (!check.ok) throw problems.invalid(check.problem);
-        if (!(await c.get("services").ssoKeys.has(input.privateKeyRef))) {
-          throw new HttpProblem(
-            422,
-            "sso_key_not_in_store",
-            "There is no key with that name in the secret store.",
-            "Ask Thapsus to add the key, then save again.",
-          );
-        }
-        if (input.enabled && (await firstVerifiedDomain(tx)) === "unverified.invalid") {
-          throw new HttpProblem(
-            422,
-            "sso_domain_required",
-            "Verify at least one email domain before switching single sign-on on.",
-          );
-        }
+        await checkConnection(c, tx, input, access.tenantId);
         const current = await currentConnection(tx);
         const values = {
           issuer: input.issuer,

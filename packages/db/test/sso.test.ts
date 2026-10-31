@@ -38,7 +38,8 @@ const connection = (c: pg.PoolClient, provider: string, enabled = true) =>
     `INSERT INTO sso_connection (provider_id, issuer, discovery_url, client_id, private_key_ref,
        allowed_role_keys, enabled)
      VALUES ($1, 'https://login.example.invalid', 'https://login.example.invalid/.well-known/openid-configuration',
-       'harbour', 'harbour/sso/test', '{care_worker,owner}', $2) RETURNING id`,
+       'harbour', 'harbour/sso/' || app.current_tenant_id() || '/test', '{care_worker,owner}', $2)
+     RETURNING id`,
     [provider, enabled],
   );
 
@@ -144,7 +145,7 @@ describe("the shape", () => {
       asOtherTenant((c) =>
         c.query(
           `INSERT INTO sso_connection (provider_id, issuer, discovery_url, client_id, private_key_ref, allowed_role_keys)
-           VALUES ($1, 'http://login.example.invalid', 'https://login.example.invalid/d', 'c', 'harbour/sso/b', '{owner}')`,
+           VALUES ($1, 'http://login.example.invalid', 'https://login.example.invalid/d', 'c', 'harbour/sso/' || app.current_tenant_id() || '/b', '{owner}')`,
           [PROVIDER_B],
         ),
       ),
@@ -200,12 +201,30 @@ describe("the SSO callback's facts and link (rules 15, 16, 20)", () => {
   });
 
   it("refuses to link a sign-in whose address is not an invited member's", async () => {
+    await db
+      .pool("harbour_owner")
+      .query(
+        "INSERT INTO auth.account (id, account_id, provider_id, user_id, created_at, updated_at) VALUES ('acc-sam', 'sub-sam', $1, $2, now(), now())",
+        [PROVIDER_A, STRANGER_AUTH],
+      );
     await expect(
       asCallback((c) => c.query("SELECT app.link_sso_member($1, $2)", [PROVIDER_A, STRANGER_AUTH])),
     ).rejects.toThrow(/member_not_invited/);
   });
 
+  it("refuses to link a sign-in that did not come through this organisation's provider", async () => {
+    await expect(
+      asCallback((c) => c.query("SELECT app.link_sso_member($1, $2)", [PROVIDER_A, INVITED_AUTH])),
+    ).rejects.toThrow(/sso_account_missing/);
+  });
+
   it("links an invited member at a verified domain, once, and audits it", async () => {
+    await db
+      .pool("harbour_owner")
+      .query(
+        "INSERT INTO auth.account (id, account_id, provider_id, user_id, created_at, updated_at) VALUES ('acc-ivy', 'sub-ivy', $1, $2, now(), now())",
+        [PROVIDER_A, INVITED_AUTH],
+      );
     const { rows } = await asCallback((c) =>
       c.query("SELECT app.link_sso_member($1, $2) AS id", [PROVIDER_A, INVITED_AUTH]),
     );
@@ -221,6 +240,25 @@ describe("the SSO callback's facts and link (rules 15, 16, 20)", () => {
     await expect(
       asCallback((c) => c.query("SELECT app.link_sso_member($1, $2)", [PROVIDER_A, INVITED_AUTH])),
     ).rejects.toThrow(/already_member/);
+  });
+
+  it("hands the key's store name only for a switched-on connection", async () => {
+    const { rows } = await asCallback((c) =>
+      c.query("SELECT app.sso_key_ref($1) AS ref", [PROVIDER_A]),
+    );
+    expect(rows[0]?.ref).toBe(`harbour/sso/${TENANT_A}/test`);
+  });
+
+  it("switches off and unverifies the domains when the issuer changes (#33 review H2)", async () => {
+    await asManager((c) =>
+      c.query("UPDATE sso_connection SET issuer = 'https://other.example.invalid'"),
+    );
+    const [conn] = (await asManager((c) => c.query("SELECT enabled FROM sso_connection"))).rows;
+    expect(conn?.enabled).toBe(false);
+    const domains = await asManager((c) =>
+      c.query("SELECT verified_at FROM sso_domain WHERE removed_at IS NULL"),
+    );
+    expect(domains.rows.every((d) => d.verified_at === null)).toBe(true);
   });
 
   it("refuses while the connection is off", async () => {

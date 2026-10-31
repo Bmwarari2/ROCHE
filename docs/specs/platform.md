@@ -1043,15 +1043,19 @@ change in `record_version` and the audit trail.
 
 18. No client secret or private key is ever stored in the database, returned by the API or logged.
     The client authenticates to the provider with `private_key_jwt`; the key lives in the managed
-    secret store under the name the connection holds and is read only at sign-in
+    secret store under `harbour/sso/<tenant id>/<name>` and is read only at sign-in
     (`resolvePrivateKey`). Client-secret authentication is refused. Saving a connection checks the
-    key exists in the store without reading it into the response.
+    key exists in the store (`DescribeSecret`) without reading it. Discovery runs only after these
+    checks, to public https hosts only, and fails with a generic error; identity providers are
+    never trusted origins.
 19. A domain counts only once verified by a DNS TXT record `_harbour-verification.<domain>` holding
     `harbour-verification=<token>`; the token is shown once and stored only as a hash. Public email
     domains and malformed names are refused (`checkSsoDomain`); a domain verified by one
     organisation cannot be verified by another.
 20. Linking: the SSO callback runs `ssoSignInDecision` (rules 15 and 16) for the organisation the
-    provider belongs to. An active member with a Harbour sign-in is linked to it; an invited member
+    provider belongs to, and refuses a provider account already linked to another sign-in (one
+    account, one sign-in, across organisations). An SSO session reaches only that organisation. A
+    new issuer, client or discovery URL switches SSO off until every domain is proved again. An active member with a Harbour sign-in is linked to it; an invited member
     with none gets a sign-in created and is linked by `app.link_sso_member`, which accepts any open
     invitation and is audited. Anyone else is refused with the rule's words; nothing is created for
     them.

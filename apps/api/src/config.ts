@@ -106,6 +106,8 @@ const Env = z.object({
    */
   SSO_LOOKUPS: z.enum(["system", "mock"]).default("system"),
   SSO_MOCK_TXT: z.string().default("{}"),
+  /** Origins of a local identity provider for the end-to-end test only; refused in production. */
+  SSO_TEST_IDP_ORIGINS: z.string().default(""),
   /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
@@ -131,6 +133,7 @@ const Env = z.object({
 export type Config = z.infer<typeof Env> & {
   readonly webOrigins: readonly string[];
   readonly trustedProxies: readonly string[];
+  readonly ssoTestIdpOrigins: readonly string[];
 };
 
 const DATABASE_URL_KEYS = [
@@ -177,7 +180,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
     }
     if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
-    if (parsed.SSO_KEY_STORE !== "aws" || parsed.SSO_LOOKUPS !== "system") {
+    if (
+      parsed.SSO_KEY_STORE !== "aws" ||
+      parsed.SSO_LOOKUPS !== "system" ||
+      parsed.SSO_TEST_IDP_ORIGINS !== ""
+    ) {
       throw new Error("SSO_KEY_STORE must be aws and SSO_LOOKUPS system in production");
     }
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
@@ -205,5 +212,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ...parsed,
     webOrigins: list(parsed.WEB_ORIGINS),
     trustedProxies: list(parsed.TRUSTED_PROXY_CIDRS),
+    ssoTestIdpOrigins: list(parsed.SSO_TEST_IDP_ORIGINS),
   };
 }

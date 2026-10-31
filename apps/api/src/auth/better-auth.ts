@@ -1,6 +1,7 @@
 import { passkey } from "@better-auth/passkey";
 import { sso } from "@better-auth/sso";
 import { betterAuthSchema } from "@harbour/db";
+import { tenantOfSsoProvider } from "@harbour/domain";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
@@ -8,7 +9,7 @@ import { bearer, twoFactor } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
-import { type SsoHooks, ssoTrustedOrigins } from "../services/sso";
+import type { SsoHooks } from "../services/sso";
 import { passwordProblem } from "./password-policy";
 import {
   clearCodeAttempts,
@@ -16,6 +17,7 @@ import {
   FACTOR_ROUTES,
   IN_SESSION_CODE_ROUTES,
   recordSessionFactor,
+  recordSessionSsoTenant,
   reserveCodeAttempt,
   sessionMfa,
 } from "./session-factor";
@@ -45,6 +47,12 @@ export const SSO_DISABLED_PATHS: readonly string[] = [
   "/sso/verify-domain",
 ];
 
+/** SSO routes refused before Better Auth sees them: SAML, and the callback with no provider. */
+export function isBlockedSsoPath(pathname: string): boolean {
+  const path = pathname.replace(/\/+$/, "");
+  return path === "/api/auth/sso/callback" || path.startsWith("/api/auth/sso/saml2/");
+}
+
 export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHooks) {
   const db = drizzle(authPool);
   const passkeyOrigin = config.webOrigins[0] ?? config.BETTER_AUTH_URL;
@@ -68,14 +76,13 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
     baseURL: config.BETTER_AUTH_URL,
     basePath: "/api/auth",
     secret: config.BETTER_AUTH_SECRET,
-    database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema }),
+    // Transactions let the SSO resolver run inside the callback (#33 review M1).
+    database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema, transaction: true }),
     // The mobile app's deep-link scheme is an origin for Better Auth's CSRF checks.
-    // Identity providers' origins join only on the SSO sign-in and callback paths (ADR-0091).
-    trustedOrigins: async (request) => [
-      ...config.webOrigins,
-      MOBILE_APP_ORIGIN,
-      ...(await ssoTrustedOrigins(authPool, request)),
-    ],
+    // Identity providers are never trusted origins: the plugin fetches their endpoints only when
+    // they resolve to public addresses (#33 review H1, M2). SSO_TEST_IDP_ORIGINS exists for the
+    // end-to-end test's local provider and is refused in production.
+    trustedOrigins: [...config.webOrigins, MOBILE_APP_ORIGIN, ...config.ssoTestIdpOrigins],
     disabledPaths: [...SSO_DISABLED_PATHS],
     // An invited member signing in with SSO for the first time gets a sign-in, which is then
     // linked to their membership (rule 20). The account's provider id names the organisation.
@@ -179,6 +186,21 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
       // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
       // care records open only for a session that used a second factor (#43 review M5, ADR-0072).
       after: createAuthMiddleware(async (ctx) => {
+        // A session from an SSO callback is bound to the provider's organisation (#33 review H2).
+        if (ctx.path === "/sso/callback/:providerId" || ctx.path.startsWith("/sso/callback/")) {
+          const created = ctx.context.newSession?.session;
+          const providerId = (ctx.params as { providerId?: string } | undefined)?.providerId ?? "";
+          const tenantId = tenantOfSsoProvider(providerId);
+          if (created && tenantId) {
+            await recordSessionSsoTenant(
+              authPool,
+              created.id,
+              tenantId,
+              new Date(created.expiresAt),
+            );
+          }
+          return;
+        }
         const factor = FACTOR_ROUTES.get(ctx.path);
         if (!factor) return;
         const existing = ctx.context.session?.session;
@@ -206,13 +228,16 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
       // the callback runs the SSO policy (rules 15, 16, 20). Without hooks (scripts), no
       // provider resolves and every SSO sign-in is refused.
       sso({
-        trustEmailVerified: false,
+        // The provider's email_verified claim is passed to resolveUser, which refuses an
+        // unverified address (rule 15); the plugin itself would refuse every sign-in otherwise.
+        trustEmailVerified: true,
         resolvePrivateKey: async ({ providerId }) =>
           (await ssoHooks?.resolvePrivateKey({ providerId })) ?? {},
         resolveUser: async (input) =>
           ssoHooks
             ? ssoHooks.resolveUser({
                 providerId: input.providerId,
+                accountKey: input.accountKey,
                 providerUser: {
                   email: input.providerUser.email,
                   emailVerified: input.providerUser.emailVerified,

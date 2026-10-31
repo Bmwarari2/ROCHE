@@ -139,9 +139,21 @@ export type SsoConnectionProblem =
   | "roles_required"
   | "unknown_role";
 
-/** A name in the managed store: path segments of lower-case letters, digits and hyphens. */
-export const SSO_KEY_REF =
-  /^harbour\/sso\/[a-z0-9][a-z0-9-]{0,62}(\/[a-z0-9][a-z0-9-]{0,62}){0,2}$/;
+/**
+ * A key's name in the managed store: under the organisation's own prefix,
+ * `harbour/sso/<tenant id>/<name>`, so one organisation can never point at another's key, and IAM
+ * can scope by it (#33 review M3).
+ */
+export const SSO_KEY_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+export function ssoKeyRefPrefix(tenantId: string): string {
+  return `harbour/sso/${tenantId.toLowerCase()}/`;
+}
+
+export function isSsoKeyRefFor(ref: string, tenantId: string): boolean {
+  const prefix = ssoKeyRefPrefix(tenantId);
+  return ref.startsWith(prefix) && SSO_KEY_NAME.test(ref.slice(prefix.length));
+}
 
 function isHttpsUrl(value: string): boolean {
   try {
@@ -158,6 +170,7 @@ function isHttpsUrl(value: string): boolean {
 export function checkSsoConnection(
   input: SsoConnectionInput,
   knownRoleKeys: readonly string[],
+  tenantId: string,
 ): { readonly ok: true } | { readonly ok: false; readonly problem: SsoConnectionProblem } {
   const refuse = (problem: SsoConnectionProblem) => ({ ok: false, problem }) as const;
   if (!isHttpsUrl(input.issuer)) return refuse("issuer_not_https");
@@ -165,7 +178,7 @@ export function checkSsoConnection(
   if (input.clientId.trim().length === 0) return refuse("client_id_required");
   if (input.tokenEndpointAuthentication !== "private_key_jwt")
     return refuse("client_secret_not_allowed");
-  if (!SSO_KEY_REF.test(input.privateKeyRef)) return refuse("key_ref_invalid");
+  if (!isSsoKeyRefFor(input.privateKeyRef, tenantId)) return refuse("key_ref_invalid");
   if (input.allowedRoleKeys.length === 0) return refuse("roles_required");
   if (input.allowedRoleKeys.some((r) => !knownRoleKeys.includes(r))) return refuse("unknown_role");
   return { ok: true };

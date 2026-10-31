@@ -47,18 +47,31 @@ sign-in (`resolveUser`) and a key callback (`resolvePrivateKey`), and adds no su
 - **Credentials.** Only `private_key_jwt`: the connection holds the key's name in AWS Secrets
   Manager, and `resolvePrivateKey` reads it at sign-in. Client-secret authentication is refused, so
   the plugin never stores a secret.
-- **Discovery.** The API runs OpenID discovery when a connection is switched on, with the plugin's
-  own guards (https, no private hosts or redirects, issuer match), and stores the endpoints. The
-  plugin checks every server-side fetch against Better Auth's trusted origins, so the providers'
-  origins join the trusted list only on the SSO sign-in path and on each provider's own callback
-  path; CSRF and redirect checks everywhere else keep Harbour's origins only.
+- **Discovery.** The API runs OpenID discovery when a connection is switched on, after the
+  connection's own checks, with the plugin's SSRF guards fully on and nothing trusted: the
+  discovery URL and every endpoint must be https on a public host that resolves to a public
+  address, with no redirects, and the issuer must match; any failure gives the same generic error.
+  The endpoints are stored. Identity providers are never Better Auth trusted origins: the plugin
+  re-checks at sign-in that the token, key and user endpoints resolve to public addresses
+  (security review #33, H1 and M2).
 - **Linking.** `resolveUser` runs `ssoSignInDecision` with facts from `app.sso_sign_in_facts`, a
   definer function that reads the connection, the verified domains and the member with that address
   in the organisation the provider id names. An active member is linked to their existing sign-in;
   an invited member gets one, linked by `app.link_sso_member`, which re-checks the connection,
   domain and invitation state and audits; anyone else is refused in the rule's words.
+- **One provider account, one sign-in.** `resolveUser` refuses a provider account (issuer and
+  subject) already linked to another sign-in, through this provider or any other with the same
+  issuer, and never creates a sign-in for an account that has one. An SSO session is bound to the
+  organisation whose provider signed it in and reaches no other. A new issuer, client or discovery
+  URL switches SSO off and unverifies every domain until each is proved again (#33 H2).
 - **Domains.** Proved by a DNS TXT record whose token is kept only as a hash; a domain is verified by
   one organisation at a time; common public mail domains are refused.
+- **Keys** are named under the organisation's own prefix, `harbour/sso/<tenant id>/<name>`, checked
+  by the API and the database; existence is checked with `DescribeSecret`, never by reading the key
+  (#33 M3).
+- **Not offered:** the plugin's SAML routes and its provider-less callback are refused before Better
+  Auth sees them (#33 L2). The plugin sends no OIDC `nonce`; PKCE (S256) and the state bind the code
+  to the browser that started the sign-in, and a nonce is raised upstream (H-756; #33 L3).
 - **SAML 2.0** is supported by the plugin but not switched on here; it follows when a design
   partner's provider needs it (H-753), with its own review.
 
@@ -68,9 +81,9 @@ sign-in (`resolveUser`) and a key callback (`resolvePrivateKey`), and adds no su
 - Good, because no secret exists anywhere Harbour stores data.
 - Bad, because each organisation's provider key must be put in Secrets Manager by Thapsus
   (H-751), and rotated there.
-- Bad, because the SSO sign-in path trusts the configured providers' origins; an owner who points
-  their connection at a hostile host can redirect their own staff's sign-in there. Step-up on every
-  change, the audit trail and the domain proof limit this to the organisation's own owners (H-750).
+- Bad, because an owner can point their connection at any public https provider; a new issuer
+  switches SSO off until the domains are proved again, every change needs step-up and is audited,
+  and a provider account can never take over a sign-in it is not linked to (H-750).
 
 ### Confirmation
 

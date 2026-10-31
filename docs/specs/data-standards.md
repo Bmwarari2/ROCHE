@@ -626,7 +626,7 @@ for PKCE. Retention: tenant configuration, kept while current.
 | `sso_connection.provider_id` | Harbour | `harbour-<tenant id>` (check `sso_connection_provider_id`) | The id in Better Auth's provider row and the callback path. |
 | `sso_connection.issuer`, `discovery_url` | OIDC Discovery `issuer`, `/.well-known/openid-configuration` | https URLs | The discovered issuer must equal the configured one. |
 | `sso_connection.client_id` | OAuth 2.0 `client_id` | Text, 1 to 200 characters | |
-| `sso_connection.private_key_ref`, `private_key_id` | RFC 7523 client assertion key; JWK `kid` | Store name `harbour/sso/<name>` (`SSO_KEY_REF`); optional key id | Never a key. Internal: not exported. |
+| `sso_connection.private_key_ref`, `private_key_id` | RFC 7523 client assertion key; JWK `kid` | Store name `harbour/sso/<tenant id>/<name>` (`isSsoKeyRefFor`, and a database check); optional key id | Never a key. Internal: not exported. |
 | `sso_connection.allowed_role_keys` | Harbour role keys | At least one, each an existing role | Rule 16. |
 | `sso_connection.enabled` | Harbour | Boolean | On needs a verified domain and a successful discovery. |
 | `sso_domain.domain` | DNS name | Lower case, two or more labels, not a public mail domain (`checkSsoDomain`) | One organisation may verify a domain at a time. |
