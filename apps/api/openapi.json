@@ -3736,6 +3736,9 @@
           },
           "active": {
             "type": "boolean"
+          },
+          "version": {
+            "type": "integer"
           }
         },
         "required": [
@@ -3748,7 +3751,8 @@
           "lastOpenedAt",
           "createdBy",
           "createdAt",
-          "active"
+          "active",
+          "version"
         ]
       },
       "AboutMeShareLinkCreated": {
@@ -3804,6 +3808,9 @@
           "active": {
             "type": "boolean"
           },
+          "version": {
+            "type": "integer"
+          },
           "token": {
             "type": "string"
           }
@@ -3819,6 +3826,7 @@
           "createdBy",
           "createdAt",
           "active",
+          "version",
           "token"
         ]
       },
@@ -48274,7 +48282,7 @@
           "people"
         ],
         "summary": "Change a contact or representative (versioned)",
-        "description": "Only the fields sent change; null clears an optional one. A sharing decision that rests on this contact's authority checks it again every time, so an end date or a removed reference closes what it opened (people.md rule 13). Audited with the names of the fields changed.",
+        "description": "Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.",
         "security": [
           {
             "bearerAuth": []

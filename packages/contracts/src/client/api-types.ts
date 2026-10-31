@@ -20770,7 +20770,7 @@ export interface paths {
     head?: never;
     /**
      * Change a contact or representative (versioned)
-     * @description Only the fields sent change; null clears an optional one. A sharing decision that rests on this contact's authority checks it again every time, so an end date or a removed reference closes what it opened (people.md rule 13). Audited with the names of the fields changed.
+     * @description Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.
      */
     patch: {
       parameters: {
@@ -21877,6 +21877,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
     };
     AboutMeShareLinkCreated: {
       /** Format: uuid */
@@ -21897,6 +21898,7 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
       active: boolean;
+      version: number;
       token: string;
     };
     CreateAboutMeShareLink: {

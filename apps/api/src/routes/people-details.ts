@@ -373,7 +373,7 @@ export const peopleDetailsRouter = createRouter()
       tags: ["people"],
       summary: "Change a contact or representative (versioned)",
       description:
-        "Only the fields sent change; null clears an optional one. A sharing decision that rests on this contact's authority checks it again every time, so an end date or a removed reference closes what it opened (people.md rule 13). Audited with the names of the fields changed.",
+        "Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.",
       security,
       request: {
         params: ContactParams,

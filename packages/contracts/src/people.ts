@@ -956,6 +956,8 @@ export const AboutMeShareLinkOut = z
     createdAt: isoDateTime,
     /** Not revoked, not expired, and its sharing decision still in force. */
     active: z.boolean(),
+    /** Sent back with a revocation, so a link changed meanwhile is not revoked unseen. */
+    version: z.number().int(),
   })
   .meta({ id: "AboutMeShareLinkOut" });
 export type AboutMeShareLinkOut = z.infer<typeof AboutMeShareLinkOut>;
