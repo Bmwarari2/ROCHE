@@ -24081,6 +24081,137 @@
           "familyName"
         ]
       },
+      "ContactSaved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ContactRole"
+          },
+          "givenName": {
+            "type": "string"
+          },
+          "familyName": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "addressLine1": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "town": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "postcode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isNextOfKin": {
+            "type": "boolean"
+          },
+          "authorityReference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorityDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "authorityScope": {
+            "$ref": "#/components/schemas/AuthorityScope"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidenceMissing": {
+            "type": "boolean"
+          },
+          "expired": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "suspendedDecisions": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "role",
+          "givenName",
+          "familyName",
+          "relationship",
+          "phone",
+          "email",
+          "addressLine1",
+          "town",
+          "postcode",
+          "isNextOfKin",
+          "authorityReference",
+          "authorityDocumentId",
+          "validUntil",
+          "authorityScope",
+          "notes",
+          "evidenceMissing",
+          "expired",
+          "updatedAt",
+          "version",
+          "suspendedDecisions"
+        ]
+      },
       "UpdateContact": {
         "type": "object",
         "properties": {
@@ -48034,7 +48165,7 @@
           "people"
         ],
         "summary": "Change personal details or the national data opt-out (versioned)",
-        "description": "Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation; a person with no NHS number needs a local identifier; a date of birth is not in the future; a postcode is a full UK postcode, stored upper case with one space. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.",
+        "description": "Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation: one already on the record of someone the caller can see is refused saying so; one on a record they cannot see is refused without saying whose, audited as denied (`nhs_number_in_use`, without the number), counted against an hourly limit per member, and a task asks the owner to look for a duplicate record. A person with no NHS number needs a local identifier; a date of birth is from 1900 to today; a postcode is a full UK postcode, stored upper case with one space; text with control characters is refused. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.",
         "security": [
           {
             "bearerAuth": []
@@ -48120,6 +48251,24 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many NHS numbers refused; wait",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code"
+                  ]
                 }
               }
             }
@@ -48210,7 +48359,7 @@
           "people"
         ],
         "summary": "Add a key contact or legal representative",
-        "description": "A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is a document already in this person's documents.",
+        "description": "A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is an available document already in this person's documents (category person_document). An end date is from 1900 to 2199; text with control characters is refused.",
         "security": [
           {
             "bearerAuth": []
@@ -48299,7 +48448,7 @@
           "people"
         ],
         "summary": "Change a contact or representative (versioned)",
-        "description": "Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.",
+        "description": "Only the fields sent change; null clears an optional one. A change that takes away the authority a sharing decision rests on (the contact no longer holding that kind of authority, a deputy's order no longer of that kind, the last reference or evidence removed, or the authority now ending before the decision recorded) suspends that decision in the same transaction, audited with the reason `authority_changed` and publishing people.sharing.changed (HZ-022, fail closed); the answer says how many were suspended. Changing the email address of a family member with a portal account (which the account is matched by) needs `people.sharing.manage` and a fresh sign-in. Audited with the names of the fields changed.",
         "security": [
           {
             "bearerAuth": []
@@ -48343,7 +48492,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ContactOut"
+                  "$ref": "#/components/schemas/ContactSaved"
                 }
               }
             }

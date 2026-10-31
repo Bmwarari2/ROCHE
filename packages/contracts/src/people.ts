@@ -15,7 +15,41 @@ const uuid = z.uuid();
 const isoDateTime = z.iso.datetime({ offset: true });
 const isoDate = z.iso.date();
 const version = z.number().int().min(1);
-const text = (max: number) => z.string().trim().max(max);
+/**
+ * True when a value holds a control character other than a tab, line feed or carriage return
+ * (C0, DEL and C1, including NUL), which no person types and Postgres cannot always store.
+ */
+export function hasControlCharacter(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) return true;
+    if (code >= 0x7f && code <= 0x9f) return true;
+  }
+  return false;
+}
+const text = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .refine((value) => !hasControlCharacter(value), { message: "Remove control characters." });
+
+/** Today's date in the UK, as yyyy-mm-dd. */
+const ukToday = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+/** A date of birth: from 1 January 1900 to today in the UK. */
+const birthDate = isoDate.refine((date) => date >= "1900-01-01" && date <= ukToday(), {
+  message: "A date of birth is from 1900 to today.",
+});
+/** When a role or authority ends: a date from 1900 to 2199 (an ended one stays recorded). */
+const endDate = isoDate.refine((date) => date >= "1900-01-01" && date <= "2199-12-31", {
+  message: "An end date is from 1900 to 2199.",
+});
 
 export const PersonStatus = z
   .enum([
@@ -190,7 +224,7 @@ export const UpdatePersonDetails = z
     givenName: text(100).min(1).optional(),
     familyName: text(100).min(1).optional(),
     preferredName: optionalText(100),
-    dateOfBirth: isoDate.nullable().optional(),
+    dateOfBirth: birthDate.nullable().optional(),
     /** Spaces and hyphens as typed are allowed; stored as 10 digits. */
     nhsNumber: z.string().trim().max(20).nullable().optional(),
     localIdentifier: optionalText(60),
@@ -275,6 +309,18 @@ export const ContactOut = z
   .meta({ id: "ContactOut" });
 export type ContactOut = z.infer<typeof ContactOut>;
 
+/**
+ * A contact as saved, with how many sharing decisions resting on their authority the change
+ * suspended (HZ-022: a change that takes the authority away closes them until someone reviews
+ * them on the sharing tab).
+ */
+export const ContactSaved = ContactOut.extend({ suspendedDecisions: z.number().int().min(0) }).meta(
+  {
+    id: "ContactSaved",
+  },
+);
+export type ContactSaved = z.infer<typeof ContactSaved>;
+
 export const ContactList = z.object({ items: z.array(ContactOut) }).meta({ id: "ContactList" });
 export type ContactList = z.infer<typeof ContactList>;
 
@@ -289,7 +335,7 @@ const contactFields = {
   authorityReference: optionalText(120),
   /** A document already filed in this person's documents. */
   authorityDocumentId: uuid.nullable().optional(),
-  validUntil: isoDate.nullable().optional(),
+  validUntil: endDate.nullable().optional(),
   /** Deputies only, and required for them. */
   authorityScope: AuthorityScope.nullable().optional(),
   notes: optionalText(1000),
@@ -1448,7 +1494,7 @@ export const SharingAuthority = z
     /** Taken from the contact's authority when left out. */
     evidenceDocumentId: uuid.optional(),
     /** Taken from the contact's authority when left out. */
-    validUntil: isoDate.optional(),
+    validUntil: endDate.optional(),
     /**
      * For a deputy: the sections the Court of Protection order covers, as recorded from the order
      * (required for deputies, and within the deputyship the contact holds).

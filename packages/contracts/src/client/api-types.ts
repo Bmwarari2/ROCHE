@@ -20541,7 +20541,7 @@ export interface paths {
     head?: never;
     /**
      * Change personal details or the national data opt-out (versioned)
-     * @description Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation; a person with no NHS number needs a local identifier; a date of birth is not in the future; a postcode is a full UK postcode, stored upper case with one space. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.
+     * @description Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation: one already on the record of someone the caller can see is refused saying so; one on a record they cannot see is refused without saying whose, audited as denied (`nhs_number_in_use`, without the number), counted against an hourly limit per member, and a task asks the owner to look for a duplicate record. A person with no NHS number needs a local identifier; a date of birth is from 1900 to today; a postcode is a full UK postcode, stored upper case with one space; text with control characters is refused. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.
      */
     patch: {
       parameters: {
@@ -20610,6 +20610,17 @@ export interface paths {
           };
           content: {
             "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too many NHS numbers refused; wait */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
           };
         };
       };
@@ -20685,7 +20696,7 @@ export interface paths {
     put?: never;
     /**
      * Add a key contact or legal representative
-     * @description A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is a document already in this person's documents.
+     * @description A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is an available document already in this person's documents (category person_document). An end date is from 1900 to 2199; text with control characters is refused.
      */
     post: {
       parameters: {
@@ -20770,7 +20781,7 @@ export interface paths {
     head?: never;
     /**
      * Change a contact or representative (versioned)
-     * @description Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.
+     * @description Only the fields sent change; null clears an optional one. A change that takes away the authority a sharing decision rests on (the contact no longer holding that kind of authority, a deputy's order no longer of that kind, the last reference or evidence removed, or the authority now ending before the decision recorded) suspends that decision in the same transaction, audited with the reason `authority_changed` and publishing people.sharing.changed (HZ-022, fail closed); the answer says how many were suspended. Changing the email address of a family member with a portal account (which the account is matched by) needs `people.sharing.manage` and a fresh sign-in. Audited with the names of the fields changed.
      */
     patch: {
       parameters: {
@@ -20794,7 +20805,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ContactOut"];
+            "application/json": components["schemas"]["ContactSaved"];
           };
         };
         /** @description Not signed in */
@@ -27427,6 +27438,35 @@ export interface components {
       validUntil?: string | null;
       authorityScope?: components["schemas"]["AuthorityScope"];
       notes?: string | null;
+    };
+    ContactSaved: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      role: components["schemas"]["ContactRole"];
+      givenName: string;
+      familyName: string;
+      relationship: string | null;
+      phone: string | null;
+      email: string | null;
+      addressLine1: string | null;
+      town: string | null;
+      postcode: string | null;
+      isNextOfKin: boolean;
+      authorityReference: string | null;
+      /** Format: uuid */
+      authorityDocumentId: string | null;
+      /** Format: date */
+      validUntil: string | null;
+      authorityScope: components["schemas"]["AuthorityScope"];
+      notes: string | null;
+      evidenceMissing: boolean;
+      expired: boolean;
+      /** Format: date-time */
+      updatedAt: string;
+      version: number;
+      suspendedDecisions: number;
     };
     UpdateContact: {
       role?: components["schemas"]["ContactRole"];

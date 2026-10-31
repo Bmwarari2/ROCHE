@@ -1,17 +1,44 @@
 import {
   ContactList,
   ContactOut,
+  ContactSaved,
   CreateContact,
   PersonDetails,
   UpdateContact,
   UpdatePersonDetails,
 } from "@harbour/contracts";
-import { contact, person, type Transaction } from "@harbour/db";
-import { ukIsoDate, validateNhsNumber } from "@harbour/domain";
+import {
+  contact,
+  familyPortalUser,
+  person,
+  sharingDecision,
+  sharingDecisionSuspension,
+  type Transaction,
+  task,
+  withRequestContext,
+} from "@harbour/db";
+import {
+  type AuthorityHolder,
+  type AuthorityRole,
+  authorityChangeEffects,
+  type SharingDecision,
+  ukIsoDate,
+  validateNhsNumber,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, isNull } from "drizzle-orm";
-import { requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { and, asc, eq, gt, isNull, ne } from "drizzle-orm";
+import type { Context } from "hono";
+import { writeAudit } from "../http/audit";
+import {
+  type AppEnv,
+  permissionsReaching,
+  requirePermission,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
+import { HttpProblem, problems } from "../http/problem";
+import { PerUserQuota } from "../http/quota";
+import { publish } from "../outbox";
 import { loadPerson, type PersonRow, requireVersion, requireWrite } from "../services/people";
 import {
   conflictResponse,
@@ -21,13 +48,7 @@ import {
   notFoundResponse,
   security,
 } from "./openapi";
-import {
-  audit,
-  dbCode,
-  invalidOnForeignKey,
-  PersonParam,
-  requireOwnDocument,
-} from "./people-shared";
+import { audit, dbCode, PersonParam, requireOwnDocument, requireStepUp } from "./people-shared";
 
 /**
  * Personal details and contacts (PEOP-001; people.md rule 15; data-standards.md `person` and
@@ -41,6 +62,210 @@ import {
  */
 
 const ContactParams = PersonParam.extend({ contactId: z.uuid() });
+
+/** Evidence of an authority is a document about the person, never a photo or a care attachment. */
+const EVIDENCE_CATEGORIES = ["person_document"] as const;
+
+/**
+ * NHS numbers refused because they are on a record the caller cannot see, per member per hour:
+ * each refusal says a number is in use somewhere, so probing is limited (#119 review M1). A product
+ * setting, not a statutory figure, so it is not in the rate table.
+ */
+const NHS_IN_USE_REFUSALS = new PerUserQuota("people.nhs_number_in_use", 3, 60 * 60_000);
+
+/** Said when a number is already on the record of someone the caller can see. */
+const NHS_IN_USE_VISIBLE =
+  "This NHS number is already recorded for someone else in this organisation. Check it.";
+/**
+ * Said when the number is on a record the caller cannot see: nothing about whose, or where. A
+ * manager who works across the organisation is given a task to look for a duplicate record.
+ */
+const NHS_NOT_SAVED =
+  "This NHS number could not be saved for this person. Check it against their documents. A manager has been asked to review it.";
+
+/** A value Postgres would not store (SQLSTATE class 22, data exception), refused in words. */
+function invalidOnDataException(error: unknown): never {
+  if (dbCode(error)?.startsWith("22")) {
+    throw problems.invalid("A detail could not be stored. Check what was entered and try again.");
+  }
+  throw error;
+}
+
+/** A missing document (a foreign key that points nowhere) or a value Postgres would not store. */
+function invalidOnStore(error: unknown): never {
+  if (dbCode(error) === "23503") throw problems.invalid("The evidence document was not found.");
+  return invalidOnDataException(error);
+}
+
+/** The member's own view, whatever the route's scope (ADR-0071): their quota rows only. */
+function ownView<T>(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  fn: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  return withRequestContext(
+    c.get("services").db,
+    { ...access.context, scope: "none", locationIds: [] },
+    fn,
+  );
+}
+
+/** The kind of the task that asks someone across the organisation to look for a duplicate. */
+const DUPLICATE_REVIEW_KIND = "people.duplicate_record_review";
+
+/**
+ * After an NHS number was refused because it is on a record the caller cannot see (the change
+ * rolled back): audited as a refusal by the person's id, without the number; counted against
+ * the member's hourly limit; and one open task for the owner (a role across the organisation,
+ * which can see both records) to look for a duplicate. Each step is tried on its own, logged by
+ * opaque ids if it fails, so the refusal is still answered.
+ */
+async function afterNhsNumberInUse(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  personId: string,
+  locationId: string,
+): Promise<void> {
+  const { appPool, logger } = c.get("services");
+  const ids = { tenantId: access.tenantId, tenantUserId: access.tenantUserId, personId };
+  try {
+    await writeAudit(appPool, access, {
+      action: "people.person.update",
+      outcome: "denied",
+      reason: "nhs_number_in_use",
+      resourceType: "person",
+      resourceId: personId,
+      requestId: c.get("requestId"),
+    });
+  } catch {
+    logger.error(ids, "refused NHS number change could not be audited");
+  }
+  try {
+    await ownView(c, access, (tx) => NHS_IN_USE_REFUSALS.attempt(tx, access.tenantUserId));
+  } catch {
+    logger.error(ids, "refused NHS number change could not be counted");
+  }
+  try {
+    const now = new Date();
+    await withTenant(c, async (tx) => {
+      const [open] = await tx
+        .select({ id: task.id })
+        .from(task)
+        .where(
+          and(
+            eq(task.kind, DUPLICATE_REVIEW_KIND),
+            eq(task.personId, personId),
+            eq(task.status, "open"),
+          ),
+        );
+      if (open) return;
+      await tx.insert(task).values({
+        kind: DUPLICATE_REVIEW_KIND,
+        title: "Check for a duplicate record: an NHS number could not be saved",
+        requiredPermission: "people.person.update",
+        personId,
+        locationId,
+        sourceType: "person",
+        sourceId: personId,
+        assigneeRoleKey: "owner",
+        dueAt: now,
+        priority: "urgent",
+      });
+    });
+  } catch {
+    logger.error(ids, "duplicate record review task could not be raised");
+  }
+}
+
+/** The contact as the sharing rules read its authority (people.md rule 13). */
+function holderOf(row: typeof contact.$inferSelect): AuthorityHolder {
+  return {
+    role: row.role,
+    authorityScope: row.authorityScope,
+    reference: row.authorityReference,
+    documentId: row.authorityDocumentId,
+    validUntil: row.validUntil,
+    removed: row.deletedAt !== null,
+  };
+}
+
+/**
+ * Suspends, in the caller's transaction, every sharing decision not yet ended whose authority
+ * the change to this contact took away (HZ-022, fail closed; #119 review M3): each is audited with
+ * the reason `authority_changed` and publishes people.sharing.changed, so the family feed and
+ * share links close at once. A manager reviews each on the sharing tab and lifts or withdraws it.
+ */
+async function suspendDecisionsOnAuthority(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  personId: string,
+  contactId: string,
+  before: AuthorityHolder,
+  after: AuthorityHolder,
+  now: Date,
+): Promise<number> {
+  const rows = await tx
+    .select()
+    .from(sharingDecision)
+    .where(
+      and(
+        eq(sharingDecision.personId, personId),
+        eq(sharingDecision.authorityContactId, contactId),
+        isNull(sharingDecision.withdrawnAt),
+        isNull(sharingDecision.suspendedAt),
+        isNull(sharingDecision.deletedAt),
+        gt(sharingDecision.validTo, now),
+      ),
+    );
+  let suspended = 0;
+  for (const row of rows) {
+    const decision: Pick<SharingDecision, "basis" | "consentGivenBy" | "authority"> = {
+      basis: row.basis as SharingDecision["basis"],
+      consentGivenBy: row.consentGivenBy as SharingDecision["consentGivenBy"],
+      authority:
+        row.authorityRole && row.authorityContactId
+          ? {
+              role: row.authorityRole as AuthorityRole,
+              contactId: row.authorityContactId,
+              reference: row.authorityReference,
+              evidenceDocumentId: row.authorityEvidenceDocumentId,
+              validUntil: row.authorityValidUntil,
+            }
+          : null,
+    };
+    const effects = authorityChangeEffects(decision, contactId, before, after);
+    if (effects.length === 0) continue;
+    const reason =
+      "The authority it rests on was changed. Review it, then lift the suspension or withdraw it.";
+    await tx
+      .update(sharingDecision)
+      .set({ suspendedAt: now, suspendedReason: reason })
+      .where(eq(sharingDecision.id, row.id));
+    await tx.insert(sharingDecisionSuspension).values({
+      personId,
+      sharingDecisionId: row.id,
+      suspendedAt: now,
+      reason,
+    });
+    await audit(c, tx, access, {
+      action: "people.sharing.suspend",
+      resourceType: "sharing_decision",
+      resourceId: row.id,
+      reason: "authority_changed",
+      scope: { contactId, changes: effects },
+    });
+    await publish(tx, {
+      context: "people",
+      aggregateType: "person",
+      aggregateId: personId,
+      type: "people.sharing.changed",
+      payload: { personId, reason: "suspended", decisionId: row.id },
+    });
+    suspended += 1;
+  }
+  return suspended;
+}
 
 /** The contact roles that are a legal authority to act for the person (rule 13). */
 const AUTHORITY_ROLES: ReadonlySet<string> = new Set([
@@ -198,7 +423,7 @@ export const peopleDetailsRouter = createRouter()
       tags: ["people"],
       summary: "Change personal details or the national data opt-out (versioned)",
       description:
-        "Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation; a person with no NHS number needs a local identifier; a date of birth is not in the future; a postcode is a full UK postcode, stored upper case with one space. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.",
+        "Only the fields sent change; null clears an optional one. The NHS number passes the modulus 11 check and is unique in the organisation: one already on the record of someone the caller can see is refused saying so; one on a record they cannot see is refused without saying whose, audited as denied (`nhs_number_in_use`, without the number), counted against an hourly limit per member, and a task asks the owner to look for a duplicate record. A person with no NHS number needs a local identifier; a date of birth is from 1900 to today; a postcode is a full UK postcode, stored upper case with one space; text with control characters is refused. Refused once the record is read-only (people.md rule 1). Audited with the names of the fields changed.",
       security,
       request: {
         params: PersonParam,
@@ -209,6 +434,7 @@ export const peopleDetailsRouter = createRouter()
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
+        429: jsonBody(z.object({ code: z.string() }), "Too many NHS numbers refused; wait"),
       },
     }),
     async (c) => {
@@ -232,10 +458,24 @@ export const peopleDetailsRouter = createRouter()
       if (typeof changes.dateOfBirth === "string" && changes.dateOfBirth > ukIsoDate(new Date())) {
         throw problems.invalid("A date of birth cannot be in the future.");
       }
+      // A member whose NHS numbers were refused too often lately changes none for a while (M1).
+      if (typeof changes.nhsNumber === "string") {
+        await ownView(c, access, (tx) => NHS_IN_USE_REFUSALS.check(tx, access.tenantUserId));
+      }
+      // Set when the number is on a record the caller cannot see; acted on after the rollback.
+      const refusal = { inUse: false, locationId: "" };
       const out = await withTenant(c, async (tx) => {
         const p = await loadPerson(tx, id, true);
         requireVersion(p.version, body.version);
         requireWrite(p, "demographics");
+        if (typeof changes.nhsNumber === "string" && changes.nhsNumber !== p.nhsNumber) {
+          // Someone the caller can see (row-level security) already has it: say so plainly.
+          const [holder] = await tx
+            .select({ id: person.id })
+            .from(person)
+            .where(and(eq(person.nhsNumber, changes.nhsNumber), ne(person.id, id)));
+          if (holder) throw problems.invalid(NHS_IN_USE_VISIBLE);
+        }
         const nhs = "nhsNumber" in changes ? changes.nhsNumber : p.nhsNumber;
         const local = "localIdentifier" in changes ? changes.localIdentifier : p.localIdentifier;
         if (!nhs && !local) {
@@ -250,12 +490,14 @@ export const peopleDetailsRouter = createRouter()
           .where(and(eq(person.id, id), eq(person.version, body.version)))
           .returning({ id: person.id })
           .catch((error: unknown) => {
+            // The unique key across the organisation: the number is on a record this member
+            // cannot see. Never say whose or where (M1).
             if (dbCode(error) === "23505") {
-              throw problems.invalid(
-                "This NHS number is already recorded for someone else in this organisation. Check it.",
-              );
+              refusal.inUse = true;
+              refusal.locationId = p.locationId;
+              throw problems.invalid(NHS_NOT_SAVED);
             }
-            throw error;
+            return invalidOnDataException(error);
           });
         if (!updated) throw problems.conflict();
         await audit(c, tx, access, {
@@ -265,6 +507,9 @@ export const peopleDetailsRouter = createRouter()
           scope: { fields: changed.sort() },
         });
         return detailsOut(await loadPerson(tx, id));
+      }).catch(async (error: unknown) => {
+        if (refusal.inUse) await afterNhsNumberInUse(c, access, id, refusal.locationId);
+        throw error;
       });
       return c.json(out, 200);
     },
@@ -308,7 +553,7 @@ export const peopleDetailsRouter = createRouter()
       tags: ["people"],
       summary: "Add a key contact or legal representative",
       description:
-        "A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is a document already in this person's documents.",
+        "A deputy says what their order covers (personal welfare, property and affairs, or both). An attorney, deputy or appointee without a reference or evidence is saved, flagged as evidence missing: nothing is shared on their authority until one is recorded. Evidence is an available document already in this person's documents (category person_document). An end date is from 1900 to 2199; text with control characters is refused.",
       security,
       request: {
         params: PersonParam,
@@ -329,9 +574,16 @@ export const peopleDetailsRouter = createRouter()
       const postcode = postcodeOf(fields.postcode);
       const today = ukIsoDate(new Date());
       const out = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id);
+        // Locked, so a status change cannot slip in between the check and the write.
+        const p = await loadPerson(tx, id, true);
         requireWrite(p, "contact");
-        await requireOwnDocument(tx, id, fields.authorityDocumentId, "evidence of the authority");
+        await requireOwnDocument(
+          tx,
+          id,
+          fields.authorityDocumentId,
+          "evidence of the authority",
+          EVIDENCE_CATEGORIES,
+        );
         const [row] = await tx
           .insert(contact)
           .values({
@@ -353,7 +605,7 @@ export const peopleDetailsRouter = createRouter()
             notes: fields.notes ?? null,
           })
           .returning()
-          .catch(invalidOnForeignKey("evidence document"));
+          .catch(invalidOnStore);
         if (!row) throw problems.conflict();
         await audit(c, tx, access, {
           action: "people.contact.create",
@@ -373,14 +625,14 @@ export const peopleDetailsRouter = createRouter()
       tags: ["people"],
       summary: "Change a contact or representative (versioned)",
       description:
-        "Only the fields sent change; null clears an optional one. A sharing decision keeps the authority (reference, evidence, end date) it was recorded with: when an authority changes or ends early, withdraw the decisions that rest on it and record new ones (people.md rule 13). Audited with the names of the fields changed.",
+        "Only the fields sent change; null clears an optional one. A change that takes away the authority a sharing decision rests on (the contact no longer holding that kind of authority, a deputy's order no longer of that kind, the last reference or evidence removed, or the authority now ending before the decision recorded) suspends that decision in the same transaction, audited with the reason `authority_changed` and publishing people.sharing.changed (HZ-022, fail closed); the answer says how many were suspended. Changing the email address of a family member with a portal account (which the account is matched by) needs `people.sharing.manage` and a fresh sign-in. Audited with the names of the fields changed.",
       security,
       request: {
         params: ContactParams,
         body: { content: { "application/json": { schema: UpdateContact } } },
       },
       responses: {
-        200: jsonBody(ContactOut, "Saved"),
+        200: jsonBody(ContactSaved, "Saved"),
         ...errorResponses,
         ...notFoundResponse,
         ...conflictResponse,
@@ -393,9 +645,11 @@ export const peopleDetailsRouter = createRouter()
       const changes: Record<string, unknown> = cleaned(body);
       if (Object.keys(changes).length === 0) throw problems.invalid("Change at least one detail.");
       if ("postcode" in changes) changes.postcode = postcodeOf(changes.postcode);
-      const today = ukIsoDate(new Date());
+      const now = new Date();
+      const today = ukIsoDate(now);
       const out = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id);
+        // Locked, so a status change cannot slip in between the check and the write.
+        const p = await loadPerson(tx, id, true);
         requireWrite(p, "contact");
         const [row] = await tx
           .select()
@@ -415,7 +669,34 @@ export const peopleDetailsRouter = createRouter()
           id,
           changes.authorityDocumentId as string | null | undefined,
           "evidence of the authority",
+          EVIDENCE_CATEGORIES,
         );
+        if ("email" in changes && changes.email !== row.email) {
+          // A family member's portal account is matched to their contact by this address
+          // (comms.md): changing it is a sharing decision in effect (#119 review L1).
+          const [linked] = await tx
+            .select({ id: familyPortalUser.id })
+            .from(familyPortalUser)
+            .where(
+              and(
+                eq(familyPortalUser.contactId, contactId),
+                isNull(familyPortalUser.revokedAt),
+                isNull(familyPortalUser.deletedAt),
+              ),
+            );
+          if (linked) {
+            const reaching = await permissionsReaching(tx, access, id);
+            if (!reaching.has("people.sharing.manage")) {
+              throw new HttpProblem(
+                403,
+                "missing_permission",
+                "You do not have access to this.",
+                "Only someone who manages sharing can change the email address of a family member who has a portal account.",
+              );
+            }
+            await requireStepUp(c, access, "people.contact.portal_email_change");
+          }
+        }
         const changed = Object.keys(changes).filter(
           (key) => changes[key] !== (row as unknown as Record<string, unknown>)[key],
         );
@@ -424,7 +705,7 @@ export const peopleDetailsRouter = createRouter()
           .set(changes)
           .where(and(eq(contact.id, contactId), eq(contact.version, body.version)))
           .returning()
-          .catch(invalidOnForeignKey("evidence document"));
+          .catch(invalidOnStore);
         if (!updated) throw problems.conflict();
         await audit(c, tx, access, {
           action: "people.contact.update",
@@ -432,7 +713,17 @@ export const peopleDetailsRouter = createRouter()
           resourceId: contactId,
           scope: { fields: changed.sort() },
         });
-        return contactOut(updated, today);
+        const suspendedDecisions = await suspendDecisionsOnAuthority(
+          c,
+          tx,
+          access,
+          id,
+          contactId,
+          holderOf(row),
+          holderOf(updated),
+          now,
+        );
+        return { ...contactOut(updated, today), suspendedDecisions };
       });
       return c.json(out, 200);
     },

@@ -433,6 +433,82 @@ export function visibleSharingSections(
 }
 
 // ------------------------------------------------------------------------------------------------
+// A change to the contact who holds an authority (PEOP-001 with rule 13; HZ-022, fail closed)
+// ------------------------------------------------------------------------------------------------
+
+/** The contact role that holds each authority. */
+export const AUTHORITY_CONTACT_ROLES: Readonly<Record<AuthorityRole, string>> = {
+  lpa_health_welfare: "lpa_health_welfare",
+  lpa_property_finance: "lpa_property_finance",
+  deputy_personal_welfare: "deputy",
+  deputy_property_affairs: "deputy",
+  appointee: "appointee",
+};
+
+/** The deputyships (`contact.authority_scope`) that allow each deputy authority. */
+export const DEPUTY_SCOPES: Readonly<Partial<Record<AuthorityRole, readonly string[]>>> = {
+  deputy_personal_welfare: ["personal_welfare", "both"],
+  deputy_property_affairs: ["property_affairs", "both"],
+};
+
+/** The contact holding an authority, as it is after a change (or removed). */
+export interface AuthorityHolder {
+  readonly role: string;
+  readonly authorityScope: string | null;
+  readonly reference: string | null;
+  readonly documentId: string | null;
+  /** yyyy-mm-dd; null when no end date is recorded. */
+  readonly validUntil: string | null;
+  readonly removed: boolean;
+}
+
+export type AuthorityChange =
+  | "holder_removed"
+  | "role_changed"
+  | "order_scope_changed"
+  | "evidence_removed"
+  | "ends_earlier";
+
+/**
+ * What a change to the contact who holds a decision's authority takes away from the decision
+ * (HZ-022): the contact removed; no longer holding that kind of authority; a deputy's order no
+ * longer of that kind; the last reference or evidence removed; or the authority now ending before
+ * the end date the decision recorded (or ending at all, when it recorded none). A decision that
+ * does not rest on that contact's authority is untouched. Any answer means the decision is
+ * suspended at once, until someone reviews it: it never keeps sharing on an authority that has
+ * been taken away, whatever its own copy says. Evidence counts as removed only when the contact
+ * had some before the change (a decision may carry its own reference).
+ */
+export function authorityChangeEffects(
+  decision: Pick<SharingDecision, "basis" | "consentGivenBy" | "authority">,
+  holderId: string,
+  before: AuthorityHolder,
+  holder: AuthorityHolder,
+): AuthorityChange[] {
+  const authority = decision.authority;
+  const usesAuthority =
+    decision.basis === "legal_authority" ||
+    (decision.basis === "consent" && decision.consentGivenBy === "authority_holder");
+  if (!usesAuthority || !authority || authority.contactId !== holderId) return [];
+  if (holder.removed) return ["holder_removed"];
+  const changes: AuthorityChange[] = [];
+  if (holder.role !== AUTHORITY_CONTACT_ROLES[authority.role]) changes.push("role_changed");
+  const scopes = DEPUTY_SCOPES[authority.role];
+  if (scopes && (!holder.authorityScope || !scopes.includes(holder.authorityScope))) {
+    changes.push("order_scope_changed");
+  }
+  const hadEvidence = Boolean(before.reference || before.documentId);
+  if (hadEvidence && !holder.reference && !holder.documentId) changes.push("evidence_removed");
+  if (
+    holder.validUntil !== null &&
+    (authority.validUntil === null || holder.validUntil < authority.validUntil)
+  ) {
+    changes.push("ends_earlier");
+  }
+  return changes;
+}
+
+// ------------------------------------------------------------------------------------------------
 // About Me share links (PRSB: shareable by link with consent)
 // ------------------------------------------------------------------------------------------------
 

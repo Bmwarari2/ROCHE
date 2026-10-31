@@ -15,9 +15,10 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
-  type AuthorityRole,
+  AUTHORITY_CONTACT_ROLES,
   checkSectionVisibility,
   checkSharingDecision,
+  DEPUTY_SCOPES,
   FINANCE_SECTIONS,
   type PersonStatus,
   SHARING_SECTIONS,
@@ -89,21 +90,6 @@ const SHARING_MESSAGES: Record<SharingDecisionProblem, string> = {
   link_only_about_me: "A share link carries About Me only.",
   link_not_direct_care: "A share link cannot rest on direct care.",
   suspension_ends_before_start: "A suspension must end after it starts.",
-};
-
-/** The contact role that holds each authority (people.md rule 13). */
-const AUTHORITY_CONTACT_ROLES: Record<AuthorityRole, string> = {
-  lpa_health_welfare: "lpa_health_welfare",
-  lpa_property_finance: "lpa_property_finance",
-  deputy_personal_welfare: "deputy",
-  deputy_property_affairs: "deputy",
-  appointee: "appointee",
-};
-
-/** The deputyships (`contact.authority_scope`) that allow each deputy role. */
-const DEPUTY_SCOPES: Partial<Record<AuthorityRole, readonly string[]>> = {
-  deputy_personal_welfare: ["personal_welfare", "both"],
-  deputy_property_affairs: ["property_affairs", "both"],
 };
 
 /**
@@ -291,6 +277,8 @@ export const peopleSharingRouter = createRouter()
           id,
           authority?.evidenceDocumentId,
           "evidence of the authority",
+          // A document about the person, never a photo or a care attachment (#119 review L2).
+          ["person_document"],
         );
         const [row] = await tx
           .insert(sharingDecision)
