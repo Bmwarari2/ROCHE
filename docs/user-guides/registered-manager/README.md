@@ -4,38 +4,60 @@ For Registered Managers and deputy managers. A deputy can do these tasks except 
 
 ## Your guides
 
+- [How to add, schedule and retire an audit template](set-up-an-audit-template.md)
 - [How to answer the notification questions on an incident](answer-notification-questions.md)
+- [How to carry out an audit or mock inspection](carry-out-an-audit.md)
+- [How to check evidence coverage and its gaps](check-evidence-coverage.md)
+- [How to check who has read and signed a policy](check-who-has-signed-a-policy.md)
+- [How to copy the PIR figures](copy-the-pir-figures.md)
+- [How to follow up after a death](follow-up-after-a-death.md)
+- [How to handle a complaint](handle-a-complaint.md)
 - [How to invite a team member](invite-a-team-member.md)
 - [How to make a letter from the record](make-a-letter.md)
 - [How to open a record with break-glass](open-a-record-with-break-glass.md)
 - [How to prepare a statutory notification](prepare-a-statutory-notification.md)
+- [How to read the compliance framework and map its statements](map-the-compliance-framework.md)
+- [How to read the quality dashboard](read-the-quality-dashboard.md)
 - [How to read the statutory notification clocks](read-notification-clocks.md)
 - [How to reconcile an outage](reconcile-an-outage.md)
+- [How to record a compliment](record-a-compliment.md)
 - [How to record a statutory notification as submitted, or as not required](record-a-notification-as-submitted.md)
+- [How to retire a policy](retire-a-policy.md)
 - [How to review and close an incident](review-and-close-an-incident.md)
 - [How to review the weekly break-glass report](review-the-weekly-break-glass-report.md)
+- [How to run the safeguarding log](run-the-safeguarding-log.md)
+- [How to set indicator targets](set-indicator-targets.md)
+- [How to tag a record as evidence](tag-a-record-as-evidence.md)
 - [How to write and approve a letter template](write-a-letter-template.md)
+- [How to write and publish a policy](write-and-publish-a-policy.md)
 
 ## Everyone
 
 - [How to accept an invitation and set up your sign-in](../all-staff/accept-an-invitation.md)
+- [How to handle speak-up cases](../all-staff/handle-speak-up-cases.md)
+- [How to raise a speak-up concern](../all-staff/raise-a-speak-up-concern.md)
+- [How to read and sign a policy](../all-staff/read-and-sign-a-policy.md)
 - [How to search for a person](../all-staff/search-for-a-person.md)
+- [How to see the history of a record](../all-staff/view-a-records-history.md)
 - [How to set up a passkey or an authenticator app](../all-staff/set-up-a-second-sign-in-step.md)
 - [How to sign in](../all-staff/sign-in.md)
-- [How to see the history of a record](../all-staff/view-a-records-history.md)
+- [How to speak up anonymously](../all-staff/speak-up-anonymously.md)
 
 ## From the care worker guides
 
+- [How to check a person's safeguarding measures](../care-worker/check-safeguarding-measures.md)
 - [How to check consent, capacity and DoLS](../care-worker/check-consent-capacity-and-dols.md)
 - [How to check the person's details before you give care](../care-worker/check-the-person-before-you-act.md)
+- [How to do a round](../care-worker/run-a-round.md)
 - [How to enter paper records after an outage](../care-worker/enter-paper-records-after-an-outage.md)
 - [How to mark the body map](../care-worker/mark-the-body-map.md)
+- [How to raise a safeguarding concern](../care-worker/raise-a-safeguarding-concern.md)
 - [How to read and acknowledge the shift handover](../care-worker/read-and-acknowledge-the-handover.md)
 - [How to record a chart entry (fluids, food, repositioning, bowel, weight)](../care-worker/record-a-chart-entry.md)
+- [How to record a missing person](../care-worker/record-a-missing-person.md)
 - [How to record an activity or a visit](../care-worker/record-an-activity-or-visit.md)
 - [How to record an incident](../care-worker/record-an-incident.md)
 - [How to record vital signs and read the NEWS2 result](../care-worker/record-vital-signs.md)
-- [How to do a round](../care-worker/run-a-round.md)
 - [How to write a daily note](../care-worker/write-a-daily-note.md)
 
 ## From the senior carer guides
@@ -43,6 +65,7 @@ For Registered Managers and deputy managers. A deputy can do these tasks except 
 - [How to declare and close an outage](../senior-carer/declare-and-close-an-outage.md)
 - [How to print the downtime pack](../senior-carer/print-the-downtime-pack.md)
 - [How to publish a family update](../senior-carer/publish-a-family-update.md)
+- [How to record a death](../senior-carer/record-a-death.md)
 - [How to send someone to hospital](../senior-carer/send-someone-to-hospital.md)
 
 ## From the nurse guides
