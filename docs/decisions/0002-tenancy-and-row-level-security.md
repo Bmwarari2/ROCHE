@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; partly superseded by ADR-0098
 date: 2026-10-11
 decision-makers: Claude Code (lead engineer), under the master prompt defaults; Brian may supersede
 consulted: master prompt sections 4, 5.3, 5.5, 6 and 18; Postgres row security documentation
@@ -7,6 +7,11 @@ informed: everyone working in this repository
 ---
 
 # Tenancy and row-level security
+
+> **Partly superseded by [ADR-0098](0098-production-on-google-cloud.md) (production on Google
+> Cloud), 31/10/2026**: the RDS note on `harbour_sync`: on Cloud SQL the role is given the
+> `REPLICATION` attribute, with the `cloudsql.logical_decoding` flag on. The tenancy and row-level
+> security decision is unchanged. The text below is kept as decided.
 
 ## Context and problem statement
 

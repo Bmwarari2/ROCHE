@@ -55,8 +55,8 @@ For SEV3 and SEV4 the IC may hold every role.
 
 | Step | Action |
 | --- | --- |
-| Preserve evidence | Snapshot affected volumes and the database; export relevant CloudTrail, WAF, load balancer and application logs to a restricted evidence bucket before rotating or rebuilding |
-| Contain | Revoke sessions and tokens, rotate secrets and keys (Secrets Manager, JWT signing keys, KMS grants), block IPs at the WAF, isolate compromised tasks, disable compromised accounts |
+| Preserve evidence | Take an on-demand Cloud SQL backup and keep the affected instance; export relevant Cloud Audit Logs, Cloud Armor, load balancer and application logs to a restricted evidence bucket before rotating or rebuilding |
+| Contain | Revoke sessions and tokens, rotate secrets and keys (Secret Manager, JWT signing keys, Cloud KMS permissions), block IPs with Cloud Armor, isolate compromised Cloud Run revisions and service accounts, disable compromised accounts |
 | Scope | Use `audit_event`, pgAudit and access logs to establish what was accessed, by whom, for which tenants |
 | Eradicate and recover | Patch, rebuild from known-good images, restore data if altered |
 | Notify | Breach procedure if personal data is involved; consider reporting to the NCSC and Action Fraud; insurer `[policy details - human action]` |

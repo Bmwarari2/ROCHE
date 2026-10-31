@@ -17,6 +17,7 @@
 | Version | Date | Status | Change |
 | --- | --- | --- | --- |
 | 0.2 draft A | 31/10/2026 | Draft | First draft for plan slice 85, covering the Phase 2 hazards added so far (section 2) |
+| 0.2 draft B | 31/10/2026 | Draft | Production hosting changed to Google Cloud europe-west2 ([ADR-0098](../../decisions/0098-production-on-google-cloud.md)): v0.1's hosting, notifications and document storage rows and assumption 8 replaced (section 1) |
 
 **Distribution**: Thapsus engineering; Brian (top management); the CSO once appointed. Not for
 tenants until signed ([README](README.md)).
@@ -37,6 +38,23 @@ the clinical risk management system, the assumptions, the Phase 1 hazards and th
 the deployer information and the known limitations. Neither report is signed. Harbour cannot sign
 its own safety case: every rating and residual risk below is an engineering proposal until a
 Clinical Safety Officer reviews and accepts it (sections 8 and 10).
+
+### Changes to v0.1's system definition
+
+On 31/10/2026 the owner moved production from AWS eu-west-2 to Google Cloud europe-west2 (London)
+([ADR-0098](../../decisions/0098-production-on-google-cloud.md)). This replaces these parts of v0.1:
+
+| v0.1 item | Now |
+| --- | --- |
+| 2.3 Hosting | Production: Google Cloud europe-west2, enforced by the organisation policy `gcp.resourceLocations`; Cloud Run for the API, worker, PowerSync and web, each with at least one instance; not yet provisioned (H-04, H-980). Dev and staging: Supabase London, unchanged (ADR-0008). Safety relevance unchanged: availability of the record, with the downtime pack as the continuity path (HZ-021) |
+| 2.3 Notifications | Email through an SMTP provider still to be chosen (H-08); until then production email is off, so delivery outside the app rests on in-app notification, SMS and push. No safety function depends on email ([ADR-0060](../../decisions/0060-family-notification-channels.md)). SMS and push still run against mocks (INTG-011) |
+| 2.3 Document storage | Cloud Storage with customer-managed Cloud KMS keys and V4 signed URLs; ClamAV runs as a sidecar beside the API. The adapter as built is for S3 and must be replaced before go-live (ADR-0098) |
+| Assumption 8 | Production runs as ADR-0098 describes (Cloud SQL for PostgreSQL 17 with regional high availability and point-in-time recovery, RPO 15 minutes and RTO 4 hours), which is not yet provisioned |
+
+One new limitation for the CSO: the worker's alerts to the operator (`worker.job.failed`,
+`escalation.unrouted.daily`, HZ-008 and HZ-013) were defined as CloudWatch alarms and must be
+redefined as Cloud Monitoring alerts when the Terraform is rewritten; until then they are not live
+(H-171).
 
 ## 2. What this draft covers
 

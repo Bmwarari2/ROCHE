@@ -269,7 +269,9 @@ OPS-028, PEOP-002 and SAFE-009 name the journeys above (each file checked to exi
     checks their ids and wording against the template. Each tenant's DPO still rates and signs
     them in-app (H-382); records of processing gained staff notification preferences.
 - [sub-processors.md](../compliance/sub-processors.md): last reviewed 11 October 2026, with SES, the
-  SMS gateway and push for the family feed added that day. **Current** for Phase 1.
+  SMS gateway and push for the family feed added that day. **Current** for Phase 1. (Since
+  [ADR-0098](../decisions/0098-production-on-google-cloud.md), production hosting is Google Cloud and SES is replaced by an email provider still
+  to be chosen, H-08; the register is updated by its owner.)
 
 ## Follow-up pull requests (small gaps)
 

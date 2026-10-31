@@ -137,6 +137,18 @@ AWS service. Supabase London for development, staging and pilots (ADR-0008) is u
   the fallback.
 - Bad, because there is no transactional email until a provider is chosen, so email-only features
   (portal invitations by email, letters by email) stay off in production meanwhile.
+- Bad, because several things the AWS plan had must be rebuilt or chosen again before production:
+  the operator's log alarms behind H-171 (`worker.job.failed`, `escalation.unrouted.daily`; HZ-008,
+  HZ-013) become Cloud Monitoring alert policies in the Terraform rewrite; the restore runbook's
+  maintenance rule and scale-to-zero controls; and the certificate pin set (ADR-0028), because
+  Certificate Manager issues from Google's CAs, not Amazon's.
+- Neutral, because the Cloud SQL edition decides how far back point-in-time recovery reaches
+  (Enterprise keeps 7 days of logs, Enterprise Plus up to 35, as the AWS plan had); the edition is
+  chosen with H-04 and the restore runbook states the window.
+- Neutral, because evidence pack one-time codes go by email (ADR-0050), so public inspector links
+  wait for the email provider (H-08) or a fallback.
+- Neutral, because the AI gateway's model provider (ADR-0014) is not hosting and is not changed
+  here; whether it moves to Google Cloud is a separate decision.
 - Neutral, because Cloud KMS destroys key versions after a scheduled delay rather than at once, so
   crypto-shredding certificates state the delay and the date of destruction.
 - Neutral, because the sub-processor register, DPIA, records of processing and security documents
