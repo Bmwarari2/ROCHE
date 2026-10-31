@@ -22079,6 +22079,7 @@ export interface components {
       actionsTaken: string | null;
       /** Format: uuid */
       supersedesId: string | null;
+      staff: components["schemas"]["StaffName"][];
     };
     ReviewBreakGlassReport: {
       actionsTaken: string;

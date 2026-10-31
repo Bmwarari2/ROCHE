@@ -3,7 +3,7 @@ import {
   type BreakGlassWeeklyReportOut,
   ReviewBreakGlassReport,
 } from "@harbour/contracts";
-import { breakGlassWeeklyReport } from "@harbour/db";
+import { breakGlassWeeklyReport, type Transaction } from "@harbour/db";
 import {
   breakGlassReportWeek,
   type Permission,
@@ -15,6 +15,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import { requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { type StaffLookup, staffNames } from "../services/staff";
 import {
   conflictResponse,
   createRouter,
@@ -28,13 +29,32 @@ import { audit, iso } from "./people-shared";
 /**
  * The weekly break-glass report (people.md rule 14; PLAT-006; HZ-011): the stored report for each
  * location the reader can see, for the UK week (Monday to Monday) containing a date, or the last
- * complete week. Counts and opaque ids only; the justifications stay in the audit log. A review is
- * a new row that supersedes the report, with the actions taken.
+ * complete week. Counts and opaque ids only, with the names of the staff it counts for attribution
+ * (StaffName); the justifications stay in the audit log. A review is a new row that supersedes the
+ * report, with the actions taken.
  */
 
 type ReportRow = typeof breakGlassWeeklyReport.$inferSelect;
 
-function reportOut(row: ReportRow): BreakGlassWeeklyReportOut {
+interface SummaryIds {
+  readonly byUser?: readonly { readonly tenantUserId?: unknown }[];
+  readonly flagged?: readonly { readonly tenantUserId?: unknown }[];
+  readonly searches?: { readonly byUser?: readonly { readonly tenantUserId?: unknown }[] };
+}
+
+/** The staff a stored report names: its user lines, flags and searchers, and its reviewer. */
+export function reportStaffIds(row: Pick<ReportRow, "summary" | "reviewedBy">): string[] {
+  const summary = (row.summary ?? {}) as SummaryIds;
+  const lines = [
+    ...(Array.isArray(summary.byUser) ? summary.byUser : []),
+    ...(Array.isArray(summary.flagged) ? summary.flagged : []),
+    ...(Array.isArray(summary.searches?.byUser) ? summary.searches.byUser : []),
+  ];
+  const ids = lines.flatMap((l) => (typeof l?.tenantUserId === "string" ? [l.tenantUserId] : []));
+  return [...new Set([...ids, ...(row.reviewedBy ? [row.reviewedBy] : [])])];
+}
+
+function reportOut(row: ReportRow, names: StaffLookup): BreakGlassWeeklyReportOut {
   return {
     id: row.id,
     locationId: row.locationId,
@@ -47,7 +67,17 @@ function reportOut(row: ReportRow): BreakGlassWeeklyReportOut {
     reviewedAt: iso(row.reviewedAt),
     actionsTaken: row.actionsTaken,
     supersedesId: row.supersedesId,
+    staff: reportStaffIds(row).flatMap((id) => {
+      const name = names(id);
+      return name ? [name] : [];
+    }),
   };
+}
+
+/** Each report with the staff it names, looked up in the reader's transaction. */
+async function reportsOut(tx: Transaction, rows: readonly ReportRow[]) {
+  const names = await staffNames(tx, rows.flatMap(reportStaffIds));
+  return rows.map((row) => reportOut(row, names));
 }
 
 /** Reading and reviewing the reports: the audit reader's permission, where it reaches. */
@@ -87,13 +117,14 @@ export const breakGlassReportRouter = createRouter()
           resourceType: "break_glass_weekly_report",
           scope: { weekStart: week.start.toISOString(), count: rows.length },
         });
-        return rows
-          .sort(
+        return reportsOut(
+          tx,
+          rows.sort(
             (a, b) =>
               a.locationId.localeCompare(b.locationId) ||
               a.createdAt.getTime() - b.createdAt.getTime(),
-          )
-          .map(reportOut);
+          ),
+        );
       });
       return c.json(
         { weekStart: week.start.toISOString(), weekEnd: week.end.toISOString(), items },
@@ -173,7 +204,7 @@ export const breakGlassReportRouter = createRouter()
           resourceType: "break_glass_weekly_report",
           resourceId: row.id,
         });
-        return reportOut(row);
+        return reportOut(row, await staffNames(tx, reportStaffIds(row)));
       });
       return c.json(out, 201);
     },

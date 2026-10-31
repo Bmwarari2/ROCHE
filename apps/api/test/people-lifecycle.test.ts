@@ -3856,6 +3856,12 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     expect(report?.summary).toMatchObject({ totalEvents: 3, distinctUsers: 1 });
     expect(JSON.stringify(report?.summary)).toContain("repeated_use");
     expect(JSON.stringify(report?.summary)).not.toContain("Covering");
+    // The staff it counts are named for attribution (display name and job title only), so a
+    // reader who cannot list the members still sees who used break-glass.
+    // The manager's openings and the owner's search that showed no one at any home.
+    expect(report?.staff.map((s) => s.id)).toEqual([DEMO.users.manager.id, DEMO.users.owner.id]);
+    expect(Object.keys(report?.staff[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect(JSON.stringify(report?.staff)).not.toContain("@");
     const quality = await json<BreakGlassWeeklyReportList>(
       await as("quality", "/v1/break-glass/weekly-report"),
     );
@@ -3897,6 +3903,8 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     const body = { actionsTaken: "Spoke to the manager; scope widened to cover the unit." };
     const first = await as("quality", path, { method: "POST", body });
     expect(first.status).toBe(201);
+    const reviewed = (await first.json()) as BreakGlassWeeklyReportList["items"][number];
+    expect(reviewed.staff.map((s) => s.id)).toContain(LODGE.qualityLeadId);
     expect((await as("quality", path, { method: "POST", body })).status).toBe(409);
   });
 
