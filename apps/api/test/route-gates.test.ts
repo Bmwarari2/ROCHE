@@ -42,6 +42,10 @@ const UNGATED: Readonly<Record<string, string>> = {
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
   "GET /p/evidence/bundle": "a public evidence pack link: the signed session cookie's link alone",
+  "GET /e/launch/{token}/files/{path}":
+    "an e-learning launch token (ADR-0093): no session; read as the token's own member, that course alone",
+  "POST /e/launch/{token}/statements":
+    "an e-learning launch token (ADR-0093): no session; written as the token's own member, that attempt alone",
   "POST /operator/tenants": "an operator route behind the operator middleware, not a tenant route",
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
   "POST /operator/sub-processor-notices":

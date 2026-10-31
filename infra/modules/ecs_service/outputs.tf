@@ -28,6 +28,11 @@ output "security_group_id" {
   value       = aws_security_group.this.id
 }
 
+output "target_group_arn" {
+  description = "Target group ARN, for extra listener rules (null without a load balancer)."
+  value       = local.has_lb ? aws_lb_target_group.this[0].arn : null
+}
+
 output "target_group_arn_suffix" {
   description = "Target group ARN suffix for CloudWatch dimensions (null without a load balancer)."
   value       = local.has_lb ? aws_lb_target_group.this[0].arn_suffix : null

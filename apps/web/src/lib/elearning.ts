@@ -9,7 +9,7 @@ import { webOrigin } from "./invitations";
 
 /**
  * E-learning (workforce.md section 14; ADR-0093; slice 43). Package content is untrusted: it runs
- * only on the content origin (`ELEARNING_ORIGIN`, a different site from the app), in an iframe,
+ * only on the content origin (`ELEARNING_ORIGIN`, another registrable domain from the app's), in an iframe,
  * inside Harbour's own runtime page, and reaches the app only through the postMessage protocol in
  * `@harbour/contracts`, which both sides parse and check (origin, source window, attempt). The
  * web tier serves the content origin from `/learn/{token}` and nothing else on that host.
@@ -32,10 +32,41 @@ export function elearningManaged(permissions: readonly string[]): boolean {
   return permissions.includes(TRAINING_MANAGE);
 }
 
+/** Second-level names under which each registrable domain has three labels (UK first). */
+const THREE_LABEL_SUFFIXES = new Set([
+  "co.uk",
+  "org.uk",
+  "me.uk",
+  "ltd.uk",
+  "plc.uk",
+  "net.uk",
+  "sch.uk",
+  "ac.uk",
+  "gov.uk",
+  "nhs.uk",
+  "police.uk",
+]);
+
+/**
+ * The site a host belongs to, as browsers draw the line for cookies and SameSite: an IP address
+ * or a single label is its own site; otherwise the registrable domain (the last two labels, or
+ * three under a UK second-level name such as co.uk). Conservative: a domain this cannot place is
+ * read as broader, so it refuses more rather than less.
+ */
+export function siteOf(host: string): string {
+  const name = host.toLowerCase().replace(/\.$/, "");
+  if (/^[0-9.]+$/.test(name) || name.includes(":") || !name.includes(".")) return name;
+  const labels = name.split(".");
+  const two = labels.slice(-2).join(".");
+  return THREE_LABEL_SUFFIXES.has(two) ? labels.slice(-3).join(".") : two;
+}
+
 /**
  * The content origin from configuration, never from a request. In development the same server
- * answers on 127.0.0.1, a different origin from localhost; in production it must be set, and must
- * differ from the app's own origin, or no course launches.
+ * answers on 127.0.0.1, a different site from localhost; in production it must be set, and must be
+ * another site from the app's, not a subdomain of the app's own domain, or no course launches: a
+ * package on the same site could set cookies the app would receive and count as same-site
+ * (review H1).
  */
 export function contentOrigin(
   env: Readonly<Record<string, string | undefined>> = process.env,
@@ -44,9 +75,14 @@ export function contentOrigin(
     env.ELEARNING_ORIGIN ?? (env.NODE_ENV === "production" ? null : "http://127.0.0.1:3000");
   if (!raw) return null;
   try {
-    const origin = new URL(raw).origin;
+    const url = new URL(raw);
+    const origin = url.origin;
     const app = webOrigin(env);
-    if (app && new URL(app).origin === origin) return null;
+    if (app) {
+      const appHost = new URL(app).hostname;
+      if (siteOf(appHost) === siteOf(url.hostname)) return null;
+      if (appHost.endsWith(`.${url.hostname}`) || url.hostname.endsWith(`.${appHost}`)) return null;
+    }
     // Never weaker than the app: an app served over TLS frames content only over TLS.
     if (app?.startsWith("https://") && !origin.startsWith("https://")) return null;
     return origin;
@@ -82,6 +118,14 @@ export function attemptOfToken(token: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The name a package is told (`cmi.core.student_name`, `cmi.learner_name`): the first name only,
+ * so untrusted content never holds the member's full name (review M8).
+ */
+export function learnerNameOf(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0]?.slice(0, 60) ?? "";
 }
 
 export function launchUrl(origin: string, token: string): string {

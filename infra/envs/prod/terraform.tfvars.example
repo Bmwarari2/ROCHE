@@ -29,3 +29,7 @@ enable_flagsmith = false
 # waf_managed_rule_groups_unversioned = {
 #   AWSManagedRulesAmazonIpReputationList = "AWS lists no static versions for this group (checked dd/mm/yyyy)."
 # }
+
+# The e-learning content origin's own registrable domain (ADR-0093): never under domain_name.
+# elearning_domain_name     = "harbour-learning.example"
+# elearning_route53_zone_id = null

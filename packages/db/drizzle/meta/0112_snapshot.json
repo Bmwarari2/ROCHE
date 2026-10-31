@@ -7308,6 +7308,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "launch_nonce": {
+          "name": "launch_nonce",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -7559,6 +7566,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "package_index": {
+          "name": "package_index",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -7674,6 +7687,10 @@
         "elearning_course_counts": {
           "name": "elearning_course_counts",
           "value": "file_count > 0 AND unpacked_bytes >= 0"
+        },
+        "elearning_course_index": {
+          "name": "elearning_course_index",
+          "value": "jsonb_typeof(package_index) = 'array' AND jsonb_array_length(package_index) = file_count"
         }
       },
       "isRLSEnabled": false
@@ -7803,7 +7820,7 @@
         },
         "elearning_statement_size": {
           "name": "elearning_statement_size",
-          "value": "octet_length(statement::text) <= 16384"
+          "value": "octet_length(statement::text) <= 32768"
         }
       },
       "isRLSEnabled": false

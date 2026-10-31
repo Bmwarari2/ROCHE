@@ -90,7 +90,12 @@ export function runtimeMain(win: RuntimeWindow, doc: RuntimeDocument): void {
       doc.appOrigin,
     );
 
-  const commit = (finishing: boolean) => {
+  // Commits reach the app at most every few seconds, and only with something changed; finishing
+  // always sends at once (review M7).
+  const COMMIT_GAP_MS = 5000;
+  let lastSent = 0;
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const flush = (finishing: boolean) => {
     const kept = KEPT[standard] ?? {};
     const cmi: Record<string, string> = {};
     for (const key of dirty) {
@@ -99,7 +104,28 @@ export function runtimeMain(win: RuntimeWindow, doc: RuntimeDocument): void {
       if (max !== undefined && value !== undefined && value.length <= max) cmi[key] = value;
     }
     dirty.clear();
+    lastSent = Date.now();
     send({ type: "commit", cmi, finished: finishing });
+  };
+  const commit = (finishing: boolean) => {
+    if (finishing) {
+      if (pending !== null) clearTimeout(pending);
+      pending = null;
+      flush(true);
+      return;
+    }
+    if (dirty.size === 0) return;
+    const wait = lastSent + COMMIT_GAP_MS - Date.now();
+    if (wait <= 0) {
+      flush(false);
+      return;
+    }
+    if (pending === null) {
+      pending = setTimeout(() => {
+        pending = null;
+        if (dirty.size > 0 && !finished) flush(false);
+      }, wait);
+    }
   };
 
   const getValue = (element: unknown): string => {

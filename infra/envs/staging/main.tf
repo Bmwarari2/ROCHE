@@ -15,6 +15,10 @@ module "stack" {
   domain_name     = var.domain_name
   route53_zone_id = var.route53_zone_id
 
+  # The e-learning content origin's own registrable domain (ADR-0093, security review H1).
+  elearning_domain_name     = var.elearning_domain_name
+  elearning_route53_zone_id = var.elearning_route53_zone_id
+
   safety_case_version = var.safety_case_version
 
   github_repository           = var.github_repository

@@ -4353,6 +4353,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       package_identifier: { description: "The manifest's identifier or the xAPI activity id." },
       file_count: { description: "Files in the package.", unit: "files" },
       unpacked_bytes: { description: "The package's files unpacked, together.", unit: "bytes" },
+      package_index: {
+        description:
+          "Each file of the package: path, where its data starts in the archive, its sizes, CRC and compression method, checked at upload.",
+      },
       status: { description: "active (offered to staff) or retired." },
       created_at: "exported",
       created_by: "exported",
@@ -4383,6 +4387,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       total_seconds: { description: "Time spent, as the content reported it.", unit: "seconds" },
       finished_at: { description: "When the member finished (UTC)." },
       training_record_id: { description: "The training record its completion made." },
+      launch_nonce: "internal",
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

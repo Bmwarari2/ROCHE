@@ -77,3 +77,8 @@ output "manual_dns_records" {
   description = "DNS records to create by hand when Route 53 is not managed here."
   value       = module.stack.manual_dns_records
 }
+
+output "manual_elearning_dns_records" {
+  description = "DNS records to create by hand in the e-learning content domain (ADR-0093)."
+  value       = module.stack.manual_elearning_dns_records
+}

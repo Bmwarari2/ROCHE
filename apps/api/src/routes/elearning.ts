@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 import {
   ElearningAttempt,
   ElearningAttemptList,
@@ -26,7 +28,7 @@ import {
   xapiOutcome,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -38,6 +40,7 @@ import {
   withTenant,
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
+import { MemoryThrottle } from "../http/throttle";
 import { destroyingOnFailure, storeDocument } from "../services/documents";
 import {
   ATTEMPT_SOURCE,
@@ -46,17 +49,19 @@ import {
   COURSE_SOURCE,
   type CourseRow,
   latestAttempts,
-  PackageCache,
-  packageLocation,
+  packageOf,
   recordCompletion,
 } from "../services/elearning";
 import {
   analysePackage,
+  entryStream,
+  indexEntry,
   type LaunchClaims,
+  type PackageIndexEntry,
   PackageProblem,
-  packageFile,
   packageProblemMessage,
   signLaunchToken,
+  verifyEntries,
   verifyLaunchToken,
 } from "../services/elearning-package";
 import {
@@ -102,7 +107,27 @@ const zipBody = {
   required: true,
 } as const;
 
-const packages = new PackageCache();
+/**
+ * Files streamed at once by this instance, and how often one launch or one attempt may call
+ * (review H2, M7). Over the limit is a 429 or 503 with a wait, never a queue held in memory.
+ */
+const SERVING_MAX = 16;
+let serving = 0;
+const fileThrottle = new MemoryThrottle(600, 60_000);
+const statementThrottle = new MemoryThrottle(120, 60_000);
+const commitThrottle = new MemoryThrottle(60, 60_000);
+/** Statements kept for one attempt at most (review M7). */
+const STATEMENTS_PER_ATTEMPT_MAX = 5000;
+
+const tooMany = (wait: number) => {
+  const problem = new HttpProblem(
+    429,
+    "too_many_requests",
+    "Too many requests. Wait a moment and try again.",
+  );
+  problem.retryAfterSeconds = wait;
+  return problem;
+};
 
 const refused = (
   problem: HttpProblem,
@@ -179,24 +204,21 @@ function attemptView(row: AttemptRow) {
   };
 }
 
-/** Records a completion (once) and audits it in the member's name. */
+/**
+ * Records a completion (once); `recordCompletion` audits it in the same transaction, whether the
+ * member's session or a launch token reported it (review M2).
+ */
 async function afterSettled(
   c: Context<AppEnv>,
   tenantId: string,
   attempt: AttemptRow,
-  access: TenantAccess | null,
+  by: "session" | "launch_token",
 ) {
   if (!completesTraining(attempt.status as never) || attempt.trainingRecordId) return attempt;
-  const recordId = await recordCompletion(c.get("services").db, tenantId, attempt.id);
-  if (recordId && access) {
-    await writeAudit(c.get("services").appPool, access, {
-      action: A.completed,
-      resourceType: ATTEMPT_SOURCE,
-      resourceId: attempt.id,
-      scope: { trainingRecordId: recordId, courseId: attempt.courseId },
-      requestId: c.get("requestId"),
-    });
-  }
+  const recordId = await recordCompletion(c.get("services").db, tenantId, attempt.id, {
+    by,
+    requestId: c.get("requestId") ?? null,
+  });
   return recordId ? { ...attempt, trainingRecordId: recordId } : attempt;
 }
 
@@ -258,8 +280,10 @@ export const elearningRouter = createRouter()
       const bytes = Buffer.from(await c.req.arrayBuffer());
       let summary: ReturnType<typeof analysePackage>;
       try {
-        // Checked before any transaction opens: nothing is stored for a refused package.
+        // Checked before any transaction opens: nothing is stored for a refused package. Every
+        // file is inflated and checked once here, so serving never meets a bad entry (review H2).
         summary = analysePackage(bytes);
+        await verifyEntries(bytes, summary.index);
       } catch (error) {
         if (!(error instanceof PackageProblem)) throw error;
         await writeAudit(c.get("services").appPool, access, {
@@ -316,6 +340,7 @@ export const elearningRouter = createRouter()
               packageIdentifier: summary.identifier,
               fileCount: summary.fileCount,
               unpackedBytes: summary.unpackedBytes,
+              packageIndex: summary.index,
             })
             .returning();
           if (!row) throw new Error("course not stored");
@@ -435,10 +460,19 @@ export const elearningRouter = createRouter()
             )
             .orderBy(desc(elearningAttempt.createdAt))
             .limit(1);
-          if (open) return { course: found, attempt: open, resumed: true };
+          // A new launch replaces the nonce, so any earlier token for the attempt stops working.
+          if (open) {
+            const [relaunched] = await tx
+              .update(elearningAttempt)
+              .set({ launchNonce: randomUUID() })
+              .where(eq(elearningAttempt.id, open.id))
+              .returning();
+            if (!relaunched) throw problems.conflict();
+            return { course: found, attempt: relaunched, resumed: true };
+          }
           const [row] = await tx
             .insert(elearningAttempt)
-            .values({ courseId: id, workerId: access.tenantUserId })
+            .values({ courseId: id, workerId: access.tenantUserId, launchNonce: randomUUID() })
             .returning();
           if (!row) throw new Error("attempt not stored");
           await audit(c, tx, access, {
@@ -456,6 +490,7 @@ export const elearningRouter = createRouter()
           tenantId: access.tenantId,
           workerId: access.tenantUserId,
           courseId: course.id,
+          nonce: attempt.launchNonce,
           expiresAt: Math.floor(Date.now() / 1000) + config.ELEARNING_LAUNCH_MINUTES * 60,
         },
         config.ELEARNING_LAUNCH_SECRET,
@@ -505,6 +540,8 @@ export const elearningRouter = createRouter()
       const access = await requirePermission(c, SELF);
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
+      const wait = commitThrottle.take(id);
+      if (wait !== null) throw tooMany(wait);
       const saved = await change(
         c,
         access,
@@ -543,6 +580,14 @@ export const elearningRouter = createRouter()
             ? (sessionSeconds(body.cmi["cmi.core.session_time"] ?? body.cmi["cmi.session_time"]) ??
               0)
             : 0;
+          // A commit that changes nothing writes nothing (no new version; review M7).
+          const unchanged =
+            !body.finished &&
+            status === attempt.status &&
+            (outcome.score === null || String(outcome.score) === String(Number(attempt.score))) &&
+            (location === undefined || location === attempt.location) &&
+            (suspend === undefined || suspend === attempt.suspendData);
+          if (unchanged) return attempt;
           const [row] = await tx
             .update(elearningAttempt)
             .set({
@@ -559,7 +604,7 @@ export const elearningRouter = createRouter()
           return row;
         },
       );
-      const after = await afterSettled(c, access.tenantId, saved, access);
+      const after = await afterSettled(c, access.tenantId, saved, "session");
       return c.json(attemptView(after), 200);
     },
   );
@@ -588,13 +633,23 @@ async function launchedAttempt(c: Context<AppEnv>, claims: LaunchClaims) {
           eq(elearningAttempt.id, claims.attemptId),
           eq(elearningAttempt.workerId, claims.workerId),
           eq(elearningAttempt.courseId, claims.courseId),
+          // Only the latest launch's token works (review M6).
+          eq(elearningAttempt.launchNonce, claims.nonce),
+          isNull(elearningAttempt.deletedAt),
         ),
       );
     if (!attempt) return null;
+    // A retired or removed course is no longer served (review M6).
     const [course] = await tx
       .select()
       .from(elearningCourse)
-      .where(eq(elearningCourse.id, claims.courseId));
+      .where(
+        and(
+          eq(elearningCourse.id, claims.courseId),
+          eq(elearningCourse.status, "active"),
+          isNull(elearningCourse.deletedAt),
+        ),
+      );
     return course ? { attempt, course } : null;
   });
   if (!found) throw tokenProblem();
@@ -633,29 +688,51 @@ export const elearningLaunchRouter = createRouter()
     async (c) => {
       const { token, path } = c.req.valid("param");
       const claims = claimsOf(c, token);
+      const wait = fileThrottle.take(claims.attemptId);
+      if (wait !== null) throw tooMany(wait);
       const type = contentTypeOf(path);
       if (entryNameProblem(path) || path.endsWith("/") || !type) throw problems.notFound();
       const { course } = await launchedAttempt(c, claims);
+      const entry = indexEntry(course.packageIndex as PackageIndexEntry[], path);
+      if (!entry) throw problems.notFound();
       const { db, storage } = c.get("services");
-      let bytes = packages.get(course.packageSha256);
-      if (!bytes) {
-        const where = await packageLocation(db, claims.tenantId, course.documentId);
-        if (where?.status !== "available" || where.sha256 !== course.packageSha256) {
-          throw problems.notFound();
-        }
-        const stored = await storage.get(where.storageKey);
-        if (!stored) throw problems.notFound();
-        bytes = Buffer.from(stored);
-        packages.set(course.packageSha256, bytes);
+      // The stored package as it is now: still available, still the course's own (review L1).
+      const stored = await packageOf(db, claims.tenantId, course.documentId);
+      if (!stored || stored.sha256 !== course.packageSha256) throw problems.notFound();
+      if (serving >= SERVING_MAX) {
+        const busy = new HttpProblem(503, "busy", "Busy. Try again in a moment.");
+        busy.retryAfterSeconds = 2;
+        throw busy;
       }
-      const file = packageFile(bytes, path);
-      if (!file) throw problems.notFound();
-      return c.body(new Uint8Array(file), 200, {
-        "content-type": type,
-        "x-content-type-options": "nosniff",
-        "cache-control": "private, max-age=300",
-        "cross-origin-resource-policy": "same-site",
-      });
+      serving += 1;
+      let released = false;
+      const release = () => {
+        if (!released) {
+          released = true;
+          serving -= 1;
+        }
+      };
+      try {
+        const packed =
+          entry.c === 0
+            ? (async function* () {})()
+            : await storage.getRange(stored.storageKey, entry.o, entry.o + entry.c - 1);
+        if (!packed) throw problems.notFound();
+        // Only this file's bytes are read, inflated as a stream and checked (review H2).
+        const body = entryStream(packed, entry);
+        body.once("close", release);
+        body.once("error", release);
+        return c.body(Readable.toWeb(body) as ReadableStream, 200, {
+          "content-type": type,
+          "content-length": String(entry.u),
+          "x-content-type-options": "nosniff",
+          "cache-control": "private, max-age=300",
+          "cross-origin-resource-policy": "same-site",
+        });
+      } catch (error) {
+        release();
+        throw error;
+      }
     },
   )
   .openapi(
@@ -679,6 +756,8 @@ export const elearningLaunchRouter = createRouter()
     async (c) => {
       const { token } = c.req.valid("param");
       const claims = claimsOf(c, token);
+      const wait = statementThrottle.take(claims.attemptId);
+      if (wait !== null) throw tooMany(wait);
       const raw = c.req.valid("json");
       const list = Array.isArray(raw) ? raw : [raw];
       if (list.length === 0 || list.length > 50) {
@@ -696,38 +775,69 @@ export const elearningLaunchRouter = createRouter()
         return { ...ok.data, id: ok.data.id ?? crypto.randomUUID() };
       });
       const { attempt, course } = await launchedAttempt(c, claims);
-      const settled = await asLauncher(c.get("services").db, claims, async (tx) => {
-        for (const s of parsed) {
-          await tx
-            .insert(elearningStatement)
-            .values({ attemptId: attempt.id, statementId: s.id, verb: s.verb.id, statement: s })
-            .onConflictDoNothing();
-        }
-        if (course.standard !== "xapi") return null;
-        let status = attempt.status as "in_progress" | "completed" | "passed" | "failed";
-        let score: number | null = null;
-        for (const s of parsed) {
-          const outcome = xapiOutcome(s.verb.id, s.result?.score?.scaled);
-          if (!outcome) continue;
-          status = nextAttemptStatus(status, outcome.status);
-          if (outcome.score !== null) score = outcome.score;
-        }
-        if (status === attempt.status && score === null) return null;
-        const [row] = await tx
-          .update(elearningAttempt)
-          .set({
-            status,
-            ...(score !== null ? { score: String(score) } : {}),
-            ...(status !== "in_progress" ? { finishedAt: new Date() } : {}),
-          })
-          .where(eq(elearningAttempt.id, attempt.id))
-          .returning();
-        return row ?? null;
-      });
-      if (settled) await afterSettled(c, claims.tenantId, settled, null);
+      const settled = await keepStatements(c, claims, attempt, course, parsed);
+      if (settled) await afterSettled(c, claims.tenantId, settled, "launch_token");
       return c.json(
         parsed.map((s) => s.id),
         200,
       );
     },
   );
+
+/** Keeps a batch of statements and settles an xAPI attempt; the database's refusals are a 400. */
+async function keepStatements(
+  c: Context<AppEnv>,
+  claims: LaunchClaims,
+  attempt: AttemptRow,
+  course: CourseRow,
+  parsed: readonly (z.infer<typeof XapiStatement> & { id: string })[],
+): Promise<AttemptRow | null> {
+  try {
+    return await asLauncher(c.get("services").db, claims, async (tx) => {
+      const [kept] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(elearningStatement)
+        .where(eq(elearningStatement.attemptId, attempt.id));
+      if ((kept?.n ?? 0) + parsed.length > STATEMENTS_PER_ATTEMPT_MAX) {
+        throw new HttpProblem(
+          400,
+          "statements_refused",
+          "This attempt has kept as many statements as it may.",
+        );
+      }
+      for (const s of parsed) {
+        await tx
+          .insert(elearningStatement)
+          .values({ attemptId: attempt.id, statementId: s.id, verb: s.verb.id, statement: s })
+          .onConflictDoNothing();
+      }
+      if (course.standard !== "xapi") return null;
+      let status = attempt.status as "in_progress" | "completed" | "passed" | "failed";
+      let score: number | null = null;
+      for (const s of parsed) {
+        const outcome = xapiOutcome(s.verb.id, s.result?.score?.scaled);
+        if (!outcome) continue;
+        status = nextAttemptStatus(status, outcome.status);
+        if (outcome.score !== null) score = outcome.score;
+      }
+      if (status === attempt.status && score === null) return null;
+      const [row] = await tx
+        .update(elearningAttempt)
+        .set({
+          status,
+          ...(score !== null ? { score: String(score) } : {}),
+          ...(status !== "in_progress" ? { finishedAt: new Date() } : {}),
+        })
+        .where(eq(elearningAttempt.id, attempt.id))
+        .returning();
+      return row ?? null;
+    });
+  } catch (error) {
+    if (error instanceof HttpProblem) throw error;
+    const code = dbCode(error);
+    if (code === "23514" || code === "22P02" || code === "42501") {
+      throw new HttpProblem(400, "statements_refused", "A statement is not one Harbour can keep.");
+    }
+    throw error;
+  }
+}

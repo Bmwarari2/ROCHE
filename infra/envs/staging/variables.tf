@@ -133,3 +133,15 @@ variable "budget_email_addresses" {
   type        = list(string)
   default     = []
 }
+
+variable "elearning_domain_name" {
+  description = "Registrable domain for the e-learning content origin (ADR-0093), never domain_name or under it; null leaves courses unlaunched."
+  type        = string
+  default     = null
+}
+
+variable "elearning_route53_zone_id" {
+  description = "Route 53 hosted zone for elearning_domain_name, or null to create its records by hand from the manual_elearning_dns_records output."
+  type        = string
+  default     = null
+}

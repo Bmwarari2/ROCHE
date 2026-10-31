@@ -92,7 +92,7 @@ const Env = z.object({
     .min(32)
     .default("local-development-elearning-launch-secret-0123456789"),
   /** How long a launch token lasts (an attempt can be resumed with a new one). */
-  ELEARNING_LAUNCH_MINUTES: z.coerce.number().int().positive().max(720).default(240),
+  ELEARNING_LAUNCH_MINUTES: z.coerce.number().int().positive().max(480).default(120),
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),

@@ -92,6 +92,17 @@ export class LocalDocumentStorage implements DocumentStoragePort {
     return createReadStream(path);
   }
 
+  async getRange(key: string, start: number, end: number) {
+    const path = this.path(key);
+    try {
+      await stat(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+    return createReadStream(path, { start, end });
+  }
+
   async health(): Promise<HealthResult> {
     await mkdir(this.root, { recursive: true });
     return { ok: true, detail: "local disk" };
@@ -189,6 +200,19 @@ export class S3DocumentStorage implements DocumentStoragePort {
     try {
       const result = await this.client.send(
         new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return (result.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
+    } catch (error) {
+      if (error instanceof NoSuchKey) return null;
+      throw error;
+    }
+  }
+
+  async getRange(key: string, start: number, end: number) {
+    assertKey(key);
+    try {
+      const result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: `bytes=${start}-${end}` }),
       );
       return (result.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
     } catch (error) {

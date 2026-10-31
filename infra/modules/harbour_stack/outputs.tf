@@ -85,13 +85,20 @@ output "nat_public_ips" {
   value       = module.network.nat_public_ips
 }
 
+output "manual_elearning_dns_records" {
+  description = "DNS records to create by hand in the e-learning content domain when elearning_route53_zone_id is null (ADR-0093)."
+  value = !local.learn_enabled || var.elearning_route53_zone_id != null ? null : {
+    certificate_validation = module.cert_learn[0].domain_validation_records
+    aliases                = [{ name = local.hosts.learn, type = "CNAME", value = module.cdn_learn[0].domain_name }]
+  }
+}
+
 output "manual_dns_records" {
   description = "DNS records to create by hand when route53_zone_id is null (certificate validation, aliases, SES)."
   value = var.route53_zone_id != null ? null : {
     certificate_validation = concat(module.cert_regional.domain_validation_records, module.cert_cloudfront.domain_validation_records)
     aliases = concat(
       [{ name = local.hosts.web, type = "CNAME", value = module.cdn.domain_name }],
-      [{ name = local.hosts.learn, type = "CNAME", value = module.cdn_learn.domain_name }],
       [for h in local.alb_hosts : { name = local.hosts[h], type = "CNAME", value = module.alb.dns_name }],
     )
     email = module.ses.dns_records

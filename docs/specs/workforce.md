@@ -448,16 +448,20 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
 
 | Table | Columns | Rules |
 | --- | --- | --- |
-| `elearning_course` | `title`, `topic` and `tier` (what a completion records), `standard`, `document_id` (the `elearning_package` document), `package_sha256`, `launch_path` and `launch_query` (from the manifest), `package_identifier`, `file_count`, `unpacked_bytes`, `status` (`active`, `retired`) | Read by staff and training leads; written by `workforce.training.manage`; mutable with history, never deleted |
-| `elearning_attempt` | `course_id`, `worker_id`, `status` (`in_progress`, `completed`, `passed`, `failed`), `score` (0 to 1), `location`, `suspend_data` (to resume), `total_seconds`, `finished_at`, `training_record_id` | The member's own (started, resumed and saved by them); read by those who read development records; keeps its member and course; only the system links the training record; a completion or pass is never taken back |
+| `elearning_course` | `title`, `topic` and `tier` (what a completion records), `standard`, `document_id` (the `elearning_package` document), `package_sha256`, `launch_path` and `launch_query` (from the manifest), `package_identifier`, `file_count`, `unpacked_bytes`, `package_index` (each file's path, data offset, sizes, CRC and method, read and checked once at upload), `status` (`active`, `retired`) | Read by staff and training leads; written by `workforce.training.manage`; the package must be an `elearning_package` document (trigger); mutable with history, never deleted |
+| `elearning_attempt` | `course_id`, `worker_id`, `status` (`in_progress`, `completed`, `passed`, `failed`), `score` (0 to 1), `location`, `suspend_data` (to resume), `total_seconds`, `finished_at`, `training_record_id`, `launch_nonce` (replaced at every start or resume, so only the latest launch token works) | The member's own (started, resumed and saved by them); read by those who read development records; keeps its member and course; only the system links the training record; a settled outcome (completed, passed or failed) is never changed: a retake is a new attempt |
 | `elearning_statement` | `attempt_id`, `statement_id` (once per attempt), `verb`, `statement` (as sent, at most 16 KB) | Append-only; the member's own attempt |
 
 ### 14.2 Rules (`packages/domain/src/workforce/elearning.ts`, table-driven tests)
 
 1. A package is checked from its central directory before anything is unpacked: entry names
-   (`entryNameProblem`), links, encryption, compression method, file types (`contentTypeOf`),
-   duplicates, counts and sizes, and the unpacked-to-packed ratio (`archiveProblem`,
-   `ARCHIVE_LIMITS`: 5,000 entries, 500 MB, 200 MB an entry, 100 times).
+   (`entryNameProblem`: no controls, separators or bidirectional overrides, normal form C only),
+   links, encryption, compression method, file types (`contentTypeOf`), duplicates, counts and
+   sizes, and the unpacked-to-packed ratio (`archiveProblem`, `ARCHIVE_LIMITS`: 5,000 entries,
+   500 MB, 200 MB an entry, 100 times). The archive must read the same to every reader: the end
+   record last, no ZIP64 locator, each local header matching its central entry, and the entries
+   tiling the file with no overlap or hidden bytes. Every file is then inflated once and its size
+   and CRC checked, before the course is kept (security review M3, H2).
 2. The launch page is the manifest's, resolved under the package (`launchPathOf`): SCORM from the
    default organisation's first item with a resource (`xml:base` honoured), xAPI from
    `tincan.xml`. It must be an HTML file the package holds.
@@ -465,8 +469,10 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
    `lesson_status` (1.2) or `success_status` then `completion_status` (2004), with the score
    scaled 0 to 1 (`attemptOutcome`). xAPI completed, passed and failed verbs settle an xAPI
    course (`xapiOutcome`).
-4. An attempt's status only moves forward (`nextAttemptStatus`); a completion or pass makes one
-   training record (`completesTraining`); a fail never does.
+4. An attempt's status only moves forward (`nextAttemptStatus`), and a settled one (completed,
+   passed or failed) is final for that attempt; a completion or pass makes one training record
+   (`completesTraining`), audited in the same transaction whether the member's session or a
+   launch token reported it; a fail never does.
 5. Session time counts when the content finishes (`sessionSeconds`).
 
 ### 14.3 Permissions
@@ -483,7 +489,18 @@ in [ADR-0093](../decisions/0093-elearning-runtime.md).
   `GET`/`POST .../courses/{id}/attempts`, `PATCH /v1/workforce/elearning/attempts/{id}`;
   `GET /e/launch/{token}/files/{path}` and `POST /e/launch/{token}/statements` (no session).
   Audited: course added (or refused, with the problem code) and retired, attempt started and
-  completed, with ids only.
+  completed (in the completion's own transaction, with how it arrived), with ids only.
+- Files are served by a ranged read of just their own bytes from the stored archive, inflated as
+  a stream and checked against the index, at most 16 at once an instance; the stored document
+  must still be available. Calls are throttled per attempt (files, statements, commits), an
+  attempt keeps at most 5,000 statements, a commit that changes nothing writes nothing, and the
+  runtime sends commits at most every 5 seconds (security review H2, M7). A launch token expires
+  after `ELEARNING_LAUNCH_MINUTES` (120 by default), is replaced by the next launch, and stops
+  working when the course is retired (M6).
+- The content origin is another registrable domain from the app's (`contentOrigin` refuses one on
+  the app's own site; Terraform's `elearning_domain_name`), and the load balancer forwards only
+  `/learn/*` on it; the web proxy refuses every other path there, prefetches and route handlers
+  included (H1, M4). The package is told the member's first name only (M8).
 - Web: `/training/elearning` (courses; add and retire for training leads), the player at
   `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
   content origin's `/learn/{token}` (runtime page, its script, package files, xAPI statements).
@@ -509,5 +526,8 @@ with axe in light and dark).
 | A completion is self-reported by content in the member's browser | Optional confirmation by a training lead per course (H-1013) |
 | xAPI state and activity profile documents are not kept, so xAPI content cannot resume | A small state store per attempt, if courses need it (H-1016) |
 | SCORM interactions, objectives and comments are not kept | Only if a course's reporting needs them (H-1016) |
-| Files are read out of the stored archive on each request (with a small in-memory cache) | Unpack checked files to the document store per package, if load needs it |
+| One content origin serves every organisation and course, so packages on one device share its storage | One origin per launch or per organisation under a wildcard certificate (security review M5; H-1017) |
+| The launch token travels in URL paths, which access logs keep | Exchange it for a first-party cookie on the content origin at first load (M6; H-1017) |
+| The app's session cookie is `__Secure-harbour.session_token`, which a subdomain could shadow | Rename it `__Host-` (one sign-out for everyone; H-1017) |
+| Restrictive policies target `harbour_app` only, as migration 0079 does, not `harbour_owner` as ADR-0002 asks | Align both migrations together (L7) |
 | Offline courses on the phone | Mobile slice 72 (H-1018) |

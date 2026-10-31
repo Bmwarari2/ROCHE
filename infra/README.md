@@ -40,7 +40,7 @@ call the same `harbour_stack` module, so staging rehearses exactly what prod wil
 | --- | --- | --- |
 | `app.<domain>` | CloudFront, then ALB, then `web` (Next.js, port 3000) | Only reachable through CloudFront: the ALB rule requires a secret origin header |
 | `api.<domain>` | ALB, then `api` (Hono, port 4000) | Also serves `/v1/sync/jwks` for PowerSync |
-| `learn.<domain>` | Its own CloudFront distribution, then ALB, then `web` | The e-learning content origin (ADR-0093): the web tier answers only `/learn` here; no X-Frame-Options (the app frames the runtime page) and no referrer; `ELEARNING_ORIGIN` on the web task |
+| `learn.<elearning_domain_name>` | Its own CloudFront distribution and certificate, then ALB, then `web` | The e-learning content origin (ADR-0093), on its own registrable domain (`elearning_domain_name`, never `<domain>` or under it, so package script is another site from the app; security review H1). The ALB forwards only `/learn/*` on this host and answers anything else with a fixed 404 (M4); no X-Frame-Options (the app frames the runtime page) and no referrer; `ELEARNING_ORIGIN` on the web task. Unset, courses do not launch |
 | `sync.<domain>` | ALB, then `powersync` (port 8080) | Self-hosted PowerSync, unified mode |
 | `flags.<domain>` | ALB, then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default |
 | none | `worker` | pg-boss jobs; same image as `api` with another command |

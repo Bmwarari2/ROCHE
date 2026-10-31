@@ -168,6 +168,11 @@ export interface DocumentStoragePort {
   putStream(key: string, source: AsyncIterable<Uint8Array>, contentType: string): Promise<void>;
   /** Reads an object as a stream; null when there is none. */
   getStream(key: string): Promise<AsyncIterable<Uint8Array> | null>;
+  /**
+   * Reads bytes `start` to `end` (inclusive) of an object as a stream; null when there is none.
+   * E-learning files are read this way, one file's bytes out of a stored package (ADR-0093).
+   */
+  getRange(key: string, start: number, end: number): Promise<AsyncIterable<Uint8Array> | null>;
 }
 
 /** `unavailable` keeps the upload quarantined: a document is never served unscanned in production. */

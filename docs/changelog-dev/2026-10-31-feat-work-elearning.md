@@ -40,7 +40,42 @@ Branch `feat/work-elearning` (Phase 2 slice 43; WORK-006; ADR-0093; migration 01
   mapping, a follow-up under HZ-124, feature register (WORK-006 done), human actions H-1010 to
   H-1019.
 
+## Security review fixes
+
+The security reviewer found 2 High, 8 Medium and 7 Low issues. Fixed here:
+
+- **H1**: the content origin must be another registrable domain from the app's. `contentOrigin`
+  refuses one on the app's own site, and Terraform takes `elearning_domain_name`, with its own
+  certificate, distribution and DNS, and a check that it is not under `domain_name`.
+- **H2**: no whole archive in memory. The course keeps an index made at upload, when every file is
+  inflated and checked once. Each file is served by a ranged read of its own bytes (new
+  `getRange` on document storage), inflated as a stream with a size and CRC check, at most 16 at
+  once an instance, throttled per attempt. The package cache is gone.
+- **M1**: a fail is final for that attempt (domain rule and trigger).
+- **M2**: completions are audited in the completion's own transaction, session or token alike.
+- **M3**: the zip reader refuses parser differentials: local headers must match central entries,
+  entries must tile the file, the end record must be last, no ZIP64 locator.
+- **M4**: the proxy checks the content host on every path, route handlers and prefetches
+  included; the load balancer forwards only `/learn/*` on that host.
+- **M6**: tokens carry the attempt's launch nonce, replaced at every launch; retired courses are
+  not served; the default lifetime is now 120 minutes.
+- **M7**: statements capped at 5,000 an attempt; commits that change nothing write nothing; the
+  runtime sends commits at most every 5 seconds; commits and statements are throttled.
+- **M8**: the package is told the member's first name only.
+- **L1** (the package must be an e-learning document, available, checked in code and by a
+  trigger), **L2** (the database statement check is a backstop above the API limit, and its
+  refusals are a 400), **L3** (manifest nesting capped; anything unexpected is a refusal),
+  **L4** (no fullscreen for content), **L5** (commit bodies capped at 128 KB), **L6** (names with
+  controls, separators, bidirectional overrides or not NFC are refused).
+- Two suite failures were fixed: the route-gates test lists the token routes, and the sample-data
+  removal list names `elearning_course` as stopping removal.
+
 ## Found, not fixed here
+
+- Left open for decision in H-1017: renaming the session cookie `__Host-` (H1); one content
+  origin per organisation or per launch (M5); exchanging the launch token for a cookie so it
+  leaves access logs (M6). L7 (restrictive policies on `harbour_app` only) repeats migration
+  0079's pattern; both should change together.
 
 - A completion is reported by content in the member's browser, as in any SCORM LMS. Whether it
   should need a training lead's confirmation is H-1013.

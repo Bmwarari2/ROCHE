@@ -19,8 +19,23 @@ module "cert_cloudfront" {
   }
 
   domain_name               = local.hosts.web
-  subject_alternative_names = [local.hosts.learn]
+  subject_alternative_names = []
   route53_zone_id           = var.route53_zone_id
+}
+
+# The e-learning content host is on its own registrable domain (security review H1), so its own
+# certificate, validated in its own zone.
+module "cert_learn" {
+  source = "../acm_certificate"
+  count  = local.learn_enabled ? 1 : 0
+
+  providers = {
+    aws = aws.us_east_1
+  }
+
+  domain_name               = local.hosts.learn
+  subject_alternative_names = []
+  route53_zone_id           = var.elearning_route53_zone_id
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -133,13 +148,15 @@ module "cdn" {
 
 # The e-learning content origin (ADR-0093): its own distribution, so the app's runtime page can be
 # framed (no X-Frame-Options; the page's frame-ancestors names the app) and nothing is referred.
-# The web tier answers only `/learn` on this host; caching stays off as for the app.
+# The web tier answers only `/learn` on this host, and the load balancer forwards nothing else
+# (services.tf); caching stays off as for the app.
 module "cdn_learn" {
   source = "../cloudfront"
+  count  = local.learn_enabled ? 1 : 0
 
   name                       = "${local.name_prefix}-learn"
   aliases                    = [local.hosts.learn]
-  certificate_arn            = module.cert_cloudfront.certificate_arn
+  certificate_arn            = module.cert_learn[0].certificate_arn
   origin_domain_name         = module.alb.dns_name
   origin_verify_header_value = random_password.origin_verify.result
   web_acl_arn                = module.waf_cloudfront.arn
@@ -172,15 +189,15 @@ resource "aws_route53_record" "web" {
 }
 
 resource "aws_route53_record" "learn" {
-  for_each = local.manage_dns ? toset(["A", "AAAA"]) : toset([])
+  for_each = local.learn_enabled && var.elearning_route53_zone_id != null ? toset(["A", "AAAA"]) : toset([])
 
-  zone_id = var.route53_zone_id
+  zone_id = var.elearning_route53_zone_id
   name    = local.hosts.learn
   type    = each.key
 
   alias {
-    name                   = module.cdn_learn.domain_name
-    zone_id                = module.cdn_learn.hosted_zone_id
+    name                   = module.cdn_learn[0].domain_name
+    zone_id                = module.cdn_learn[0].hosted_zone_id
     evaluate_target_health = false
   }
 }

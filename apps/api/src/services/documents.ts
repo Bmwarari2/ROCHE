@@ -140,6 +140,7 @@ export async function destroyingOnFailure<T>(
       await storage.putStream(key, source, contentType);
     },
     getStream: (key) => storage.getStream(key),
+    getRange: (key, start, end) => storage.getRange(key, start, end),
   };
   try {
     return await run(tracking);

@@ -8,10 +8,12 @@ import {
   contentCsp,
   contentOrigin,
   isContentHost,
+  learnerNameOf,
   packagePathOf,
   readRuntimeMessage,
   runtimeCsp,
   runtimePage,
+  siteOf,
 } from "./elearning";
 import { t } from "./i18n";
 
@@ -23,15 +25,57 @@ const token = (payload: unknown) =>
 
 describe("WORK-006 the content origin is another site, from configuration only", () => {
   it.each([
+    ["app.example.invalid", "example.invalid"],
+    ["a.b.harbour.co.uk", "harbour.co.uk"],
+    ["127.0.0.1", "127.0.0.1"],
+    ["localhost", "localhost"],
+  ])("places %s on the site %s", (host, site) => {
+    expect(siteOf(host)).toBe(site);
+  });
+
+  it.each([
     [{ NODE_ENV: "development" }, "http://127.0.0.1:3000"],
     [{ NODE_ENV: "production" }, null],
     [
       {
         NODE_ENV: "production",
         PUBLIC_WEB_URL: "https://app.example.invalid",
-        ELEARNING_ORIGIN: "https://learn.example.invalid/x",
+        ELEARNING_ORIGIN: "https://content.harbour-learning.invalid/x",
       },
-      "https://learn.example.invalid",
+      "https://content.harbour-learning.invalid",
+    ],
+    // Review H1: a subdomain of the app's own domain is the same site, so it is refused.
+    [
+      {
+        NODE_ENV: "production",
+        PUBLIC_WEB_URL: "https://app.example.invalid",
+        ELEARNING_ORIGIN: "https://learn.example.invalid",
+      },
+      null,
+    ],
+    [
+      {
+        NODE_ENV: "production",
+        PUBLIC_WEB_URL: "https://app.harbour.co.uk",
+        ELEARNING_ORIGIN: "https://learn.harbour.co.uk",
+      },
+      null,
+    ],
+    [
+      {
+        NODE_ENV: "production",
+        PUBLIC_WEB_URL: "https://app.harbour.co.uk",
+        ELEARNING_ORIGIN: "https://content.harbour-learning.co.uk",
+      },
+      "https://content.harbour-learning.co.uk",
+    ],
+    [
+      {
+        NODE_ENV: "production",
+        PUBLIC_WEB_URL: "https://harbour.invalid",
+        ELEARNING_ORIGIN: "https://learn.harbour.invalid",
+      },
+      null,
     ],
     [
       {
@@ -45,7 +89,7 @@ describe("WORK-006 the content origin is another site, from configuration only",
       {
         NODE_ENV: "production",
         PUBLIC_WEB_URL: "https://app.example.invalid",
-        ELEARNING_ORIGIN: "http://learn.example.invalid",
+        ELEARNING_ORIGIN: "http://content.harbour-learning.invalid",
       },
       null,
     ],
@@ -66,6 +110,16 @@ describe("WORK-006 the content origin is another site, from configuration only",
     expect(isContentHost("127.0.0.1:3000", "http://127.0.0.1:3000")).toBe(true);
     expect(isContentHost("localhost:3000", "http://127.0.0.1:3000")).toBe(false);
     expect(isContentHost(null, "http://127.0.0.1:3000")).toBe(false);
+  });
+});
+
+describe("WORK-006 a package is told a first name only (review M8)", () => {
+  it.each([
+    ["Ada Example", "Ada"],
+    ["  Cat   Carer ", "Cat"],
+    ["Mo", "Mo"],
+  ])("%j gives %j", (name, first) => {
+    expect(learnerNameOf(name)).toBe(first);
   });
 });
 

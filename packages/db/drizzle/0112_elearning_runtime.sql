@@ -10,6 +10,7 @@ CREATE TABLE "elearning_attempt" (
 	"total_seconds" integer DEFAULT 0 NOT NULL,
 	"finished_at" timestamp with time zone,
 	"training_record_id" uuid,
+	"launch_nonce" uuid DEFAULT app.uuid_v7() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE "elearning_course" (
 	"package_identifier" text,
 	"file_count" integer NOT NULL,
 	"unpacked_bytes" integer NOT NULL,
+	"package_index" jsonb NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
@@ -56,7 +58,8 @@ CREATE TABLE "elearning_course" (
 	CONSTRAINT "elearning_course_sha256" CHECK (package_sha256 ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "elearning_course_launch_path" CHECK (length(launch_path) BETWEEN 1 AND 240 AND launch_path !~ '(^/|\\|(^|/)\.\.?(/|$))'),
 	CONSTRAINT "elearning_course_launch_query" CHECK (length(launch_query) <= 500),
-	CONSTRAINT "elearning_course_counts" CHECK (file_count > 0 AND unpacked_bytes >= 0)
+	CONSTRAINT "elearning_course_counts" CHECK (file_count > 0 AND unpacked_bytes >= 0),
+	CONSTRAINT "elearning_course_index" CHECK (jsonb_typeof(package_index) = 'array' AND jsonb_array_length(package_index) = file_count)
 );
 --> statement-breakpoint
 CREATE TABLE "elearning_statement" (
@@ -71,7 +74,7 @@ CREATE TABLE "elearning_statement" (
 	CONSTRAINT "elearning_statement_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "elearning_statement_once_key" UNIQUE("tenant_id","attempt_id","statement_id"),
 	CONSTRAINT "elearning_statement_verb" CHECK (verb ~ '^https?://' AND length(verb) <= 300),
-	CONSTRAINT "elearning_statement_size" CHECK (octet_length(statement::text) <= 16384)
+	CONSTRAINT "elearning_statement_size" CHECK (octet_length(statement::text) <= 32768)
 );
 --> statement-breakpoint
 ALTER TABLE "elearning_attempt" ADD CONSTRAINT "elearning_attempt_course_fk" FOREIGN KEY ("tenant_id","course_id") REFERENCES "public"."elearning_course"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -144,8 +147,9 @@ CREATE POLICY elearning_statement_write ON public.elearning_statement AS RESTRIC
   WITH CHECK (app.is_system()
     OR app.reads_own_development(app.elearning_attempt_worker(attempt_id)));
 --> statement-breakpoint
--- An attempt keeps its member and course; only the system links the training record it made,
--- and a settled completion is never taken back.
+-- An attempt keeps its member and course; only the system links the training record it made;
+-- a settled outcome (completed, passed or failed) is never changed: a retake is a new attempt
+-- (review M1).
 CREATE OR REPLACE FUNCTION app.elearning_attempt_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -155,8 +159,8 @@ BEGIN
   IF NEW.training_record_id IS DISTINCT FROM OLD.training_record_id AND NOT app.is_system() THEN
     RAISE EXCEPTION 'only the system records a completion' USING ERRCODE = '42501';
   END IF;
-  IF OLD.status IN ('completed', 'passed') AND NEW.status NOT IN ('completed', 'passed') THEN
-    RAISE EXCEPTION 'a settled completion is kept' USING ERRCODE = '23514';
+  IF OLD.status IN ('completed', 'passed', 'failed') AND NEW.status IS DISTINCT FROM OLD.status THEN
+    RAISE EXCEPTION 'a settled outcome is kept' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;
 END
@@ -177,6 +181,24 @@ CREATE TRIGGER elearning_attempt_guard BEFORE UPDATE ON public.elearning_attempt
 --> statement-breakpoint
 CREATE TRIGGER elearning_attempt_insert_guard BEFORE INSERT ON public.elearning_attempt
   FOR EACH ROW EXECUTE FUNCTION app.elearning_attempt_insert_guard();
+--> statement-breakpoint
+-- A course's package is an e-learning package document, never another document (review L1).
+CREATE OR REPLACE FUNCTION app.elearning_course_document_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF (TG_OP = 'INSERT' OR NEW.document_id IS DISTINCT FROM OLD.document_id)
+     AND NOT EXISTS (SELECT 1 FROM public.document d
+                      WHERE d.tenant_id = NEW.tenant_id AND d.id = NEW.document_id
+                        AND d.category = 'elearning_package') THEN
+    RAISE EXCEPTION 'a course''s package is an e-learning package' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER elearning_course_document_guard BEFORE INSERT OR UPDATE OF document_id
+  ON public.elearning_course
+  FOR EACH ROW EXECUTE FUNCTION app.elearning_course_document_guard();
 --> statement-breakpoint
 DO $$
 DECLARE t text;

@@ -19,9 +19,10 @@ locals {
     api   = "api.${var.domain_name}"
     sync  = "sync.${var.domain_name}"
     flags = "flags.${var.domain_name}"
-    # The e-learning content origin (ADR-0093): another site, served by the web tier.
-    learn = "learn.${var.domain_name}"
+    # The e-learning content origin (ADR-0093): another registrable domain, served by the web tier.
+    learn = var.elearning_domain_name == null ? null : "learn.${var.elearning_domain_name}"
   }
+  learn_enabled = var.elearning_domain_name != null
 
   default_sizes = {
     api       = { cpu = 512, memory = 1024, min = 1, max = 4 }
@@ -32,6 +33,19 @@ locals {
     flagsmith = { cpu = 512, memory = 1024, min = 1, max = 1 }
   }
   sizes = merge(local.default_sizes, var.service_sizes)
+}
+
+check "elearning_is_another_site" {
+  assert {
+    condition = (
+      var.elearning_domain_name == null ? true : (
+        var.elearning_domain_name != var.domain_name &&
+        !endswith(var.elearning_domain_name, ".${var.domain_name}") &&
+        !endswith(var.domain_name, ".${var.elearning_domain_name}")
+      )
+    )
+    error_message = "elearning_domain_name must be another registrable domain from domain_name (ADR-0093, security review H1)."
+  }
 }
 
 check "region_is_london" {

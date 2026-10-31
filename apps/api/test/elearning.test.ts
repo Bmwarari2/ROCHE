@@ -53,6 +53,8 @@ interface Launch {
 
 let scormCourse = "";
 let launch: Launch;
+/** The latest launch's token: each start or resume replaces the one before (review M6). */
+let latestToken = "";
 
 beforeAll(async () => {
   h = await createHarness();
@@ -118,6 +120,12 @@ describe("WORK-006 attempts", () => {
       await send("carer", `${COURSES}/${scormCourse}/attempts`, { method: "POST", body: {} })
     ).json()) as Launch;
     expect(again.attemptId).toBe(launch.attemptId);
+    // Resuming replaces the launch: the first token no longer opens anything (review M6).
+    expect(
+      (await h.request(`/e/launch/${launch.token}/files/${encodeURIComponent("index.html")}`))
+        .status,
+    ).toBe(404);
+    launch = again;
   });
 
   it("serve only that course's files, of allowed types, for a valid token", async () => {
@@ -146,6 +154,7 @@ describe("WORK-006 attempts", () => {
         tenantId: "0194d000-0000-7000-8000-00000000ffff",
         workerId: DEMO.users.carer.id,
         courseId: scormCourse,
+        nonce: "0194d000-0000-7000-8000-00000000eeee",
         expiresAt: Math.floor(Date.now() / 1000) + 60,
       },
       "local-development-elearning-launch-secret-0123456789",
@@ -171,6 +180,7 @@ describe("WORK-006 attempts", () => {
       await send("carer", `${COURSES}/${scormCourse}/attempts`, { method: "POST", body: {} })
     ).json()) as Launch & { location: string };
     expect(resumed).toMatchObject({ entry: "resume", location: "page-3" });
+    latestToken = resumed.token;
 
     const passed = await commit(
       "carer",
@@ -202,11 +212,14 @@ describe("WORK-006 attempts", () => {
       [launch.attemptId],
     );
     expect(attempt?.status).toBe("passed");
-    const audited = await sql<{ scope: string }>(
-      "SELECT scope::text AS scope FROM audit_event WHERE action = 'workforce.elearning_attempt.completed'",
+    const audited = await sql<{ scope: string; actor: string | null }>(
+      "SELECT scope::text AS scope, actor_tenant_user_id AS actor FROM audit_event WHERE action = 'workforce.elearning_attempt.completed'",
     );
     expect(audited).toHaveLength(1);
-    expect(audited[0]?.scope).not.toContain("85");
+    // Ids and codes only: never the score.
+    expect(audited[0]?.scope).not.toMatch(/score|0\.85/);
+    expect(audited[0]?.scope).toContain('"via": "session"');
+    expect(audited[0]?.actor).toBe(DEMO.users.carer.id);
   });
 
   it("show training leads every attempt, and staff none of the list", async () => {
@@ -255,6 +268,14 @@ describe("WORK-006 xAPI courses settle from their statements", () => {
     );
     expect(attempt?.status).toBe("completed");
     expect(attempt?.training_record_id).toBeTruthy();
+    // Settled through the token, and audited all the same (review M2).
+    const audited = await sql<{ scope: string; actor: string | null }>(
+      "SELECT scope::text AS scope, actor_tenant_user_id AS actor FROM audit_event WHERE action = 'workforce.elearning_attempt.completed' AND resource_id = $1",
+      [start.attemptId],
+    );
+    expect(audited).toHaveLength(1);
+    expect(audited[0]?.scope).toContain('"via": "launch_token"');
+    expect(audited[0]?.actor).toBeNull();
     // xAPI courses take no SCORM commits.
     const commit = await send("carer", `/v1/workforce/elearning/attempts/${start.attemptId}`, {
       method: "PATCH",
@@ -267,6 +288,10 @@ describe("WORK-006 xAPI courses settle from their statements", () => {
 describe("WORK-006 retired courses", () => {
   it("are no longer offered to staff", async () => {
     expect(
+      (await h.request(`/e/launch/${latestToken}/files/${encodeURIComponent("index.html")}`))
+        .status,
+    ).toBe(200);
+    expect(
       (await send("carer", `${COURSES}/${scormCourse}/retire`, { method: "POST", body: {} }))
         .status,
     ).toBe(403);
@@ -278,6 +303,11 @@ describe("WORK-006 retired courses", () => {
     expect(list.items.map((i) => i.id)).not.toContain(scormCourse);
     expect(
       (await send("carer", `${COURSES}/${scormCourse}/attempts`, { method: "POST", body: {} }))
+        .status,
+    ).toBe(404);
+    // A retired course is no longer served, even to a launch still open (review M6).
+    expect(
+      (await h.request(`/e/launch/${latestToken}/files/${encodeURIComponent("index.html")}`))
         .status,
     ).toBe(404);
   });

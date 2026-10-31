@@ -1,4 +1,5 @@
 import {
+  auditEvent,
   type Database,
   document,
   elearningAttempt,
@@ -60,6 +61,8 @@ export async function recordCompletion(
   db: Database,
   tenantId: string,
   attemptId: string,
+  /** How the completion arrived, for its audit event: the member's session or a launch token. */
+  via: { readonly by: "session" | "launch_token"; readonly requestId: string | null },
 ): Promise<string | null> {
   return asSystem(db, tenantId, async (tx) => {
     const locked = await tx.execute<{
@@ -94,6 +97,22 @@ export async function recordCompletion(
       .update(elearningAttempt)
       .set({ trainingRecordId: record.id })
       .where(eq(elearningAttempt.id, attemptId));
+    // Audited with the completion, in the same transaction, however it arrived (review M2): the
+    // member it is about, and whether their session or a launch token reported it.
+    await tx.insert(auditEvent).values({
+      tenantId,
+      actorTenantUserId: via.by === "session" ? attempt.worker_id : null,
+      action: "workforce.elearning_attempt.completed",
+      resourceType: "elearning_attempt",
+      resourceId: attemptId,
+      scope: {
+        subjectTenantUserId: attempt.worker_id,
+        via: via.by,
+        trainingRecordId: record.id,
+        courseId: attempt.course_id,
+      },
+      requestId: via.requestId,
+    });
     return record.id;
   });
 }
@@ -113,47 +132,28 @@ export async function latestAttempts(
   return out;
 }
 
-/** Where a course's package is kept, read in the organisation's own context (the document row). */
-export async function packageLocation(
+/**
+ * A course's stored package as it is now, read in the organisation's own context: only an
+ * available e-learning package document (a quarantined, destroyed or removed one is never served,
+ * and never another category; review L1).
+ */
+export async function packageOf(
   db: Database,
   tenantId: string,
   documentId: string,
-): Promise<{ storageKey: string; sha256: string; status: string } | null> {
+): Promise<{ storageKey: string; sha256: string } | null> {
   return asSystem(db, tenantId, async (tx) => {
     const [row] = await tx
-      .select({ storageKey: document.storageKey, sha256: document.sha256, status: document.status })
+      .select({ storageKey: document.storageKey, sha256: document.sha256 })
       .from(document)
-      .where(eq(document.id, documentId));
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.category, "elearning_package"),
+          eq(document.status, "available"),
+          isNull(document.deletedAt),
+        ),
+      );
     return row ?? null;
   });
-}
-
-/**
- * A small in-memory cache of stored packages by SHA-256, so the many files of one launch do not
- * each read the whole archive from storage. Bounded by count and bytes; contents are checked
- * against the hash when read.
- */
-export class PackageCache {
-  private readonly entries = new Map<string, Buffer>();
-  constructor(
-    private readonly maxEntries = 3,
-    private readonly maxBytes = 300 * 1024 * 1024,
-  ) {}
-  get(sha: string): Buffer | undefined {
-    const found = this.entries.get(sha);
-    if (found) {
-      this.entries.delete(sha);
-      this.entries.set(sha, found);
-    }
-    return found;
-  }
-  set(sha: string, bytes: Buffer): void {
-    this.entries.set(sha, bytes);
-    let total = [...this.entries.values()].reduce((n, b) => n + b.length, 0);
-    for (const key of this.entries.keys()) {
-      if (this.entries.size <= this.maxEntries && total <= this.maxBytes) break;
-      total -= this.entries.get(key)?.length ?? 0;
-      this.entries.delete(key);
-    }
-  }
 }

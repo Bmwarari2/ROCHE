@@ -700,6 +700,8 @@ below, exported with these names.
 | `elearning_attempt.location`, `suspend_data` | `cmi.core.lesson_location` / `cmi.location`; `cmi.suspend_data` | At most 1,000 and 64,000 characters | To resume |
 | `elearning_attempt.total_seconds` | `cmi.core.session_time` (HHHH:MM:SS.SS), `cmi.session_time` (ISO 8601 duration) | Whole seconds | Counted when the content finishes |
 | `elearning_statement.statement` | xAPI statement | JSON, at most 16 KB | Kept as sent, once per `statement_id` |
+| `elearning_course.package_index` | ZIP central directory (PKWARE APPNOTE) | JSON array, one entry per file: `p` path, `o` data offset, `c` packed size, `u` unpacked size, `k` CRC-32, `m` method (0 stored, 8 deflate) | Written once at upload, after every file was checked; no personal data |
+| `elearning_attempt.launch_nonce` | Harbour | UUID | Replaced at every start or resume; only the latest launch token works |
 
 ## Platform operational tables (not part of the MODS export)
 

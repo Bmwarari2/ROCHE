@@ -373,11 +373,12 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 
 /**
  * Tables that refer to people but stop a removal rather than go with it: records outside a
- * person's own (an organisation's escalation policy, a downtime pack, an outage) and the sample
- * batch itself. A new table that refers to a person must be added to app.sample_removal_tables()
- * or here, deliberately.
+ * person's own (an organisation's escalation policy, a downtime pack, an outage, an e-learning
+ * course's package, which is an organisation document and never a person's) and the sample batch
+ * itself. A new table that refers to a person must be added to app.sample_removal_tables() or
+ * here, deliberately.
  */
-const BLOCKS_REMOVAL = ["downtime_pack", "escalation_policy_link", "outage"];
+const BLOCKS_REMOVAL = ["downtime_pack", "elearning_course", "escalation_policy_link", "outage"];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {
   const owner = () => db.pool("harbour_owner");

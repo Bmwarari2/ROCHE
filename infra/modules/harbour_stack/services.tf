@@ -307,7 +307,7 @@ module "svc_web" {
     HOSTNAME                = "0.0.0.0"
     API_BASE_URL            = "https://${local.hosts.api}"
     PUBLIC_WEB_URL          = "https://${local.hosts.web}"
-    ELEARNING_ORIGIN        = "https://${local.hosts.learn}"
+    ELEARNING_ORIGIN        = local.learn_enabled ? "https://${local.hosts.learn}" : ""
     TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     NEXT_TELEMETRY_DISABLED = "1"
   }
@@ -319,7 +319,7 @@ module "svc_web" {
   load_balancer = {
     listener_arn          = module.alb.https_listener_arn
     security_group_id     = module.alb.security_group_id
-    host_headers          = [local.hosts.web, local.hosts.learn]
+    host_headers          = [local.hosts.web]
     priority              = 30
     health_check_path     = var.web_health_check_path
     required_header_name  = "X-Harbour-Origin-Verify"
@@ -458,4 +458,61 @@ module "svc_flagsmith" {
   log_kms_key_arn               = module.kms.key_arns["logs"]
   log_retention_days            = var.log_retention_days
   log_group_deletion_protection = var.protect_log_groups
+}
+
+# The e-learning content host (ADR-0093): the load balancer forwards `/learn/*` only, to the web
+# tier, from CloudFront only; every other path on that host is a fixed 404, so no app page, route
+# handler or static file is ever answered there (security review M4).
+resource "aws_lb_listener_rule" "learn" {
+  count = local.learn_enabled ? 1 : 0
+
+  listener_arn = module.alb.https_listener_arn
+  priority     = 28
+
+  action {
+    type             = "forward"
+    target_group_arn = module.svc_web.target_group_arn
+  }
+
+  condition {
+    host_header {
+      values = [local.hosts.learn]
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/learn/*"]
+    }
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Harbour-Origin-Verify"
+      values           = [random_password.origin_verify.result]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "learn_other" {
+  count = local.learn_enabled ? 1 : 0
+
+  listener_arn = module.alb.https_listener_arn
+  priority     = 29
+
+  action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Not found"
+      status_code  = "404"
+    }
+  }
+
+  condition {
+    host_header {
+      values = [local.hosts.learn]
+    }
+  }
 }

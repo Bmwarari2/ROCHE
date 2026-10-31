@@ -54,6 +54,12 @@ export const elearningCourse = pgTable(
     packageIdentifier: text("package_identifier"),
     fileCount: integer("file_count").notNull(),
     unpackedBytes: integer("unpacked_bytes").notNull(),
+    /**
+     * Each file of the package, read and checked once at upload: path, where its data starts in
+     * the stored archive, its sizes, CRC and method. Files are served by a ranged read of just
+     * their bytes, inflated as a stream, so nothing holds a whole archive in memory (review H2).
+     */
+    packageIndex: jsonb("package_index").notNull(),
     /** `active` (offered to staff) or `retired`. */
     status: text("status").notNull().default("active"),
     ...mutableColumns(),
@@ -80,6 +86,10 @@ export const elearningCourse = pgTable(
     ),
     check("elearning_course_launch_query", sql`length(launch_query) <= 500`),
     check("elearning_course_counts", sql`file_count > 0 AND unpacked_bytes >= 0`),
+    check(
+      "elearning_course_index",
+      sql`jsonb_typeof(package_index) = 'array' AND jsonb_array_length(package_index) = file_count`,
+    ),
   ],
 );
 
@@ -100,6 +110,11 @@ export const elearningAttempt = pgTable(
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     /** The training record its completion made, once. */
     trainingRecordId: uuid("training_record_id"),
+    /**
+     * The current launch: every launch token carries it, and starting or resuming the attempt
+     * replaces it, so an earlier token stops working (review M6).
+     */
+    launchNonce: uuid("launch_nonce").notNull().default(sql`app.uuid_v7()`),
     ...mutableColumns(),
   },
   (t) => [
@@ -156,6 +171,7 @@ export const elearningStatement = pgTable(
       foreignColumns: [elearningAttempt.tenantId, elearningAttempt.id],
     }),
     check("elearning_statement_verb", sql`verb ~ '^https?://' AND length(verb) <= 300`),
-    check("elearning_statement_size", sql`octet_length(statement::text) <= 16384`),
+    // A backstop above the API's limit (16 KB as sent), which is the one that refuses (review L2).
+    check("elearning_statement_size", sql`octet_length(statement::text) <= 32768`),
   ],
 );

@@ -64,11 +64,26 @@ afterAll(async () => {
   await db?.drop();
 });
 
-const course = (c: pg.PoolClient, launch = "index.html") =>
+const INDEX = JSON.stringify(
+  ["index.html", "app.js", "imsmanifest.xml"].map((p, i) => ({
+    p,
+    o: i * 100,
+    c: 50,
+    u: 50,
+    k: 0,
+    m: 0,
+  })),
+);
+const course = (
+  c: pg.PoolClient,
+  launch = "index.html",
+  id = COURSE,
+  documentId = "0199f300-0000-7000-8000-0000000000d1",
+) =>
   c.query(
-    `INSERT INTO elearning_course (id, title, topic, standard, document_id, package_sha256, launch_path, file_count, unpacked_bytes)
-     VALUES ($1, 'Fire safety', 'fire_safety', 'scorm_1_2', '0199f300-0000-7000-8000-0000000000d1', $2, $3, 3, 1000)`,
-    [COURSE, HASH, launch],
+    `INSERT INTO elearning_course (id, title, topic, standard, document_id, package_sha256, launch_path, file_count, unpacked_bytes, package_index)
+     VALUES ($1, 'Fire safety', 'fire_safety', 'scorm_1_2', $4, $2, $3, 3, 1000, $5)`,
+    [id, HASH, launch, documentId, INDEX],
   );
 
 describe("WORK-006 courses", () => {
@@ -78,6 +93,34 @@ describe("WORK-006 courses", () => {
       /elearning_course_launch_path/,
     );
     await asLead((c) => course(c));
+  });
+
+  it("keep an e-learning package as their package, never another document (review L1)", async () => {
+    await asOwner(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO document (id, category, title, retention_class, storage_key, content_type, size_bytes, sha256)
+         VALUES ('0199f300-0000-7000-8000-0000000000d2', 'organisation_document', 'Policy', 'organisation_document', 'k2', 'application/pdf', 10, $1)`,
+        [HASH],
+      ),
+    );
+    await expect(
+      asLead((c) =>
+        course(
+          c,
+          "index.html",
+          "0199f300-0000-7000-8000-0000000000c2",
+          "0199f300-0000-7000-8000-0000000000d2",
+        ),
+      ),
+    ).rejects.toThrow(/e-learning package/);
+    await expect(
+      asLead((c) =>
+        c.query("UPDATE elearning_course SET document_id = $1 WHERE id = $2", [
+          "0199f300-0000-7000-8000-0000000000d2",
+          COURSE,
+        ]),
+      ),
+    ).rejects.toThrow(/e-learning package/);
   });
 
   it("are read by staff and not by another organisation", async () => {
@@ -163,7 +206,22 @@ describe("WORK-006 attempts and statements are the member's own", () => {
       asCarer((c) =>
         c.query("UPDATE elearning_attempt SET status = 'failed' WHERE id = $1", [ATTEMPT]),
       ),
-    ).rejects.toThrow(/settled completion/);
+    ).rejects.toThrow(/settled outcome/);
+  });
+
+  it("keep a fail: a retake is a new attempt (review M1)", async () => {
+    const failed = "0199f300-0000-7000-8000-0000000000a9";
+    await asCarer((c) =>
+      c.query(
+        "INSERT INTO elearning_attempt (id, course_id, worker_id, status) VALUES ($1, $2, $3, 'failed')",
+        [failed, COURSE, a.carer],
+      ),
+    );
+    await expect(
+      asCarer((c) =>
+        c.query("UPDATE elearning_attempt SET status = 'passed' WHERE id = $1", [failed]),
+      ),
+    ).rejects.toThrow(/settled outcome/);
   });
 
   it("keep statements as sent, for the member's own attempt only", async () => {

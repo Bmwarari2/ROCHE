@@ -14,6 +14,16 @@ export function proxy(request: NextRequest) {
   if (isContentHost(request.headers.get("host"), content)) {
     return new NextResponse("Not found", { status: 404 });
   }
+  // Route handlers and prefetches pass the host check above and take nothing else here: the
+  // matcher includes them so the content host can never reach one (review M4).
+  if (
+    request.nextUrl.pathname.startsWith("/api/") ||
+    request.nextUrl.pathname === "/api" ||
+    request.headers.has("next-router-prefetch") ||
+    request.headers.get("purpose") === "prefetch"
+  ) {
+    return NextResponse.next();
+  }
   // Only the course player may frame the content origin.
   const frames =
     content && request.nextUrl.pathname.startsWith(`${ELEARNING_PAGE}/`) ? [content] : [];
@@ -32,13 +42,11 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      // Pages only: not route handlers under /api, static chunks or prefetches.
-      // Not the content origin's route handler (`/learn`), which sets its own headers.
-      source: "/((?!api|learn/|_next/static|_next/image|favicon.ico).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
+      // Every page, route handler and prefetch, so the content host check always runs (review
+      // M4); the policy itself is set on pages only (above). Not static chunks, and not the
+      // content origin's route handler (`/learn`), which sets its own headers. On the edge, the
+      // content host forwards `/learn/*` only.
+      source: "/((?!learn/|_next/static|_next/image|favicon.ico).*)",
     },
   ],
 };

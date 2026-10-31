@@ -252,6 +252,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   );
   // The e-learning launch routes take no session; statements are small JSON (50 of 16 KB at most).
   app.use("/e/*", capped(ELEARNING_STATEMENTS_MAX_BYTES));
+  // A commit carries the allowlisted data model only (suspend data at most 64,000 characters).
+  app.use("/v1/workforce/elearning/attempts/*", capped(128 * 1024));
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
   app.use(
     "/v1/branding/logo",

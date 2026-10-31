@@ -1,5 +1,5 @@
 import { CMI_ELEMENTS } from "@harbour/domain";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RUNTIME_SOURCE, runtimeMain } from "./elearning-runtime";
 
 /**
@@ -167,5 +167,38 @@ describe("WORK-006 the runtime", () => {
     );
     expect(url.searchParams.get("actor")).toContain(ATTEMPT);
     expect(url.searchParams.get("actor")).not.toContain("Ada");
+  });
+});
+
+describe("WORK-006 commits are spaced out (review M7)", () => {
+  it("sends a change at once, then at most one more every few seconds; finishing at once", () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      h.start();
+      const api = h.win.API as Api12;
+      api.LMSInitialize?.("");
+      const commits = () =>
+        h.sent.filter((x) => (x as { m: { type: string } }).m.type === "commit").length;
+      // Nothing changed: nothing sent.
+      api.LMSCommit?.("");
+      expect(commits()).toBe(0);
+      api.LMSSetValue?.("cmi.core.lesson_location", "p1");
+      api.LMSCommit?.("");
+      expect(commits()).toBe(1);
+      // A tight loop of commits sends nothing more until the gap has passed.
+      for (let i = 0; i < 100; i += 1) {
+        api.LMSSetValue?.("cmi.core.lesson_location", `p${i}`);
+        api.LMSCommit?.("");
+      }
+      expect(commits()).toBe(1);
+      vi.advanceTimersByTime(5000);
+      expect(commits()).toBe(2);
+      api.LMSSetValue?.("cmi.core.lesson_status", "passed");
+      api.LMSFinish?.("");
+      expect(commits()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

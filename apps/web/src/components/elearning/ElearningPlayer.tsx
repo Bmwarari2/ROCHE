@@ -95,7 +95,6 @@ export function ElearningPlayer({
           // find the SCORM API in Harbour's runtime page, and cannot reach the app's.
           sandbox="allow-scripts allow-same-origin allow-forms"
           referrerPolicy="no-referrer"
-          allow="fullscreen"
           className="h-[70vh] min-h-[480px] w-full rounded-md border border-border bg-bg"
         />
       ) : (

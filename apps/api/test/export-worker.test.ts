@@ -214,6 +214,7 @@ describe("hazard HZ-071 a failed source or upload never leaves the worker hangin
       destroy: (key) => real.destroy(key),
       health: () => real.health(),
       getStream: (key) => real.getStream(key),
+      getRange: (key, start, end) => real.getRange(key, start, end),
       putStream,
     };
   };

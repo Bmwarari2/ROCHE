@@ -99,7 +99,8 @@ test("a care worker takes the course on the content origin and passes it", async
   await main(page).getByRole("button", { name: "Start the course" }).click();
   const runtime = page.frameLocator(`iframe[title="Course: ${TITLE}"]`);
   const lesson = runtime.frameLocator("#content");
-  await expect(lesson.getByText("Hello, Cat Carer")).toBeVisible();
+  // The package is told the first name only (security review M8).
+  await expect(lesson.getByText("Hello, Cat", { exact: true })).toBeVisible();
   // The package runs on another site: its frame's address is the content origin.
   const frames = page.frames().map((f) => f.url());
   expect(frames.some((u) => u.startsWith(`${CONTENT}/learn/`))).toBe(true);
@@ -120,6 +121,14 @@ test("the content origin serves no app page, and the app origin serves no conten
   expect(home.status()).toBe(404);
   const signInPage = await request.get(`${CONTENT}/sign-in`, { maxRedirects: 0 });
   expect(signInPage.status()).toBe(404);
+  // Route handlers and prefetches are refused on the content host too (security review M4).
+  const health = await request.get(`${CONTENT}/api/health`, { maxRedirects: 0 });
+  expect(health.status()).toBe(404);
+  const prefetch = await request.get(`${CONTENT}/`, {
+    maxRedirects: 0,
+    headers: { "next-router-prefetch": "1" },
+  });
+  expect(prefetch.status()).toBe(404);
   const token = `${"a".repeat(40)}.${"b".repeat(43)}`;
   const onApp = await request.get(`/learn/${token}`, { maxRedirects: 0 });
   expect(onApp.status()).toBe(404);

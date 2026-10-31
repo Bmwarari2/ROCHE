@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
-import { contentOrigin, ELEARNING_PAGE, launchUrl } from "@/lib/elearning";
+import { contentOrigin, ELEARNING_PAGE, launchUrl, learnerNameOf } from "@/lib/elearning";
 import { t } from "@/lib/i18n";
 import { type ActionResult, problemMessage, refused } from "@/lib/outcome";
 
@@ -66,7 +66,8 @@ export async function startAttempt(courseId: string): Promise<ActionResult<Launc
           suspendData: data.suspendData,
           entry: data.entry,
           learnerId: me.tenantUserId,
-          learnerName: me.user.name,
+          // The package sees a first name only, never the full name (review M8).
+          learnerName: learnerNameOf(me.user.name),
         },
       },
     };

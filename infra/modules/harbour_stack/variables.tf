@@ -22,6 +22,18 @@ variable "domain_name" {
   type        = string
 }
 
+variable "elearning_domain_name" {
+  description = "Registrable domain for the e-learning content origin (ADR-0093), for example harbour-learning.example: never domain_name or a domain under it, so package script is another site from the app and cannot set its cookies (security review H1). The content host is learn. under it. Null means no content origin: courses do not launch."
+  type        = string
+  default     = null
+}
+
+variable "elearning_route53_zone_id" {
+  description = "Route 53 hosted zone for elearning_domain_name. Null means its DNS records are created by hand from the outputs."
+  type        = string
+  default     = null
+}
+
 variable "route53_zone_id" {
   description = "Route 53 hosted zone for domain_name. Null means DNS records (certificate validation, aliases, SES) are created by hand from the outputs."
   type        = string

@@ -41,6 +41,13 @@ describe("WORK-006 an archive entry's name stays inside the package", () => {
     ["C:/windows/x.js", "drive"],
     ["bad\u0000name.html", "control"],
     ["name\nnewline.html", "control"],
+    // Review L6: C1 controls, separators, bidirectional overrides and isolates, non-NFC names.
+    ["name\u0085x.html", "control"],
+    ["name\u2028x.html", "control"],
+    ["evil\u202Elmth.js", "control"],
+    ["a\u2066b.html", "control"],
+    ["cafe\u0301.html", "control"],
+    ["caf\u00e9.html", null],
     ["trailing./x.html", "reserved"],
     ["x".repeat(ARCHIVE_LIMITS.maxPathLength + 1), "too_long"],
   ])("%j is %s", (name, problem) => {
@@ -208,7 +215,9 @@ describe("WORK-006 an attempt's outcome from what the content reported", () => {
   it("never undoes a settled completion", () => {
     expect(nextAttemptStatus("passed", "failed")).toBe("passed");
     expect(nextAttemptStatus("completed", "in_progress")).toBe("completed");
-    expect(nextAttemptStatus("failed", "passed")).toBe("passed");
+    // Review M1: a fail is final for that attempt; a retake is a new attempt.
+    expect(nextAttemptStatus("failed", "passed")).toBe("failed");
+    expect(nextAttemptStatus("failed", "completed")).toBe("failed");
     expect(nextAttemptStatus("in_progress", "failed")).toBe("failed");
   });
 });

@@ -43,8 +43,19 @@ export function entryNameProblem(name: string): EntryNameProblem | null {
   if (name.length > ARCHIVE_LIMITS.maxPathLength) return "too_long";
   for (const ch of name) {
     const code = ch.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return "control";
+    // C0 and C1 controls, line and paragraph separators, and bidirectional overrides and isolates,
+    // which can make a name display as something else (review L6).
+    if (
+      code < 0x20 ||
+      (code >= 0x7f && code <= 0x9f) ||
+      (code >= 0x2028 && code <= 0x202e) ||
+      (code >= 0x2066 && code <= 0x2069)
+    ) {
+      return "control";
+    }
   }
+  // One spelling only: a name that is not in Unicode normal form C could alias another.
+  if (name.normalize("NFC") !== name) return "control";
   if (name.includes("\\")) return "backslash";
   if (name.startsWith("/")) return "absolute";
   if (/^[a-zA-Z]:/.test(name)) return "drive";
@@ -353,8 +364,12 @@ export function xapiOutcome(
   return null;
 }
 
-/** An attempt's status only moves forward: a settled pass or completion is never undone. */
+/**
+ * An attempt's status only moves forward: a settled pass or completion is never undone, and a
+ * fail is final for that attempt, so a later commit or statement cannot turn it into a pass (a
+ * retake is a new attempt; review M1).
+ */
 export function nextAttemptStatus(current: AttemptStatus, reported: AttemptStatus): AttemptStatus {
-  if (current === "passed" || current === "completed") return current;
+  if (current === "passed" || current === "completed" || current === "failed") return current;
   return reported;
 }
