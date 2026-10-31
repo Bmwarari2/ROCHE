@@ -55,7 +55,7 @@ describe("trendTable", () => {
   const months = trendMonths(new Date("2026-10-31T12:00:00Z"), 2);
   const of = (...types: string[]) => types.map((type) => ({ type })) as never[];
 
-  it("counts by type and month, the most first, with a row of totals", () => {
+  it("hazard HZ-073 counts by type and month, the most first, with a row of totals", () => {
     const table = trendTable(
       months,
       [of("fall", "fall", "medication"), of("fall", "near_miss")],
@@ -70,7 +70,7 @@ describe("trendTable", () => {
     expect(table.capped).toEqual([]);
   });
 
-  it("names a month whose read reached the API's limit, so it is said as at least", () => {
+  it("hazard HZ-073 names a month whose read reached the API's limit, so it is said as at least", () => {
     const full = Array.from({ length: INCIDENT_LIST_LIMIT }, () => ({ type: "fall" })) as never[];
     expect(trendTable(months, [[], full], t).capped).toEqual(["2026-10"]);
     expect(t("safety.trends.atLeast", { count: 500 })).toBe("500 or more");

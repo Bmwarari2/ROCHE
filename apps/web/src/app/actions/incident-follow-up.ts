@@ -69,6 +69,11 @@ export async function saveCandour(
           decidedAt,
           decidedBy: change.input.decidedBy,
         },
+        // The API asks for these when the decision differs from Harbour's finding or changes a
+        // recorded one; the form asked for both first (#120 round 2, M3).
+        ...(change.input.reason
+          ? { thresholdReason: change.input.reason, thresholdConfirmed: true }
+          : {}),
       };
       break;
     }
@@ -128,6 +133,7 @@ export async function saveCandour(
       body: {
         to,
         reason,
+        confirmed: true,
         version: record.version,
       },
     }),
@@ -146,6 +152,8 @@ export async function stepCandour(
       | "enquiries_open"
       | "closed";
     readonly reason?: string;
+    /** "Not notifiable" after Harbour drafted a candour notification was confirmed. */
+    readonly confirmed?: boolean;
     readonly version: number;
   },
 ): Promise<ActionResult<CandourView>> {
@@ -157,6 +165,7 @@ export async function stepCandour(
         to: input.to,
         version: input.version,
         ...(input.reason ? { reason: input.reason } : {}),
+        ...(input.confirmed ? { confirmed: true } : {}),
       },
     }),
   );

@@ -369,7 +369,7 @@ test("hazard HZ-013 hazard HZ-091 a decision that differs from Harbour's finding
   ).toBeVisible();
   await expect(
     threshold.getByText(
-      /during the provision of a regulated activity.*at least \d+ continuous days/,
+      /during the provision of a regulated activity.*continuous period of at least \d+ days.*are likely to experience.*if left untreated/,
     ),
   ).toBeVisible();
   await threshold
@@ -459,7 +459,9 @@ test("hazard HZ-013 closing names everyone still to be told when two people were
   const review = region(page, "Review and close");
   await expect(review.getByText("Before it can close")).toBeVisible();
   await expect(
-    review.getByRole("link", { name: /^Still to be told under the duty of candour: / }),
+    review.getByRole("link", {
+      name: /^Still to be told under the duty of candour: Elsie Mock\. /,
+    }),
   ).toBeVisible();
   await expect(review.getByRole("button", { name: "Close the incident" })).toHaveCount(0);
   await expectAccessible(page, "close, still to be told");

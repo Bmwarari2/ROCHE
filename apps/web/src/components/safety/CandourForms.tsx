@@ -915,6 +915,8 @@ function CandourSteps({
               stepCandour(target.incidentId, {
                 to: offer.to as Parameters<typeof stepCandour>[1]["to"],
                 reason,
+                // The form asked for the tick before sending (ReasonForm's `confirm`).
+                ...(offer.strict ? { confirmed: true } : {}),
                 version: target.version,
               })
             }

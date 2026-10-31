@@ -167,8 +167,9 @@ export async function CandourSection({
         ? tabHref(personId, "letters")
         : null,
   };
+  // The relevant person is one of the people affected, as the API requires (#120 round 2, M2).
   const people = incident.people
-    .filter((p) => p.kind === "service_user" && p.personId)
+    .filter((p) => p.kind === "service_user" && p.role === "affected" && p.personId)
     .map((p) => ({
       value: p.personId as string,
       label: names.get(p.personId as string) ?? t("safety.incident.unnamed", { kind: p.kind }),

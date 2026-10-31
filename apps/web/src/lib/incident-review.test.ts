@@ -73,22 +73,28 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     ["a closed incident", incident({ status: "closed" }), manager],
     ["an incident the reader cannot see whole", incident({ restricted: true }), manager],
   ])("offers nothing for %s", (_, item, viewer) => {
-    expect(incidentManageView(item, viewer)).toBeNull();
+    expect(incidentManageView(item, viewer, null)).toBeNull();
   });
 
   it("offers starting the review and closing on an open incident", () => {
-    expect(incidentManageView(incident(), manager)).toEqual({
+    expect(incidentManageView(incident(), manager, null)).toEqual({
       review: "under_review",
       close: { kind: "form" },
     });
   });
 
   it("offers sending it back to open while under review", () => {
-    expect(incidentManageView(incident({ status: "under_review" }), manager)?.review).toBe("open");
+    expect(incidentManageView(incident({ status: "under_review" }), manager, null)?.review).toBe(
+      "open",
+    );
   });
 
   it("hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it", () => {
-    const view = incidentManageView(incident(), { tenantUserId: RAISER, permissions: MANAGE });
+    const view = incidentManageView(
+      incident(),
+      { tenantUserId: RAISER, permissions: MANAGE },
+      null,
+    );
     expect(view).toEqual({ review: "under_review", close: { kind: "raisedByYou" } });
   });
 
@@ -104,6 +110,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
         ],
       }),
       manager,
+      null,
     );
     expect(view?.close).toEqual({
       kind: "blocked",
@@ -183,6 +190,38 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     });
   });
 
+  it("hazard HZ-013 hazard HZ-091 a not-notifiable decision covers only the person it names (round 2 M1)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada", "ben"] }),
+      manager,
+      {
+        state: "not_notifiable",
+        threshold: { notifiable: false, decidedAt: "2026-10-30T09:00:00.000Z", decidedBy: "A GP" },
+        personId: "ada",
+      },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ben"] },
+    });
+  });
+
+  it("hazard HZ-013 hazard HZ-091 a record for someone not affected tells nobody affected (round 2 M2)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada"] }),
+      manager,
+      { state: "no_contact", threshold: null, personId: "ben" },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ada"] },
+    });
+  });
+
   it("hazard HZ-013 keeps close blocked while the candour record could not be read (review M3)", () => {
     const view = incidentManageView(incident(), manager, "unread");
     expect(view?.close).toEqual({
@@ -197,6 +236,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
     const view = incidentManageView(
       incident({ notifications: [notification("n3", "safeguarding_s42", "submitted")] }),
       manager,
+      null,
     );
     expect(view?.close).toEqual({ kind: "form" });
   });

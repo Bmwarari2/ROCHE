@@ -1,10 +1,13 @@
 import type { CandourItem, ClassifierView, DocumentItem, IncidentDetail } from "@harbour/contracts";
 import {
   availableTransitions,
+  CANDOUR_REASON_MIN,
   CANDOUR_WORKFLOW,
   type CandourCloseFacts,
   type CandourRecordView,
   type CandourState,
+  candourDecisionNeedsReason,
+  candourFindingOf,
   candourStepProblems,
 } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
@@ -234,15 +237,12 @@ export function harbourFinding(
   > | null,
   record: Pick<CandourItem, "threshold"> | null,
 ): HarbourFinding | null {
-  if (record?.threshold || !classifier) return null;
-  const found = candourFinding(classifier);
-  if (found === "found") return "notifiable";
-  if (found === "waiting") return "waiting";
-  return classifier.exclusions.some((e) => e.kind === "candour") ? "notNotifiable" : null;
+  // The domain's reading, as the API reads it before a decision (#120 round 2, M3).
+  return record?.threshold ? null : candourFindingOf(classifier);
 }
 
 /** The shortest reason for a decision that differs from Harbour's finding, or changes one. */
-export const DISAGREE_REASON_MIN = 20;
+export const DISAGREE_REASON_MIN = CANDOUR_REASON_MIN;
 
 /**
  * Whether a threshold answer needs a confirmation and a reason (review M4): it changes a decision
@@ -253,8 +253,7 @@ export function thresholdDisagrees(
   finding: HarbourFinding | null,
   current: CandourItem["threshold"],
 ): boolean {
-  if (current) return current.notifiable !== notifiable;
-  return (finding === "notifiable" && !notifiable) || (finding === "notNotifiable" && notifiable);
+  return candourDecisionNeedsReason(notifiable, finding, current?.notifiable ?? null);
 }
 
 /** Whether the incident page shows the candour section: there is a record, or someone it could be about. */

@@ -72,6 +72,11 @@ export interface IncidentManageView {
  * where Harbour found it may apply, the record open, someone affected not told, or the record not
  * read), the page says what to do first instead of offering a form the API would refuse
  * (`incidentCloseProblems`).
+ *
+ * The candour record is required, never defaulted: a caller that left it out would read "no record"
+ * and could offer closing while someone affected is still to be told (#120 review round 2, for
+ * #130's approvals page). Pass `null` only when the incident has no record, "unread" when the read
+ * failed.
  */
 export function incidentManageView(
   incident: Pick<
@@ -79,7 +84,7 @@ export function incidentManageView(
     "status" | "raisedBy" | "restricted" | "openQuestionCount" | "classifier" | "people"
   >,
   viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] },
-  candourRecord: CandourRead = null,
+  candourRecord: CandourRead,
 ): IncidentManageView | null {
   if (!viewer.permissions.includes("safety.incident.manage")) return null;
   if (incident.restricted || incident.status === "closed") return null;

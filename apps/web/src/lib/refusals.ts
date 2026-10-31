@@ -93,7 +93,15 @@ export type RefusalKey =
   | "candourSentFuture"
   | "candourAttemptFuture"
   | "candourResultsFuture"
-  | "candourDocument";
+  | "candourDocument"
+  | "candourStepPerson"
+  | "candourPersonFinished"
+  | "candourReason"
+  | "candourConfirm"
+  | "candourToldEarly"
+  | "candourSentEarly"
+  | "candourAttemptEarly"
+  | "candourPersonDropped";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -325,7 +333,7 @@ const RULES: readonly Rule[] = [
   {
     key: "closeCandourPeople",
     fields: [],
-    found: has("The duty of candour applies to more than one person"),
+    found: has("Someone affected has no finished duty of candour record of their own"),
   },
   { key: "stepReason", fields: ["reason"], found: has("Give a reason for this step.") },
   {
@@ -360,7 +368,7 @@ const RULES: readonly Rule[] = [
   {
     key: "candourPerson",
     fields: ["personId"],
-    found: has("The relevant person must be on the incident."),
+    found: has("The relevant person must be one of the people affected."),
   },
   {
     key: "candourDecidedInFuture",
@@ -396,6 +404,42 @@ const RULES: readonly Rule[] = [
     key: "candourDocument",
     fields: [],
     found: has("A document cited must be on the relevant person's record."),
+  },
+  {
+    key: "candourStepPerson",
+    fields: [],
+    found: has("Choose who it happened to, from the people affected, before moving the record on."),
+  },
+  {
+    key: "candourPersonFinished",
+    fields: ["personId"],
+    found: has("The relevant person cannot change once the record is finished."),
+  },
+  {
+    key: "candourReason",
+    fields: ["reason"],
+    found: has("the decision differs from Harbour's finding or changes the one recorded."),
+  },
+  { key: "candourConfirm", fields: ["confirm"], found: has("Confirm the decision.") },
+  {
+    key: "candourToldEarly",
+    fields: ["at"],
+    found: has("The time they were told cannot be before the incident happened."),
+  },
+  {
+    key: "candourSentEarly",
+    fields: ["sentAt"],
+    found: has("The time the written notification was sent cannot be before the incident"),
+  },
+  {
+    key: "candourAttemptEarly",
+    fields: ["attemptAt"],
+    found: has("The time of an attempt to contact them cannot be before the incident"),
+  },
+  {
+    key: "candourPersonDropped",
+    fields: [],
+    found: has("Someone affected would leave the duty of candour check"),
   },
   {
     key: "candourThreshold",

@@ -1,7 +1,9 @@
 import {
   BED_RAIL_RATE_KEYS,
   type BedRailLimits,
+  CANDOUR_REASON_MIN,
   type ClassifierQuestionKey,
+  candourReasonProblems,
   candourStepProblems,
   checkActivity,
   checkAdvanceCareRecord,
@@ -374,6 +376,14 @@ describe("closing an incident and the notifications (HZ-013)", () => {
       candour: { indicated: true, notifiable: null, personId: null, people: ["a"] },
     }).join(" ");
     expect(keysOf(none)).toEqual(["closeCandourRecord"]);
+    // One "not notifiable" decision covers only the person it names (#120 round 2, M1).
+    const notNotifiable = incidentCloseProblems({
+      notifications: [],
+      openQuestions: [],
+      candourState: "not_notifiable",
+      candour: { indicated: true, notifiable: false, personId: "a", people: ["a", "b"] },
+    }).join(" ");
+    expect(keysOf(notNotifiable)).toEqual(["closeCandourPeople"]);
   });
 
   it("knows the workflow's refusals", () => {
@@ -495,8 +505,10 @@ describe("the duty of candour record and the investigation (HZ-013, HZ-091)", ()
 
   it("knows the API's own candour and investigation checks, at their fields", () => {
     expect(
-      problemMessage({ code: "invalid", detail: "The relevant person must be on the incident." }, t)
-        .fields,
+      problemMessage(
+        { code: "invalid", detail: "The relevant person must be one of the people affected." },
+        t,
+      ).fields,
     ).toEqual({ personId: t("care.refusal.candourPerson") });
     expect(
       problemMessage({ code: "invalid", detail: "The decision cannot be dated in the future." }, t)
@@ -542,5 +554,31 @@ describe("the duty of candour record and the investigation (HZ-013, HZ-091)", ()
     expect(keysOf("A document cited must be on the relevant person's record.")).toEqual([
       "candourDocument",
     ]);
+    // #120 review round 2: the API's own checks on who the record names, the reasons it asks
+    // for, and times before the incident.
+    expect(
+      keysOf("Choose who it happened to, from the people affected, before moving the record on."),
+    ).toEqual(["candourStepPerson"]);
+    expect(at("The relevant person cannot change once the record is finished.")).toEqual({
+      personId: t("care.refusal.candourPersonFinished"),
+    });
+    expect(at(candourReasonProblems("No harm.", false).join(" "))).toEqual({
+      reason: t("care.refusal.candourReason"),
+      confirm: t("care.refusal.candourConfirm"),
+    });
+    expect(at("The time they were told cannot be before the incident happened.")).toEqual({
+      at: t("care.refusal.candourToldEarly"),
+    });
+    expect(
+      at("The time the written notification was sent cannot be before the incident happened."),
+    ).toEqual({ sentAt: t("care.refusal.candourSentEarly") });
+    expect(
+      at("The time of an attempt to contact them cannot be before the incident happened."),
+    ).toEqual({ attemptAt: t("care.refusal.candourAttemptEarly") });
+    expect(
+      keysOf(
+        `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
+      ),
+    ).toEqual(["candourPersonDropped"]);
   });
 });
