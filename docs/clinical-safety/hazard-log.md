@@ -69,6 +69,7 @@
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
 | [HZ-124](#hz-124-a-worker-without-a-required-check-training-or-competence-rostered-to-a-shift-that-needs-it) | A worker without a required check, training or competence rostered to a shift that needs it | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 4, 21, 27, 59) |
+| [HZ-127](#hz-127-a-missing-persons-escalation-delayed-or-the-herbert-protocol-profile-out-of-date) | A missing person's escalation delayed, or the Herbert Protocol profile out of date | `[CSO rating - human action]` | `[CSO rating - human action]` | Open | None (Phase 2) | Phase 2 (slices 7, 37, 63) |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -1118,6 +1119,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | Test | See Verification | Phase 1, Phase 2 |
 | Training and user documentation | User guide states that the classifier supports, and never replaces, the Registered Manager's judgement. Deployer control: tenant notifications policy and acting-up arrangements for absences | Phase 1 |
 | Design | On the web home page (INSI-001, `feat/web-dashboards`, docs/specs/insights.md): the statutory notifications tile counts drafts and ready ones still to submit, says the overdue ones apart (a clock the web does not know counts as overdue) and gives the soonest due time; if either read fails the whole tile says "Could not load", never a lower count | Phase 1 |
+| Design | The death record (slice 37; `death-record.ts`): one per death recorded on an exit, opened by the same event that drafts the death notifications and withdrawn when the death is corrected; until the clinician's judgement is recorded the steps assume an unexpected death whose cause may be unnatural (the police steps shown); the regulator's death notification, the medical examiner information and LeDeR are done only in the notification centre (here only "not needed" with a reason of at least 20 characters); the mortality review is due by the tenant's target; the record closes only with every step done or not needed and the review recorded | Built in Phase 2 slice 37 |
 
 **Target residual risk**: severity Major, likelihood Low, **risk 3**.
 
@@ -1166,6 +1168,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `apps/web/src/lib/incident-review.test.ts`: `hazard HZ-013 hazard HZ-091 never offers close to the manager who raised it`, `hazard HZ-013 says what to do first while a notification is open or a question unanswered`, `hazard HZ-013 needs every line before it is marked ready, not to save a draft`, `hazard HZ-013 is judged needed only when neither provisional nor no longer indicated`, `hazard HZ-013 hazard HZ-091 needs a longer reason and the confirmation ticked` and the `notificationManageView (ADR-0071)` table; `apps/web/src/lib/refusals.test.ts`: `hazard HZ-013 knows every reason closing is refused, joined as the API joins them`; `apps/web/e2e/incident-review.spec.ts`: `hazard HZ-013 hazard HZ-091 the nurse who raised an incident is never offered close`, `hazard HZ-013 hazard HZ-091 the manager is refused in words on a stale page, then closes it`, `hazard HZ-013 hazard HZ-091 the manager prepares a death notification and records it as submitted`, `hazard HZ-013 hazard HZ-091 what to do first, then not required on a stale page is refused` and `hazard HZ-013 not required on a notification Harbour found needed asks for more` (axe on every state) | Passing (unit; web journeys with axe in CI on every pull request and on `main`; run 38938760784 on `d77b416`) (slice 9, part 4b) |
 | `apps/web/src/lib/dashboard.test.ts`: `hazard HZ-013 warns when either read fails, never a lower count`, `hazard HZ-013 gives the soonest due time of those still to submit`, `hazard HZ-013 says the overdue ones apart` and the clock cases | Passing (Phase 1, web) |
 | `packages/domain/src/safety/missing-person.test.ts`: `hazard HZ-013 missing person ...` (the CQC notification prompt once the police are called or the person is under DoLS or the Mental Health Act; the police call at once when the risk assessment says so, otherwise by the tenant's target; not late when found first); `safeguarding.test.ts`: `hazard HZ-013 the safeguarding log ...` (no concern closed or left unreferred without a reason, the DBS referral decision however it ends); `deaths.test.ts`: `hazard HZ-013 deaths ...` (the CQC (Registration) Regulations 2009 regulation 16 notification, LeDeR, the medical examiner pack and police steps per death) | Passing (Phase 2 slice 7, domain) |
+| `packages/domain/src/safety/death-record.test.ts`: `hazard HZ-013 the death record (slice 37)` (the safer answer until the judgement is recorded; the notification steps follow the notification centre, never a tick; closing needs every step and the review; the latest step counts; the review due from the rate table; each refusal of a step); `packages/db/test/deaths-missing.test.ts`: `hazard HZ-013 the death record (migration 0099)` (the codes match the domain; not needed without a reason refused; steps append-only; a closed record never changes); `apps/api/test/deaths-missing.test.ts`: `hazard HZ-013 a death opens one death record, from the exit's event or on request, and a correction withdraws it` and `hazard HZ-013 assumes the safer answer until the clinician's judgement is recorded, and closes only when every step is done` | Passing (Phase 2 slice 37) |
 
 ---
 
@@ -2960,6 +2963,52 @@ person receiving care.
 | `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
 | `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
 | Rota tests (planning and on the day) | Planned, slices 21 and 27 |
+
+---
+
+## HZ-127 A missing person's escalation delayed, or the Herbert Protocol profile out of date
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-127 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `safety` module (lane D) |
+| Source | Master prompt section 11.1 (missing person: Herbert Protocol profile, police reference and timeline, search log, return welfare check, debrief); [phase-2.md](../plans/phase-2.md) hazards table (slices 37, 63); [safety.md](../specs/safety.md) Phase 2 rule 5 and slice 37 rules 4 to 6; related to HZ-013 (the CQC police notification) and HZ-008 (task escalation) |
+
+**Description**: a person who goes missing is reported to the police late, or the police are given no Herbert Protocol profile, or one out of date, so the search starts late or in the wrong places.
+
+**Causes**: no one sees that the police call target is passing; staff unsure whether to call yet; the person whose risk assessment says call at once treated like anyone else; the call made but not recorded, or recorded without the police reference; no profile written, or written once and never reviewed; a profile prefilled from the record taken as checked; a search log with times entered wrongly (later than now, or running backwards), so the timeline misleads; the CQC notification for police involvement missed; an episode closed before the person's welfare was checked or the debrief held.
+
+**Effects**: harm or death from exposure, a fall or traffic while the person is missing; a police search started late or in the wrong places; a person returned with an injury or dehydration unnoticed; the same route out used again because no debrief was held; regulatory breach (Regulation 18(2)(f) of the 2009 Registration Regulations).
+
+**Initial risk**: `[CSO rating - human action]` (the CSO rates it at the Phase 2 workshop, H-543).
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | The police call target is the tenant's `missing_person.police_call_minutes` after the person was noticed missing, at once when the risk assessment says so, and a call made after it, or none made before the person is found late, is said to be late (`missingPersonState`, slice 7) | Built in Phase 2 slice 7 (domain) |
+| Design | Opening an episode raises one urgent task for the Registered Manager, due at the police call target, which the task engine escalates when overdue to the clinical leads and team leaders on site; only calling the police (with their reference) or finding the person ends it (`syncPoliceCallTask`) | Built in Phase 2 slice 37 |
+| Design | The police called need their reference, and recording it answers the incident's `police.involved` question, so the CQC notification is drafted with its clock in the notification centre (HZ-013); the episode shows the Herbert Protocol and CQC police notifications as the notification centre has them | Built in Phase 2 slice 37 |
+| Design | The timeline is append-only: each step of the search once (a database index), times never later than now and never running the search backwards, notes needed where the next person must know (where found, the welfare check, the debrief); a resend with the client's id is a no-op (`timelineEntryProblems`) | Built in Phase 2 slice 37 |
+| Design | An episode closes only once the person is found, their welfare checked and the debrief held, by someone who manages incidents; a closed episode never changes (a database guard) | Built in Phase 2 slice 37 |
+| Design | The Herbert Protocol profile needs what the person looks like and where they may go; it is prefilled from the record with each part saying where it came from, never what the person looks like; its review date is never later than today and is recorded in the reviewer's own name; it is out of date `herbert_protocol.review_months` after the review, and a daily job gives each out-of-date profile of someone living here a review task for the nurse in charge, escalated by the task engine; an episode records the profile's version at opening and says whether it was current | Built in Phase 2 slice 37 |
+| Design | The episode, its timeline and the profile follow the person's scope and never cross organisations (row-level security; HZ-011) | Built in Phase 2 slice 37 |
+| Design | The web screens show the police call due time and lateness in words and an icon, the profile's state, and what closing needs | Slice 63 |
+| Training and user documentation | Staff are told to call the police at once when in doubt, that the target is the organisation's, not a reason to wait, and to check every prefilled part of a profile with the person and their family; the police call escalation and the profile's fields are confirmed with the design partner and the local police (H-591, H-771, H-773) | Slice 63; before a real tenant |
+
+**Target residual risk**: `[CSO rating - human action]`.
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/safety/missing-person.test.ts`: `hazard HZ-013 missing person ...` (the police call target, lateness, the reference, the order of events, closing after the welfare check and debrief) | Passing (Phase 2 slice 7, domain) |
+| `packages/domain/src/safety/missing-episode.test.ts`: `hazard HZ-127 ...` (each timeline entry and its refusals; once found, no more searching; the police call due and late, at once with immediate risk; closing only once found, checked and debriefed; the profile's required parts, its review date, out of date after the review months as the slice 7 rule reads it, and the prefill saying where each part came from, never the description) | Passing (Phase 2 slice 37) |
+| `packages/db/test/deaths-missing.test.ts`: `hazard HZ-127 the missing person episode and the Herbert Protocol profile (migration 0099)` (each step once, one open episode per person, the timeline append-only, a closed episode closed, the profile's required parts and reviewer, never outside scope or the organisation) | Passing (Phase 2 slice 37) |
+| `apps/api/test/deaths-missing.test.ts`: `hazard HZ-127 opening an episode starts the police call clock as an urgent task the task engine escalates`, `hazard HZ-127 the police call needs its reference, prompts the CQC notification and ends the police call task`, `hazard HZ-127 closes only once found, checked and debriefed; the welfare check and debrief need a manager` and `hazard HZ-127 is prefilled from the record, saved with what the police need first, and its review raised when out of date` | Passing (Phase 2 slice 37) |
+| Web screens (slice 63) | Planned |
 
 ---
 

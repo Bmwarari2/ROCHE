@@ -112,6 +112,14 @@ generic line and a link only. Nothing interprets, scores or predicts
 | Weight-loss or fluid alerts | 1 | Allowed only as tenant-configured thresholds, displayed as "your policy threshold", not as Harbour's assessment |
 | Risk assessment rating (likelihood x severity) | 1 | Decided in [ADR-0032](../decisions/0032-risk-assessment-rating.md) (proposed, CSO to accept, H-60): the assessor's own likelihood and severity, multiplied and banded with the published NPSA 2008 matrix (1 to 3 low, 4 to 6 moderate, 8 to 12 high, 15 to 25 extreme); the formula is shown and Harbour adds no parameters. The falls template is never rated (NICE NG249 1.1.1) |
 
+**Re-checked for Phase 2 slice 37 (deaths and missing persons, 31 October 2026)**: no. Whether a
+death was expected, and whether its cause may be unnatural, is the clinician's judgement as
+recorded, never Harbour's; until it is recorded Harbour lists every step the safer answer needs,
+which is a checklist, not an assessment. The mortality review records findings and lessons, never a
+score. The police call time is the tenant's own target from the rate table, applied as written; the
+Herbert Protocol profile copies what the record already holds and says where each part came from.
+Nothing interprets clinical data.
+
 ## 7. The question every clinical PR answers
 
 The PR template's clinical-safety section contains this question. A PR labelled `clinical` cannot merge until it is answered.
