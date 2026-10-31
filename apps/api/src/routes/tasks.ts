@@ -21,7 +21,7 @@ import {
   validateRecurrence,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, notLike } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, auditInTx, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -197,8 +197,12 @@ export const tasksRouter = createRouter()
               q.view === "mine" ? eq(task.assigneeTenantUserId, access.tenantUserId) : undefined,
               q.personId ? eq(task.personId, q.personId) : undefined,
               q.locationId ? eq(task.locationId, q.locationId) : undefined,
-              // Without MFA, tasks about people stay hidden (they are care records).
+              // Without MFA, tasks about people stay hidden (they are care records), and so do
+              // staff file reminders (special category and criminal offence data).
               access.mfaSatisfied ? undefined : isNull(task.personId),
+              access.mfaSatisfied
+                ? undefined
+                : notLike(task.requiredPermission, "workforce.staff_file.%"),
             ),
           )
           .orderBy(asc(task.dueAt))

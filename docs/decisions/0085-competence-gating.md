@@ -59,7 +59,8 @@ keeps the module boundary and never trusts a client-supplied value.
 - Good, because medicines and scheduling can be built against the port's contract before this
   slice merges (a contract-tested mock).
 - Bad, because the port reads with the system's rights for one member and one competence; it is a
-  narrow, audited exception to the caller's own row-level security, and returns dates only.
+  narrow exception to the caller's own row-level security, returns dates only, and the calling
+  module records the check with its own audited action.
 
 ### Confirmation
 

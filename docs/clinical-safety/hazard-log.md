@@ -2880,6 +2880,8 @@ person receiving care.
 | Design | One rule decides whether a worker can be rostered to a shift on its UK date: DBS clear (or supervised-only clearance on a supervised shift), a right to work, a current registration where the role needs one, and every competence the shift needs valid; each blocker is listed in words (`rosterDecision` in `packages/domain/src/workforce/rostering.ts`) | Built in Phase 2 slice 4 (domain) |
 | Design | A manager override needs a typed justification, lists every blocker it overrides, and is logged and reported; it never covers a missing right to work (illegal working cannot be overridden) | Built in Phase 2 slice 4 (domain); logged and reported from slices 21 and 27 |
 | Design | The inputs come from the same rules everywhere: `dbsClearance`, `rightToWorkStatus`, `registrationCurrent` and `competenceGate` (never self-signed, observer must hold `workforce.competence.observe`), all on UK calendar dates | Built in Phase 2 slice 4 (domain) |
+| Design | Competence comes from stored sign-offs only, through the competence port on the server (ADR-0085): append-only, observed in the observer's own name by a holder of `workforce.competence.observe`, never for oneself, never dated in the future, withdrawn with a reason; the port never takes a competence from the client | Built in Phase 2 slice 17 (migration 0079, `apps/api/src/services/competence-port.ts`) |
+| Design | Training and competence expiry reminders for HR at each document-expiry reminder day, once each, so a lapse is seen before the rota needs it | Built in Phase 2 slice 17 |
 | Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
 | Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
 
@@ -2891,6 +2893,9 @@ person receiving care.
 | --- | --- |
 | `packages/domain/src/workforce/rostering.test.ts`: `hazard HZ-124 ...` (allows a worker with every check; blocks each missing check; supervised-only clearance on a supervised shift only; a right to work with a follow-up due still allowed; an override with a justification lists what it overrode; refused without a real justification; never overrides a missing right to work) | Passing (Phase 2 slice 4, domain) |
 | `packages/domain/src/workforce/competence.test.ts`, `dbs.test.ts`, `right-to-work.test.ts`, `registration.test.ts` (the inputs to the rule) | Passing (Phase 2 slice 4, domain) |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (the port's decision: through the valid-until day, expired, withdrawn, missing, future sign-offs ignored) | Passing (Phase 2 slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (sign-offs only by a holder of the observe permission, in their own name, never for oneself, never in the future, never changed or deleted; withdrawals never by the member) | Passing (Phase 2 slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks missing, expired and withdrawn competence and allows a valid one, in a care worker's own context; the reminders) | Passing (Phase 2 slice 17) |
 | Rota tests (planning and on the day) | Planned, slices 21 and 27 |
 
 ---

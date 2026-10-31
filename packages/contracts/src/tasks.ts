@@ -85,6 +85,10 @@ export const TaskDetails = z
     complianceItemKind: z.string().optional(),
     reminderDueOn: isoDate.optional(),
     reminderDays: z.number().int().optional(),
+    /** A training or competence expiry reminder (slice 17): the member, and the topic or competence. */
+    memberId: uuid.optional(),
+    trainingTopic: z.string().optional(),
+    competence: z.string().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

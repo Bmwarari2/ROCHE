@@ -6478,6 +6478,16 @@
           },
           "reminderDays": {
             "type": "integer"
+          },
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trainingTopic": {
+            "type": "string"
+          },
+          "competence": {
+            "type": "string"
           }
         }
       },
@@ -20030,6 +20040,795 @@
         "required": [
           "expectedVersion",
           "signedOn"
+        ]
+      },
+      "TrainingRequirementList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingRequirementItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "TrainingRequirementItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "roleKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "refreshYears": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "roleKey",
+          "topic",
+          "refreshYears",
+          "tier",
+          "active"
+        ]
+      },
+      "TrainingTopic": {
+        "type": "string",
+        "enum": [
+          "care_certificate",
+          "safeguarding_adults",
+          "safeguarding_children",
+          "moving_and_handling",
+          "infection_prevention_and_control",
+          "fire_safety",
+          "health_and_safety",
+          "basic_life_support",
+          "food_hygiene",
+          "medicines",
+          "mental_capacity_and_dols",
+          "equality_diversity_and_human_rights",
+          "information_governance",
+          "dementia_awareness",
+          "fluids_and_nutrition",
+          "oliver_mcgowan"
+        ]
+      },
+      "PutTrainingRequirement": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "roleKey": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "refreshYears": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "roleKey",
+          "topic",
+          "refreshYears",
+          "tier",
+          "active"
+        ]
+      },
+      "DevelopmentRecord": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingMatrixRow"
+            }
+          },
+          "trainingRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingRecordItem"
+            }
+          },
+          "competences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompetenceStateItem"
+            }
+          },
+          "signOffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompetenceSignOffItem"
+            }
+          },
+          "supervisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisionRecordItem"
+            }
+          },
+          "nextSupervision": {
+            "$ref": "#/components/schemas/NextMeetingItem"
+          },
+          "nextAppraisal": {
+            "$ref": "#/components/schemas/NextMeetingItem"
+          },
+          "revalidation": {
+            "$ref": "#/components/schemas/RevalidationView"
+          }
+        },
+        "required": [
+          "member",
+          "asOf",
+          "matrix",
+          "trainingRecords",
+          "competences",
+          "signOffs",
+          "supervisions",
+          "nextSupervision",
+          "nextAppraisal",
+          "revalidation"
+        ]
+      },
+      "TrainingMatrixRow": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "due_soon",
+              "expired",
+              "missing"
+            ]
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "topic",
+          "tier",
+          "status",
+          "validUntil"
+        ]
+      },
+      "TrainingRecordItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "topic",
+          "tier",
+          "completedOn",
+          "expiresOn",
+          "provider"
+        ]
+      },
+      "CompetenceStateItem": {
+        "type": "object",
+        "properties": {
+          "competence": {
+            "$ref": "#/components/schemas/Competence"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "missing",
+              "expired",
+              "withdrawn",
+              null
+            ]
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "competence",
+          "allowed",
+          "reason",
+          "validUntil"
+        ]
+      },
+      "Competence": {
+        "type": "string",
+        "enum": [
+          "medicines_administration",
+          "controlled_drugs",
+          "insulin_administration",
+          "epilepsy_rescue_medication",
+          "moving_and_handling_hoist",
+          "catheter_care",
+          "enteral_feeding",
+          "oxygen_therapy"
+        ]
+      },
+      "CompetenceSignOffItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "competence": {
+            "$ref": "#/components/schemas/Competence"
+          },
+          "observedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "observer": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date"
+          },
+          "withdrawn": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "on": {
+                "type": "string",
+                "format": "date"
+              },
+              "by": {
+                "$ref": "#/components/schemas/StaffName"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "on",
+              "by",
+              "reason"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "competence",
+          "observedOn",
+          "observer",
+          "validUntil",
+          "withdrawn"
+        ]
+      },
+      "SupervisionRecordItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SupervisionKind"
+          },
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "heldBy": {
+            "$ref": "#/components/schemas/StaffName"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "heldOn",
+          "heldBy"
+        ]
+      },
+      "SupervisionKind": {
+        "type": "string",
+        "enum": [
+          "supervision",
+          "appraisal",
+          "spot_check"
+        ]
+      },
+      "NextMeetingItem": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "supervision",
+              "appraisal"
+            ]
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "upcoming",
+              "due",
+              "overdue"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "dueOn",
+          "state"
+        ]
+      },
+      "RevalidationView": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "practiceHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "cpdHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "participatoryCpdHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "feedbackPieces": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reflectiveAccounts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reflectiveDiscussion": {
+            "type": "boolean"
+          },
+          "healthAndCharacter": {
+            "type": "boolean"
+          },
+          "professionalIndemnity": {
+            "type": "boolean"
+          },
+          "confirmation": {
+            "type": "boolean"
+          },
+          "daysLeft": {
+            "type": "integer"
+          },
+          "outstanding": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "cycleDueOn",
+          "practiceHours",
+          "cpdHours",
+          "participatoryCpdHours",
+          "feedbackPieces",
+          "reflectiveAccounts",
+          "reflectiveDiscussion",
+          "healthAndCharacter",
+          "professionalIndemnity",
+          "confirmation",
+          "daysLeft",
+          "outstanding",
+          "ready"
+        ]
+      },
+      "CreateTrainingRecord": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "topic",
+          "tier",
+          "completedOn",
+          "expiresOn",
+          "provider"
+        ]
+      },
+      "UpdateTrainingRecord": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "topic": {
+            "$ref": "#/components/schemas/TrainingTopic"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  2
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 160
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "topic",
+          "tier",
+          "completedOn",
+          "expiresOn",
+          "provider"
+        ]
+      },
+      "CreateCompetenceSignOff": {
+        "type": "object",
+        "properties": {
+          "competence": {
+            "$ref": "#/components/schemas/Competence"
+          },
+          "observedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "competence",
+          "observedOn"
+        ]
+      },
+      "WithdrawCompetenceSignOff": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "CreateSupervisionRecord": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SupervisionKind"
+          },
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "kind",
+          "heldOn"
+        ]
+      },
+      "PutRevalidationEvidence": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cycleDueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "practiceHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "cpdHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "participatoryCpdHours": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "feedbackPieces": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reflectiveAccounts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reflectiveDiscussion": {
+            "type": "boolean"
+          },
+          "healthAndCharacter": {
+            "type": "boolean"
+          },
+          "professionalIndemnity": {
+            "type": "boolean"
+          },
+          "confirmation": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cycleDueOn",
+          "practiceHours",
+          "cpdHours",
+          "participatoryCpdHours",
+          "feedbackPieces",
+          "reflectiveAccounts",
+          "reflectiveDiscussion",
+          "healthAndCharacter",
+          "professionalIndemnity",
+          "confirmation"
         ]
       },
       "EvidenceLinkCodeSent": {
@@ -43241,6 +44040,902 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/training-requirements": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "The training matrix by role",
+        "description": "workforce.training.manage. Every requirement, by role and topic.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Requirements",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRequirementList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Set one role's requirement for a topic",
+        "description": "workforce.training.manage. Adds or changes one role and topic's requirement (expectedVersion when it exists). The Oliver McGowan topic needs its tier; others never have one. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutTrainingRequirement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingRequirementItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/development": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "A member's development record",
+        "description": "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. The training matrix today (Oliver McGowan tiers in England), records, competences and their state, supervisions with the next supervision and appraisal, and the revalidation plan. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/training-records": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record training",
+        "description": "workforce.training.manage, never for oneself. Completed on a date no later than today. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrainingRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/training-records/{recordId}": {
+      "patch": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Correct a training record",
+        "description": "workforce.training.manage, never for oneself, against the version you loaded; the earlier version is kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "recordId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTrainingRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/competences": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Sign off an observed competence",
+        "description": "workforce.competence.observe, in the caller's own name, never for oneself, observed on a date no later than today. Valid until the day before the competence's refresh (competence.medicines.refresh_months or competence.default_refresh_months). Publishes workforce.competence.changed. Audited (HZ-119).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompetenceSignOff"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/competences/{signOffId}/withdraw": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Withdraw a competence sign-off",
+        "description": "workforce.competence.observe or workforce.training.manage, never for oneself, with a reason. From the day it is withdrawn the sign-off no longer counts. Publishes workforce.competence.changed. Audited (HZ-119).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "signOffId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawCompetenceSignOff"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/supervisions": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record a supervision, appraisal or spot check",
+        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupervisionRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/members/{memberId}/revalidation": {
+      "put": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Record revalidation evidence for a cycle",
+        "description": "workforce.training.manage, never for oneself. One record per member and revalidation date (expectedVersion when it exists); counted against the NMC figures in the rate table. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "memberId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutRevalidationEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member's development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/development": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "My development record",
+        "description": "workforce.self.read. The member's own training, competences, supervisions and revalidation.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your development record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevelopmentRecord"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {
