@@ -104,6 +104,7 @@ export * from "./safety/questions";
 export * from "./safety/rates";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
+export * from "./scheduling/dependency";
 // The rule-group functions take periods prepared inside the module; callers use checkWorkingTime.
 export {
   type NightAverageWindow,
