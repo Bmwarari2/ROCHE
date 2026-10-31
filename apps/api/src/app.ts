@@ -63,6 +63,7 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
@@ -266,6 +267,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
   app.route("/", staffFilesRouter);
+  app.route("/", recruitmentRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
