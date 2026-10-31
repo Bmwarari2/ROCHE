@@ -33743,6 +33743,561 @@
           "icoRightStated"
         ]
       },
+      "DataSecurityOverview": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "string",
+            "format": "date"
+          },
+          "dspt": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "submitted",
+                  "due",
+                  "due_soon",
+                  "overdue"
+                ]
+              },
+              "deadline": {
+                "type": "string",
+                "format": "date"
+              },
+              "financialYear": {
+                "type": "string",
+                "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+              },
+              "flagged": {
+                "type": "boolean"
+              },
+              "assertions": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "byStatus": {
+                    "type": "object",
+                    "properties": {
+                      "not_started": {
+                        "type": "integer"
+                      },
+                      "in_progress": {
+                        "type": "integer"
+                      },
+                      "met": {
+                        "type": "integer"
+                      },
+                      "not_met": {
+                        "type": "integer"
+                      },
+                      "not_applicable": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "metWithoutEvidence": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total",
+                  "byStatus",
+                  "metWithoutEvidence"
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "deadline",
+              "financialYear",
+              "flagged",
+              "assertions"
+            ]
+          },
+          "certificates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "$ref": "#/components/schemas/SecurityCertificateKind"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/RenewalStatus"
+                },
+                "expiresOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "latest": {
+                  "$ref": "#/components/schemas/SecurityCertificate"
+                }
+              },
+              "required": [
+                "kind",
+                "status",
+                "expiresOn",
+                "latest"
+              ]
+            }
+          },
+          "registers": {
+            "type": "object",
+            "properties": {
+              "openBreaches": {
+                "type": "integer"
+              },
+              "breachesPastIcoClock": {
+                "type": "integer"
+              },
+              "openComplaints": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "openBreaches",
+              "breachesPastIcoClock",
+              "openComplaints"
+            ]
+          }
+        },
+        "required": [
+          "on",
+          "dspt",
+          "certificates",
+          "registers"
+        ]
+      },
+      "SecurityCertificateKind": {
+        "type": "string",
+        "enum": [
+          "cyber_essentials",
+          "cyber_essentials_plus",
+          "ico_registration"
+        ]
+      },
+      "RenewalStatus": {
+        "type": "string",
+        "enum": [
+          "current",
+          "due_soon",
+          "expired",
+          "missing"
+        ]
+      },
+      "SecurityCertificate": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SecurityCertificateKind"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "reference",
+          "issuedOn",
+          "expiresOn",
+          "issuer",
+          "documentId",
+          "version"
+        ]
+      },
+      "DsptAssertionList": {
+        "type": "object",
+        "properties": {
+          "financialYear": {
+            "type": "string",
+            "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsptAssertion"
+            }
+          }
+        },
+        "required": [
+          "financialYear",
+          "items"
+        ]
+      },
+      "DsptAssertion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "financialYear": {
+            "type": "string",
+            "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+          },
+          "assertionRef": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DsptAssertionStatus"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "documentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "linkedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "linkedBy": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "documentId",
+                "linkedAt",
+                "linkedBy"
+              ]
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "financialYear",
+          "assertionRef",
+          "title",
+          "status",
+          "notes",
+          "ownerId",
+          "evidence",
+          "version"
+        ]
+      },
+      "DsptAssertionStatus": {
+        "type": "string",
+        "enum": [
+          "not_started",
+          "in_progress",
+          "met",
+          "not_met",
+          "not_applicable"
+        ]
+      },
+      "RecordDsptAssertion": {
+        "type": "object",
+        "properties": {
+          "financialYear": {
+            "type": "string",
+            "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+          },
+          "assertionRef": {
+            "type": "string",
+            "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){1,3}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "financialYear",
+          "assertionRef",
+          "title"
+        ]
+      },
+      "ChangeDsptAssertion": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "$ref": "#/components/schemas/DsptAssertionStatus"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "status"
+        ]
+      },
+      "LinkDsptEvidence": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "documentId"
+        ]
+      },
+      "DsptSubmissionList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsptSubmission"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DsptSubmission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "financialYear": {
+            "type": "string",
+            "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+          },
+          "submittedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DsptOutcome"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "financialYear",
+          "submittedOn",
+          "outcome",
+          "reference",
+          "version"
+        ]
+      },
+      "DsptOutcome": {
+        "type": "string",
+        "enum": [
+          "standards_met",
+          "approaching_standards",
+          "standards_not_met"
+        ]
+      },
+      "RecordDsptSubmission": {
+        "type": "object",
+        "properties": {
+          "financialYear": {
+            "type": "string",
+            "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+          },
+          "submittedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DsptOutcome"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "financialYear",
+          "submittedOn",
+          "outcome"
+        ]
+      },
+      "CorrectDsptSubmission": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "submittedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/DsptOutcome"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "submittedOn",
+          "outcome"
+        ]
+      },
+      "SecurityCertificateList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityCertificate"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RecordSecurityCertificate": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SecurityCertificateKind"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiresOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "documentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "kind",
+          "reference",
+          "issuedOn"
+        ]
+      },
       "DsarCaseList": {
         "type": "object",
         "properties": {
@@ -75802,6 +76357,867 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Where the DSPT, Cyber Essentials and ICO registration stand, with the registers",
+        "description": "quality.dsar.manage across the organisation. Worked out now from the records and the rate table (dspt.submission_deadline.*, quality.renewal_reminder_days, cyber_essentials.certificate_valid_months, ico.registration.renewal_months): the DSPT year's status and its assertions by status (met but holding no evidence counted apart); each certificate kind's status, missing when there is no record; and the breach register and complaints. Audited (quality.data_security.overview_viewed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSecurityOverview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/assertions": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The DSPT assertions for a financial year, with the evidence linked now",
+        "description": "quality.dsar.manage across the organisation. The year defaults to the one whose deadline is next. Audited (quality.data_security.assertions_listed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}\\/[0-9]{2}$"
+            },
+            "required": false,
+            "name": "financialYear",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assertions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptAssertionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Track a DSPT assertion for a financial year",
+        "description": "quality.dsar.manage across the organisation. One per organisation, year and reference (409 already_tracked). Audited (quality.data_security.assertion_recorded).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDsptAssertion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tracked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/assertions/{id}/status": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Change where a DSPT assertion stands",
+        "description": "quality.dsar.manage across the organisation. Met needs evidence linked (422 evidence_required); not met and not applicable need notes (422 notes_required). Send the record's version (409 when stale). Audited (quality.data_security.assertion_changed) with the status code.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeDsptAssertion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/assertions/{id}/evidence": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Link an organisation document as evidence for an assertion",
+        "description": "quality.dsar.manage across the organisation. An available organisation document, never a person's (422 document_not_usable); already linked is refused (409 already_linked). Append-only. Audited (quality.data_security.evidence_linked).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkDsptEvidence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/assertions/{id}/evidence/{documentId}/unlink": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Stop using a document as evidence for an assertion",
+        "description": "quality.dsar.manage across the organisation. Recorded as a new event (append-only); a document not linked now is refused (409 not_linked). An assertion marked met keeps its status but is counted as met without evidence in the overview until evidence is linked again. Audited (quality.data_security.evidence_unlinked).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "documentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unlinked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptAssertion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/submissions": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "The organisation's DSPT submissions, newest year first",
+        "description": "quality.dsar.manage across the organisation. Audited (quality.data_security.submissions_listed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Submissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptSubmissionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Record the DSPT submission for a financial year",
+        "description": "quality.dsar.manage across the organisation. One per year (409 already_recorded: correct it instead); submitted on a day not in the future, for a year whose deadline is no more than a year away (422 year_out_of_range). Audited (quality.data_security.submission_recorded) with the outcome code.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDsptSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/dspt/submissions/{id}/correct": {
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Correct a recorded DSPT submission",
+        "description": "quality.dsar.manage across the organisation. Send the record's version (409 when stale); the earlier values stay in its history. Audited (quality.data_security.submission_corrected).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectDsptSubmission"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Corrected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsptSubmission"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/data-security/certificates": {
+      "get": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Cyber Essentials and ICO registration records, newest first",
+        "description": "quality.dsar.manage across the organisation. Audited (quality.data_security.certificates_listed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityCertificateList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quality"
+        ],
+        "summary": "Record a Cyber Essentials, Cyber Essentials Plus or ICO registration",
+        "description": "quality.dsar.manage across the organisation. Issued on a day not in the future; a stated expiry after issue; a copy must be an available organisation document. The newest record of a kind counts for its status. Audited (quality.data_security.certificate_recorded) with the kind.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSecurityCertificate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityCertificate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

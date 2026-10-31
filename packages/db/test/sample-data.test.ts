@@ -381,17 +381,22 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 // (slice 18 follow-up; the shared list is redefined by one migration at a time). A data protection
 // complaint about a sample person is a real complaint record (migration 0082): its foreign key stops
 // the removal rather than the complaint going with the sample. An outbreak refers to its statutory
-// notification (migration 0093), so it stops removal too; its cases go with the person.
+// notification (migration 0093), so it stops removal too; its cases go with the person. Data
+// security evidence (migration 0094) refers only to organisation documents, never a person's (the
+// API refuses one), so it never holds up a removal in practice; listed so a document it cites is
+// never removed with a sample.
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
   "downtime_pack",
   "dp_complaint",
   "dsar_case",
+  "dspt_evidence",
   "escalation_policy_link",
   "outage",
   "outbreak",
   "policy_version",
+  "security_certificate",
 ];
 
 describe("hazard HZ-072 the removal list keeps in step with the schema (migration 0069)", () => {

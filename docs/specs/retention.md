@@ -170,6 +170,9 @@ of the record they attach to.
 - DSAR cases (Phase 2, slice 15), breach register entries, Thapsus breach notices and their
   acknowledgements, and data-protection complaints (slice 20, migration 0082): interim audit_event
   (8 years from creation) until the DPO sets periods (H-670).
+- DSPT assertions, evidence links and submissions, and Cyber Essentials and ICO registration records
+  (slice 32, migration 0094): interim audit_event (8 years from creation) until the DPO sets periods
+  (H-810).
 - DPIA versions and sign-offs, sub-processor notice responses and onboarding decisions: interim
   audit_event (8 years from creation) until the DPO confirms a period (H-115).
 - ECM visit events (Phase 4): likely care_record and rota_and_timesheet together (longest wins).

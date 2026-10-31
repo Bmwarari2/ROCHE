@@ -225,3 +225,7 @@ Screens (slice 66): the DSAR response file is fetched from the API and passed to
 download by the web tier, which keeps nothing and tells the browser not to cache it (as the free
 full export does); opening a collected record and the response need a fresh step-up and are
 audited by the API. No new personal data is collected by the screens.
+
+Data security evidence (slice 32, [quality.md](../specs/quality.md) section 18): DSPT assertions,
+evidence links, submissions and Cyber Essentials and ICO registration records hold no personal data
+beyond the member who recorded or owns them (B3 and B5); no new processing purpose.
