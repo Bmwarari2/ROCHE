@@ -52,6 +52,7 @@ export type ExportRetention =
   | "evidence_pack"
   | "organisation_document"
   | "invitation"
+  | "data_rights_case"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -1871,6 +1872,147 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       created_at: "exported",
       created_by: "exported",
+    },
+  },
+  "public.dsar_case": {
+    context: "platform",
+    description:
+      "Data subject requests (platform.md, Phase 2: the DSAR workbench): access, rectification, erasure or portability, from or for a person supported, a contact or a member of staff, with the identity check, the clock's dates, the outcome and the hash of the bundle issued.",
+    treatment: "tenant_rows",
+    retention: "data_rights_case",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      request_kind: {
+        description: "The right asked for.",
+        codes: {
+          access: "Subject access (UK GDPR Art 15).",
+          rectification: "Rectification (Art 16).",
+          erasure: "Erasure (Art 17).",
+          portability: "Portability (Art 20).",
+        },
+      },
+      subject_kind: {
+        description: "Who the request is about.",
+        codes: {
+          person: "A person supported.",
+          contact: "One of a person's contacts.",
+          staff: "A member of staff.",
+        },
+      },
+      subject_person_id: "exported",
+      subject_contact_id: "exported",
+      subject_staff_id: {
+        description: "The member of staff the request is about (tenant_user id).",
+      },
+      requester_kind: {
+        description: "Who made the request.",
+        codes: { subject: "The subject.", representative: "Someone acting for them." },
+      },
+      requester_name: { description: "A representative's name, as given." },
+      requester_address: { description: "Where the response goes, as the requester gave it." },
+      authority: {
+        description: "A representative's authority.",
+        codes: {
+          lpa_health_welfare: "Lasting power of attorney for health and welfare.",
+          lpa_property_finance: "Lasting power of attorney for property and financial affairs.",
+          deputy: "Court of Protection deputy.",
+          written_authority: "The subject's written authority.",
+          other: "Other authority, described in the case.",
+        },
+      },
+      channel: {
+        description: "How the request arrived.",
+        codes: {
+          email: "Email.",
+          post: "Post.",
+          phone: "Phone.",
+          in_person: "In person.",
+          portal: "Family portal.",
+        },
+      },
+      received_on: { description: "The day the request was received (UK date)." },
+      identity_required: { description: "Whether proof of identity was asked for." },
+      identity_verified_on: { description: "The day identity was confirmed (UK date)." },
+      identity_method: {
+        description: "How identity was confirmed; the document itself is never kept.",
+        codes: {
+          document_seen: "A document was seen.",
+          known_to_staff: "Known to staff.",
+          authority_checked: "A representative's authority was checked.",
+          portal_account: "A verified portal account.",
+        },
+      },
+      pauses: { description: "Pauses while clarification was awaited, from and to (JSON)." },
+      extension_months: { description: "Months the deadline was extended by.", unit: "months" },
+      extension_grounds: {
+        description: "Why the deadline was extended (UK GDPR Art 12(3)).",
+        codes: { complex: "The request is complex.", multiple_requests: "Several requests." },
+      },
+      extension_reason: { description: "The reason given for the extension." },
+      extension_decided_on: { description: "The day the extension was decided (UK date)." },
+      responded_on: { description: "The day the response was sent (UK date)." },
+      status: {
+        description: "Where the case stands.",
+        codes: { open: "Open.", closed: "Responded to.", withdrawn: "Withdrawn by the requester." },
+      },
+      outcome: {
+        description: "What the response did.",
+        codes: {
+          fulfilled: "Done in full.",
+          partly_fulfilled: "Done in part, with reasons.",
+          refused: "Refused, with reasons.",
+          withdrawn: "Withdrawn.",
+        },
+      },
+      outcome_reason: { description: "The reasons given for a partial response or a refusal." },
+      not_searched: { description: "Tables with personal data the collector could not search." },
+      collected_at: "exported",
+      rectification: { description: "Rectification decisions, field by field (JSON)." },
+      erasure: { description: "The erasure assessment as recorded (JSON)." },
+      bundle_sha256: { description: "SHA-256 of the bundle as issued." },
+      bundle_issued_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.dsar_item": {
+    context: "platform",
+    description:
+      "Each record found for a data subject request and the decision a person made about it: disclose, redact named fields or withhold, with the reason. Holds the record's table and id, never a copy of it.",
+    treatment: "tenant_rows",
+    retention: "data_rights_case",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      case_id: { description: "The case (dsar_case id)." },
+      table_name: { description: "The table the record is in." },
+      record_id: { description: "The record's id in that table." },
+      decision: {
+        description: "What the reviewer decided.",
+        codes: {
+          pending: "Not decided yet.",
+          disclose: "Disclosed in full.",
+          redact: "Disclosed with the named fields redacted.",
+          withhold: "Withheld, with the exemption given.",
+        },
+      },
+      redacted_fields: { description: "The fields redacted." },
+      reason: { description: "The reason or exemption for a redaction or for withholding." },
+      reviewed_by: "exported",
+      reviewed_at: "exported",
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
     },
   },
   "public.entry_device_deletion_flag": {

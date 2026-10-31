@@ -611,6 +611,31 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | `break_glass_event.kind` | Harbour | `open`, `search` | A break-glass search names no person (`person_id` empty) and lasts no time (`expires_at` equals `opened_at`); the people shown are in its audit event, and the homes they live at in `shown_location_ids` for the weekly report (migration 0070). |
 | Search match quality | Harbour | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
 
+## Data subject requests (Phase 2, slice 15)
+
+Code lists for the DSAR workbench ([platform.md](platform.md), Phase 2: the DSAR workbench;
+[ADR-0090](../decisions/0090-dsar-workbench-and-disclosure-collector.md); migration 0077). None maps
+to a national standard; the rights are those of UK GDPR Articles 15 to 20. Every column of
+`dsar_case` and `dsar_item` is exported. Retention class `data_rights_case`.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `dsar_case.request_kind` | UK GDPR Arts 15, 16, 17, 20 | `access`, `rectification`, `erasure`, `portability` | |
+| `dsar_case.subject_kind`, `subject_person_id`, `subject_contact_id`, `subject_staff_id` | Harbour | `person`, `contact`, `staff`; exactly one subject of its kind (a contact names its person too), by composite foreign keys (check `dsar_case_subject`) | |
+| `dsar_case.requester_kind`, `requester_name`, `requester_address`, `authority` | Harbour; Mental Capacity Act 2005 | `subject`, `representative`; authority `lpa_health_welfare`, `lpa_property_finance`, `deputy`, `written_authority`, `other` (required for a representative, with a name) | The name and address are as the requester gave them; never in the audit trail or logs. |
+| `dsar_case.channel` | Harbour | `email`, `post`, `phone`, `in_person`, `portal` | |
+| `dsar_case.received_on`, `identity_verified_on`, `extension_decided_on`, `responded_on` | ISO 8601 date | `YYYY-MM-DD` (UK calendar), shown dd/mm/yyyy; none in the future, none before `received_on` | The due date is never stored: `dsarClock` works it out on read. |
+| `dsar_case.identity_required`, `identity_method` | Harbour | Boolean; `document_seen`, `known_to_staff`, `authority_checked`, `portal_account` (set with the day, check `dsar_case_identity`) | How identity was confirmed, never a copy of the document. |
+| `dsar_case.pauses` | Harbour | JSON array of `{from, to}` dates; `to` null while open; at most one open | Checked by `dsarClock` (no overlap, after the clock starts). |
+| `dsar_case.extension_months`, `extension_grounds`, `extension_reason` | UK GDPR Art 12(3) | 1 to `dsar.extension_months` months; `complex`, `multiple_requests`; reason free text | All four extension fields together or none (check `dsar_case_extension`). |
+| `dsar_case.status`, `outcome`, `outcome_reason` | Harbour | `open`, `closed`, `withdrawn`; `fulfilled`, `partly_fulfilled`, `refused`, `withdrawn`; a reason for a partial response or a refusal | A closed or withdrawn case never changes (trigger `dsar_case_guard`). |
+| `dsar_case.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | Tables with personal data and no subject column (`dsarSubjectMap`). |
+| `dsar_case.rectification` | Harbour | JSON array of `{table, recordId, field, decision, reason, decidedOn}`; decision `corrected`, `declined`, `statement_added` | The correction itself is a new version in its module. |
+| `dsar_case.erasure` | Harbour; retention.md | JSON `{assessedAt, held, retained, erasable, byClass[{recordClass, outcome, count, until}]}` | `erasureAssessment`; nothing is deleted by the workbench. |
+| `dsar_case.bundle_sha256`, `bundle_issued_at` | SHA-256 | 64 lower-case hex characters of the canonical JSON (sorted keys) of the records, redacted count and withheld count; UTC | Set together on respond; never changes once set. |
+| `dsar_item.table_name`, `record_id` | Harbour (`EXPORT_TABLES`) | A table in the export catalogue; the record's id as text | Unique per case; content is never copied. |
+| `dsar_item.decision`, `redacted_fields`, `reason`, `reviewed_by`, `reviewed_at` | Harbour; DPA 2018 Schs 2 to 4 | `pending`, `disclose`, `redact`, `withhold`; fields from the table's exported columns; a reason for `redact` and `withhold`; a `tenant_user` id and UTC once decided | Redacted fields read `[redacted]` in the bundle; withheld records are left out with a count. |
+
 ## Phase 1 tables completed for the gate
 
 Eight Phase 1 tables that hold personal or care data and were named only in passing above (Phase 1

@@ -192,7 +192,10 @@ export const PERMISSIONS = {
   "quality.evidence.manage": {
     description: "Manage the evidence library (tag records against quality statements)",
   },
-  "quality.dsar.manage": { description: "Run the DSAR workbench and breach register" },
+  "quality.dsar.manage": {
+    description: "Run the DSAR workbench and breach register",
+    careRecord: true,
+  },
   "quality.evidence.read": {
     description: "Open evidence packs released to you (inspectors only)",
     careRecord: true,

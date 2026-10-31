@@ -491,6 +491,13 @@
       "when": 1792169579986,
       "tag": "0070_break_glass_search",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793454683953,
+      "tag": "0077_dsar_workbench",
+      "breakpoints": true
     }
   ]
 }
