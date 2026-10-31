@@ -21,11 +21,11 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
 | Communication and portals | `COMMS` | 15.1 | 8 | 4 | 4 | 0 |
 | Reporting and analytics | `INSI` | 15.2 | 6 | 6 | 0 | 0 |
-| Integrations | `INTG` | 15.3 | 13 | 11 | 2 | 0 |
+| Integrations | `INTG` | 15.3 | 13 | 10 | 3 | 0 |
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **157** | **76** | **0** |
+| **Total** | | | **233** | **156** | **77** | **0** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -115,7 +115,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-020 | CHC checklist and Decision Support Tool evidence with Fast Track flag | 10.1 | 5 | todo | - | - | - | - |
 | CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/consent.ts`, `packages/domain/src/care/mca/capacity.ts`, `packages/domain/src/care/mca/best-interests.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts`, `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (consent by decision, capacity assessments, best-interests decisions and consent records; the forms next) | `packages/domain/src/care/mca/consent.test.ts`, `packages/domain/src/care/mca/capacity.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
 | CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/dols.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts` (DoLS, the legal-change review and the expiry job), `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (the register with its clocks; forms next) | `packages/domain/src/care/mca/dols.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
-| MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | partial | [medicines](medicines.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/medicines/` (`dmd.ts`, `dose.ts`, `schedule.ts`, `mar-entry.ts`, `reconciliation.ts`, `rates.ts`; domain rules only: the dm+d tables, schema, API and screens are slices 10, 16 and 52) | `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`, `reconciliation.test.ts` | - |
+| MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | partial | [medicines](medicines.md#4-rules-that-are-easy-to-get-wrong), [integrations](integrations.md#11-dmd-reference-data-intg-006-slice-10-adr-0080) | `packages/domain/src/medicines/` (`dmd.ts`, `dose.ts`, `schedule.ts`, `mar-entry.ts`, `reconciliation.ts`, `rates.ts`; slice 10: `dmd-release.ts`, `dmd-subset.ts`); the dm+d reference tables, loader and lookups (slice 10: migration 0110, `packages/db/src/dmd/`, `apps/api/src/routes/medicines-dmd.ts`); the medicines record schema, API and screens are slices 16 and 52 | `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`, `reconciliation.test.ts`, `dmd-release.test.ts`, `dmd-subset.test.ts`; `packages/db/test/dmd.test.ts`; `apps/api/test/dmd.test.ts` | - |
 | MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | todo | - | - | - | - |
 | MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | todo | - | - | - | - |
 | MEDS-004 | Covert administration records with best-interests evidence | 10.2 | 2 | todo | - | - | - | - |
@@ -251,7 +251,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | INTG-003 | PDS NHS number lookup | 9.2, 15.3 | 5 | todo | - | - | - | - |
 | INTG-004 | NHS CIS2 staff authentication | 6, 15.3 | 5 | todo | - | - | - | - |
 | INTG-005 | NHSmail and National Data Sharing Arrangement | 15.3 | 5 | todo | - | - | - | - |
-| INTG-006 | dm+d dataset sync and GTIN barcode lookup | 15.3 | 2 | todo | - | - | - | - |
+| INTG-006 | dm+d dataset sync and GTIN barcode lookup | 15.3 | 2 | partial | [integrations](integrations.md#11-dmd-reference-data-intg-006-slice-10-adr-0080) (ADR-0080) | Slice 10: migration 0110 (global dm+d tables, loader functions owned by `harbour_dmd_loader`), `packages/db/src/dmd/` (XML parser and loader, `dmd:load`), `packages/domain/src/integrations/dmd-release-source.ts` (port), `apps/api/src/integrations/dmd.ts` (mock), `apps/api/src/jobs/dmd.ts` (monthly job), `apps/api/src/routes/medicines-dmd.ts` (search, product, GTIN, history); the TRUD download is slice 75 and the device subset streams slice 68 | `packages/domain/src/medicines/dmd-release.test.ts`, `dmd-subset.test.ts`; `packages/db/test/dmd.test.ts`; `apps/api/test/dmd.test.ts`, `dmd-release-source.test.ts` | - |
 | INTG-007 | Identity and vetting: right-to-work IDSP, DBS e-bulk and Update Service, NMC register lookup | 15.3 | 2 | todo | - | - | - | - |
 | INTG-008 | Nurse call and acoustic monitoring webhooks | 15.3 | 5 | todo | - | - | - | - |
 | INTG-009 | Lone-worker devices (BS 8484) | 12.3, 15.3 | 4 | todo | - | - | - | - |

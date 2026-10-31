@@ -63,6 +63,7 @@ for an answer.
 | [0072](0072-mfa-counts-only-for-the-session-that-used-it.md) | MFA counts only for the session that used it | accepted | 2026-10-16 | Phase 1 |
 | [0073](0073-changelog-fragments.md) | Development log entries as one file per pull request (deviation from section 20 rule 9's wording) | accepted | 2026-10-16 | All phases |
 | [0074](0074-shift-pattern-on-the-sync-token.md) | The phone learns the shift pattern from its sync token | accepted | 2026-10-13 | Phase 1 |
+| [0080](0080-dmd-reference-data.md) | dm+d reference data: the NHSBSA release in global tables, loaded whole by a loader role, refreshed monthly, a subset per device | proposed | 2026-10-31 | Phase 2 (slice 10) |
 | [0086](0086-pay-rules-engine.md) | Pay rules engine: pure functions over stored inputs, in whole pence, with their working | accepted | 2026-10-31 | Phase 2 |
 | [0087](0087-employment-law-not-yet-in-force.md) | Employment law not yet in force: record, do not calculate | accepted | 2026-10-31 | Phase 2 |
 | [0092](0092-import-wizard.md) | Import wizard: staged rows in quarantine, organisation-wide importers, whole-batch commit and undo | proposed | 2026-10-31 | Phase 2 (slice 26) |

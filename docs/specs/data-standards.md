@@ -72,6 +72,8 @@ the DSCR data migration schema.
 | PRSB Personalised Care and Support Plan | `care_plan`, `care_plan_section`, `care_plan_action`; additional support plans | v2.0 (December 2021), [theprsb.org](https://theprsb.org/standards/personalisedcareandsupportplan/); section list checked on 2026-10-11, element-level mapping still to verify |
 | ISO 639-1 and ISO 639-3 | `first_language` | Two-letter code where one exists, otherwise three-letter |
 | CQC identifiers | Provider and location IDs | Format `1-` followed by digits |
+| NHS Dictionary of Medicines and Devices (dm+d) | Medicines on the MAR, their forms, routes, units, packs and controlled drug and legal categories | The NHSBSA release (data model R2 XML), loaded from TRUD into global reference tables (ADR-0080; section "dm+d reference data" below) |
+| GS1 GTIN | The barcodes printed on dm+d packs | GTIN-8, -12, -13 and -14 with the GS1 check digit, stored as GTIN-14 |
 
 ## Platform: tenant, location and service
 
@@ -812,6 +814,22 @@ these fields; exported with these names.
 | `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
 | `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
 | Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
+
+## dm+d reference data (Phase 2, slice 10)
+
+National reference data with no personal data and no organisation rows, so not part of any export
+([integrations.md](integrations.md) section 11; ADR-0080; migration 0110). A MAR entry stores the
+dm+d identifiers it names (`vmp_id`, `amp_id`, unit and route codes) with the dm+d words at
+transcription (slice 16); these tables say what the identifiers mean in the release in use.
+
+| Field | Standard | Format | Notes |
+| --- | --- | --- | --- |
+| `dmd_vtm.id`, `dmd_vmp.id`, `dmd_amp.id`, `dmd_vmpp.id`, `dmd_ampp.id` | dm+d (SNOMED CT UK Drug Extension concept identifiers) | 6 to 18 digits, partition `00` or `10`, Verhoeff check digit (`isDmdId`) | VTMID, VPID, APID, VPPID, APPID. An identifier dm+d changed keeps its row, pointing to its successor (`superseded_by`). |
+| `dmd_lookup.kind`, `code` | dm+d `f_lookup2` | `unit_of_measure`, `form`, `route`, `control_drug_category`, `legal_category`; the dm+d code as published | The id is `kind:code`; `description` is dm+d's own words, shown as dm+d writes them. |
+| `dmd_vmp.unit_dose_uom_code`, `udfs_uom_code`, `strength_uom_codes` | dm+d units of measure | Unit codes from `dmd_lookup` | The units a dose may be written in (medicines.md rule 2, H-652). Strengths' units only: ingredients are never stored. |
+| `dmd_vmp.udfs`, `dmd_vmpp.quantity` | dm+d | Decimal as dm+d writes it | Never converted. |
+| `dmd_gtin.gtin` | GS1 GTIN | 14 digits, GS1 check digit; a GTIN-8, -12 or -13 padded with leading zeros | `start_date` and `end_date` as dm+d gives them; in force on the UK date; withdrawn when a later release lacks the mapping. |
+| `dmd_release.name`, `released_on` | NHSBSA release naming | The release's own name (`nhsbsa_dmd_10.1.0_20261026000001`); `YYYY-MM-DD` | The release in use is the latest loaded by `released_on`. |
 
 ## Platform operational tables (not part of the MODS export)
 

@@ -111,6 +111,18 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   the register's rows. Next in lane A: slice 3 (administration, PRN and CD rules, ADR-0082), then
   slice 10 (dm+d reference data).
 
+**Slice 10, dm+d reference data** (lane A; MEDS-001 and INTG-006 `partial`): pushed on
+`feat/meds-dmd-reference`, pull request not yet opened. Migration 0110 (moved from 0072, which can no
+longer apply after 0088; slice 76 moves to 0111): global dm+d tables with no `tenant_id`, read by
+every role, written only by the loader's functions owned by the new no-login role
+`harbour_dmd_loader` (bootstrap first, H-656); a loader for the NHSBSA XML from an invented fixture
+(whole or nothing, never backwards, nothing disappears, GTINs withdrawn); the release source port
+with a mock and a monthly worker job (the TRUD download is slice 75); search, product, GTIN and
+release history routes that always say whether the data is out of date
+(`medicines.dmd.stale_after_days`); the device subset rule for slice 68. ADR-0080 (proposed), HZ-113,
+human actions H-650 to H-656 (H-657 to H-659 spare); [integrations.md](../specs/integrations.md)
+section 11. Next in lane A: slice 3 (stacked on #135), then slice 16 (the medicines record).
+
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
 `feat/work-staff-profile` slice 11 (0073) on #131; `feat/quality-framework-library` slice 14 (0076)
 on #138; `feat/safety-complaints` slice 18 (0080) on #137.

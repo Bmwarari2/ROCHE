@@ -28,12 +28,14 @@ the rules in section 10.3 that protect people.
 
 Not in Phase 2: MEDS-009 GP proxy ordering and MEDS-010 pharmacy interface (Phase 5), MEDS-011 home
 care levels of support (Phase 4). The dm+d reference data and its download are INTG-006
-([integrations.md](integrations.md)).
+([integrations.md](integrations.md) section 11: the reference tables, loader, search, product and
+GTIN lookups and the device subset built in slice 10; the download is slice 75).
 
 ## 2. Schema (for slices 10 and 16; no migration in slice 2)
 
 Forced RLS on every tenant table (ADR-0002), scoped by the person (`person_child_scope`, as the care
-record). dm+d reference tables are global, with no `tenant_id` (ADR-0080, slice 10).
+record). dm+d reference tables are global, with no `tenant_id` (ADR-0080; built in slice 10,
+migration 0110, [integrations.md](integrations.md) section 11).
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
@@ -510,3 +512,5 @@ schema, API, web or mobile changes in this slice.
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDosesFrom`, `marEntryDoses`, `marEntryTimesBeforeRecorded`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
 | `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | `medicines.ordering_cycle_days` |
+| `dmd-release.ts` (slice 10) | `checkDmdRelease`, `dmdReleaseOrder`, `dmdReleaseFreshness`, `dmdReleaseDateFromName`, `isGtin`, `toGtin14`, `dmdSearchQuery`, `dmdDoseUnitCodes`, `dmdProductFacts`, the release content types | Rules 1 and 2 against the reference data; [integrations.md](integrations.md) section 11 rules 2 to 8 |
+| `dmd-subset.ts` (slice 10) | `selectDmdDeviceSubset` | The device's dm+d subset ([integrations.md](integrations.md) section 11 rule 9; slice 68) |

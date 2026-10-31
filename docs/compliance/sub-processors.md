@@ -43,6 +43,11 @@ needs the DPA check, the DPIA update and tenant notice before it processes famil
 | Flagsmith (feature flags) | Self-hosted by Thapsus in AWS eu-west-2; flag evaluations use tenant, location and role IDs only |
 | pg-boss, Typst, Playwright (PDF), antivirus scanning | Run inside Thapsus's AWS account |
 
+Download sources are not sub-processors either. The NHSBSA dm+d release, downloaded from TRUD (NHS
+England) for the medicines reference data, is national reference data Harbour fetches; TRUD receives
+only Thapsus's account credentials, never tenant or personal data ([ADR-0080](../decisions/0080-dmd-reference-data.md);
+H-510, H-511).
+
 ## 3. Optional AI providers (off by default, enabled per tenant)
 
 Used only when a tenant enables the AI module after signing the DPIA AI addendum. Data is pseudonymised before sending; no provider may train on tenant data; prompts and responses are audited for 12 months.
@@ -70,3 +75,4 @@ Sources: [Bedrock model and region support](https://docs.aws.amazon.com/bedrock/
 | --- | --- | --- |
 | 11 October 2026 | Register created (Phase 0) | Not applicable (no live tenants) |
 | 11 October 2026 | Pending entries for family notifications: SES for family email and a UK SMS gateway (Phase 1, slice 12) | Not applicable (no live tenants); notice due before they process family data |
+| 31 October 2026 | The NHSBSA dm+d release from TRUD recorded as a download source, not a sub-processor (Phase 2 slice 10, ADR-0080) | Not applicable (no personal data) |
