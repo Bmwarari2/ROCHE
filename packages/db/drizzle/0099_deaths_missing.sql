@@ -320,6 +320,8 @@ $$;
 CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
   SELECT ARRAY[
+    -- 'outbreak_case' carried over from migration 0093, which this redefinition follows.
+    'outbreak_case',
     'death_step', 'missing_event', 'death_record', 'missing_episode', 'herbert_profile',
     'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
     'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',

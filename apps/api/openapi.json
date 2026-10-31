@@ -26799,6 +26799,1864 @@
           "expectedVersion"
         ]
       },
+      "DsarCaseList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarCaseSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "DsarCaseSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestKind": {
+            "$ref": "#/components/schemas/DsarRequestKind"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/DsarSubject"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "withdrawn"
+            ]
+          },
+          "clock": {
+            "$ref": "#/components/schemas/DsarClockView"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "requestKind",
+          "subject",
+          "receivedOn",
+          "status",
+          "clock",
+          "version"
+        ]
+      },
+      "DsarRequestKind": {
+        "type": "string",
+        "enum": [
+          "access",
+          "rectification",
+          "erasure",
+          "portability"
+        ]
+      },
+      "DsarSubject": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/DsarSubjectKind"
+          },
+          "personId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "contactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "staffId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "personId",
+          "contactId",
+          "staffId",
+          "name"
+        ]
+      },
+      "DsarSubjectKind": {
+        "type": "string",
+        "enum": [
+          "person",
+          "contact",
+          "staff"
+        ]
+      },
+      "DsarClockView": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "awaiting_identity",
+              "running",
+              "paused",
+              "due_soon",
+              "overdue",
+              "closed"
+            ]
+          },
+          "startedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "dueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "originalDueOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "pausedDays": {
+            "type": "integer"
+          },
+          "extended": {
+            "type": "boolean"
+          },
+          "late": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "startedOn",
+          "dueOn",
+          "originalDueOn",
+          "pausedDays",
+          "extended",
+          "late"
+        ]
+      },
+      "DsarCase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestKind": {
+            "$ref": "#/components/schemas/DsarRequestKind"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/DsarSubject"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "withdrawn"
+            ]
+          },
+          "clock": {
+            "$ref": "#/components/schemas/DsarClockView"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "requesterKind": {
+            "type": "string",
+            "enum": [
+              "subject",
+              "representative"
+            ]
+          },
+          "requesterName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requesterAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authority": {
+            "$ref": "#/components/schemas/DsarAuthority"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/DsarChannel"
+          },
+          "identityRequired": {
+            "type": "boolean"
+          },
+          "identityVerifiedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "identityMethod": {
+            "$ref": "#/components/schemas/DsarIdentityMethod"
+          },
+          "pauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            }
+          },
+          "extension": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "months": {
+                "type": "integer"
+              },
+              "grounds": {
+                "type": "string",
+                "enum": [
+                  "complex",
+                  "multiple_requests"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "decidedOn": {
+                "type": "string",
+                "format": "date"
+              }
+            },
+            "required": [
+              "months",
+              "grounds",
+              "reason",
+              "decidedOn"
+            ]
+          },
+          "clockProblem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "respondedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "fulfilled",
+              "partly_fulfilled",
+              "refused",
+              "withdrawn",
+              null
+            ]
+          },
+          "outcomeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "collectedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "disclosed": {
+                "type": "integer"
+              },
+              "withheld": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "pending",
+              "disclosed",
+              "withheld"
+            ]
+          },
+          "portability": {
+            "type": "object",
+            "properties": {
+              "applies": {
+                "type": "boolean"
+              },
+              "basis": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "applies",
+              "basis"
+            ]
+          },
+          "rectification": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarRectification"
+            }
+          },
+          "erasure": {
+            "$ref": "#/components/schemas/DsarErasureRecord"
+          },
+          "bundleSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundleIssuedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "bundleStored": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "requestKind",
+          "subject",
+          "receivedOn",
+          "status",
+          "clock",
+          "version",
+          "requesterKind",
+          "requesterName",
+          "requesterAddress",
+          "authority",
+          "channel",
+          "identityRequired",
+          "identityVerifiedOn",
+          "identityMethod",
+          "pauses",
+          "extension",
+          "clockProblem",
+          "respondedOn",
+          "outcome",
+          "outcomeReason",
+          "collectedAt",
+          "notSearched",
+          "items",
+          "portability",
+          "rectification",
+          "erasure",
+          "bundleSha256",
+          "bundleIssuedAt",
+          "bundleStored"
+        ]
+      },
+      "DsarAuthority": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "lpa_health_welfare",
+          "lpa_property_finance",
+          "deputy",
+          "written_authority",
+          "other",
+          null
+        ]
+      },
+      "DsarChannel": {
+        "type": "string",
+        "enum": [
+          "email",
+          "post",
+          "phone",
+          "in_person",
+          "portal"
+        ]
+      },
+      "DsarIdentityMethod": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "document_seen",
+          "known_to_staff",
+          "authority_checked",
+          "portal_account",
+          null
+        ]
+      },
+      "DsarNotSearched": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_subject_column",
+              "member_scoped"
+            ]
+          },
+          "guidance": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "reason",
+          "guidance"
+        ]
+      },
+      "DsarRectification": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "recordId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "corrected",
+              "declined",
+              "statement_added"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "decidedOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "table",
+          "recordId",
+          "field",
+          "decision",
+          "reason",
+          "decidedOn"
+        ]
+      },
+      "DsarErasureRecord": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "assessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "held": {
+            "type": "integer"
+          },
+          "retained": {
+            "type": "integer"
+          },
+          "erasable": {
+            "type": "integer"
+          },
+          "byClass": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "recordClass": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "held",
+                    "retained",
+                    "erasable"
+                  ]
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "until": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                }
+              },
+              "required": [
+                "recordClass",
+                "outcome",
+                "count",
+                "until"
+              ]
+            }
+          }
+        },
+        "required": [
+          "assessedAt",
+          "held",
+          "retained",
+          "erasable",
+          "byClass"
+        ]
+      },
+      "NewDsarCase": {
+        "type": "object",
+        "properties": {
+          "requestKind": {
+            "$ref": "#/components/schemas/DsarRequestKind"
+          },
+          "subjectKind": {
+            "$ref": "#/components/schemas/DsarSubjectKind"
+          },
+          "subjectPersonId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "subjectContactId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "subjectStaffId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "requesterKind": {
+            "type": "string",
+            "enum": [
+              "subject",
+              "representative"
+            ]
+          },
+          "requesterName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200,
+            "default": null
+          },
+          "requesterAddress": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000,
+            "default": null
+          },
+          "authority": {
+            "$ref": "#/components/schemas/DsarAuthority"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/DsarChannel"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "identityRequired": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "requestKind",
+          "subjectKind",
+          "requesterKind",
+          "channel",
+          "receivedOn"
+        ]
+      },
+      "DsarIdentityInput": {
+        "type": "object",
+        "properties": {
+          "verifiedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "method": {
+            "$ref": "#/components/schemas/DsarIdentityMethod"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verifiedOn",
+          "method",
+          "expectedVersion"
+        ]
+      },
+      "DsarPauseStart": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from",
+          "expectedVersion"
+        ]
+      },
+      "DsarPauseEnd": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "to",
+          "expectedVersion"
+        ]
+      },
+      "DsarExtensionInput": {
+        "type": "object",
+        "properties": {
+          "months": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "grounds": {
+            "type": "string",
+            "enum": [
+              "complex",
+              "multiple_requests"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "decidedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "months",
+          "grounds",
+          "reason",
+          "decidedOn",
+          "expectedVersion"
+        ]
+      },
+      "DsarCollectResult": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "tablesSearched": {
+            "type": "integer"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "added",
+          "total",
+          "tablesSearched",
+          "notSearched",
+          "truncated"
+        ]
+      },
+      "DsarItemList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ]
+      },
+      "DsarItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/DsarDecision"
+          },
+          "redactedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "tableName",
+          "recordId",
+          "decision",
+          "redactedFields",
+          "reason",
+          "reviewedBy",
+          "reviewedAt",
+          "version"
+        ]
+      },
+      "DsarDecision": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "disclose",
+          "redact",
+          "withhold"
+        ]
+      },
+      "DsarItemDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/DsarDecision"
+          },
+          "redactedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "$ref": "#/components/schemas/StaffName"
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "record": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {}
+          },
+          "contentSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "integer"
+                },
+                "end": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "field",
+                "name",
+                "start",
+                "end"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "tableName",
+          "recordId",
+          "decision",
+          "redactedFields",
+          "reason",
+          "reviewedBy",
+          "reviewedAt",
+          "version",
+          "record",
+          "contentSha256",
+          "highlights"
+        ]
+      },
+      "DsarItemDecisionInput": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "disclose",
+              "redact",
+              "withhold"
+            ]
+          },
+          "redactedFields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "maxItems": 200,
+            "default": []
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "contentSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "contentSha256",
+          "expectedVersion"
+        ]
+      },
+      "DsarBundle": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "access",
+              "portable"
+            ]
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subjectKind": {
+            "$ref": "#/components/schemas/DsarSubjectKind"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "recordId": {
+                  "type": "string"
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "table",
+                "recordId",
+                "fields"
+              ]
+            }
+          },
+          "redactedCount": {
+            "type": "integer"
+          },
+          "withheldCount": {
+            "type": "integer"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseId",
+          "format",
+          "generatedAt",
+          "subjectKind",
+          "records",
+          "redactedCount",
+          "withheldCount",
+          "notSearched",
+          "sha256"
+        ]
+      },
+      "DsarRespondInput": {
+        "type": "object",
+        "properties": {
+          "respondedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "fulfilled",
+              "partly_fulfilled",
+              "refused",
+              "withdrawn"
+            ]
+          },
+          "outcomeReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 2000,
+            "default": null
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "respondedOn",
+          "outcome",
+          "expectedVersion"
+        ]
+      },
+      "DsarRectificationInput": {
+        "type": "object",
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarRectification"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decisions",
+          "expectedVersion"
+        ]
+      },
+      "DsarErasureInput": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "DisclosureLog": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisclosureRequest"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "DisclosureRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DisclosureType"
+          },
+          "legalBasis": {
+            "type": "string"
+          },
+          "requester": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "organisation": {
+                "type": "string"
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "organisation",
+              "reference"
+            ]
+          },
+          "statedPurpose": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DisclosureState"
+          },
+          "loggedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "preparedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "releasedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "releasedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "packSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "collectedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "disclose": {
+                "type": "integer"
+              },
+              "redact": {
+                "type": "integer"
+              },
+              "withhold": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "pending",
+              "disclose",
+              "redact",
+              "withhold"
+            ]
+          },
+          "prevention": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "reportOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "responseDueOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "respondedOn": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "due",
+                  "overdue",
+                  "responded"
+                ]
+              }
+            },
+            "required": [
+              "reportOn",
+              "responseDueOn",
+              "respondedOn",
+              "state"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "personId",
+          "locationId",
+          "type",
+          "legalBasis",
+          "requester",
+          "statedPurpose",
+          "receivedAt",
+          "dueAt",
+          "state",
+          "loggedBy",
+          "preparedBy",
+          "decidedBy",
+          "decidedAt",
+          "reason",
+          "releasedBy",
+          "releasedAt",
+          "packSha256",
+          "collectedAt",
+          "notSearched",
+          "items",
+          "prevention",
+          "version"
+        ]
+      },
+      "DisclosureType": {
+        "type": "string",
+        "enum": [
+          "coroner",
+          "safeguarding_adults_review",
+          "domestic_homicide_review",
+          "police",
+          "solicitor",
+          "access_to_health_records"
+        ]
+      },
+      "DisclosureState": {
+        "type": "string",
+        "enum": [
+          "requested",
+          "prepared",
+          "approved",
+          "released",
+          "refused",
+          "withdrawn"
+        ]
+      },
+      "LogDisclosureRequest": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DisclosureType"
+          },
+          "requester": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "organisation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "reference": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "required": [
+              "name",
+              "organisation"
+            ]
+          },
+          "statedPurpose": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 2000
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "personId",
+          "type",
+          "requester",
+          "receivedAt"
+        ]
+      },
+      "DisclosureCollectResult": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "tablesSearched": {
+            "type": "integer"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "added",
+          "total",
+          "tablesSearched",
+          "notSearched",
+          "truncated"
+        ]
+      },
+      "DisclosureItemList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DisclosureItem"
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ]
+      },
+      "DisclosureItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "disclose",
+              "redact",
+              "withhold"
+            ]
+          },
+          "redactedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "tableName",
+          "recordId",
+          "decision",
+          "redactedFields",
+          "reason",
+          "reviewedBy",
+          "reviewedAt",
+          "version"
+        ]
+      },
+      "DisclosureItemDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tableName": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "disclose",
+              "redact",
+              "withhold"
+            ]
+          },
+          "redactedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "reviewedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "record": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {}
+          },
+          "contentSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "integer"
+                },
+                "end": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "field",
+                "name",
+                "start",
+                "end"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "tableName",
+          "recordId",
+          "decision",
+          "redactedFields",
+          "reason",
+          "reviewedBy",
+          "reviewedAt",
+          "version",
+          "record",
+          "contentSha256",
+          "highlights"
+        ]
+      },
+      "DisclosureVersioned": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "DecideDisclosure": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "refuse"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "decision"
+        ]
+      },
+      "DisclosurePack": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DisclosureType"
+          },
+          "legalBasis": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "recordId": {
+                  "type": "string"
+                },
+                "when": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "table",
+                "recordId",
+                "when",
+                "fields"
+              ]
+            }
+          },
+          "redactedCount": {
+            "type": "integer"
+          },
+          "withheldCount": {
+            "type": "integer"
+          },
+          "notSearched": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DsarNotSearched"
+            }
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "type",
+          "legalBasis",
+          "generatedAt",
+          "records",
+          "redactedCount",
+          "withheldCount",
+          "notSearched",
+          "sha256"
+        ]
+      },
+      "WithdrawDisclosure": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ]
+      },
+      "RecordPreventionReport": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reportOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "respondedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reportOn"
+        ]
+      },
       "SubProcessorOverview": {
         "type": "object",
         "properties": {
@@ -55432,6 +57290,2611 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Data subject requests, newest first, with each one's clock",
+        "description": "quality.dsar.manage with MFA. Audited with the count.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCaseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record a data subject request",
+        "description": "quality.dsar.manage with MFA. The subject must match its kind (a contact names its person too); a representative needs an authority. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewDsarCase"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "A data subject request, with its clock worked out now",
+        "description": "quality.dsar.manage with MFA. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/identity": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record that the requester's identity was confirmed (the clock starts that day)",
+        "description": "quality.dsar.manage with MFA. Records how, never the document. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarIdentityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/pauses": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Pause the clock while clarification is awaited",
+        "description": "quality.dsar.manage with MFA. One pause open at a time. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarPauseStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/pauses/end": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Restart the clock when the clarification arrives",
+        "description": "quality.dsar.manage with MFA. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarPauseEnd"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/extension": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Extend the deadline for a complex request or several requests",
+        "description": "quality.dsar.manage with MFA. Decided before the original due date, by no more than the rate table allows, with a reason. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarExtensionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Extended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/collect": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Find the subject's records across every module",
+        "description": "quality.dsar.manage with MFA. Searches every exported table with personal data by its subject column (the export catalogue); lists those it cannot search. Collecting again adds only new records. Stops at 5000 records. Audited with counts.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCollectResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/items": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The records collected for a request and the decision on each",
+        "description": "quality.dsar.manage with MFA. Tables and ids only, no content. Audited with the count.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/items/{itemId}": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "One collected record, with other people's names highlighted for review",
+        "description": "quality.dsar.manage with MFA. The record as the export shows it; highlights redact nothing. Audited as a care-record view.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarItemDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/items/{itemId}/decision": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Decide a record: disclose, redact named fields or withhold, with a reason",
+        "description": "quality.dsar.manage with MFA. A redaction names the fields and a reason; withholding names a reason (the exemption). Send the item's version. Audited with the decision and the number of fields.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarItemDecisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/bundle": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The response bundle, once every record is decided",
+        "description": "quality.dsar.manage with MFA. Redacted fields read [redacted]; withheld records are left out with a count. `format=portable` only where portability applies (staff records). Audited with counts and the hash.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "access",
+                "portable"
+              ],
+              "default": "access"
+            },
+            "required": false,
+            "name": "format",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/respond": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record the response and close the request",
+        "description": "quality.dsar.manage with MFA. Access and portability responses that disclose need every record decided, and record the bundle's SHA-256. A partial response or refusal needs reasons. A late response stays late. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarRespondInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/rectification": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Record what was corrected, or why not, for a rectification request",
+        "description": "quality.dsar.manage with MFA. Recorded only: the correction itself is made in the module as a new version or a superseding entry. Audited with the count.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarRectificationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/erasure": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Assess erasure of the collected records against retention, and record it",
+        "description": "quality.dsar.manage with MFA. A record under a legal hold or within its retention period is kept; only what retention allows is listed as erasable. Recorded only: the retention engine destroys records, never the workbench. Audited with counts.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarErasureInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assessed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarCase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/bundle/issued": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The bundle exactly as it was sent",
+        "description": "quality.dsar.manage across the organisation, with step-up. The stored copy whose SHA-256 the response recorded. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bundle as sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The disclosure log: requests with their legal basis, approver and release",
+        "description": "safety.incident.manage or safety.disclosure.approve; row-level security shows the requests about people at homes the member reaches (or all, organisation-wide). Newest first, up to 1,000, saying when there are more. Audited (safety.disclosure.log_viewed) with the count.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The log",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureLog"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Log a disclosure request about a person",
+        "description": "safety.incident.manage at the person's location or across the organisation. Stores the legal basis for the type as stated now. An Access to Health Records Act request needs the person to have died, and its answer is due by ahraDueAt (ahra.* rates, counting from the person's latest care note). Audited (safety.disclosure.logged) with the type, never who asked or why.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogDisclosureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One disclosure request with its steps and item counts",
+        "description": "safety.incident.manage or safety.disclosure.approve, reaching the person's location. Audited (safety.disclosure.viewed).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/collect": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Find the person's records across every module (the DSAR collector)",
+        "description": "safety.incident.manage reaching the person's location, while the request is being worked. Searches every exported table by its person column, in the organisation's context after the member is authorised (ADR-0090); lists the tables it cannot search; collecting again adds only new records; stops at 5000. Audited (safety.disclosure.collected) with counts.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureCollectResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/items": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The records collected and the decision on each",
+        "description": "safety.incident.manage or safety.disclosure.approve reaching the person's location. Tables and ids only. Audited with the count.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureItemList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/items/{itemId}": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "One collected record, with other people's names highlighted for review",
+        "description": "safety.incident.manage or safety.disclosure.approve reaching the person's location, with a fresh step-up. The record as the export shows it; highlights redact nothing. Audited as a care-record view, in the request's and the person's history.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureItemDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/items/{itemId}/decision": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record a person's decision on one record: disclose, redact named fields or withhold",
+        "description": "safety.incident.manage reaching the person's location, while the request is being worked. Bound to the record as it was opened (409 disclosure_record_changed if it changed since). Nothing is redacted automatically. Audited with the decision code and the number of fields.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DsarItemDecisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/prepare": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Mark the request ready for approval",
+        "description": "safety.incident.manage reaching the person's location. Needs every record decided (409 disclosure_items_pending) and disclosurePrepareProblems clear: who asked, what for (police and solicitors), something to disclose (422 disclosure_not_ready with the problems). Audited (safety.disclosure.prepared).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisclosureVersioned"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/decision": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Approve or refuse a prepared request",
+        "description": "safety.disclosure.approve reaching the person's location, by someone who did not log the request (403 disclosure_approver_is_requester; the database refuses it too). Refusing needs a reason. Audited (safety.disclosure.approved or refused), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideDisclosure"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/release": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Issue the pack (with a fresh step-up)",
+        "description": "safety.incident.manage reaching the person's location, with a fresh step-up, once approved. Builds the pack from the decisions in date order (the chronology for a review), redacted fields reading [redacted] and withheld records counted, hashes it and stores it as sent (exports bucket, opaque key). A record changed since review stops the release (409 disclosure_records_changed): withdraw and log the request again. Audited (safety.disclosure.released) with counts and the hash.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisclosureVersioned"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/pack": {
+      "get": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "The pack exactly as it was issued",
+        "description": "safety.incident.manage or safety.disclosure.approve reaching the person's location, with a fresh step-up. Audited (safety.disclosure.pack_fetched).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pack as issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosurePack"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/withdraw": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Withdraw a request before it is released",
+        "description": "safety.incident.manage reaching the person's location, with a reason. Audited (safety.disclosure.withdrawn), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawDisclosure"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/disclosures/{id}/prevention-report": {
+      "post": {
+        "tags": [
+          "safety"
+        ],
+        "summary": "Record a coroner's Regulation 28 report and the response",
+        "description": "safety.incident.manage reaching the person's location; coroner requests only (422 not_a_coroner_request). The response is due coroner.prevention_report_response_days after the report (rate table). Dates not in the future; the response not before the report. Audited (safety.disclosure.prevention_recorded).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPreventionReport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisclosureRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

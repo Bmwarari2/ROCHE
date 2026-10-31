@@ -111,7 +111,7 @@ that home only.
 | `quality.audit.manage` |  |  | yes | yes | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.policy.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
-| `quality.dsar.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
+| `quality.dsar.manage` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence.read` |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |
 | `quality.evidence_pack.compose` |  | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |
 | `quality.evidence_pack.release` | yes | yes | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |

@@ -1052,6 +1052,101 @@ Act 2025; ICO guidance on time limits):
   domain, different email, not invited, family member, operator, role not allowed, allowed;
   second factor still required for care records and step-up).
 
+## Phase 2: the DSAR workbench (PLAT-022, WORK-011)
+
+Phase 2 slice 15 ([phase-2.md](../plans/phase-2.md), [ADR-0090](../decisions/0090-dsar-workbench-and-disclosure-collector.md)):
+the subject access request workbench, built on the slice 9 rules (`data-rights.ts`). Procedure:
+[dsar-procedure.md](../compliance/dsar-procedure.md). Screens are slice 66; this slice is schema,
+rules and API. Code: `packages/db/src/schema/data-rights.ts`, migration 0077,
+`packages/domain/src/platform/dsar.ts`, `apps/api/src/routes/dsar.ts`, `apps/api/src/services/dsar.ts`.
+
+**Data.** `dsar_case` (mutable aggregate, versioned): the request kind (`access`, `rectification`,
+`erasure`, `portability`), the subject (a person, a person's contact, or a member of staff; exactly
+one, by composite foreign keys), the requester (the subject or a representative, with the authority
+checked: health and welfare or property and financial LPA, deputyship, written authority, other),
+channel, day received, identity (required or not, the day and method it was checked), clarification
+pauses, the extension (months, grounds, reason, day decided), the response day, status (`open`,
+`closed`, `withdrawn`), outcome and reason, the rectification and erasure records, and the bundle's
+SHA-256 and issue time. `dsar_item` (mutable, versioned): one row per record collected (table and
+record id), with the reviewer's decision (`pending`, `disclose`, `redact`, `withhold`), the fields
+redacted, the reason (an exemption under DPA 2018 Schedules 2 to 4, or third-party data), who
+reviewed it and when. Retention class `data_rights_case` ([retention.md](retention.md)).
+
+**Rules that are easy to get wrong**
+
+1. Only members holding `quality.dsar.manage` through an organisation-wide role (kept, not
+   renamed: ADR-0090) see or change cases and items; a location role that includes it (registered
+   manager, deputy) is refused, because a case reaches every person and module (#149 H1). The API
+   checks it with MFA, row-level security checks it again (`holds_role_permission_at(..., NULL)`,
+   for the application and the owner role alike). Opening a record, issuing the bundle and
+   responding also need a fresh step-up (#149 H2). The permission is a care-record permission
+   (MFA). Collection and the item view read records in the organisation's own context, as the full
+   export does, after that check (ADR-0090).
+2. The clock is `dsarClock` (slice 9 rules 1 to 5) with the tenant's rates and the bank holidays of
+   the organisation's nation, worked out on every read; nothing stores a due date that could go
+   stale. Pauses and the extension are refused in the slice 9 rule's words.
+3. Collection runs over the export catalogue through a subject map (`dsarSubjectMap`): every
+   exported tenant table with personal data, by the column that names the subject (`person_id` for a
+   person, `contact_id` or the contact row itself for a contact, the staff reference columns and the
+   `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
+   personal data but no subject column, and a searched table whose read policy depends on the member
+   reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
+   listed as not searched with the reason and what to do, on the case and on the bundle's cover;
+   never a silent gap. Collecting again adds only new records. The organisation's own system context
+   (the full export) reads cases and items; it never writes them.
+4. Redaction is by a person, item by item: the item's view highlights the names of everyone else
+   the organisation records (staff, people supported, contacts) found in any text in the record,
+   JSON fields included (`findThirdPartyNames`; #149 M5), but redacts nothing itself. Redacting
+   needs at least one field and a reason; withholding needs a reason. Each decision carries the
+   SHA-256 of the record as the reviewer opened it, and is refused if the record changed since.
+5. The bundle is issued only when every item has a decision and the requester's identity is
+   confirmed (checked again by the database, #149 M4); a record that changed or went since its
+   decision goes back to pending, so what is sent is what was reviewed (#149 M3). Redacted fields
+   read `[redacted]` and withheld items are left out with a count. On responding, the bundle is
+   kept in the exports bucket (SSE-KMS, an opaque key of ids only) with its SHA-256, and can be
+   fetched again exactly as sent through a step-up route; responding closes the clock (a late
+   response stays late).
+6. Erasure is assessed record by record against retention (`erasureAssessment`): a record under a
+   legal hold or within its class's period is retained, with the class and the date it may go; only
+   what retention allows is listed as erasable. The decision is recorded on the case; deletion itself
+   is done by the retention engine (retention-and-deletion.md), never by the workbench.
+7. Portability (UK GDPR Art 20) applies only to data the subject provided, processed by consent or
+   contract by automated means: in Harbour, a member of staff's own records; for a person's care
+   records (public task and health care bases) the case records that it does not apply and offers
+   access instead (`portabilityApplies`).
+8. Rectification records which records were corrected (or why not); the correction itself is made
+   in the module, as a new version or a superseding entry, never by the workbench.
+9. Audit: every read and change is audited with the case id, counts and opaque ids, never the
+   requester's name or any record content; reads across the organisation say so (`read:
+   organisation`), and viewing an item's content is also recorded against the subject (#149 L9).
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| List, open, create, change a case; collect; review items; issue the bundle; respond | `quality.dsar.manage` | MFA (care records); tenant-wide roles (owner, quality lead) |
+| Everyone else | - | 403; row-level security returns nothing |
+
+**Tests (written before the code)**
+
+- `packages/domain/src/platform/dsar.test.ts`: `PLAT-022 the subject map` (built from the catalogue;
+  person, contact and staff columns; tables with personal data and no subject column reported);
+  `third-party names highlighted, nothing redacted`; `redaction decisions` (reason and fields
+  required); `bundle readiness and redaction applied`; `erasure assessment` (held, within period,
+  past period); `portability applies` (staff yes, person and contact no); `new case checks`
+  (representative needs an authority, subject matches its kind).
+- `packages/db/test/data-rights.test.ts`: `PLAT-022 a DSAR case stays in its tenant` (cross-tenant
+  denial by id, no writes into or changes in another tenant, no subject or case of another tenant);
+  `only holders of quality.dsar.manage see or write a case` (a care worker sees nothing, no DELETE);
+  `the case's shape` (subject of its kind, a representative's authority, extension and redaction
+  checks); `a closed case is the record of what was done` (never reopens, takes no items, reasons
+  for a refusal).
+- `apps/api/test/dsar.test.ts`: create, identity, pause and resume, extension (refused late), clock
+  states; collect for a person (records from several modules, again adds nothing); item view with
+  highlights (audited); decisions; bundle refused until all reviewed, then issued with redactions;
+  respond closes; erasure assessment; portability refused for a person; refusals for a member
+  without the permission and without MFA; audit scopes hold no names.
+
 ## Permission matrix
 
 Generated: [permissions.md](permissions.md).
