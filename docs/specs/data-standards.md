@@ -438,16 +438,36 @@ mapping of incident types to LFPSE categories is an open item below.
 | `classifier_answer.question_key`, `value` | The regulations each question quotes (`CLASSIFIER_QUESTIONS`) | `CLASSIFIER_QUESTION_KEYS`; `yes`, `no`, `unsure`, a whole number of days or hours, or option values | Append-only; the latest answer per key counts |
 | `statutory_notification.kind` | CQC Registration Regulations 2009 regs 16 and 18; RIDDOR 2013; Care Act 2014 s.42; regulation 20 of the 2014 Regulations; LeDeR; UKHSA; death certification reforms | `cqc_reg16_death`, `cqc_reg18_serious_injury`, `cqc_reg18_abuse`, `cqc_reg18_police`, `cqc_reg18_service_disruption`, `cqc_reg18_dols_outcome`, `riddor_death`, `riddor_specified_injury`, `riddor_non_worker_hospital`, `riddor_over_7_day`, `riddor_dangerous_occurrence`, `safeguarding_s42`, `candour`, `leder`, `ukhsa_outbreak`, `medical_examiner`, `police_missing_person` | `STATUTORY_NOTIFICATION_KINDS` |
 | `statutory_notification.status` | Harbour (`STATUTORY_NOTIFICATION_WORKFLOW`) | `draft`, `ready`, `submitted` (time and reference or form), `not_required` (reason) | `deadlines` are `[{ key, dueAt, wording, statutory }]` |
+| `outbreak` (migration 0093) | Harbour; UKHSA outbreak reporting | syndrome `acute_respiratory`, `flu`, `covid_19`, `diarrhoea_vomiting`, `other`; state `declared`, `closed`; organism (2 to 200 characters, as recorded); health protection team reference (1 to 100); closure reason (3 to 1000) | One open outbreak per illness at a location |
+| `outbreak_case` (migration 0093) | Harbour; UKHSA report fields | case type `resident` (person id) or `staff` (member id); onset, test and outcome dates `YYYY-MM-DD` (UK, never in the future); symptoms from `fever`, `cough`, `sore_throat`, `shortness_of_breath`, `loss_of_taste_or_smell`, `diarrhoea`, `vomiting`, `new_confusion`, `other`; test type `lateral_flow`, `pcr`, `stool_sample`, `other`; result `not_tested`, `pending`, `positive`, `negative`; flu and COVID-19 vaccination `yes`, `no`, `unknown`; outcome `unwell`, `recovered`, `hospitalised`, `died` | Append-only; an update supersedes the person's current row (correction reason 3 to 500 characters) |
+| `ipc_code_criterion` (migration 0093) | DHSC Code of Practice on the prevention and control of infections | `criterion_1` to `criterion_10`, Harbour's summary title (H-765) | Global reference data; IPC audit questions name them in `ipcCriteria` |
 | `candour_record.state` | Regulation 20 of the 2014 Regulations (`CANDOUR_WORKFLOW`) | `threshold_assessment`, `not_notifiable`, `verbal_due`, `no_contact`, `written_due`, `enquiries_open`, `closed` | |
 | `complaint.state` | Regulation 16 of the 2014 Regulations (`COMPLAINT_WORKFLOW`) | `received`, `acknowledged`, `investigating`, `responded`, `appealed`, `appeal_responded`, `closed` (reason) | Targets in working days from `complaint.acknowledge_working_days` and `complaint.response_working_days`, paused while waiting for the complainant |
 | `complaint.complainant_relationship`, `compliment.from_relationship` | Harbour | `person_using_service`, `family_or_friend`, `representative`, `professional`, `member_of_public`, `other` | |
 | `complaint.channel` | Harbour | `in_person`, `phone`, `email`, `letter`, `other` | |
 | `complaint.knew_of_matter_on` | Local Government Act 1974 s.34D(4) | ISO date (UK) | The Ombudsman's time limit (`lgsco.time_limit_months`) runs from it |
 | `complaint.pauses` | Harbour | `[{ from, to, reason }]`, ISO dates, inclusive | |
+| `speak_up_concern.identity` | Harbour (ADR-0089) | `named`, `confidential`, `anonymous` | Anonymous stores no identity; a reply token's SHA-256 (hex) instead, or nothing |
+| `speak_up_concern.category` | Harbour | `care_quality_or_safety`, `staff_safety`, `conduct`, `bullying_or_harassment`, `fraud_or_finance`, `other` | |
+| `speak_up_concern.state` | National Guardian's Office guidance (`SPEAK_UP_WORKFLOW`) | `received`, `acknowledged`, `under_review`, `outcome_shared`, `closed` (reason) | Acknowledgement target `whistleblowing.acknowledge_working_days`; the outcome is shared before closing unless no one can be told |
+| `speak_up_concern.received_on` | Harbour | ISO date (UK) | A date only, so its time never lines up with other activity |
+| Speak-up reply token | Harbour (ADR-0089) | 256 random bits, base64url (43 characters) | Shown once; sent only in request bodies; stored only as `reply_token_hash`; expires at `reply_token_expires_at` (`speak_up.reply_token_days` after raising) |
+| `speak_up_intake.bucket` | Harbour (ADR-0089) | `net:` and an HMAC-SHA256 (hex) of the UK date and network, `tenant` or `day` | The network is an IPv6 /64 or an IPv4 address, never stored itself |
 | `complaint.response`, `appeal_response` | Harbour (`complaintResponseProblems`) | `{ outcome: upheld, partly_upheld or not_upheld, actionsTaken, ombudsmanSignposted: true, documentId }` | A response is refused without the Ombudsman signposted and a kept copy |
 | `compliment.evidence_statement_ids` | The compliance framework's quality statement identifiers (slice 14) | Up to 50 identifiers | Not checked against the framework until slice 14 lands |
 | `complaint.retention_class`, `compliment.retention_class` | [retention.md](retention.md) | `complaint` | |
 | `investigation.method`, `status`, `actions` | Harbour | `root_cause_analysis`, `five_whys`, `fishbone`, `after_action_review`, `swarm_huddle`, `other`; `open`, `completed`; actions `[{ id, action, ownerTenantUserId, dueOn, status (open, done, cancelled), taskId }]` | |
+
+### Deaths and missing persons (Phase 2, slice 37)
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `death_record.status` | Harbour | `open`, `closed`, `withdrawn` | Withdrawn when the death is corrected as recorded in error |
+| `death_record.expected`, `possibly_unnatural`, `judged_by` | Death certification reforms (9 September 2024); the clinician's judgement (concept) | `true`, `false` or empty until recorded; the clinician's name and role | Harbour never decides either; empty means the plan assumes the safer answer |
+| `death_step.step`, `outcome` | Harbour (`deathPlan`) | `verification_of_death`, `family_informed`, `medical_examiner_pack`, `cqc_reg16_notification`, `leder_notification`, `police_informed`, `preserve_room_and_equipment`; `done`, `not_needed` | A notification step is recorded here only as `not_needed` with a reason of at least 20 characters |
+| `missing_episode.status` | Harbour | `open`, `found`, `closed` | One open episode per person |
+| `missing_event.kind` | Harbour (`MISSING_TIMELINE_KINDS`); the Herbert Protocol | `last_seen`, `noticed_missing`, `search_started`, `search`, `sighting`, `police_called`, `found`, `welfare_check`, `debrief`, `note` | `police_called` carries the police reference (1 to 100 characters); `search` the area (1 to 500) |
+| `herbert_profile` | The Herbert Protocol (national scheme adopted by police forces; each force's form may differ, H-773) | Photograph (`document.id`); physical description and places likely (required, 10 to 4,000 characters); distinguishing features, usual clothing, medical needs, mobility, communication, people likely, routines, earlier episodes, approach (up to 4,000 each); phone or tracker (up to 1,000); who it was checked with (up to 500); review date (UK date) and reviewer | Prefilled parts say where they came from (the record, About Me); out of date `herbert_protocol.review_months` after the review date |
 
 ## Safeguarding log (Phase 2, slice 13)
 
@@ -578,6 +598,9 @@ tenant export with these names.
 | `framework_version` and its key questions, statements and evidence categories (migration 0076) | CQC single assessment framework (version 1, ADR-0096); later CIW, Care Inspectorate, RQIA and KLOE versions | regulator `cqc`, `ciw`, `care_inspectorate`, `rqia`; state `draft`, `published`, `retired`; ids matching `^[A-Za-z0-9._-]{1,64}$` (statements `<key question>.<title in snake case>`); source name, provision and https link | Global reference data, no personal data |
 | `framework_mapping` (migration 0076) | Harbour | mapping version (1, 2, 3 per framework version, set by the database); entries: statement id, local title (at most 200 characters), owner role, evidence category ids | Tenant configuration |
 | `evidence_link` (migration 0076) | Harbour | record type (an evidence pack record type until later slices add theirs), record id, framework version, statement ids (1 to 20), tagged by and at, removed by, at and reason | The record's id only, never its content; staff ids as user ids |
+| `audit_template`, `audit_starter_template` (migration 0081) | Harbour | kind `medication`, `care_plans`, `ipc`, `environment`, `dignity`, `night_visit`, `mock_inspection`, `other`; key matching `^[a-z0-9_-]{1,64}$`; state `active`, `retired`; questions (1 to 200): key matching `^[a-z0-9_]{1,64}$`, text, weight (a positive whole number), statement ids, action required | Tenant configuration; no personal data |
+| `audit_record` (migration 0081) | Harbour; CQC rating scale from the rate table | state `in_progress`, `completed`; answers `yes`, `partial`, `no`, `not_applicable` by question key; score percent (0 to 100, three decimals) with points achieved and possible; self-rating a whole number on `cqc.rating_scale.min` to `.max`, given by a person | Staff ids as user ids; no person receiving care |
+| `audit_action` (migration 0081) | Harbour | question key, description (3 to 1000 characters), owner (a member), due date (default `quality.audit.action_due_days` after the audit), task id | Staff ids as user ids |
 | `letter_template.kind`, `channel` | Harbour | kind `admission`, `fee_review`, `incident_follow_up`, `duty_of_candour`, `general`; channel `letter`, `email` | |
 | `letter_template_version.state` | Harbour (`TEMPLATE_WORKFLOW`) | `draft`, `approved`, `superseded`, `retired` (with a reason), `discarded` (with a reason); `version_number` per template; author, contributors, approved by and at | Approved never by its author or a contributor; subject for email only. |
 | Merge fields | Harbour (`MERGE_FIELDS` in `packages/domain/src/comms/templates.ts`) | `{{field.name}}`; types `text`, `date` (`YYYY-MM-DD`), `datetime` (ISO 8601), `money` (whole pence), `number`; data classes `none`, `personal`, `special_category`; flags `multiLine` (never in a subject), `notInEmail` (NHS number, date of birth), `allowsResultsToFollow` (`candour.results` only) | ADR-0051 |
@@ -735,6 +758,58 @@ Not yet in the contract (open, slice 26 later part and slice 51): the round trip
 through a JSON or export-format mapping keeping `import_source_id`; contacts, allergies, staff and
 medicines.
 
+## Data security evidence (Phase 2, slice 32)
+
+Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses are never stored.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `dspt_assertion.financial_year`, `dspt_submission.financial_year` | DSPT (NHS England) | `YYYY/YY`, the financial year the toolkit closes (`2025/26` for the deadline of 30/06/2026) | From `dsptDeadline`; one submission per year. |
+| `dspt_assertion.assertion_ref` | DSPT assertion numbering | Two to four numbers separated by full stops (`1.1.1`) | Unique per organisation and year. |
+| `dspt_assertion.status` | Harbour | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
+| `dspt_evidence.kind` | Harbour | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
+| `dspt_submission.outcome` | DSPT status | `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
+| `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
+
+## Single sign-on (Phase 2, slice 33)
+
+Fields for [platform.md](platform.md), Phase 2: single sign-on ([ADR-0091](../decisions/0091-single-sign-on.md);
+migration 0095). OpenID Connect Core 1.0 and Discovery 1.0; RFC 7523 for `private_key_jwt`; RFC 7636
+for PKCE. Retention: tenant configuration, kept while current.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `sso_connection.provider_id` | Harbour | `harbour-<tenant id>` (check `sso_connection_provider_id`) | The id in Better Auth's provider row and the callback path. |
+| `sso_connection.issuer`, `discovery_url` | OIDC Discovery `issuer`, `/.well-known/openid-configuration` | https URLs | The discovered issuer must equal the configured one. |
+| `sso_connection.client_id` | OAuth 2.0 `client_id` | Text, 1 to 200 characters | |
+| `sso_connection.private_key_ref`, `private_key_id` | RFC 7523 client assertion key; JWK `kid` | Store name `harbour/sso/<tenant id>/<name>` (`isSsoKeyRefFor`, and a database check); optional key id | Never a key. Internal: not exported. |
+| `sso_connection.allowed_role_keys` | Harbour role keys | At least one, each an existing role | Rule 16. |
+| `sso_connection.enabled` | Harbour | Boolean | On needs a verified domain and a successful discovery. |
+| `sso_domain.domain` | DNS name | Lower case, two or more labels, not a public mail domain (`checkSsoDomain`) | One organisation may verify a domain at a time. |
+| `sso_domain.token_sha256` | SHA-256 | 64 lower-case hex characters of the TXT token | Secret: never exported or returned. Record `_harbour-verification.<domain>` = `harbour-verification=<token>`. |
+| `sso_domain.verified_at`, `verified_by`, `removed_at` | ISO 8601 UTC; `tenant_user` id | Set together when proved | |
+| `auth.sso_provider.oidc_config` | Better Auth SSO plugin | JSON: issuer, client id, discovery, authorization, token, JWKS and user info endpoints, `private_key_jwt`, PKCE, scopes `openid email profile` | Written only by the API; no secret. |
+
+## Disclosure requests (Phase 2, slice 41)
+
+Code lists for disclosure requests ([safety.md](safety.md) section 11, SAFE-016; migration 0103).
+None maps to a national standard. Every column of `disclosure_request` and `disclosure_item` is
+exported except `disclosure_request.pack_storage_key` (internal). Retention class
+`serious_incident` (H-820).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `disclosure_request.type` | Harbour (`DISCLOSURE_TYPES`) | `coroner`, `safeguarding_adults_review`, `domestic_homicide_review`, `police`, `solicitor`, `access_to_health_records` | An Access to Health Records Act request needs the person's status `deceased`. |
+| `disclosure_request.legal_basis` | Statute as named by `legalBasis` | Free text, 10 to 500 characters | Stored as stated when the request was logged, so a later change to the wording does not rewrite history. |
+| `disclosure_request.requester_name`, `requester_organisation`, `requester_reference`, `stated_purpose` | Harbour | Free text (1 to 200; 1 to 200; 1 to 100; 3 to 2,000 characters) | A stated purpose is required for police and solicitor requests before they move on (check `disclosure_request_purpose`). Never in the audit trail or logs. |
+| `disclosure_request.received_at`, `due_at` | ISO 8601 date-time, UTC | `due_at` only for an Access to Health Records Act request (`ahraDueAt`, rates `ahra.*`) | Shown dd/mm/yyyy, 24-hour. |
+| `disclosure_request.state`, `reason` | Harbour (`DISCLOSURE_WORKFLOW`) | `requested`, `prepared`, `approved`, `released`, `refused`, `withdrawn`; a reason for refused and withdrawn | Released, refused and withdrawn requests never change except the Regulation 28 dates (trigger `disclosure_request_guard`). |
+| `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Harbour | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
+| `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/disclosures/<request>/<pack>.json` (`disclosurePackStorageKey`, ids only) | Set together on release (check `disclosure_request_pack`). The key is internal. |
+| `disclosure_request.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
+| `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
+| `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
+
 ## Phase 1 tables completed for the gate
 
 Eight Phase 1 tables that hold personal or care data and were named only in passing above (Phase 1
@@ -783,10 +858,14 @@ Schedule 3; registration bodies are the UK statutory registers.
 | `document.category` `staff_hr_document` | Harbour | JPEG, PNG, WebP or PDF up to 15 MB; subject `compliance_item` | HR-only; retention `staff_file`, or `right_to_work_copy` for right to work copies |
 | `task.details` of a `workforce.compliance_expiry` task | Harbour | `staffProfileId`, `complianceItemKind`, `reminderDueOn` (`YYYY-MM-DD`), `reminderDays` | Opaque; the title is generic |
 ## Dependency tool (Phase 2, slice 12)
+
 Code lists for [scheduling.md](scheduling.md) section 13. No national standard defines a
 dependency scale or its categories: the scale is the organisation's own, so its keys are the
 organisation's codes, not a national code, and an export carries the scale version beside every
 category so a receiving system can read it.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
 | `dependency_scale_version.definition.periods` | Harbour | `[{ key, label, startMinute }]`; `startMinute` is minutes after midnight, UK local time (`minute_of_day`, 0 to 1439), strictly increasing | Each period ends where the next starts; the last ends at the first's start the next day. Lengths are elapsed time across clock changes. |
 | `dependency_scale_version.definition.categories` | Harbour (the organisation's own scale) | `[{ key, label, description, careMinutes: [{ periodKey, minutes }] }]`; keys lower case letters, digits and underscores, starting with a letter, at most 40 characters; whole minutes, 0 or more, one entry per period | Care minutes per person per period. Never a national dependency code. |
 | `dependency_scale_version.definition.skillMix` | Harbour | `[{ skill, periodKey, minimumStaff }]`; skills `registered_nurse`, `medicines_competent`, `moving_and_handling`, `driver` (`STAFFING_SKILLS`) | Whole staff, 1 or more, once per skill and period. |
@@ -798,9 +877,14 @@ category so a receiving system can read it.
 | `dependency_assessment.effective_from` | ISO 8601 date | `YYYY-MM-DD`, UK date, today or earlier | In force from 00:00 UK time on that date. |
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
+
 ## Quality: policy library and read-and-sign (Phase 2, slice 25)
+
 Code lists for [quality.md](quality.md) section 18 (migration 0087). No national standard covers
 these fields; exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
 | `policy.policy_key` | Harbour | `^[a-z][a-z0-9_]{1,63}$`, unique in the organisation | |
 | `policy.title` | Harbour | Plain text, 2 to 160 characters | |
 | `policy.require_second_reviewer` | Harbour | Boolean | Someone other than the author publishes |
@@ -812,6 +896,144 @@ these fields; exported with these names.
 | `policy_version.review_due_on`, `published_on` | Harbour | `YYYY-MM-DD` (UK dates) | |
 | `policy_signature.signed_at` | Harbour | ISO 8601 UTC | One per member and version |
 | Outbox `quality.policy.published` | Harbour | `policyId`, `versionNumber`, `change` | |
+
+## Workforce: training, competence, supervision and revalidation (Phase 2, slice 17)
+
+Code lists for [workforce.md](workforce.md) section 2b (migration 0079). Training topics follow
+Skills for Care's core and mandatory training guidance; the Oliver McGowan Mandatory Training tiers
+are the Code of Practice's (England). No national standard covers the rest; exported with these
+names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `training_requirement.role_key` | Harbour | A role's key (`^[a-z][a-z0-9_]{1,63}$`) | Matches a role's key or the built-in key it is based on |
+| `training_requirement.topic`, `training_record.topic` | Skills for Care core and mandatory training | `care_certificate`, `safeguarding_adults`, `safeguarding_children`, `moving_and_handling`, `infection_prevention_and_control`, `fire_safety`, `health_and_safety`, `basic_life_support`, `food_hygiene`, `medicines`, `mental_capacity_and_dols`, `equality_diversity_and_human_rights`, `information_governance`, `dementia_awareness`, `fluids_and_nutrition`, `oliver_mcgowan` | |
+| `training_requirement.tier`, `training_record.tier` | Oliver McGowan Code of Practice | `1` or `2` (Oliver McGowan only) | Tier 2 meets a tier 1 requirement, never the reverse |
+| `training_requirement.refresh_years` | Harbour | Whole years, 1 to 10, or empty for `training.default_refresh_years` | |
+| `training_record.completed_on`, `expires_on` | Harbour | `YYYY-MM-DD` | |
+| `competence_sign_off.competence` | Harbour | `medicines_administration`, `controlled_drugs`, `insulin_administration`, `epilepsy_rescue_medication`, `moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` | Medicines ones refresh on `competence.medicines.refresh_months` |
+| `competence_sign_off.observed_on`, `valid_until` | Harbour | `YYYY-MM-DD` | Valid until the day before observed plus the refresh months |
+| `competence_withdrawal.reason` | Harbour | Plain text, 10 to 500 characters | |
+| `supervision_record.kind` | Harbour | `supervision`, `appraisal`, `spot_check` | |
+| `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
+| Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
+
+## Rota builder (Phase 2, slice 21)
+
+Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines a care
+home rota; the fields below are Harbour's.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `shift_template.start_minute`, `end_minute` | Harbour | Minutes after midnight, UK local time, 0 to 1439 | An end at or before the start is the next day; shown as 24-hour times. |
+| `shift.kind`, `shift_template.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training` (`SHIFT_KINDS`) | Only `work` counts as care minutes on the staffing comparison. |
+| `shift.starts_at`, `ends_at` | ISO 8601 date-time, UTC | `timestamptz` | A shift starts on one of its rota's UK dates. |
+| `shift.required_competences` | Harbour | `COMPETENCES` (workforce.md section 2b) | Applied by the rostering rule. |
+| `shift.required_skills` | Harbour | `STAFFING_SKILLS` | Describe the position; not a blocker (H-836). |
+| `shift.counts_as_care`, `shift_template.counts_as_care` | Harbour | Boolean, default true | False for shifts the organisation does not count as care on the floor. |
+| `shift_pattern.entries` | Harbour | `[{ day, templateId, count }]`; `day` from 0 within `cycle_days` | |
+| `roster_override.blocker_keys` | Harbour | `dbs:<reason>`, `dbs_supervised_only`, `registration`, `competence:<competence>:<reason>`; never a right to work or `not_active` (checked by the table) | The reason is a code (`no_certificate`, `expired`, ...), never what a DBS certificate disclosed. |
+| `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
+| `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
+
+## Workforce: applicant tracking (Phase 2, slice 23)
+
+Code lists for [workforce.md](workforce.md) section 2b (migration 0085). Harbour's own fields; the
+Care Workforce Pathway categories follow Skills for Care's Pathway (H-730) and the equality
+monitoring questions follow the Equality Act 2010 protected characteristics, with the categories
+of the census for England and Wales (H-733).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `job_template.pathway_category` | Care Workforce Pathway (Skills for Care) | `new_to_care`, `care_worker`, `senior_care_worker`, `lead_practitioner`, `deputy_manager`, `registered_manager`, `registered_nurse` | H-730 |
+| `job_template.essential_criteria` | Harbour | JSON array of 2 to 20 statements, 2 to 200 characters each | Assessed in order at shortlisting |
+| `job_template.values_questions` | Values-based recruitment (Skills for Care; the 6Cs) | JSON array of 2 to 12 `{ key, value, question }`; `value` one of `care`, `compassion`, `competence`, `communication`, `courage`, `commitment` | H-730 |
+| `vacancy.status` | Harbour | `draft`, `open`, `closed`, `filled`, `withdrawn` | |
+| `vacancy.opens_on`, `closes_on` | Harbour | `YYYY-MM-DD` | Closing on or after opening |
+| `applicant.given_name`, `family_name`, `email`, `phone` | Harbour | Plain text (1 to 100), email, phone (up to 40) | Cleared when redacted |
+| `applicant.talent_pool_until`, `retain_until` | Harbour | `YYYY-MM-DD` | From `applicant.talent_pool` and `applicant.unsuccessful` |
+| `application.stage` | Harbour | `applied`, `shortlisted`, `interviewed`, `offered`, `accepted`, `rejected`, `withdrawn`, `declined` | Closed stages never reopen |
+| `application.stage_reason` | Harbour | `criteria_not_met`, `not_selected_after_interview`, `position_filled`, `vacancy_withdrawn`, `applicant_withdrew`, `offer_declined`, `offer_withdrawn`, `pre_employment_checks_failed` | |
+| `application.shortlist` | Harbour | `{ criteria: boolean[], decidedBy, decidedAt }` | |
+| `interview.scores`, `recommendation` | Harbour | `{ questionKey: 1 to 4 }`; `proceed` or `do_not_proceed` | The total is shown, never a decision |
+| `job_offer.conditions` | Schedule 3 | JSON array of `compliance_item.kind` codes | Listed as outstanding on the staff file |
+| `job_offer.status` | Harbour | `made`, `accepted`, `declined`, `withdrawn` | |
+| `equality_monitoring.answers` | Equality Act 2010 protected characteristics; census for England and Wales categories | `age_band` (`16_24` to `65_plus`), `sex`, `gender_same_as_registered_at_birth`, `ethnic_group` (`asian`, `black`, `mixed`, `white`, `other`), `disability`, `religion`, `sexual_orientation`; each also `prefer_not_to_say`; all optional | Special category; counts only, under 5 suppressed (H-731, H-733) |
+| `equality_monitoring.id` | Harbour | Random UUID (never time-ordered); no date is kept | No link to the applicant |
+| `vacancy.equality_summarised_at` | Harbour | ISO 8601 UTC | When the counts were first released; no form after |
+
+## Workforce: employee relations casework (Phase 2, slice 39)
+
+Code lists for [workforce.md](workforce.md) section 2c (migration 0101). Harbour's own fields,
+following the Acas Code of Practice on disciplinary and grievance procedures (H-801); referral
+decisions follow the Safeguarding Vulnerable Groups Act 2006 section 35 and the regulators'
+referral guidance (H-802). A restricted silo (ADR-0089): read only by the members named on a case
+and left out of the organisation-wide export (H-805).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `employee_case.case_type` | Acas Code (disciplinary, grievance); Acas guidance (capability, sickness absence, probation) | `grievance`, `disciplinary`, `capability`, `sickness_absence`, `probation` | Kept for the life of the case |
+| `employee_case.stage` | Acas Code steps | `open`, `investigation`, `hearing`, `outcome`, `appeal`, `closed` | Moves forward only; closed never reopens |
+| `employee_case.summary` | Harbour | Plain text, 3 to 10,000 characters | Special category or allegation data possible |
+| `employee_case.opened_on`, `stage_since`, `outcome_decided_on`, `appeal_decided_on`, `closed_on` | Harbour | `YYYY-MM-DD` (UK date) | The timeline |
+| `employee_case.outcome` | Acas Code (warnings, dismissal) and Harbour | Grievance `upheld`, `partly_upheld`, `not_upheld`; disciplinary `no_action`, `first_written_warning`, `final_written_warning`, `action_short_of_dismissal`, `dismissal`; capability adds `improvement_plan`, `redeployment`; sickness absence adds `support_plan`, `reasonable_adjustments`; probation `passed`, `extended`, `not_passed` | Per case type (`CASE_OUTCOMES`) |
+| `employee_case.warning_expires_on` | Tenant policy | `YYYY-MM-DD`, after the decision | Warnings only (H-808) |
+| `employee_case.appeal_outcome` | Acas Code | `upheld`, `partly_upheld`, `not_upheld` | Decided by the appeal chair |
+| `employee_case.closed_reason` | Harbour | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
+| `employee_case.suspended_on`, `suspension_review_on` | Acas Code (suspension a precaution) | `YYYY-MM-DD`, set together; review after the start | Disciplinary only; ends before closing |
+| `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Harbour refers nobody |
+| `employee_case.subject_registered` | Harbour | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
+| `employee_case.safeguarding_incident_id` | Harbour | The incident's id (safeguarding log) | Set once, only by someone who can see it |
+| `employee_case_member.member_role` | Acas Code (different people where practicable) | `case_manager`, `investigator`, `hearing_chair`, `appeal_chair`, `note_taker`, `hr_adviser` | Membership is what lets someone read the case |
+| `employee_case_member.independence_exception` | Acas Code ("where practicable") | `no_other_manager_available` or empty | Recorded when one person takes two parts |
+| `employee_case_hearing.kind`, `state` | Acas Code; Employment Relations Act 1999 s.10 | `investigation_meeting`, `hearing`, `appeal_hearing`; `scheduled`, `held`, `not_attended`, `postponed`, `cancelled` | A held, unattended or cancelled one is final |
+| `employee_case_hearing.issue_set_out`, `evidence_shared`, `companion_right_given`, `accompanied` | Acas Code paras 9 to 14; ERA 1999 s.10 | Booleans | Never who accompanied the employee |
+| `employee_case_hearing.postponed_reason` | Harbour | `companion_unavailable`, `employee_unwell`, `employer_request`, `other` | |
+| `employee_case_event.kind` | Harbour | `opened`, `stage_changed`, `member_added`, `member_removed`, `hearing_arranged`, `hearing_updated`, `suspension_started`, `suspension_reviewed`, `suspension_ended`, `referral_recorded`, `safeguarding_linked`, `appeal_grounds`, `note` | Append-only; text only on `note` and `appeal_grounds` |
+
+## Workforce: induction, the Care Certificate and leavers (Phase 2, slice 29)
+
+Code lists for [workforce.md](workforce.md) section 2d (migration 0091). Harbour's own fields; the
+Care Certificate standards are Skills for Care's, stored by id with a short title only (H-531,
+H-871).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `care_certificate_progress.standard_id` | Care Certificate (Skills for Care), 16 standards | `cc01` Understand your role, `cc02` Your personal development, `cc03` Duty of care, `cc04` Equality, diversity, inclusion and human rights, `cc05` Work in a person-centred way, `cc06` Communication, `cc07` Privacy and dignity, `cc08` Fluids and nutrition, `cc09` Awareness of mental health and dementia, `cc10` Safeguarding adults, `cc11` Safeguarding children, `cc12` Basic life support, `cc13` Health and safety, `cc14` Handling information, `cc15` Infection prevention and control, `cc16` Awareness of learning disability and autism | Titles to confirm (H-871) |
+| `care_certificate_progress.knowledge_assessed_on`, `observed_on` | Harbour | `YYYY-MM-DD` (UK dates) | Observation on or after the assessment |
+| `staff_checklist_item.checklist`, `kind` | Harbour | `induction`: `contract_issued`, `system_access_set_up`, `uniform_and_badge`, `location_induction`, `fire_safety_briefing`, `shadowing_signed_off`; `leaving`: `property_returned`, `final_pay_notified` | H-870, H-873 |
+| `induction_plan.probation_outcome` | Harbour | `passed`, `extended`, `not_passed` | Not passed goes through a probation case |
+| `probation_review.outcome` | Harbour | `on_track`, `concerns` | Notes up to 4,000 characters |
+| `leaver_record.reason` | Harbour (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
+| `leaver_record.exit_interview` | Harbour | `not_offered`, `offered`, `declined`, `held` | Forward only |
+| `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
+| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct`; `requested`, `sent`, `declined`; `no_consent_to_share`, `not_employed_here`, `duplicate_request` | H-876 |
+
+## Workforce: sponsor licence, staff privacy and LDSS (Phase 2, slice 35)
+
+Code lists for [workforce.md](workforce.md) section 12 (migration 0097). Harbour's own fields,
+exported in the full tenant export with these names. Route and SOC codes follow the Home Office
+sponsor guidance and SOC 2020 (ONS); the Appendix D list is Harbour's reading, to confirm (H-901).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `sponsored_worker.cos_reference`, `cos_assigned_on` | Home Office certificate of sponsorship | Capitals and digits, 6 to 20; `YYYY-MM-DD` | HR only |
+| `sponsored_worker.soc_code` | SOC 2020 (ONS) | Four digits | |
+| `sponsored_worker.route` | Immigration Rules routes | `skilled_worker`, `health_and_care_worker`, `other` | |
+| `sponsored_worker.visa_expires_on` | Harbour | `YYYY-MM-DD` | Never the visa's contents |
+| `sponsored_worker.contracted_weekly_hours`, `guaranteed_yearly_pay` | Home Office salary rules | Hours to 2 decimals; pounds to the penny | The salary check reads the floors from the rate table |
+| `sponsored_worker.english_evidence` | Immigration Rules Appendix English Language | `not_recorded`, `majority_english_speaking_country`, `degree_taught_in_english`, `secure_english_language_test`, `previous_grant` | |
+| `sponsored_worker.switching_evidence_on` | Harbour | `YYYY-MM-DD` or empty | H-524 |
+| `sponsored_worker.appendix_d_held` | Guidance for sponsors, Appendix D | `passport_or_travel_document`, `right_to_work_check`, `contact_details`, `certificate_of_sponsorship`, `recruitment_evidence`, `english_language_evidence`, `registration_or_qualification`, `absence_records` | Which records are held, not the records |
+| `sponsored_worker.status`, `ended_on` | Harbour | `active` (no end date) or `ended` (with one) | One active record per member |
+| `sponsor_absence.from_on`, `to_on`, `authorised` | Harbour | `YYYY-MM-DD`, both inclusive; boolean | |
+| `sponsor_report.kind` | Sponsor management system reportable changes | `did_not_start`, `unauthorised_absence`, `employment_ended`, `change_of_job`, `change_of_salary`, `change_of_work_location`, `change_of_hours`, `other` | |
+| `sponsor_report.happened_on`, `reported_on`, `sms_reference` | Harbour | `YYYY-MM-DD`; the reference the sponsor management system gave (up to 40 characters) | Reported date and reference set together |
+| `tenant.staff_privacy_notice_version` | Harbour | Up to 40 characters | The organisation's own version label |
+| `staff_privacy_acknowledgement.notice_version`, `acknowledged_at` | Harbour | Up to 40 characters; UTC timestamp | Append-only; once per version |
+| `staff_image_consent.purpose`, `decision`, `decided_at` | Harbour | `newsletter`, `website`, `social_media`, `family_feed`; `given`, `refused`, `withdrawn`; UTC timestamp | Append-only; the latest decision stands |
+| `ldss_claim.course_title`, `completed_on`, `claimed_amount` | Skills for Care LDSS (England) | Plain text, 2 to 200; `YYYY-MM-DD`; pounds as claimed | Harbour holds no funding figure (H-903) |
+| `ldss_claim.status`, `reference`, `submitted_on`, `paid_on`, `reason` | Harbour | `planned`, `submitted`, `paid`, `rejected`, `withdrawn`; plain text | Submitted needs a reference and date; paid a date; rejected or withdrawn a reason |
 
 ## Staff wellbeing and voice (Phase 2, slice 44)
 Code lists for [scheduling.md](scheduling.md) section 16 (migration 0115). No national standard

@@ -51,6 +51,7 @@ docs column links the same guides.
 | PLAT-013 | [Search for a person](all-staff/search-for-a-person.md), [Open a record with break-glass](registered-manager/open-a-record-with-break-glass.md) |
 | PLAT-015 | [Get a full export](owner/request-a-full-export.md) |
 | PLAT-018 | [Work through getting started](owner/work-through-getting-started.md) |
+| PLAT-022 | [Handle a data rights request](data-protection-lead/handle-a-data-rights-request.md), [Record and handle a data breach](data-protection-lead/record-a-data-breach.md), [Handle a data protection complaint](data-protection-lead/handle-a-data-protection-complaint.md) |
 | PLAT-023 | [Prepare and sign the DPIA](data-protection-lead/prepare-and-sign-the-dpia.md) |
 | PEOP-001 | [Check the person's details](care-worker/check-the-person-before-you-act.md) |
 | PEOP-002 | [Check the person's details](care-worker/check-the-person-before-you-act.md) |

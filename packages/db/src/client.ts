@@ -35,6 +35,12 @@ export interface RequestContext {
    * open only through `app.family_can_see`, for the contacts their `family_portal_user` links name.
    */
   readonly family?: boolean;
+  /**
+   * A public speak-up request (`/p/speak-up`, ADR-0089, migration 0086): no member, scope 'none'.
+   * It may raise an anonymous concern, and with an anonymous concern's reply token hash (SHA-256,
+   * hex) it reads and replies to that one concern alone.
+   */
+  readonly speakUp?: { readonly replyTokenHash: string | null };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -64,6 +70,15 @@ export function assertValidContext(ctx: RequestContext): void {
     }
     if (ctx.userId !== null || ctx.scope !== "none") {
       throw new InvalidRequestContextError("a link session has no member and scope 'none'");
+    }
+  }
+  if (ctx.speakUp) {
+    const hash = ctx.speakUp.replyTokenHash;
+    if (hash !== null && !/^[0-9a-f]{64}$/.test(hash)) {
+      throw new InvalidRequestContextError("speakUp.replyTokenHash is not a SHA-256 hex digest");
+    }
+    if (ctx.userId !== null || ctx.scope !== "none" || ctx.evidenceLink || ctx.family) {
+      throw new InvalidRequestContextError("a speak-up request has no member and scope 'none'");
     }
   }
   if (ctx.family && (ctx.userId === null || ctx.scope !== "none" || ctx.evidenceLink)) {
@@ -113,7 +128,9 @@ export async function applyRequestContext(tx: Transaction | Database, ctx: Reque
       set_config('app.scope_break_glass', ${ctx.includesBreakGlass === true ? "true" : ""}, true),
       set_config('app.link_id', ${ctx.evidenceLink?.linkId ?? ""}, true),
       set_config('app.link_pack_id', ${ctx.evidenceLink?.packId ?? ""}, true),
-      set_config('app.family', ${ctx.family === true ? "true" : ""}, true)
+      set_config('app.family', ${ctx.family === true ? "true" : ""}, true),
+      set_config('app.speak_up', ${ctx.speakUp ? "true" : ""}, true),
+      set_config('app.speak_up_token', ${ctx.speakUp?.replyTokenHash ?? ""}, true)
   `);
 }
 

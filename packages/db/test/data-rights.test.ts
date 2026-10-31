@@ -428,6 +428,8 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
       // as an alternative hides nothing from the search (staff_profile and HR documents, 0073).
       "is_system()",
       "handover_whole",
+      // No member and the whole organisation: exactly the collector's read (migration 0057).
+      "is_system()",
       // Outside the family portal, these read through person_visible, which passes for any person
       // the organisation-wide read can see.
       "person_visible(",

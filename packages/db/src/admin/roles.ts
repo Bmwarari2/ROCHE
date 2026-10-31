@@ -29,6 +29,8 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * staged rows when its batch closes, and undoing a committed import; migration 0088),
  * `harbour_wellbeing_owner` (taking an anonymous staff survey response, releasing responses when a
  * survey closes and its results above the minimum group size; migration 0115).
+ * `harbour_silo_owner` (raising a named speak-up concern with its reporter, appointing the Freedom
+ * to Speak Up lead, the silo guards and the audit chain check; migration 0086, ADR-0089).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -39,6 +41,7 @@ export const NOLOGIN_ROLES = [
   "harbour_sample_owner",
   "harbour_import_owner",
   "harbour_wellbeing_owner",
+  "harbour_silo_owner",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -88,6 +91,7 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_import_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_wellbeing_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {
