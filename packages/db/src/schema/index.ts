@@ -18,6 +18,7 @@ export * from "./quality-audits";
 export * from "./quality-framework";
 export * from "./records";
 export * from "./safety";
+export * from "./safety-outbreaks";
 export * from "./sample-data";
 export * from "./sub-processors";
 export * from "./sync";
