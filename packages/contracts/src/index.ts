@@ -523,3 +523,22 @@ export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";
+
+/**
+ * A member asks for their own account to be deleted (MOB-011; master prompt 17.3; App Store
+ * guideline 5.1.1(v) and Google Play's account deletion policy). Staff accounts belong to the care
+ * provider, the controller, so the request goes to the people who manage its members as a task;
+ * nothing is deleted by the request, and no care record ever is.
+ */
+export const AccountDeletionRequest = z
+  .object({
+    /** `requested` the first time; `already_requested` while an earlier request is still open. */
+    status: z.enum(["requested", "already_requested"]),
+    requestedAt: isoDateTime,
+    /** When the organisation is asked to have confirmed (`account_deletion.confirmation_days`). */
+    respondBy: isoDateTime,
+    /** False when the organisation has no one who manages members: the request is still kept. */
+    routedToManager: z.boolean(),
+  })
+  .meta({ id: "AccountDeletionRequest" });
+export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
