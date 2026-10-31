@@ -1,4 +1,4 @@
-import { boolean, index, integer, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Better Auth tables (identity, sessions, MFA, passkeys), kept in their own `auth` schema.
@@ -37,6 +37,11 @@ export const authSession = authSchema.table(
     userId: text("user_id")
       .notNull()
       .references(() => authUser.id, { onDelete: "cascade" }),
+    /**
+     * The organisation whose identity provider made this session (single sign-on), written in the
+     * same insert; such a session reaches no other organisation (ADR-0091; #33 re-check H1).
+     */
+    ssoTenantId: uuid("sso_tenant_id"),
     ...timestamps,
   },
   (t) => [index("session_user_id_idx").on(t.userId)],

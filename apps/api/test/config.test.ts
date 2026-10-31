@@ -52,7 +52,12 @@ describe("loadConfig", () => {
       "AUTH_SIGN_IN_PER_MINUTE",
     ],
     ["single sign-on keys outside the managed store", { SSO_KEY_STORE: "memory" }, "SSO_KEY_STORE"],
-    ["mocked single sign-on lookups", { SSO_LOOKUPS: "mock" }, "SSO_KEY_STORE"],
+    ["mocked single sign-on lookups", { SSO_LOOKUPS: "mock" }, "SSO_LOOKUPS"],
+    [
+      "a trusted test identity provider",
+      { SSO_TEST_IDP_ORIGINS: "http://127.0.0.1:9999" },
+      "SSO_TEST_IDP_ORIGINS",
+    ],
     [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },

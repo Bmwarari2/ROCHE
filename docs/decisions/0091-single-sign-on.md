@@ -75,6 +75,25 @@ sign-in (`resolveUser`) and a key callback (`resolvePrivateKey`), and adds no su
 - **SAML 2.0** is supported by the plugin but not switched on here; it follows when a design
   partner's provider needs it (H-753), with its own review.
 
+- **Off until reviewed again.** The `platform.sso` flag (OpenFeature, off by default) gates the
+  configuration API and Better Auth's SSO sign-in and callback; with it off, nothing about SSO
+  answers (re-check of #33).
+- **Session binding on the session row.** A session made by an SSO callback gets
+  `auth.session.sso_tenant_id` in the same insert (a `session.create.before` hook, on every
+  `/sso/` path; with no organisation, no session is made), so the binding cannot be missing or
+  expire before the session. The tenant middleware refuses any other organisation.
+- **An SSO session is held to a few routes.** On Better Auth's own routes it may read itself, sign
+  out and confirm a Harbour authenticator code on itself (needed for HZ-112: care records and
+  step-up ask for it); everything else (listing, linking, enrolling, passkey sign-in) answers
+  `sso_session_limited`. No caller, the mobile app included, is given other sessions' tokens.
+- **No implicit linking.** `accountLinking.disableImplicitLinking`; an invited member whose address
+  already has a Harbour sign-in is told to sign in first, as invitations do.
+- **Discovery by Harbour's own guard.** Issuer and URLs normalised (`normalizeUrl`); the discovery
+  URL and every endpoint must be https on a host that resolves only to public addresses (private,
+  loopback, link-local, shared, metadata, multicast and reserved ranges refused); no redirects; a
+  bounded document. The plugin's trust function is never made to return true. Callback errors are
+  made generic (`error=sso_sign_in_failed`).
+
 ### Consequences
 
 - Good, because SSO sessions inherit sessions, MFA, step-up, revocation and audit as they are.

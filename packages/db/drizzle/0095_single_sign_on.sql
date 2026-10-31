@@ -56,6 +56,7 @@ CREATE TABLE "sso_domain" (
 	CONSTRAINT "sso_domain_verified" CHECK ((verified_at IS NULL) = (verified_by IS NULL))
 );
 --> statement-breakpoint
+ALTER TABLE "auth"."session" ADD COLUMN "sso_tenant_id" uuid;--> statement-breakpoint
 ALTER TABLE "auth"."sso_provider" ADD CONSTRAINT "sso_provider_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "auth"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sso_connection" ADD CONSTRAINT "sso_connection_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sso_domain" ADD CONSTRAINT "sso_domain_tenant_id_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenant"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

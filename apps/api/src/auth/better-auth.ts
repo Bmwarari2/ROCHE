@@ -17,7 +17,6 @@ import {
   FACTOR_ROUTES,
   IN_SESSION_CODE_ROUTES,
   recordSessionFactor,
-  recordSessionSsoTenant,
   reserveCodeAttempt,
   sessionMfa,
 } from "./session-factor";
@@ -86,7 +85,23 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
     disabledPaths: [...SSO_DISABLED_PATHS],
     // An invited member signing in with SSO for the first time gets a sign-in, which is then
     // linked to their membership (rule 20). The account's provider id names the organisation.
+    // An SSO provider never links to an existing sign-in by email; resolveUser decides (#33 H3).
+    account: { accountLinking: { disableImplicitLinking: true } },
     databaseHooks: {
+      // A session made by an SSO callback carries its organisation in the same insert, so the
+      // binding cannot be missing or expire before the session (#33 re-check H1).
+      session: {
+        create: {
+          before: async (session, context) => {
+            const path = context?.path ?? "";
+            if (!path.startsWith("/sso/")) return;
+            const params = (context?.params ?? {}) as { providerId?: string };
+            const tenantId = tenantOfSsoProvider(params.providerId ?? "");
+            if (!tenantId) return false;
+            return { data: { ...session, ssoTenantId: tenantId } };
+          },
+        },
+      },
       account: {
         create: {
           after: async (account) => {
@@ -106,6 +121,7 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
       disableSignUp: config.NODE_ENV === "production",
     },
     session: {
+      additionalFields: { ssoTenantId: { type: "string", required: false, input: false } },
       expiresIn: SESSION_EXPIRES_IN_SECONDS,
       updateAge: SESSION_UPDATE_AGE_SECONDS,
       freshAge: config.STEP_UP_WINDOW_SECONDS,
@@ -186,21 +202,6 @@ export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHook
       // A passkey or a verified authenticator code marks the session it signed in or confirmed, so
       // care records open only for a session that used a second factor (#43 review M5, ADR-0072).
       after: createAuthMiddleware(async (ctx) => {
-        // A session from an SSO callback is bound to the provider's organisation (#33 review H2).
-        if (ctx.path === "/sso/callback/:providerId" || ctx.path.startsWith("/sso/callback/")) {
-          const created = ctx.context.newSession?.session;
-          const providerId = (ctx.params as { providerId?: string } | undefined)?.providerId ?? "";
-          const tenantId = tenantOfSsoProvider(providerId);
-          if (created && tenantId) {
-            await recordSessionSsoTenant(
-              authPool,
-              created.id,
-              tenantId,
-              new Date(created.expiresAt),
-            );
-          }
-          return;
-        }
         const factor = FACTOR_ROUTES.get(ctx.path);
         if (!factor) return;
         const existing = ctx.context.session?.session;

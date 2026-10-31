@@ -134,6 +134,7 @@ beforeAll(async () => {
     SSO_LOOKUPS: "mock",
     SSO_TEST_IDP_ORIGINS: issuer,
   });
+  await owner("INSERT INTO feature_flag (flag_key, enabled) VALUES ('platform.sso', true)");
   await owner(
     `INSERT INTO tenant_user (id, display_name, email, status) VALUES ($1, 'Una Invited', $2, 'invited')`,
     [INVITED, INVITED_EMAIL],
@@ -199,18 +200,20 @@ describe("PLAT-005 a real SSO sign-in (#33 review M1)", () => {
       [member?.auth_user_id, PROVIDER],
     );
     expect(accounts.rows.map((r) => r.account_id)).toEqual(["sub-una"]);
-    const bound = await auth.query(
-      `SELECT v.value FROM auth.verification v JOIN auth.session s
-         ON v.identifier = 'session-sso-tenant:' || s.id WHERE s.user_id = $1`,
-      [member?.auth_user_id],
-    );
-    expect(bound.rows.map((r) => r.value)).toEqual([DEMO.tenantId]);
+    // The session carries its organisation on its own row (#33 re-check H1).
+    const bound = await auth.query("SELECT sso_tenant_id FROM auth.session WHERE user_id = $1", [
+      member?.auth_user_id,
+    ]);
+    expect(bound.rows.map((r) => r.sso_tenant_id)).toEqual([DEMO.tenantId]);
   });
 
   it("refuses a stranger the provider vouches for, and creates nothing", async () => {
     nextUser = { sub: "sub-stranger", email: "sam.stranger@example.invalid" };
     const callback = await signInThroughProvider();
-    expect(callback.headers.get("location") ?? "").toContain("error");
+    // Generic: no provider words, addresses or TLS text (#33 re-check).
+    expect(new URL(callback.headers.get("location") ?? "", "http://x.invalid").search).toBe(
+      "?error=sso_sign_in_failed",
+    );
     const users = await h.db
       .pool("harbour_auth")
       .query("SELECT 1 FROM auth.user WHERE email = 'sam.stranger@example.invalid'");

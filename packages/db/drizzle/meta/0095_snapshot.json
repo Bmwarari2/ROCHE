@@ -1,5 +1,5 @@
 {
-  "id": "2d56da44-a6fe-4150-934d-d92347b0bd66",
+  "id": "ec3eee5f-40d4-4e86-9c9d-d9f15e453252",
   "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
   "version": "7",
   "dialect": "postgresql",
@@ -292,6 +292,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "sso_tenant_id": {
+          "name": "sso_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

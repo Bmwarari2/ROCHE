@@ -9,7 +9,12 @@ import { createAuth, isBlockedSsoPath, SSO_DISABLED_PATHS } from "../src/auth/be
 import { FACTOR_ROUTES } from "../src/auth/session-factor";
 import { loadConfig } from "../src/config";
 import { createLogger } from "../src/logger";
-import { createSsoHooks, createSsoKeyStore, discoverWithoutTrust } from "../src/services/sso";
+import {
+  createSsoHooks,
+  createSsoKeyStore,
+  discoverPublic,
+  isPublicAddress,
+} from "../src/services/sso";
 import {
   ageSession,
   createHarness,
@@ -80,6 +85,8 @@ beforeAll(async () => {
     SSO_LOOKUPS: "mock",
     SSO_MOCK_TXT: txtFile,
   });
+  // Single sign-on is off by default (platform.sso); this organisation switches it on.
+  await owner("INSERT INTO feature_flag (flag_key, enabled) VALUES ('platform.sso', true)");
   await owner(
     `INSERT INTO tenant_user (id, display_name, email, status)
      VALUES ($1, 'Ivy Invited', 'ivy.invited@example.invalid', 'invited')`,
@@ -357,10 +364,78 @@ describe("#33 security review", () => {
     ["loopback by name", "https://localhost"],
     ["a name that resolves to a private address", "https://vm"],
     ["cloud metadata", "https://169.254.169.254"],
+    ["plain http", "http://idp.example.test"],
   ])("H1: discovery to %s is refused, with a generic error", async (_name, issuer) => {
     await expect(
-      discoverWithoutTrust(issuer, `${issuer}/.well-known/openid-configuration`),
+      discoverPublic(issuer, `${issuer}/.well-known/openid-configuration`),
     ).rejects.toThrow(/^sso_discovery_failed$/);
+  });
+
+  const publicNet = (addresses: Record<string, string[]>, document: Record<string, unknown>) => ({
+    lookup: async (host: string) => addresses[host] ?? [],
+    fetchJson: async () => document,
+  });
+  const goodDocument = {
+    issuer: "https://idp.example.test/demo",
+    authorization_endpoint: "https://idp.example.test/demo/authorize",
+    token_endpoint: "https://idp.example.test/demo/token",
+    jwks_uri: "https://idp.example.test/demo/jwks",
+    userinfo_endpoint: "https://idp.example.test/demo/userinfo",
+    response_types_supported: ["code"],
+    subject_types_supported: ["public"],
+    id_token_signing_alg_values_supported: ["RS256"],
+  };
+
+  it("M: discovery against a public provider succeeds, with normalised endpoints", async () => {
+    const endpoints = await discoverPublic(
+      "https://idp.example.test/demo",
+      "https://idp.example.test/demo/.well-known/openid-configuration",
+      publicNet({ "idp.example.test": ["203.0.113.10"] }, goodDocument),
+    );
+    expect(endpoints.tokenEndpoint).toBe("https://idp.example.test/demo/token");
+    expect(endpoints.jwksEndpoint).toBe("https://idp.example.test/demo/jwks");
+  });
+
+  it.each([
+    [
+      "the provider resolving to a private address",
+      { "idp.example.test": ["10.1.2.3"] },
+      goodDocument,
+    ],
+    [
+      "an endpoint on a private host",
+      { "idp.example.test": ["203.0.113.10"], "inside.example.test": ["192.168.1.5"] },
+      { ...goodDocument, token_endpoint: "https://inside.example.test/token" },
+    ],
+    [
+      "a mismatched issuer",
+      { "idp.example.test": ["203.0.113.10"] },
+      { ...goodDocument, issuer: "https://other.example.test" },
+    ],
+  ])("M: discovery is refused for %s", async (_name, addresses, document) => {
+    await expect(
+      discoverPublic(
+        "https://idp.example.test/demo",
+        "https://idp.example.test/demo/.well-known/openid-configuration",
+        publicNet(addresses, document),
+      ),
+    ).rejects.toThrow(/^sso_discovery_failed$/);
+  });
+
+  it("public address check", () => {
+    for (const ip of [
+      "10.0.0.1",
+      "127.0.0.1",
+      "169.254.169.254",
+      "192.168.0.1",
+      "100.64.0.1",
+      "::1",
+      "fe80::1",
+      "fd00::1",
+    ])
+      expect(isPublicAddress(ip), ip).toBe(false);
+    for (const ip of ["203.0.113.10", "8.8.8.8", "2001:4860:4860::8888"])
+      expect(isPublicAddress(ip), ip).toBe(true);
   });
 
   it("H1: the connection is checked before any discovery, and discovery errors say nothing of the provider", async () => {
@@ -406,26 +481,97 @@ describe("#33 security review", () => {
     expect(provider.rows).toHaveLength(0);
   });
 
-  it("H2: an SSO session reaches only the organisation that signed it in", async () => {
+  it("H1/H2: an SSO session reaches only its organisation, and only a few auth routes", async () => {
     const auth = h.db.pool("harbour_auth");
     const token = (h.tokens.manager ?? "").split(".")[0];
-    await auth.query(
-      `INSERT INTO auth.verification (id, identifier, value, expires_at)
-       SELECT gen_random_uuid()::text, 'session-sso-tenant:' || s.id, $2, s.expires_at
-         FROM auth.session s WHERE s.token = $1`,
-      [token, OTHER.tenantId],
-    );
+    await auth.query("UPDATE auth.session SET sso_tenant_id = $2 WHERE token = $1", [
+      token,
+      OTHER.tenantId,
+    ]);
     try {
-      const r = await h.request(NOTES, as("manager"));
-      expect(r.status).toBe(403);
+      expect((await h.request(NOTES, as("manager"))).status).toBe(403);
+      // Better Auth's own routes: only reading itself, signing out and confirming a code.
+      for (const path of [
+        "/api/auth/list-sessions",
+        "/api/auth/passkey/generate-register-options",
+      ]) {
+        const r = await h.request(path, as("manager"));
+        expect(r.status, path).toBe(403);
+        expect(await codeOf(r)).toBe("sso_session_limited");
+      }
+      const linking = await h.request("/api/auth/link-social", {
+        method: "POST",
+        body: {},
+        ...as("manager"),
+      });
+      expect(linking.status).toBe(403);
+      expect((await h.request("/api/auth/get-session", as("manager"))).status).toBe(200);
     } finally {
-      await auth.query(
-        `DELETE FROM auth.verification v USING auth.session s
-          WHERE s.token = $1 AND v.identifier = 'session-sso-tenant:' || s.id`,
-        [token],
-      );
+      await auth.query("UPDATE auth.session SET sso_tenant_id = NULL WHERE token = $1", [token]);
     }
     expect((await h.request(NOTES, as("manager"))).status).toBe(200);
+  });
+
+  it("H2: no one, not even the mobile app, is given other sessions' tokens", async () => {
+    const r = await h.request("/api/auth/list-sessions", {
+      ...as("manager"),
+      origin: "harbour://",
+    });
+    expect(r.status).toBe(200);
+    expect(JSON.stringify(await r.json())).not.toMatch(/"token"/);
+  });
+
+  it("H3: an invited member whose address already has a Harbour sign-in is told to sign in first", async () => {
+    await h.db
+      .pool("harbour_owner")
+      .query(
+        "INSERT INTO auth.user (id, name, email, email_verified) VALUES ('auth-zed', 'Zed Existing', 'zed.existing@example.invalid', true)",
+      );
+    await owner(
+      `INSERT INTO tenant_user (id, display_name, email, status)
+       VALUES ('0194d000-0000-7000-8000-0000000003c1', 'Zed Existing', 'zed.existing@example.invalid', 'invited')`,
+    );
+    await owner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT '0194d000-0000-7000-8000-0000000003c1', id, $1 FROM role WHERE key = 'care_worker'`,
+      [DEMO.locationId],
+    );
+    // The connection is on and its domain proved (again, after the issuer change above).
+    await owner("UPDATE sso_connection SET enabled = true");
+    await owner(
+      "UPDATE sso_domain SET verified_at = now(), verified_by = $1 WHERE removed_at IS NULL",
+      [DEMO.users.owner.id],
+    );
+    const hooks = createSsoHooks({
+      db: createDatabase(h.db.pool("harbour_app")),
+      authPool: h.db.pool("harbour_auth"),
+      keys: createSsoKeyStore(loadConfig({})),
+      logger: createLogger("silent"),
+    });
+    expect(
+      await hooks.resolveUser({
+        providerId: PROVIDER,
+        accountKey: { issuer: ISSUER, accountId: "sub-zed" },
+        providerUser: { email: "zed.existing@example.invalid", emailVerified: true },
+      }),
+    ).toMatchObject({ action: "reject", code: "sign_in_first" });
+  });
+
+  it("the platform.sso flag is off by default: no configuration and no sign-in until it is on", async () => {
+    await owner("UPDATE feature_flag SET enabled = false WHERE flag_key = 'platform.sso'");
+    try {
+      expect((await send("GET", "/v1/sso", "owner")).status).toBe(403);
+      const start = await h.request("/api/auth/sign-in/sso", {
+        method: "POST",
+        body: { providerId: PROVIDER, callbackURL: "http://localhost:3000/" },
+        origin: "http://localhost:3000",
+      });
+      expect(start.status).toBe(404);
+      const callback = await h.request(`/api/auth/sso/callback/${PROVIDER}?code=x&state=y`);
+      expect(callback.status).toBe(404);
+    } finally {
+      await owner("UPDATE feature_flag SET enabled = true WHERE flag_key = 'platform.sso'");
+    }
   });
 
   it("L2: SAML and the provider-less callback are refused before Better Auth", async () => {

@@ -43,6 +43,19 @@ Branch `feat/platform-sso`. PLAT-005 (partial: OpenID Connect; SAML later, H-753
   the key's name for a switched-on connection only). L2: SAML routes and the provider-less callback
   refused before Better Auth. L3: the plugin has no nonce; recorded in ADR-0091 and H-756.
 
+## Re-check (#33): a simpler design
+
+- `platform.sso` flag, off by default, gates `/v1/sso` and Better Auth's SSO sign-in and callback.
+- The SSO tenant lives on `auth.session.sso_tenant_id` (migration 0095), written in the insert by a
+  `session.create.before` hook on every `/sso/` path; the tenant middleware refuses any other.
+- An SSO session may use only get-session, sign-out and the two code-confirmation routes on Better
+  Auth; `list-sessions` never returns tokens, to anyone.
+- `disableImplicitLinking`, and `sign_in_first` when the address already has a sign-in.
+- Discovery by Harbour's own guard (normalised URLs, https, public addresses only, no redirects,
+  bounded), with a test against a public-looking mock and private ones.
+- Generic callback errors; production names the refused SSO setting; issuers normalised before
+  comparing; egress controls in H-751.
+
 ## Tests
 
 - `packages/domain/src/platform/sso.test.ts` (44, 25 new).

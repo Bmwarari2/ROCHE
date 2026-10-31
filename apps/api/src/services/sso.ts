@@ -1,21 +1,20 @@
-import { resolveTxt } from "node:dns/promises";
+import { lookup, resolveTxt } from "node:dns/promises";
 import { readFile } from "node:fs/promises";
+import { BlockList, isIP } from "node:net";
 import {
   DescribeSecretCommand,
   GetSecretValueCommand,
   SecretsManagerClient,
 } from "@aws-sdk/client-secrets-manager";
-import {
-  fetchDiscoveryDocument,
-  normalizeDiscoveryUrls,
-  validateDiscoveryDocument,
-} from "@better-auth/sso";
+import { normalizeUrl, validateDiscoveryDocument } from "@better-auth/sso";
 import { type Database, type Transaction, withRequestContext } from "@harbour/db";
 import { ssoSignInDecision, tenantOfSsoProvider } from "@harbour/domain";
 import { sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Config } from "../config";
+import type { FlagService } from "../flags/provider";
 import type { Logger } from "../logger";
+import { tenantFlags } from "./dpia";
 
 /**
  * Single sign-on plumbing (PLAT-005; platform.md, Phase 2: single sign-on, rules 18 to 22;
@@ -135,7 +134,8 @@ async function accountOwners(
     `SELECT DISTINCT a.user_id FROM auth.account a
       WHERE a.account_id = $1
         AND (a.provider_id = $2 OR a.provider_id IN (
-          SELECT p.provider_id FROM auth.sso_provider p WHERE p.issuer = $3))`,
+          SELECT p.provider_id FROM auth.sso_provider p
+           WHERE rtrim(lower(p.issuer), '/') = rtrim(lower($3), '/')))`,
     [accountKey.accountId, providerId, accountKey.issuer],
   );
   return rows.map((r) => r.user_id);
@@ -208,6 +208,18 @@ export function createSsoHooks(deps: {
       // links it; never when the provider account already belongs to a sign-in.
       if (owners.length > 0)
         return refuse(facts.tenant_id, "sso_account_bound_elsewhere", ACCOUNT_ELSEWHERE);
+      // A Harbour sign-in already exists for this address (another organisation's member, say):
+      // never attach a new one beside it; they sign in and accept as invitations do (#33 H3).
+      const existing = await deps.authPool.query(
+        "SELECT 1 FROM auth.user WHERE lower(btrim(email)) = lower(btrim($1)) LIMIT 1",
+        [providerUser.email],
+      );
+      if ((existing.rowCount ?? 0) > 0)
+        return refuse(
+          facts.tenant_id,
+          "sign_in_first",
+          "Sign in with your existing Harbour sign-in first, then accept your invitation.",
+        );
       return { action: "continue" };
     },
     async resolvePrivateKey({ providerId }) {
@@ -261,43 +273,121 @@ export function createOidcDiscovery(config: Config): OidcDiscovery {
       userInfoEndpoint: `${issuer}/userinfo`,
     });
   }
-  return discoverWithoutTrust;
+  return (issuer, discoveryUrl) => discoverPublic(issuer, discoveryUrl);
 }
 
-/** Nothing is trusted: every fetch must reach a public host (no private, loopback or metadata). */
-const NOTHING_TRUSTED = () => false;
+/** The network discovery uses: injectable so a test can stand in for a public provider. */
+export interface DiscoveryNet {
+  /** Every address a host name resolves to. */
+  lookup(host: string): Promise<string[]>;
+  /** GET a JSON document without following redirects. */
+  fetchJson(url: string): Promise<unknown>;
+}
+
+const DISCOVERY_TIMEOUT_MS = 10_000;
+const DISCOVERY_MAX_BYTES = 256 * 1024;
+
+export const SYSTEM_NET: DiscoveryNet = {
+  async lookup(host) {
+    return (await lookup(host, { all: true, verbatim: true })).map((a) => a.address);
+  },
+  async fetchJson(url) {
+    const response = await fetch(url, {
+      redirect: "error",
+      signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) throw new Error("sso_discovery_failed");
+    const text = await response.text();
+    if (text.length > DISCOVERY_MAX_BYTES) throw new Error("sso_discovery_failed");
+    return JSON.parse(text) as unknown;
+  },
+};
+
+/** Private, loopback, link-local, shared, metadata, multicast and reserved ranges. */
+const NOT_PUBLIC = new BlockList();
+for (const [net, bits] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
+] as const)
+  NOT_PUBLIC.addSubnet(net, bits, "ipv4");
+for (const [net, bits] of [
+  ["::", 128],
+  ["::1", 128],
+  ["64:ff9b::", 96],
+  ["fc00::", 7],
+  ["fe80::", 10],
+  ["ff00::", 8],
+] as const)
+  NOT_PUBLIC.addSubnet(net, bits, "ipv6");
+
+export function isPublicAddress(address: string): boolean {
+  // An IPv4 address written as IPv6 (::ffff:a.b.c.d) is judged as the IPv4 address.
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  const ip = mapped?.[1] ?? address;
+  const family = isIP(ip);
+  if (family === 0) return false;
+  return !NOT_PUBLIC.check(ip, family === 4 ? "ipv4" : "ipv6");
+}
+
+const METADATA_HOSTS = new Set(["metadata.google.internal", "metadata", "instance-data"]);
+
+/** An https URL on a host that resolves only to public addresses (#33 re-check M). */
+async function assertPublicHttps(url: string, net: DiscoveryNet): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error("bad");
+  const host = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (METADATA_HOSTS.has(host) || host === "localhost" || host.endsWith(".localhost"))
+    throw new Error("bad");
+  const addresses = isIP(host) ? [host] : await net.lookup(host);
+  if (addresses.length === 0 || !addresses.every(isPublicAddress)) throw new Error("bad");
+}
 
 /**
- * Discovery with the plugin's SSRF guards fully on (#33 review H1): the discovery URL, and every
- * endpoint it names, must be https on a publicly routable host that resolves to a public address,
- * with no redirects; the document's issuer must match. Fails with a generic error, never echoing
- * what the provider or the network said.
+ * Discovery with Harbour's own guard (#33 review H1, re-check M): the issuer and discovery URL are
+ * normalised; the discovery URL and every endpoint the document names must be https on a host that
+ * resolves only to public addresses; no redirects; a bounded document; the issuer must match. Any
+ * failure gives the same generic error, never what the provider or the network said. The plugin
+ * checks the token, key and user endpoints again at sign-in.
  */
-export async function discoverWithoutTrust(
+export async function discoverPublic(
   issuer: string,
   discoveryUrl: string,
+  net: DiscoveryNet = SYSTEM_NET,
 ): Promise<OidcEndpoints> {
-  const https = (url: string | undefined) => url?.startsWith("https://") === true;
-  if (!https(issuer) || !https(discoveryUrl)) throw new Error("sso_discovery_failed");
   try {
-    const document = await fetchDiscoveryDocument(discoveryUrl, undefined, NOTHING_TRUSTED);
+    const normalisedIssuer = normalizeUrl("issuer", issuer, issuer);
+    const url = normalizeUrl("discoveryEndpoint", discoveryUrl, normalisedIssuer);
+    await assertPublicHttps(normalisedIssuer, net);
+    await assertPublicHttps(url, net);
+    const document = (await net.fetchJson(url)) as Parameters<typeof validateDiscoveryDocument>[0];
     validateDiscoveryDocument(document, issuer);
-    const doc = normalizeDiscoveryUrls(document, issuer, NOTHING_TRUSTED);
+    const endpoint = (name: string, value: unknown) =>
+      typeof value === "string" ? normalizeUrl(name, value, normalisedIssuer) : null;
     const endpoints = {
-      authorizationEndpoint: doc.authorization_endpoint,
-      tokenEndpoint: doc.token_endpoint,
-      jwksEndpoint: doc.jwks_uri,
-      userInfoEndpoint: doc.userinfo_endpoint ?? null,
+      authorizationEndpoint: endpoint("authorization_endpoint", document.authorization_endpoint),
+      tokenEndpoint: endpoint("token_endpoint", document.token_endpoint),
+      jwksEndpoint: endpoint("jwks_uri", document.jwks_uri),
+      userInfoEndpoint: endpoint("userinfo_endpoint", document.userinfo_endpoint),
     };
-    if (
-      ![endpoints.authorizationEndpoint, endpoints.tokenEndpoint, endpoints.jwksEndpoint].every(
-        https,
-      )
-    )
-      throw new Error("sso_discovery_failed");
-    if (endpoints.userInfoEndpoint !== null && !https(endpoints.userInfoEndpoint))
-      throw new Error("sso_discovery_failed");
-    return endpoints;
+    if (!endpoints.authorizationEndpoint || !endpoints.tokenEndpoint || !endpoints.jwksEndpoint)
+      throw new Error("bad");
+    for (const value of Object.values(endpoints)) if (value) await assertPublicHttps(value, net);
+    return {
+      authorizationEndpoint: endpoints.authorizationEndpoint,
+      tokenEndpoint: endpoints.tokenEndpoint,
+      jwksEndpoint: endpoints.jwksEndpoint,
+      userInfoEndpoint: endpoints.userInfoEndpoint,
+    };
   } catch {
     throw new Error("sso_discovery_failed");
   }
@@ -350,4 +440,16 @@ export async function setSsoProviderDomain(authPool: pg.Pool, providerId: string
     providerId,
     domain,
   ]);
+}
+
+/** Whether the organisation's `platform.sso` flag is on (off by default; ADR-0091). */
+export async function ssoEnabledFor(
+  services: { readonly db: Database; readonly flags: FlagService },
+  tenantId: string,
+): Promise<boolean> {
+  return withRequestContext(
+    services.db,
+    { tenantId, userId: null, scope: "tenant", locationIds: [] },
+    async (tx) => (await tenantFlags(services.flags, tx, tenantId))["platform.sso"] === true,
+  );
 }

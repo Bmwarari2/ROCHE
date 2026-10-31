@@ -31,6 +31,7 @@ import {
   removeSsoProvider,
   type SsoProviderProjection,
   setSsoProviderDomain,
+  ssoEnabledFor,
   upsertSsoProvider,
 } from "../services/sso";
 import { staffNames } from "../services/staff";
@@ -59,9 +60,18 @@ type DomainRow = typeof ssoDomain.$inferSelect;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
+/** The permission, and the organisation's `platform.sso` flag (off by default; ADR-0091). */
+async function requireSso(c: Context<AppEnv>): Promise<TenantAccess> {
+  const access = await requirePermission(c, PERMISSION);
+  if (!(await ssoEnabledFor(c.get("services"), access.tenantId))) {
+    throw problems.featureDisabled("Single sign-on is not switched on for this organisation.");
+  }
+  return access;
+}
+
 /** Refuses a change without a fresh step-up (rule 22). */
 async function requireChange(c: Context<AppEnv>): Promise<TenantAccess> {
-  const access = await requirePermission(c, PERMISSION);
+  const access = await requireSso(c);
   if (!access.stepUpFresh) throw stepUpRefusal(access);
   return access;
 }
@@ -199,7 +209,7 @@ export const ssoRouter = createRouter()
       responses: { 200: jsonBody(SsoConfiguration, "The configuration"), ...errorResponses },
     }),
     async (c) => {
-      await requirePermission(c, PERMISSION);
+      await requireSso(c);
       const body = await withTenant(c, async (tx) => {
         const row = await currentConnection(tx);
         return { connection: row ? connectionOf(c, row) : null, domains: await domainsOf(tx) };

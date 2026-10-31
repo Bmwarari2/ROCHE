@@ -180,12 +180,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
     }
     if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
-    if (
-      parsed.SSO_KEY_STORE !== "aws" ||
-      parsed.SSO_LOOKUPS !== "system" ||
-      parsed.SSO_TEST_IDP_ORIGINS !== ""
-    ) {
-      throw new Error("SSO_KEY_STORE must be aws and SSO_LOOKUPS system in production");
+    if (parsed.SSO_KEY_STORE !== "aws") throw new Error("SSO_KEY_STORE must be aws in production");
+    if (parsed.SSO_LOOKUPS !== "system")
+      throw new Error("SSO_LOOKUPS must be system in production");
+    if (parsed.SSO_TEST_IDP_ORIGINS !== "") {
+      throw new Error("SSO_TEST_IDP_ORIGINS must not be set in production");
     }
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
       throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");

@@ -187,33 +187,16 @@ export async function clearCodeAttempts(authPool: pg.Pool, sessionId: string): P
 }
 
 /**
- * An SSO session belongs to the organisation whose provider signed it in, and never reaches
- * another (#33 review H2). Kept, like the factor record, in Better Auth's verification table.
+ * The organisation an SSO session belongs to, from the session row itself (written in the same
+ * insert as the session; #33 re-check H1), or null for a session that is not from SSO.
  */
-export function ssoTenantIdentifier(sessionId: string): string {
-  return `session-sso-tenant:${sessionId}`;
-}
-
-export async function recordSessionSsoTenant(
-  authPool: pg.Pool,
-  sessionId: string,
-  tenantId: string,
-  expiresAt: Date,
-): Promise<void> {
-  await authPool.query(
-    "INSERT INTO auth.verification (id, identifier, value, expires_at) VALUES ($1, $2, $3, $4)",
-    [randomUUID(), ssoTenantIdentifier(sessionId), tenantId, expiresAt],
-  );
-}
-
-/** The organisation an SSO session is bound to, or null for a session that is not from SSO. */
 export async function sessionSsoTenant(
   authPool: pg.Pool,
   sessionId: string,
 ): Promise<string | null> {
-  const { rows } = await authPool.query<{ value: string }>(
-    "SELECT value FROM auth.verification WHERE identifier = $1 ORDER BY created_at LIMIT 1",
-    [ssoTenantIdentifier(sessionId)],
+  const { rows } = await authPool.query<{ sso_tenant_id: string | null }>(
+    "SELECT sso_tenant_id FROM auth.session WHERE id = $1",
+    [sessionId],
   );
-  return rows[0]?.value ?? null;
+  return rows[0]?.sso_tenant_id ?? null;
 }

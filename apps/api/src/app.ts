@@ -3,7 +3,8 @@ import { createDatabase, createPool } from "@harbour/db";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
-import { createAuth, isBlockedSsoPath } from "./auth/better-auth";
+import { createAuth } from "./auth/better-auth";
+import { ssoAuthGate } from "./auth/sso-gate";
 import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { createFlagService } from "./flags/provider";
@@ -227,12 +228,9 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     });
   // Registered before the handler below, which answers without calling on.
   app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
-  // The plugin's SAML routes and its provider-less callback are not offered (OIDC only, ADR-0091;
-  // #33 review L2). disabledPaths cannot match routes that carry a provider id.
-  app.use("/api/auth/sso/*", async (c, next) => {
-    if (isBlockedSsoPath(new URL(c.req.url).pathname)) return c.notFound();
-    await next();
-  });
+  // Single sign-on in front of Better Auth: SAML refused, the platform.sso flag, SSO sessions held
+  // to their own routes, generic callback errors (ADR-0091; #33 reviews).
+  app.use("/api/auth/*", ssoAuthGate(services));
   for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
 
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>

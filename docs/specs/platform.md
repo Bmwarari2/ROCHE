@@ -1096,6 +1096,10 @@ change in `record_version` and the audit trail.
 22. Only holders of `platform.tenant.manage` read or change the configuration; every change needs a
     fresh step-up and is audited (no key names, tokens or domains in the audit scope, only ids and
     what changed). Better Auth's own provider-management routes are switched off.
+23. Single sign-on is behind the `platform.sso` flag, off by default: with it off the configuration
+    API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
+    organisation on its own row and reaches no other; on Better Auth's routes it may only read
+    itself, sign out and confirm a Harbour code. No implicit linking by email.
 
 **Permission matrix**
 
