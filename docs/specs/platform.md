@@ -22,6 +22,62 @@ forms, statutory figures, feature flags, integrations framework and the Thapsus 
 Acceptance (all automated, passing): see `packages/db/test/*.test.ts` and
 `apps/api/test/api.test.ts` (hazard HZ-011 groups).
 
+## White-label branding (PLAT-002)
+
+Master prompt 9.1: a tenant's name, logo and accent colour, with the accent auto-adjusted to at
+least 4.5:1 contrast on white and on black. The columns are already on `tenant` (`brand_name`,
+`brand_accent` with its hex check, `logo_document_id`); no new table or migration.
+
+**Rules**
+
+1. The accent is a six-digit hex colour. It is stored only when it reaches 4.5:1 against white
+   and against black (`meetsDualContrast` in `packages/domain/src/platform/branding.ts`), so white
+   text on accent buttons, and the accent as an icon or indicator, stay WCAG 2.2 AA in the light
+   and dark themes (the dark card, `#161617`, still clears 3:1 for non-text). A colour that falls
+   short is refused (422 `brand_accent_contrast`) with the nearest colour of the same hue that
+   passes (`adjustAccentForContrast`); the settings screen offers that colour in one step, shows
+   both with their ratios and says the change before anything is saved. Auto-adjusting is offered,
+   never done silently, so the owner sees the colour their staff will see. No accent: Harbour's.
+2. The brand name (1 to 80 characters, trimmed) replaces the registered name in the shell; the
+   registered name stays on statutory documents and the audit trail. No brand name: the name.
+3. The logo is a PNG or JPEG of at most 512 KB, stored through the document store as an
+   organisation document (`subject_type` `tenant_logo`, malware scan as for every upload). It is
+   shown at 24 px high beside the product name in the app bar, with empty alternative text: the
+   organisation's name is already in the organisation switcher beside it. SVG is refused (scripts).
+   Removing it clears the reference; the document stays in the store under its retention class.
+4. Every member of the organisation may read the branding and the logo (they are shown in the
+   shell); only `platform.tenant.manage` changes them, with the version read (409 when stale).
+   Each change is audited with what changed, never the logo's bytes.
+5. Sign-in: the organisation is not known before sign-in (one address can belong to several), so
+   the sign-in page stays Harbour's; the "choose an organisation" page shows each one's name.
+   Printed packs and letters keep the registered name as they do now; adding the logo to them is
+   a later slice (the PDF writer, ADR-0040, would need the image path the transfer pack uses).
+6. Not clinical: no hazard is affected (status colours are fixed tokens, never the accent). No
+   personal data: a logo and a brand name are about the organisation.
+
+**API** (additive): `GET /v1/settings/branding` and `PUT /v1/settings/branding` (name and accent,
+with `expectedVersion`), `PUT` and `DELETE /v1/settings/branding/logo` (the body is the image),
+all `platform.tenant.manage`; `GET /v1/branding/logo` (any member; the bytes, `private`, cached for
+an hour); `Me.tenant.hasLogo`.
+
+**Web**: `/settings/branding` (owner and Registered Manager: `platform.tenant.manage`), linked from
+settings; the shell applies the accent to `--accent` and `--accent-hover` in both themes and shows
+the logo.
+
+**Permission matrix**
+
+| Action | Permission |
+| --- | --- |
+| See the branding in the shell, fetch the logo | Any member of the organisation |
+| Read the branding settings, change name, accent or logo | `platform.tenant.manage` |
+
+**Tests (written first)**: `packages/domain/src/platform/branding.test.ts` (table-driven: contrast
+ratios against published values, passing colours unchanged, failing colours adjusted into the band
+in hue, greys, pure primaries, invalid hex refused); `apps/api/test/branding.test.ts` (refusal with
+the suggestion, version conflict, permission, logo type and size, audit, another tenant cannot read
+the logo); `apps/web/e2e/branding.spec.ts` (set a failing colour, take the suggestion, the shell
+shows it; upload and remove a logo; axe in light and dark).
+
 ## Identity, roles and scope (PLAT-004, PLAT-006)
 
 - Identity: Better Auth in the `auth` schema (email and NCSC-compliant password, TOTP, passkeys,
