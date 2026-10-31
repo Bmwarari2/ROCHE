@@ -3399,7 +3399,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
         description: "End of the night window, UK time.",
         unit: "minutes from midnight",
       },
-      bank_holidays: { description: "UK dates paid at the bank holiday enhancement." },
+      extra_bank_holidays: {
+        description:
+          "Days paid at the bank holiday enhancement besides the nation's bank holidays (UK dates).",
+      },
       overtime_after_minutes: {
         description: "Paid time in a period after which overtime applies.",
         unit: "minutes",

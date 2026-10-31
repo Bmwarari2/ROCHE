@@ -27,4 +27,10 @@ describe("whole-pence arithmetic (ADR-0086)", () => {
     );
     expect(canonicalInput({ a: 1 })).not.toBe(canonicalInput({ a: 2 }));
   });
+
+  it("keeps an instant as its ISO text, so a change of time changes the input", () => {
+    const at = (iso: string) => canonicalInput({ start: new Date(iso) });
+    expect(at("2026-11-02T08:00:00.000Z")).toBe('{"start":"2026-11-02T08:00:00.000Z"}');
+    expect(at("2026-11-02T08:00:00.000Z")).not.toBe(at("2026-11-02T09:00:00.000Z"));
+  });
 });

@@ -53,6 +53,8 @@ export interface WorkingLine {
  */
 export function canonicalInput(value: unknown): string {
   const sort = (v: unknown): unknown => {
+    // An instant as its ISO text: an object's keys would lose it (a Date has none).
+    if (v instanceof Date) return v.toISOString();
     if (Array.isArray(v)) return v.map(sort);
     if (v && typeof v === "object") {
       return Object.fromEntries(

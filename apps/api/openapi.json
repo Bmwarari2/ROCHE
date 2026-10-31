@@ -31377,6 +31377,1057 @@
           "averageWeeklyEarningsPence",
           "qualifyingWeekdays"
         ]
+      },
+      "PayRuleSetList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayRuleSetItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PayRuleSetItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "versionNumber": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "roleRates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "enhancements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayEnhancement"
+            }
+          },
+          "stackEnhancements": {
+            "type": "boolean"
+          },
+          "sleepInFlatPence": {
+            "type": "number"
+          },
+          "mileagePencePerMile": {
+            "type": "number"
+          },
+          "onCallFlatPence": {
+            "type": "number"
+          },
+          "nightStartMinute": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "nightEndMinute": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "extraBankHolidays": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "overtimeAfterMinutes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "rolledUpHoliday": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved"
+            ]
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "versionNumber",
+          "name",
+          "effectiveFrom",
+          "roleRates",
+          "enhancements",
+          "stackEnhancements",
+          "sleepInFlatPence",
+          "mileagePencePerMile",
+          "onCallFlatPence",
+          "nightStartMinute",
+          "nightEndMinute",
+          "extraBankHolidays",
+          "overtimeAfterMinutes",
+          "rolledUpHoliday",
+          "status",
+          "approvedBy",
+          "approvedAt"
+        ]
+      },
+      "PayEnhancement": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "night",
+              "weekend",
+              "bank_holiday",
+              "overtime"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "flat_per_hour"
+            ]
+          },
+          "value": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          }
+        },
+        "required": [
+          "kind",
+          "mode",
+          "value"
+        ]
+      },
+      "CreatePayRuleSet": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "roleRates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            }
+          },
+          "enhancements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayEnhancement"
+            },
+            "maxItems": 8,
+            "default": []
+          },
+          "stackEnhancements": {
+            "type": "boolean",
+            "default": false
+          },
+          "sleepInFlatPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "mileagePencePerMile": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "onCallFlatPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "nightStartMinute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439,
+            "default": null
+          },
+          "nightEndMinute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439,
+            "default": null
+          },
+          "extraBankHolidays": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "maxItems": 40,
+            "default": []
+          },
+          "overtimeAfterMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000,
+            "default": null
+          },
+          "rolledUpHoliday": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name",
+          "effectiveFrom",
+          "roleRates"
+        ]
+      },
+      "ChangePayRuleSet": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "roleRates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            }
+          },
+          "enhancements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayEnhancement"
+            },
+            "maxItems": 8,
+            "default": []
+          },
+          "stackEnhancements": {
+            "type": "boolean",
+            "default": false
+          },
+          "sleepInFlatPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "mileagePencePerMile": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "onCallFlatPence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": 0
+          },
+          "nightStartMinute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439,
+            "default": null
+          },
+          "nightEndMinute": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1439,
+            "default": null
+          },
+          "extraBankHolidays": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "maxItems": 40,
+            "default": []
+          },
+          "overtimeAfterMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000,
+            "default": null
+          },
+          "rolledUpHoliday": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "version",
+          "name",
+          "effectiveFrom",
+          "roleRates"
+        ]
+      },
+      "ApprovePayRuleSet": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "PayProfileItem": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/PayFrequency"
+          },
+          "employment": {
+            "type": "string",
+            "enum": [
+              "staff",
+              "bank",
+              "agency"
+            ]
+          },
+          "roleKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "apprenticeshipStartedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "irregularHours": {
+            "type": "boolean"
+          },
+          "leaveYearStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "qualifyingWeekdays": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "sspAverageWeeklyEarningsPence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "statePensionAgeOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "memberId",
+          "version",
+          "frequency",
+          "employment",
+          "roleKey",
+          "apprenticeshipStartedOn",
+          "irregularHours",
+          "leaveYearStart",
+          "qualifyingWeekdays",
+          "sspAverageWeeklyEarningsPence",
+          "statePensionAgeOn"
+        ]
+      },
+      "PayFrequency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "weekly",
+          "monthly",
+          null
+        ]
+      },
+      "PutPayProfile": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/PayFrequency"
+          },
+          "employment": {
+            "type": "string",
+            "enum": [
+              "staff",
+              "bank",
+              "agency"
+            ],
+            "default": "staff"
+          },
+          "roleKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z][a-z0-9_]{0,59}$",
+            "default": null
+          },
+          "apprenticeshipStartedOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "irregularHours": {
+            "type": "boolean",
+            "default": false
+          },
+          "leaveYearStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          },
+          "qualifyingWeekdays": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "maxItems": 7,
+            "default": []
+          },
+          "sspAverageWeeklyEarningsPence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100000000,
+            "default": null
+          },
+          "statePensionAgeOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null
+          }
+        },
+        "required": [
+          "version",
+          "frequency"
+        ]
+      },
+      "PayRunList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayRunItem"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PayRunItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/PayFrequency"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "regular",
+              "correction"
+            ]
+          },
+          "correctsRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "ruleSetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nation": {
+            "type": "string"
+          },
+          "calculation": {
+            "type": "integer"
+          },
+          "calculatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "calculatedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "locked"
+            ]
+          },
+          "lockedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lockedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "openExceptions": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "frequency",
+          "periodStart",
+          "periodEnd",
+          "kind",
+          "correctsRunId",
+          "ruleSetId",
+          "nation",
+          "calculation",
+          "calculatedAt",
+          "calculatedBy",
+          "status",
+          "lockedBy",
+          "lockedAt",
+          "createdBy",
+          "openExceptions"
+        ]
+      },
+      "CreatePayRun": {
+        "type": "object",
+        "properties": {
+          "frequency": {
+            "$ref": "#/components/schemas/PayFrequency"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "frequency",
+          "periodStart",
+          "periodEnd"
+        ]
+      },
+      "PayRunDetail": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/PayRunItem"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayRunLineItem"
+            }
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayRunExceptionItem"
+            }
+          }
+        },
+        "required": [
+          "run",
+          "lines",
+          "exceptions"
+        ]
+      },
+      "PayRunLineItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calculation": {
+            "type": "integer"
+          },
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paidMinutes": {
+            "type": "integer"
+          },
+          "nmwMinutes": {
+            "type": "integer"
+          },
+          "basicPence": {
+            "type": "integer"
+          },
+          "premiumPence": {
+            "type": "integer"
+          },
+          "sleepInPence": {
+            "type": "integer"
+          },
+          "onCallPence": {
+            "type": "integer"
+          },
+          "mileagePence": {
+            "type": "integer"
+          },
+          "nmwTopUpPence": {
+            "type": "integer"
+          },
+          "rolledUpHolidayPence": {
+            "type": "integer"
+          },
+          "sspPence": {
+            "type": "integer"
+          },
+          "totalPence": {
+            "type": "integer"
+          },
+          "differencePence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "holidayAccruedMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "nmwBand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "aeCategory": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualifyingEarningsPence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "working": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayWorkingLine"
+            }
+          },
+          "inputHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "calculation",
+          "memberId",
+          "paidMinutes",
+          "nmwMinutes",
+          "basicPence",
+          "premiumPence",
+          "sleepInPence",
+          "onCallPence",
+          "mileagePence",
+          "nmwTopUpPence",
+          "rolledUpHolidayPence",
+          "sspPence",
+          "totalPence",
+          "differencePence",
+          "holidayAccruedMinutes",
+          "nmwBand",
+          "aeCategory",
+          "qualifyingEarningsPence",
+          "working",
+          "inputHash"
+        ]
+      },
+      "PayWorkingLine": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "pence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "rateKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "step",
+          "pence",
+          "rateKey"
+        ]
+      },
+      "PayRunExceptionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "calculation": {
+            "type": "integer"
+          },
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PayExceptionKind"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "overridden"
+            ]
+          },
+          "overrideReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "overriddenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "overriddenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "calculation",
+          "memberId",
+          "kind",
+          "ref",
+          "message",
+          "status",
+          "overrideReason",
+          "overriddenBy",
+          "overriddenAt"
+        ]
+      },
+      "PayExceptionKind": {
+        "type": "string",
+        "enum": [
+          "unapproved_timesheet",
+          "no_pay_profile",
+          "no_role_rate",
+          "no_date_of_birth",
+          "below_nmw",
+          "ssp_earnings_missing",
+          "rate_missing"
+        ]
+      },
+      "PayRunVersion": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "OverridePayException": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "reason"
+        ]
+      },
+      "PayLineVerification": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reproduced": {
+            "type": "boolean"
+          },
+          "storedHash": {
+            "type": "string"
+          },
+          "recalculatedHash": {
+            "type": "string"
+          },
+          "differences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lineId",
+          "reproduced",
+          "storedHash",
+          "recalculatedHash",
+          "differences"
+        ]
+      },
+      "MyPayLines": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "$ref": "#/components/schemas/PayRunLineItem"
+                },
+                "periodStart": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "periodEnd": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "regular",
+                    "correction"
+                  ]
+                },
+                "lockedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "line",
+                "periodStart",
+                "periodEnd",
+                "kind",
+                "lockedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
       }
     },
     "parameters": {}
@@ -64490,6 +65541,1269 @@
           },
           "404": {
             "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-rule-sets": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Pay rule sets",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rule sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRuleSetList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Write a draft pay rule set",
+        "description": "The organisation's own rates (never statutory figures, which come from the rate table). One draft at a time; approved by someone who neither wrote nor changed it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "The rule set",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayRuleSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Drafted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRuleSetItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-rule-sets/{id}": {
+      "patch": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Change a draft pay rule set",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "The rule set",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePayRuleSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRuleSetItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-rule-sets/{id}/approve": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Approve a pay rule set",
+        "description": "By a holder of scheduling.pay.approve who neither wrote nor changed it.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "Against version",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovePayRuleSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRuleSetItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{id}/pay-profile": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "A member's pay profile",
+        "description": "Pay holders across the organisation, or the member themselves.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayProfileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Set a member's pay profile",
+        "description": "Never one's own. Earnings for SSP are in the body, never the address.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "The profile",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutPayProfile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayProfileItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Pay runs",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Draft a pay run for a period",
+        "description": "Uses the approved rule set in force on the period's first day. One regular run a period.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "The period",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayRun"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Drafted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "A pay run with its lines and exceptions",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}/calculate": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Calculate a draft pay run",
+        "description": "From approved timesheets and recorded sickness only, with the slice 6 rules and the rate table's figures for the period (stored with the run). Each line keeps its working and canonical inputs; exceptions block locking.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "Against version",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRunVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-run-exceptions/{id}/override": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Override a pay run exception with a reason",
+        "description": "By a holder of scheduling.pay.approve, never on their own line.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "The reason",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OverridePayException"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Overridden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunExceptionItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}/lock": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Check and lock a pay run",
+        "description": "By a holder of scheduling.pay.approve who neither created nor calculated it, with no open exception. A locked run never changes; it is offered to the payroll export (slice 76).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "description": "Against version",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRunVersion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}/corrections": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Start a correction of a locked pay run",
+        "description": "A new draft for the same period; each line shows its difference from the locked run it corrects. One open correction at a time.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Drafted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRunItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pay-runs/{id}/lines/{lineId}/verify": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Recalculate a line from its stored inputs",
+        "description": "From the line's canonical inputs and the run's stored rate rows: the same figures and hash, or the figures that differ.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "lineId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayLineVerification"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/pay-lines": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "My lines in locked pay runs",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPayLines"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
             "content": {
               "application/problem+json": {
                 "schema": {

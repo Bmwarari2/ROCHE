@@ -7,6 +7,7 @@ import {
   type PayProfile,
   type PayRuleSetFull,
   paidPieces,
+  payLineInputFromJson,
   payRunLine,
   runBlocked,
   withOvertime,
@@ -316,6 +317,23 @@ describe("a member's line (rules 3 to 9)", () => {
     expect(b).toEqual(a);
     const c = payRunLine(input({ memberId: "m2" }), rates);
     expect(c.canonicalInput).not.toBe(a.canonicalInput);
+  });
+});
+
+describe("reproducible from what is stored (rule 10)", () => {
+  it("recalculates the same line from its stored canonical inputs", () => {
+    const original = payRunLine(
+      input({
+        entries: [
+          entry("n", "2026-11-06 20:00", "2026-11-07 08:00", {
+            breaks: [{ start: uk("2026-11-07 02:00"), end: uk("2026-11-07 02:30") }],
+          }),
+        ],
+      }),
+      rates,
+    );
+    const again = payRunLine(payLineInputFromJson(JSON.parse(original.canonicalInput)), rates);
+    expect(again).toEqual(original);
   });
 });
 

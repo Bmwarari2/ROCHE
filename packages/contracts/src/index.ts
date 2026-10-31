@@ -520,6 +520,7 @@ export * from "./mca";
 export * from "./members";
 export * from "./onboarding";
 export * from "./operations";
+export * from "./pay";
 export * from "./people";
 export * from "./person-summary";
 export * from "./quality";

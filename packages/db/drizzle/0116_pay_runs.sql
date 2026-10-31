@@ -40,7 +40,7 @@ CREATE TABLE "pay_rule_set" (
 	"on_call_flat_pence" integer DEFAULT 0 NOT NULL,
 	"night_start_minute" integer,
 	"night_end_minute" integer,
-	"bank_holidays" date[] DEFAULT '{}' NOT NULL,
+	"extra_bank_holidays" date[] DEFAULT '{}' NOT NULL,
 	"overtime_after_minutes" integer,
 	"rolled_up_holiday" boolean DEFAULT false NOT NULL,
 	"status" text DEFAULT 'draft' NOT NULL,
@@ -306,12 +306,12 @@ BEGIN
   IF NEW.status = 'approved' THEN
     IF (NEW.name, NEW.effective_from, NEW.role_rates, NEW.enhancements, NEW.stack_enhancements,
         NEW.sleep_in_flat_pence, NEW.mileage_pence_per_mile, NEW.on_call_flat_pence,
-        NEW.night_start_minute, NEW.night_end_minute, NEW.bank_holidays,
+        NEW.night_start_minute, NEW.night_end_minute, NEW.extra_bank_holidays,
         NEW.overtime_after_minutes, NEW.rolled_up_holiday, NEW.contributor_ids)
        IS DISTINCT FROM
        (OLD.name, OLD.effective_from, OLD.role_rates, OLD.enhancements, OLD.stack_enhancements,
         OLD.sleep_in_flat_pence, OLD.mileage_pence_per_mile, OLD.on_call_flat_pence,
-        OLD.night_start_minute, OLD.night_end_minute, OLD.bank_holidays,
+        OLD.night_start_minute, OLD.night_end_minute, OLD.extra_bank_holidays,
         OLD.overtime_after_minutes, OLD.rolled_up_holiday, OLD.contributor_ids)
        OR v_me IS NULL OR NEW.approved_by IS DISTINCT FROM v_me OR v_me = ANY (OLD.contributor_ids)
        OR NOT app.holds_pay_permission('scheduling.pay.approve') THEN

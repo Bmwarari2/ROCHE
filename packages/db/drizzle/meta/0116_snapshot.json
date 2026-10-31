@@ -1194,8 +1194,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "bank_holidays": {
-          "name": "bank_holidays",
+        "extra_bank_holidays": {
+          "name": "extra_bank_holidays",
           "type": "date[]",
           "primaryKey": false,
           "notNull": true,

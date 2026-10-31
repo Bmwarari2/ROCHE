@@ -461,3 +461,30 @@ export function runBlocked(
 ): boolean {
   return exceptions.some((e) => e.status === "open");
 }
+
+type JsonSpan = { readonly start: string; readonly end: string };
+type JsonEntry = Omit<PayEntry, "start" | "end" | "breaks" | "awake"> & {
+  readonly start: string;
+  readonly end: string;
+  readonly breaks: readonly JsonSpan[];
+  readonly awake: readonly JsonSpan[];
+};
+
+/**
+ * Rule 10: a line's stored canonical inputs back as `PayLineInput` (instants revived), so
+ * recalculating from what is stored reproduces the line exactly.
+ */
+export function payLineInputFromJson(json: unknown): PayLineInput {
+  const raw = json as Omit<PayLineInput, "entries"> & { readonly entries: readonly JsonEntry[] };
+  const span = (s: JsonSpan): Span => ({ start: new Date(s.start), end: new Date(s.end) });
+  return {
+    ...raw,
+    entries: raw.entries.map((e) => ({
+      ...e,
+      start: new Date(e.start),
+      end: new Date(e.end),
+      breaks: e.breaks.map(span),
+      awake: e.awake.map(span),
+    })),
+  };
+}

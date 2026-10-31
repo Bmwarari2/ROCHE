@@ -52,6 +52,7 @@ import { operatorMiddleware, operatorRouter } from "./routes/operator";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
+import { payRouter } from "./routes/pay";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -348,6 +349,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", agencyRouter);
   app.route("/", timeAttendanceRouter);
   app.route("/", absencesRouter);
+  app.route("/", payRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

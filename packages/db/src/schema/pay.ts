@@ -64,7 +64,7 @@ export const payRuleSet = pgTable(
     onCallFlatPence: integer("on_call_flat_pence").notNull().default(0),
     nightStartMinute: integer("night_start_minute"),
     nightEndMinute: integer("night_end_minute"),
-    bankHolidays: date("bank_holidays").array().notNull().default(sql`'{}'`),
+    extraBankHolidays: date("extra_bank_holidays").array().notNull().default(sql`'{}'`),
     overtimeAfterMinutes: integer("overtime_after_minutes"),
     rolledUpHoliday: boolean("rolled_up_holiday").notNull().default(false),
     status: text("status").notNull().default("draft"),
