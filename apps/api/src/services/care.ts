@@ -20,6 +20,7 @@ import {
   checkEntryTime,
   checkTaskLink,
   checkTaskTransition,
+  type EntryEvidence,
   entryPermissionTime,
   formatUkDateTime,
   hasClockDrift,
@@ -657,6 +658,8 @@ export async function planTaskLink(
      * handed-over entry, whose author is not this session.
      */
     stepUpFresh: boolean;
+    /** What the entry is (`isEvidenceFor`; #123 clinical review, M3). */
+    evidence?: EntryEvidence;
   },
 ): Promise<PlannedTaskLink> {
   const [row] = await tx
@@ -691,8 +694,13 @@ export async function planTaskLink(
       kind: row.kind,
       status: row.status as TaskStatus,
       evidenceId: row.evidenceId,
+      evidenceRequired: row.evidenceRequired,
     },
-    { personId: input.personId, mayComplete },
+    {
+      personId: input.personId,
+      mayComplete,
+      ...(input.evidence ? { evidence: input.evidence } : {}),
+    },
   );
   if (!check.ok) {
     throw new HttpProblem(422, `task_${check.problem}`, "The entry was not saved.", check.message);

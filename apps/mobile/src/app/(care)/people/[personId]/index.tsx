@@ -61,8 +61,8 @@ export default function PersonScreen() {
   const { data: evidence } = useQuery<{ count: number }>(TASK_EVIDENCE_SQL, evidenceParams);
   // Answered once an entry for it is saved here, and still after that entry uploads and its
   // synced copy no longer names the task (#123 clinical review, M1).
-  const taskAnswered =
-    askedTask !== null && (Number(evidence[0]?.count ?? 0) > 0 || roundTask?.answered === true);
+  const evidenceWaiting = askedTask !== null && Number(evidence[0]?.count ?? 0) > 0;
+  const taskAnswered = askedTask !== null && (evidenceWaiting || roundTask?.answered === true);
   const forTask = taskAnswered ? null : askedTask;
   const { person } = useCarePerson(id);
   // Recording is offered only where the user's care.note.write reaches the person, as the sync
@@ -130,9 +130,16 @@ export default function PersonScreen() {
                 <Card title={t("mobile.person.actions")}>
                   {askedTask && mayRecord ? (
                     <Text testID="person-for-task">
-                      {t(taskAnswered ? "mobile.person.forTaskRecorded" : "mobile.person.forTask", {
-                        title: roundTask?.title ?? "",
-                      })}
+                      {t(
+                        evidenceWaiting
+                          ? "mobile.person.forTaskRecorded"
+                          : taskAnswered
+                            ? "mobile.person.forTaskSent"
+                            : "mobile.person.forTask",
+                        {
+                          title: roundTask?.title ?? "",
+                        },
+                      )}
                     </Text>
                   ) : null}
                   {mayRecord ? (

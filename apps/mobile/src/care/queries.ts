@@ -1,3 +1,4 @@
+import { answeredStateSql } from "./answered-tasks";
 /**
  * Local SQLite queries for Care mode. They run against the PowerSync views on the device, so they
  * work with no network once synced. Every query is scoped to the signed-in tenant as a client-side
@@ -274,7 +275,8 @@ export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.locatio
   (SELECT COUNT(*) FROM upload_issue i
     WHERE (i.tenant_id = t.tenant_id OR i.tenant_id IS NULL) AND i.record_table <> 'task'
       AND CASE WHEN json_valid(i.payload) THEN json_extract(i.payload, '$.task_id') END = t.id)
-    AS evidence_refused
+    AS evidence_refused,
+  ${answeredStateSql("t.id")} AS answered_state
 FROM task t
 LEFT JOIN person p ON p.id = t.person_id AND p.tenant_id = t.tenant_id
 WHERE t.tenant_id = ? AND (t.status IN ('open', 'in_progress') OR t.queued_transition IS NOT NULL)
@@ -304,7 +306,9 @@ export const TASK_EVIDENCE_SQL = `SELECT
  * it, so a link cannot tag an entry to another person's round or a closed one, and the title shown
  * is the synced one, never words from the route (#123 security review, M2; HZ-029, HZ-004).
  */
-export const ROUND_TASK_FOR_PERSON_SQL = `SELECT id, title FROM task
+export const ROUND_TASK_FOR_PERSON_SQL = `SELECT id, title, kind, evidence_required,
+  ${answeredStateSql("task.id")} AS answered_state
+FROM task
 WHERE tenant_id = ? AND id = ? AND person_id = ?
   AND status IN ('open', 'in_progress') AND queued_transition IS NULL`;
 

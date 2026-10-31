@@ -57,15 +57,56 @@ export interface OfflineDaysMetaStore {
   execute(sql: string, params?: unknown[]): Promise<unknown>;
 }
 
-/** Keeps the days a new token carries in place of the last. */
-export async function writeCachedOfflineDays(
+/** The days a token carried, and when the phone fetched it (device clock, ms). */
+export interface PendingWindow {
+  readonly days: readonly string[];
+  readonly fetchedAt: number;
+}
+
+/**
+ * The days to record now: a token's days only once a sync that finished after the token was
+ * fetched has completed, so the phone never says it holds a window whose data has not arrived
+ * (#123 clinical review re-check, M2). Until then the previous window stays, with the last
+ * successful sync's time beside it.
+ */
+export function windowToCommit(
+  pending: PendingWindow | null,
+  lastSyncedAt: number | null,
+): readonly string[] | null {
+  if (!pending || lastSyncedAt === null) return null;
+  return lastSyncedAt >= pending.fetchedAt ? pending.days : null;
+}
+
+/**
+ * Records the window a completed sync used. When it cannot be kept, the old window is removed
+ * rather than left standing, so the round says it cannot tell which days it holds; a failure to
+ * remove it is logged by the row's name and the error's kind only. Never throws; true when kept.
+ */
+export async function commitOfflineDays(
   db: OfflineDaysMetaStore,
   days: readonly string[],
-): Promise<void> {
-  await db.execute("DELETE FROM sync_meta WHERE id = ?", [OFFLINE_DAYS_META_ID]);
-  await db.execute("INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)", [
-    OFFLINE_DAYS_META_ID,
-    OFFLINE_DAYS_META_KEY,
-    JSON.stringify(days),
-  ]);
+): Promise<boolean> {
+  try {
+    await db.execute("DELETE FROM sync_meta WHERE id = ?", [OFFLINE_DAYS_META_ID]);
+    await db.execute("INSERT INTO sync_meta (id, key, value) VALUES (?, ?, ?)", [
+      OFFLINE_DAYS_META_ID,
+      OFFLINE_DAYS_META_KEY,
+      JSON.stringify(days),
+    ]);
+    return true;
+  } catch (error) {
+    console.warn("offline window could not be kept", {
+      item: OFFLINE_DAYS_META_ID,
+      error: error instanceof Error ? error.name : "Error",
+    });
+    await db
+      .execute("DELETE FROM sync_meta WHERE id = ?", [OFFLINE_DAYS_META_ID])
+      .catch((again: unknown) =>
+        console.warn("offline window could not be removed", {
+          item: OFFLINE_DAYS_META_ID,
+          error: again instanceof Error ? again.name : "Error",
+        }),
+      );
+    return false;
+  }
 }

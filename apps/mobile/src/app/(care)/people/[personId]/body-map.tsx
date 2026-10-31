@@ -53,6 +53,7 @@ export default function BodyMapScreen() {
   const context = useEntryContext(
     id,
     !params.correct && typeof params.task === "string" ? params.task : null,
+    { table: "body_map_mark" },
   );
   const { submit, saving, saveFailed } = useSaveAndReturn();
 
