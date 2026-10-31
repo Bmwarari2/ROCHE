@@ -4747,7 +4747,7 @@ export interface paths {
     get?: never;
     /**
      * Record an item of the exit checklist as done, or not required with a reason
-     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand. 'Not required' needs a reason and is allowed only where the checklist allows it.
+     * @description Property and keys are counted from the inventory and the keys log, and statutory notifications from their drafts in the safety module, so those items cannot be ticked by hand, even before the draft exists. A statutory notification the safety module does not draft (a regulator outside England) is recorded only by a holder of safety.notification.submit, with step-up. Residents money, deposits and the DWP need finance.ledger.approve with step-up. 'Not required' needs a reason and is allowed only where the checklist allows it.
      */
     put: {
       parameters: {
@@ -22067,6 +22067,7 @@ export interface components {
         unitName: string | null;
         /** @enum {string} */
         status: "available" | "out_of_service" | "awaiting_clearance";
+        version: number;
         beds: {
           bed: number;
           occupied: boolean;

@@ -31,6 +31,7 @@ export type RecordTab =
   | "property"
   | "letters"
   | "family-updates"
+  | "leaving"
   | "sharing"
   | "history";
 
@@ -72,6 +73,7 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "property", needs: "people.person.read" },
   { tab: "letters", needs: "comms.letter.manage" },
   { tab: "family-updates", needs: "comms.feed.publish" },
+  { tab: "leaving", needs: "people.person.read" },
   // Sharing decisions and share links only for those who manage them (people.md section 3).
   { tab: "sharing", needs: "people.sharing.manage" },
   { tab: "history", needs: "people.person.read" },

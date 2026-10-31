@@ -323,6 +323,7 @@ const board: BedBoard = {
       label: "1",
       unitName: "Oak",
       status: "available",
+      version: 1,
       beds: [
         { bed: 1, occupied: true, personId: "someone", name: "Ada Example", since: "2026-09-01" },
       ],
@@ -332,6 +333,7 @@ const board: BedBoard = {
       label: "2",
       unitName: "Oak",
       status: "available",
+      version: 1,
       beds: [
         { bed: 1, occupied: false, personId: null, name: null, since: null },
         { bed: 2, occupied: true, personId: null, name: null, since: "2026-09-01" },
@@ -342,6 +344,7 @@ const board: BedBoard = {
       label: "3",
       unitName: "Oak",
       status: "awaiting_clearance",
+      version: 1,
       beds: [{ bed: 1, occupied: false, personId: null, name: null, since: null }],
     },
     {
@@ -349,6 +352,7 @@ const board: BedBoard = {
       label: "31",
       unitName: "Willow",
       status: "available",
+      version: 1,
       beds: [{ bed: 1, occupied: false, personId: null, name: null, since: null }],
     },
   ],

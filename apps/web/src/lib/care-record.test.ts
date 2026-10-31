@@ -37,7 +37,7 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000001";
 
 describe("record tabs", () => {
-  it("lists the eighteen sections in order, the overview first and history last", () => {
+  it("lists the nineteen sections in order, the overview first and history last", () => {
     expect(RECORD_TABS.map((d) => d.tab)).toEqual([
       "overview",
       "details",
@@ -58,6 +58,7 @@ describe("record tabs", () => {
       "property",
       "letters",
       "family-updates",
+      "leaving",
       "sharing",
       "history",
     ]);
@@ -84,6 +85,7 @@ describe("record tabs", () => {
       "pre-admission",
       "admission",
       "property",
+      "leaving",
       "history",
     ]);
     expect(visibleTabs(PERSON, []).length).toBe(0);
@@ -98,6 +100,7 @@ describe("record tabs", () => {
       "admission",
       "property",
       "letters",
+      "leaving",
       "history",
     ]);
     // Family updates only for those who publish them (comms.feed.publish).
@@ -111,6 +114,7 @@ describe("record tabs", () => {
       "admission",
       "property",
       "family-updates",
+      "leaving",
       "history",
     ]);
     // The hospital tab only for those who send people to hospital (people.movement.record).
@@ -124,6 +128,7 @@ describe("record tabs", () => {
       "pre-admission",
       "admission",
       "property",
+      "leaving",
       "history",
     ]);
     // Sharing decisions only for those who manage them (people.sharing.manage), never from reading.
@@ -136,6 +141,7 @@ describe("record tabs", () => {
       "pre-admission",
       "admission",
       "property",
+      "leaving",
       "sharing",
       "history",
     ]);

@@ -29,6 +29,7 @@ import {
   admissionCondition,
   admissionDecision,
   bedOccupancy,
+  exitRecord,
   location,
   person,
   placement,
@@ -63,8 +64,9 @@ import {
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { AuditedRefusal, withAuditedRefusal } from "../http/audit";
 import { permissionsReaching, requirePermission, withTenant } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
 import {
   currentPlacement,
@@ -102,6 +104,38 @@ import {
  * to admit, admission into a dated bed, bed moves and the bed board, room clearance after a death,
  * and the welcome checklist. Every rule is the domain's; reads and writes are audited by record id.
  */
+
+/** The flags whose return finance confirms (residents' money, deposits, the DWP). */
+const FINANCE_FLAGS = new Set(["holdsResidentsMoney", "holdsDeposit", "homeIsDwpAppointee"]);
+const PLAN_FLAGS = [
+  "holdsResidentsMoney",
+  "holdsDeposit",
+  "hasLoanEquipment",
+  "homeIsDwpAppointee",
+] as const;
+
+/** How the departure's flags differ from the planned exit's, if there is one. */
+async function plannedFlagChanges(
+  tx: Transaction,
+  personId: string,
+  details: { readonly [K in (typeof PLAN_FLAGS)[number]]?: boolean } | undefined,
+): Promise<{ readonly flag: string; readonly to: boolean }[]> {
+  const [planned] = await tx
+    .select()
+    .from(exitRecord)
+    .where(
+      and(
+        eq(exitRecord.personId, personId),
+        eq(exitRecord.state, "planned"),
+        isNull(exitRecord.deletedAt),
+      ),
+    );
+  if (!planned) return [];
+  return PLAN_FLAGS.filter((flag) => planned[flag] !== (details?.[flag] ?? false)).map((flag) => ({
+    flag,
+    to: details?.[flag] ?? false,
+  }));
+}
 
 const DecisionParams = PersonParam.extend({ decisionId: z.uuid() });
 const ConditionParams = DecisionParams.extend({ conditionId: z.uuid() });
@@ -491,45 +525,81 @@ export const peopleLifecycleRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
-      const result = await withTenant(c, async (tx) => {
-        const p = await loadPerson(tx, id, true);
-        requireVersion(p.version, body.version);
-        if (p.status === "pre_admission" && body.to === "active") {
-          throw problems.invalid("Record the admission with its placement and bed instead.");
-        }
-        const outcome = await changeStatus(
-          c,
-          tx,
-          p,
-          {
-            to: body.to,
-            effectiveAt: new Date(body.effectiveAt),
-            reason: body.reason ?? null,
-            ...(body.exitKind ? { exitKind: body.exitKind } : {}),
-            ...(body.exit ? { exit: body.exit } : {}),
-            ...(body.serviceId ? { serviceId: body.serviceId } : {}),
-            ...(body.placementTypeSought ? { placementTypeSought: body.placementTypeSought } : {}),
-          },
-          now,
-        );
-        await audit(c, tx, access, {
-          action: `people.person.status.${body.to}`,
-          resourceType: "person",
-          resourceId: id,
-          reason: body.reason,
-          scope: { from: p.status, to: body.to, event: outcome.check.event },
-        });
-        return {
-          personId: id,
-          status: outcome.person.status,
-          statusChangedAt: outcome.person.statusChangedAt.toISOString(),
-          event: outcome.check.event,
-          effects: [...outcome.check.effects],
-          correction: outcome.check.correction,
-          exitRecordId: outcome.exitRecordId,
-          version: outcome.person.version,
-        };
-      });
+      const result = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const p = await loadPerson(tx, id, true);
+          requireVersion(p.version, body.version);
+          if (p.status === "pre_admission" && body.to === "active") {
+            throw problems.invalid("Record the admission with its placement and bed instead.");
+          }
+          // A planned discharge or transfer that said the home holds the person's money, a deposit
+          // or is their DWP appointee: recording the departure without it would drop the return
+          // from the checklist, so only a finance approver with step-up clears it (people.md rule 12).
+          const flagChanges =
+            body.to === "discharged" ? await plannedFlagChanges(tx, id, body.exit) : [];
+          const cleared = flagChanges.filter((f) => f.to === false && FINANCE_FLAGS.has(f.flag));
+          if (cleared.length > 0) {
+            const reaching = new Set(await permissionsReaching(tx, access, id));
+            if (!reaching.has("finance.ledger.approve") || !access.stepUpFresh) {
+              throw new AuditedRefusal(
+                new HttpProblem(
+                  403,
+                  "finance_flag_change",
+                  "The departure was not recorded.",
+                  "The plan says the home holds the person's money, a deposit or is their DWP appointee. Keep it ticked, or ask a finance approver to change it with a fresh sign-in.",
+                ),
+                {
+                  action: "people.person.status.discharged",
+                  outcome: "denied",
+                  resourceType: "person",
+                  resourceId: id,
+                  reason: "finance_flag_change",
+                  scope: { cleared: cleared.map((f) => f.flag) },
+                },
+              );
+            }
+          }
+          const outcome = await changeStatus(
+            c,
+            tx,
+            p,
+            {
+              to: body.to,
+              effectiveAt: new Date(body.effectiveAt),
+              reason: body.reason ?? null,
+              ...(body.exitKind ? { exitKind: body.exitKind } : {}),
+              ...(body.exit ? { exit: body.exit } : {}),
+              ...(body.serviceId ? { serviceId: body.serviceId } : {}),
+              ...(body.placementTypeSought
+                ? { placementTypeSought: body.placementTypeSought }
+                : {}),
+            },
+            now,
+          );
+          await audit(c, tx, access, {
+            action: `people.person.status.${body.to}`,
+            resourceType: "person",
+            resourceId: id,
+            reason: body.reason,
+            scope: {
+              from: p.status,
+              to: body.to,
+              event: outcome.check.event,
+              ...(flagChanges.length > 0 ? { flagChanges } : {}),
+            },
+          });
+          return {
+            personId: id,
+            status: outcome.person.status,
+            statusChangedAt: outcome.person.statusChangedAt.toISOString(),
+            event: outcome.check.event,
+            effects: [...outcome.check.effects],
+            correction: outcome.check.correction,
+            exitRecordId: outcome.exitRecordId,
+            version: outcome.person.version,
+          };
+        }),
+      );
       return c.json(result, 200);
     },
   )
@@ -1398,6 +1468,7 @@ export const peopleLifecycleRouter = createRouter()
             label: r.label,
             unitName: r.unitName,
             status: r.status as "available" | "out_of_service" | "awaiting_clearance",
+            version: r.version,
             beds: Array.from({ length: r.beds }, (_, i) => {
               const period = onDate.find((p) => p.roomId === r.id && p.bed === i + 1);
               const name = period ? (names.get(period.personId) ?? null) : null;
