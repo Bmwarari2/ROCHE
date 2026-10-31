@@ -50,6 +50,10 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
   reactStrictMode: true,
+  // Organisation documents are uploaded through a server action (PLAT-009): its body limit matches
+  // the API's largest document category (25 MB) with room for the form; the API applies each
+  // category's own limit again and refuses anything larger.
+  experimental: { serverActions: { bodySizeLimit: "26mb" } },
   transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n", "@harbour/domain"],
   async headers() {
     return [

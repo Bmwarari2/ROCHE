@@ -129,6 +129,7 @@ export const RetentionCandidate = z
     createdAt: isoDateTime.optional(),
   })
   .meta({ id: "RetentionCandidate", description: "A document past retention with no legal hold" });
+export type RetentionCandidate = z.infer<typeof RetentionCandidate>;
 
 export const RetentionCandidateList = z
   .object({ items: z.array(RetentionCandidate) })
