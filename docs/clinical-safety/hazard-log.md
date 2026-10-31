@@ -698,6 +698,7 @@ Gaps in the IDs (HZ-030 to HZ-039, HZ-041 to HZ-049, HZ-052 to HZ-059 and HZ-062
 | `packages/ui/src/components/StatusChip/StatusChip.test.tsx`: `hazard HZ-007 shows not recorded as a warning with a question mark, never the clock of a due task`, `hazard HZ-007 links not recorded to the action that records it, with the words as the link text`; the `NotRecorded` and `NotRecordedWithAction` stories pass axe (`stories.a11y.test.tsx`) | Passing (Phase 1) |
 | `packages/domain/src/operations/downtime-pack.test.ts`: `hazard HZ-007 lists the most severe allergies first, with unknown severity among the severe`; `hazard HZ-021 missing safety-critical information reads not recorded, never blank` (allergies) | Passing (Phase 1, slice 11) |
 | `apps/api/test/downtime.test.ts`: `hazard HZ-007 prints each person's own current allergies only` (inactive, resolved, refuted, entered in error, deleted and another resident's never print; an unfamiliar status prints) | Passing (Phase 1, slice 11 part 3a-1) |
+| `packages/domain/src/platform/imports.test.ts`: `hazard HZ-007 imports a blank allergy status as unknown, never as no allergies` (the import wizard, PLAT-014, Phase 2 slice 9 rules; the wizard itself is slice 26) | Passing (Phase 2 slice 9) |
 
 ---
 
