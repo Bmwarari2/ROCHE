@@ -284,6 +284,11 @@ export const placement = pgTable(
     startDate: date("start_date").notNull(),
     endDate: date("end_date"),
     endReason: text("end_reason"),
+    /**
+     * Retired (H-716, expand and contract): the Phase 1 admission form's free-text category. No
+     * longer written; an existing value is shown read-only on the first-category screen
+     * (`GET /v1/people/{id}/dependency`) and the column is dropped by a later contract migration.
+     */
     dependencyCategory: text("dependency_category"),
     /** A trial placement's agreed end and the day its review was held (people.md rules 5 and 8). */
     trialEndsOn: date("trial_ends_on"),

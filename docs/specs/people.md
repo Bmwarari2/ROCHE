@@ -237,7 +237,11 @@ one applies). Figures come from `rate_table` by key, resolved with `resolvePeopl
     authority, a representative's consent or a best-interests decision) applies only while the
     current capacity finding, passed in at each check, says the person lacks capacity for it;
     without a finding capacity is presumed and the decision stays closed (`capacity_regained`).
-    Authorities need evidence and lapse at their end date. Every decision expires; withdrawn or
+    Authorities need evidence and lapse at their end date. Every decision expires, at most
+    `sharing.decision_max_months` after it starts and never after the end date of the authority
+    it rests on, and is renewed at review (`expiry_beyond_maximum`, `expiry_beyond_authority`;
+    recommended answer to H-38, 31/10/2026); decisions recorded before the limit keep their own
+    end date. Withdrawn or
     suspended (for example during a safeguarding enquiry) decisions close at once. Suspensions are
     stored as periods, and `decisionInForceAt` says whether a decision was in force and not
     suspended at an earlier instant, so the family feed keeps closed what happened during a
@@ -685,8 +689,11 @@ processor (records of processing B1). Property inventories, transfer packs, exit
 records and sharing decisions are `care_record` (8 years after care ends); the weekly break-glass
 report is `audit_event` ([retention.md](retention.md)). Sharing with family members uses consent
 only for optional processing (photos and updates, B8); sharing under a legal authority,
-best-interests decision or for direct care uses B1's basis, which the DPO confirms (human action
-H-38). The transfer pack is a disclosure to the hospital for direct care, audited with its
+best-interests decision rests on Article 6(1)(f) (6(1)(e) for a public body) with Article 9(2)(h)
+and DPA 2018 Schedule 1 paragraph 2, and for direct care on B1's basis (recommended answer to H-38,
+31/10/2026, for the DPO to verify against ICO guidance). Enquiries closed without an assessment are
+kept 12 months and pre-admission records of people never admitted 3 years from the decision not to
+admit (`enquiry_not_assessed`, `pre_admission_not_admitted`; H-39). The transfer pack is a disclosure to the hospital for direct care, audited with its
 recipient. Death and discharge notifications to CQC and the medical examiner are legal
 obligations (B7). Nothing about a person is shared by a share link except About Me, and links
 carry a token whose hash only is stored.
@@ -714,9 +721,6 @@ carry a token whose hash only is stored.
   `la_review.*`, so the scheduler fails loudly for those nations until the nation packs (Phase 7).
 - Tenant defaults to confirm: the family involvement interval, the break-glass repeat threshold
   and the money and property return period (H-58).
-- Retention of enquiries and pre-admission records for people never admitted (H-39).
-- The lawful basis for sharing under a legal authority or best-interests decision (H-38) and
-  whether every sharing decision should have a maximum length.
 - The care module's advance care record needs a positive "no resuscitation decision in place"
   statement (who checked, when) for the pack; until then the pack shows "not recorded".
 - Whether the weekly report should also flag repeated use across consecutive weeks.

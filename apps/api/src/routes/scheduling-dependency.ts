@@ -20,6 +20,7 @@ import {
   dependencyScaleVersion,
   location,
   person,
+  placement,
   type Transaction,
 } from "@harbour/db";
 import {
@@ -48,7 +49,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, max } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -907,7 +908,7 @@ export const schedulingDependencyRouter = createRouter()
       tags: ["care"],
       summary: "A person's dependency categories",
       description:
-        "Every record, newest first, with the one in force now and the corrected ones marked. A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.",
+        "Every record, newest first, with the one in force now and the corrected ones marked. Before the first record, the retired free-text category from the admission form, if any, is shown read-only (`admissionFormCategory`; never prefilled, H-716). A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.",
       security,
       request: { params: IdParam },
       responses: {
@@ -923,6 +924,22 @@ export const schedulingDependencyRouter = createRouter()
         const [found] = await tx.select({ id: person.id }).from(person).where(eq(person.id, id));
         if (!found) return null;
         const { items, currentId } = await personRecords(tx, id, new Date());
+        // The retired admission-form text (H-716), for whoever records the first category only.
+        const [legacy] =
+          currentId === null
+            ? await tx
+                .select({ category: placement.dependencyCategory })
+                .from(placement)
+                .where(
+                  and(
+                    eq(placement.personId, id),
+                    isNotNull(placement.dependencyCategory),
+                    isNull(placement.deletedAt),
+                  ),
+                )
+                .orderBy(desc(placement.startDate), desc(placement.createdAt))
+                .limit(1)
+            : [];
         await audit(c, tx, access, {
           action: A.viewed,
           resourceType: "person",
@@ -934,6 +951,7 @@ export const schedulingDependencyRouter = createRouter()
           currentId,
           items,
           notice: DEPENDENCY_TOOL_NOTICE,
+          admissionFormCategory: legacy?.category ?? null,
         };
       });
       if (!result) throw problems.notFound();

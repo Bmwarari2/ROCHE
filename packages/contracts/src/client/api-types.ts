@@ -933,6 +933,272 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/members/{tenantUserId}/suspend": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Suspend a member of staff
+     * @description platform.user.manage with step-up and a coded reason (H-566). The membership becomes suspended: the member can no longer use this organisation, and their open invitations end. When their Care mode devices last reported entries waiting, it needs confirmEntriesWaiting (409 entries_waiting otherwise); the holds on those devices then fall due at once so the entries are handed over. Every session of the member's sign-in ends unless they also work for another organisation in Harbour or the sign-in is a Harbour operator's (sessionsEnded 0: this organisation refuses them anyway). A suspended member suspended again changes nothing (replay). A location role reaches only members wholly at its homes; anyone else reads as not found. Never the manager's own membership (409 own_membership), nor one that has ended (409 membership_ended). Audited (platform.member.suspended, with the reason code), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeMembership"];
+        };
+      };
+      responses: {
+        /** @description Suspended (or already suspended) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MembershipChangeResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * End a suspended member's membership
+     * @description platform.user.manage with step-up and a coded reason (H-566). Only a suspended membership ends (409 suspend_first otherwise), so access and devices are dealt with first. The member row, display name and job title stay, so care records stay attributable (Regulation 17); the staff file follows its retention class. An ended membership ended again changes nothing (replay). Erase the sign-in next with POST /v1/members/{tenantUserId}/sign-in/erase. Same reach and refusals as suspending. Audited (platform.member.ended), refusals too.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeMembership"];
+        };
+      };
+      responses: {
+        /** @description Ended (or already ended) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MembershipChangeResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{tenantUserId}/sign-in/erase": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Erase an ended member's sign-in
+     * @description platform.user.manage with step-up (H-566). Only for an ended membership (409 membership_not_ended otherwise), and only when the sign-in has no active membership in any other organisation and is not a Harbour operator's (409 sign_in_in_use: kept, since it is theirs to use elsewhere). Deletes the sign-in identity: the email address, password hash, passkeys, TOTP secret and every session. The member row stays, unlinked, with its display name and job title, so care records stay attributable. An open account deletion request for the member closes as done. Audited before the identity goes (platform.member.sign_in_erased; the request's closure platform.account_deletion.completed), by opaque id only. A sign-in already erased changes nothing (erased false). Same reach and refusals as suspending.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantUserId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Erased (or already erased) */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EraseSignInResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/people": {
     parameters: {
       query?: never;
@@ -5310,7 +5576,7 @@ export interface paths {
     put?: never;
     /**
      * Record a decision to share sections with one recipient (HZ-022)
-     * @description checkSharingDecision: known sections, an expiry, and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.
+     * @description checkSharingDecision: known sections, an expiry no later than `sharing.decision_max_months` after the start and the end of any authority relied on (H-38), and a valid basis: the person's consent (unless assessed as lacking capacity for it), consent by an attorney or deputy whose authority covers the sections, a legal authority held by the recipient with evidence, a best-interests decision, or direct care for professionals and clinical sections only. The authority must be held by the contact named (a deputy within their deputyship and the sections their order covers; an appointee benefits only); a reference, evidence or end date left out is taken from the contact. A capacity finding names an assessment of the sharing decision. Publishes people.sharing.changed.
      */
     post: {
       parameters: {
@@ -29015,7 +29281,7 @@ export interface paths {
     };
     /**
      * A person's dependency categories
-     * @description Every record, newest first, with the one in force now and the corrected ones marked. A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.
+     * @description Every record, newest first, with the one in force now and the corrected ones marked. Before the first record, the retired free-text category from the admission form, if any, is shown read-only (`admissionFormCategory`; never prefilled, H-716). A care record: care.dependency.assess or care.plan.read in the person's scope. The view is audited.
      */
     get: {
       parameters: {
@@ -29541,6 +29807,32 @@ export interface components {
         | "other";
       confirmEntriesWaiting?: boolean;
     };
+    MembershipChangeResult: {
+      /** Format: uuid */
+      tenantUserId: string;
+      /** @enum {string} */
+      state: "suspended" | "left";
+      replay: boolean;
+      sessionsEnded: number;
+      entriesWaiting: number;
+    };
+    ChangeMembership: {
+      /** @enum {string} */
+      reasonCode:
+        | "staff_left"
+        | "account_deletion_request"
+        | "investigation"
+        | "safeguarding_concern"
+        | "long_absence"
+        | "other";
+      confirmEntriesWaiting?: boolean;
+    };
+    EraseSignInResult: {
+      /** Format: uuid */
+      tenantUserId: string;
+      erased: boolean;
+      deletionRequestClosed: boolean;
+    };
     PersonList: {
       items: components["schemas"]["PersonSummary"][];
       nextCursor: string | null;
@@ -30049,7 +30341,6 @@ export interface components {
       localAuthorityFunded: boolean;
       /** @default false */
       nhsFunded: boolean;
-      dependencyCategory?: string;
       /** Format: uuid */
       roomId?: string;
       /** @default 1 */
@@ -37721,6 +38012,7 @@ export interface components {
       currentId: string | null;
       items: components["schemas"]["DependencyRecordItem"][];
       notice: string;
+      admissionFormCategory: string | null;
     };
     DependencyRecordItem: {
       /** Format: uuid */

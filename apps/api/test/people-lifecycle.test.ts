@@ -510,11 +510,23 @@ describe("people.md rules 1, 2, 4 and 5: from enquiry to admission", () => {
     expect(met.status).toBe(200);
     const admitted = await as("manager", `/v1/people/${NEWCOMER}/admission`, {
       method: "POST",
-      body: { ...admit, version: (await summary(NEWCOMER, "owner")).version },
+      // An older client still sending the retired free-text category (H-716): it is dropped.
+      body: {
+        ...admit,
+        dependencyCategory: "B",
+        version: (await summary(NEWCOMER, "owner")).version,
+      },
     });
     expect(admitted.status).toBe(201);
     const result = await json<AdmissionResult>(admitted);
     expect(result.status).toBe("active");
+    const stored = await asDemoTenant((c) =>
+      c.query<{ dependency_category: string | null }>(
+        "SELECT dependency_category FROM placement WHERE person_id = $1",
+        [NEWCOMER],
+      ),
+    );
+    expect(stored.rows.map((r) => r.dependency_category)).toEqual([null]);
     expect(result.bed).toMatchObject({ roomId: roomId(7), bed: 1, from: today() });
     expect(result.placement.admissionDecisionId).toBe(decision.id);
     // Safety-critical welcome items come first and are outstanding.
@@ -2075,6 +2087,36 @@ describe("people.md rule 13 on the slice 12 sharing rules (HZ-022)", () => {
       },
     });
     expect(wrongHolder.status).toBe(422);
+  });
+
+  it("hazard HZ-022 refuses a sharing decision longer than the rate table allows (H-38)", async () => {
+    const who = await newResident("Jem");
+    const daughter = await addContact(who, "next_of_kin", null);
+    const months = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ value: string }>(
+        "SELECT value FROM rate_table WHERE key = 'sharing.decision_max_months' AND tenant_id IS NULL",
+      );
+      return Number(rows[0]?.value);
+    });
+    expect(months).toBeGreaterThan(0);
+    const body = (until: Date) => ({
+      recipient: { kind: "family", contactId: daughter },
+      sections: ["daily_updates"],
+      basis: "consent",
+      consentGivenBy: "person",
+      validTo: until.toISOString(),
+    });
+    const tooLong = new Date();
+    tooLong.setUTCMonth(tooLong.getUTCMonth() + months);
+    tooLong.setUTCDate(tooLong.getUTCDate() + 2);
+    const refused = await as("manager", sharing(who), { method: "POST", body: body(tooLong) });
+    expect(refused.status).toBe(422);
+    expect(JSON.stringify(await refused.json())).toContain("maximum period");
+    const created = await as("manager", sharing(who), {
+      method: "POST",
+      body: body(new Date(Date.now() + 30 * DAY)),
+    });
+    expect(created.status).toBe(201);
   });
 
   it("hazard HZ-022 lets a deputy see only what their order covers, and only while the person lacks capacity now", async () => {

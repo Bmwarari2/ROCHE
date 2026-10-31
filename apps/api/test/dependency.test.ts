@@ -351,6 +351,24 @@ describe("hazard HZ-123 a person's dependency category", () => {
   it("hazard HZ-011 finds no other organisation's person", async () => {
     expect((await as("owner", `/v1/people/${OTHER.personId}/dependency`)).status).toBe(404);
   });
+
+  it("shows the retired admission-form category read-only before the first record only (H-716)", async () => {
+    const CARA = resident(4);
+    await sql("UPDATE placement SET dependency_category = 'Band B' WHERE person_id = ANY($1)", [
+      [ADA, CARA],
+    ]);
+    const before = (await (await as("manager", `/v1/people/${CARA}/dependency`)).json()) as {
+      currentId: string | null;
+      items: unknown[];
+      admissionFormCategory: string | null;
+    };
+    expect(before).toMatchObject({ currentId: null, items: [], admissionFormCategory: "Band B" });
+    // Ada already has categories: the free text is never shown beside them, nor prefilled.
+    const after = (await (await as("manager", `/v1/people/${ADA}/dependency`)).json()) as {
+      admissionFormCategory: string | null;
+    };
+    expect(after.admissionFormCategory).toBeNull();
+  });
 });
 
 describe("hazard HZ-123 required care hours for a location and shift", () => {

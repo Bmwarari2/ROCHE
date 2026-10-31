@@ -1,3 +1,4 @@
+import { addUkMonths, ukEndOfDay } from "../shared/time";
 import { ukIsoDate } from "../shared/working-days";
 import { isCalendarDate } from "./dates";
 import { LIVE_PERSON_STATUSES, type PersonStatus } from "./lifecycle";
@@ -8,8 +9,9 @@ import { LIVE_PERSON_STATUSES, type PersonStatus } from "./lifecycle";
  * family members, representatives, external professionals and share links until a recorded
  * sharing decision covers that section for that recipient, rests on a valid basis (the person's
  * consent, a legal authority, a best-interests decision, or direct care for professionals), and
- * is in force: started, not expired, not withdrawn or suspended. Every decision expires. Sharing
- * closes when the person leaves the service or dies.
+ * is in force: started, not expired, not withdrawn or suspended. Every decision expires, at most
+ * `sharing.decision_max_months` after it starts and never after the authority it rests on ends,
+ * and is renewed at review (H-38). Sharing closes when the person leaves the service or dies.
  */
 
 export const SHARING_SECTIONS = [
@@ -130,6 +132,8 @@ export type SharingDecisionProblem =
   | "care_plan_domains_without_care_plan"
   | "expiry_before_start"
   | "expiry_in_past"
+  | "expiry_beyond_maximum"
+  | "expiry_beyond_authority"
   | "person_record_not_live"
   | "consent_giver_required"
   | "person_lacks_capacity"
@@ -244,12 +248,28 @@ function structuralProblems(decision: SharingDecision): SharingDecisionProblem[]
   return problems;
 }
 
-function authorityLapsed(decision: SharingDecision, now: Date): boolean {
-  const usesAuthority =
+function usesAuthority(decision: Pick<SharingDecision, "basis" | "consentGivenBy">): boolean {
+  return (
     decision.basis === "legal_authority" ||
-    (decision.basis === "consent" && decision.consentGivenBy === "authority_holder");
+    (decision.basis === "consent" && decision.consentGivenBy === "authority_holder")
+  );
+}
+
+function authorityLapsed(decision: SharingDecision, now: Date): boolean {
   const until = decision.authority?.validUntil ?? null;
-  return usesAuthority && until !== null && (!isCalendarDate(until) || until < ukIsoDate(now));
+  return (
+    usesAuthority(decision) && until !== null && (!isCalendarDate(until) || until < ukIsoDate(now))
+  );
+}
+
+/**
+ * Whether the decision would outlast the authority it rests on: it may run to the end of the
+ * authority's last day (UK time), never beyond (H-38).
+ */
+function outlastsAuthority(decision: SharingDecision): boolean {
+  const until = decision.authority?.validUntil ?? null;
+  if (!usesAuthority(decision) || until === null || !isCalendarDate(until)) return false;
+  return decision.validTo.getTime() > ukEndOfDay(until).getTime();
 }
 
 /**
@@ -279,15 +299,28 @@ export type SharingDecisionCheck =
   | { readonly ok: true }
   | { readonly ok: false; readonly problems: readonly SharingDecisionProblem[] };
 
-/** Checks a sharing decision before it is recorded. */
+/**
+ * Checks a sharing decision before it is recorded. `maxMonths` is the rate table's
+ * `sharing.decision_max_months`: a decision ends no later than that many calendar months after it
+ * starts (UK wall clock), and no later than the end of the authority it rests on, so it is renewed
+ * at review rather than left open (H-38; HZ-022). Decisions recorded before the limit keep their
+ * own end date.
+ */
 export function checkSharingDecision(
   decision: SharingDecision,
-  context: { readonly personStatus: PersonStatus; readonly now: Date },
+  context: { readonly personStatus: PersonStatus; readonly now: Date; readonly maxMonths: number },
 ): SharingDecisionCheck {
+  if (!Number.isInteger(context.maxMonths) || context.maxMonths < 1) {
+    throw new RangeError("The longest a sharing decision may last is a whole number of months.");
+  }
   const problems = structuralProblems(decision);
   if (decision.validTo.getTime() <= context.now.getTime()) problems.push("expiry_in_past");
+  if (decision.validTo.getTime() > addUkMonths(decision.validFrom, context.maxMonths).getTime()) {
+    problems.push("expiry_beyond_maximum");
+  }
   if (!LIVE_PERSON_STATUSES.includes(context.personStatus)) problems.push("person_record_not_live");
   if (authorityLapsed(decision, context.now)) problems.push("authority_expired");
+  else if (outlastsAuthority(decision)) problems.push("expiry_beyond_authority");
   return problems.length === 0 ? { ok: true } : { ok: false, problems };
 }
 
@@ -512,10 +545,7 @@ function holderProblems(
   before: AuthorityHolder | null,
 ): AuthorityChange[] {
   const authority = decision.authority;
-  const usesAuthority =
-    decision.basis === "legal_authority" ||
-    (decision.basis === "consent" && decision.consentGivenBy === "authority_holder");
-  if (!usesAuthority || !authority || authority.contactId !== holderId) return [];
+  if (!usesAuthority(decision) || !authority || authority.contactId !== holderId) return [];
   if (holder.removed) return ["holder_removed"];
   const changes: AuthorityChange[] = [];
   if (holder.role !== AUTHORITY_CONTACT_ROLES[authority.role]) changes.push("role_changed");

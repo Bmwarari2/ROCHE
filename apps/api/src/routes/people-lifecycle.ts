@@ -1196,7 +1196,8 @@ export const peopleLifecycleRouter = createRouter()
             trialEndsOn: body.trialEndsOn ?? decision?.trialEndsOn ?? null,
             localAuthorityFunded: body.localAuthorityFunded,
             nhsFunded: body.nhsFunded,
-            dependencyCategory: body.dependencyCategory ?? null,
+            // The free-text dependency category is retired (H-716): structured categories are
+            // recorded with the dependency tool, never prefilled from free text.
             admissionDecisionId: current?.id ?? null,
           })
           .returning();

@@ -23,6 +23,8 @@ import { document, location, tenantUser } from "./platform";
  * Local Government and Social Care Ombudsman. A compliment never runs a clock and may be tagged
  * with the quality statements it is evidence for (the evidence library, slice 14, links from it).
  * Reading and writing need `safety.complaint.manage` where the record is (migration 0080).
+ * Processing purpose B14, complaints and compliments (records of processing; H-700): complaints
+ * Art 6(1)(c) under Regulation 16, compliments Art 6(1)(f). Retention class `complaint`.
  */
 
 export const COMPLAINT_STATES = [

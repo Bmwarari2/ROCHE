@@ -371,8 +371,8 @@ export async function seedDemoTenant(ownerPool: pg.Pool): Promise<{ created: boo
           );
         }
         await client.query(
-          `INSERT INTO placement (person_id, service_id, room_id, type, start_date, dependency_category)
-           VALUES ($1, $2, $3, 'permanent', '2026-09-01', 'B')`,
+          `INSERT INTO placement (person_id, service_id, room_id, type, start_date)
+           VALUES ($1, $2, $3, 'permanent', '2026-09-01')`,
           [
             personId,
             p.n % 2 === 0 ? DEMO.residentialServiceId : DEMO.nursingServiceId,

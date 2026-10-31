@@ -51,7 +51,7 @@ allows (ADR-0002, ADR-0061).
 | `feed_view` | append-only | item, person, contact, decision, section, care plan domain, person status, capacity for sharing, viewed at (the exposure history, rule 4) | `audit_event.care_record` |
 | `family_portal_user` | mutable | tenant user, contact (the link a family session is resolved from; ADR-0061) | `care_record` (with the contact) |
 | `family_channel` | mutable, versioned | contact, kind (`email`, `sms`, `push`), address (email, E.164 number or push token), verified at, updates on, opted out at and how, suspended at and why | `care_record` (with the contact); push tokens deleted at sign-out |
-| `family_notification` | mutable | contact, person, notification id, status (`planned`, `held`, `sent`, `failed`, `cancelled`), deliver at, the feed items it covers (ids), template key and version per channel; deliveries use the platform's `notification_delivery` | follows the record it relates to (`care_record`); shorter period for the DPO to set (H-106) |
+| `family_notification` | mutable | contact, person, notification id, status (`planned`, `held`, `sent`, `failed`, `cancelled`), deliver at, the feed items it covers (ids), template key and version per channel; deliveries use the platform's `notification_delivery` | `family_notification_delivery`: 12 months from sending; an opt-out stays with the contact while the address is held (H-106) |
 | `family_notification_setting` | mutable | contact, own quiet hours (start and end, UK time) | `care_record` (with the contact) |
 | `visit_booking` | mutable, versioned | person, contact, start, end, status (`confirmed`, `cancelled`), sequence (for the calendar file), cancelled by and reason, review flag (rule 17) | `care_record` |
 | `visit_booking_setting` | mutable, versioned | location, online booking hours (start and end minute, UK time), visits at once | tenant configuration |
@@ -525,8 +525,10 @@ Notifications carry no clinical content
 ## 8. Data protection and data standards
 
 The tenant is the controller and Thapsus the processor. Updates and photos shared with family are
-optional processing under consent (records of processing B8), or under the basis of a legal
-authority or best-interests decision (H-38, H-106); the care record itself never rests on consent.
+optional processing under consent (records of processing B8), or, under a best-interests decision
+or a legal authority, on Article 6(1)(f) (6(1)(e) for a public body) with Article 9(2)(h) and DPA
+2018 Schedule 1 paragraph 2 (recommended answers to H-38 and H-106, 31/10/2026); the care record
+itself never rests on consent.
 Contacting family members about updates they asked for is B2 and B8; the exposure history is B5.
 Retention classes as in section 2 and [retention.md](retention.md): withdrawing photo consent takes
 photo updates down at once, while the feed items and the photo documents stay in the care record
@@ -599,8 +601,9 @@ Field mapping: [data-standards.md](data-standards.md#packs-and-governance-phase-
 - Starter templates (admission, fee review, incident follow-up, duty of candour) need wording
   reviewed by the provider's adviser; Harbour ships the fields, not legal wording.
 - Welsh-language versions of a template (Phase 7) will be a second body per version.
-- The lawful basis for sharing photos and updates under a best-interests decision or a legal
-  authority (H-38, H-106) and the photo consent wording (H-106).
+- The DPO reviews at the testing phase the photo consent wording (approved as built, including
+  that copies a family member has saved cannot be recalled), the basis for sharing under a
+  best-interests decision or a legal authority, and the 12-month delivery log period (H-38, H-106).
 - The care plan sections announced in the feed, the paused-feed wording, the event and wellbeing
   word lists and the confirmation and hold rules (H-110).
 - The nominated visitor during visiting restrictions (Regulation 9A policy, H-111).

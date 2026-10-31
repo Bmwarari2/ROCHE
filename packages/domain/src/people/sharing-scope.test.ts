@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readRateTable } from "../../test/rate-table";
+import { resolveRate } from "../platform/rates";
 import type { PersonStatus } from "./lifecycle";
 import {
   type CapacityForSharing,
@@ -26,6 +28,9 @@ const FROM = new Date("2026-10-01T00:00:00Z");
 const TO = new Date("2027-04-01T00:00:00Z");
 const BEN: SharingRecipient = { kind: "family", contactId: "contact-ben" };
 const LINK: SharingRecipient = { kind: "link", linkId: "link-1" };
+const MAX_MONTHS = Number(
+  resolveRate(readRateTable(), "sharing.decision_max_months", "england", "2026-10-11", null).value,
+);
 
 function decision(overrides: Partial<SharingDecision> = {}): SharingDecision {
   return {
@@ -59,7 +64,7 @@ function authority(
 }
 
 describe("hazard HZ-022 authorities cover only what the law gives them", () => {
-  const ok = { personStatus: "active" as PersonStatus, now: NOW };
+  const ok = { personStatus: "active" as PersonStatus, now: NOW, maxMonths: MAX_MONTHS };
   const byAuthority = (overrides: Partial<SharingDecision>) =>
     decision({ basis: "legal_authority", consentGivenBy: null, ...overrides });
 

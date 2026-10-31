@@ -284,6 +284,26 @@ shows it; upload and remove a logo; axe in light and dark).
   sign in again and that unsent entries stay on it until then; HZ-006, HZ-110); for `staff_left`
   or `suspended`, the holds on those devices fall due at once and the manager is told, as after a
   device revocation (`hurryRevokedHold`).
+- Suspending and ending a membership, and erasing the sign-in (recommended answer to H-566,
+  31/10/2026; `checkMembershipChange` in `packages/domain/src/platform/membership.ts`,
+  `apps/api/src/routes/member-lifecycle.ts`). Each needs `platform.user.manage` with step-up,
+  reaches only the members the admin sign-out reaches (anyone else reads as not found), never the
+  manager's own membership (409 `own_membership`), and is audited by opaque id and code, refusals
+  too. `POST /v1/members/{tenantUserId}/suspend` (a coded reason, `MEMBERSHIP_CHANGE_REASONS`)
+  makes the membership `suspended`: the tenant middleware admits active memberships only, so access
+  ends at once and open invitations end; with entries waiting on the member's devices it needs
+  `confirmEntriesWaiting`, and the holds fall due at once so the entries are handed over; every
+  session of the sign-in ends unless the person has an active membership elsewhere (audited
+  `platform.member.suspended` before the sessions end). `POST .../end` ends only a suspended
+  membership (409 `suspend_first`), keeping the member row, display name and job title so care
+  records stay attributable (Regulation 17). `POST .../sign-in/erase` erases the sign-in identity
+  of an ended membership (409 `membership_not_ended`) once it has no active membership in any other
+  organisation and is not a Harbour operator's (409 `sign_in_in_use`): the auth user with its
+  email, password hash, passkeys, TOTP secret and backup codes, sessions and verification tokens,
+  in one transaction of the auth role, audited (`platform.member.sign_in_erased`) before it goes;
+  the member row is then unlinked and an open account deletion request task closes as done
+  (`platform.account_deletion.completed`, with the outcome). Retries change nothing. The web
+  screens for these routes are a follow-up.
 - Later: SSO (PLAT-005, Phase 2; rules in [Phase 2: data rights, imports and single sign-on](#phase-2-data-rights-imports-and-single-sign-on-plat-022-plat-014-plat-005)). Invitations and MFA enrolment: the next section.
 
 ## Invitations and MFA enrolment (PLAT-004)
@@ -992,8 +1012,12 @@ Act 2025; ICO guidance on time limits):
 7. Every breach is recorded, reportable or not (Art 33(5)). The assessment is decision support only:
    it suggests a severity from the factors in breach-response.md section 4 (special category or
    safeguarding data, the location of a person at risk, how many people, whether they can be
-   identified, consequences, vulnerability, containment) and says what to consider. It never
-   decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
+   identified, consequences, vulnerability, containment) and says what to consider. An
+   identifiable disclosure outside the organisation about anyone receiving care suggests at least
+   medium (consider reporting to the ICO), even for one person with no special category data,
+   because the ICO's breach guidance treats the vulnerability of the people affected as raising the
+   risk and receiving care itself reveals health; several people, or special category data, make
+   it high (recommended answer to H-611, 31/10/2026). It never decides. The decision (report to the ICO or not; tell individuals or not) is a person's, with
    written reasoning of at least `BREACH_REASONING_MIN` characters; deciding not to report a breach
    suggested as medium or above, or not to tell individuals when the risk is suggested high, needs
    an explicit acknowledgement that the suggestion was considered.
@@ -1222,8 +1246,12 @@ slice 15, which also uses it). Row-level security counts the permission through 
 (`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:
 grant it through a role.
 
-**Retention**: interim `audit_event` (8 years from creation) for all four tables until the DPO sets
-periods (H-670; retention.md already lists them as open).
+**Retention** (recommended answer to H-670, 31/10/2026, for the DPO to review at testing):
+`dp_breach`, `processor_breach_notice` and `processor_breach_notice_ack` are kept 6 years from
+closure of the breach (`dp_breach`; Limitation Act 1980 ss.2 and 5); `dp_complaint` follows
+`data_rights_case`, 3 years from closure. Only a legal hold while an ICO case or claim is open
+extends either. The export catalogue carries the class per table, which the DSAR workbench's
+erasure assessment reads.
 
 **Tests**
 

@@ -245,9 +245,12 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    starts after it); the band is decided by age on that day (`nmw.age.*`); the apprentice rate
    applies to an apprentice under `nmw.apprentice.age_limit`, or older and within
    `nmw.apprentice.first_year_months` of starting. Pay that counts (`nmwPayFromGross`): basic
-   pay and the sleep-in allowance, less overtime and shift premiums above the basic rate, less
-   deductions for the employer's own use (a uniform the worker pays for); mileage (an expense)
-   and an on-call allowance for time at home never count. Accommodation: free accommodation adds
+   pay, less overtime and shift premiums above the basic rate, less deductions for the employer's
+   own use (a uniform the worker pays for); mileage (an expense) and an on-call allowance for time
+   at home never count. The flat sleep-in allowance does not count either until an employment
+   adviser confirms against the National Minimum Wage Regulations 2015 reg 10 and HMRC's NMW
+   Manual that it does, because an allowance not consolidated into basic pay may not count, so the
+   check errs towards flagging an underpayment (recommended answer to H-585, 31/10/2026). Accommodation: free accommodation adds
    `nmw.accommodation_offset.daily` for each day; a charge up to the offset changes nothing; a
    charge above it takes the excess off. Hours that count: `nmwMinutesIn` over the period (visits,
    travel between them, a sleep-in's awake times when sleep is expected with suitable facilities,
@@ -293,8 +296,11 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    industrial action, or a mix of those. Otherwise, or in a substantively different role, the clock
    resets: a sickness break longer than its limit resets it, and so does a long break that is only
    partly for a covered reason. Pregnancy, maternity, adoption and paternity leave within the
-   assignment's original or likely length counts as weeks worked (reg 7(6)). Jury service (up to
-   28 weeks) is not modelled yet: record it as a covered break until slice 27 adds it.
+   assignment's originally intended or likely length, whichever is longer, counts as weeks worked
+   (reg 7(6); verify). Jury service (up to 28 weeks) is not modelled yet: record it as a pause (a
+   covered break) until slice 27 adds it (H-585). SSP for a spell in which the qualifying days
+   change from week to week is split by slice 36 into weeks beginning Sunday, each with its own
+   qualifying-day count (SSCBA 1992 s.157(3); rule 4; H-585).
 7. **Auto-enrolment flags** (`auto-enrolment.ts`; Pensions Act 2008 ss 1 and 3). For a pay
    reference period of a week or a month: eligible jobholder (aged
    `auto_enrolment.eligible_min_age` and under state pension age, earnings over the period's
@@ -423,10 +429,11 @@ processing. Retention: `rota_and_timesheet` (6 years), `working_time_record` (2 
   workers (rule 9); sleep-ins and home-to-first-visit travel as working time (rules 10, 11); the
   night average's C (rule 8); notice counting (rule 3).
 - Each tenant records its working-time arrangements before relying on the checks (H-581).
-- Pay: the Bradford window is a tenant default (H-583); the remaining pay readings, SSP when the
-  qualifying days change from week to week, which protected-leave weeks the AWR clock deems worked,
-  and the minimum wage treatment of the sleep-in and on-call allowances, are for the adviser
-  (H-585, with H-529). The family pay rates (H-582) and the auto-enrolment thresholds (H-584) were
+- Pay: the Bradford window is a tenant default (H-583). The remaining pay readings took their
+  recommended answers on 31/10/2026 for review at testing (H-585): SSP is split into weeks
+  beginning Sunday (slice 36), the AWR clock deems protected leave worked for the longer of the
+  intended or likely length with jury service a pause, and neither the sleep-in flat allowance nor
+  the on-call allowance counts as minimum wage pay until the adviser confirms otherwise (H-529). The family pay rates (H-582) and the auto-enrolment thresholds (H-584) were
   verified on 31 October 2026.
 - The pay decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0086 to
   ADR-0088, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-518,
@@ -676,5 +683,8 @@ audited. Outbox: `scheduling.dependency_scale_approved` (scale, version, locatio
   role data migration for the two new permissions and the sample-data removal list).
 - API: `apps/api/src/routes/scheduling-dependency.ts`; contracts in
   `packages/contracts/src/scheduling.ts`.
-- The placement's free-text `dependency_category` (Phase 1 admission form) is left as it is and is
-  not read by the requirement; whether to retire it is H-716.
+- The placement's free-text `dependency_category` (Phase 1 admission form) is retired (recommended
+  answer to H-716, 31/10/2026): the admission route no longer accepts or writes it, and
+  `GET /v1/people/{id}/dependency` shows an existing value read-only (`admissionFormCategory`)
+  until the first structured category is recorded, never prefilling it. It is not read by the
+  requirement. The column is dropped by a contract migration once no supported client sends it.

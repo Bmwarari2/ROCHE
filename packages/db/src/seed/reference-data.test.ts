@@ -203,4 +203,29 @@ describe("the real documents", () => {
       expect(classes).toContain(required);
     }
   });
+
+  // Recommended answers applied 31/10/2026 (H-39, H-106, H-525, H-670): each class counts from
+  // the right event, and every period not set by a statute says so for the DPO to verify.
+  it.each([
+    ["enquiry_not_assessed", "record_closed"],
+    ["pre_admission_not_admitted", "record_closed"],
+    ["family_notification_delivery", "created"],
+    ["dp_breach", "record_closed"],
+    ["whistleblowing", "record_closed"],
+    ["medicines_stock_log", "created"],
+    ["medicines_disposal_log", "created"],
+    ["temperature_log", "created"],
+    ["quality_audit", "record_closed"],
+    ["staff_survey_response", "record_closed"],
+    ["lone_worker_check_in", "created"],
+    ["sponsor_record", "record_closed"],
+    ["payroll_export", "created"],
+  ])("retention.md has %s, counted from %s, with its source", (recordClass, trigger) => {
+    const rows = parseRetention(readFileSync(`${docs}retention.md`, "utf8"));
+    const row = rows.find((r) => r.recordClass === recordClass);
+    expect(row?.trigger).toBe(trigger);
+    expect(row?.period).toBeGreaterThan(0);
+    expect(row?.source).toMatch(/H-(39|106|525|670)/);
+    expect(rows.filter((r) => r.recordClass === recordClass)).toHaveLength(1);
+  });
 });

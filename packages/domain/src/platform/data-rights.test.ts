@@ -248,6 +248,26 @@ describe("PLAT-022 the breach clock and decision support", () => {
       "medium",
     ],
     [
+      "one person's name sent outside the organisation, no health data (H-611)",
+      factors({ disclosedOutsideOrganisation: true, specialCategory: false }),
+      "medium",
+    ],
+    [
+      "one person's care record sent outside the organisation",
+      factors({ disclosedOutsideOrganisation: true, specialCategory: true }),
+      "high",
+    ],
+    [
+      "several people's names sent outside the organisation, no health data",
+      factors({ peopleAffected: 3, disclosedOutsideOrganisation: true, specialCategory: false }),
+      "high",
+    ],
+    [
+      "an unidentifiable extract sent outside the organisation",
+      factors({ identifiable: false, disclosedOutsideOrganisation: true }),
+      "low",
+    ],
+    [
       "several people's records disclosed outside the organisation",
       factors({ peopleAffected: 4, disclosedOutsideOrganisation: true, specialCategory: true }),
       "high",

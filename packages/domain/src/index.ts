@@ -75,6 +75,7 @@ export * from "./platform/forms";
 export * from "./platform/image-metadata";
 export * from "./platform/imports";
 export * from "./platform/invitations";
+export * from "./platform/membership";
 export * from "./platform/notifications";
 export * from "./platform/onboarding";
 export * from "./platform/passwords";

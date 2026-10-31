@@ -240,8 +240,10 @@ export function erasureAssessment(
 
 /**
  * Portability (UK GDPR Art 20) applies only to processing on consent or contract by automated
- * means. Staff records rest on the employment contract; care records rest on legal obligation and
- * public task (Art 6(1)(c) and (e), Art 9(2)(h)), so a person or contact gets access instead.
+ * means. Staff records rest on the employment contract; keeping a care record rests on a legal
+ * obligation (Art 6(1)(c), Regulation 17(2)(c) of the 2014 Regulations, records of processing B1)
+ * whoever pays for the care, with public task for a public body (Art 6(1)(e)), so a person or
+ * contact, a self-funder included, gets access instead (recommended answer to H-612).
  */
 export function portabilityApplies(kind: DsarSubjectKind): {
   readonly applies: boolean;

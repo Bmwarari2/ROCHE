@@ -188,6 +188,12 @@ export const PersonDependency = z
     /** Every record, newest first. */
     items: z.array(DependencyRecordItem),
     notice: z.string(),
+    /**
+     * The free-text category from the Phase 1 admission form, retired (H-716): shown read-only to
+     * whoever records the first category so nothing is lost, never prefilled into it. Null once a
+     * category has been recorded, or when none was written.
+     */
+    admissionFormCategory: z.string().nullable(),
   })
   .meta({ id: "PersonDependency" });
 

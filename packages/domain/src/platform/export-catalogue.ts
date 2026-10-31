@@ -56,6 +56,7 @@ export type ExportRetention =
   | "training_record"
   | "staff_file"
   | "data_rights_case"
+  | "dp_breach"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -888,7 +889,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.complaint": {
     context: "safety",
     description:
-      "Complaints under regulation 16 of the 2014 Regulations: who complained, what about, the acknowledgement and response with the Ombudsman signposted, any appeal, and pauses while waiting for the complainant (COMPLAINT_WORKFLOW).",
+      "Complaints under regulation 16 of the 2014 Regulations (processing purpose B14): who complained, what about, the acknowledgement and response with the Ombudsman signposted, any appeal, and pauses while waiting for the complainant (COMPLAINT_WORKFLOW).",
     treatment: "tenant_rows",
     retention: "complaint",
     personal: true,
@@ -963,7 +964,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.compliment": {
     context: "safety",
     description:
-      "Compliments received, with the staff they praise and the quality statements they are evidence for. A compliment never runs a clock.",
+      "Compliments received (processing purpose B14), with the staff they praise and the quality statements they are evidence for. A compliment never runs a clock.",
     treatment: "tenant_rows",
     retention: "complaint",
     personal: true,
@@ -1811,7 +1812,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "The breach register (platform.md rules 18 to 24; UK GDPR Arts 33 and 34): every personal data breach, reportable or not, with when the organisation became aware, the factors and suggested severity (decision support only), the decision with its reasoning, the ICO report, the notice to the people affected, and closure with lessons. The ICO clock is worked out from aware_at and the rate table, never stored.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: true,
     columns: {
       id: "exported",
@@ -1873,7 +1874,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Data protection complaints (platform.md rules 9, 10 and 25; DPA 2018 as amended by the Data (Use and Access) Act 2025): who complained and about what, the acknowledgement, contacts, outcome and closure. Clocks are worked out from these dates and the rate table, never stored.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "data_rights_case",
     personal: true,
     columns: {
       id: "exported",
@@ -4566,7 +4567,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Thapsus's breach notices to the organisation as processor (platform.md rule 24; Art 33(2); append-only): the nature of the breach, the data and approximate numbers affected, likely consequences, measures, what the organisation needs to do and Thapsus's contact.",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: false,
     columns: {
       id: "exported",
@@ -4591,7 +4592,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     description:
       "Who in the organisation acknowledged each Thapsus breach notice, and when (append-only, once per notice).",
     treatment: "tenant_rows",
-    retention: "audit_event",
+    retention: "dp_breach",
     personal: false,
     columns: {
       id: "exported",

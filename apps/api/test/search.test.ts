@@ -104,7 +104,13 @@ describe("hazard HZ-011 search follows permission and scope through the API", ()
     expect(ada?.person).toMatchObject({ name: "Ada Example", dateOfBirth: "1938-02-01" });
     expect(ada?.match).toBe("exact");
     const event = await lastAudit("platform.search.run");
-    expect(event?.scope).toMatchObject({ personIds: [ADA], careRecordView: true, termCount: 1 });
+    expect(event?.scope).toMatchObject({
+      personIds: [ADA],
+      careRecordView: true,
+      termCount: 1,
+      // A view of a care record: kept as long as the record (H-121).
+      retentionClass: "audit_event.care_record",
+    });
     // Never the words typed, not even inside the scope.
     expect(JSON.stringify(event)).not.toMatch(/addie/i);
   });
@@ -114,7 +120,12 @@ describe("hazard HZ-011 search follows permission and scope through the API", ()
     const refused = await search("manager", { query: "999 000 0019" });
     expect(refused.status).toBe(422);
     const event = await lastAudit("platform.search.refused");
-    expect(event?.scope).toMatchObject({ problem: "invalid_nhs_number", queryKind: null });
+    expect(event?.scope).toMatchObject({
+      problem: "invalid_nhs_number",
+      queryKind: null,
+      // No care record was viewed: a 6-month security log (H-121).
+      retentionClass: "security_log",
+    });
     expect(JSON.stringify(event)).not.toContain("0019");
   });
 

@@ -360,7 +360,7 @@ are versioned per tenant; the migration adds a new version). No API route used
 | Record | Class |
 | --- | --- |
 | Search audit events that showed people | `audit_event.care_record`: they record views of care records, kept as long as those records |
-| Other search audit events (staff, organisation documents, no results, refusals) | `audit_event` for now; whether they may use the 6-month `security_log` class is for the DPO (H-121) |
+| Other search audit events (staff, organisation documents, no results, refusals) | `security_log` (6 months): they record no view of a care record (recommended answer to H-121, 31/10/2026). Each search audit event carries its class in `scope.retentionClass` (`searchAuditRetentionClass`); a refused break-glass attempt stays `audit_event` |
 | Break-glass search records | `audit_event`, as other break-glass records |
 | Export records (who asked, when, status, snapshot, manifest SHA-256, counts) | `audit_event` |
 | Export files | Deleted at expiry; never kept as records |
@@ -739,8 +739,8 @@ Migration 0066 (`feat/platform-search-schema`; numbered after 0065, the sub-proc
 ## 11. Open questions
 
 - Retention of DPIA records, export records and onboarding decisions beyond the interim
-  `audit_event` class (H-115), and whether search events that showed no person may use the
-  `security_log` class (H-121).
+  `audit_event` class (H-115). Search events that showed no person use `security_log` (H-121,
+  recommended answer applied 31/10/2026).
 - Whether a one-person organisation whose owner is the only possible signer needs an exception to
   rule 21 (H-115).
 - The staff file option is not reopened when Harbour changes the staff file rows of the schedule:

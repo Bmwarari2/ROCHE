@@ -48,6 +48,7 @@ export const DATA_CATEGORIES = {
   audit: "Audit trail, break-glass records, security logs",
   safeguarding: "Safeguarding concerns, alleged perpetrators, witnesses",
   regulatory_returns: "Statutory notifications and returns",
+  complaints: "Complaints and compliments: who raised them, about whom, the response",
   organisation_officers: "Named officers of the organisation",
   medicines: "Medicines, administrations and controlled drugs",
   staff_employment: "Recruitment, DBS (criminal offence data), training, supervision, pay",
@@ -70,8 +71,15 @@ export const FEATURE_DATA_CATEGORIES: Partial<Readonly<Record<FlagKey, readonly 
     "module.ai": ["ai_interaction_log"],
   };
 
-const INDEPENDENT_CARE =
-  "Art 6(1)(b) contract, or 6(1)(f) legitimate interests where the contract is with a funder";
+/**
+ * Keeping the care record rests on a legal obligation (Regulation 17(2)(c) of the 2014
+ * Regulations), whoever pays, so a self-funder's care record carries no right to portability
+ * (`portabilityApplies`; recommended answer to H-612, 31/10/2026). Delivering the care itself rests
+ * on the contract, or legitimate interests where the contract is with a funder.
+ */
+const KEEPING_CARE_RECORD =
+  "Art 6(1)(c) legal obligation for keeping the care record (Regulation 17(2)(c) of the 2014 Regulations)";
+const INDEPENDENT_CARE = `${KEEPING_CARE_RECORD}; delivering the care: Art 6(1)(b) contract, or 6(1)(f) legitimate interests where the contract is with a funder`;
 
 export const PROCESSING_PURPOSES = {
   B1: {
@@ -79,7 +87,7 @@ export const PROCESSING_PURPOSES = {
     dataSubjects: "People receiving care",
     lawfulBasis: {
       independent: INDEPENDENT_CARE,
-      public: "Art 6(1)(c) legal obligation or 6(1)(e) public task",
+      public: `${KEEPING_CARE_RECORD}; delivering the care: Art 6(1)(c) legal obligation or 6(1)(e) public task`,
     },
     specialCategory:
       "Art 9(2)(h) with DPA 2018 s.10(2) and Sch 1 para 2 (health or social care purposes), under a duty of confidentiality (Art 9(3), DPA 2018 s.11)",
@@ -206,6 +214,27 @@ export const PROCESSING_PURPOSES = {
     retention: "Prompt and response audit 12 months (pseudonymised)",
     trigger: { kind: "setting", setting: "ai_free_text", flag: "module.ai" },
     dataCategories: ["ai_interaction_log"],
+  },
+  /**
+   * Complaints and compliments have a purpose of their own rather than being filed under B1 and B7
+   * (recommended answer to H-700, 31/10/2026): the complaint and compliment tables point here.
+   */
+  B14: {
+    title: "Handling complaints and compliments",
+    dataSubjects:
+      "Complainants and people who send compliments; people receiving care a complaint or compliment is about; staff named in it",
+    lawfulBasis: {
+      independent:
+        "Complaints: Art 6(1)(c) legal obligation (Regulation 16 of the 2014 Regulations). Compliments: Art 6(1)(f) legitimate interests",
+      public:
+        "Complaints: Art 6(1)(c) legal obligation (Regulation 16 of the 2014 Regulations). Compliments: Art 6(1)(f) legitimate interests",
+    },
+    specialCategory:
+      "Art 9(2)(h) with DPA 2018 Sch 1 para 2 where a complaint or compliment reveals health",
+    consent: false,
+    retention: "complaint: 10 years from closure",
+    trigger: { kind: "always" },
+    dataCategories: ["complaints"],
   },
 } as const satisfies Record<string, ProcessingPurpose>;
 

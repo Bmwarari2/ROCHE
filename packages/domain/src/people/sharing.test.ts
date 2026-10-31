@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readRateTable } from "../../test/rate-table";
+import { resolveRate } from "../platform/rates";
+import { addUkMonths } from "../shared/time";
 import type { PersonStatus } from "./lifecycle";
 import {
   checkAboutMeShareLink,
@@ -17,6 +20,10 @@ const TO = new Date("2027-04-01T00:00:00Z");
 const BEN: SharingRecipient = { kind: "family", contactId: "contact-ben" };
 const GP: SharingRecipient = { kind: "professional", tenantUserId: "user-gp" };
 const LINK: SharingRecipient = { kind: "link", linkId: "link-1" };
+/** `sharing.decision_max_months` from the rate table (H-38), never a literal. */
+const MAX_MONTHS = Number(
+  resolveRate(readRateTable(), "sharing.decision_max_months", "england", "2026-10-11", null).value,
+);
 
 function decision(overrides: Partial<SharingDecision> = {}): SharingDecision {
   return {
@@ -44,7 +51,11 @@ const lpaHealth = {
 };
 
 describe("recording a sharing decision", () => {
-  const ok: { personStatus: PersonStatus; now: Date } = { personStatus: "active", now: NOW };
+  const ok: { personStatus: PersonStatus; now: Date; maxMonths: number } = {
+    personStatus: "active",
+    now: NOW,
+    maxMonths: MAX_MONTHS,
+  };
 
   it.each<[string, Partial<SharingDecision>]>([
     ["the person's consent for updates and photos", {}],
@@ -96,6 +107,21 @@ describe("recording a sharing decision", () => {
     [
       "selected care plan domains",
       { sections: ["care_plan"], carePlanDomains: ["eating_and_drinking"] },
+    ],
+    [
+      "a decision ending exactly at the longest it may last",
+      { validTo: addUkMonths(FROM, MAX_MONTHS) },
+    ],
+    [
+      "an attorney's decision ending at the end of the authority's last day",
+      {
+        basis: "legal_authority",
+        sections: ["care_plan"],
+        capacity: "assessed_lacks_capacity",
+        authority: { ...lpaHealth, validUntil: "2027-01-31" },
+        // 1 February 2027 00:00 in the UK (GMT).
+        validTo: new Date("2027-02-01T00:00:00Z"),
+      },
     ],
   ])("accepts %s", (_label, overrides) => {
     expect(checkSharingDecision(decision(overrides), ok)).toEqual({ ok: true });
@@ -228,6 +254,35 @@ describe("recording a sharing decision", () => {
       { recipient: LINK, sections: ["about_me", "photos"] },
       {},
       ["link_only_about_me"],
+    ],
+    [
+      "a decision lasting longer than the rate table allows (H-38)",
+      { validTo: new Date(addUkMonths(FROM, MAX_MONTHS).getTime() + 60_000) },
+      {},
+      ["expiry_beyond_maximum"],
+    ],
+    [
+      "a decision outlasting the attorney's authority it rests on (H-38)",
+      {
+        basis: "legal_authority",
+        sections: ["care_plan"],
+        capacity: "assessed_lacks_capacity",
+        authority: { ...lpaHealth, validUntil: "2027-01-31" },
+        validTo: new Date("2027-02-01T00:01:00Z"),
+      },
+      {},
+      ["expiry_beyond_authority"],
+    ],
+    [
+      "consent by an attorney outlasting their authority",
+      {
+        recipient: { kind: "family", contactId: "contact-cara" },
+        consentGivenBy: "authority_holder",
+        capacity: "assessed_lacks_capacity",
+        authority: { ...lpaHealth, validUntil: "2026-12-31" },
+      },
+      {},
+      ["expiry_beyond_authority"],
     ],
     [
       "a link under direct care",
@@ -521,4 +576,35 @@ describe("About Me share links", () => {
       problems,
     });
   });
+});
+
+describe("hazard HZ-022 every sharing decision is renewed within the rate table's maximum (H-38)", () => {
+  const base = { personStatus: "active" as PersonStatus, now: NOW };
+
+  it("ignores an authority's end date when the decision does not rest on it", () => {
+    const ownConsent = decision({ authority: { ...lpaHealth, validUntil: "2026-12-31" } });
+    expect(checkSharingDecision(ownConsent, { ...base, maxMonths: MAX_MONTHS })).toEqual({
+      ok: true,
+    });
+  });
+
+  it("counts the months on the UK wall clock across a change of the clocks", () => {
+    // 10:00 BST on 15 June 2026; the same wall-clock time six months on is 10:00 GMT.
+    const from = new Date("2026-06-15T09:00:00Z");
+    const atLimit = decision({ validFrom: from, validTo: addUkMonths(from, 6) });
+    expect(atLimit.validTo.toISOString()).toBe("2026-12-15T10:00:00.000Z");
+    expect(checkSharingDecision(atLimit, { ...base, maxMonths: 6 })).toEqual({ ok: true });
+    const later = decision({ validFrom: from, validTo: new Date("2026-12-15T10:00:01Z") });
+    expect(checkSharingDecision(later, { ...base, maxMonths: 6 })).toEqual({
+      ok: false,
+      problems: ["expiry_beyond_maximum"],
+    });
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])(
+    "refuses a maximum of %s months as a misconfigured table",
+    (m) => {
+      expect(() => checkSharingDecision(decision(), { ...base, maxMonths: m })).toThrow(RangeError);
+    },
+  );
 });

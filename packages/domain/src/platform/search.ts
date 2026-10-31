@@ -958,6 +958,23 @@ export function breakGlassSearchAlert(
   };
 }
 
+/**
+ * The retention class of a search audit event (retention.md; recommended answer to H-121): a
+ * search that showed people is a view of their care records and is kept as long as those records;
+ * a break-glass search, or a refused break-glass attempt, is kept as other break-glass records;
+ * any other search (staff, organisation documents, no results, refused) records no view of a care
+ * record and is a security log, kept 6 months.
+ */
+export type SearchAuditRetentionClass = "audit_event.care_record" | "audit_event" | "security_log";
+
+export function searchAuditRetentionClass(event: {
+  readonly breakGlass: boolean;
+  readonly personIds: readonly string[];
+}): SearchAuditRetentionClass {
+  if (event.breakGlass) return "audit_event";
+  return event.personIds.length > 0 ? "audit_event.care_record" : "security_log";
+}
+
 export interface SearchAuditEvent {
   readonly action:
     | "platform.search.run"
@@ -986,6 +1003,10 @@ export interface SearchAuditEvent {
     /** People whose details appeared: each counts as a view of their care record. */
     readonly personIds: readonly string[];
     readonly careRecordView: boolean;
+    /** How long the event is kept (`searchAuditRetentionClass`; H-121). */
+    readonly retentionClass: SearchAuditRetentionClass;
+    /** A break-glass attempt refused before it ran (its class stays audit_event). */
+    readonly breakGlass?: true;
     readonly breakGlassRecordId?: string;
     readonly reasonCode?: BreakGlassReasonCode;
     readonly problem?: SearchPlanProblem;
@@ -1037,6 +1058,7 @@ export function searchAuditEvent(
       resultIds,
       personIds,
       careRecordView: personIds.length > 0,
+      retentionClass: searchAuditRetentionClass({ breakGlass: breakGlass !== null, personIds }),
       ...(breakGlass
         ? { breakGlassRecordId: context.breakGlassRecordId, reasonCode: breakGlass.reasonCode }
         : {}),
@@ -1048,7 +1070,9 @@ export function searchAuditEvent(
 export function searchRefusalAuditEvent(
   problem: SearchPlanProblem,
   entityTypes: readonly SearchEntityType[] = SEARCH_ENTITY_TYPES,
+  options: { readonly breakGlass?: boolean } = {},
 ): SearchAuditEvent {
+  const breakGlass = options.breakGlass === true;
   return {
     action: "platform.search.refused",
     outcome: "denied",
@@ -1068,6 +1092,8 @@ export function searchRefusalAuditEvent(
       resultIds: null,
       personIds: [],
       careRecordView: false,
+      retentionClass: searchAuditRetentionClass({ breakGlass, personIds: [] }),
+      ...(breakGlass ? { breakGlass: true as const } : {}),
       problem,
     },
   };

@@ -108,11 +108,18 @@ docs/specs/retention.md). So:
    `platform.user.manage`), never the person asking, due within `account_deletion.confirmation_days`
    (30, rate table), notifies them, and audits the request. A second request while one is open
    returns the first.
-3. The manager decides with the member and the data protection lead and ends the account's access:
-   today by revoking its sessions (`POST /v1/members/{tenantUserId}/sessions/revoke`, which signs
-   them out of every device); suspending or removing a member and erasing the sign-in identity has no route
-   yet (a gap, H-566). **Nothing is deleted by the request itself, and care records are never deleted
-   this way.**
+3. The manager decides with the member and the data protection lead (recommended answer to H-566,
+   31/10/2026): with `platform.user.manage`, step-up and a coded reason, they first suspend the
+   membership (`POST /v1/members/{tenantUserId}/suspend`: access ends at once, the sign-in's
+   sessions end unless the person works for another organisation, and their devices' holds fall
+   due so unsent entries are handed over), then end it (`.../end`). The member row, display name
+   and job title stay so care records stay attributable (Regulation 17); the staff file follows
+   `staff_file` retention. Once the person has no active membership anywhere and is not a Harbour
+   operator, the manager erases the sign-in identity (`.../sign-in/erase`: email, password hash,
+   passkeys, TOTP secret, sessions) within `account_deletion.confirmation_days`, and the request's
+   task closes with the outcome audited by opaque id. **Nothing is deleted by the request itself,
+   and care records are never deleted this way.** The web screens for these routes are still to
+   come.
 4. **On the web** (Google requires a link usable without the app): a public page explaining the same
    route and the provider's contact process (H-564).
 

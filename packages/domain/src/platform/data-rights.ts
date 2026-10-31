@@ -406,7 +406,8 @@ export interface BreachAssessment {
 /**
  * Decision support for a breach (rule 7): a suggested severity and what to consider, from the
  * severity guide. It never decides whether to report: that is a person's decision with reasons
- * (`checkBreachDecision`).
+ * (`checkBreachDecision`). An identifiable disclosure outside the organisation is at least medium
+ * (H-611).
  */
 export function assessBreach(f: BreachFactors): BreachAssessment {
   if (!Number.isInteger(f.peopleAffected) || f.peopleAffected < 0) {
@@ -421,8 +422,11 @@ export function assessBreach(f: BreachFactors): BreachAssessment {
   if (f.safeguardingOrLocationAtRisk) raise("critical", "safeguarding_or_location");
   if (f.careRecordsUnavailable) raise("critical", "care_records_unavailable");
   if (f.identifiable) {
-    if (f.disclosedOutsideOrganisation && (f.peopleAffected > 1 || f.specialCategory)) {
-      raise("high", "outside_organisation");
+    if (f.disclosedOutsideOrganisation) {
+      // Receiving care itself reveals health, and the people affected are vulnerable, so any
+      // identifiable disclosure outside the organisation suggests at least medium, even for one
+      // person with no special category data (ICO breach guidance; recommended answer to H-611).
+      raise(f.peopleAffected > 1 || f.specialCategory ? "high" : "medium", "outside_organisation");
     }
     if (!f.contained && f.specialCategory) raise("high", "not_contained");
     if (f.specialCategory) raise("medium", "special_category");
