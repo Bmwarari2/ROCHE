@@ -169,6 +169,78 @@ describe("hazard HZ-005 rejects a dose whose unit is not permitted for the dm+d 
   });
 });
 
+describe("hazard HZ-005 refuses a dose below 1 g, mg or microgram where dm+d gives the smaller unit (H-551)", () => {
+  const g = unit("gram");
+  const mg = unit("mg");
+  const microgram = unit("microgram");
+  const nanogram = unit("nanogram");
+  const ml = unit("ml");
+
+  it.each<[string, Dose, readonly { code: string; name: string }[], boolean]>([
+    ["0.5 g where mg is permitted", { kind: "amount", quantity: 0.5, unit: g }, [g, mg], true],
+    ["0.5 g where only g is permitted", { kind: "amount", quantity: 0.5, unit: g }, [g], false],
+    ["1 g where mg is permitted", { kind: "amount", quantity: 1, unit: g }, [g, mg], false],
+    ["1.5 g where mg is permitted", { kind: "amount", quantity: 1.5, unit: g }, [g, mg], false],
+    [
+      "0.25 mg where micrograms are permitted",
+      { kind: "amount", quantity: 0.25, unit: mg },
+      [mg, microgram],
+      true,
+    ],
+    [
+      "0.25 mg where only mg is permitted",
+      { kind: "amount", quantity: 0.25, unit: mg },
+      [mg],
+      false,
+    ],
+    [
+      "0.5 micrograms where nanograms are permitted",
+      { kind: "amount", quantity: 0.5, unit: microgram },
+      [microgram, nanogram],
+      true,
+    ],
+    [
+      "0.5 nanograms (no smaller unit)",
+      { kind: "amount", quantity: 0.5, unit: nanogram },
+      [nanogram, unit("picogram")],
+      false,
+    ],
+    [
+      "0.5 g where micrograms but not mg are permitted",
+      { kind: "amount", quantity: 0.5, unit: g },
+      [g, microgram],
+      false,
+    ],
+    ["0.5 ml (not a mass unit)", { kind: "amount", quantity: 0.5, unit: ml }, [ml, mg], false],
+    [
+      "a range from 0.5 to 1 g where mg is permitted",
+      { kind: "range", from: 0.5, to: 1, unit: g },
+      [g, mg],
+      true,
+    ],
+    ["a range from 1 to 2 g", { kind: "range", from: 1, to: 2, unit: g }, [g, mg], false],
+    ["a variable dose in g", { kind: "variable", unit: g }, [g, mg], false],
+    [
+      "0.5 mcg written as mcg",
+      { kind: "amount", quantity: 0.5, unit: unit("mcg") },
+      [unit("mcg"), unit("ng")],
+      true,
+    ],
+  ])("%s: refused %s", (_label, dose, permitted, refused) => {
+    const problems = checkDose(dose, permitted).map((i) => i.problem);
+    expect(problems.includes("smaller_unit_permitted")).toBe(refused);
+  });
+
+  it("asks for the prescriber or pharmacist and never converts the dose", () => {
+    const [issue] = checkDose({ kind: "amount", quantity: 0.5, unit: g }, [g, mg]);
+    expect(issue?.problem).toBe("smaller_unit_permitted");
+    expect(issue?.message).toContain("ask the prescriber or pharmacist");
+    expect(issue?.message).toContain("in mg");
+    // Harbour never works out the converted figure for the reader.
+    expect(issue?.message).not.toContain("500");
+  });
+});
+
 describe("hazard HZ-005 medicines come from dm+d, never typed", () => {
   it.each([
     ["322236009", true],

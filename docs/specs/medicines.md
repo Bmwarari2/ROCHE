@@ -111,7 +111,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    "mcg/hr"); a measured unit is written "2 × 5 ml spoonfuls", so its size is never read as part of
    the number. No thousands separator ("5000 units"). Harbour never converts a dose: a number with
    more than 3 decimal places is refused with "ask the prescriber or pharmacist", never "use a
-   smaller unit" (H-551). **Variable doses (open control, HZ-005):** a variable dose has no link to
+   smaller unit" (H-551). A quantity below 1 in g, mg or micrograms is refused
+   (`smaller_unit_permitted`) where dm+d permits the next smaller unit for the product (mg,
+   micrograms, nanograms), so "0.5 g" is never transcribed where the BNF's prescription-writing
+   guidance asks for "500 mg"; the message names the smaller unit and says to ask the prescriber or
+   pharmacist for the dose in it, and Harbour never works out the converted figure (recommended
+   answer to H-551, 31/10/2026; the pharmacist confirms it at the testing phase). Mass units are
+   recognised by their dm+d description. **Variable doses (open control, HZ-005):** a variable dose has no link to
    its dosing record yet. Slice 3 adds the dosing record (the day doses, for example a warfarin
    schedule after an INR test, with its source) as a record of its own that is second-checked like
    an entry before any dose is given from it, and slice 16 stores it; until then `marEntryStatus`
