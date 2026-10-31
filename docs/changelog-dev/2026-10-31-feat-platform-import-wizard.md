@@ -1,6 +1,6 @@
 # Phase 2 slice 26, the import wizard API for people (PLAT-014)
 
-Branch `feat/platform-import-wizard`, no pull request yet.
+Branch `feat/platform-import-wizard`, PR #150.
 
 ## What changed
 
@@ -68,3 +68,46 @@ Branch `feat/platform-import-wizard`, no pull request yet.
   `imports.ts` 99.64%), `packages/db/test/imports.test.ts` (13), `apps/api/test/imports.test.ts`
   (18), with `definer-acls`, `rls-coverage`, `migration-journal`, `migrations`, `isolation`, the
   export catalogue and `route-gates` passing.
+
+## Review round 1 (security and clinical, #150)
+
+Main merged first (migration 0071 and the afternoon's pull requests; the journal runs 0071 then
+0088). The generated client's format step now allows a file past Biome's 1 MiB default, which the
+unformatted output had crossed.
+
+- Security H1: a control character or a lone surrogate in any cell is refused at upload, naming the
+  row and field (`uploadCellProblem`), before anything is written; a database failure writing
+  imported values is rethrown as `ImportWriteFailed`, carrying only its SQLSTATE; main's
+  `loggableError` already logs only an error's kind, code and stack frames. A test uploads a NUL
+  and a lone surrogate and finds nothing personal logged.
+- Security M1: `person.import_batch_id` ties each imported person to its batch, set only as the
+  batch commits and never changed (`app.person_import_batch_guard`); `app.undo_import_batch`
+  removes only those people and exactly the commit's ids, and reads the undo window from the rate
+  table itself (`app.location_rate`).
+- Security M2: the CSV reader enforces the row, column and cell limits while scanning.
+- Security lows: every import command needs `people.person.create` across the organisation in
+  row-level security too (`app.import_reachable(record_type)`); no commit past `expires_at` (route
+  and guard); the acknowledgement must list exactly the warnings found; own keys only for fields.
+- Clinical H1 (HZ-007): every imported allergy status is `unknown`, confirmed by no one; the dry
+  run reports what the file stated and the commit returns those people to check first.
+- Clinical H2 (HZ-130): undo is refused once a phone may hold the people (a sync token carrying
+  people issued in the organisation from one token's lifetime before the commit). Chosen over
+  holding imported people off phones until confirmed: simpler, no sync stream change, and new
+  residents are visible at the point of care at once. Recorded in ADR-0092 and H-680.
+- Clinical M1: possible duplicates also for different case, accents, apostrophes, hyphens, middle
+  names, swapped names, the same family name or the same given name with the date of birth.
+- Clinical M2: warnings name the other row or the existing record; the commit's
+  `acknowledgedWarnings` must list exactly the keys found now, so a new warning stops it.
+- Clinical M3: the dry run says in words what committing does (`whatHappens`); `mayCommit` stays
+  false until possible duplicates are acknowledged (`needsAcknowledgement`).
+- Clinical lows: 999-range test NHS numbers and 0000000000 are refused unless
+  `IMPORT_TEST_NHS_NUMBERS` is on (demonstration and test environments; off by default in
+  production); the spec, the report and HZ-001 say imported people have no photo, room or
+  placement.
+- Docs: platform.md rules 18 to 26, data standards, HZ-007, HZ-130 and HZ-001 in the hazard log,
+  the DCB0160 deployer control, ADR-0092 (still proposed), records of processing, H-680, H-682 and
+  H-684.
+- Tests after the round: `packages/domain/src/platform/imports.test.ts` (80; `imports.ts` 100%
+  lines), `packages/db/test/imports.test.ts` (18), `apps/api/test/imports.test.ts` (22), with
+  `definer-acls`, `rls-coverage`, `route-gates`, the migration and journal tests, the export
+  catalogue, sample data, the export worker and `api.test` passing.

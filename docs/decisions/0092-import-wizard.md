@@ -56,17 +56,31 @@ never merges, and leaks nothing about people the importer cannot see.
   Another organisation's people are never read: a number used by another provider imports as new.
   Row-level security in migration 0088 holds the same rule.
 - **Matching, never merging.** A row whose NHS number or local identifier is already on a record
-  is an error; the same name and date of birth where either has no NHS number is a warning the
-  committer acknowledges. Changes to existing people are made on their records.
+  is an error naming that record; the same date of birth with agreeing names (the same, swapped,
+  the same family name, or the same given name, compared as letters and by the first given name)
+  where either has no NHS number is a warning naming the other row or record. Changes to existing
+  people are made on their records.
 - **Whole-batch commit, idempotent.** The dry run is repeated inside the commit with the batch
-  locked; the whole batch commits or nothing does; committing a committed batch returns the same
-  commit. Commit and undo need a fresh step-up. People wait while sample data is in place (HZ-072).
+  locked; the commit lists exactly the warnings found now, by key; the whole batch commits or
+  nothing does, never past its expiry; committing a committed batch returns the same commit.
+  Commit and undo need a fresh step-up. People wait while sample data is in place (HZ-072).
+- **Allergy status not recorded.** Every imported person's allergy status is `unknown`, confirmed
+  by no one, whatever the file states: an imported "no known allergies" must never read as freshly
+  confirmed by the person who committed it (HZ-007). The dry run and the commit say which people
+  the file stated a status for, so staff check and record those first.
 - **Undo.** `app.undo_import_batch`, owned by the new no-login role `harbour_import_owner`, removes
-  the commit's people outright, whole or nothing, once, only while none has been saved since
-  (version 1, not soft-deleted) and nothing refers to any of them by a foreign key; the API checks
-  the window from the rate table. A soft delete was rejected because a deleted person keeps their
-  NHS number, so the corrected file could never be imported again, and the mistaken data would
-  stay in the record's history.
+  only the people the batch created (`person.import_batch_id`, set as the batch commits and never
+  changed) and exactly the commit's record ids, whole or nothing, once, within
+  `import.undo_window_days` (read from the rate table in the database as well as the API), only
+  while none has been saved since (version 1, not soft-deleted) and nothing refers to any of them
+  by a foreign key, and only until a phone may hold them: once a sync token carrying people was
+  issued in the organisation from one token's lifetime before the commit, a phone may have
+  recorded care for them offline, which an undo would strand. Holding imported people off phones
+  until the importer confirms was the other way; it was rejected as more complex (a sync stream
+  change, a confirmation step) and because new residents must be visible at the point of care at
+  once. A soft delete was rejected because a deleted person keeps their NHS number, so the
+  corrected file could never be imported again, and the mistaken data would stay in the record's
+  history.
 - **People first.** Slice 26 imports people (demographics), status `active`, at the batch's
   location, with no room, placement or admission record. Contacts, allergies, staff, the JSON
   round trip with the full export (HZ-071) and medicines "not yet checked" (HZ-005) follow in
@@ -81,7 +95,11 @@ never merges, and leaks nothing about people the importer cannot see.
 - Bad, because only someone with organisation-wide access can import: a registered manager of one
   home asks the owner, or the owner gives a role scoped to the organisation (rule 18).
 - Bad, because undo is refused as soon as anything refers to an imported person, including a task a
-  job raised; corrections are then made record by record.
+  job raised, and as soon as phones may hold the people (within minutes where phones are in use);
+  corrections are then made record by record. Undo is most useful at onboarding, before devices
+  are in use.
+- Bad, because every imported allergy status has to be checked and recorded by staff before
+  go-live, even where the previous system held a reliable one.
 - Bad, because a new no-login role means running `pnpm db:bootstrap` in each environment before
   migration 0088 (H-684).
 - Neutral, because month-first dates whose days are all 12 or under still pass validation: the
@@ -132,6 +150,9 @@ never merges, and leaks nothing about people the importer cannot see.
   [records-of-processing.md](../compliance/records-of-processing.md) (B1 to B3 as imported),
   [retention.md](../specs/retention.md) (staged rows).
 - Hazards HZ-130, HZ-007, HZ-072, HZ-011, HZ-071 in the [hazard log](../clinical-safety/hazard-log.md).
+- Amended on 31/10/2026 after the #150 security and clinical review round 1 (before acceptance):
+  the allergy status, the warnings naming rows and records with an acknowledgement by key, the
+  batch tie and the undo refused once phones may hold the people.
 - Revisit when contacts, allergies and staff are imported (slice 51), when the JSON round trip with
   the full export lands (HZ-071), or if providers need home-scoped importing (it would need the
   NHS number to stop being unique per organisation, or a review queue that answers every
