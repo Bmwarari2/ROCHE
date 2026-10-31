@@ -1,4 +1,4 @@
-import type { DevelopmentRecord } from "@harbour/contracts";
+import type { DevelopmentRecord, TrainingMatrix } from "@harbour/contracts";
 import {
   competenceSignOff,
   competenceWithdrawal,
@@ -7,9 +7,11 @@ import {
   role,
   roleAssignment,
   staffProfile,
+  supervisionNote,
   supervisionRecord,
   type Transaction,
   task,
+  tenantUser,
   trainingRecord,
   trainingRequirement,
 } from "@harbour/db";
@@ -19,9 +21,11 @@ import {
   competenceDecision,
   expiryState,
   nextMeeting,
+  PORTAL_ONLY_PERMISSIONS,
   reminderDays,
   revalidationPlan,
   type StoredSignOff,
+  TRAINING_TOPICS,
   type TrainingRequirement,
   type TrainingTopic,
   trainingMatrix,
@@ -83,26 +87,32 @@ async function memberRoles(
   });
 }
 
-/** The organisation's requirements for a set of role keys, merged per topic (highest tier, shortest refresh). */
-export async function requirementsFor(
-  tx: Transaction,
-  roleKeys: ReadonlySet<string>,
-): Promise<TrainingRequirement[]> {
-  if (roleKeys.size === 0) return [];
-  const rows = await withSystemRights(tx, () =>
+type RequirementRow = typeof trainingRequirement.$inferSelect;
+
+/** Every active requirement in the organisation, read with the system's rights. */
+async function activeRequirements(tx: Transaction, roleKeys?: ReadonlySet<string>) {
+  return withSystemRights(tx, () =>
     tx
       .select()
       .from(trainingRequirement)
       .where(
         and(
           eq(trainingRequirement.active, true),
-          inArray(trainingRequirement.roleKey, [...roleKeys]),
           isNull(trainingRequirement.deletedAt),
+          ...(roleKeys ? [inArray(trainingRequirement.roleKey, [...roleKeys])] : []),
         ),
       ),
   );
+}
+
+/** Requirements for a set of role keys, merged per topic (highest tier, shortest refresh). */
+export function mergeRequirements(
+  rows: readonly RequirementRow[],
+  roleKeys: ReadonlySet<string>,
+): TrainingRequirement[] {
   const byTopic = new Map<string, TrainingRequirement>();
   for (const r of rows) {
+    if (!roleKeys.has(r.roleKey)) continue;
     const current = byTopic.get(r.topic);
     const refresh =
       current?.refreshYears != null && r.refreshYears != null
@@ -116,6 +126,15 @@ export async function requirementsFor(
     });
   }
   return [...byTopic.values()];
+}
+
+/** The organisation's requirements for a set of role keys, merged per topic. */
+export async function requirementsFor(
+  tx: Transaction,
+  roleKeys: ReadonlySet<string>,
+): Promise<TrainingRequirement[]> {
+  if (roleKeys.size === 0) return [];
+  return mergeRequirements(await activeRequirements(tx, roleKeys), roleKeys);
 }
 
 const trainingRates = (rates: WorkforceRates) => ({
@@ -169,6 +188,21 @@ export async function developmentRecord(
     .from(supervisionRecord)
     .where(and(eq(supervisionRecord.workerId, memberId), isNull(supervisionRecord.deletedAt)))
     .orderBy(desc(supervisionRecord.heldOn));
+  // Notes as the caller's row-level security lets them read them: supervision holders and the
+  // member only (migration 0114); everyone else gets none, without being told one exists.
+  const notes =
+    supervisions.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(supervisionNote)
+          .where(
+            inArray(
+              supervisionNote.supervisionId,
+              supervisions.map((s) => s.id),
+            ),
+          );
+  const noteFor = (supervisionId: string) => notes.find((n) => n.supervisionId === supervisionId);
   const [evidence] = await tx
     .select()
     .from(revalidationEvidence)
@@ -181,6 +215,7 @@ export async function developmentRecord(
   const names: StaffLookup = await staffNames(tx, [
     ...signOffs.flatMap((r) => [r.s.observerId, r.w?.withdrawnBy]),
     ...supervisions.map((s) => s.heldBy),
+    ...notes.map((n) => n.writtenBy),
   ]).catch(() => NO_STAFF);
 
   const requirements = await requirementsFor(tx, keys);
@@ -284,6 +319,12 @@ export async function developmentRecord(
       kind: s.kind as "supervision" | "appraisal" | "spot_check",
       heldOn: s.heldOn,
       heldBy: names(s.heldBy),
+      note: (() => {
+        const n = noteFor(s.id);
+        return n
+          ? { discussion: n.discussion, actions: n.actions, writtenBy: names(n.writtenBy) }
+          : null;
+      })(),
     })),
     nextSupervision: next("supervision", rates.supervisionsPerYear),
     nextAppraisal: next("appraisal", rates.appraisalsPerYear),
@@ -455,4 +496,141 @@ export function endDevelopmentReminders(
       .returning({ id: task.id });
     return ended.length;
   });
+}
+
+/** The most members one matrix shows; more are filtered by location or role. */
+export const MATRIX_MEMBER_LIMIT = 2000;
+
+const PORTAL = sql.raw(`ARRAY[${PORTAL_ONLY_PERMISSIONS.map((p) => `'${p}'`).join(", ")}]::text[]`);
+
+/**
+ * The organisation's training matrix (slice 57; WORK-005): every member of staff whose roles need
+ * training, each required topic's state today, by the same rules as one member's record. Read by
+ * holders of the workforce read permissions only (asked of the database first); the members' roles
+ * and places are read with the system's rights, as for one member, and their records under the
+ * caller's own row-level security. Null when the caller may not read development records.
+ */
+export async function trainingMatrixFor(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  filter: { readonly locationId?: string; readonly roleKey?: string; readonly attention?: boolean },
+): Promise<TrainingMatrix | null> {
+  const allowed = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development() AS ok`,
+  );
+  if (allowed.rows[0]?.ok !== true) return null;
+  const today = ukIsoDate(now);
+  const assignments = await withSystemRights(tx, () =>
+    tx
+      .select({
+        memberId: roleAssignment.tenantUserId,
+        key: role.key,
+        basedOn: role.basedOnKey,
+        locationId: roleAssignment.locationId,
+        nation: location.nation,
+      })
+      .from(roleAssignment)
+      .innerJoin(role, eq(role.id, roleAssignment.roleId))
+      .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+      .leftJoin(location, eq(location.id, roleAssignment.locationId))
+      .where(
+        and(
+          isNull(roleAssignment.deletedAt),
+          isNull(role.archivedAt),
+          lte(roleAssignment.validFrom, now),
+          or(isNull(roleAssignment.validTo), sql`${roleAssignment.validTo} > ${now}`),
+          inArray(tenantUser.status, ["invited", "active"]),
+          isNull(tenantUser.deletedAt),
+          // Portal accounts (family, the person receiving care) are never staff on the matrix.
+          sql`NOT (${role.permissions} && ${PORTAL})`,
+        ),
+      ),
+  );
+  const members = new Map<
+    string,
+    { keys: Set<string>; roles: Set<string>; locations: Set<string>; nation: Nation | null }
+  >();
+  for (const a of assignments) {
+    const m = members.get(a.memberId) ?? {
+      keys: new Set<string>(),
+      roles: new Set<string>(),
+      locations: new Set<string>(),
+      nation: null,
+    };
+    m.keys.add(a.key);
+    m.roles.add(a.key);
+    if (a.basedOn) m.keys.add(a.basedOn);
+    if (a.locationId) m.locations.add(a.locationId);
+    m.nation ??= (a.nation as Nation | null) ?? null;
+    members.set(a.memberId, m);
+  }
+  const requirementRows = await activeRequirements(tx);
+  const wanted = [...members.entries()]
+    .filter(([, m]) => !filter.locationId || m.locations.has(filter.locationId))
+    .filter(([, m]) => !filter.roleKey || m.keys.has(filter.roleKey))
+    .map(([id, m]) => ({ id, ...m, requirements: mergeRequirements(requirementRows, m.keys) }))
+    .filter((m) => m.requirements.length > 0);
+  const ids = wanted.map((m) => m.id);
+  const records = [];
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    records.push(
+      ...(await tx
+        .select({
+          workerId: trainingRecord.workerId,
+          topic: trainingRecord.topic,
+          completedOn: trainingRecord.completedOn,
+          expiresOn: trainingRecord.expiresOn,
+          tier: trainingRecord.tier,
+        })
+        .from(trainingRecord)
+        .where(and(inArray(trainingRecord.workerId, chunk), isNull(trainingRecord.deletedAt)))),
+    );
+  }
+  const rates = new Map<Nation, WorkforceRates>();
+  const ratesFor = async (nation: Nation) => {
+    const found = rates.get(nation);
+    if (found) return found;
+    const loaded = await workforceRates(tx, tenantId, nation, today);
+    rates.set(nation, loaded);
+    return loaded;
+  };
+  const names = await staffNames(tx, ids);
+  const rows = [];
+  for (const m of wanted) {
+    const member = names(m.id);
+    if (!member) continue;
+    const mine = records.filter((r) => r.workerId === m.id);
+    const cells = trainingMatrix(
+      m.requirements,
+      mine.map((r) => ({
+        topic: r.topic as TrainingTopic,
+        completedOn: r.completedOn,
+        expiresOn: r.expiresOn,
+        ...(r.tier ? { tier: r.tier as 1 | 2 } : {}),
+      })),
+      today,
+      trainingRates(await ratesFor(m.nation ?? "england")),
+    ).map((cell) => ({
+      topic: cell.topic,
+      tier: (m.requirements.find((r) => r.topic === cell.topic)?.tier ?? null) as 1 | 2 | null,
+      status: cell.status,
+      validUntil: cell.validUntil,
+    }));
+    if (filter.attention && cells.every((cell) => cell.status === "valid")) continue;
+    rows.push({ member, roles: [...m.roles].sort(), locationIds: [...m.locations].sort(), cells });
+  }
+  rows.sort(
+    (x, y) =>
+      x.member.displayName.localeCompare(y.member.displayName, "en-GB") ||
+      x.member.id.localeCompare(y.member.id),
+  );
+  const shown = new Set(rows.flatMap((r) => r.cells.map((cell) => cell.topic)));
+  return {
+    asOf: today,
+    topics: TRAINING_TOPICS.filter((topic) => shown.has(topic)),
+    members: rows.slice(0, MATRIX_MEMBER_LIMIT),
+    truncated: rows.length > MATRIX_MEMBER_LIMIT,
+  };
 }

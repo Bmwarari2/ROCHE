@@ -307,6 +307,45 @@ export const supervisionRecord = pgTable(
   ],
 );
 
+/**
+ * What was discussed at a supervision, appraisal or spot check and the actions agreed (slice 57;
+ * H-692's default, ADR-0114: kept in Harbour). Likely to hold special category content (health,
+ * wellbeing), so it is a table of its own: read only by holders of workforce.supervision.manage
+ * and the member it is about, never by training or staff file readers. One per supervision, written
+ * once by a supervision holder in their own name; append-only.
+ */
+export const supervisionNote = pgTable(
+  "supervision_note",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    supervisionId: uuid("supervision_id").notNull(),
+    /** The member it is about, as the supervision's (a trigger checks they match). */
+    workerId: uuid("worker_id").notNull(),
+    discussion: text("discussion").notNull(),
+    actions: text("actions"),
+    writtenBy: uuid("written_by").notNull().default(sql`app.current_user_id()`),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("supervision_note_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("supervision_note_supervision_key").on(t.tenantId, t.supervisionId),
+    foreignKey({
+      name: "supervision_note_supervision_fk",
+      columns: [t.tenantId, t.supervisionId],
+      foreignColumns: [supervisionRecord.tenantId, supervisionRecord.id],
+    }),
+    workerRef("supervision_note_worker_fk", t, t.workerId),
+    staffRef("supervision_note_written_by_fk", t, t.writtenBy),
+    check("supervision_note_discussion", sql`length(btrim(discussion)) BETWEEN 10 AND 4000`),
+    check(
+      "supervision_note_actions",
+      sql`actions IS NULL OR length(btrim(actions)) BETWEEN 2 AND 2000`,
+    ),
+    check("supervision_note_not_self", sql`written_by <> worker_id`),
+  ],
+);
+
 export const revalidationEvidence = pgTable(
   "revalidation_evidence",
   {

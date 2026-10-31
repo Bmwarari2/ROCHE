@@ -337,6 +337,99 @@ describe("supervision and revalidation (workforce.md rules 7 and 8)", () => {
   });
 });
 
+describe("supervision notes (slice 57; H-692's default, ADR-0114)", () => {
+  const NOTE = "Talked through night shifts and a refresher on moving and handling.";
+  it("keeps the note with the supervision, for the member and supervisors only", async () => {
+    const held = await as("manager", `${dev(CARER)}/supervisions`, {
+      method: "POST",
+      body: {
+        kind: "appraisal",
+        heldOn: today(),
+        note: { discussion: NOTE, actions: "Book the moving and handling refresher" },
+      },
+    });
+    expect(held.status, await held.clone().text()).toBe(200);
+    type WithNotes = { supervisions: { kind: string; note: { discussion: string } | null }[] };
+    const mine = (await (await as("carer", "/v1/me/development")).json()) as WithNotes;
+    expect(mine.supervisions.find((s) => s.kind === "appraisal")?.note?.discussion).toBe(NOTE);
+
+    // A training lead without the supervision permission sees the appraisal, never the note.
+    await sql(
+      `INSERT INTO role (key, name, permissions, scope_kind)
+       VALUES ('s57_training_lead', 'Training lead', ARRAY['workforce.training.manage'], 'none')`,
+    );
+    const [agency] = await sql<{ id: string }>(
+      "SELECT id FROM tenant_user WHERE email = 'agency@example.invalid'",
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id)
+       SELECT $1::uuid, id FROM role WHERE key = 's57_training_lead'`,
+      [agency?.id],
+    );
+    const seen = await as("agency", `${dev(CARER)}/development`);
+    expect(seen.status, await seen.clone().text()).toBe(200);
+    const theirs = (await seen.json()) as WithNotes;
+    const appraisal = theirs.supervisions.find((s) => s.kind === "appraisal");
+    expect(appraisal).toBeDefined();
+    expect(appraisal?.note).toBeNull();
+    expect(JSON.stringify(theirs)).not.toContain("night shifts");
+
+    // The audit records that a note was written, never what it says.
+    const events = await sql<{ scope: unknown }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.supervision.recorded'",
+    );
+    expect(JSON.stringify(events)).not.toContain("night shifts");
+    expect(JSON.stringify(events)).toContain('"note":true');
+  });
+});
+
+describe("the organisation's training matrix (slice 57)", () => {
+  type Matrix = {
+    topics: string[];
+    members: {
+      member: { id: string; displayName: string };
+      cells: { topic: string; status: string }[];
+    }[];
+    truncated: boolean;
+  };
+  it("shows each member's required topics with their state, to workforce readers only", async () => {
+    const response = await as("manager", "/v1/workforce/training-matrix");
+    expect(response.status, await response.clone().text()).toBe(200);
+    const matrix = (await response.json()) as Matrix;
+    expect(matrix.topics).toContain("fire_safety");
+    const carer = matrix.members.find((m) => m.member.id === CARER);
+    expect(carer?.cells.map((c) => c.topic)).toContain("fire_safety");
+    expect(Object.keys(carer?.member ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect(matrix.truncated).toBe(false);
+    expect((await as("carer", "/v1/workforce/training-matrix")).status).toBe(403);
+  });
+
+  it("filters by role and to the members needing attention", async () => {
+    const byRole = (await (
+      await as("manager", "/v1/workforce/training-matrix?roleKey=care_worker")
+    ).json()) as Matrix;
+    expect(byRole.members.map((m) => m.member.id)).toContain(CARER);
+    const none = (await (
+      await as("manager", "/v1/workforce/training-matrix?roleKey=no_such_role")
+    ).json()) as Matrix;
+    expect(none.members).toEqual([]);
+    const attention = (await (
+      await as("manager", "/v1/workforce/training-matrix?attention=true")
+    ).json()) as Matrix;
+    for (const m of attention.members) {
+      expect(m.cells.some((c) => c.status !== "valid")).toBe(true);
+    }
+  });
+
+  it("is audited without names", async () => {
+    const events = await sql<{ scope: unknown }>(
+      "SELECT scope FROM audit_event WHERE action = 'workforce.training_matrix.viewed'",
+    );
+    expect(events.length).toBeGreaterThan(0);
+    expect(JSON.stringify(events)).not.toContain(DEMO.users.carer.name);
+  });
+});
+
 describe("the member's own record", () => {
   it("shows the member their own development, and nobody else's", async () => {
     const own = await as("carer", "/v1/me/development");

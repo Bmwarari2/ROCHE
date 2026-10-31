@@ -398,8 +398,23 @@ export const SupervisionKind = z
   .enum(["supervision", "appraisal", "spot_check"])
   .meta({ id: "SupervisionKind" });
 
+/**
+ * What was discussed and the actions agreed (slice 57; H-692's default, ADR-0114). Read only by
+ * supervision holders and the member it is about; never in an audit event or an outbox payload.
+ */
+export const SupervisionNote = z
+  .object({
+    discussion: z.string().trim().min(10).max(4000),
+    actions: z.string().trim().min(2).max(2000).nullable(),
+  })
+  .meta({ id: "SupervisionNote" });
+
 export const CreateSupervisionRecord = z
-  .object({ kind: SupervisionKind, heldOn: isoDate })
+  .object({
+    kind: SupervisionKind,
+    heldOn: isoDate,
+    note: SupervisionNote.nullable().default(null),
+  })
   .meta({ id: "CreateSupervisionRecord" });
 export type CreateSupervisionRecord = z.infer<typeof CreateSupervisionRecord>;
 
@@ -409,6 +424,8 @@ export const SupervisionRecordItem = z
     kind: SupervisionKind,
     heldOn: isoDate,
     heldBy: StaffName.nullable(),
+    /** Null when none was written, or when the caller may not read notes. */
+    note: SupervisionNote.extend({ writtenBy: StaffName.nullable() }).nullable(),
   })
   .meta({ id: "SupervisionRecordItem" });
 
@@ -448,6 +465,38 @@ export const RevalidationView = z
     ready: z.boolean(),
   })
   .meta({ id: "RevalidationView" });
+
+/** One member's row on the organisation's training matrix (slice 57). */
+export const TrainingMatrixMember = z
+  .object({
+    member: StaffName,
+    /** Their roles in force, by key (a tenant role by its own key). */
+    roles: z.array(z.string()),
+    /** Where their roles are held; empty for an organisation-wide role. */
+    locationIds: z.array(uuid),
+    /** Each topic their roles need, with its state today. */
+    cells: z.array(TrainingMatrixRow),
+  })
+  .meta({ id: "TrainingMatrixMember" });
+
+export const TrainingMatrix = z
+  .object({
+    asOf: isoDate,
+    /** The topics any member shown needs, in the catalogue's order. */
+    topics: z.array(TrainingTopic),
+    members: z.array(TrainingMatrixMember),
+    /** True when more members match than the most returned at once. */
+    truncated: z.boolean(),
+  })
+  .meta({ id: "TrainingMatrix" });
+export type TrainingMatrix = z.infer<typeof TrainingMatrix>;
+
+export const TrainingMatrixQuery = z.object({
+  locationId: uuid.optional(),
+  roleKey: z.string().trim().min(1).max(80).optional(),
+  /** Only members with a topic missing, lapsed or due soon. */
+  attention: z.enum(["true", "false"]).optional(),
+});
 
 export const DevelopmentRecord = z
   .object({

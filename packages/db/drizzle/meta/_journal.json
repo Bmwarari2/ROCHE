@@ -512,6 +512,13 @@
       "when": 1793457159832,
       "tag": "0079_training_competence",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0114_supervision_note",
+      "breakpoints": true
     }
   ]
 }

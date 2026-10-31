@@ -5,6 +5,8 @@ import {
   DevelopmentRecord,
   PutRevalidationEvidence,
   PutTrainingRequirement,
+  TrainingMatrix,
+  TrainingMatrixQuery,
   TrainingRequirementItem,
   TrainingRequirementList,
   UpdateTrainingRecord,
@@ -14,6 +16,7 @@ import {
   competenceSignOff,
   competenceWithdrawal,
   revalidationEvidence,
+  supervisionNote,
   supervisionRecord,
   type Transaction,
   trainingRecord,
@@ -33,7 +36,12 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { developmentRecord, endDevelopmentReminders, memberNation } from "../services/development";
+import {
+  developmentRecord,
+  endDevelopmentReminders,
+  memberNation,
+  trainingMatrixFor,
+} from "../services/development";
 import { workforceRates } from "../services/staff-files";
 import {
   conflictResponse,
@@ -62,6 +70,7 @@ const SELF = "workforce.self.read";
 const SOURCE = "development";
 const A = {
   viewed: "workforce.development.viewed",
+  matrix: "workforce.training_matrix.viewed",
   requirement: "workforce.training_requirement.saved",
   trained: "workforce.training.recorded",
   corrected: "workforce.training.corrected",
@@ -179,6 +188,47 @@ export const developmentRouter = createRouter()
           .orderBy(asc(trainingRequirement.roleKey), asc(trainingRequirement.topic)),
       );
       return c.json({ items: rows.map(requirementItem) }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/workforce/training-matrix",
+      tags: ["workforce"],
+      summary: "The organisation's training matrix",
+      description:
+        "workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.",
+      security,
+      request: { query: TrainingMatrixQuery },
+      responses: { 200: jsonBody(TrainingMatrix, "The matrix"), ...errorResponses },
+    }),
+    async (c) => {
+      const access = await requireAnyPermission(c, [
+        TRAINING,
+        OBSERVE,
+        SUPERVISION,
+        STAFF_FILE_READ,
+      ]);
+      const query = c.req.valid("query");
+      const matrix = await withTenant(c, async (tx) => {
+        const found = await trainingMatrixFor(tx, access.tenantId, new Date(), {
+          ...(query.locationId ? { locationId: query.locationId } : {}),
+          ...(query.roleKey ? { roleKey: query.roleKey } : {}),
+          attention: query.attention === "true",
+        });
+        if (!found) throw problems.forbidden();
+        await audit(c, tx, access, {
+          action: A.matrix,
+          resourceType: SOURCE,
+          scopeExtra: {
+            locationId: query.locationId ?? null,
+            roleKey: query.roleKey ?? null,
+            members: found.members.length,
+          },
+        });
+        return found;
+      });
+      return c.json(matrix, 200);
     },
   )
   .openapi(
@@ -476,7 +526,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Record a supervision, appraisal or spot check",
       description:
-        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.",
+        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.",
       security,
       request: {
         params: MemberParam,
@@ -500,11 +550,21 @@ export const developmentRouter = createRouter()
             heldBy: access.tenantUserId,
           })
           .returning({ id: supervisionRecord.id });
+        if (row && body.note) {
+          await tx.insert(supervisionNote).values({
+            supervisionId: row.id,
+            workerId: memberId,
+            discussion: body.note.discussion,
+            actions: body.note.actions,
+            writtenBy: access.tenantUserId,
+          });
+        }
         await audit(c, tx, access, {
           action: A.supervised,
           resourceType: "supervision_record",
           resourceId: row?.id ?? memberId,
-          scopeExtra: { memberId, kind: body.kind },
+          // Whether a note was written, never what it says.
+          scopeExtra: { memberId, kind: body.kind, note: body.note !== null },
         });
       });
       return c.json(await recordFor(c, access, memberId), 200);

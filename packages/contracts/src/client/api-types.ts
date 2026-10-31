@@ -16487,6 +16487,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workforce/training-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The organisation's training matrix
+         * @description workforce.training.manage, .competence.observe, .supervision.manage or .staff_file.read. Every member of staff whose roles need training, by name and job title, with each required topic's state today (valid, due soon, expired or missing), by the rules of the member's record. Filter by location (roles held there), role key, or attention (only members with a topic not valid). At most 2,000 members; truncated says when more match. Audited without names.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    locationId?: string;
+                    roleKey?: string;
+                    attention?: "true" | "false";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The matrix */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TrainingMatrix"];
+                    };
+                };
+                /** @description Not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not a member, missing permission, MFA not set up or step-up needed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description The request did not validate */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/workforce/members/{memberId}/development": {
         parameters: {
             query?: never;
@@ -16946,7 +17016,7 @@ export interface paths {
         put?: never;
         /**
          * Record a supervision, appraisal or spot check
-         * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept. Audited.
+         * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. An optional note (what was discussed and the actions agreed; H-692's default, ADR-0114) is read only by supervision holders and the member. Audited without the note.
          */
         post: {
             parameters: {
@@ -28273,6 +28343,27 @@ export interface components {
         };
         /** @enum {string} */
         TrainingTopic: "care_certificate" | "safeguarding_adults" | "safeguarding_children" | "moving_and_handling" | "infection_prevention_and_control" | "fire_safety" | "health_and_safety" | "basic_life_support" | "food_hygiene" | "medicines" | "mental_capacity_and_dols" | "equality_diversity_and_human_rights" | "information_governance" | "dementia_awareness" | "fluids_and_nutrition" | "oliver_mcgowan";
+        TrainingMatrix: {
+            /** Format: date */
+            asOf: string;
+            topics: components["schemas"]["TrainingTopic"][];
+            members: components["schemas"]["TrainingMatrixMember"][];
+            truncated: boolean;
+        };
+        TrainingMatrixMember: {
+            member: components["schemas"]["StaffName"];
+            roles: string[];
+            locationIds: string[];
+            cells: components["schemas"]["TrainingMatrixRow"][];
+        };
+        TrainingMatrixRow: {
+            topic: components["schemas"]["TrainingTopic"];
+            tier: 1 | 2 | null;
+            /** @enum {string} */
+            status: "valid" | "due_soon" | "expired" | "missing";
+            /** Format: date */
+            validUntil: string | null;
+        };
         PutTrainingRequirement: {
             expectedVersion?: number;
             roleKey: string;
@@ -28293,14 +28384,6 @@ export interface components {
             nextSupervision: components["schemas"]["NextMeetingItem"];
             nextAppraisal: components["schemas"]["NextMeetingItem"];
             revalidation: components["schemas"]["RevalidationView"];
-        };
-        TrainingMatrixRow: {
-            topic: components["schemas"]["TrainingTopic"];
-            tier: 1 | 2 | null;
-            /** @enum {string} */
-            status: "valid" | "due_soon" | "expired" | "missing";
-            /** Format: date */
-            validUntil: string | null;
         };
         TrainingRecordItem: {
             /** Format: uuid */
@@ -28347,6 +28430,11 @@ export interface components {
             /** Format: date */
             heldOn: string;
             heldBy: components["schemas"]["StaffName"];
+            note: {
+                discussion: string;
+                actions: string | null;
+                writtenBy: components["schemas"]["StaffName"];
+            } | null;
         };
         /** @enum {string} */
         SupervisionKind: "supervision" | "appraisal" | "spot_check";
@@ -28408,7 +28496,13 @@ export interface components {
             kind: components["schemas"]["SupervisionKind"];
             /** Format: date */
             heldOn: string;
+            note?: components["schemas"]["SupervisionNote"];
         };
+        /** @default null */
+        SupervisionNote: {
+            discussion: string;
+            actions: string | null;
+        } | null;
         PutRevalidationEvidence: {
             expectedVersion?: number;
             /** Format: date */
