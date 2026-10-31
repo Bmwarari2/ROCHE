@@ -50,6 +50,8 @@ const APPEND_ONLY_TABLES = [
   "competence_withdrawal",
   "rota_publication",
   "roster_override",
+  "location_induction",
+  "agency_worker_feedback",
   "dependency_assessment",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */

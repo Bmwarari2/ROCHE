@@ -1,3 +1,4 @@
+export * from "./agency-checks";
 export * from "./competence";
 export * from "./competence-port";
 export * from "./dbs";

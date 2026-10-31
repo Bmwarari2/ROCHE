@@ -526,6 +526,13 @@
       "when": 1793473697645,
       "tag": "0083_rota_builder",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1793477052185,
+      "tag": "0104_bank_agency",
+      "breakpoints": true
     }
   ]
 }

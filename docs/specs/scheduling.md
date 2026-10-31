@@ -6,7 +6,7 @@ builds rotas, time and attendance and the pay rules engine for care homes
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
 (SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Slice 12 adds the dependency tool and the
-required care hours per shift (section 13); slice 21 adds the rota builder (section 14). Status
+required care hours per shift (section 13); slice 21 adds the rota builder (section 14); slice 27 bank and agency workers (section 15). Status
 per feature:
 [feature register](feature-register.md).
 
@@ -828,3 +828,86 @@ Audit events (opaque ids only, never a blocker's detail, a justification or a fi
   `packages/contracts/src/rota.ts`.
 - Not in this slice: swaps with approval and open-shift offers (H-838), the clock-in check on the
   day (slice 27), the screens (slice 59), offline swap requests (slice 71).
+
+## 15. Bank and agency workers (slice 27; SCHED-009)
+
+Master prompt sections 4 ("agency access ends at shift end plus 2 hours"), 12 (a worker without
+the required DBS, right to work or competence cannot be rostered) and 12.3 (bank and agency, AWR
+12-week tracking). [ADR-0088](../decisions/0088-rota-derived-agency-access.md) decides the access
+window. Hazards HZ-124 and HZ-011. Human actions H-920 to H-929. The screens are slice 59.
+
+### Schema (migration 0104)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `agency` | mutable, archived | `name`, `contact_email` (business address), `framework_ref`, `default_charge_pence_per_hour`, `archive_reason` | `rota_and_timesheet` |
+| `agency_worker` | mutable | `tenant_user_id` (one each; the member is flagged `is_agency` by the database and may hold no role but `agency_worker`), `kind` (`agency`, `bank`), `agency_id` (agency only), `role_title`, the agency's confirmation (`dbs_confirmed_on`, `dbs_enhanced_barred`, `right_to_work_confirmed_on`, `right_to_work_expires_on`, `registration_body`, `registration_valid_until`, `confirmed_by`, never the worker), `do_not_book` with `do_not_book_reason` | `rota_and_timesheet` |
+| `agency_booking` | mutable, cancelled with a reason | `shift_id`, `assignment_id`, `location_id`, `worker_id`, `agency_id`, `kind`, `booking_ref`, `charge_pence_per_hour`, `cost_pence`, `status` (`confirmed`, `cancelled`), `cancel_reason`; one live booking per assignment | `rota_and_timesheet` |
+| `location_induction` | append-only | `worker_id`, `location_id`, `inducted_on`, `items` (the location's checklist keys), `created_by` (never the worker) | `rota_and_timesheet` |
+| `agency_worker_feedback` | append-only | `worker_id`, `booking_id`, `location_id`, `kind` (`positive`, `concern`, `do_not_rebook`), `notes` (free text), `created_by` | `rota_and_timesheet` |
+
+Row-level security: agencies and agency workers are read by holders of `scheduling.rota.read` or
+`.manage` anywhere, and written with `.manage`. Bookings, inductions and feedback are read with
+either permission where the shift or location is, and written with `.manage` there. Feedback and
+confirmations are never written by the worker about themselves. The window policy of ADR-0088 sits
+on `role_assignment` and `access_grant`.
+
+### Rules
+
+1. **Agency or bank.** An agency worker is employed by the agency, which makes the checks; the
+   organisation records the agency's written confirmation (`agencyRosterChecks`): a confirmed
+   enhanced DBS with the adults' barred list clears, anything less does not; a right to work is
+   confirmed with its expiry; a registered role needs its registration confirmed through the day. A
+   bank worker is the organisation's own: their checks come from the staff file (section 14 rule
+   3). Either way the competence port decides competences, and the member must be active on the day.
+2. **Booking** (HZ-124): an open shift is booked for a named worker with the agency's reference and
+   charge per hour. The rostering rule applies exactly as in assigning (section 14 rule 3, every UK
+   date the shift touches; an override names the blockers shown; never a right to work, never a
+   member not active). A worker marked `do_not_book` is refused. Booking makes the shift's
+   assignment and the booking together; cancelling a booking takes the worker off the shift and
+   closes their access window at once.
+3. **Cost** (`bookingCostPence`): the shift's elapsed minutes less its planned break, at the charge
+   per hour, rounded to the nearest penny. Location totals per agency for a date range.
+4. **AWR clock** (`awrWeeksFromShifts` then slice 6's `awrClock`): from the agency worker's booked
+   shifts with this organisation, every calendar week with a shift worked; weeks between are breaks
+   with no recorded reason (H-924), which the clock treats as uncovered. Shown with the weeks
+   counted and the week equal terms apply from. Bank workers have no AWR clock.
+5. **Induction at the location**: recorded by a member who is not the worker, with the checklist
+   items done. A booking at a location where the worker has no induction says so, and the rota's
+   check lists it as a warning; whether it should block is H-922.
+6. **Access window** (ADR-0088): an agency or bank member holds their role's permissions only from
+   the start of a confirmed, live booked shift to its end plus `access.agency.post_shift_hours`;
+   otherwise nothing, in the API and in Postgres. Search uses the same end.
+7. **Feedback** after a booking: positive, a concern, or do not rebook (which sets `do_not_book`
+   with the reason). Never by the worker about themselves; shown to rota managers, never to the
+   agency through Harbour.
+
+### API, audit and outbox
+
+| Route | What |
+| --- | --- |
+| `GET`, `POST /v1/agencies`; `POST /v1/agencies/{id}/archive` | Agencies |
+| `GET`, `POST /v1/agency-workers`; `PUT /v1/agency-workers/{id}/confirmation` | Workers and the agency's confirmation |
+| `POST /v1/shifts/{id}/booking`; `POST /v1/agency-bookings/{id}/cancel` | Booking an open shift and cancelling |
+| `GET /v1/agency-workers/{id}/awr` | The AWR clock |
+| `POST /v1/agency-workers/{id}/inductions` | Induction at a location |
+| `GET`, `POST /v1/agency-workers/{id}/feedback` | Feedback |
+| `GET /v1/locations/{id}/agency-costs?from=&to=` | Cost per agency |
+
+Audit events (opaque ids only, never a confirmation's detail, notes or a reason):
+`scheduling.agency.created`, `.archived`; `scheduling.agency_worker.registered`, `.confirmed`;
+`scheduling.agency_booking.made`, `.cancelled`; `scheduling.induction.recorded`;
+`scheduling.agency_feedback.recorded`; `scheduling.awr.viewed`. Outbox:
+`scheduling.agency_booking_made` and `scheduling.agency_booking_cancelled` (booking, shift,
+location).
+
+### Test list
+
+- Domain: `packages/domain/src/workforce/agency-checks.test.ts` (the agency's confirmation on a
+  day), `packages/domain/src/scheduling/agency.test.ts` (cost, AWR weeks, the access window).
+- Database: `packages/db/test/agency.test.ts` (cross-tenant denial on all five tables; who reads
+  and writes; never by the worker; one live booking per assignment; the window policy: nothing
+  without a booking, from shift start to end plus the rate's hours, closed by cancelling, other
+  members unaffected; only an agency-only member registered).
+- API: `apps/api/test/agency.test.ts` (agencies and workers; booking with the rule and refusals;
+  cost; AWR; induction; feedback and do not rebook; the access window through the API).
