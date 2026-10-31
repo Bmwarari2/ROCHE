@@ -331,7 +331,16 @@ property rules with device ids (a replay returns the first copy and is audited a
 and versions; property returned after a death goes only to the personal representative. The
 witness to a valuable or an unsigned item is named by the member of staff recording it, who must
 be someone else: an attestation, not authentication, because the witness does not sign in to
-confirm it; the record names both. About Me (`PUT` with `version`) and its links: making a link
+confirm it; the record names both. Because of that, the API accepts as witness (item in, return or
+disposal) only a member of staff whose account is active now and who could manage property at the
+person's home themselves when they witnessed (`people.property.manage` through a staff role or an
+acting-up grant in force at the acknowledgement's or the recipient's signature, or at the end of
+the day of a disposal), and refuses in plain words a family portal account or anyone holding a
+portal role, a suspended, invited or departed member, someone whose role there was not in force
+then, staff at another home, a care worker without that permission, and a visiting professional
+or inspector (security reviews, 31 October 2026 and of #134, M3, L1 and L2). So care workers
+cannot witness property: a product decision the owner is asked to confirm or relax (H-341).
+About Me (`PUT` with `version`) and its links: making a link
 needs `people.sharing.manage`, a care-record permission (MFA), and a fresh sign-in (step-up); the
 token is returned once, only its SHA-256 hash is stored, and a link never outlives its decision. A
 document cited by a record (a review, a sharing decision's authority evidence, an exit item's

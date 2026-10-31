@@ -36378,7 +36378,7 @@
           "platform"
         ],
         "summary": "Destroy documents past retention and issue destruction certificates",
-        "description": "Each id is checked again: anything held, not yet due or not found is skipped. Stored bytes (every version) are deleted; the metadata row is kept as a tombstone with the title removed.",
+        "description": "Each id is checked again under the organisation's retention lock, with the documents locked: anything held (including a hold placed while this ran), not yet due or not found is skipped. The tombstone (title removed) and the destruction certificate are committed first; the stored bytes (every version) are deleted after, and a deletion that fails is retried from the outbox (platform.document.destroyed) until it succeeds.",
         "security": [
           {
             "bearerAuth": []
