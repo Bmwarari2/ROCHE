@@ -111,6 +111,66 @@ describe("one-off tasks", () => {
     expect(await json<TaskItem>(done)).toMatchObject({ status: "done", timeState: "closed" });
   });
 
+  it("hazards HZ-003 and HZ-008 lists an open task due long before the window when asked for earlier ones", async () => {
+    const old = await createTask({
+      title: "Overdue from last week",
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    });
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET due_at = now() - interval '20 days' WHERE id = $1", [old.id]),
+    );
+    const windowOnly = await json<TaskList>(await as("manager", "/v1/tasks?view=all"));
+    expect(windowOnly.items.map((t) => t.id)).not.toContain(old.id);
+    const withEarlier = await json<TaskList>(await as("manager", "/v1/tasks?view=all&earlier=yes"));
+    expect(withEarlier.items.find((t) => t.id === old.id)?.timeState).toMatch(/overdue|escalated/);
+    expect(withEarlier.truncated).toBe(false);
+    // Earlier ones are only for open tasks: finished lists keep their window.
+    const closed = await json<TaskList>(
+      await as("manager", "/v1/tasks?view=all&status=closed&earlier=yes"),
+    );
+    expect(closed.items.map((t) => t.id)).not.toContain(old.id);
+  });
+
+  it("hazard HZ-003 lists the window's own tasks first when more than 1,000 older open tasks exist, and counts the older ones left out", async () => {
+    const today = await createTask({
+      title: "Due within the window",
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    });
+    await asDemoTenant((c) =>
+      c.query(
+        `INSERT INTO task (kind, title, required_permission, location_id, due_at)
+         SELECT 'platform.manual', 'Old open task ' || n, 'platform.task.manage', $1,
+                now() - interval '30 days' + n * interval '1 minute'
+           FROM generate_series(1, 1005) AS n`,
+        [DEMO.locationId],
+      ),
+    );
+    try {
+      const list = await json<TaskList>(await as("manager", "/v1/tasks?view=all&earlier=yes"));
+      expect(list.items.map((t) => t.id)).toContain(today.id);
+      expect(list.items.length).toBeLessThanOrEqual(1000);
+      expect(list.truncated).toBe(false);
+      expect(list.earlierOmitted).toBeGreaterThanOrEqual(5);
+      // The most recent earlier tasks are the ones listed.
+      expect(list.items.some((t) => t.title === "Old open task 1005")).toBe(true);
+      expect(list.items.some((t) => t.title === "Old open task 1")).toBe(false);
+      const audited = await asDemoTenant((c) =>
+        c.query(
+          "SELECT scope FROM audit_event WHERE action = 'platform.task.list' ORDER BY seq DESC LIMIT 1",
+        ),
+      );
+      expect(audited.rows[0]?.scope).toMatchObject({ earlier: true });
+    } finally {
+      await asDemoTenant((c) =>
+        c.query(
+          "UPDATE task SET status = 'cancelled', status_reason = 'Test data' WHERE title LIKE 'Old open task %'",
+        ),
+      );
+    }
+  });
+
   it("hides tasks about people outside the carer's scope (hazard HZ-011)", async () => {
     const other = await createTask({
       title: "Weigh before lunch",
