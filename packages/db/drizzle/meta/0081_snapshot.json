@@ -21967,6 +21967,36 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "audit_action_owner_fk": {
+          "name": "audit_action_owner_fk",
+          "tableFrom": "audit_action",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "owner_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "audit_action_task_fk": {
+          "name": "audit_action_task_fk",
+          "tableFrom": "audit_action",
+          "tableTo": "task",
+          "columnsFrom": [
+            "tenant_id",
+            "task_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -22202,6 +22232,21 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "audit_record_location_fk": {
+          "name": "audit_record_location_fk",
+          "tableFrom": "audit_record",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -22329,6 +22374,21 @@
           "columnsFrom": [
             "tenant_id",
             "template_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "audit_schedule_location_fk": {
+          "name": "audit_schedule_location_fk",
+          "tableFrom": "audit_schedule",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
           ],
           "columnsTo": [
             "tenant_id",

@@ -139,10 +139,30 @@ describe("audits keep what they were scored against (rule 4)", () => {
     ).rejects.toThrow(/Only completion/);
     await asLead((c) =>
       c.query(
-        "UPDATE audit_record SET state = 'completed', self_rating = 3, answers = '{\"mar_complete\":\"no\"}' WHERE id = $1",
+        `UPDATE audit_record SET answers = (SELECT jsonb_object_agg(q->>'key',
+           CASE q->>'key' WHEN 'mar_complete' THEN 'no' ELSE 'yes' END)
+           FROM jsonb_array_elements(questions) q) WHERE id = $1`,
         [AUDIT_NORTH],
       ),
     );
+    await expect(
+      asLead((c) => c.query("UPDATE audit_record SET possible = 1 WHERE id = $1", [AUDIT_NORTH])),
+    ).rejects.toThrow(/Only completion/);
+    const complete = (scoreOffset: number) =>
+      asLead((c) =>
+        c.query(
+          `WITH s AS (
+             SELECT sum((q->>'weight')::numeric) AS possible,
+                    sum((q->>'weight')::numeric) FILTER (WHERE q->>'key' <> 'mar_complete') AS achieved
+               FROM audit_record, jsonb_array_elements(questions) q WHERE id = $1)
+           UPDATE audit_record SET state = 'completed', self_rating = 3, possible = s.possible,
+             achieved = s.achieved, score_percent = round(s.achieved * 100 / s.possible, 3) + $2
+             FROM s WHERE id = $1`,
+          [AUDIT_NORTH, scoreOffset],
+        ),
+      );
+    await expect(complete(5)).rejects.toThrow(/score of its answers/);
+    await complete(0);
     await expect(
       asLead((c) =>
         c.query("UPDATE audit_record SET self_rating = 4 WHERE id = $1", [AUDIT_NORTH]),
@@ -170,6 +190,20 @@ describe("audits keep what they were scored against (rule 4)", () => {
     await expect(
       asLead((c) => c.query("UPDATE audit_action SET due_on = '2027-01-01'")),
     ).rejects.toThrow();
+  });
+
+  it("ties audits to the organisation's own locations, and actions to its members and tasks", async () => {
+    await expect(
+      asLead((c) => startAudit(c, "0199f000-0000-7000-8000-0000000007b4", b.location)),
+    ).rejects.toThrow(/audit_record_location_fk/);
+    await expect(
+      asLead((c) =>
+        c.query(
+          "INSERT INTO audit_action (audit_id, question_key, description, owner_id, due_on) VALUES ($1, 'mar_complete', 'Retrain on MAR', $2, '2026-11-28')",
+          [AUDIT_NORTH, b.manager],
+        ),
+      ),
+    ).rejects.toThrow(/audit_action_owner_fk/);
   });
 
   it("never changes a retired template", async () => {

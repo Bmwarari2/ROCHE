@@ -45,6 +45,19 @@ Branch `feat/quality-audit-programme`, stacked on `feat/quality-framework-librar
 - No personal data about people receiving care. Staff appear as user ids only. Records of
   processing are unchanged.
 
+## Review rounds
+
+- Round 1 (security reviewer agent):
+  - Schedules and audits now have foreign keys to the organisation's own locations. Actions have
+    foreign keys to the organisation's members and tasks.
+  - Action owners must be active members who hold `quality.audit.manage` at the audit's location,
+    the rule the task engine applies to any assignee. Otherwise the request is refused and the
+    refusal audited.
+  - The database ties the stored score to the answers: no score while in progress, answers fixed
+    in the completing statement, every question answered, points worked out by the database.
+  - A duplicate schedule gets its own message. A foreign key race is audited and returns 409.
+  - The self-rating's scale stays in the API, from the rate table, so it is not a literal in SQL.
+
 ## Human actions logged
 
 - H-760: review the starter templates.
@@ -56,6 +69,6 @@ Branch `feat/quality-audit-programme`, stacked on `feat/quality-framework-librar
 
 ## Tests
 
-- `packages/db/test/quality-audits.test.ts`: 8 tests.
-- `apps/api/test/quality-audits.test.ts`: 16 tests.
+- `packages/db/test/quality-audits.test.ts`: 9 tests.
+- `apps/api/test/quality-audits.test.ts`: 16 tests (an owner who cannot take the task is refused).
 - `rls-coverage.test.ts`: lists `audit_action` as append-only.

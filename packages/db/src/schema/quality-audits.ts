@@ -15,7 +15,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { sqlList } from "./_codes";
 import { createdColumns, id, mutableColumns, tenantId } from "./_columns";
+import { location, tenantUser } from "./platform";
 import { frameworkVersion } from "./quality-framework";
+import { task } from "./work";
 
 /**
  * The audit programme and mock inspections (master prompt 11.2; QUAL-004; Reg 17;
@@ -113,6 +115,11 @@ export const auditSchedule = pgTable(
       columns: [t.tenantId, t.templateId],
       foreignColumns: [auditTemplate.tenantId, auditTemplate.id],
     }),
+    foreignKey({
+      name: "audit_schedule_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
     check("audit_schedule_frequency", sql`${t.frequencyMonths} BETWEEN 1 AND 60`),
   ],
 );
@@ -156,6 +163,11 @@ export const auditRecord = pgTable(
       columns: [t.frameworkVersionId],
       foreignColumns: [frameworkVersion.id],
     }),
+    foreignKey({
+      name: "audit_record_location_fk",
+      columns: [t.tenantId, t.locationId],
+      foreignColumns: [location.tenantId, location.id],
+    }),
     check("audit_record_kind", kindCheck(t.kind)),
     check("audit_record_state", sql`${t.state} IN (${sqlList(AUDIT_RECORD_STATES)})`),
     check("audit_record_answers", sql`jsonb_typeof(${t.answers}) = 'object'`),
@@ -188,6 +200,16 @@ export const auditAction = pgTable(
       name: "audit_action_audit_fk",
       columns: [t.tenantId, t.auditId],
       foreignColumns: [auditRecord.tenantId, auditRecord.id],
+    }),
+    foreignKey({
+      name: "audit_action_owner_fk",
+      columns: [t.tenantId, t.ownerId],
+      foreignColumns: [tenantUser.tenantId, tenantUser.id],
+    }),
+    foreignKey({
+      name: "audit_action_task_fk",
+      columns: [t.tenantId, t.taskId],
+      foreignColumns: [task.tenantId, task.id],
     }),
     index("audit_action_audit_idx").on(t.tenantId, t.auditId),
     check("audit_action_description", sql`length(btrim(${t.description})) BETWEEN 3 AND 1000`),

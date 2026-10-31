@@ -107,6 +107,10 @@ ALTER TABLE "audit_record" ADD CONSTRAINT "audit_record_framework_fk" FOREIGN KE
 ALTER TABLE "audit_schedule" ADD CONSTRAINT "audit_schedule_template_fk" FOREIGN KEY ("tenant_id","template_id") REFERENCES "public"."audit_template"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_starter_template" ADD CONSTRAINT "audit_starter_template_framework_fk" FOREIGN KEY ("framework_version_id") REFERENCES "public"."framework_version"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_template" ADD CONSTRAINT "audit_template_framework_fk" FOREIGN KEY ("framework_version_id") REFERENCES "public"."framework_version"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_action" ADD CONSTRAINT "audit_action_owner_fk" FOREIGN KEY ("tenant_id","owner_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_action" ADD CONSTRAINT "audit_action_task_fk" FOREIGN KEY ("tenant_id","task_id") REFERENCES "public"."task"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_record" ADD CONSTRAINT "audit_record_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "audit_schedule" ADD CONSTRAINT "audit_schedule_location_fk" FOREIGN KEY ("tenant_id","location_id") REFERENCES "public"."location"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "audit_action_audit_idx" ON "audit_action" USING btree ("tenant_id","audit_id");--> statement-breakpoint
 CREATE INDEX "audit_record_location_idx" ON "audit_record" USING btree ("tenant_id","location_id","audited_on");--> statement-breakpoint
 
@@ -189,7 +193,11 @@ CREATE TRIGGER audit_template_guard BEFORE INSERT OR UPDATE ON public.audit_temp
 -- and a completed audit never changes at all; completion records who and when.
 CREATE OR REPLACE FUNCTION app.audit_record_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE t public.audit_template;
+DECLARE
+  t public.audit_template;
+  pts_achieved numeric;
+  pts_possible numeric;
+  unanswered integer;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     SELECT * INTO t FROM public.audit_template WHERE id = NEW.template_id;
@@ -197,7 +205,8 @@ BEGIN
       RAISE EXCEPTION 'Start an audit from an active template' USING ERRCODE = 'integrity_constraint_violation';
     END IF;
     IF NEW.state IS DISTINCT FROM 'in_progress'
-       OR num_nonnulls(NEW.completed_at, NEW.completed_by, NEW.self_rating, NEW.score_percent, NEW.deleted_at) > 0
+       OR num_nonnulls(NEW.completed_at, NEW.completed_by, NEW.self_rating, NEW.score_percent,
+                      NEW.achieved, NEW.possible, NEW.deleted_at) > 0
        OR (app.current_user_id() IS NOT NULL AND NEW.started_by IS DISTINCT FROM app.current_user_id()) THEN
       RAISE EXCEPTION 'An audit starts in progress in its auditor''s name' USING ERRCODE = 'integrity_constraint_violation';
     END IF;
@@ -220,9 +229,31 @@ BEGIN
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   IF NEW.state = 'completed' THEN
+    -- Completion stores the score of the answers as they stand: every question answered, the
+    -- answers unchanged in the same statement, the points worked out here and the percentage
+    -- matching them (yes in full, partial half, no nothing, not applicable left out).
+    IF NEW.answers IS DISTINCT FROM OLD.answers THEN
+      RAISE EXCEPTION 'Save the answers before completing the audit' USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    SELECT count(*) FILTER (WHERE a.v IS NULL OR a.v NOT IN ('yes', 'partial', 'no', 'not_applicable')),
+           coalesce(sum((q->>'weight')::numeric) FILTER (WHERE a.v IN ('yes', 'partial', 'no')), 0),
+           coalesce(sum((q->>'weight')::numeric * CASE a.v WHEN 'yes' THEN 1 WHEN 'partial' THEN 0.5 ELSE 0 END)
+                    FILTER (WHERE a.v IN ('yes', 'partial', 'no')), 0)
+      INTO unanswered, pts_possible, pts_achieved
+      FROM jsonb_array_elements(NEW.questions) AS q
+      CROSS JOIN LATERAL (SELECT NEW.answers->>(q->>'key') AS v) AS a;
+    IF unanswered > 0 OR NEW.self_rating IS NULL
+       OR NEW.possible IS DISTINCT FROM pts_possible OR NEW.achieved IS DISTINCT FROM pts_achieved
+       OR (pts_possible = 0 AND NEW.score_percent IS NOT NULL)
+       OR (pts_possible > 0 AND (NEW.score_percent IS NULL
+           OR abs(NEW.score_percent - pts_achieved * 100 / pts_possible) > 0.001)) THEN
+      RAISE EXCEPTION 'A completed audit stores the score of its answers and a self-rating'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
     NEW.completed_at := now();
     NEW.completed_by := coalesce(app.current_user_id(), NEW.completed_by);
-  ELSIF num_nonnulls(NEW.completed_at, NEW.completed_by, NEW.self_rating) > 0 THEN
+  ELSIF num_nonnulls(NEW.completed_at, NEW.completed_by, NEW.self_rating, NEW.score_percent,
+                     NEW.achieved, NEW.possible) > 0 THEN
     RAISE EXCEPTION 'Only completion records the self-rating' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   RETURN NEW;

@@ -239,6 +239,18 @@ describe("audits (rules 4, 9 to 12)", () => {
         actions: [{ questionKey: first?.key, description: "Retrain on MAR", ownerId: LEAD }],
       },
     });
+    const carerOwner = await as("quality", `/v1/quality/audits/${auditId}/complete`, {
+      method: "POST",
+      body: {
+        version: 2,
+        selfRating: 3,
+        actions: [
+          { questionKey: first?.key, description: "Retrain on MAR", ownerId: DEMO.users.carer.id },
+        ],
+      },
+    });
+    expect(carerOwner.status).toBe(422);
+    expect(JSON.stringify(await json(carerOwner))).toMatch(/run audits at this location/);
     expect(offScale.status).toBe(422);
     expect(JSON.stringify(await json(offScale))).toMatch(/self-rating/);
   });

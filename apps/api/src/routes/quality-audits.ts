@@ -38,7 +38,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -61,6 +61,7 @@ import {
 } from "../services/quality-audits";
 import { frameworkContent } from "../services/quality-framework";
 import { rateNumber } from "../services/rates";
+import { mayBeAssigned } from "../services/tasks";
 import {
   conflictResponse,
   createRouter,
@@ -135,7 +136,7 @@ async function change<T>(
     return await withAuditedRefusal(c, access, () => withTenant(c, fn));
   } catch (error) {
     const code = dbCode(error);
-    if (code !== "42501" && code !== "23000" && code !== "23514" && code !== "23505") throw error;
+    if (!["42501", "23000", "23514", "23505", "23503"].includes(code ?? "")) throw error;
     await writeAudit(c.get("services").appPool, access, {
       action,
       outcome: "denied",
@@ -146,7 +147,11 @@ async function change<T>(
     });
     if (code === "42501") throw problems.forbidden();
     if (code === "23505") {
-      throw stateConflict("That key is already used by another of your audit templates.");
+      throw stateConflict(
+        action === A.scheduled
+          ? "This template is already scheduled at this location."
+          : "That key is already used by another of your audit templates.",
+      );
     }
     throw stateConflict("This changed since you read it. Reload and try again.");
   }
@@ -791,7 +796,7 @@ export const qualityAuditsRouter = createRouter()
       tags: ["quality"],
       summary: "Complete an audit with the self-rating and actions",
       description:
-        "quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner in the organisation and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.",
+        "quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner who is an active member running audits at the location and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.",
       security,
       request: {
         params: IdParam,
@@ -860,18 +865,47 @@ export const qualityAuditsRouter = createRouter()
             "unknown_question",
           );
         }
+        // Each owner is an active member who may complete the action's task at the audit's
+        // location (`mayBeAssigned`, as the task engine requires of any assignee).
         const owners = [...new Set(actions.map((a) => a.ownerId))];
-        if (owners.length > 0) {
-          const known = await tx
-            .select({ id: tenantUser.id })
-            .from(tenantUser)
-            .where(inArray(tenantUser.id, owners));
-          if (known.length !== owners.length) {
+        const active =
+          owners.length === 0
+            ? []
+            : await tx
+                .select({ id: tenantUser.id })
+                .from(tenantUser)
+                .where(
+                  and(
+                    inArray(tenantUser.id, owners),
+                    eq(tenantUser.status, "active"),
+                    isNull(tenantUser.deletedAt),
+                  ),
+                );
+        if (active.length !== owners.length) {
+          throw refused(
+            problems.invalid(
+              "Choose each action's owner from the active members of your organisation.",
+            ),
+            A.completed,
+            id,
+            "owner_not_found",
+          );
+        }
+        for (const owner of owners) {
+          const able = await mayBeAssigned(
+            tx,
+            owner,
+            { requiredPermission: MANAGE, locationId: current.locationId },
+            now,
+          );
+          if (!able) {
             throw refused(
-              problems.invalid("Choose each action's owner from your organisation."),
+              problems.invalid(
+                "Choose owners who run audits at this location, so they can complete their action.",
+              ),
               A.completed,
               id,
-              "owner_not_found",
+              "owner_lacks_permission",
             );
           }
         }

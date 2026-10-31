@@ -44353,7 +44353,7 @@
           "quality"
         ],
         "summary": "Complete an audit with the self-rating and actions",
-        "description": "quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner in the organisation and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.",
+        "description": "quality.audit.manage at the audit's location, against the version read. Every question answered or not applicable; an action with a description, an owner who is an active member running audits at the location and a due date on or after the audit for each answer that fell short where the question needs one (a missing due date takes the organisation's `quality.audit.action_due_days` after the audit); a self-rating on the rate table's CQC scale, given by a person and never worked out from the score (rules 10 to 12). The score is stored with its points; each action raises a task for its owner. The audit never changes afterwards. Audited.",
         "security": [
           {
             "bearerAuth": []

@@ -767,9 +767,9 @@ before the code; the screens are slice 64. Builds on the framework library (sect
 | --- | --- | --- | --- | --- |
 | `audit_starter_template` | Global reference | key, kind, title, framework version, questions, source | No tenant; read by every role, written only by the owner role in migrations | Not exported (global) |
 | `audit_template` | Mutable aggregate, tenant | key (unique in the organisation), kind, title, framework version, questions (1 to 200: key, text, weight, statement ids, whether a shortfall needs an action), starter key, state (`active`, `retired`) | Tenant policy; restrictive: `quality.audit.manage` anywhere or a job; the framework version published; the key fixed; retired is final; no delete | `organisation_document` |
-| `audit_schedule` | Mutable aggregate, tenant | template, location (one schedule each), frequency (1 to 60 months), first due date | Tenant policy; restrictive: `quality.audit.manage` at the location; no delete | `tenant_configuration` |
-| `audit_record` | Mutable aggregate until completed, tenant | template and its version, kind, title, questions and framework version (copied by the database from the template at the start), location, audit date, answers, state (`in_progress`, `completed`), score percent, points achieved and possible, self-rating, started by, completed by and at | Tenant policy; restrictive: `quality.audit.manage` at the location; starts in progress in the starter's name; the template, framework, place and date never change; only completion records the self-rating; a completed audit never changes; no delete | `organisation_document` |
-| `audit_action` | Append-only, tenant | audit, question key, description (3 to 1000 characters), owner, due date, task | Tenant policy; restrictive through the audit's location; only on a question of a completed audit, by the person who completed it, due on or after the audit | `organisation_document` |
+| `audit_schedule` | Mutable aggregate, tenant | template, location (one schedule each), frequency (1 to 60 months), first due date | Tenant policy; restrictive: `quality.audit.manage` at the location; the location the organisation's own (foreign key); no delete | `tenant_configuration` |
+| `audit_record` | Mutable aggregate until completed, tenant | template and its version, kind, title, questions and framework version (copied by the database from the template at the start), location, audit date, answers, state (`in_progress`, `completed`), score percent, points achieved and possible, self-rating, started by, completed by and at | Tenant policy; restrictive: `quality.audit.manage` at the location; starts in progress in the starter's name; the template, framework, place and date never change; the location the organisation's own (foreign key); only completion records the self-rating and the score, which must be the score of the saved answers (points worked out by the database, the percentage within 0.001), with every question answered; a completed audit never changes; no delete | `organisation_document` |
+| `audit_action` | Append-only, tenant | audit, question key, description (3 to 1000 characters), owner, due date, task | Tenant policy; restrictive through the audit's location; only on a question of a completed audit, by the person who completed it, due on or after the audit; the owner a member and the task the organisation's own (foreign keys) | `organisation_document` |
 
 Seven starter templates are seeded (medication, care plans, IPC, environment, dignity, night visit,
 mock inspection; 36 questions in all), mapped to statements of framework version 1; the IPC one is
@@ -783,8 +783,10 @@ the template slice 31 uses. They are Harbour's drafting, to be reviewed (H-760).
 | `quality.audit.manage` (at a location) | Schedule audits there; start, answer and complete audits there; read them, their scores, findings and actions | As above |
 | `quality.evidence.manage` | Tag a completed audit as evidence (record type `audit`), read in the tagger's scope | As in section 18 |
 
-Action owners get a task (`quality.audit_action`) that needs `quality.audit.manage` to complete;
-whether owners without it should complete their own actions is H-762.
+Action owners get a task (`quality.audit_action`) that needs `quality.audit.manage` to complete, so
+an owner must be an active member who holds it at the audit's location (`mayBeAssigned`, as the
+task engine requires of any assignee). Whether owners without it should complete their own actions
+is H-762.
 
 ### 19.3 API
 
@@ -801,7 +803,7 @@ whether owners without it should complete their own actions is H-762.
 | `GET /v1/quality/audits/{id}` | Score (`scoreAudit`) with its method in words, findings by statement (`auditFindingsByStatement`), actions, the self-rating with its CQC words, and whether its framework version is still in force |
 | `POST /v1/quality/audits` | Start from an active template at a visible location, dated today or earlier; a mock inspection only when its template is mapped to the framework version in force (409 otherwise); `quality.audit.started` |
 | `PUT /v1/quality/audits/{id}/answers` | Merge answers for the audit's own questions against the read version; `quality.audit.answered` |
-| `POST /v1/quality/audits/{id}/complete` | `checkAuditCompletion` with the rating scale from the rate table; a missing action due date takes `quality.audit.action_due_days` after the audit (`defaultActionDueOn`); owners must be members; stores the score and points, the actions and a task for each owner; `quality.audit.completed` |
+| `POST /v1/quality/audits/{id}/complete` | `checkAuditCompletion` with the rating scale from the rate table; a missing action due date takes `quality.audit.action_due_days` after the audit (`defaultActionDueOn`); owners must be active members who run audits at the location (422 otherwise); stores the score and points, the actions and a task for each owner; `quality.audit.completed` |
 
 Refusals decided in the API and those the database raises are audited as denied. No route works
 out a rating from a score (rule 15).
