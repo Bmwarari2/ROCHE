@@ -54,6 +54,9 @@ reports tables it cannot search instead of missing them.
   with the case, counts and record ids. Staff are found by their `tenant_user` row and the columns
   naming what they did (`*_by`, `*tenant_user_id`), not by `created_by` and `updated_by`, which
   every row has.
+- Because the collector reads across the organisation, only an organisation-wide role may run a
+  case, opening records, the bundle and the response need step-up, decisions are bound to the
+  record's content hash, and the issued bundle is kept as sent (security review #149).
 - The tables are platform-owned (`dsar_case`, `dsar_item`, schema file `data-rights.ts`, migration
   0077); the permission keeps its name `quality.dsar.manage`.
 

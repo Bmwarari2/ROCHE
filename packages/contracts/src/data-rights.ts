@@ -48,6 +48,22 @@ export const NewDsarCase = z
     /** Whether proof of identity is needed before the clock starts (rule 2). */
     identityRequired: z.boolean().default(true),
   })
+  // A representative gives a name and an authority; the subject's own request has neither, so a
+  // mismatch is refused here and never reaches the database (#149 M6).
+  .superRefine((v, ctx) => {
+    if (v.requesterKind === "representative") {
+      if (v.authority === null)
+        ctx.addIssue({ code: "custom", path: ["authority"], message: "authority_required" });
+      if (v.requesterName === null)
+        ctx.addIssue({
+          code: "custom",
+          path: ["requesterName"],
+          message: "requester_name_required",
+        });
+    } else if (v.authority !== null) {
+      ctx.addIssue({ code: "custom", path: ["authority"], message: "authority_not_for_subject" });
+    }
+  })
   .meta({ id: "NewDsarCase" });
 export type NewDsarCase = z.infer<typeof NewDsarCase>;
 
@@ -151,6 +167,8 @@ export const DsarCase = DsarCaseSummary.extend({
   erasure: DsarErasureRecord.nullable(),
   bundleSha256: z.string().nullable(),
   bundleIssuedAt: isoDateTime.nullable(),
+  /** The issued bundle is kept and can be fetched again exactly as sent (#149 M3). */
+  bundleStored: z.boolean(),
 }).meta({ id: "DsarCase" });
 export type DsarCase = z.infer<typeof DsarCase>;
 
@@ -209,6 +227,8 @@ export const DsarItemList = z
 export const DsarItemDetail = DsarItem.extend({
   /** The record as the export shows it (no internal or secret columns); null when it has gone. */
   record: z.record(z.string(), z.unknown()).nullable(),
+  /** SHA-256 of the record shown: send it back with the decision (#149 M3). */
+  contentSha256: z.string().nullable(),
   /** Other people's names found in the record's text, for the reviewer to judge (never redacted). */
   highlights: z.array(
     z.object({
@@ -225,6 +245,8 @@ export const DsarItemDecisionInput = z
     decision: z.enum(["disclose", "redact", "withhold"]),
     redactedFields: z.array(z.string().min(1).max(100)).max(200).default([]),
     reason: reason.nullable().default(null),
+    /** The `contentSha256` of the record as opened: refused if it changed since (#149 M3). */
+    contentSha256: z.string().regex(/^[0-9a-f]{64}$/),
     expectedVersion,
   })
   .meta({ id: "DsarItemDecisionInput" });

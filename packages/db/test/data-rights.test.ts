@@ -18,6 +18,8 @@ const asOwner = <T>(tenantId: string, fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(db.pool("harbour_owner"), ctx(tenantId, null, "tenant"), fn);
 const asLead = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.manager, "tenant"), fn);
+const asNorthManager = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
+  inContext(app(), ctx(TENANT_A, a.northManager, "locations", [a.locationNorth]), fn);
 const asCarer = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
   inContext(app(), ctx(TENANT_A, a.carer, "locations", [a.locationNorth]), fn);
 const asOtherTenant = <T>(fn: (c: pg.PoolClient) => Promise<T>) =>
@@ -65,13 +67,27 @@ beforeAll(async () => {
       "INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, '0199e000-0000-7000-8000-000000000772')",
       [b.manager],
     );
-    caseB = (
-      await c.query<{ id: string }>(
+  });
+  caseB = (
+    await asOtherTenant((c) =>
+      c.query<{ id: string }>(
         `INSERT INTO dsar_case (request_kind, subject_kind, subject_person_id, requester_kind, channel, received_on)
          VALUES ('access', 'person', $1, 'subject', 'post', '2026-10-01') RETURNING id`,
         [b.personDev],
-      )
-    ).rows[0]?.id as string;
+      ),
+    )
+  ).rows[0]?.id as string;
+  // A location-scoped manager who holds quality.dsar.manage only at North (#149 H1).
+  await asOwner(TENANT_A, async (c) => {
+    await c.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ('0199e000-0000-7000-8000-000000000773', 'deputy_manager', 'Deputy', 'location',
+         '{quality.dsar.manage,people.person.read}')`,
+    );
+    await c.query(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, '0199e000-0000-7000-8000-000000000773', $2)",
+      [a.northManager, a.locationNorth],
+    );
   });
   caseA = (await asLead((c) => newCase(c))).rows[0]?.id as string;
 });
@@ -272,7 +288,7 @@ describe("a closed case is the record of what was done", () => {
     const closed = (await asLead((c) => newCase(c))).rows[0]?.id as string;
     await asLead((c) =>
       c.query(
-        "UPDATE dsar_case SET status = 'closed', outcome = 'fulfilled', responded_on = '2026-10-20' WHERE id = $1",
+        "UPDATE dsar_case SET status = 'closed', outcome = 'fulfilled', responded_on = '2026-10-20', identity_required = false WHERE id = $1",
         [closed],
       ),
     );
@@ -311,5 +327,72 @@ describe("a closed case is the record of what was done", () => {
         ),
       ),
     ).rejects.toThrow(/dsar_case_outcome_reason/);
+  });
+});
+
+describe("#149 review: organisation-wide roles only, the owner role too, guards, identity", () => {
+  it("H1: a manager holding the permission only at a location sees and writes nothing", async () => {
+    expect((await asNorthManager((c) => c.query("SELECT id FROM dsar_case"))).rows).toEqual([]);
+    await expect(asNorthManager((c) => newCase(c))).rejects.toThrow(/row-level security/);
+  });
+
+  it("L8: the owner role, with no member, sees no case either", async () => {
+    expect((await asOwner(TENANT_A, (c) => c.query("SELECT id FROM dsar_case"))).rows).toEqual([]);
+  });
+
+  it("L7: a closed case cannot be changed by also setting deleted_at, but may be soft-deleted", async () => {
+    const closed = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await asLead((c) =>
+      c.query(
+        "UPDATE dsar_case SET status = 'closed', outcome = 'fulfilled', responded_on = '2026-10-20', identity_required = false WHERE id = $1",
+        [closed],
+      ),
+    );
+    await expect(
+      asLead((c) =>
+        c.query(
+          "UPDATE dsar_case SET outcome = 'refused', outcome_reason = 'x', deleted_at = now() WHERE id = $1",
+          [closed],
+        ),
+      ),
+    ).rejects.toThrow(/cannot change/);
+    await expect(
+      asLead((c) => c.query("UPDATE dsar_case SET deleted_at = now() WHERE id = $1", [closed])),
+    ).resolves.toBeDefined();
+  });
+
+  it("L7: an item never moves to another case", async () => {
+    const other = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    const item = (
+      await asLead((c) =>
+        c.query<{ id: string }>(
+          "INSERT INTO dsar_item (case_id, table_name, record_id) VALUES ($1, 'allergy', 'x1') RETURNING id",
+          [caseA],
+        ),
+      )
+    ).rows[0]?.id as string;
+    await expect(
+      asLead((c) => c.query("UPDATE dsar_item SET case_id = $1 WHERE id = $2", [other, item])),
+    ).rejects.toThrow(/keeps its case/);
+  });
+
+  it("M4: a case awaiting identity cannot close as done or carry a bundle", async () => {
+    const waiting = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await expect(
+      asLead((c) =>
+        c.query(
+          "UPDATE dsar_case SET status = 'closed', outcome = 'fulfilled', responded_on = '2026-10-20' WHERE id = $1",
+          [waiting],
+        ),
+      ),
+    ).rejects.toThrow(/dsar_case_identity_first/);
+    await expect(
+      asLead((c) =>
+        c.query(
+          "UPDATE dsar_case SET status = 'closed', outcome = 'refused', outcome_reason = 'Identity not confirmed', responded_on = '2026-10-20' WHERE id = $1",
+          [waiting],
+        ),
+      ),
+    ).resolves.toBeDefined();
   });
 });

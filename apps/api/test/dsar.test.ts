@@ -1,7 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { touchesCareRecords } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createHarness, type Harness, LODGE, OTHER } from "./support/harness";
+import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 
 /**
  * The DSAR workbench through the API (PLAT-022; platform.md, Phase 2: the DSAR workbench; ADR-0090;
@@ -59,6 +59,9 @@ async function owner<T = Record<string, unknown>>(text: string, values: unknown[
     const result = await client.query(text, values);
     await client.query("COMMIT");
     return result.rows as T[];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     client.release();
   }
@@ -79,6 +82,17 @@ async function newCase(body: Record<string, unknown>): Promise<Case> {
   return (await r.json()) as Case;
 }
 
+/** Opens the item, as a reviewer must, and decides it on the record they saw (#149 M3). */
+async function decide(caseId: string, item: Item, body: Record<string, unknown>) {
+  const detail = (await (await get(`/v1/dsar-cases/${caseId}/items/${item.id}`)).json()) as {
+    contentSha256: string;
+  };
+  return post(`/v1/dsar-cases/${caseId}/items/${item.id}/decision`, {
+    contentSha256: detail.contentSha256,
+    ...body,
+  });
+}
+
 beforeAll(async () => {
   h = await createHarness();
   const [p] = await owner<{ id: string }>(
@@ -91,7 +105,7 @@ beforeAll(async () => {
   adaContact = ct?.id as string;
   const [note] = await owner<{ id: string }>(
     `INSERT INTO care_note (person_id, location_id, category, body, occurred_at)
-     VALUES ($1, $2, 'visit', 'Visited by Relative Example and Mo Manager. Ada enjoyed it.', now())
+     VALUES ($1, $2, 'visit', 'Visited by Relative Example and Mo Manager. Ada enjoyed it. Ben Sample joined.', now())
      RETURNING id`,
     [ada, DEMO.locationId],
   );
@@ -275,6 +289,8 @@ describe("collection, review and the bundle", () => {
       expect.arrayContaining(["Relative Example", "Mo Manager"]),
     );
     expect(detail.highlights.map((x) => x.name)).not.toContain("Ada");
+    // Other people supported are third parties too (#149 M5).
+    expect(detail.highlights.map((x) => x.name)).toContain("Ben Sample");
     const audits = await owner<{ scope: Record<string, unknown> }>(
       "SELECT scope FROM audit_event WHERE action = 'platform.dsar.item_viewed' AND resource_id = $1",
       [c.id],
@@ -284,13 +300,13 @@ describe("collection, review and the bundle", () => {
 
   it("refuses a redaction without fields or a reason, and the bundle until every record is decided", async () => {
     const note = items.find((i) => i.recordId === adaNote) as Item;
-    let r = await post(`/v1/dsar-cases/${c.id}/items/${note.id}/decision`, {
+    let r = await decide(c.id, note, {
       decision: "redact",
       reason: "Third-party data",
       expectedVersion: note.version,
     });
     expect(r.status).toBe(422);
-    r = await post(`/v1/dsar-cases/${c.id}/items/${note.id}/decision`, {
+    r = await decide(c.id, note, {
       decision: "withhold",
       expectedVersion: note.version,
     });
@@ -303,7 +319,7 @@ describe("collection, review and the bundle", () => {
   it("issues the bundle with redactions and withheld records left out, and records its hash on respond", async () => {
     const note = items.find((i) => i.recordId === adaNote) as Item;
     const others = items.filter((i) => i.id !== note.id);
-    let r = await post(`/v1/dsar-cases/${c.id}/items/${note.id}/decision`, {
+    let r = await decide(c.id, note, {
       decision: "redact",
       redactedFields: ["body"],
       reason: "Third-party data (DPA 2018 Sch 2 para 16)",
@@ -311,14 +327,14 @@ describe("collection, review and the bundle", () => {
     });
     expect(r.status).toBe(200);
     const [withheld, ...rest] = others;
-    r = await post(`/v1/dsar-cases/${c.id}/items/${withheld?.id}/decision`, {
+    r = await decide(c.id, withheld as Item, {
       decision: "withhold",
       reason: "Serious harm test (DPA 2018 Sch 3 para 5)",
-      expectedVersion: withheld?.version,
+      expectedVersion: (withheld as Item).version,
     });
     expect(r.status).toBe(200);
     for (const i of rest) {
-      r = await post(`/v1/dsar-cases/${c.id}/items/${i.id}/decision`, {
+      r = await decide(c.id, i, {
         decision: "disclose",
         expectedVersion: i.version,
       });
@@ -364,6 +380,10 @@ describe("collection, review and the bundle", () => {
     expect(closed.clock?.state).toBe("closed");
     expect(closed.clock?.late).toBe(false);
     expect(closed.bundleSha256).toBe(bundle.sha256);
+    // The bundle as sent is kept and returned exactly (#149 M3).
+    const issued = await get(`/v1/dsar-cases/${c.id}/bundle/issued`);
+    expect(issued.status).toBe(200);
+    expect(((await issued.json()) as { sha256: string }).sha256).toBe(bundle.sha256);
     // A closed case takes no more decisions.
     r = await post(`/v1/dsar-cases/${c.id}/collect`, {});
     expect(r.status).toBe(409);
@@ -450,5 +470,105 @@ describe("audit holds counts and ids, never names or content", () => {
     const text = JSON.stringify(rows);
     for (const name of ["Eve Example", "Ada", "Relative Example", "Visited by"])
       expect(text).not.toContain(name);
+  });
+});
+
+describe("#149 security review", () => {
+  it("H1: a manager whose role reaches one location cannot run a case", async () => {
+    const r = await get("/v1/dsar-cases", "manager");
+    expect(r.status).toBe(403);
+    expect(await codeOf(r)).toBe("dsar_needs_organisation_role");
+  });
+
+  it("H2: the item view, bundle and response need a fresh step-up", async () => {
+    const c = await newCase({});
+    await post(`/v1/dsar-cases/${c.id}/collect`, {});
+    const [item] = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+      .items;
+    const auth = h.db.pool("harbour_auth");
+    const session = h.tokens.quality?.split(".")[0] ?? "";
+    await ageSession(auth, session, 3_600);
+    try {
+      expect((await get(`/v1/dsar-cases/${c.id}/items/${item?.id}`)).status).toBe(403);
+      expect((await get(`/v1/dsar-cases/${c.id}/bundle`)).status).toBe(403);
+      expect(
+        (
+          await post(`/v1/dsar-cases/${c.id}/respond`, {
+            respondedOn: isoDaysAgo(0),
+            outcome: "refused",
+            outcomeReason: "Manifestly unfounded.",
+            expectedVersion: c.version,
+          })
+        ).status,
+      ).toBe(403);
+      // Reading the case itself does not disclose records.
+      expect((await get(`/v1/dsar-cases/${c.id}`)).status).toBe(200);
+    } finally {
+      await ageSession(auth, session, 0);
+    }
+  });
+
+  it("M3: a record changed after its decision goes back for review, and the decision needs the record as seen", async () => {
+    const c = await newCase({});
+    await post(`/v1/dsar-cases/${c.id}/collect`, {});
+    const items = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+      .items;
+    const note = items.find((i) => i.recordId === adaNote) as Item;
+    // A stale hash is refused.
+    const stale = await post(`/v1/dsar-cases/${c.id}/items/${note.id}/decision`, {
+      decision: "disclose",
+      contentSha256: "0".repeat(64),
+      expectedVersion: note.version,
+    });
+    expect(stale.status).toBe(409);
+    expect(await codeOf(stale)).toBe("dsar_record_changed");
+    for (const i of items)
+      expect(
+        (await decide(c.id, i, { decision: "disclose", expectedVersion: i.version })).status,
+      ).toBe(200);
+    await owner("UPDATE person SET room_label = 'Room 9' WHERE id = $1", [ada]);
+    const r = await get(`/v1/dsar-cases/${c.id}/bundle`);
+    expect(r.status).toBe(409);
+    expect(await codeOf(r)).toBe("dsar_records_changed");
+    const after = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+      .items;
+    expect(after.find((i) => i.tableName === "person" && i.recordId === ada)?.decision).toBe(
+      "pending",
+    );
+    expect(after.filter((i) => i.decision === "pending")).toHaveLength(1);
+  });
+
+  it("M4: nothing is disclosed before the requester's identity is confirmed", async () => {
+    const c = await newCase({ identityRequired: true });
+    await post(`/v1/dsar-cases/${c.id}/collect`, {});
+    const items = ((await (await get(`/v1/dsar-cases/${c.id}/items`)).json()) as { items: Item[] })
+      .items;
+    for (const i of items)
+      await decide(c.id, i, { decision: "disclose", expectedVersion: i.version });
+    const r = await get(`/v1/dsar-cases/${c.id}/bundle`);
+    expect(r.status).toBe(409);
+    expect(await codeOf(r)).toBe("dsar_identity_not_verified");
+  });
+
+  it("M6: a subject's own request naming an authority is refused before the database", async () => {
+    const r = await post("/v1/dsar-cases", {
+      requestKind: "access",
+      subjectKind: "person",
+      subjectPersonId: ada,
+      requesterKind: "subject",
+      requesterName: "Eve Example",
+      authority: "deputy",
+      channel: "post",
+      receivedOn: isoDaysAgo(1),
+    });
+    expect(r.status).toBe(422);
+  });
+
+  it("L9: an item view is also recorded against the subject person", async () => {
+    const rows = await owner<{ n: number }>(
+      "SELECT count(*)::int AS n FROM audit_event WHERE action = 'platform.dsar.subject_record_viewed' AND resource_type = 'person' AND resource_id = $1",
+      [ada],
+    );
+    expect(rows[0]?.n).toBeGreaterThan(0);
   });
 });

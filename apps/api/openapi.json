@@ -23690,6 +23690,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "bundleStored": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -23721,7 +23724,8 @@
           "rectification",
           "erasure",
           "bundleSha256",
-          "bundleIssuedAt"
+          "bundleIssuedAt",
+          "bundleStored"
         ]
       },
       "DsarAuthority": {
@@ -24195,6 +24199,12 @@
             ],
             "additionalProperties": {}
           },
+          "contentSha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "highlights": {
             "type": "array",
             "items": {
@@ -24233,6 +24243,7 @@
           "reviewedAt",
           "version",
           "record",
+          "contentSha256",
           "highlights"
         ]
       },
@@ -24266,12 +24277,17 @@
             "maxLength": 2000,
             "default": null
           },
+          "contentSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
           "expectedVersion": {
             "type": "integer"
           }
         },
         "required": [
           "decision",
+          "contentSha256",
           "expectedVersion"
         ]
       },
@@ -50813,6 +50829,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dsar-cases/{id}/bundle/issued": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The bundle exactly as it was sent",
+        "description": "quality.dsar.manage across the organisation, with step-up. The stored copy whose SHA-256 the response recorded. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bundle as sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DsarBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

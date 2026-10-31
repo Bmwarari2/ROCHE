@@ -30,6 +30,7 @@ CREATE TABLE "dsar_case" (
 	"erasure" jsonb,
 	"bundle_sha256" text,
 	"bundle_issued_at" timestamp with time zone,
+	"bundle_storage_key" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -58,7 +59,10 @@ CREATE TABLE "dsar_case" (
         OR (status = 'withdrawn' AND outcome = 'withdrawn')),
 	CONSTRAINT "dsar_case_outcome_reason" CHECK (outcome IS NULL OR outcome IN ('fulfilled', 'withdrawn') OR outcome_reason IS NOT NULL),
 	CONSTRAINT "dsar_case_bundle" CHECK ((bundle_sha256 IS NULL) = (bundle_issued_at IS NULL)
-        AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$'))
+        AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)
+        AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')),
+	CONSTRAINT "dsar_case_identity_first" CHECK (NOT identity_required OR identity_verified_on IS NOT NULL
+        OR (bundle_sha256 IS NULL AND (outcome IS NULL OR outcome IN ('refused', 'withdrawn'))))
 );
 --> statement-breakpoint
 CREATE TABLE "dsar_item" (
@@ -72,6 +76,7 @@ CREATE TABLE "dsar_item" (
 	"reason" text,
 	"reviewed_by" uuid,
 	"reviewed_at" timestamp with time zone,
+	"content_sha256" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -81,7 +86,8 @@ CREATE TABLE "dsar_item" (
 	CONSTRAINT "dsar_item_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "dsar_item_case_record_key" UNIQUE("tenant_id","case_id","table_name","record_id"),
 	CONSTRAINT "dsar_item_decision" CHECK (decision IN ('pending', 'disclose', 'redact', 'withhold')),
-	CONSTRAINT "dsar_item_reviewed" CHECK ((decision = 'pending') = (reviewed_by IS NULL AND reviewed_at IS NULL)),
+	CONSTRAINT "dsar_item_reviewed" CHECK ((decision = 'pending') = (reviewed_by IS NULL AND reviewed_at IS NULL AND content_sha256 IS NULL)
+        AND (content_sha256 IS NULL OR content_sha256 ~ '^[0-9a-f]{64}$')),
 	CONSTRAINT "dsar_item_redaction" CHECK ((decision = 'redact') = (cardinality(redacted_fields) > 0)
         AND (decision IN ('pending', 'disclose') OR reason IS NOT NULL))
 );
@@ -95,8 +101,9 @@ ALTER TABLE "dsar_item" ADD CONSTRAINT "dsar_item_case_fk" FOREIGN KEY ("tenant_
 ALTER TABLE "dsar_item" ADD CONSTRAINT "dsar_item_reviewed_by_fk" FOREIGN KEY ("tenant_id","reviewed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "dsar_case_tenant_status_idx" ON "dsar_case" USING btree ("tenant_id","status","received_on");--> statement-breakpoint
 CREATE INDEX "dsar_item_case_decision_idx" ON "dsar_item" USING btree ("tenant_id","case_id","decision");--> statement-breakpoint
--- Security (ADR-0002, ADR-0090): forced RLS, the tenant policy, and only holders of
--- quality.dsar.manage read or write a case or its items. No DELETE grant for harbour_app (default
+-- Security (ADR-0002, ADR-0090): forced RLS, the tenant policy, and only members holding
+-- quality.dsar.manage across the whole organisation (a tenant-wide role, never a location one:
+-- #149 H1) read or write a case or its items, as the application or the owner role (#149 L8). No DELETE grant for harbour_app (default
 -- privileges); a case is closed or withdrawn, never deleted, and destroyed by the retention engine.
 ALTER TABLE public.dsar_case ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
@@ -105,9 +112,10 @@ ALTER TABLE public.dsar_case FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.dsar_case AS PERMISSIVE FOR ALL TO PUBLIC
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
-CREATE POLICY dsar_case_manage ON public.dsar_case AS RESTRICTIVE FOR ALL TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
-  WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY dsar_case_manage ON public.dsar_case AS RESTRICTIVE FOR ALL
+  TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
 ALTER TABLE public.dsar_item ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
@@ -116,21 +124,27 @@ ALTER TABLE public.dsar_item FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON public.dsar_item AS PERMISSIVE FOR ALL TO PUBLIC
   USING (tenant_id = app.current_tenant_id()) WITH CHECK (tenant_id = app.current_tenant_id());
 --> statement-breakpoint
-CREATE POLICY dsar_item_manage ON public.dsar_item AS RESTRICTIVE FOR ALL TO harbour_app
-  USING (app.holds_role_permission_somewhere('quality.dsar.manage'))
-  WITH CHECK (app.holds_role_permission_somewhere('quality.dsar.manage'));
+CREATE POLICY dsar_item_manage ON public.dsar_item AS RESTRICTIVE FOR ALL
+  TO harbour_app, harbour_owner
+  USING (app.holds_role_permission_at('quality.dsar.manage', NULL))
+  WITH CHECK (app.holds_role_permission_at('quality.dsar.manage', NULL));
 --> statement-breakpoint
--- A closed or withdrawn case is the record of what was done: it never reopens or changes, and an
--- issued bundle's hash never changes.
+-- A closed or withdrawn case is the record of what was done: it never reopens or changes, except
+-- that the retention engine may soft-delete it (deleted_at alone, #149 L7); an issued bundle's hash
+-- and storage key never change.
 CREATE OR REPLACE FUNCTION app.dsar_case_guard() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+  housekeeping text[] := ARRAY['deleted_at', 'updated_at', 'updated_by', 'version'];
 BEGIN
-  IF OLD.status <> 'open' AND OLD.deleted_at IS NOT DISTINCT FROM NEW.deleted_at THEN
+  IF OLD.status <> 'open'
+     AND (to_jsonb(NEW) - housekeeping) IS DISTINCT FROM (to_jsonb(OLD) - housekeeping) THEN
     RAISE EXCEPTION 'dsar case % is %, and cannot change', OLD.id, OLD.status
       USING ERRCODE = 'check_violation';
   END IF;
-  IF OLD.bundle_sha256 IS NOT NULL AND NEW.bundle_sha256 IS DISTINCT FROM OLD.bundle_sha256 THEN
-    RAISE EXCEPTION 'dsar case % bundle hash cannot change', OLD.id USING ERRCODE = 'check_violation';
+  IF OLD.bundle_sha256 IS NOT NULL AND (NEW.bundle_sha256 IS DISTINCT FROM OLD.bundle_sha256
+      OR NEW.bundle_storage_key IS DISTINCT FROM OLD.bundle_storage_key) THEN
+    RAISE EXCEPTION 'dsar case % bundle cannot change', OLD.id USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END;
@@ -139,12 +153,19 @@ $$;
 CREATE TRIGGER dsar_case_guard BEFORE UPDATE ON public.dsar_case
   FOR EACH ROW EXECUTE FUNCTION app.dsar_case_guard();
 --> statement-breakpoint
--- Items are added and decided only while their case is open.
+-- Items are added and decided only while their case is open, and never move to another case
+-- (#149 L7).
 CREATE OR REPLACE FUNCTION app.dsar_item_guard() RETURNS trigger
   LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 DECLARE
   case_status text;
 BEGIN
+  IF TG_OP = 'UPDATE' AND (NEW.case_id IS DISTINCT FROM OLD.case_id
+      OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+      OR NEW.table_name IS DISTINCT FROM OLD.table_name
+      OR NEW.record_id IS DISTINCT FROM OLD.record_id) THEN
+    RAISE EXCEPTION 'a dsar item keeps its case and record' USING ERRCODE = 'check_violation';
+  END IF;
   SELECT status INTO case_status FROM public.dsar_case
     WHERE tenant_id = NEW.tenant_id AND id = NEW.case_id;
   IF case_status IS DISTINCT FROM 'open' THEN

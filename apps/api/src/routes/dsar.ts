@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   DsarBundle,
   DsarCase,
@@ -25,15 +25,22 @@ import {
   checkNewDsarCase,
   type DsarItemDecision,
   type DsarSubjectKind,
+  dsarBundleStorageKey,
   erasureAssessment,
   findThirdPartyNames,
   portabilityApplies,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
+import {
+  type AppEnv,
+  requirePermission,
+  stepUpRefusal,
+  type TenantAccess,
+  withTenant,
+} from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import {
   asOrganisation,
@@ -90,6 +97,9 @@ const A = {
   itemsListed: "platform.dsar.items_listed",
   itemViewed: "platform.dsar.item_viewed",
   decided: "platform.dsar.item_decided",
+  reset: "platform.dsar.items_reset",
+  subjectViewed: "platform.dsar.subject_record_viewed",
+  issuedFetched: "platform.dsar.issued_bundle_fetched",
   bundle: "platform.dsar.bundle_generated",
   responded: "platform.dsar.responded",
   rectification: "platform.dsar.rectification_recorded",
@@ -115,6 +125,38 @@ const audit = (
     scope,
     requestId: c.get("requestId"),
   });
+
+/**
+ * Requires quality.dsar.manage held across the whole organisation (#149 H1): a case reaches
+ * every module and every person, so a location role never runs one. Routes that disclose
+ * records (the item view, the bundle, the response) also need a fresh step-up (#149 H2).
+ */
+async function requireDsar(
+  c: Context<AppEnv>,
+  options: { stepUp?: boolean } = {},
+): Promise<TenantAccess> {
+  const access = await requirePermission(c, PERMISSION);
+  if (access.context.scope !== "tenant") {
+    throw new HttpProblem(
+      403,
+      "dsar_needs_organisation_role",
+      "Data subject requests are handled by someone with an organisation-wide role.",
+    );
+  }
+  if (options.stepUp && !access.stepUpFresh) throw stepUpRefusal(access);
+  return access;
+}
+
+/** Nothing is disclosed or closed as done before the requester's identity is confirmed (#149 M4). */
+function requireIdentity(row: CaseRow): void {
+  if (row.identityRequired && !row.identityVerifiedOn) {
+    throw new HttpProblem(
+      409,
+      "dsar_identity_not_verified",
+      "Confirm the requester's identity before responding.",
+    );
+  }
+}
 
 /** Applies a change to an open case at the version read, or refuses it as stale. */
 async function changeCase(
@@ -164,6 +206,20 @@ function canonical(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
+/** SHA-256 of a record as the reviewer sees it (its disclosable columns), for #149 M3. */
+function recordSha256(record: Record<string, unknown>): string {
+  return createHash("sha256").update(canonical(record)).digest("hex");
+}
+
+/** Every string in a field, with its path inside JSON (#149 M5: JSON fields are scanned too). */
+function stringsIn(value: unknown, path: string): { field: string; text: string }[] {
+  if (typeof value === "string") return [{ field: path, text: value }];
+  if (Array.isArray(value)) return value.flatMap((v, i) => stringsIn(v, `${path}[${i}]`));
+  if (value !== null && typeof value === "object")
+    return Object.entries(value).flatMap(([k, v]) => stringsIn(v, `${path}.${k}`));
+  return [];
+}
+
 /** Builds the bundle from the decided items (rule 5); refuses until every item is decided. */
 async function buildBundle(
   c: Context<AppEnv>,
@@ -176,10 +232,12 @@ async function buildBundle(
     items.map((i) => ({ decision: i.decision as DsarItemDecision })),
   );
   if (!readiness.ready) throw caseProblem.notReady(readiness.pending);
+  requireIdentity(row);
   const shown = items.filter((i) => i.decision === "disclose" || i.decision === "redact");
   const byTable = new Map<string, ItemRow[]>();
-  for (const i of shown) byTable.set(i.tableName, [...(byTable.get(i.tableName) ?? []), i]);
+  for (const i of items) byTable.set(i.tableName, [...(byTable.get(i.tableName) ?? []), i]);
   const records: { table: string; recordId: string; fields: Record<string, unknown> }[] = [];
+  const changed: string[] = [];
   await asOrganisation(c, access, async (tx) => {
     for (const [table, list] of [...byTable].sort(([a], [b]) => a.localeCompare(b))) {
       const found = await recordsOf(
@@ -189,7 +247,12 @@ async function buildBundle(
       );
       for (const i of list.sort((a, b) => a.recordId.localeCompare(b.recordId))) {
         const record = found.get(i.recordId);
-        if (!record) continue;
+        // A record changed or gone since it was decided goes back for review (#149 M3).
+        if (!record || recordSha256(record) !== i.contentSha256) {
+          changed.push(i.id);
+          continue;
+        }
+        if (i.decision === "withhold") continue;
         records.push({
           table,
           recordId: i.recordId,
@@ -198,6 +261,28 @@ async function buildBundle(
       }
     }
   });
+  if (changed.length > 0) {
+    await withTenant(c, async (tx) => {
+      await tx
+        .update(dsarItem)
+        .set({
+          decision: "pending",
+          redactedFields: [],
+          reason: null,
+          reviewedBy: null,
+          reviewedAt: null,
+          contentSha256: null,
+        })
+        .where(and(eq(dsarItem.caseId, row.id), inArray(dsarItem.id, changed)));
+      await audit(c, tx, access, A.reset, row.id, { items: changed.length });
+    });
+    throw new HttpProblem(
+      409,
+      "dsar_records_changed",
+      "Some records changed after they were reviewed.",
+      `${changed.length} returned for review.`,
+    );
+  }
   const redactedCount = shown.filter((i) => i.decision === "redact").length;
   const withheldCount = readiness.withheld;
   const sha256 = createHash("sha256")
@@ -228,7 +313,7 @@ export const dsarRouter = createRouter()
       responses: { 200: jsonBody(DsarCaseList, "The requests"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const body = await withTenant(c, async (tx) => {
         const rows = await tx
           .select()
@@ -255,7 +340,7 @@ export const dsarRouter = createRouter()
       responses: { 201: jsonBody(DsarCase, "Recorded"), ...errorResponses },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const input = c.req.valid("json");
       const check = checkNewDsarCase({ ...input, today: today() });
       if (!check.ok) throw problems.invalid(check.problem);
@@ -282,8 +367,10 @@ export const dsarRouter = createRouter()
         } catch (error) {
           // A subject outside the organisation fails its composite foreign key.
           const pgError = (error as { cause?: { code?: string } }).cause ?? error;
-          if ((pgError as { code?: string }).code === "23503")
-            throw problems.invalid("subject_not_found");
+          const code = (pgError as { code?: string }).code;
+          if (code === "23503") throw problems.invalid("subject_not_found");
+          // A shape the checks refuse: answered in words, never with the query (#149 M6).
+          if (code === "23514") throw problems.invalid("request_shape_refused");
           throw error;
         }
         if (!row) throw problems.conflict();
@@ -312,7 +399,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const body = await withTenant(c, async (tx) => {
         const row = await loadCase(tx, id);
@@ -342,7 +429,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -379,7 +466,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -418,7 +505,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -457,7 +544,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -499,7 +586,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const row = await withTenant(c, async (tx) => {
         const r = await loadCase(tx, id);
@@ -533,6 +620,7 @@ export const dsarRouter = createRouter()
           total,
           tablesSearched: collected.tablesSearched,
           truncated: collected.truncated,
+          read: "organisation",
         });
         return {
           added,
@@ -561,7 +649,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const body = await withTenant(c, async (tx) => {
         await loadCase(tx, id);
@@ -594,7 +682,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c, { stepUp: true });
       const { id, itemId } = c.req.valid("param");
       const { row, item, names } = await withTenant(c, async (tx) => {
         const r = await loadCase(tx, id);
@@ -607,6 +695,15 @@ export const dsarRouter = createRouter()
           itemId,
           table: i.tableName,
           recordId: i.recordId,
+          read: "organisation",
+        });
+        // Also a view of the subject's records, in their own history (#149 L9).
+        await auditInTx(tx, access, {
+          action: A.subjectViewed,
+          resourceType: r.subjectKind === "staff" ? "tenant_user" : r.subjectKind,
+          resourceId: subjectIdOf(r),
+          scope: { caseId: id, table: i.tableName, recordId: i.recordId, read: "organisation" },
+          requestId: c.get("requestId"),
         });
         return { row: r, item: i, names: await staffNames(tx, [i.reviewedBy]) };
       });
@@ -616,12 +713,20 @@ export const dsarRouter = createRouter()
       }));
       const highlights = record
         ? Object.entries(record).flatMap(([field, value]) =>
-            typeof value === "string"
-              ? findThirdPartyNames(value, others).map((h) => ({ field, ...h }))
-              : [],
+            stringsIn(value, field).flatMap((s) =>
+              findThirdPartyNames(s.text, others).map((h) => ({ field: s.field, ...h })),
+            ),
           )
         : [];
-      return c.json({ ...itemOf(item, names), record, highlights }, 200);
+      return c.json(
+        {
+          ...itemOf(item, names),
+          record,
+          contentSha256: record ? recordSha256(record) : null,
+          highlights,
+        },
+        200,
+      );
     },
   )
   .openapi(
@@ -644,7 +749,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id, itemId } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -657,6 +762,18 @@ export const dsarRouter = createRouter()
         const check = checkItemDecision(input, disclosableColumns(item.tableName));
         if (!check.ok) throw problems.invalid(check.problem);
         if (item.version !== input.expectedVersion) throw caseProblem.stale();
+        // The decision is about the record the reviewer saw (#149 M3).
+        const current = await asOrganisation(c, access, async (otx) =>
+          (await recordsOf(otx, item.tableName, [item.recordId])).get(item.recordId),
+        );
+        if (!current || recordSha256(current) !== input.contentSha256) {
+          throw new HttpProblem(
+            409,
+            "dsar_record_changed",
+            "This record changed after you opened it.",
+            "Open it again and review what it says now.",
+          );
+        }
         const [saved] = await tx
           .update(dsarItem)
           .set({
@@ -665,6 +782,7 @@ export const dsarRouter = createRouter()
             reason: input.decision === "disclose" ? null : input.reason,
             reviewedBy: access.tenantUserId,
             reviewedAt: new Date(),
+            contentSha256: input.contentSha256,
           })
           .where(and(eq(dsarItem.id, itemId), eq(dsarItem.version, input.expectedVersion)))
           .returning();
@@ -699,7 +817,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c, { stepUp: true });
       const { id } = c.req.valid("param");
       const { format } = c.req.valid("query");
       const { row, items } = await withTenant(c, async (tx) => ({
@@ -716,6 +834,7 @@ export const dsarRouter = createRouter()
           redacted: bundle.redactedCount,
           withheld: bundle.withheldCount,
           sha256: bundle.sha256,
+          read: "organisation",
         }),
       );
       c.header("cache-control", "private, no-store");
@@ -742,7 +861,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c, { stepUp: true });
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       if (
@@ -756,6 +875,8 @@ export const dsarRouter = createRouter()
         return { row: r, items: await itemsOfCase(tx, id) };
       });
       requireNotFuture(input.respondedOn, row.receivedOn, "response");
+      if (input.outcome === "fulfilled" || input.outcome === "partly_fulfilled")
+        requireIdentity(row);
       const discloses =
         (row.requestKind === "access" || row.requestKind === "portability") &&
         (input.outcome === "fulfilled" || input.outcome === "partly_fulfilled");
@@ -771,6 +892,17 @@ export const dsarRouter = createRouter()
               : "access",
           )
         : null;
+      // The bundle as sent is kept (exports bucket, SSE-KMS, opaque key) and can be fetched again
+      // exactly; it is removed if the response is not recorded (#149 M3).
+      const storage = c.get("services").exportStorage;
+      const storageKey = bundle ? dsarBundleStorageKey(access.tenantId, id, randomUUID()) : null;
+      if (bundle && storageKey) {
+        await storage.put(
+          storageKey,
+          new TextEncoder().encode(JSON.stringify(bundle)),
+          "application/json",
+        );
+      }
       const body = await withTenant(c, async (tx) => {
         const ctx = await clockContext(tx, access.tenantId);
         const now = new Date();
@@ -781,7 +913,9 @@ export const dsarRouter = createRouter()
           respondedOn: input.respondedOn,
           // A pause still open ends on the day of the response.
           pauses: pausesOf(row).map((p) => (p.to === null ? { ...p, to: input.respondedOn } : p)),
-          ...(bundle ? { bundleSha256: bundle.sha256, bundleIssuedAt: now } : {}),
+          ...(bundle
+            ? { bundleSha256: bundle.sha256, bundleIssuedAt: now, bundleStorageKey: storageKey }
+            : {}),
         });
         const clock = clockOf(saved, ctx);
         await audit(c, tx, access, A.responded, id, {
@@ -791,6 +925,9 @@ export const dsarRouter = createRouter()
           sha256: bundle?.sha256 ?? null,
         });
         return caseOf(tx, saved, ctx);
+      }).catch(async (error: unknown) => {
+        if (storageKey) await storage.destroy(storageKey).catch(() => undefined);
+        throw error;
       });
       return c.json(body, 200);
     },
@@ -815,7 +952,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const body = await withTenant(c, async (tx) => {
@@ -856,7 +993,7 @@ export const dsarRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, PERMISSION);
+      const access = await requireDsar(c);
       const { id } = c.req.valid("param");
       const input = c.req.valid("json");
       const { row, items } = await withTenant(c, async (tx) => {
@@ -908,9 +1045,40 @@ export const dsarRouter = createRouter()
           held: record.held,
           retained: record.retained,
           erasable: record.erasable,
+          read: "organisation",
         });
         return caseOf(tx, saved, await clockContext(tx, access.tenantId));
       });
       return c.json(body, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/dsar-cases/{id}/bundle/issued",
+      tags,
+      summary: "The bundle exactly as it was sent",
+      description: `${PERMISSION} across the organisation, with step-up. The stored copy whose SHA-256 the response recorded. Audited.`,
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: jsonBody(DsarBundle, "The bundle as sent"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requireDsar(c, { stepUp: true });
+      const { id } = c.req.valid("param");
+      const row = await withTenant(c, async (tx) => {
+        const r = await loadCase(tx, id);
+        if (!r.bundleStorageKey) throw problems.notFound();
+        await audit(c, tx, access, A.issuedFetched, id, { sha256: r.bundleSha256 });
+        return r;
+      });
+      const bytes = await c.get("services").exportStorage.get(row.bundleStorageKey as string);
+      if (!bytes) throw problems.notFound();
+      c.header("cache-control", "private, no-store");
+      return c.json(JSON.parse(new TextDecoder().decode(bytes)) as z.infer<typeof DsarBundle>, 200);
     },
   );

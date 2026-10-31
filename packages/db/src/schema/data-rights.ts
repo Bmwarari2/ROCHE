@@ -73,6 +73,8 @@ export const dsarCase = pgTable(
     /** SHA-256 of the bundle as issued. */
     bundleSha256: text("bundle_sha256"),
     bundleIssuedAt: timestamp("bundle_issued_at", { withTimezone: true }),
+    /** Where the issued bundle is kept (the exports bucket, SSE-KMS): an opaque key, never a name. */
+    bundleStorageKey: text("bundle_storage_key"),
     ...mutableColumns(),
   },
   (t) => [
@@ -137,7 +139,14 @@ export const dsarCase = pgTable(
     check(
       "dsar_case_bundle",
       sql`(bundle_sha256 IS NULL) = (bundle_issued_at IS NULL)
+        AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)
         AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')`,
+    ),
+    // Nothing is disclosed or done for a requester whose identity is still awaited (#149 M4).
+    check(
+      "dsar_case_identity_first",
+      sql`NOT identity_required OR identity_verified_on IS NOT NULL
+        OR (bundle_sha256 IS NULL AND (outcome IS NULL OR outcome IN ('refused', 'withdrawn')))`,
     ),
   ],
 );
@@ -161,6 +170,11 @@ export const dsarItem = pgTable(
     reason: text("reason"),
     reviewedBy: uuid("reviewed_by"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /**
+     * SHA-256 of the record as the reviewer saw it (its disclosable columns, canonical JSON): a
+     * record changed since is reset to pending, so what is sent is what was reviewed (#149 M3).
+     */
+    contentSha256: text("content_sha256"),
     ...mutableColumns(),
   },
   (t) => [
@@ -180,7 +194,8 @@ export const dsarItem = pgTable(
     check("dsar_item_decision", sql`decision IN ('pending', 'disclose', 'redact', 'withhold')`),
     check(
       "dsar_item_reviewed",
-      sql`(decision = 'pending') = (reviewed_by IS NULL AND reviewed_at IS NULL)`,
+      sql`(decision = 'pending') = (reviewed_by IS NULL AND reviewed_at IS NULL AND content_sha256 IS NULL)
+        AND (content_sha256 IS NULL OR content_sha256 ~ '^[0-9a-f]{64}$')`,
     ),
     check(
       "dsar_item_redaction",

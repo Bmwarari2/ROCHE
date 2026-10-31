@@ -1973,6 +1973,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       erasure: { description: "The erasure assessment as recorded (JSON)." },
       bundle_sha256: { description: "SHA-256 of the bundle as issued." },
       bundle_issued_at: "exported",
+      bundle_storage_key: {
+        class: "internal",
+        description: "Where the issued bundle is kept in Harbour's storage (an opaque key).",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",
@@ -2007,6 +2011,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       reason: { description: "The reason or exemption for a redaction or for withholding." },
       reviewed_by: "exported",
       reviewed_at: "exported",
+      content_sha256: {
+        description:
+          "SHA-256 of the record as the reviewer saw it; a record changed since goes back for review.",
+      },
       created_at: "exported",
       created_by: "exported",
       updated_at: "exported",

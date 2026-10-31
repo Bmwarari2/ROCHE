@@ -263,6 +263,7 @@ export async function caseOf(tx: Transaction, row: CaseRow, ctx: ClockContext): 
     erasure: (row.erasure as DsarCase["erasure"]) ?? null,
     bundleSha256: row.bundleSha256,
     bundleIssuedAt: row.bundleIssuedAt?.toISOString() ?? null,
+    bundleStored: row.bundleStorageKey !== null,
   };
 }
 
@@ -339,30 +340,43 @@ export async function recordsOf(
   return out;
 }
 
-/** Names that are not the subject's, for the reviewer's highlights (rule 4). */
+/** Most names of each kind offered as highlights (a technical limit). */
+const NAME_LIMIT = 5000;
+
+/**
+ * Names that are not the subject's, for the reviewer's highlights (rule 4): every member of staff,
+ * person supported and contact the organisation records, except the subject. Records collected
+ * for one subject routinely name others (a staff member's handover names residents; a resident's
+ * note names visitors), so nobody is left out by kind (#149 M5).
+ */
 export async function thirdPartyNames(tx: Transaction, row: CaseRow): Promise<string[]> {
   const names: string[] = [];
   const staff = await tx
     .select({ id: tenantUser.id, name: tenantUser.displayName })
     .from(tenantUser)
-    .limit(2000);
+    .limit(NAME_LIMIT);
   for (const s of staff) if (s.id !== row.subjectStaffId) names.push(s.name);
-  if (row.subjectPersonId) {
-    const contacts = await tx
-      .select({ id: contact.id, given: contact.givenName, family: contact.familyName })
-      .from(contact)
-      .where(eq(contact.personId, row.subjectPersonId));
-    for (const c of contacts) {
-      if (c.id === row.subjectContactId) continue;
-      names.push(`${c.given} ${c.family}`, c.given);
-    }
-    if (row.subjectKind === "contact") {
-      const [p] = await tx
-        .select({ given: person.givenName, family: person.familyName })
-        .from(person)
-        .where(eq(person.id, row.subjectPersonId));
-      if (p) names.push(`${p.given} ${p.family}`, p.given);
-    }
+  const people = await tx
+    .select({
+      id: person.id,
+      given: person.givenName,
+      family: person.familyName,
+      preferred: person.preferredName,
+    })
+    .from(person)
+    .limit(NAME_LIMIT);
+  for (const p of people) {
+    if (row.subjectKind === "person" && p.id === row.subjectPersonId) continue;
+    names.push(`${p.given} ${p.family}`, p.given, p.family);
+    if (p.preferred) names.push(p.preferred);
+  }
+  const contacts = await tx
+    .select({ id: contact.id, given: contact.givenName, family: contact.familyName })
+    .from(contact)
+    .limit(NAME_LIMIT);
+  for (const c of contacts) {
+    if (c.id === row.subjectContactId) continue;
+    names.push(`${c.given} ${c.family}`, c.given);
   }
   return names;
 }

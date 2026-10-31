@@ -26,6 +26,26 @@ Branch `feat/platform-dsar-workbench`. PLAT-022 and WORK-011 (partial); [ADR-009
 - Sample data: a DSAR case stops a sample removal (`BLOCKS_REMOVAL`).
 - Human actions H-612 to H-615.
 
+## Security review (#149)
+
+- H1: only an organisation-wide role runs a case (API, and RLS with
+  `holds_role_permission_at(..., NULL)`); a location-scoped manager is refused.
+- H2: step-up on the item view, the bundle and the response.
+- M3: each decision stores the SHA-256 of the record as opened (`dsar_item.content_sha256`); a
+  record changed since goes back to pending; the issued bundle is kept in the exports bucket
+  (`dsar_case.bundle_storage_key`, ids-only key) and fetched again at
+  `GET /v1/dsar-cases/{id}/bundle/issued` (step-up). A streaming route rather than a signed URL, as
+  for the full export: the storage port signs nothing.
+- M4: identity enforced before the bundle or a "done" response, in the API and by the check
+  `dsar_case_identity_first`.
+- M5: highlights cover every person, contact and member of staff except the subject, and JSON
+  fields.
+- M6: the request shape is refused by the contract and the domain check before the database, and a
+  check violation is answered with a 422; main's `loggableError` keeps query values out of logs.
+- L7: the closed-case guard ignores only housekeeping columns; an item never moves case. L8: the
+  restrictive policies cover `harbour_owner`. L9: organisation-wide reads say so in audit, and item
+  views are also recorded against the subject.
+
 ## Tests
 
 - `packages/domain/src/platform/dsar.test.ts` (37).

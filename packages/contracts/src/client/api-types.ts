@@ -21440,6 +21440,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/dsar-cases/{id}/bundle/issued": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The bundle exactly as it was sent
+     * @description quality.dsar.manage across the organisation, with step-up. The stored copy whose SHA-256 the response recorded. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The bundle as sent */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DsarBundle"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -29351,6 +29428,7 @@ export interface components {
       bundleSha256: string | null;
       /** Format: date-time */
       bundleIssuedAt: string | null;
+      bundleStored: boolean;
     };
     /** @enum {string|null} */
     DsarAuthority:
@@ -29491,6 +29569,7 @@ export interface components {
       record: {
         [key: string]: unknown;
       } | null;
+      contentSha256: string | null;
       highlights: {
         field: string;
         name: string;
@@ -29505,6 +29584,7 @@ export interface components {
       redactedFields: string[];
       /** @default null */
       reason: string | null;
+      contentSha256: string;
       expectedVersion: number;
     };
     DsarBundle: {

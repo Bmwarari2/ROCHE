@@ -4,6 +4,7 @@ import {
   bundleReadiness,
   checkItemDecision,
   checkNewDsarCase,
+  dsarBundleStorageKey,
   dsarSubjectMap,
   erasureAssessment,
   findThirdPartyNames,
@@ -297,9 +298,19 @@ describe("a new case", () => {
     ],
     [
       "a representative with an LPA",
-      { requesterKind: "representative", authority: "lpa_health_welfare" },
+      {
+        requesterKind: "representative",
+        authority: "lpa_health_welfare",
+        requesterName: "Eve Example",
+      },
       null,
     ],
+    [
+      "a representative without a name",
+      { requesterKind: "representative", authority: "deputy", requesterName: " " },
+      "requester_name_required",
+    ],
+    ["the subject naming an authority", { authority: "deputy" }, "authority_not_for_subject"],
     ["a person case without the person", { subjectPersonId: null }, "subject_mismatch"],
     ["a person case naming a contact too", { subjectContactId: "c1" }, "subject_mismatch"],
     ["a contact case without the contact", { subjectKind: "contact" }, "subject_mismatch"],
@@ -320,5 +331,15 @@ describe("a new case", () => {
     const result = checkNewDsarCase({ ...base, ...change });
     if (problem === null) expect(result).toEqual({ ok: true });
     else expect(result).toMatchObject({ ok: false, problem });
+  });
+});
+
+describe("the issued bundle's storage key", () => {
+  const t = "0194d000-0000-7000-8000-000000000001";
+  const c = "0194d000-0000-7000-8000-000000000002";
+  const b = "0194d000-0000-7000-8000-000000000003";
+  it("holds ids only, and refuses anything else", () => {
+    expect(dsarBundleStorageKey(t, c, b)).toBe(`tenants/${t}/dsar/${c}/${b}.json`);
+    expect(() => dsarBundleStorageKey(t, "../x", b)).toThrow(RangeError);
   });
 });

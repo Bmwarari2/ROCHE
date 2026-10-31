@@ -1043,9 +1043,12 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
 
 **Rules that are easy to get wrong**
 
-1. Only holders of `quality.dsar.manage` (kept, not renamed: ADR-0090) see or change cases and
-   items; the API checks it with MFA and row-level security checks it again. Cases are tenant-wide:
-   the data protection lead's work, not a location's. The permission is a care-record permission
+1. Only members holding `quality.dsar.manage` through an organisation-wide role (kept, not
+   renamed: ADR-0090) see or change cases and items; a location role that includes it (registered
+   manager, deputy) is refused, because a case reaches every person and module (#149 H1). The API
+   checks it with MFA, row-level security checks it again (`holds_role_permission_at(..., NULL)`,
+   for the application and the owner role alike). Opening a record, issuing the bundle and
+   responding also need a fresh step-up (#149 H2). The permission is a care-record permission
    (MFA). Collection and the item view read records in the organisation's own context, as the full
    export does, after that check (ADR-0090).
 2. The clock is `dsarClock` (slice 9 rules 1 to 5) with the tenant's rates and the bank holidays of
@@ -1057,12 +1060,18 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
    `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
    personal data but no subject column is listed as not searched, never silently skipped. Collecting
    again adds only new records.
-4. Redaction is by a person, item by item: the item's view highlights the names of the subject's
-   contacts and the organisation's staff found in its text (`findThirdPartyNames`) but redacts
-   nothing itself. Redacting needs at least one field and a reason; withholding needs a reason.
-5. The bundle is issued only when every item has a decision; redacted fields read `[redacted]`
-   and withheld items are left out with a count. Its SHA-256 is recorded when the response is sent;
-   responding closes the clock (a late response stays late).
+4. Redaction is by a person, item by item: the item's view highlights the names of everyone else
+   the organisation records (staff, people supported, contacts) found in any text in the record,
+   JSON fields included (`findThirdPartyNames`; #149 M5), but redacts nothing itself. Redacting
+   needs at least one field and a reason; withholding needs a reason. Each decision carries the
+   SHA-256 of the record as the reviewer opened it, and is refused if the record changed since.
+5. The bundle is issued only when every item has a decision and the requester's identity is
+   confirmed (checked again by the database, #149 M4); a record that changed or went since its
+   decision goes back to pending, so what is sent is what was reviewed (#149 M3). Redacted fields
+   read `[redacted]` and withheld items are left out with a count. On responding, the bundle is
+   kept in the exports bucket (SSE-KMS, an opaque key of ids only) with its SHA-256, and can be
+   fetched again exactly as sent through a step-up route; responding closes the clock (a late
+   response stays late).
 6. Erasure is assessed record by record against retention (`erasureAssessment`): a record under a
    legal hold or within its class's period is retained, with the class and the date it may go; only
    what retention allows is listed as erasable. The decision is recorded on the case; deletion itself
@@ -1074,8 +1083,8 @@ reviewed it and when. Retention class `data_rights_case` ([retention.md](retenti
 8. Rectification records which records were corrected (or why not); the correction itself is made
    in the module, as a new version or a superseding entry, never by the workbench.
 9. Audit: every read and change is audited with the case id, counts and opaque ids, never the
-   requester's name or any record content; viewing an item's content is audited as a care-record
-   view.
+   requester's name or any record content; reads across the organisation say so (`read:
+   organisation`), and viewing an item's content is also recorded against the subject (#149 L9).
 
 **Permission matrix**
 

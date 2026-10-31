@@ -254,6 +254,8 @@ export interface NewDsarCaseInput {
   readonly subjectStaffId: string | null;
   readonly requesterKind: DsarRequesterKind;
   readonly authority: DsarAuthority | null;
+  /** A representative's name, as given; the subject's own request has none. */
+  readonly requesterName?: string | null;
   /** ISO date (yyyy-mm-dd). */
   readonly receivedOn: string;
   readonly today: string;
@@ -266,6 +268,8 @@ export type NewDsarCaseCheck =
       readonly problem:
         | "subject_mismatch"
         | "authority_required"
+        | "authority_not_for_subject"
+        | "requester_name_required"
         | "received_in_future"
         | "invalid_date";
     };
@@ -281,9 +285,25 @@ export function checkNewDsarCase(input: NewDsarCaseInput): NewDsarCaseCheck {
     staff: !has(input.subjectPersonId) && !has(input.subjectContactId) && has(input.subjectStaffId),
   };
   if (!shape[input.subjectKind]) return { ok: false, problem: "subject_mismatch" };
-  if (input.requesterKind === "representative" && input.authority === null)
-    return { ok: false, problem: "authority_required" };
+  if (input.requesterKind === "representative") {
+    if (input.authority === null) return { ok: false, problem: "authority_required" };
+    if ((input.requesterName ?? "").trim().length === 0)
+      return { ok: false, problem: "requester_name_required" };
+  } else if (input.authority !== null) {
+    // The subject asks for themselves: an authority would describe someone else (#149 M6).
+    return { ok: false, problem: "authority_not_for_subject" };
+  }
   if (!isRealDate(input.receivedOn)) return { ok: false, problem: "invalid_date" };
   if (input.receivedOn > input.today) return { ok: false, problem: "received_in_future" };
   return { ok: true };
+}
+
+const UUID_SHAPED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Where an issued bundle is kept: organisation, case and bundle ids only (#149 M3). */
+export function dsarBundleStorageKey(tenantId: string, caseId: string, bundleId: string): string {
+  if (![tenantId, caseId, bundleId].every((id) => UUID_SHAPED.test(id))) {
+    throw new RangeError("DSAR bundle keys are built from UUIDs only.");
+  }
+  return `tenants/${tenantId.toLowerCase()}/dsar/${caseId.toLowerCase()}/${bundleId.toLowerCase()}.json`;
 }
