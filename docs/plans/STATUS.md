@@ -85,8 +85,8 @@ its work in progress (`wip(...)` commits) and stop. Resume by reading this secti
   #142 slice 6 (pay rules: NMW, holiday, SSP, family pay, AWR, auto-enrolment; figures verified),
   #143 body limits on the API's public routes, #144 a task completion's cited evidence is checked.
 - #150 Phase 2 slice 26, the import wizard API for people (PLAT-014, migration 0088, ADR-0092,
-  HZ-130, H-680 to H-684): security and clinical review round 1 fixed on the branch. It adds the
-  no-login role `harbour_import_owner`, so `pnpm db:bootstrap` runs before 0088 in each
+  HZ-130, H-680 to H-684): security and clinical review rounds 1 and 2 fixed on the branch. It
+  adds the no-login role `harbour_import_owner`, so `pnpm db:bootstrap` runs before 0088 in each
   environment (H-684); merge after the lower Phase 2 numbers or renumber.
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
@@ -126,7 +126,10 @@ trigger does not cover the branding columns, and the organisation switcher shows
 be a definer function; staff-file reminder tasks are invisible to HR's role; HR-only documents have
 no destruction rule; a complaint about a sample person blocks sample removal; list endpoints audit
 counts, not ids; the 14 UX gaps from the user guides (#128); whether archived people stay on the
-residents list.
+residents list; a "created in error" status for a person (people lifecycle: what it does to their
+tasks, phones, reports and audit trail), so a person imported or added by mistake can be marked as
+such rather than left a current resident once an import can no longer be undone (#150 review
+round 2; the CSO decides whether it must come before a real tenant imports, H-680).
 
 **Follow-ups logged on 16/10/2026 that are not yet in the items below**:
 - Sample data (HZ-072): mark sample people on the downtime pack, letters, family updates, the

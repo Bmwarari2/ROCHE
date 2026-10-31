@@ -1073,18 +1073,20 @@ Hazards: HZ-130 (imported records mis-mapped, duplicated or attached to the wron
 
 Every table has `tenant_id`, forced row-level security and the tenant policy, plus a restrictive
 policy for the application: the request's scope is `tenant` and its member holds
-`platform.import.run` and the permission to create the batch's records (`people.person.create`)
-across the organisation (`app.import_reachable`, using `app.holds_permission_at(..., NULL)`), or it
+`platform.import.run` and the permissions to create and read the batch's records
+(`people.person.create`, `people.person.read`) across the organisation (`app.import_reachable`,
+using `app.holds_permission_at(..., NULL)`), or it
 is a job with no member in the organisation's view (the expiry sweep). Staged rows and the commit
 record follow their batch. None of them syncs to devices.
 
 **Permission matrix.** The catalogue's existing `platform.import.run` is reused (now a care-record
-permission: MFA), with `people.person.create` for a people import. Built in, only the owner holds
-both; a tenant may give them to another role scoped to the organisation.
+permission: MFA), with `people.person.create` and `people.person.read` for a people import. Built
+in, only the owner holds all three; a tenant may give them to another role scoped to the
+organisation.
 
 | Route | Needs | Step-up |
 | --- | --- | --- |
-| `POST /v1/imports` (upload) | `platform.import.run` and `people.person.create`, both across the organisation | No |
+| `POST /v1/imports` (upload) | `platform.import.run`, `people.person.create` and `people.person.read`, all across the organisation | No |
 | `GET /v1/imports`, `GET /v1/imports/{id}` | The same | No |
 | `POST /v1/imports/{id}/dry-run` | The same | No |
 | `POST /v1/imports/{id}/commit` | The same | Yes |
@@ -1093,8 +1095,9 @@ both; a tenant may give them to another role scoped to the organisation.
 
 **Rules that are easy to get wrong** (continuing the numbering above):
 
-18. **Only across the whole organisation.** Each route needs both permissions reaching the whole
-    organisation, in the API and again in row-level security for every command. NHS numbers are
+18. **Only across the whole organisation.** Each route needs the three permissions reaching the
+    whole organisation (reading people too, since a warning names an existing record; #150 review
+    round 2), in the API and again in row-level security for every command. NHS numbers are
     unique within an organisation, so an import by someone who sees only some homes could tell
     them, by succeeding or not, that a person they cannot see exists. A member who holds the
     permissions only at some locations is therefore refused with one answer,
@@ -1136,7 +1139,13 @@ both; a tenant may give them to another role scoped to the organisation.
     compared as letters only (case, accents, apostrophes, hyphens and spaces aside), the given name
     whole or its first word (so a middle name does not hide a match). Each warning names the other
     row or the existing record, and has a key. Two people with different NHS numbers are different
-    people.
+    people. Warnings are kept few enough to read (`IMPORT_WARNING_LIMITS`; #150 security review
+    round 2): rows that may be one person are warned of once a pair, on the later row, naming the
+    earliest row it matches; a row names at most three existing records (`recordMatchesCapped`
+    says when it matched more); a file where more than 50 rows share one date of birth is refused
+    without comparing them (`too_many_same_birth_date`), and one with more than 500 possible
+    duplicates is refused (`too_many_possible_duplicates`), each asking for the file to be checked
+    or split. So the dry run always lists every warning it finds, and each can be acknowledged.
 22. **Dry run** (`POST /v1/imports/{id}/dry-run`): validation and matching against the people as
     they are now, committing nothing. The report gives rows, valid rows, errors by code, each error
     and warning by row and field key with a code and plain words (never a value or a heading), the
@@ -1144,9 +1153,13 @@ both; a tenant may give them to another role scoped to the organisation.
     has allergies), and, in plain words (`whatHappens`), what committing will do: create that many
     people at the chosen home as current residents, changing nobody already in Harbour; show them
     to staff at once, on the web and on phones at their next sync, after which the import can no
-    longer be undone; import every allergy status as not recorded until staff check it; import no
-    allergies themselves; give them no photo, room or placement (HZ-001). `mayCommit` is true only
-    with no errors and no possible duplicates; with possible duplicates only,
+    longer be undone; where phones are in use (`phonesInUse`: a sync token carrying people issued in
+    the organisation within `mobile.offline_window_days`), that the import should be treated as one
+    that cannot be undone, since phones can receive the people within minutes, and that a person
+    imported by mistake can then only be corrected, not removed; import every allergy status as not
+    recorded until staff check it, each person whose status the file stated getting a task; import
+    no allergies themselves; give them no photo, room or placement (HZ-001). `mayCommit` is true
+    only with no errors and no possible duplicates; with possible duplicates only,
     `needsAcknowledgement` is true. Each dry run records when it ran, by whom and its error and
     warning counts.
 23. **Commit** (`POST /v1/imports/{id}/commit`, fresh step-up): only a staged batch that has had a
@@ -1154,16 +1167,26 @@ both; a tenant may give them to another role scoped to the organisation.
     repeated inside the commit's own transaction with the batch locked, and the batch commits
     whole only with no error and with `acknowledgedWarnings` listing exactly the warning keys found
     now: one missing, one extra, one repeated or a new one since the person read the report
-    refuses it (`possible_duplicates_unacknowledged`). Otherwise nothing is created (409 with the
+    refuses it (`possible_duplicates_unacknowledged`). Where phones are in use (rule 22, decided
+    again now), the commit also needs `acceptNoUndo` (`no_undo_not_accepted`; #150 clinical review
+    round 2, M-B), and the acceptance is audited. Otherwise nothing is created (409 with the
     reason). Each row becomes a person at the batch's location, status `active` (current residents
     moving from another system; no photo, room, placement or admission record is made, HZ-001),
     tied to the batch (`import_batch_id`), with allergy status `unknown` ("not recorded") whatever
     the file stated, confirmed by no one, until a member of staff checks and records it (HZ-007:
-    an imported "no known allergies" must never read as freshly confirmed by the committer); the
-    response lists the people whose status the file stated, to check first. Each person gets a
+    an imported "no known allergies" must never read as freshly confirmed by the committer). Each
+    person whose status the file stated gets a task, `people.allergy_status_check` (needs
+    `people.person.update`; for the registered manager; due now; urgent when the file said they
+    have allergies), carrying what the file said as a code (`details.importedAllergyStatus`), so
+    it outlives the response. Rows and people are paired by NHS number, else local identifier
+    (each unique in a committed file), never by row order, and the commit fails whole if one does
+    not pair. The response lists them with their tasks (`allergyStatusToConfirm`, again on a
+    replay; #150 clinical review round 2, M-A). Each person gets a
     `people.person.imported` audit event. The commit record keeps the people's ids, and the staged
     rows are deleted in the same transaction. Committing a committed batch again returns the same
-    commit (idempotent), so a retried request never creates anyone twice. People are refused while
+    commit (idempotent), so a retried request never creates anyone twice. A batch and a commit say
+    whether the commit can be undone now (`undoAvailable`; rule 24), with `undoClosesAt` only
+    while it can (#150 clinical review round 2, M-C). People are refused while
     sample data is in place (`remove_sample_data_first`, HZ-072). Someone added by another route
     between the check and the insert ends the commit with nothing created (409 `records_changed`;
     run the dry run again).
@@ -1176,9 +1199,13 @@ both; a tenant may give them to another role scoped to the organisation.
     commit, so a phone may have recorded care for them offline, which an undo would strand; #150
     clinical review H2, chosen as simpler than holding imported people off phones); when a person
     has been changed (saved since, or soft-deleted); and when anything refers to one of them by a
-    foreign key (a note, task, document, allergy, contact, legal hold and so on). The application
-    role never holds DELETE. Audit events about them stay. In practice undo is for an import
-    checked straight away, before phones next sync, as at onboarding before devices are in use.
+    foreign key (a note, task, document, allergy, contact, legal hold and so on). The allergy
+    status checks the commit raised go with them while still open; one someone has acted on
+    refuses the undo. The application role never holds DELETE. Audit events about them stay. In
+    practice undo is for an import checked straight away, before phones next sync, as at
+    onboarding before devices are in use. After that a person imported by mistake can have their
+    details corrected but cannot be removed or marked as created in error: there is no such
+    status yet (a follow-up for the people lifecycle in STATUS.md; the CSO decides, H-680).
 25. **Discard and expiry.** A staged batch may be discarded (`DELETE /v1/imports/{id}`); the hourly
     `import-expiry` job expires staged batches past `expires_at` (on the database's clock), as the
     system. Either way, as at commit, the staged rows are deleted in the same transaction and the
@@ -1190,7 +1217,8 @@ both; a tenant may give them to another role scoped to the organisation.
     query's message, which holds its parameters, never reaches a log; the API's error log keeps
     only an error's kind, code and stack frames. Audited: `platform.import.uploaded`,
     `platform.import.read` (list and batch views), `platform.import.dry_run`,
-    `platform.import.committed`, `people.person.imported` (one per person),
+    `platform.import.committed` (records, possible duplicates acknowledged, allergy status checks,
+    whether no undo was accepted), `people.person.imported` (one per person),
     `platform.import.undone` (by the database), `platform.import.discarded`,
     `platform.import.expired`. Refusals for a missing permission, `organisation_wide_required`, a
     stale step-up and a batch's state (409) are audited as `denied` with their code and the batch
@@ -1207,7 +1235,10 @@ both; a tenant may give them to another role scoped to the organisation.
   lone surrogates, test NHS numbers, a cell that cannot be stored found by row and field);
   `hazard HZ-130 ...` (an NHS number or local identifier already in Harbour, naming the record;
   possible duplicates by every kind of name agreement, naming the row or record; different NHS
-  numbers never warned; the commit check table with exactly the warnings seen); `hazard HZ-007 the
+  numbers never warned; the commit check table with exactly the warnings seen; round 2: a pair
+  warned once on the later row, the warnings bounded per row and in total, a crowded date of birth
+  refused, 5000 rows on one date of birth bounded, phones in use said and needing acceptance);
+  `hazard HZ-007 the
   dry run says every allergy status is imported as not recorded`; the report's words; staging
   expiry and undo deadline from the rate table; undo refused once phones may hold the people.
 - `packages/db/test/imports.test.ts`: `hazard HZ-130 hazard HZ-011 the import tables (migration
@@ -1217,14 +1248,19 @@ both; a tenant may give them to another role scoped to the organisation.
   when the batch closes; the guard's transitions, no commit past expiry; `app.undo_import_batch`
   (permission, the window from the rate table, a people sync token since the commit, changed and
   referenced refusals, only the batch's own people, whole or nothing, audited, the other
-  organisation's people untouched); a person tied to a batch only as it commits, never changed.
+  organisation's people untouched); a person tied to a batch only as it commits, never changed;
+  an importer without `people.person.read` sees nothing; the commit's open allergy status checks
+  go with an undo, and one acted on refuses it.
 - `apps/api/test/imports.test.ts`: `hazard HZ-130 ...` over HTTP: upload, dry run, commit, undo,
   discard; the organisation-wide refusal identical whatever the file holds; another
   organisation's NHS number treated as new and its batch as not found; no value or heading in any
   response, audit event or log line (a NUL and a lone surrogate refused at upload, logging
   nothing personal; a failed write rethrown as its code); allergy status imported as not
   recorded; exactly the warnings seen acknowledged; idempotent commit; step-up; expiry; undo
-  refused after a sync token; test NHS numbers; sample data; the expiry sweep.
+  refused after a sync token, with `undoAvailable` false; with phones in use, the dry run's words
+  and a commit refused without `acceptNoUndo`; allergy status checks raised, paired by NHS number
+  or local identifier, replayed and removed by an undo; test NHS numbers; sample data; the expiry
+  sweep.
 
 ## Permission matrix
 

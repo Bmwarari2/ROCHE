@@ -111,3 +111,35 @@ unformatted output had crossed.
   lines), `packages/db/test/imports.test.ts` (18), `apps/api/test/imports.test.ts` (22), with
   `definer-acls`, `rls-coverage`, `route-gates`, the migration and journal tests, the export
   catalogue, sample data, the export worker and `api.test` passing.
+
+## Review round 2 (#150, at cdfdfd46)
+
+- Security M (warnings blow-up): possible duplicates are clustered and bounded
+  (`IMPORT_WARNING_LIMITS`): a pair of rows is warned of once, on the later row, naming the earliest
+  row it matches; a row names at most three existing records (`recordMatchesCapped`); a file with
+  more than 50 rows on one date of birth is refused without comparing them
+  (`too_many_same_birth_date`), and one with more than 500 warnings is refused
+  (`too_many_possible_duplicates`). `warningKeys` lists exactly the warnings shown, and the commit
+  takes at most 500, so every warning can be acknowledged. 5,000 rows on one date of birth and
+  family name stay bounded (a test).
+- Security L (personId in warnings): every import route, and the database's undo, now also needs
+  `people.person.read` across the organisation, so a warning names only a record the importer can
+  already open.
+- Security L (index): migration 0088 builds `audit_event (tenant_id, action, occurred_at)` for the
+  sync token look-ups (`IF NOT EXISTS`, so it can be built concurrently beforehand; H-684).
+- Clinical M-A (HZ-007): each person whose file stated `no_known_allergies` or `has_allergies` gets
+  a `people.allergy_status_check` task (for the registered manager, due now, urgent for allergies)
+  carrying what it said (`details.importedAllergyStatus`), paired by NHS number or local
+  identifier, never by row order; the commit and a replay list them with their tasks; an undo
+  removes them while open, and one acted on refuses the undo.
+- Clinical M-B: where phones are in use (a people sync token within
+  `mobile.offline_window_days`), the dry run says the import should be treated as one that cannot
+  be undone (`phonesInUse`) and the commit needs `acceptNoUndo` (`no_undo_not_accepted`), audited.
+  The hazard log no longer says mistakes are "corrected record by record" as if a removal existed:
+  a person imported in error can only be corrected; a "created in error" status is a STATUS.md
+  follow-up and a CSO decision in H-680.
+- Clinical M-C: batches and commits carry `undoAvailable`; `undoClosesAt` is empty once a phone may
+  hold the people, so the wizard never offers an undo it would refuse. H-682 and the DCB0160 row
+  now ask for the sample check before committing.
+- Docs: platform.md rules 18 to 24 and 26 and the tests list, data standards, HZ-130 and HZ-007,
+  ADR-0092 (amended, still proposed), records of processing, H-680, H-682, H-684, STATUS.md.

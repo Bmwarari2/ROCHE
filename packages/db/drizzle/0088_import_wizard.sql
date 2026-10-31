@@ -73,7 +73,7 @@ ALTER TABLE "import_row" ADD CONSTRAINT "import_row_batch_fk" FOREIGN KEY ("tena
 CREATE INDEX "import_batch_staged_idx" ON "import_batch" USING btree ("tenant_id","expires_at") WHERE status = 'staged';--> statement-breakpoint
 ALTER TABLE "person" ADD CONSTRAINT "person_import_batch_fk" FOREIGN KEY ("tenant_id","import_batch_id") REFERENCES "public"."import_batch"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "person_import_batch_idx" ON "person" USING btree ("tenant_id","import_batch_id") WHERE import_batch_id IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "audit_event_tenant_action_idx" ON "audit_event" USING btree ("tenant_id","action","occurred_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_event_tenant_action_idx" ON "audit_event" USING btree ("tenant_id","action","occurred_at");--> statement-breakpoint
 
 -- The import wizard (PLAT-014; platform.md rules 18 to 26; ADR-0092; HZ-130, HZ-011). A batch,
 -- its staged rows and its commit record are reached only in a request scoped to the whole
