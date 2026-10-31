@@ -30,15 +30,8 @@ export const Dose = z
   ])
   .meta({ id: "Dose" });
 
-const Weekday = z.enum([
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-]);
+/** The domain's weekday codes, as the schedule rules match them (full names never matched). */
+const Weekday = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 export const SchedulePattern = z
   .discriminatedUnion("kind", [
     z.object({ kind: z.literal("every_day") }),

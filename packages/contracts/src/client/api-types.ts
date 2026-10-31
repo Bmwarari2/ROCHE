@@ -38325,15 +38325,7 @@ export interface components {
       | {
           /** @enum {string} */
           kind: "weekly";
-          weekdays: (
-            | "monday"
-            | "tuesday"
-            | "wednesday"
-            | "thursday"
-            | "friday"
-            | "saturday"
-            | "sunday"
-          )[];
+          weekdays: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
           intervalWeeks: number;
           /** Format: date */
           anchorOn: string;

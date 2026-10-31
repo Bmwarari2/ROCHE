@@ -473,6 +473,33 @@ describe("hazard HZ-121 reconciliation", () => {
   });
 });
 
+describe("weekly schedules", () => {
+  it("hazard HZ-003 expands a weekly schedule on its weekdays, and refuses weekday names it does not use", async () => {
+    const DORA = "0194d000-0000-7000-8600-000000000004";
+    const today = ukDateOf(new Date());
+    const weekly = (weekdays: string[]) =>
+      send("manager", `/v1/people/${DORA}/medicines`, {
+        method: "POST",
+        body: draft({
+          directions: {
+            kind: "regular",
+            schedule: {
+              pattern: { kind: "weekly", weekdays, intervalWeeks: 1, anchorOn: today },
+              times: [{ time: "09:00", dose: { kind: "amount", quantity: 1, unit: TABLET } }],
+            },
+          },
+        }),
+      });
+    expect((await weekly(["monday"])).status).toBe(422);
+    const r = await weekly(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+    expect(r.status, await r.clone().text()).toBe(201);
+    const mar = (await (
+      await send("manager", `/v1/people/${DORA}/mar?cycleStart=${today}`)
+    ).json()) as { doses: { notDue: boolean }[] };
+    expect(mar.doses.filter((d) => !d.notDue).length).toBeGreaterThan(5);
+  });
+});
+
 describe("the ports fail closed", () => {
   it("unavailable competence answers not_held, and unavailable dm+d knows no product", async () => {
     expect(
