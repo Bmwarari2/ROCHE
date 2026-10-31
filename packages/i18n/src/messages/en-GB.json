@@ -2775,6 +2775,7 @@
   "dataRights.new.staff": "Member of staff",
   "dataRights.new.choose": "Choose who",
   "dataRights.new.contactHint": "For a request from a person's contact, such as a relative, about their own information, ask Harbour support for now.",
+  "dataRights.new.noStaffList": "Members of staff are listed only for people who manage the team. For a request from a member of staff, ask your owner to record it.",
   "dataRights.new.requesterKind": "Who is asking",
   "dataRights.new.requester": "{kind, select, subject {The person themselves} representative {Someone on their behalf} other {Someone}}",
   "dataRights.new.requesterName": "Name of the person asking on their behalf",

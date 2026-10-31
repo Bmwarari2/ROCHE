@@ -2776,6 +2776,7 @@
     "dataRights.new.staff",
     "dataRights.new.choose",
     "dataRights.new.contactHint",
+    "dataRights.new.noStaffList",
     "dataRights.new.requesterKind",
     "dataRights.new.requester",
     "dataRights.new.requesterName",

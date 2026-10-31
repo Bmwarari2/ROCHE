@@ -130,7 +130,12 @@ export function NewRequestForm({
 }) {
   const ids = useFieldIds(NEW_FIELDS);
   const { result, setResult, pending, send } = useSend();
-  const [subjectKind, setSubjectKind] = useState<"person" | "staff">("person");
+  // A kind is offered only when there is someone to choose: the staff list needs
+  // platform.user.manage, which a quality lead may not hold.
+  const kinds = (["person", "staff"] as const).filter((kind) =>
+    kind === "person" ? people.length > 0 : staff.length > 0,
+  );
+  const [subjectKind, setSubjectKind] = useState<"person" | "staff">(kinds[0] ?? "person");
   const [requester, setRequester] = useState<"subject" | "representative">("subject");
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -187,10 +192,15 @@ export function NewRequestForm({
       <RadioGroup
         name="subjectKind"
         legend={t("dataRights.new.subjectKind")}
-        hint={t("dataRights.new.contactHint")}
+        hint={[
+          staff.length === 0 ? t("dataRights.new.noStaffList") : null,
+          t("dataRights.new.contactHint"),
+        ]
+          .filter(Boolean)
+          .join(" ")}
         value={subjectKind}
         onValueChange={(value) => setSubjectKind(value)}
-        options={(["person", "staff"] as const).map((value) => ({
+        options={kinds.map((value) => ({
           value,
           label: t(value === "person" ? "dataRights.new.person" : "dataRights.new.staff"),
         }))}
