@@ -2183,11 +2183,13 @@
     opacity: 0.45;
   }
 
+  /* The whole card is the target; the control itself is 24 px as well, so it meets WCAG 2.5.8 on
+     its own when cards stack close together on a phone. */
   .hb-choice__input {
     flex: none;
-    width: 20px;
-    height: 20px;
-    margin: 2px 0 0;
+    width: 24px;
+    height: 24px;
+    margin: 0;
     accent-color: var(--accent);
   }
 
@@ -2231,8 +2233,8 @@
 
   .hb-check__input {
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     margin: 0;
     accent-color: var(--accent);
     cursor: pointer;

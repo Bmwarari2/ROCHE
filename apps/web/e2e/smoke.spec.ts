@@ -64,7 +64,12 @@ test("a manager signs in, sees the dashboard, opens people and a person, and sig
 
   await expect(page.getByRole("heading", { level: 1, name: "Welcome, Mo Manager" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "Today" })).toBeVisible();
-  await expect(page.getByRole("banner").getByText("Mo Manager")).toBeVisible();
+  // On a phone the app bar shows the account as an icon whose accessible name carries the name.
+  if ((page.viewportSize()?.width ?? 1280) > 734) {
+    await expect(page.getByRole("banner").getByText("Mo Manager")).toBeVisible();
+  } else {
+    await expect(page.getByRole("button", { name: /Mo Manager/ })).toBeVisible();
+  }
   await expectAccessible(page, "home");
 
   const modules = page.getByRole("navigation", { name: "Modules" });

@@ -157,7 +157,13 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
               <dd className="m-0">
                 {person ? (
                   <div className="flex flex-col gap-1">
-                    <Link href={`/people/${task.personId}`}>{personNames(person).full}</Link>
+                    {/* A 44 px target on its own line (section 8; MOB-013 at 360 px). */}
+                    <Link
+                      href={`/people/${task.personId}`}
+                      className="inline-flex min-h-target items-center self-start"
+                    >
+                      {personNames(person).full}
+                    </Link>
                     <PersonNeeds person={person} />
                   </div>
                 ) : (
