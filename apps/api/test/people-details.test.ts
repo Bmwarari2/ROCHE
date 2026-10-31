@@ -161,7 +161,7 @@ describe("personal details (PEOP-001)", () => {
     [{ nhsNumber: "9990000018" }, "This NHS number is already recorded for someone else"],
     [{ postcode: "ZZ99" }, "Enter a full UK postcode."],
     [{ dateOfBirth: "2999-01-01" }, "A date of birth cannot be in the future."],
-  ])("refuses %j in words", async (change, words) => {
+  ])("hazard HZ-001 refuses %j in words, changing nothing", async (change, words) => {
     const { version } = await details(5);
     const response = await as("manager", `/v1/people/${resident(5)}/details`, {
       method: "PATCH",
