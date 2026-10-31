@@ -642,9 +642,14 @@ describe("offline sync", () => {
     const night = await json<RateValue>(
       await demo("manager", "/v1/rates/handover.night_shift_start_minute"),
     );
+    const lead = await json<RateValue>(
+      await demo("manager", "/v1/rates/handover.preview_lead_minutes"),
+    );
+    // With how long before a shift ends the phone shows its own handover first (H-420).
     expect(payload.handover_shifts).toEqual({
-      england: { day: Number(day.value), night: Number(night.value) },
+      england: { day: Number(day.value), night: Number(night.value), lead: Number(lead.value) },
     });
+    expect(Number(lead.value)).toBe(60);
   });
 
   it("hazard HZ-018 leaves out a nation whose shift figures are out of order, and tells the operator (#50 review round 1, clinical M4)", async () => {

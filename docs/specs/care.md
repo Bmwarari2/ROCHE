@@ -1486,8 +1486,11 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     reader (the token's person ids), and any home with a handover on the phone. The reach is kept
     with the pattern and cleared when a token's handover family no longer reaches the phone.
   - When the running shift's handover is already on the phone (its staff compile it before they
-    hand over), it is shown first as "This shift, not final" (or final once locked), then the
-    outgoing one (clinical review H1; the lead time is H-420).
+    hand over), it is shown as "This shift, not final" (or final once locked) beside the outgoing
+    one (clinical review H1). It comes first only within `handover.preview_lead_minutes` (60,
+    policy, to verify) before the running shift ends, carried on the token as each nation's `lead`;
+    before then, or when the phone has no lead figure, the outgoing one comes first, since that is
+    the handover the shift is working from (recommended answer to H-420, 31/10/2026; HZ-018).
   - For each home on the phone, the outgoing handover is the shift before the one running now, by
     the home's nation's pattern (`shiftAt`, `previousShift`). The screen says its state as an icon
     and a word before any item: "Not compiled yet" when no handover for that shift is on the phone

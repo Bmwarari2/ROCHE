@@ -15,6 +15,12 @@ import { decodeTokenClaims } from "./write-scope";
 export interface NationShifts {
   readonly day: number;
   readonly night: number;
+  /**
+   * `handover.preview_lead_minutes` (H-420): within this many minutes before a shift ends, the
+   * handover screen shows the running shift's own handover first. Absent when the token left it
+   * out or the phone cannot read it: the screen then shows the handover the shift received first.
+   */
+  readonly lead?: number;
 }
 
 export type HandoverShifts = Readonly<Record<string, NationShifts>>;
@@ -46,7 +52,8 @@ export function parseHandoverShifts(value: unknown): HandoverShifts | null {
     const day = minute((figures as Record<string, unknown>).day);
     const night = minute((figures as Record<string, unknown>).night);
     if (day === null || night === null || day === night) continue;
-    shifts[nation] = { day, night };
+    const lead = minute((figures as Record<string, unknown>).lead);
+    shifts[nation] = lead === null ? { day, night } : { day, night, lead };
   }
   return shifts;
 }

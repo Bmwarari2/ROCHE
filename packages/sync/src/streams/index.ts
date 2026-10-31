@@ -73,7 +73,18 @@ export interface SyncTokenClaims {
    * nation whose figures are missing is left out, and the phone then says it cannot tell.
    */
   readonly handover_shifts?: Readonly<
-    Record<string, { readonly day: number; readonly night: number }>
+    Record<
+      string,
+      {
+        readonly day: number;
+        readonly night: number;
+        /**
+         * `handover.preview_lead_minutes`: within this long before a shift ends the phone shows
+         * the running shift's handover first (H-420); left out when the figure is missing.
+         */
+        readonly lead?: number;
+      }
+    >
   >;
 }
 

@@ -130,7 +130,7 @@ describe("hazard HZ-018 the handovers a home's card shows, newest first (clinica
     const entries = handoverEntries({
       now: new Date("2026-10-31T07:45:00.000Z"),
       nation: "england",
-      shifts: SHIFTS,
+      shifts: { england: { ...SHIFTS.england, lead: 60 } },
       handovers: [dayBefore, night],
     });
     expect(entries.map((e) => [e.role, e.handover?.id, e.status.chip.label])).toEqual([
@@ -141,6 +141,42 @@ describe("hazard HZ-018 the handovers a home's card shows, newest first (clinica
       "The night shift, 30/10/2026 at 20:00 to 31/10/2026 at 08:00",
     );
   });
+
+  it.each<[string, string, number | undefined, string[]]>([
+    [
+      "06:00, two hours before the night ends",
+      "2026-10-31T06:00:00.000Z",
+      60,
+      ["outgoing", "current"],
+    ],
+    [
+      "07:00, exactly the lead before it ends",
+      "2026-10-31T07:00:00.000Z",
+      60,
+      ["current", "outgoing"],
+    ],
+    ["07:59, a minute before it ends", "2026-10-31T07:59:00.000Z", 60, ["current", "outgoing"]],
+    ["06:30 with a 90-minute lead", "2026-10-31T06:30:00.000Z", 90, ["current", "outgoing"]],
+    [
+      "07:45 with no lead on the phone",
+      "2026-10-31T07:45:00.000Z",
+      undefined,
+      ["outgoing", "current"],
+    ],
+  ])(
+    "hazard HZ-018 at %s shows the running shift's own handover first only within the lead time (H-420)",
+    (_label, now, lead, roles) => {
+      const entries = handoverEntries({
+        now: new Date(now),
+        nation: "england",
+        shifts: { england: lead === undefined ? SHIFTS.england : { ...SHIFTS.england, lead } },
+        handovers: [dayBefore, night],
+      });
+      expect(entries.map((e) => e.role)).toEqual(roles);
+      // The handover the shift received is always shown, with its own state.
+      expect(entries.find((e) => e.role === "outgoing")?.handover?.id).toBe("h-day");
+    },
+  );
 
   it("after the shift change shows only the outgoing handover", () => {
     const entries = handoverEntries({

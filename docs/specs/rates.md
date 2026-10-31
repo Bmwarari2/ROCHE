@@ -278,6 +278,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | handover.day_shift_start_minute | 480 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, day from 08:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | handover.night_shift_start_minute | 1200 | minute_of_day | 2026-10-01 | - | all | Harbour default (12-hour day and night shifts, night from 20:00); tenant setting for the shift handover (care.md rule 8) | to-verify |
 | handover.acknowledgement_grace_minutes | 60 | minutes | 2026-10-01 | - | all | Harbour default: the nurse in charge is alerted once when nobody on the incoming shift has acknowledged a handover this long after its shift ended (care.md rule 8, COMMS-006, HZ-018); no published figure; tenant default; CSO to confirm (H-153) | to-verify |
+| handover.preview_lead_minutes | 60 | minutes | 2026-10-31 | - | all | Harbour default (policy, not a published figure): within this long before a shift ends, the phone shows the running shift's own handover ("This shift, not final") first; before then, the handover the shift received (care.md section 6, HZ-018; recommended answer to H-420) | to-verify |
 | comms.family_notifications.quiet_start_minute | 1260 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): from 21:00 UK time they wait; no statutory figure | to-verify |
 | comms.family_notifications.quiet_end_minute | 480 | minute_of_day | 2000-01-01 | - | all | Harbour tenant default for family update notifications (comms.md section 4 rule 15): waiting notifications go at 08:00 UK time; no statutory figure | to-verify |
 | ld.annual_health_check.min_age_years | 14 | years | 2000-01-01 | - | england | master prompt 10.1 (annual health check from 14) | master-prompt |
@@ -398,6 +399,11 @@ literals, and tests assert against the table, not a literal (section 7, section 
   acknowledgement made at or after the shift's end that covers every item the reader can see counts
   ([care.md](care.md) rule 8). No published figure sets it; it is a Harbour default for the CSO to
   confirm or change (human action H-153), and each organisation may set its own.
+- `handover.preview_lead_minutes` (60): within this long before the running shift ends, the
+  phone's handover screen shows that shift's own handover ("This shift, not final") first, as the
+  overlap before a shift change; before then it shows first the handover the shift received, since
+  that is the one staff are working from (HZ-018). A policy figure to verify, set as recommended for
+  H-420 (31/10/2026); it reaches the phone on the sync token with the shift pattern.
 - `care_plan.task_window_before_minutes` (30) and `care_plan.task_window_after_minutes` (60): the
   window around each round a care plan action generates ([care.md](care.md) rule 14). A round may be
   done from 30 minutes before its time and is on time until 60 minutes after; it is then overdue and
