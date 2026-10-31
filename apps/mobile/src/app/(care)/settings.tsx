@@ -7,9 +7,12 @@ import { Alert, Pressable, ScrollView, Switch, View } from "react-native";
 import { usePreferences } from "../../app-state/preferences";
 import { useSession } from "../../app-state/session";
 import { useVault } from "../../app-state/vault";
+import { platformFetch } from "../../auth/clients";
 import { Screen } from "../../components/Screen";
 import { SignOutControl } from "../../components/SignOutControl";
 import { appEnv } from "../../config/app-env";
+import { t } from "../../i18n/t";
+import { deletionMessage, requestAccountDeletion } from "../../platform/account-deletion";
 import { describeTimeout, SHARED_AUTO_LOCK_CHOICES_MS } from "../../security/auto-lock";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -93,6 +96,42 @@ export default function SettingsScreen() {
   const vault = useVault();
   const { preferences, update } = usePreferences();
   const [resyncing, setResyncing] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const organisation = session.me?.tenant.name ?? "";
+
+  // MOB-011: the stores' in-app deletion path. The account belongs to the care provider, so this
+  // asks them; nothing is deleted on the device or the server by asking.
+  const confirmDeletionRequest = () => {
+    Alert.alert(
+      t("mobile.account.confirmTitle"),
+      t("mobile.account.confirmBody", { organisation }),
+      [
+        { text: t("mobile.account.cancel"), style: "cancel" },
+        {
+          text: t("mobile.account.confirmSend"),
+          onPress: async () => {
+            const me = session.me;
+            if (!me || !session.token) {
+              const message = deletionMessage({ kind: "session" }, organisation, t);
+              Alert.alert(message.title, message.body);
+              return;
+            }
+            setAsking(true);
+            const outcome = await requestAccountDeletion({
+              apiUrl: appEnv.apiUrl,
+              fetch: platformFetch,
+              token: session.token,
+              tenantId: me.tenant.id,
+              demoMode: appEnv.demoMode,
+            });
+            setAsking(false);
+            const message = deletionMessage(outcome, organisation, t);
+            Alert.alert(message.title, message.body);
+          },
+        },
+      ],
+    );
+  };
 
   const confirmResync = () => {
     Alert.alert(
@@ -132,6 +171,17 @@ export default function SettingsScreen() {
             testID="settings-change-mode"
           />
           <SignOutControl variant="destructive" testID="settings-sign-out" />
+        </Section>
+
+        <Section title={t("mobile.account.deleteTitle")}>
+          <Text tone="secondary">{t("mobile.account.deleteExplain", { organisation })}</Text>
+          <Button
+            label={t("mobile.account.deleteButton")}
+            variant="secondary"
+            loading={asking}
+            onPress={confirmDeletionRequest}
+            testID="settings-delete-account"
+          />
         </Section>
 
         <Section title="Sync">
