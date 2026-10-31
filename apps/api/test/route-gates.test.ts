@@ -36,6 +36,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/policies/{id}/versions/{versionId}/signatures":
     "any member reads and signs the version in force, in their own name (migration 0087)",
   "GET /v1/me/policies": "the policies the member must sign; scope 'none'",
+  "GET /v1/policies/{id}/versions/{versionId}/document":
+    "a policy version's PDF with its state; drafts only for holders of quality.policy.manage (migration 0087)",
   "GET /v1/notifications": "the member's own notifications (notification_recipient policy)",
   "POST /v1/notifications/{id}/acknowledge": "the member's own notification",
   "POST /v1/notifications/{id}/read": "the member's own notification",

@@ -117,8 +117,8 @@ describe("creating and publishing (quality.md rule 25)", () => {
     expect((await create("manager")).status).toBe(409);
   });
 
-  it("hides the draft from staff who do not manage policies", async () => {
-    expect((await get("carer")).versions).toEqual([]);
+  it("hides a policy with only a draft from staff who do not manage policies", async () => {
+    expect((await as("carer", `/v1/policies/${fire.id}`)).status).toBe(404);
   });
 
   it("is never published by its author when the policy needs a second reviewer", async () => {
@@ -157,19 +157,35 @@ describe("hazard HZ-128 read-and-sign (quality.md rules 26 and 27)", () => {
     ).toBe(403);
   });
 
-  it("hazard HZ-128 reminds the outstanding member once per interval", async () => {
+  it("hazard HZ-128 tells the outstanding member at once, then once per interval", async () => {
+    expect(await remindPolicies(deps())).toBe(1);
     expect(await remindPolicies(deps())).toBe(0);
-    const later = addUkDays(new Date(), 8);
-    expect(await remindPolicies(deps(), later)).toBe(1);
-    expect(await remindPolicies(deps(), later)).toBe(0);
     const [task] = await signTasks();
     expect(task).toMatchObject({
       status: "open",
       assignee_tenant_user_id: CARER,
       source_id: fire.inForce?.id,
     });
-    expect(await remindPolicies(deps(), addUkDays(new Date(), 16))).toBe(1);
+    expect(await remindPolicies(deps(), addUkDays(new Date(), 8))).toBe(1);
     expect((await signTasks()).map((t) => t.status)).toEqual(["cancelled", "open"]);
+  });
+
+  it("hazard HZ-128 completes a reminder only by signing, never by a task transition", async () => {
+    const [open] = await sql<{ id: string; version: number }>(
+      "SELECT id, version FROM task WHERE kind = 'quality.policy_read_and_sign' AND status = 'open'",
+    );
+    for (const who of ["carer", "manager"]) {
+      const moved = await as(who, `/v1/tasks/${open?.id}/transition`, {
+        method: "POST",
+        body: { to: "done", version: open?.version },
+      });
+      // The carer is refused; a manager elsewhere cannot even see it.
+      expect([403, 404]).toContain(moved.status);
+    }
+    const [still] = await sql<{ status: string }>("SELECT status FROM task WHERE id = $1", [
+      open?.id,
+    ]);
+    expect(still?.status).toBe("open");
   });
 
   it("hazard HZ-128 completes the reminder when the member signs", async () => {
@@ -225,6 +241,17 @@ describe("hazard HZ-128 read-and-sign (quality.md rules 26 and 27)", () => {
     expect(asCarer).toMatchObject({ mustSign: true, signed: false });
     fire = asCarer;
   });
+
+  it("hazard HZ-128 cancels the reminders for a version when a newer one is published", async () => {
+    const v3 = fire.inForce?.id;
+    expect(await remindPolicies(deps())).toBe(1);
+    expect((await newDraft("minor", "Clarified the night procedure")).status).toBe(200);
+    expect((await publishDraft("owner")).status).toBe(200);
+    const forV3 = (await signTasks()).filter((t) => t.source_id === v3).map((t) => t.status);
+    expect(forV3).toEqual(["cancelled"]);
+    fire = await get("carer");
+    expect(fire.inForce?.versionNumber).toBe(4);
+  });
 });
 
 describe("hazard HZ-128 review dates (quality.md rule 28)", () => {
@@ -252,11 +279,29 @@ describe("hazard HZ-128 review dates (quality.md rule 28)", () => {
     const refused = await publishDraft("owner");
     expect(refused.status).toBe(422);
   });
+
+  it("hazard HZ-128 refuses roles the organisation does not have, so someone is always asked", async () => {
+    const draft = draftOf(await get("manager"));
+    await as("manager", `/v1/policies/${fire.id}/versions/${draft?.id}`, {
+      method: "PATCH",
+      body: {
+        expectedVersion: draft?.version,
+        change: "minor",
+        changeSummary: "Typo",
+        body: "Evacuate by the nearest safe exit.",
+        documentId: null,
+        roles: ["care_workers"],
+        reviewDueOn: inMonths(6),
+      },
+    });
+    const refused = await publishDraft("owner");
+    expect(refused.status).toBe(422);
+  });
 });
 
 describe("retiring a policy", () => {
   it("hazard HZ-128 retires it with a reason, ends its reminders and takes it out of the list", async () => {
-    // The review runs above already reminded the carer about version 3.
+    // The review runs above already reminded the carer about version 4.
     expect((await signTasks()).filter((t) => t.status === "open").length).toBeGreaterThanOrEqual(1);
     const current = await get("manager");
     const retired = await as("manager", `/v1/policies/${fire.id}/retire`, {
@@ -265,7 +310,7 @@ describe("retiring a policy", () => {
     });
     expect(retired.status).toBe(200);
     expect(
-      ((await retired.json()) as Policy).versions.find((v) => v.versionNumber === 3)?.state,
+      ((await retired.json()) as Policy).versions.find((v) => v.versionNumber === 4)?.state,
     ).toBe("retired");
     const list = (await (await as("carer", "/v1/policies")).json()) as { items: { id: string }[] };
     expect(list.items.map((i) => i.id)).not.toContain(fire.id);
@@ -273,5 +318,94 @@ describe("retiring a policy", () => {
       (t) => t.status === "open" || t.status === "in_progress",
     );
     expect(open).toEqual([]);
+  });
+});
+
+describe("hazard HZ-128 policy PDFs (quality.md section 18.3)", () => {
+  const PDF = (n: number) =>
+    new TextEncoder().encode(`%PDF-1.7\n% ${n}\n1 0 obj\n<<>>\nendobj\n%%EOF\n`);
+  const upload = async (n: number) => {
+    const stored = await h.request(
+      `/v1/documents?category=organisation_document&title=Medicines%20policy%20${n}`,
+      {
+        method: "POST",
+        token: h.tokens.manager,
+        tenant: DEMO.tenantId,
+        raw: { bytes: PDF(n), contentType: "application/pdf" },
+      },
+    );
+    expect(stored.status).toBe(201);
+    return ((await stored.json()) as { id: string }).id;
+  };
+  let meds: Policy;
+  let first: string;
+
+  it("hazard HZ-128 serves a policy's PDF by the general routes only while it is in force", async () => {
+    first = await upload(1);
+    const created = await as("manager", "/v1/policies", {
+      method: "POST",
+      body: {
+        policyKey: "medicines",
+        title: "Medicines",
+        requireSecondReviewer: false,
+        firstVersion: {
+          changeSummary: "First issue",
+          body: null,
+          documentId: first,
+          roles: ["care_worker"],
+          reviewDueOn: inMonths(6),
+        },
+      },
+    });
+    meds = (await created.json()) as Policy;
+    expect((await as("carer", `/v1/documents/${first}/content`)).status).toBe(404);
+    const draft = meds.versions[0];
+    const published = await as("manager", `/v1/policies/${meds.id}/versions/${draft?.id}/publish`, {
+      method: "POST",
+      body: { expectedVersion: draft?.version },
+    });
+    expect(published.status).toBe(200);
+    expect((await as("carer", `/v1/documents/${first}/content`)).status).toBe(200);
+    expect(
+      (
+        await h.request(`/v1/documents/${first}/versions`, {
+          method: "POST",
+          token: h.tokens.manager,
+          tenant: DEMO.tenantId,
+          raw: { bytes: PDF(9), contentType: "application/pdf" },
+        })
+      ).status,
+    ).toBe(409);
+  });
+
+  it("hazard HZ-128 serves a superseded PDF only through the library, saying it is superseded", async () => {
+    const second = await upload(2);
+    await as("manager", `/v1/policies/${meds.id}/versions`, {
+      method: "POST",
+      body: {
+        change: "major",
+        changeSummary: "New procedure",
+        documentId: second,
+        reviewDueOn: inMonths(6),
+      },
+    });
+    const now = (await (await as("manager", `/v1/policies/${meds.id}`)).json()) as Policy;
+    const draft = now.versions.find((v) => v.state === "draft");
+    await as("manager", `/v1/policies/${meds.id}/versions/${draft?.id}/publish`, {
+      method: "POST",
+      body: { expectedVersion: draft?.version },
+    });
+    expect((await as("carer", `/v1/documents/${first}/content`)).status).toBe(404);
+    const list = (await (
+      await as("carer", "/v1/documents?category=organisation_document")
+    ).json()) as {
+      items: { id: string }[];
+    };
+    expect(list.items.map((i) => i.id)).not.toContain(first);
+    const v1 = now.versions.find((v) => v.versionNumber === 1);
+    const opened = await as("carer", `/v1/policies/${meds.id}/versions/${v1?.id}/document`);
+    expect(opened.status).toBe(200);
+    expect(opened.headers.get("x-harbour-policy-state")).toBe("superseded");
+    expect(opened.headers.get("x-harbour-policy-in-force")).toBe(draft?.id);
   });
 });

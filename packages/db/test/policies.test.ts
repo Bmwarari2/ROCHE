@@ -37,6 +37,8 @@ const MEDS = "0199f300-0000-7000-8000-0000000000a2";
 const FIRE_V1 = "0199f300-0000-7000-8000-0000000000b1";
 const FIRE_V2 = "0199f300-0000-7000-8000-0000000000b2";
 const MEDS_V1 = "0199f300-0000-7000-8000-0000000000b3";
+const DRAFT_ONLY = "0199f300-0000-7000-8000-0000000000a3";
+const DRAFT_ONLY_V1 = "0199f300-0000-7000-8000-0000000000b4";
 const count = async (c: pg.PoolClient, text: string, params: unknown[] = []) =>
   Number((await c.query<{ n: string }>(text, params)).rows[0]?.n);
 
@@ -199,6 +201,40 @@ describe("hazard HZ-128 policy versions (quality.md section 18)", () => {
         ),
       ),
     ).rejects.toThrow(/review date after today/);
+  });
+
+  it("hazard HZ-128 never lets a statement supersede the version in force by setting the flag itself", async () => {
+    await expect(
+      asLead(async (c) => {
+        await c.query("SELECT set_config('app.policy_superseding', $1, true)", [FIRE]);
+        await c.query("UPDATE policy_version SET state = 'superseded' WHERE id = $1", [FIRE_V2]);
+      }),
+    ).rejects.toThrow(/cannot change like that/);
+    expect(await state(FIRE_V2)).toBe("published");
+  });
+
+  it("hides a policy that has only a draft, and draft history, from staff who do not manage policies", async () => {
+    await asLead(async (c) => {
+      await c.query(
+        "INSERT INTO policy (id, policy_key, title) VALUES ($1, 'restructure', 'Restructure')",
+        [DRAFT_ONLY],
+      );
+      await draft(c, DRAFT_ONLY_V1, DRAFT_ONLY);
+      await c.query("UPDATE policy_version SET change_summary = 'Second draft' WHERE id = $1", [
+        DRAFT_ONLY_V1,
+      ]);
+    });
+    expect(
+      await asCarer((c) =>
+        count(c, "SELECT count(*) AS n FROM policy WHERE id = $1", [DRAFT_ONLY]),
+      ),
+    ).toBe(0);
+    const history = (fn: typeof asLead) =>
+      fn((c) =>
+        count(c, "SELECT count(*) AS n FROM record_version WHERE record_id = $1", [DRAFT_ONLY_V1]),
+      );
+    expect(await history(asLead)).toBe(1);
+    expect(await history(asCarer)).toBe(0);
   });
 
   it("never deletes a version", async () => {

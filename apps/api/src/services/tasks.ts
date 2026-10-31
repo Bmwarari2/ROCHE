@@ -494,6 +494,13 @@ export const GENERAL_TASK_PERMISSION = "platform.task.manage";
  */
 export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action"];
 
+/**
+ * Task kinds only their evidence completes, never a transition: a read-and-sign reminder is done
+ * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
+ * done or skipped without the signature.
+ */
+export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = ["quality.policy_read_and_sign"];
+
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */
 export function anyoneMayBeGiven(row: {
   readonly kind: string;

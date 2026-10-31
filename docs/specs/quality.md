@@ -741,14 +741,25 @@ documents) and signs the version in force; a member sees their own signatures, h
 - A superseded or retired version is always served with its state and, for a superseded one, the
   version that replaced it, so a printed or linked copy says it is not current (HZ-128). The list of
   policies shows only the version in force.
-- Reminders (rule 27): the `policy-reminders` job (hourly) raises a task assigned to each
-  outstanding member (kind `quality.policy_read_and_sign`, the generic title "Read and sign a
-  policy", source the version) when `policy.read_and_sign.reminder_days` UK days have passed since
-  they became due or since their last reminder, cancelling the previous one; signing completes it;
-  publishing a new version cancels the old version's.
+- Reminders (rule 27, with the slice 25 reviews): the `policy-reminders` job (hourly) raises a task
+  assigned to each outstanding member (kind `quality.policy_read_and_sign`, the generic title "Read
+  and sign a policy", source the version) on the first run after they become due, then when
+  `policy.read_and_sign.reminder_days` UK days have passed since their last reminder, cancelling
+  the previous one. A reminder is due at the next reminder, so it does not go overdue and escalate;
+  only signing completes it (`EVIDENCE_ONLY_TASK_KINDS`: no task transition closes it); a newer
+  version or retirement cancels it.
 - Review (rule 28): when a version in force is `due_soon` or `overdue` against its review date, one
-  task each (kind `quality.policy_review`, "Review a policy") assigned to the version's author, or
-  its publisher when the author has left, once per state.
+  task each (kind `quality.policy_review`, "Review a policy") for the author, else the publisher,
+  else another holder of `quality.policy.manage`, each only while they hold it, once per state;
+  a newer version or retirement ends them.
+- Roles: a version naming a role key the organisation does not have (by a role's key or the
+  built-in key it is based on) is not published.
+- PDFs: a policy's PDF is an organisation document with no subject. The general document routes list
+  and serve it only while its version is in force, and never take a new file version of it;
+  `GET /v1/policies/{id}/versions/{versionId}/document` serves any version's PDF the caller may read,
+  with `x-harbour-policy-state` and, for a superseded one, `x-harbour-policy-in-force`.
+- A policy whose only version is a draft, and the history of drafts, are read only by holders of
+  `quality.policy.manage`.
 
 ### 18.4 API
 
@@ -766,6 +777,7 @@ opaque ids only.
 | `POST /v1/policies/{id}/retire` | `quality.policy.manage` | Retire the policy with a reason (its version in force becomes `retired`) |
 | `POST /v1/policies/{id}/versions/{versionId}/signatures` | any member | Read and sign the version in force |
 | `GET /v1/policies/{id}/versions/{versionId}/read-and-sign` | `quality.policy.manage` | Who must sign, who has and who is outstanding since when (`readAndSignStatus`) |
+| `GET /v1/policies/{id}/versions/{versionId}/document` | any member (drafts: manage) | The version's PDF, with its state in the response headers |
 | `GET /v1/me/policies` | any member | The versions in force the caller must sign and has not |
 
 Audit actions: `quality.policy.created`, `.drafted`, `.edited`, `.published`, `.retired`,

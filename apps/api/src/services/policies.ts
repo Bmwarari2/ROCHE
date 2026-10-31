@@ -9,6 +9,7 @@ import {
   tenantUser,
 } from "@harbour/db";
 import {
+  addUkDays,
   type Outstanding,
   type PolicyChange,
   type PolicySignature,
@@ -87,6 +88,7 @@ export async function staffWithRoles(tx: Transaction, now: Date): Promise<StaffM
       and(
         isNull(roleAssignment.deletedAt),
         isNull(role.archivedAt),
+        isNull(role.deletedAt),
         isNull(tenantUser.deletedAt),
         inArray(tenantUser.status, [...ON_STAFF]),
         lte(roleAssignment.validFrom, now),
@@ -221,7 +223,7 @@ export async function raisePolicyReminders(
     .where(and(eq(policyVersion.state, "published"), isNull(policy.retiredAt)));
   if (rows.length === 0) return 0;
   const staff = await staffWithRoles(tx, now);
-  const onStaff = new Set(staff.map((s) => s.id));
+  const managers = await policyManagers(tx, now);
   let raised = 0;
   for (const { p, v } of rows) {
     const versions = await tx.select().from(policyVersion).where(eq(policyVersion.policyId, p.id));
@@ -252,12 +254,13 @@ export async function raisePolicyReminders(
         lastReminded[s.assignee] = on;
       }
     }
-    const due = readAndSignRemindersDue(
-      status.outstanding as Outstanding[],
-      lastReminded,
-      today,
-      rates,
-    );
+    // A member never reminded about this version is told at once, on the first run after it is
+    // published or they became due (security and clinical safety reviews round 1: no week's wait
+    // after a major change); then every `policy.read_and_sign.reminder_days` (rule 27).
+    const due = new Set([
+      ...status.outstanding.filter((o) => !lastReminded[o.staffId]).map((o) => o.staffId),
+      ...readAndSignRemindersDue(status.outstanding as Outstanding[], lastReminded, today, rates),
+    ]);
     for (const memberId of due) {
       await endSignTasks(tx, v.id, { status: "cancelled", reason: "Reminded again" }, memberId);
       await tx.insert(task).values({
@@ -267,7 +270,9 @@ export async function raisePolicyReminders(
         sourceType: POLICY_VERSION_SOURCE,
         sourceId: v.id,
         assigneeTenantUserId: memberId,
-        dueAt: ukEndOfDay(today),
+        // Due at the next reminder, when a new one replaces it: never overdue the same evening
+        // (security review round 1, finding 4).
+        dueAt: addUkDays(ukEndOfDay(today), rates.readAndSignReminderDays),
         priority: "routine",
         details: { policyId: p.id, remindedOn: today },
       });
@@ -280,7 +285,11 @@ export async function raisePolicyReminders(
           s.kind === POLICY_REVIEW_TASK &&
           (s.details as { reviewStatus?: string } | null)?.reviewStatus === review,
       );
-      const owner = onStaff.has(v.authorId) ? v.authorId : v.publishedBy;
+      // Someone who can act on it: the author, else the publisher, else any holder of manage, each
+      // only while they hold it (clinical safety review round 1, finding 6).
+      const owner = [v.authorId, v.publishedBy, ...[...managers].sort()].find(
+        (id): id is string => id !== null && managers.has(id),
+      );
       if (!already && owner) {
         await tx.insert(task).values({
           kind: POLICY_REVIEW_TASK,
@@ -298,4 +307,91 @@ export async function raisePolicyReminders(
     }
   }
   return raised;
+}
+
+/**
+ * How the policy library uses some documents (security and clinical safety reviews round 1,
+ * HZ-128): `in_force` when a published version's content, `not_in_force` when only a draft's, a
+ * superseded or a retired version's. Read with the system's rights, because drafts are hidden from
+ * most members and a draft's PDF must stay hidden too. The general document routes serve a policy
+ * document only while it is in force, and never take a new version of one.
+ */
+export async function policyDocumentUse(
+  tx: Transaction,
+  documentIds: readonly string[],
+): Promise<Map<string, "in_force" | "not_in_force">> {
+  const use = new Map<string, "in_force" | "not_in_force">();
+  if (documentIds.length === 0) return use;
+  const rows = await withSystemRights(tx, () =>
+    tx
+      .select({ documentId: policyVersion.documentId, state: policyVersion.state })
+      .from(policyVersion)
+      .where(inArray(policyVersion.documentId, [...documentIds])),
+  );
+  for (const r of rows) {
+    if (!r.documentId) continue;
+    if (r.state === "published") use.set(r.documentId, "in_force");
+    else if (!use.has(r.documentId)) use.set(r.documentId, "not_in_force");
+  }
+  return use;
+}
+
+/** Members holding `quality.policy.manage` now through a role in force (who can act on a review). */
+export async function policyManagers(tx: Transaction, now: Date): Promise<Set<string>> {
+  const rows = await tx
+    .select({ id: roleAssignment.tenantUserId })
+    .from(roleAssignment)
+    .innerJoin(role, eq(role.id, roleAssignment.roleId))
+    .innerJoin(tenantUser, eq(tenantUser.id, roleAssignment.tenantUserId))
+    .where(
+      and(
+        isNull(roleAssignment.deletedAt),
+        isNull(role.archivedAt),
+        isNull(role.deletedAt),
+        isNull(tenantUser.deletedAt),
+        eq(tenantUser.status, "active"),
+        lte(roleAssignment.validFrom, now),
+        or(isNull(roleAssignment.validTo), sql`${roleAssignment.validTo} > ${now}`),
+        sql`${POLICY_MANAGE} = ANY (${role.permissions})`,
+      ),
+    );
+  return new Set(rows.map((r) => r.id));
+}
+
+/** Ends a version's open review tasks once a newer version is published or the policy retired. */
+export function endReviewTasks(
+  tx: Transaction,
+  versionId: string,
+  reason: string,
+): Promise<number> {
+  return withSystemRights(tx, async () => {
+    const ended = await tx
+      .update(task)
+      .set({ status: "cancelled", statusReason: reason })
+      .where(
+        and(
+          eq(task.kind, POLICY_REVIEW_TASK),
+          eq(task.sourceType, POLICY_VERSION_SOURCE),
+          eq(task.sourceId, versionId),
+          inArray(task.status, ["open", "in_progress"]),
+        ),
+      )
+      .returning({ id: task.id });
+    return ended.length;
+  });
+}
+
+/**
+ * Role keys a version names that no role of the organisation has (by its key or the built-in key
+ * it is based on): a typing slip would leave nobody asked to sign (security and clinical safety
+ * reviews round 1).
+ */
+export async function unknownRoleKeys(tx: Transaction, keys: readonly string[]): Promise<string[]> {
+  if (keys.length === 0) return [];
+  const rows = await tx
+    .select({ key: role.key, basedOn: role.basedOnKey })
+    .from(role)
+    .where(and(isNull(role.archivedAt), isNull(role.deletedAt)));
+  const known = new Set(rows.flatMap((r) => [r.key, r.basedOn].filter((k): k is string => !!k)));
+  return keys.filter((k) => !known.has(k));
 }

@@ -109,6 +109,12 @@ LANGUAGE sql STABLE AS $$
 $$;
 --> statement-breakpoint
 
+-- A policy whose only version is a draft is read only by holders of manage (security review
+-- round 1, finding 5): its title is not shown to staff before it is published.
+CREATE POLICY policy_read ON public.policy AS RESTRICTIVE FOR SELECT TO harbour_app
+  USING (app.manages_policies() OR EXISTS (
+    SELECT 1 FROM public.policy_version v WHERE v.policy_id = policy.id AND v.state <> 'draft'));
+--> statement-breakpoint
 CREATE POLICY policy_write ON public.policy AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (app.manages_policies());
 --> statement-breakpoint
@@ -184,7 +190,9 @@ BEGIN
     RETURN NEW;
   END IF;
   IF OLD.state = 'draft' AND NEW.state = 'published' THEN
-    SELECT p.require_second_reviewer INTO v_second FROM public.policy p WHERE p.id = NEW.policy_id;
+    -- Locked, so a retirement committing meanwhile is seen (security review round 1, finding 7).
+    SELECT p.require_second_reviewer INTO v_second FROM public.policy p
+      WHERE p.id = NEW.policy_id FOR UPDATE;
     IF app.current_user_id() IS NULL OR NEW.published_by IS DISTINCT FROM app.current_user_id()
        OR NOT app.holds_permission_anywhere('quality.policy.manage') THEN
       RAISE EXCEPTION 'A policy is published by a holder of quality.policy.manage, in their own name'
@@ -209,7 +217,9 @@ BEGIN
     PERFORM set_config('app.policy_superseding', '', true);
     RETURN NEW;
   END IF;
-  IF OLD.state = 'published' AND NEW.state = 'superseded'
+  -- Only the publication above supersedes: from inside this trigger (depth above one), never from
+  -- a statement that set the flag itself (security review round 1, finding 6).
+  IF OLD.state = 'published' AND NEW.state = 'superseded' AND pg_trigger_depth() > 1
      AND current_setting('app.policy_superseding', true) = NEW.policy_id::text THEN
     IF (NEW.change, NEW.change_summary, NEW.body, NEW.document_id, NEW.roles, NEW.review_due_on,
         NEW.published_by, NEW.published_on, NEW.published_at, NEW.retired_reason)
@@ -282,4 +292,11 @@ GRANT SELECT, INSERT, UPDATE ON public.policy, public.policy_version TO harbour_
 GRANT SELECT, INSERT ON public.policy_signature TO harbour_app;
 --> statement-breakpoint
 REVOKE UPDATE, DELETE, TRUNCATE ON public.policy_signature FROM harbour_app;
+--> statement-breakpoint
+
+-- Earlier versions of a policy draft follow the draft rule: the versions table is otherwise
+-- readable across the organisation (security review round 1, finding 8).
+CREATE POLICY record_version_policy_draft ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app
+  USING (table_name <> 'policy_version' OR data->>'state' <> 'draft' OR app.manages_policies());
 

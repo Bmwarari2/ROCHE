@@ -38,11 +38,30 @@ slice 65).
 ## Human actions logged
 
 - H-740 (CSO rates HZ-128), H-741 (second reviewer defaults), H-742 (retention of read-and-sign
-  records), H-743 (starter templates).
+  records), H-743 (starter templates), H-744 (CSO decisions from the clinical safety review).
 
 ## Tests
 
-- `packages/db/test/policies.test.ts`: 14 tests (HZ-011, HZ-128).
-- `apps/api/test/policies.test.ts`: 12 tests (HZ-128).
+- `packages/db/test/policies.test.ts`: 16 tests (HZ-011, HZ-128).
+- `apps/api/test/policies.test.ts`: 17 tests (HZ-128).
+- `packages/domain/src/quality/policies.test.ts` renamed under `hazard HZ-128`.
 - `route-gates.test.ts` lists the four routes every member may use; `sample-data.test.ts` lets a
   policy version stop removal of a sample document it uses.
+
+## Review rounds
+
+- Round 1 (security and clinical safety reviews):
+  - Policy PDFs: the general document routes list and serve a policy's PDF only while its version
+    is in force and never take a new file version of it; a new library route serves any version's
+    PDF with its state in the headers; `policy` is no longer an organisation document subject.
+  - Reminders: the first at once after a member becomes due (no week's wait after a major change);
+    due at the next reminder (no same-evening overdue escalations); completed only by signing.
+  - Review tasks go only to someone holding `quality.policy.manage` and end with a newer version or
+    retirement.
+  - A version naming a role the organisation does not have is not published.
+  - Database: a draft-only policy and draft history are hidden from staff; the supersede flag works
+    only from inside the publication's own trigger; the publication locks the policy row and the
+    retirement locks it first.
+  - Left for the CSO (H-744): escalation-policy links resolving to the version in force,
+    notification at publication, minor-change chains, who must sign and from when, and review
+    without a new version.

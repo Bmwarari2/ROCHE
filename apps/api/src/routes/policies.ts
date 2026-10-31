@@ -31,8 +31,10 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { contentHeaders, readDocumentContent } from "../services/documents";
 import {
   domainVersion,
+  endReviewTasks,
   endSignTasks,
   POLICY_MANAGE,
   type PolicyRow,
@@ -41,8 +43,10 @@ import {
   qualityRates,
   signaturesFor,
   staffWithRoles,
+  unknownRoleKeys,
 } from "../services/policies";
 import { staffNames } from "../services/staff";
+import { fileResponse } from "./documents";
 import {
   conflictResponse,
   createRouter,
@@ -454,6 +458,17 @@ export const policiesRouter = createRouter()
         if (draft.version !== body.expectedVersion) {
           throw refused(problems.conflict(), A.published, versionId, "version_conflict");
         }
+        const unknown = await unknownRoleKeys(tx, draft.roles);
+        if (unknown.length > 0) {
+          throw refused(
+            problems.invalid(
+              "Choose roles your organisation has. Some of the roles named do not exist.",
+            ),
+            A.published,
+            versionId,
+            "unknown_role",
+          );
+        }
         const rates = await qualityRates(tx, access.tenantId, today);
         const problemsFound = checkPolicyPublication(
           domainVersion(found.row.policyKey, draft),
@@ -490,6 +505,7 @@ export const policiesRouter = createRouter()
             status: "cancelled",
             reason: "Ended: a newer version was published",
           });
+          await endReviewTasks(tx, previous.id, "Ended: a newer version was published");
         }
         await audit(c, tx, access, {
           action: A.published,
@@ -528,6 +544,8 @@ export const policiesRouter = createRouter()
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
       await change(c, access, A.retired, id, async (tx) => {
+        // Locked first, so a publication meanwhile waits and sees the retirement (finding 7).
+        await tx.select({ id: policy.id }).from(policy).where(eq(policy.id, id)).for("update");
         const found = await loadPolicy(tx, id);
         if (!found) throw refused(problems.notFound(), A.retired, id, "not_found");
         if (found.row.retiredAt) {
@@ -549,6 +567,7 @@ export const policiesRouter = createRouter()
             status: "cancelled",
             reason: "Ended: the policy was retired",
           });
+          await endReviewTasks(tx, inForce.id, "Ended: the policy was retired");
         }
         await audit(c, tx, access, { action: A.retired, resourceType: SOURCE, resourceId: id });
       });
@@ -660,6 +679,45 @@ export const policiesRouter = createRouter()
         };
       });
       return c.json(view, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
+      path: "/v1/policies/{id}/versions/{versionId}/document",
+      tags: ["quality"],
+      summary: "A policy version's PDF",
+      description:
+        "Any member for a published, superseded or retired version; drafts only for holders of quality.policy.manage. The response says the version's state and, when superseded, the version in force (x-harbour-policy-state, x-harbour-policy-in-force; HZ-128). Audited.",
+      security,
+      request: { params: VersionParam },
+      responses: { 200: fileResponse("The file"), ...errorResponses, ...notFoundResponse },
+    }),
+    async (c) => {
+      const access = c.get("access");
+      const { id, versionId } = c.req.valid("param");
+      const { storage } = c.get("services");
+      const result = await withTenant(c, async (tx) => {
+        const found = await loadPolicy(tx, id);
+        const version = found?.versions.find((v) => v.id === versionId);
+        if (!found || !version?.documentId) throw problems.notFound();
+        const content = await readDocumentContent(tx, storage, version.documentId);
+        const inForce = found.versions.find((v) => v.state === "published");
+        await audit(c, tx, access, {
+          action: "quality.policy.document_viewed",
+          resourceType: "policy_version",
+          resourceId: versionId,
+          scopeExtra: { policyId: id, state: version.state },
+        });
+        return { ...content, state: version.state, inForce: inForce?.id ?? null };
+      });
+      return c.body(result.bytes as Uint8Array<ArrayBuffer>, 200, {
+        ...contentHeaders(result.row),
+        "x-harbour-policy-state": result.state,
+        ...(result.state === "superseded" && result.inForce
+          ? { "x-harbour-policy-in-force": result.inForce }
+          : {}),
+      });
     },
   )
   .openapi(

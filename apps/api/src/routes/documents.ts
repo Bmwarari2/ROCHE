@@ -56,6 +56,7 @@ import {
   storeDocument,
   toDocumentItems,
 } from "../services/documents";
+import { policyDocumentUse } from "../services/policies";
 import {
   conflictResponse,
   createRouter,
@@ -91,7 +92,7 @@ const fileBody = {
   },
   required: true,
 } as const;
-const fileResponse = (description: string) => ({
+export const fileResponse = (description: string) => ({
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -131,7 +132,6 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
   "escalation_policy",
   "statement_of_purpose_version",
   "letter_template_version",
-  "policy",
 ]);
 
 /**
@@ -199,8 +199,14 @@ async function documentForRead(c: Context<AppEnv>, id: string) {
   useScopeOf(c, RECORD_READ);
   const found = await withTenant(c, (tx) => findDocument(tx, id));
   if (!found) throw problems.notFound();
-  // A document about no one is served only as an organisation's document (review round 2).
-  if (organisationDocument(found)) return found;
+  // A document about no one is served only as an organisation's document (review round 2), and a
+  // policy's PDF only while its version is in force (HZ-128): a draft's, a superseded or a
+  // retired version's is opened through the policy library, which says so.
+  if (organisationDocument(found)) {
+    const use = await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]));
+    if (use.get(found.id) === "not_in_force") throw problems.notFound();
+    return found;
+  }
   if (!servable(found)) throw problems.notFound();
   await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
@@ -357,9 +363,17 @@ export const documentsRouter = createRouter()
           ]);
           perCategory.push(...(await inScopeOf(tx, scope, () => query(category).limit(500))));
         }
-        const rows = personId
+        const listed = personId
           ? perCategory.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 500)
           : await query(q.category).limit(500);
+        // HZ-128: a policy PDF not in force is listed only by the policy library.
+        const use = personId
+          ? new Map<string, string>()
+          : await policyDocumentUse(
+              tx,
+              listed.map((d) => d.id),
+            );
+        const rows = listed.filter((d) => use.get(d.id) !== "not_in_force");
         await auditInTx(tx, access, {
           action: "platform.document.list",
           resourceType: "document",
@@ -443,6 +457,12 @@ export const documentsRouter = createRouter()
       const found = await withTenant(c, (tx) => findDocument(tx, id));
       // A document of a person's category that names no person is not found (review round 3).
       if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
+      // A policy's PDF changes only by a new policy version (HZ-128).
+      if ((await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]))).size > 0) {
+        throw problems.conflict(
+          "This file is a policy's content. Change it as a new policy version.",
+        );
+      }
       const access = await requirePermission(
         c,
         UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
