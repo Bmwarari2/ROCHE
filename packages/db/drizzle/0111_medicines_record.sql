@@ -190,6 +190,7 @@ CREATE TABLE "medication_reconciliation_item" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	CONSTRAINT "medication_reconciliation_item_tenant_id_id_key" UNIQUE("tenant_id","id"),
+	CONSTRAINT "medication_reconciliation_item_rec_key" UNIQUE("tenant_id","person_id","reconciliation_id","id"),
 	CONSTRAINT "medication_reconciliation_item_says" CHECK (says IN ('start', 'continue', 'change', 'stop', 'unclear')),
 	CONSTRAINT "medication_reconciliation_item_written" CHECK (length(btrim(as_written)) > 0),
 	CONSTRAINT "medication_reconciliation_item_product" CHECK ((vmp_id IS NULL AND amp_id IS NULL AND product_name IS NULL)
@@ -210,7 +211,7 @@ CREATE TABLE "medication_reconciliation_source" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid DEFAULT app.current_user_id(),
 	CONSTRAINT "medication_reconciliation_source_tenant_id_id_key" UNIQUE("tenant_id","id"),
-	CONSTRAINT "medication_reconciliation_source_rec_key" UNIQUE("tenant_id","reconciliation_id","id"),
+	CONSTRAINT "medication_reconciliation_source_rec_key" UNIQUE("tenant_id","person_id","reconciliation_id","id"),
 	CONSTRAINT "medication_reconciliation_source_kind" CHECK (kind IN ('prescription','pharmacy_label','pharmacy_mar','discharge_letter','transfer_letter','gp_record','clinic_letter','prescriber_instruction','previous_mar','person_or_family') AND length(btrim(reference)) > 0),
 	CONSTRAINT "medication_reconciliation_source_current" CHECK (current_because IS NULL OR length(btrim(current_because)) > 0)
 );
@@ -240,6 +241,8 @@ CREATE TABLE "medication_schedule" (
 	CONSTRAINT "medication_schedule_unit" CHECK (length(btrim(unit_code)) > 0 AND length(btrim(unit_name)) > 0)
 );
 --> statement-breakpoint
+ALTER TABLE "document" ADD CONSTRAINT "document_tenant_person_id_key" UNIQUE("tenant_id","person_id","id");
+--> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_person_fk" FOREIGN KEY ("tenant_id","person_id") REFERENCES "public"."person"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_medicine_fk" FOREIGN KEY ("tenant_id","person_id","medicine_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
@@ -248,15 +251,21 @@ ALTER TABLE "medication" ADD CONSTRAINT "medication_replaces_fk" FOREIGN KEY ("t
 --> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_replaced_by_fk" FOREIGN KEY ("tenant_id","person_id","replaced_by_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "medication" ADD CONSTRAINT "medication_source_document_fk" FOREIGN KEY ("tenant_id","source_document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "medication" ADD CONSTRAINT "medication_source_document_fk" FOREIGN KEY ("tenant_id","person_id","source_document_id") REFERENCES "public"."document"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "medication" ADD CONSTRAINT "medication_stop_source_document_fk" FOREIGN KEY ("tenant_id","stop_source_document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "medication" ADD CONSTRAINT "medication_stop_source_document_fk" FOREIGN KEY ("tenant_id","person_id","stop_source_document_id") REFERENCES "public"."document"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "medication" ADD CONSTRAINT "medication_reconciliation_fk" FOREIGN KEY ("tenant_id","person_id","reconciliation_id") REFERENCES "public"."medication_reconciliation"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_transcribed_by_fk" FOREIGN KEY ("tenant_id","transcribed_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_check_by_fk" FOREIGN KEY ("tenant_id","check_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_stop_by_fk" FOREIGN KEY ("tenant_id","stop_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "medication" ADD CONSTRAINT "medication_reanchor_by_fk" FOREIGN KEY ("tenant_id","reanchor_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "medication" ADD CONSTRAINT "medication_withdrawn_by_fk" FOREIGN KEY ("tenant_id","withdrawn_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication_reconciliation" ADD CONSTRAINT "medication_reconciliation_person_fk" FOREIGN KEY ("tenant_id","person_id") REFERENCES "public"."person"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
@@ -272,17 +281,17 @@ ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reco
 --> statement-breakpoint
 ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reconciliation_decision_entry_fk" FOREIGN KEY ("tenant_id","person_id","entry_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reconciliation_decision_item_fk" FOREIGN KEY ("tenant_id","item_id") REFERENCES "public"."medication_reconciliation_item"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reconciliation_decision_item_fk" FOREIGN KEY ("tenant_id","person_id","reconciliation_id","item_id") REFERENCES "public"."medication_reconciliation_item"("tenant_id","person_id","reconciliation_id","id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reconciliation_decision_made_fk" FOREIGN KEY ("tenant_id","person_id","made_entry_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication_reconciliation_decision" ADD CONSTRAINT "medication_reconciliation_decision_by_fk" FOREIGN KEY ("tenant_id","decided_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "medication_reconciliation_item" ADD CONSTRAINT "medication_reconciliation_item_source_fk" FOREIGN KEY ("tenant_id","reconciliation_id","source_id") REFERENCES "public"."medication_reconciliation_source"("tenant_id","reconciliation_id","id") ON DELETE no action ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "medication_reconciliation_item" ADD CONSTRAINT "medication_reconciliation_item_person_fk" FOREIGN KEY ("tenant_id","person_id") REFERENCES "public"."person"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "medication_reconciliation_item" ADD CONSTRAINT "medication_reconciliation_item_source_fk" FOREIGN KEY ("tenant_id","person_id","reconciliation_id","source_id") REFERENCES "public"."medication_reconciliation_source"("tenant_id","person_id","reconciliation_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication_reconciliation_source" ADD CONSTRAINT "medication_reconciliation_source_rec_fk" FOREIGN KEY ("tenant_id","person_id","reconciliation_id") REFERENCES "public"."medication_reconciliation"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "medication_reconciliation_source" ADD CONSTRAINT "medication_reconciliation_source_document_fk" FOREIGN KEY ("tenant_id","document_id") REFERENCES "public"."document"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "medication_reconciliation_source" ADD CONSTRAINT "medication_reconciliation_source_document_fk" FOREIGN KEY ("tenant_id","person_id","document_id") REFERENCES "public"."document"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "medication_schedule" ADD CONSTRAINT "medication_schedule_medication_fk" FOREIGN KEY ("tenant_id","person_id","medication_id") REFERENCES "public"."medication"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
@@ -353,8 +362,15 @@ BEGIN
          IS DISTINCT FROM (OLD.check_by, OLD.check_at, OLD.check_outcome, OLD.check_difference) THEN
     RAISE EXCEPTION 'medication: the second check is recorded once' USING ERRCODE = 'check_violation';
   END IF;
+  -- A replacement is set once, except that a change withdrawing a later version (rule 6b) moves
+  -- it to the new, earlier replacement: allowed only when the version it pointed at is withdrawn
+  -- (written first, in the same transaction) and the new replacement starts no later.
   IF OLD.replaced_by_id IS NOT NULL
-     AND (NEW.replaced_by_id, NEW.replaced_from) IS DISTINCT FROM (OLD.replaced_by_id, OLD.replaced_from) THEN
+     AND (NEW.replaced_by_id, NEW.replaced_from) IS DISTINCT FROM (OLD.replaced_by_id, OLD.replaced_from)
+     AND NOT (NEW.replaced_by_id IS NOT NULL AND NEW.replaced_from <= OLD.replaced_from
+              AND EXISTS (SELECT 1 FROM public.medication w
+                           WHERE w.tenant_id = OLD.tenant_id AND w.id = OLD.replaced_by_id
+                             AND w.withdrawn_at IS NOT NULL)) THEN
     RAISE EXCEPTION 'medication: a replacement is recorded once' USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.withdrawn_at IS NOT NULL
@@ -441,6 +457,11 @@ CREATE OR REPLACE FUNCTION app.medication_reconciliation_closed() RETURNS trigge
 LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.status = 'completed' THEN
+    -- Retention (not the application) may still mark it deleted; nothing else changes.
+    IF current_user <> 'harbour_app'
+       AND to_jsonb(NEW) - 'deleted_at' = to_jsonb(OLD) - 'deleted_at' THEN
+      RETURN NEW;
+    END IF;
     RAISE EXCEPTION 'medication_reconciliation: a completed reconciliation never changes'
       USING ERRCODE = 'check_violation';
   END IF;
@@ -466,6 +487,11 @@ CREATE TRIGGER medication_reconciliation_closed BEFORE UPDATE ON public.medicati
 CREATE OR REPLACE FUNCTION app.medication_reconciliation_open() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  -- Retention (not the application) may mark a completed reconciliation's decision deleted.
+  IF TG_OP = 'UPDATE' AND current_user <> 'harbour_app'
+     AND to_jsonb(NEW) - 'deleted_at' = to_jsonb(OLD) - 'deleted_at' THEN
+    RETURN NEW;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM public.medication_reconciliation r
       WHERE r.tenant_id = NEW.tenant_id AND r.id = NEW.reconciliation_id AND r.status = 'open') THEN
     RAISE EXCEPTION '%: the reconciliation is completed', TG_TABLE_NAME

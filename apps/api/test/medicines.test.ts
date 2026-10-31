@@ -212,6 +212,14 @@ describe("the medicines record", () => {
     expect(mar.doses.some((d) => d.doseInWords === "1 tablet")).toBe(true);
   });
 
+  it("hazard HZ-002 gives each MAR dose its entry's status, so a cell never hides a notice", async () => {
+    const mar = (await (
+      await send("carer", `/v1/people/${ADA}/mar?cycleStart=${ukDateOf(new Date())}`)
+    ).json()) as { doses: { entryStatus: { words: string; notice: string | null } }[] };
+    expect(mar.doses.length).toBeGreaterThan(0);
+    for (const d of mar.doses) expect(d.entryStatus.words.length).toBeGreaterThan(0);
+  });
+
   it("stops a medicine with its reason and source, and refuses one without a reason", async () => {
     const blank = await send("manager", `/v1/medicines/${entryId}/stop`, {
       method: "POST",
@@ -518,6 +526,31 @@ describe("hazard HZ-121 a return from hospital", () => {
         [TRANSFER, CARL, DEMO.locationId],
       ),
     );
+    await asDemo((c) =>
+      c.query(
+        `INSERT INTO task (kind, title, required_permission, person_id, location_id, source_type,
+           source_id, due_at)
+         VALUES ('people.return_check.medicines_reconciled', 'Reconcile medicines',
+           'care.plan.write', $1, $2, 'hospital_transfer', $3, now() + interval '1 day')`,
+        [CARL, DEMO.locationId, TRANSFER],
+      ),
+    );
+    // The check is done by the reconciliation, never ticked by hand (HZ-005).
+    const transferVersion = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ version: number }>(
+            "SELECT version FROM hospital_transfer WHERE id = $1",
+            [TRANSFER],
+          )
+        ).rows[0]?.version,
+    );
+    const byHand = await send(
+      "manager",
+      `/v1/people/${CARL}/hospital-transfers/${TRANSFER}/return-checks/medicines_reconciled`,
+      { method: "POST", body: { version: transferVersion } },
+    );
+    expect(byHand.status, await byHand.clone().text()).toBe(422);
     const start = await send("manager", `/v1/people/${CARL}/medicine-reconciliations`, {
       method: "POST",
       body: { trigger: "return_from_hospital", eventId: TRANSFER },
@@ -560,5 +593,170 @@ describe("hazard HZ-121 a return from hospital", () => {
         ).rows[0]?.return_checks,
     );
     expect(checks?.medicines_reconciled?.doneAt).toBeTruthy();
+    const tasks = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ status: string }>(
+            "SELECT status FROM task WHERE source_id = $1 AND kind = $2",
+            [TRANSFER, "people.return_check.medicines_reconciled"],
+          )
+        ).rows,
+    );
+    expect(tasks.map((t) => t.status)).toEqual(["done"]);
+  });
+});
+
+describe("the record holds dm+d's words and one entry per product", () => {
+  const LACTULOSE = { vmpId: "90000051000001100", ampId: null, name: "Lactulose" };
+
+  it("hazard HZ-005 stores dm+d's names for the product, route and unit, never the request's", async () => {
+    const r = await send("manager", `/v1/people/${BEN}/medicines`, {
+      method: "POST",
+      body: draft({
+        product: { ...PARACETAMOL, name: "Calpol" },
+        route: { code: ORAL.code, name: "By mouth" },
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "every_day" },
+            times: [
+              {
+                time: "08:00",
+                dose: { kind: "amount", quantity: 1, unit: { code: TABLET.code, name: "pill" } },
+              },
+            ],
+          },
+        },
+      }),
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const entry = (await r.json()) as {
+      product: { name: string };
+      route: { name: string };
+      directionsInWords: string;
+    };
+    expect(entry.product.name).toBe("Paracetamol 500mg tablets");
+    expect(entry.route.name).toBe("Oral");
+    expect(entry.directionsInWords).toBe("1 tablet every day at 08:00");
+  });
+
+  it("hazard HZ-005 refuses an AMP dm+d cannot vouch for", async () => {
+    const r = await send("manager", `/v1/people/${BEN}/medicines`, {
+      method: "POST",
+      body: draft({ product: { ...LACTULOSE, ampId: "90000081000001109" } }),
+    });
+    expect(r.status).toBe(422);
+  });
+
+  it("hazard HZ-004 takes one of two transcriptions of the same product sent together", async () => {
+    const body = draft({
+      product: LACTULOSE,
+      directions: {
+        kind: "regular",
+        schedule: {
+          pattern: { kind: "every_day" },
+          times: [
+            {
+              time: "08:00",
+              dose: { kind: "amount", quantity: 15, unit: { code: "258773002", name: "ml" } },
+            },
+          ],
+        },
+      },
+    });
+    const [one, two] = await Promise.all([
+      send("manager", `/v1/people/${BEN}/medicines`, { method: "POST", body }),
+      send("manager", `/v1/people/${BEN}/medicines`, { method: "POST", body }),
+    ]);
+    expect([one.status, two.status].sort()).toEqual([201, 422]);
+  });
+
+  it("hazard HZ-121 applies a reconciliation's stop to the entry it names", async () => {
+    // Carl's return reconciliation is complete, so a new one starts after this entry exists.
+    const CARL = "0194d000-0000-7000-8600-000000000003";
+    const base = `/v1/people/${CARL}/medicine-reconciliations`;
+    const t = await send("manager", `/v1/people/${CARL}/medicines`, {
+      method: "POST",
+      body: draft({ product: IBUPROFEN, startsAt: day(0).toISOString() }),
+    });
+    expect(t.status, await t.clone().text()).toBe(201);
+    const entryId = ((await t.json()) as { id: string }).id;
+    const start = await send("manager", base, { method: "POST", body: { trigger: "change" } });
+    expect(start.status, await start.clone().text()).toBe(201);
+    const recId = ((await start.json()) as { id: string }).id;
+    const s = await send("manager", `${base}/${recId}/sources`, {
+      method: "POST",
+      body: {
+        kind: "prescriber_instruction",
+        reference: "GP letter, medicines review",
+        receivedAt: new Date().toISOString(),
+      },
+    });
+    expect(s.status, await s.clone().text()).toBe(201);
+    const sourceId = ((await s.json()) as { sources: { id: string }[] }).sources[0]?.id;
+    const i = await send("manager", `${base}/${recId}/items`, {
+      method: "POST",
+      body: { sourceId, asWritten: "Stop ibuprofen", product: IBUPROFEN, says: "stop" },
+    });
+    expect(i.status, await i.clone().text()).toBe(201);
+    const itemId = ((await i.json()) as { items: { id: string }[] }).items[0]?.id;
+    const version = (
+      (await (await send("manager", `${base}/${recId}`)).json()) as {
+        version: number;
+      }
+    ).version;
+    const put = await send("manager", `${base}/${recId}/decisions`, {
+      method: "PUT",
+      body: {
+        expectedVersion: version,
+        entryDecisions: [
+          {
+            kind: "stop",
+            entryId,
+            itemIds: [itemId],
+            reason: "Stopped at the medicines review",
+            withdrawLaterReason: null,
+          },
+        ],
+        itemDecisions: [],
+      },
+    });
+    expect(put.status, await put.clone().text()).toBe(200);
+    const done = await send("manager", `${base}/${recId}/complete`, {
+      method: "POST",
+      body: {
+        expectedVersion: ((await put.json()) as { version: number }).version,
+        allergiesCompared: true,
+        personInvolvement: { involved: true },
+      },
+    });
+    expect(done.status, await done.clone().text()).toBe(200);
+    const after = (await (await send("manager", `/v1/medicines/${entryId}/history`)).json()) as {
+      versions: { stop: { reason: string } | null }[];
+    };
+    expect(after.versions.at(-1)?.stop?.reason).toBe("Stopped at the medicines review");
+  });
+
+  it("hazard HZ-121 keeps the audit of a refused check and a refused completion", async () => {
+    const client = await h.db.pool("harbour_owner").connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+        [DEMO.tenantId],
+      );
+      const { rows } = await client.query<{ action: string }>(
+        `SELECT DISTINCT action FROM audit_event
+          WHERE action IN ('medicines.entry.checked', 'medicines.reconciliation.completed')
+            AND outcome = 'denied'`,
+      );
+      await client.query("COMMIT");
+      expect(rows.map((r) => r.action).sort()).toEqual([
+        "medicines.entry.checked",
+        "medicines.reconciliation.completed",
+      ]);
+    } finally {
+      client.release();
+    }
   });
 });

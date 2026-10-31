@@ -117,6 +117,13 @@ const Env = z.object({
    * invented; unset, it is off in production (real organisations) and on elsewhere.
    */
   IMPORT_TEST_NHS_NUMBERS: z.enum(["off", "on"]).optional(),
+  /**
+   * Whether the medicines ports use the invented dm+d subset and the fixed competence map
+   * (slice 16 security review): "on" for development, test and demonstration environments;
+   * unset, on outside production. Production refuses "on", so real people's medicines are never
+   * checked against invented reference data; it fails closed until slices 10 and 17 land.
+   */
+  MEDICINES_FIXTURES: z.enum(["off", "on"]).optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   APP_VERSION: z.string().default("0.0.0-dev"),
 });
@@ -126,6 +133,8 @@ export type Config = z.infer<typeof Env> & {
   readonly trustedProxies: readonly string[];
   /** `IMPORT_TEST_NHS_NUMBERS`, defaulted by environment: off in production unless set. */
   readonly importTestNhsNumbers: boolean;
+  /** `MEDICINES_FIXTURES`, defaulted by environment: never on in production. */
+  readonly medicinesFixtures: boolean;
 };
 
 const DATABASE_URL_KEYS = [
@@ -178,6 +187,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     if (parsed.MALWARE_SCANNER === "mock") {
       throw new Error("MALWARE_SCANNER cannot be mock in production");
     }
+    // Invented dm+d and competence never stand in for the real sources (HZ-001, HZ-121).
+    if (parsed.MEDICINES_FIXTURES === "on") {
+      throw new Error("MEDICINES_FIXTURES cannot be on in production");
+    }
     // Signing a browser out mid-entry loses the form (HZ-111): off until its controls exist.
     if (parsed.SESSION_IDLE_TIMEOUT === "on") {
       throw new Error("SESSION_IDLE_TIMEOUT cannot be on in production until HZ-111 is controlled");
@@ -200,5 +213,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     importTestNhsNumbers:
       (parsed.IMPORT_TEST_NHS_NUMBERS ?? (parsed.NODE_ENV === "production" ? "off" : "on")) ===
       "on",
+    medicinesFixtures:
+      (parsed.MEDICINES_FIXTURES ?? (parsed.NODE_ENV === "production" ? "off" : "on")) === "on",
   };
 }

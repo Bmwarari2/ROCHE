@@ -29701,6 +29701,28 @@
           },
           "notDue": {
             "type": "boolean"
+          },
+          "entryStatus": {
+            "type": "object",
+            "properties": {
+              "words": {
+                "type": "string"
+              },
+              "mayGive": {
+                "type": "boolean"
+              },
+              "notice": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "words",
+              "mayGive",
+              "notice"
+            ]
           }
         },
         "required": [
@@ -29713,7 +29735,8 @@
           "clockChange",
           "sameInstantAs",
           "lastDayOfShorterMonth",
-          "notDue"
+          "notDue",
+          "entryStatus"
         ]
       },
       "TranscribeMedicine": {

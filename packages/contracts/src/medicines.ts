@@ -234,6 +234,15 @@ export const MarDoseOut = z
     lastDayOfShorterMonth: z.boolean(),
     /** "Before this entry was recorded: not due". */
     notDue: z.boolean(),
+    /**
+     * The entry's status now, in words with whether it may be given, so a chart cell never shows
+     * a dose without its not-yet-checked or stopped notice (slice 16 clinical review M6; HZ-002).
+     */
+    entryStatus: z.object({
+      words: z.string(),
+      mayGive: z.boolean(),
+      notice: z.string().nullable(),
+    }),
   })
   .meta({ id: "MarDose" });
 

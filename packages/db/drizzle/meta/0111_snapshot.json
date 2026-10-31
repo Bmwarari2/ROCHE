@@ -13243,10 +13243,12 @@
           "tableTo": "document",
           "columnsFrom": [
             "tenant_id",
+            "person_id",
             "source_document_id"
           ],
           "columnsTo": [
             "tenant_id",
+            "person_id",
             "id"
           ],
           "onDelete": "no action",
@@ -13258,10 +13260,29 @@
           "tableTo": "document",
           "columnsFrom": [
             "tenant_id",
+            "person_id",
             "stop_source_document_id"
           ],
           "columnsTo": [
             "tenant_id",
+            "person_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_reconciliation_fk": {
+          "name": "medication_reconciliation_fk",
+          "tableFrom": "medication",
+          "tableTo": "medication_reconciliation",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "reconciliation_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
             "id"
           ],
           "onDelete": "no action",
@@ -13304,6 +13325,36 @@
           "columnsFrom": [
             "tenant_id",
             "stop_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_reanchor_by_fk": {
+          "name": "medication_reanchor_by_fk",
+          "tableFrom": "medication",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "reanchor_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_withdrawn_by_fk": {
+          "name": "medication_withdrawn_by_fk",
+          "tableFrom": "medication",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "withdrawn_by"
           ],
           "columnsTo": [
             "tenant_id",
@@ -13941,10 +13992,31 @@
           "tableTo": "medication_reconciliation_item",
           "columnsFrom": [
             "tenant_id",
+            "person_id",
+            "reconciliation_id",
             "item_id"
           ],
           "columnsTo": [
             "tenant_id",
+            "person_id",
+            "reconciliation_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "medication_reconciliation_decision_made_fk": {
+          "name": "medication_reconciliation_decision_made_fk",
+          "tableFrom": "medication_reconciliation_decision",
+          "tableTo": "medication",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id",
+            "made_entry_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "person_id",
             "id"
           ],
           "onDelete": "no action",
@@ -14079,27 +14151,14 @@
           "tableTo": "medication_reconciliation_source",
           "columnsFrom": [
             "tenant_id",
+            "person_id",
             "reconciliation_id",
             "source_id"
           ],
           "columnsTo": [
             "tenant_id",
+            "person_id",
             "reconciliation_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "medication_reconciliation_item_person_fk": {
-          "name": "medication_reconciliation_item_person_fk",
-          "tableFrom": "medication_reconciliation_item",
-          "tableTo": "person",
-          "columnsFrom": [
-            "tenant_id",
-            "person_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
             "id"
           ],
           "onDelete": "no action",
@@ -14113,6 +14172,16 @@
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
+            "id"
+          ]
+        },
+        "medication_reconciliation_item_rec_key": {
+          "name": "medication_reconciliation_item_rec_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "person_id",
+            "reconciliation_id",
             "id"
           ]
         }
@@ -14234,10 +14303,12 @@
           "tableTo": "document",
           "columnsFrom": [
             "tenant_id",
+            "person_id",
             "document_id"
           ],
           "columnsTo": [
             "tenant_id",
+            "person_id",
             "id"
           ],
           "onDelete": "no action",
@@ -14259,6 +14330,7 @@
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
+            "person_id",
             "reconciliation_id",
             "id"
           ]
@@ -22403,6 +22475,15 @@
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
+            "id"
+          ]
+        },
+        "document_tenant_person_id_key": {
+          "name": "document_tenant_person_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "person_id",
             "id"
           ]
         }

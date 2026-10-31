@@ -17,6 +17,7 @@ import {
   TranscribeMedicine,
 } from "@harbour/contracts";
 import {
+  document,
   hospitalTransfer,
   medication,
   medicationReconciliation,
@@ -45,6 +46,7 @@ import {
   MEDICINES_RATE_KEYS,
   marCycle,
   marEntryDoses,
+  marEntryStatus,
   marEntryTimesBeforeRecorded,
   outstandingReconciliations,
   type Reconciliation,
@@ -58,9 +60,9 @@ import {
   ukStartOfDay,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
-import { auditInTx } from "../http/audit";
+import { AuditedRefusal, auditInTx, withAuditedRefusal } from "../http/audit";
 import {
   type AppEnv,
   requireAnyPermission,
@@ -75,6 +77,7 @@ import {
   insertEntry,
   personEntries,
   type StoredEntry,
+  UNCHECKED_POLICY,
   updateEntry,
 } from "../services/medicines";
 import { loadPerson, returnCheckTaskKind } from "../services/people";
@@ -134,7 +137,9 @@ const dmdUnknown = (loaded: boolean) =>
       : "The dm+d reference data is not loaded yet, so no medicine can be recorded. Ask Harbour support.",
   );
 
-async function factsFor(c: Context<AppEnv>, product: DmdProductRef): Promise<DmdProductFacts> {
+type DmdFacts = DmdProductFacts & { readonly name: string };
+
+async function factsFor(c: Context<AppEnv>, product: DmdProductRef): Promise<DmdFacts> {
   if (!isDmdProduct(product)) {
     throw new HttpProblem(
       422,
@@ -183,6 +188,80 @@ function reconciliationDraftOf(d: z.infer<typeof ReconciliationDraftShape>): Rec
 const ReconciliationDraftShape =
   PutReconciliationDecisions.shape.itemDecisions.element.options[0].shape.draft;
 
+/**
+ * What is stored is dm+d's own words: the product's name, the route's and each unit's, taken from
+ * the reference data by code, never from the request (security review, finding 3).
+ */
+type BodyDraft = Pick<z.infer<typeof TranscribeMedicine>, "product" | "route" | "directions">;
+
+function canonical<T extends BodyDraft>(body: T, facts: DmdFacts): T {
+  const unit = (u: { code: string; name: string }) => ({
+    code: u.code,
+    name: facts.permittedDoseUnits.find((x) => x.code === u.code)?.name ?? u.name,
+  });
+  const dose = <D extends { unit: { code: string; name: string } }>(d: D): D => ({
+    ...d,
+    unit: unit(d.unit),
+  });
+  const directions: BodyDraft["directions"] =
+    body.directions.kind === "regular"
+      ? {
+          ...body.directions,
+          schedule: {
+            ...body.directions.schedule,
+            times: body.directions.schedule.times.map((t) => ({ ...t, dose: dose(t.dose) })),
+          },
+        }
+      : { ...body.directions, dose: dose(body.directions.dose) };
+  return {
+    ...body,
+    product: { ...body.product, name: facts.name },
+    route: {
+      code: body.route.code,
+      name: facts.permittedRoutes.find((r) => r.code === body.route.code)?.name ?? body.route.name,
+    },
+    directions,
+  };
+}
+
+/**
+ * Medicines writes for one person run one at a time (a transaction-scoped advisory lock), so two
+ * people transcribing the same product at once cannot both pass rule 6's one entry per product
+ * (security review, finding 1).
+ */
+async function lockPerson(tx: Transaction, personId: string) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`medicines:${personId}`}, 0))`,
+  );
+}
+
+/**
+ * A source document must be this person's, available (scanned clean, not removed): never another
+ * person's letter or one outside the caller's scope (RLS applies here, unlike a foreign key;
+ * security review, finding 2).
+ */
+async function requireDocuments(
+  tx: Transaction,
+  personId: string,
+  ids: readonly (string | null | undefined)[],
+) {
+  for (const documentId of ids) {
+    if (!documentId) continue;
+    const [doc] = await tx
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.personId, personId),
+          eq(document.status, "available"),
+          isNull(document.deletedAt),
+        ),
+      );
+    if (!doc) throw problems.invalid("Choose a document from this person's record.");
+  }
+}
+
 /** One stored version, by id, within the caller's scope (RLS), with every version of the person. */
 async function loadEntry(tx: Transaction, entryId: string) {
   const [row] = await tx
@@ -190,6 +269,7 @@ async function loadEntry(tx: Transaction, entryId: string) {
     .from(medication)
     .where(and(eq(medication.id, entryId), isNull(medication.deletedAt)));
   if (!row) throw problems.notFound();
+  await lockPerson(tx, row.personId);
   const all = await personEntries(tx, row.personId);
   const chain = all.filter((s) => s.medicineId === row.medicineId);
   const stored = chain.find((s) => s.entry.id === entryId) as StoredEntry;
@@ -216,31 +296,44 @@ async function guardConcurrent<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (error) {
     const code = dbCode(error);
-    if (code === "23505" || code === "23514") {
+    if (code === "23505") {
       throw problems.conflict("The medicine changed while you were working on it. Read it again.");
+    }
+    // A database rule refusing what the domain allowed: said as a refusal, never a conflict.
+    if (code === "23514" || code === "23503") {
+      throw new HttpProblem(
+        422,
+        "medicine_refused_by_record",
+        "The medicines record cannot be changed like this.",
+        "The record's own rules refused this change. Read the medicine again and check what you entered.",
+      );
     }
     throw error;
   }
 }
 
-/** Writes what a change returns: the new version first (the replaced one refers to it). */
+/**
+ * Writes what a change returns, in the order the database's rules need: the withdrawn later
+ * versions first (so the replaced version's replacement may move to the new one), then the new
+ * version (the replaced one refers to it), then the replaced version.
+ */
 async function applyChange(
   tx: Transaction,
   result: Extract<ReturnType<typeof changeMarEntry>, { ok: true }>,
   medicineId: string,
   reconciliationId: string | null,
 ) {
+  for (const w of result.withdrawn) await updateEntry(tx, w);
   await insertEntry(tx, result.next, medicineId, { reconciliationId });
   await updateEntry(tx, result.replaced);
-  for (const w of result.withdrawn) await updateEntry(tx, w);
 }
 
 async function applyStop(
   tx: Transaction,
   result: Extract<ReturnType<typeof stopMarEntry>, { ok: true }>,
 ) {
-  if (result.stopped) await updateEntry(tx, result.stopped);
   for (const w of result.withdrawn) await updateEntry(tx, w);
+  if (result.stopped) await updateEntry(tx, result.stopped);
 }
 
 async function changed(tx: Transaction, entry: MarEntry, type: "changed" | "stopped") {
@@ -529,8 +622,10 @@ export const medicinesRouter = createRouter()
         );
         const cycle = marCycle(cycleStart, { orderingCycleDays: days });
         const all = await personEntries(tx, id);
-        const doses = all.flatMap(({ entry }) =>
-          [
+        const now = new Date();
+        const doses = all.flatMap(({ entry }) => {
+          const entryStatus = marEntryStatus(entry, now, UNCHECKED_POLICY);
+          return [
             ...marEntryDoses(entry, cycle).map((d) => ({ d, notDue: false })),
             ...marEntryTimesBeforeRecorded(entry, cycle).map((d) => ({ d, notDue: true })),
           ].map(({ d, notDue }) => ({
@@ -544,8 +639,9 @@ export const medicinesRouter = createRouter()
             sameInstantAs: d.sameInstantAs,
             lastDayOfShorterMonth: d.lastDayOfShorterMonth,
             notDue,
-          })),
-        );
+            entryStatus,
+          }));
+        });
         doses.sort((a, b) => a.dueAt.localeCompare(b.dueAt));
         await audit(c, tx, access, {
           action: "medicines.entry.viewed",
@@ -587,10 +683,13 @@ export const medicinesRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const facts = await factsFor(c, body.product);
+      const named = canonical(body, facts);
       const out = await withTenant(c, async (tx) => {
         await loadPerson(tx, id);
+        await lockPerson(tx, id);
+        await requireDocuments(tx, id, [body.source.documentId]);
         const all = await personEntries(tx, id);
-        const result = transcribeMarEntry(draftOf(id, body), facts, {
+        const result = transcribeMarEntry(draftOf(id, named), facts, {
           id: randomUUID(),
           by: access.tenantUserId,
           at: now,
@@ -641,12 +740,14 @@ export const medicinesRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const facts = await factsFor(c, body.product);
+      const named = canonical(body, facts);
       const out = await withTenant(c, async (tx) => {
         const { chain, medicineId, personId } = await loadEntry(tx, entryId);
         requireLatest(chain, body.expectedVersion);
+        await requireDocuments(tx, personId, [body.source.documentId]);
         const result = changeMarEntry(
           chain.map((s) => s.entry),
-          draftOf(personId, body),
+          draftOf(personId, named),
           facts,
           {
             id: randomUUID(),
@@ -706,29 +807,39 @@ export const medicinesRouter = createRouter()
       const competence = await c
         .get("services")
         .medicines.competence.forMember(access.tenantId, access.tenantUserId, now);
-      const out = await withTenant(c, async (tx) => {
-        const { stored, medicineId } = await loadEntry(tx, entryId);
-        const result = recordSecondCheck(stored.entry, {
-          by: access.tenantUserId,
-          at: now,
-          competence,
-          comparedWithSource: body.comparedWithSource,
-          outcome: body.outcome,
-          difference: body.difference,
-        });
-        if (!result.ok) throw refusal(result.issues);
-        await guardConcurrent(() => updateEntry(tx, result.entry));
-        await audit(c, tx, access, {
-          action:
-            body.outcome === "matches_source"
-              ? "medicines.entry.checked"
-              : "medicines.entry.check_found_difference",
-          resourceType: "medication",
-          resourceId: entryId,
-          scope: { personId: stored.entry.personId },
-        });
-        return entryOut({ entry: result.entry, medicineId }, now);
-      });
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const { stored, medicineId } = await loadEntry(tx, entryId);
+          const result = recordSecondCheck(stored.entry, {
+            by: access.tenantUserId,
+            at: now,
+            competence,
+            comparedWithSource: body.comparedWithSource,
+            outcome: body.outcome,
+            difference: body.difference,
+          });
+          if (!result.ok) {
+            throw new AuditedRefusal(refusal(result.issues), {
+              action: "medicines.entry.checked",
+              outcome: "denied",
+              resourceType: "medication",
+              resourceId: entryId,
+              scope: { problems: [...new Set(result.issues.map((i) => i.problem))] },
+            });
+          }
+          await guardConcurrent(() => updateEntry(tx, result.entry));
+          await audit(c, tx, access, {
+            action:
+              body.outcome === "matches_source"
+                ? "medicines.entry.checked"
+                : "medicines.entry.check_found_difference",
+            resourceType: "medication",
+            resourceId: entryId,
+            scope: { personId: stored.entry.personId },
+          });
+          return entryOut({ entry: result.entry, medicineId }, now);
+        }),
+      );
       return c.json(out, 200);
     },
   )
@@ -758,8 +869,9 @@ export const medicinesRouter = createRouter()
       const body = c.req.valid("json");
       const now = new Date();
       const out = await withTenant(c, async (tx) => {
-        const { chain, medicineId, stored } = await loadEntry(tx, entryId);
+        const { chain, medicineId, stored, personId } = await loadEntry(tx, entryId);
         requireLatest(chain, body.expectedVersion);
+        await requireDocuments(tx, personId, [body.source.documentId]);
         const result = stopMarEntry(
           chain.map((s) => s.entry),
           {
@@ -817,6 +929,7 @@ export const medicinesRouter = createRouter()
       const now = new Date();
       const out = await withTenant(c, async (tx) => {
         await loadPerson(tx, id);
+        await lockPerson(tx, id);
         let triggeredAt = body.triggeredAt ? new Date(body.triggeredAt) : now;
         let placementId: string | null = null;
         let hospitalTransferId: string | null = null;
@@ -929,6 +1042,7 @@ export const medicinesRouter = createRouter()
         if (new Date(body.receivedAt).getTime() > Date.now()) {
           throw problems.invalid("A source is received now or earlier.");
         }
+        await requireDocuments(tx, id, [body.documentId]);
         const [row] = await tx
           .insert(medicationReconciliationSource)
           .values({
@@ -978,6 +1092,8 @@ export const medicinesRouter = createRouter()
       if (body.product && !isDmdProduct(body.product)) {
         throw problems.invalid("Choose the line's medicine from dm+d, or leave it uncoded.");
       }
+      // dm+d's own name for the line's product, never the request's.
+      const productName = body.product ? (await factsFor(c, body.product)).name : null;
       const out = await withTenant(c, async (tx) => {
         const { rec, sources } = await loadReconciliation(tx, id, recId);
         requireOpen(rec);
@@ -991,7 +1107,7 @@ export const medicinesRouter = createRouter()
             asWritten: body.asWritten,
             vmpId: body.product?.vmpId ?? null,
             ampId: body.product?.ampId ?? null,
-            productName: body.product?.name ?? null,
+            productName,
             says: body.says,
           })
           .returning({ id: medicationReconciliationItem.id });
@@ -1031,7 +1147,19 @@ export const medicinesRouter = createRouter()
       const { id, recId } = c.req.valid("param");
       const body = c.req.valid("json");
       const now = new Date();
+      // Each draft is stored with dm+d's own names for its product, route and units.
+      const named = async <T extends { draft: BodyDraft }>(d: T): Promise<T> => ({
+        ...d,
+        draft: canonical(d.draft, await factsFor(c, d.draft.product)),
+      });
+      const entryDecisionsIn = await Promise.all(
+        body.entryDecisions.map((d) => (d.kind === "change" ? named(d) : d)),
+      );
+      const itemDecisionsIn = await Promise.all(
+        body.itemDecisions.map((d) => (d.kind === "start" ? named(d) : d)),
+      );
       const out = await withTenant(c, async (tx) => {
+        await lockPerson(tx, id);
         const { rec, items } = await loadReconciliation(tx, id, recId);
         requireOpen(rec);
         if (rec.version !== body.expectedVersion) throw problems.conflict();
@@ -1058,13 +1186,13 @@ export const medicinesRouter = createRouter()
             ),
           );
         const rows = [
-          ...body.entryDecisions.map((d) => ({
+          ...entryDecisionsIn.map((d) => ({
             entryId: d.entryId,
             itemId: null,
             kind: d.kind,
             decision: d,
           })),
-          ...body.itemDecisions.map((d) => ({
+          ...itemDecisionsIn.map((d) => ({
             entryId: null,
             itemId: d.itemId,
             kind: d.kind,
@@ -1140,222 +1268,231 @@ export const medicinesRouter = createRouter()
         access.tenantUserId,
         now,
       );
-      const out = await withTenant(c, async (tx) => {
-        const loaded = await loadReconciliation(tx, id, recId);
-        const { rec, sources, items, decisions } = loaded;
-        requireOpen(rec);
-        if (rec.version !== body.expectedVersion) throw problems.conflict();
-        const all = await personEntries(tx, id);
-        const entries = all.map((s) => s.entry);
-        const medicineOf = new Map(all.map((s) => [s.entry.id, s.medicineId]));
-        const chainOf = (entryId: string) =>
-          all.filter((s) => s.medicineId === medicineOf.get(entryId)).map((s) => s.entry);
-        const entryDecisions = decisions
-          .filter((d) => d.entryId)
-          .map((d) =>
-            entryDecisionOf(
-              d.decision as z.infer<typeof PutReconciliationDecisions>["entryDecisions"][number],
-            ),
-          );
-        const itemDecisions = decisions
-          .filter((d) => d.itemId)
-          .map((d) =>
-            itemDecisionOf(
-              d.decision as z.infer<typeof PutReconciliationDecisions>["itemDecisions"][number],
-            ),
-          );
-        // dm+d facts for every product a draft names, read before the rules run.
-        const products = [
-          ...entryDecisions.flatMap((d) => (d.kind === "change" ? [d.draft.product] : [])),
-          ...itemDecisions.flatMap((d) => (d.kind === "start" ? [d.draft.product] : [])),
-        ];
-        const facts = new Map<string, DmdProductFacts>();
-        for (const p of products) {
-          const f = isDmdProduct(p) ? await services.dmd.facts(p) : null;
-          facts.set(p.vmpId, f ?? { permittedRoutes: [], permittedDoseUnits: [] });
-        }
-        const dmdFacts = (p: DmdProductRef) =>
-          facts.get(p.vmpId) ?? { permittedRoutes: [], permittedDoseUnits: [] };
-        const reconciliation: Reconciliation = {
-          id: rec.id,
-          personId: id,
-          trigger: rec.trigger as Reconciliation["trigger"],
-          triggeredAt: rec.triggeredAt,
-          entriesAtStart: rec.entriesAtStart as Reconciliation["entriesAtStart"],
-          sources: sources.map(sourceOf),
-          items: items.map((i) => ({
-            id: i.id,
-            sourceId: i.sourceId,
-            asWritten: i.asWritten,
-            product:
-              i.vmpId && i.productName
-                ? { vmpId: i.vmpId, ampId: i.ampId, name: i.productName }
-                : null,
-            says: i.says as "start" | "continue" | "change" | "stop" | "unclear",
-          })),
-        };
-        const outcome = completeReconciliation({
-          reconciliation,
-          currentEntries: entriesToReconcile(entries, now),
-          entryVersions: chainOf,
-          earlierEntries: (p) => entries.filter((e) => e.product.vmpId === p.vmpId),
-          entryDecisions,
-          itemDecisions,
-          completer: { id: access.tenantUserId, competence },
-          completedAt: now,
-          allergiesCompared: body.allergiesCompared,
-          personInvolvement: body.personInvolvement,
-          noDischargeLetterReason: body.noDischargeLetterReason,
-          dmdFacts,
-        });
-        if (!outcome.ok) {
-          await audit(c, tx, access, {
-            action: "medicines.reconciliation.completed",
-            outcome: "denied",
-            resourceType: "medication_reconciliation",
-            resourceId: recId,
-            scope: { problems: [...new Set(outcome.issues.map((i) => i.problem))] },
+      const out = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          await lockPerson(tx, id);
+          const loaded = await loadReconciliation(tx, id, recId);
+          const { rec, sources, items, decisions } = loaded;
+          requireOpen(rec);
+          if (rec.version !== body.expectedVersion) throw problems.conflict();
+          const all = await personEntries(tx, id);
+          const entries = all.map((s) => s.entry);
+          const medicineOf = new Map(all.map((s) => [s.entry.id, s.medicineId]));
+          const chainOf = (entryId: string) =>
+            all.filter((s) => s.medicineId === medicineOf.get(entryId)).map((s) => s.entry);
+          const entryDecisions = decisions
+            .filter((d) => d.entryId)
+            .map((d) =>
+              entryDecisionOf(
+                d.decision as z.infer<typeof PutReconciliationDecisions>["entryDecisions"][number],
+              ),
+            );
+          const itemDecisions = decisions
+            .filter((d) => d.itemId)
+            .map((d) =>
+              itemDecisionOf(
+                d.decision as z.infer<typeof PutReconciliationDecisions>["itemDecisions"][number],
+              ),
+            );
+          // dm+d facts for every product a draft names, read before the rules run.
+          const products = [
+            ...entryDecisions.flatMap((d) => (d.kind === "change" ? [d.draft.product] : [])),
+            ...itemDecisions.flatMap((d) => (d.kind === "start" ? [d.draft.product] : [])),
+          ];
+          const facts = new Map<string, DmdProductFacts>();
+          for (const p of products) {
+            const f = isDmdProduct(p) ? await services.dmd.facts(p) : null;
+            // A product dm+d does not hold is refused in those words, not as a route problem.
+            if (!f) throw dmdUnknown(services.dmd.loaded);
+            facts.set(p.vmpId, f);
+          }
+          const dmdFacts = (p: DmdProductRef) =>
+            facts.get(p.vmpId) ?? { permittedRoutes: [], permittedDoseUnits: [] };
+          const reconciliation: Reconciliation = {
+            id: rec.id,
+            personId: id,
+            trigger: rec.trigger as Reconciliation["trigger"],
+            triggeredAt: rec.triggeredAt,
+            entriesAtStart: rec.entriesAtStart as Reconciliation["entriesAtStart"],
+            sources: sources.map(sourceOf),
+            items: items.map((i) => ({
+              id: i.id,
+              sourceId: i.sourceId,
+              asWritten: i.asWritten,
+              product:
+                i.vmpId && i.productName
+                  ? { vmpId: i.vmpId, ampId: i.ampId, name: i.productName }
+                  : null,
+              says: i.says as "start" | "continue" | "change" | "stop" | "unclear",
+            })),
+          };
+          const outcome = completeReconciliation({
+            reconciliation,
+            currentEntries: entriesToReconcile(entries, now),
+            entryVersions: chainOf,
+            earlierEntries: (p) => entries.filter((e) => e.product.vmpId === p.vmpId),
+            entryDecisions,
+            itemDecisions,
+            completer: { id: access.tenantUserId, competence },
+            completedAt: now,
+            allergiesCompared: body.allergiesCompared,
+            personInvolvement: body.personInvolvement,
+            noDischargeLetterReason: body.noDischargeLetterReason,
+            dmdFacts,
           });
-          throw refusal(outcome.issues);
-        }
-        const plan = outcome.plan;
-        const made = new Map<string, string>();
-        // Apply the plan with the time it was tried at (completedAt), never a later one (HZ-010).
-        for (const ch of plan.changes) {
-          const versions = chainOf(ch.entryId);
-          const latest = await personEntries(tx, id);
-          const fresh = latest
-            .filter((s) => s.medicineId === medicineOf.get(ch.entryId))
-            .map((s) => s.entry);
-          const result = changeMarEntry(
-            fresh.length > 0 ? fresh : versions,
-            ch.draft,
-            dmdFacts(ch.draft.product),
-            {
+          if (!outcome.ok) {
+            // Recorded outside this transaction, so the refusal is kept (section 5.5).
+            throw new AuditedRefusal(refusal(outcome.issues), {
+              action: "medicines.reconciliation.completed",
+              outcome: "denied",
+              resourceType: "medication_reconciliation",
+              resourceId: recId,
+              scope: { problems: [...new Set(outcome.issues.map((i) => i.problem))] },
+            });
+          }
+          const plan = outcome.plan;
+          const made = new Map<string, string>();
+          // Apply the plan with the time it was tried at (completedAt), never a later one (HZ-010).
+          for (const ch of plan.changes) {
+            const versions = chainOf(ch.entryId);
+            const latest = await personEntries(tx, id);
+            const fresh = latest
+              .filter((s) => s.medicineId === medicineOf.get(ch.entryId))
+              .map((s) => s.entry);
+            const result = changeMarEntry(
+              fresh.length > 0 ? fresh : versions,
+              ch.draft,
+              dmdFacts(ch.draft.product),
+              {
+                id: randomUUID(),
+                by: access.tenantUserId,
+                at: plan.completedAt,
+                origin: "reconciliation",
+                reanchorReason: ch.reanchorReason,
+                withdrawLaterReason: ch.withdrawLaterReason,
+              },
+            );
+            if (!result.ok) throw refusal(result.issues);
+            await guardConcurrent(() =>
+              applyChange(tx, result, medicineOf.get(ch.entryId) as string, recId),
+            );
+            made.set(`entry:${ch.entryId}`, result.next.id);
+            await audit(c, tx, access, {
+              action: "medicines.entry.changed",
+              resourceType: "medication",
+              resourceId: result.next.id,
+              scope: { personId: id, reconciliationId: recId, replaces: result.replaced.id },
+            });
+            await changed(tx, result.next, "changed");
+          }
+          for (const st of plan.stops) {
+            const latest = await personEntries(tx, id);
+            const fresh = latest
+              .filter((s) => s.medicineId === medicineOf.get(st.entryId))
+              .map((s) => s.entry);
+            const result = stopMarEntry(
+              fresh,
+              {
+                by: access.tenantUserId,
+                at: plan.completedAt,
+                effectiveAt: plan.completedAt,
+                reason: st.reason,
+                source: st.source,
+              },
+              { withdrawLaterReason: st.withdrawLaterReason },
+            );
+            if (!result.ok) throw refusal(result.issues);
+            await guardConcurrent(() => applyStop(tx, result));
+            const target = result.stopped ?? (fresh[0] as MarEntry);
+            await audit(c, tx, access, {
+              action: "medicines.entry.stopped",
+              resourceType: "medication",
+              resourceId: target.id,
+              scope: { personId: id, reconciliationId: recId },
+            });
+            await changed(tx, target, "stopped");
+          }
+          for (const s of plan.starts) {
+            const latest = await personEntries(tx, id);
+            const result = transcribeMarEntry(s.draft, dmdFacts(s.draft.product), {
               id: randomUUID(),
               by: access.tenantUserId,
               at: plan.completedAt,
               origin: "reconciliation",
-              reanchorReason: ch.reanchorReason,
-              withdrawLaterReason: ch.withdrawLaterReason,
-            },
-          );
-          if (!result.ok) throw refusal(result.issues);
-          await applyChange(tx, result, medicineOf.get(ch.entryId) as string, recId);
-          made.set(`entry:${ch.entryId}`, result.next.id);
-          await audit(c, tx, access, {
-            action: "medicines.entry.changed",
-            resourceType: "medication",
-            resourceId: result.next.id,
-            scope: { personId: id, reconciliationId: recId, replaces: result.replaced.id },
-          });
-          await changed(tx, result.next, "changed");
-        }
-        for (const st of plan.stops) {
-          const latest = await personEntries(tx, id);
-          const fresh = latest
-            .filter((s) => s.medicineId === medicineOf.get(st.entryId))
-            .map((s) => s.entry);
-          const result = stopMarEntry(
-            fresh,
-            {
-              by: access.tenantUserId,
-              at: plan.completedAt,
-              effectiveAt: plan.completedAt,
-              reason: st.reason,
-              source: st.source,
-            },
-            { withdrawLaterReason: st.withdrawLaterReason },
-          );
-          if (!result.ok) throw refusal(result.issues);
-          await applyStop(tx, result);
-          const target = result.stopped ?? (fresh[0] as MarEntry);
-          await audit(c, tx, access, {
-            action: "medicines.entry.stopped",
-            resourceType: "medication",
-            resourceId: target.id,
-            scope: { personId: id, reconciliationId: recId },
-          });
-          await changed(tx, target, "stopped");
-        }
-        for (const s of plan.starts) {
-          const latest = await personEntries(tx, id);
-          const result = transcribeMarEntry(s.draft, dmdFacts(s.draft.product), {
-            id: randomUUID(),
-            by: access.tenantUserId,
-            at: plan.completedAt,
-            origin: "reconciliation",
-            earlierEntries: latest
-              .map((x) => x.entry)
-              .filter((e) => e.product.vmpId === s.draft.product.vmpId),
-            reanchorReason: s.reanchorReason,
-            earlierDosesDueReason: s.earlierDosesDueReason,
-          });
-          if (!result.ok) throw refusal(result.issues);
-          await insertEntry(tx, result.entry, result.entry.id, { reconciliationId: recId });
-          made.set(`item:${s.itemId}`, result.entry.id);
-          await audit(c, tx, access, {
-            action: "medicines.entry.transcribed",
-            resourceType: "medication",
-            resourceId: result.entry.id,
-            scope: { personId: id, reconciliationId: recId },
-          });
-          await changed(tx, result.entry, "changed");
-        }
-        for (const d of decisions) {
-          const key = d.entryId ? `entry:${d.entryId}` : `item:${d.itemId}`;
-          const entryId = made.get(key);
-          if (entryId) {
-            await tx
-              .update(medicationReconciliationDecision)
-              .set({ madeEntryId: entryId })
-              .where(eq(medicationReconciliationDecision.id, d.id));
+              earlierEntries: latest
+                .map((x) => x.entry)
+                .filter((e) => e.product.vmpId === s.draft.product.vmpId),
+              reanchorReason: s.reanchorReason,
+              earlierDosesDueReason: s.earlierDosesDueReason,
+            });
+            if (!result.ok) throw refusal(result.issues);
+            await guardConcurrent(() =>
+              insertEntry(tx, result.entry, result.entry.id, { reconciliationId: recId }),
+            );
+            made.set(`item:${s.itemId}`, result.entry.id);
+            await audit(c, tx, access, {
+              action: "medicines.entry.transcribed",
+              resourceType: "medication",
+              resourceId: result.entry.id,
+              scope: { personId: id, reconciliationId: recId },
+            });
+            await changed(tx, result.entry, "changed");
           }
-        }
-        const [done] = await tx
-          .update(medicationReconciliation)
-          .set({
-            status: "completed",
-            completedBy: access.tenantUserId,
-            completedAt: plan.completedAt,
-            allergiesCompared: body.allergiesCompared ? "yes" : "no",
-            personInvolved: body.personInvolvement.involved ? "yes" : "no",
-            notInvolvedReason: body.personInvolvement.involved
-              ? null
-              : body.personInvolvement.reason,
-            noDischargeLetterReason: body.noDischargeLetterReason,
-          })
-          .where(
-            and(
-              eq(medicationReconciliation.id, recId),
-              eq(medicationReconciliation.version, body.expectedVersion),
-            ),
-          )
-          .returning({ id: medicationReconciliation.id });
-        if (!done) throw problems.conflict();
-        if (rec.hospitalTransferId)
-          await completeReturnCheck(tx, access, rec.hospitalTransferId, plan.completedAt);
-        await audit(c, tx, access, {
-          action: "medicines.reconciliation.completed",
-          resourceType: "medication_reconciliation",
-          resourceId: recId,
-          scope: {
-            personId: id,
-            continued: plan.continued.length,
-            changes: plan.changes.length,
-            stops: plan.stops.length,
-            starts: plan.starts.length,
-          },
-        });
-        await publish(tx, {
-          context: "medicines",
-          aggregateType: "medication_reconciliation",
-          aggregateId: recId,
-          type: "medicines.reconciliation.completed",
-          payload: { personId: id, trigger: rec.trigger },
-        });
-        return recOut(await loadReconciliation(tx, id, recId));
-      });
+          for (const d of decisions) {
+            const key = d.entryId ? `entry:${d.entryId}` : `item:${d.itemId}`;
+            const entryId = made.get(key);
+            if (entryId) {
+              await tx
+                .update(medicationReconciliationDecision)
+                .set({ madeEntryId: entryId })
+                .where(eq(medicationReconciliationDecision.id, d.id));
+            }
+          }
+          const [done] = await tx
+            .update(medicationReconciliation)
+            .set({
+              status: "completed",
+              completedBy: access.tenantUserId,
+              completedAt: plan.completedAt,
+              allergiesCompared: body.allergiesCompared ? "yes" : "no",
+              personInvolved: body.personInvolvement.involved ? "yes" : "no",
+              notInvolvedReason: body.personInvolvement.involved
+                ? null
+                : body.personInvolvement.reason,
+              noDischargeLetterReason: body.noDischargeLetterReason,
+            })
+            .where(
+              and(
+                eq(medicationReconciliation.id, recId),
+                eq(medicationReconciliation.version, body.expectedVersion),
+              ),
+            )
+            .returning({ id: medicationReconciliation.id });
+          if (!done) throw problems.conflict();
+          if (rec.hospitalTransferId)
+            await completeReturnCheck(tx, access, rec.hospitalTransferId, plan.completedAt);
+          await audit(c, tx, access, {
+            action: "medicines.reconciliation.completed",
+            resourceType: "medication_reconciliation",
+            resourceId: recId,
+            scope: {
+              personId: id,
+              continued: plan.continued.length,
+              changes: plan.changes.length,
+              stops: plan.stops.length,
+              starts: plan.starts.length,
+            },
+          });
+          await publish(tx, {
+            context: "medicines",
+            aggregateType: "medication_reconciliation",
+            aggregateId: recId,
+            type: "medicines.reconciliation.completed",
+            payload: { personId: id, trigger: rec.trigger },
+          });
+          return recOut(await loadReconciliation(tx, id, recId));
+        }),
+      );
       return c.json(out, 200);
     },
   );
@@ -1373,7 +1510,9 @@ async function completeReturnCheck(
   const [row] = await tx
     .select({ returnChecks: hospitalTransfer.returnChecks })
     .from(hospitalTransfer)
-    .where(eq(hospitalTransfer.id, transferId));
+    .where(eq(hospitalTransfer.id, transferId))
+    // Locked, so a check recorded at the same moment is never written over.
+    .for("update");
   const checks = { ...((row?.returnChecks ?? {}) as Record<string, Record<string, unknown>>) };
   const check = checks[RETURN_CHECK];
   if (check && !check.doneAt) {

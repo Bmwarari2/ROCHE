@@ -21,8 +21,13 @@ export interface MedicinesCompetencePort {
 }
 
 export interface DmdFactsPort {
-  /** What dm+d says about a product, or null when the reference data does not hold it. */
-  facts(product: Pick<DmdProductRef, "vmpId" | "ampId">): Promise<DmdProductFacts | null>;
+  /**
+   * What dm+d says about a product, including its dm+d name (which the record stores in place of
+   * any name the request sent), or null when the reference data does not hold it.
+   */
+  facts(
+    product: Pick<DmdProductRef, "vmpId" | "ampId">,
+  ): Promise<(DmdProductFacts & { readonly name: string }) | null>;
   /** Whether the reference data is loaded at all (so a refusal can say why). */
   readonly loaded: boolean;
 }
@@ -103,16 +108,25 @@ export const FIXTURE_DMD: ReadonlyMap<string, DmdProductFacts & { readonly name:
 export const fixtureDmd: DmdFactsPort = {
   loaded: true,
   facts: async (product) => {
+    // The fixture holds no AMPs, so a branded product it cannot vouch for is unknown.
+    if (product.ampId) return null;
     const facts = FIXTURE_DMD.get(product.vmpId);
     return facts
-      ? { permittedRoutes: facts.permittedRoutes, permittedDoseUnits: facts.permittedDoseUnits }
+      ? {
+          name: facts.name,
+          permittedRoutes: facts.permittedRoutes,
+          permittedDoseUnits: facts.permittedDoseUnits,
+        }
       : null;
   },
 };
 
-/** Production fails closed until the real sources exist; elsewhere the fixtures stand in. */
-export function createMedicinesPorts(production: boolean): MedicinesPorts {
-  return production
-    ? { competence: unavailableCompetence, dmd: unavailableDmd }
-    : { competence: fixedCompetence(), dmd: fixtureDmd };
+/**
+ * The fixtures stand in only when `MEDICINES_FIXTURES` is on, which production refuses; otherwise
+ * the ports fail closed until the real sources exist.
+ */
+export function createMedicinesPorts(fixtures: boolean): MedicinesPorts {
+  return fixtures
+    ? { competence: fixedCompetence(), dmd: fixtureDmd }
+    : { competence: unavailableCompetence, dmd: unavailableDmd };
 }

@@ -146,19 +146,31 @@ export const medication = pgTable(
       columns: [t.tenantId, t.personId, t.replacedById],
       foreignColumns: [t.tenantId, t.personId, t.id],
     }),
+    // A source document is the person's own (a foreign key ignores RLS, so it names the person).
     foreignKey({
       name: "medication_source_document_fk",
-      columns: [t.tenantId, t.sourceDocumentId],
-      foreignColumns: [document.tenantId, document.id],
+      columns: [t.tenantId, t.personId, t.sourceDocumentId],
+      foreignColumns: [document.tenantId, document.personId, document.id],
     }),
     foreignKey({
       name: "medication_stop_source_document_fk",
-      columns: [t.tenantId, t.stopSourceDocumentId],
-      foreignColumns: [document.tenantId, document.id],
+      columns: [t.tenantId, t.personId, t.stopSourceDocumentId],
+      foreignColumns: [document.tenantId, document.personId, document.id],
+    }),
+    foreignKey({
+      name: "medication_reconciliation_fk",
+      columns: [t.tenantId, t.personId, t.reconciliationId],
+      foreignColumns: [
+        medicationReconciliation.tenantId,
+        medicationReconciliation.personId,
+        medicationReconciliation.id,
+      ],
     }),
     memberRef("medication_transcribed_by_fk", t.tenantId, t.transcribedBy),
     memberRef("medication_check_by_fk", t.tenantId, t.checkBy),
     memberRef("medication_stop_by_fk", t.tenantId, t.stopBy),
+    memberRef("medication_reanchor_by_fk", t.tenantId, t.reanchorBy),
+    memberRef("medication_withdrawn_by_fk", t.tenantId, t.withdrawnBy),
     index("medication_person_idx").on(t.tenantId, t.personId, t.vmpId),
     index("medication_reconciliation_idx").on(t.tenantId, t.reconciliationId),
     check(
@@ -372,7 +384,12 @@ export const medicationReconciliationSource = pgTable(
   },
   (t) => [
     unique("medication_reconciliation_source_tenant_id_id_key").on(t.tenantId, t.id),
-    unique("medication_reconciliation_source_rec_key").on(t.tenantId, t.reconciliationId, t.id),
+    unique("medication_reconciliation_source_rec_key").on(
+      t.tenantId,
+      t.personId,
+      t.reconciliationId,
+      t.id,
+    ),
     foreignKey({
       name: "medication_reconciliation_source_rec_fk",
       columns: [t.tenantId, t.personId, t.reconciliationId],
@@ -384,8 +401,8 @@ export const medicationReconciliationSource = pgTable(
     }),
     foreignKey({
       name: "medication_reconciliation_source_document_fk",
-      columns: [t.tenantId, t.documentId],
-      foreignColumns: [document.tenantId, document.id],
+      columns: [t.tenantId, t.personId, t.documentId],
+      foreignColumns: [document.tenantId, document.personId, document.id],
     }),
     check(
       "medication_reconciliation_source_kind",
@@ -416,16 +433,23 @@ export const medicationReconciliationItem = pgTable(
   },
   (t) => [
     unique("medication_reconciliation_item_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("medication_reconciliation_item_rec_key").on(
+      t.tenantId,
+      t.personId,
+      t.reconciliationId,
+      t.id,
+    ),
+    // The line is on a source of the same reconciliation, for the same person.
     foreignKey({
       name: "medication_reconciliation_item_source_fk",
-      columns: [t.tenantId, t.reconciliationId, t.sourceId],
+      columns: [t.tenantId, t.personId, t.reconciliationId, t.sourceId],
       foreignColumns: [
         medicationReconciliationSource.tenantId,
+        medicationReconciliationSource.personId,
         medicationReconciliationSource.reconciliationId,
         medicationReconciliationSource.id,
       ],
     }),
-    personRef("medication_reconciliation_item_person_fk", t),
     check(
       "medication_reconciliation_item_says",
       sql`says IN ('start', 'continue', 'change', 'stop', 'unclear')`,
@@ -480,10 +504,21 @@ export const medicationReconciliationDecision = pgTable(
       columns: [t.tenantId, t.personId, t.entryId],
       foreignColumns: [medication.tenantId, medication.personId, medication.id],
     }),
+    // A line of the same reconciliation, for the same person.
     foreignKey({
       name: "medication_reconciliation_decision_item_fk",
-      columns: [t.tenantId, t.itemId],
-      foreignColumns: [medicationReconciliationItem.tenantId, medicationReconciliationItem.id],
+      columns: [t.tenantId, t.personId, t.reconciliationId, t.itemId],
+      foreignColumns: [
+        medicationReconciliationItem.tenantId,
+        medicationReconciliationItem.personId,
+        medicationReconciliationItem.reconciliationId,
+        medicationReconciliationItem.id,
+      ],
+    }),
+    foreignKey({
+      name: "medication_reconciliation_decision_made_fk",
+      columns: [t.tenantId, t.personId, t.madeEntryId],
+      foreignColumns: [medication.tenantId, medication.personId, medication.id],
     }),
     memberRef("medication_reconciliation_decision_by_fk", t.tenantId, t.decidedBy),
     uniqueIndex("medication_reconciliation_decision_entry_key")

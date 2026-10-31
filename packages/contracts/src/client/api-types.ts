@@ -38429,6 +38429,11 @@ export interface components {
       sameInstantAs: string | null;
       lastDayOfShorterMonth: boolean;
       notDue: boolean;
+      entryStatus: {
+        words: string;
+        mayGive: boolean;
+        notice: string | null;
+      };
     };
     TranscribeMedicine: {
       product: components["schemas"]["DmdProductRef"];

@@ -319,6 +319,88 @@ describe("hazard HZ-004 a new version follows the one it replaces, for the same 
   });
 });
 
+describe("hazard HZ-004 a withdrawn version gives the medicine back to the one before it", () => {
+  // v1 is replaced by v2; v2 was transcribed in error and is withdrawn; v3 then replaces v1.
+  const W1 = "0193a000-0000-7000-8000-00000000e311";
+  const W2 = "0193a000-0000-7000-8000-00000000e312";
+  const W3 = "0193a000-0000-7000-8000-00000000e313";
+  const FROM = "2026-11-02T08:00:00Z";
+  const replace = (by: string, from = FROM) =>
+    refused(
+      manager,
+      `UPDATE medication SET state = 'replaced', replaced_by_id = $1, replaced_from = $2
+        WHERE id = $3`,
+      [by, from, W1],
+    );
+
+  it("moves the replacement to a new version once the version it named is withdrawn", async () => {
+    await inContext(app(), manager, async (c) => {
+      await entry(c, W1, a.personCara, { vmp: OTHER_VMP });
+      await entry(c, W2, a.personCara, {
+        version: 2,
+        medicineId: W1,
+        replacesId: W1,
+        vmp: OTHER_VMP,
+      });
+    });
+    expect(await replace(W2)).toBeNull();
+    await inContext(app(), manager, async (c) => {
+      await entry(c, W3, a.personCara, {
+        version: 3,
+        medicineId: W1,
+        replacesId: W1,
+        vmp: OTHER_VMP,
+      });
+    });
+    // Not while v2 stands: a replacement is recorded once.
+    expect(await replace(W3)).toBe("23514");
+    expect(
+      await refused(
+        manager,
+        `UPDATE medication SET state = 'withdrawn', withdrawn_by = $1, withdrawn_at = now(),
+           withdrawn_reason = 'Transcribed in error' WHERE id = $2`,
+        [a.manager, W2],
+      ),
+    ).toBeNull();
+    // Never to a later time than the one recorded, and once moved it is set again.
+    expect(await replace(W3, "2026-11-03T08:00:00Z")).toBe("23514");
+    expect(await replace(W3)).toBeNull();
+    expect(await replace(W2)).toBe("23514");
+  });
+});
+
+describe("hazard HZ-001 the medicines record holds only this person's documents", () => {
+  it("refuses a source document that belongs to another person", async () => {
+    const doc = await inContext(app(), manager, async (c) => {
+      const { rows } = await c.query<{ id: string }>(
+        `INSERT INTO document (category, title, retention_class, storage_key, content_type,
+           size_bytes, sha256, person_id, file_name)
+         VALUES ('person_document', 'Prescription', 'care_record', 'k', 'application/pdf', 1,
+           repeat('0', 64), $1, 'prescription.pdf') RETURNING id::text`,
+        [a.personBen],
+      );
+      return (rows[0] as { id: string }).id;
+    });
+    expect(
+      await refused(manager, "UPDATE medication SET source_document_id = $1 WHERE id = $2", [
+        doc,
+        ADA_V1,
+      ]),
+    ).not.toBeNull();
+    expect(
+      await refused(
+        manager,
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, source_document_id, transcribed_by, transcribed_at)
+         SELECT $1, $5, $1, 1, 'transcribed', $2, 'X', '1', 'Oral', 'regular',
+           'every_day', 'Dr A Example', now(), 'prescription', 'ref', $3, $4, now()`,
+        ["0193a000-0000-7000-8000-00000000e321", "90000051000001100", doc, a.manager, a.personAda],
+      ),
+    ).toBe("23503");
+  });
+});
+
 describe("hazard HZ-121 a completed reconciliation is the record of what was decided", () => {
   it("takes sources and decisions while open, and nothing once completed", async () => {
     let sourceId = "";
@@ -400,32 +482,50 @@ describe("hazard HZ-121 a completed reconciliation is the record of what was dec
 });
 
 describe("hazard HZ-005 dm+d codes until the reference data lands (slice 10)", () => {
-  it("stores dm+d identifiers by shape, and needs a foreign key once a VMP table exists", async () => {
+  it("stores dm+d identifiers by shape, and needs a foreign key once a VMP or AMP table exists", async () => {
     // Slice 10 adds the dm+d reference tables. Until then the VMP and AMP are validated
-    // identifiers (isDmdId in the API; the shape here). When a table for VMPs appears, this test
-    // fails until an expand step adds the foreign key from medication.vmp_id (medicines.md 11).
+    // identifiers (isDmdId in the API; the shape here). When a table for VMPs or AMPs appears,
+    // this test fails until an expand step adds the foreign keys from every column that holds
+    // one (medicines.md section 11).
     const owner = db.pool("harbour_owner");
-    const { rows: tables } = await owner.query<{ name: string }>(
-      `SELECT table_name AS name FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name LIKE '%vmp%'`,
-    );
-    const { rows: fks } = await owner.query<{ name: string }>(
-      `SELECT c.conname AS name FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
-        WHERE t.relname = 'medication' AND c.contype = 'f'
-          AND EXISTS (SELECT 1 FROM unnest(c.conkey) k JOIN pg_attribute a
-                      ON a.attrelid = c.conrelid AND a.attnum = k WHERE a.attname = 'vmp_id')`,
-    );
-    expect(fks.length > 0).toBe(tables.length > 0);
-    expect(
-      await refused(
+    const tableFor = async (kind: "vmp" | "amp") =>
+      (
+        await owner.query(
+          `SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name ~ $1`,
+          [`(^|_)${kind}s?(_|$)`],
+        )
+      ).rowCount ?? 0;
+    const hasForeignKey = async (table: string, column: string) =>
+      ((
+        await owner.query(
+          `SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+            WHERE t.relname = $1 AND c.contype = 'f'
+              AND EXISTS (SELECT 1 FROM unnest(c.conkey) k JOIN pg_attribute a
+                          ON a.attrelid = c.conrelid AND a.attnum = k WHERE a.attname = $2)`,
+          [table, column],
+        )
+      ).rowCount ?? 0) > 0;
+    for (const kind of ["vmp", "amp"] as const) {
+      const exists = (await tableFor(kind)) > 0;
+      for (const table of ["medication", "medication_reconciliation_item"]) {
+        expect(await hasForeignKey(table, `${kind}_id`), `${table}.${kind}_id`).toBe(exists);
+      }
+    }
+    // Every other column is valid, so only the identifier's shape is refused.
+    const id = "0193a000-0000-7000-8000-00000000e331";
+    const insert = (vmp: string, amp: string | null) =>
+      refused(
         manager,
-        `INSERT INTO medication (person_id, medicine_id, version, origin, vmp_id, product_name,
-           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
-           source_reference, transcribed_by, transcribed_at)
-         SELECT $1, gen_random_uuid(), 1, 'transcribed', 'Paracetamol', 'X', '1', 'Oral',
-           'regular', 'every_day', 'Dr A Example', now(), 'prescription', 'ref', $2, now()`,
-        [a.personBen, a.manager],
-      ),
-    ).toBe("23514");
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, amp_id,
+           product_name, route_code, route_name, directions, pattern_kind, prescriber, starts_at,
+           source_kind, source_reference, transcribed_by, transcribed_at)
+         VALUES ($1, $2, $1, 1, 'transcribed', $3, $4, 'Lactulose 3.35g/5ml oral solution',
+           '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', now(), 'prescription',
+           'Prescription, 01/11/2026', $5, now())`,
+        [id, a.personBen, vmp, amp, a.manager],
+      );
+    expect(await insert("Lactulose", null)).toBe("23514");
+    expect(await insert("90000051000001100", "Lactulose")).toBe("23514");
   });
 });
