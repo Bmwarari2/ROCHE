@@ -1,5 +1,5 @@
 import type { StatementOfPurposeContent, StatementOfPurposeVersionItem } from "@harbour/contracts";
-import type { Translator } from "@harbour/i18n";
+import type { MessageKey, Translator } from "@harbour/i18n";
 import type { QualityChip } from "./evidence-packs";
 import type { FormValues } from "./incident-forms";
 import type { FieldErrors } from "./outcome";
@@ -91,8 +91,40 @@ export function readStatementForm(
   | { readonly ok: true; readonly content: StatementOfPurposeContent }
   | { readonly ok: false; readonly errors: FieldErrors } {
   const errors: Record<string, string> = {};
+  // Each error names its field, so two in the summary are never merged or left unnamed (3.3.1).
+  const LABELS: Record<string, MessageKey> = {
+    aimsAndObjectives: "quality.sop.field.aims",
+    serviceKinds: "quality.sop.field.serviceKinds",
+    needsMet: "quality.sop.field.needsMet",
+    providerName: "quality.sop.field.fullName",
+    providerAddress: "quality.sop.field.address",
+    providerPhone: "quality.sop.field.phone",
+    providerEmail: "quality.sop.field.email",
+    serviceAddress: "quality.sop.field.serviceAddress",
+    serviceEmail: "quality.sop.field.serviceEmail",
+    legalStatusDetail: "quality.sop.field.legalStatusDetail",
+    managerName: "quality.sop.field.fullName",
+    managerAddress: "quality.sop.field.address",
+    managerPhone: "quality.sop.field.phone",
+    managerEmail: "quality.sop.field.email",
+    locationName: "quality.sop.field.locationName",
+    locationAddress: "quality.sop.field.address",
+    locationCqcId: "quality.sop.field.cqcLocationId",
+  };
+  const fieldName = (field: string) => {
+    const [key = field, row] = field.split("-");
+    const label = t(LABELS[key] ?? "quality.sop.field.aims");
+    if (row === undefined)
+      return key.startsWith("provider") ? `${t("quality.sop.field.provider")}, ${label}` : label;
+    const n = Number(row) + 1;
+    const owner = key.startsWith("manager")
+      ? t("quality.sop.field.manager", { n })
+      : t("quality.sop.field.location", { n });
+    return `${owner}, ${label}`;
+  };
   const tooLong = (field: string, value: string, max: number) => {
-    if (value.length > max) errors[field] ??= t("quality.sop.tooLong", { max });
+    if (value.length > max)
+      errors[field] ??= t("quality.sop.tooLong", { field: fieldName(field), max });
   };
 
   const aimsAndObjectives = text(form, "aimsAndObjectives");

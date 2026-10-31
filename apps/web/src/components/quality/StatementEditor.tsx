@@ -3,7 +3,7 @@
 import type { StatementOfPurposeContent } from "@harbour/contracts";
 import { Button, Checkbox, SelectField, TextArea, TextField } from "@harbour/ui";
 import { Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { saveStatementDraft, startStatementDraft } from "@/app/actions/quality";
 import { useFieldIds } from "@/components/care/form-state";
 import { characterCount, t } from "@/lib/i18n";
@@ -82,6 +82,29 @@ export function StatementEditor({
   const { result, pending, send, fail } = useQualitySend(PATH);
   const [managers, setManagers] = useState<Manager[]>([...content.registeredManagers]);
   const [places, setPlaces] = useState<Place[]>([...content.locations]);
+  // Where focus goes after a row is added or removed (2.4.3), and what is said politely.
+  const [focusTo, setFocusTo] = useState<string | null>(null);
+  const [said, setSaid] = useState("");
+  useEffect(() => {
+    if (!focusTo) return;
+    document.getElementById(focusTo)?.focus();
+    setFocusTo(null);
+  }, [focusTo]);
+  const rowId = (key: string) => `sop-${key}`;
+  const rowFieldIds = Object.fromEntries([
+    ...managers.flatMap((_, i) =>
+      ["managerName", "managerAddress", "managerPhone", "managerEmail"].map((k) => [
+        `${k}-${i}`,
+        rowId(`${k}-${i}`),
+      ]),
+    ),
+    ...places.flatMap((_, i) =>
+      ["locationName", "locationAddress", "locationCqcId"].map((k) => [
+        `${k}-${i}`,
+        rowId(`${k}-${i}`),
+      ]),
+    ),
+  ]);
   const [status, setStatus] = useState<string>(content.legalStatus ?? "");
   const [consents, setConsents] = useState(content.consentsToEmailService);
 
@@ -228,6 +251,7 @@ export function StatementEditor({
                 </legend>
                 <input type="hidden" name="managerId" value={manager.id} />
                 <TextField
+                  id={rowId(`managerName-${i}`)}
                   name="managerName"
                   label={t("quality.sop.field.fullName")}
                   maxLength={LIMITS.name}
@@ -236,6 +260,7 @@ export function StatementEditor({
                   {...errorProps(`managerName-${i}`)}
                 />
                 <TextArea
+                  id={rowId(`managerAddress-${i}`)}
                   name="managerAddress"
                   label={t("quality.sop.field.address")}
                   rows={2}
@@ -245,6 +270,7 @@ export function StatementEditor({
                   {...errorProps(`managerAddress-${i}`)}
                 />
                 <TextField
+                  id={rowId(`managerPhone-${i}`)}
                   name="managerPhone"
                   type="tel"
                   label={t("quality.sop.field.phone")}
@@ -254,6 +280,7 @@ export function StatementEditor({
                   {...errorProps(`managerPhone-${i}`)}
                 />
                 <TextField
+                  id={rowId(`managerEmail-${i}`)}
                   name="managerEmail"
                   type="email"
                   label={t("quality.sop.field.email")}
@@ -268,7 +295,11 @@ export function StatementEditor({
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setManagers(managers.filter((m) => m.id !== manager.id))}
+                    onClick={() => {
+                      setManagers(managers.filter((m) => m.id !== manager.id));
+                      setSaid(t("quality.sop.field.removed", { what: "manager", n }));
+                      setFocusTo("sop-add-manager");
+                    }}
                   >
                     <Trash2 size={16} strokeWidth={1.5} aria-hidden="true" />
                     {t("quality.sop.field.removeManager", { n })}
@@ -282,7 +313,11 @@ export function StatementEditor({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => setManagers([...managers, blankManager()])}
+                id="sop-add-manager"
+                onClick={() => {
+                  setManagers([...managers, blankManager()]);
+                  setFocusTo(rowId(`managerName-${managers.length}`));
+                }}
               >
                 <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                 {t("quality.sop.field.addManager")}
@@ -373,6 +408,7 @@ export function StatementEditor({
                 </legend>
                 <input type="hidden" name="locationId" value={place.id} />
                 <TextField
+                  id={rowId(`locationName-${i}`)}
                   name="locationName"
                   label={t("quality.sop.field.locationName")}
                   maxLength={LIMITS.name}
@@ -381,6 +417,7 @@ export function StatementEditor({
                   {...errorProps(`locationName-${i}`)}
                 />
                 <TextArea
+                  id={rowId(`locationAddress-${i}`)}
                   name="locationAddress"
                   label={t("quality.sop.field.address")}
                   rows={2}
@@ -390,6 +427,7 @@ export function StatementEditor({
                   {...errorProps(`locationAddress-${i}`)}
                 />
                 <TextField
+                  id={rowId(`locationCqcId-${i}`)}
                   name="locationCqcId"
                   label={t("quality.sop.field.cqcLocationId")}
                   hint={t("quality.sop.field.cqcLocationIdHint")}
@@ -403,7 +441,11 @@ export function StatementEditor({
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setPlaces(places.filter((p) => p.id !== place.id))}
+                    onClick={() => {
+                      setPlaces(places.filter((p) => p.id !== place.id));
+                      setSaid(t("quality.sop.field.removed", { what: "location", n }));
+                      setFocusTo("sop-add-location");
+                    }}
                   >
                     <Trash2 size={16} strokeWidth={1.5} aria-hidden="true" />
                     {t("quality.sop.field.removeLocation", { n })}
@@ -417,7 +459,11 @@ export function StatementEditor({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => setPlaces([...places, blankPlace()])}
+                id="sop-add-location"
+                onClick={() => {
+                  setPlaces([...places, blankPlace()]);
+                  setFocusTo(rowId(`locationName-${places.length}`));
+                }}
               >
                 <Plus size={16} strokeWidth={1.5} aria-hidden="true" />
                 {t("quality.sop.field.addLocation")}
@@ -435,7 +481,10 @@ export function StatementEditor({
           </Button>
         </div>
       </form>
-      <QualityFeedback result={result} path={PATH} fieldIds={ids} />
+      <p role="status" className="m-0 text-body-dense">
+        {said}
+      </p>
+      <QualityFeedback result={result} path={PATH} fieldIds={{ ...ids, ...rowFieldIds }} />
     </div>
   );
 }

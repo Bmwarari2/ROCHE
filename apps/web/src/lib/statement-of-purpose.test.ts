@@ -143,7 +143,7 @@ describe("the statement of purpose screens (quality.md section 16; QUAL-009; HZ-
     expect(!read.ok && Object.keys(read.errors)).toEqual(["serviceKinds", "providerPhone"]);
   });
 
-  it("says each version's state and its CQC clock with an icon and a word", () => {
+  it("hazard HZ-080 says each version's state and its CQC clock with an icon and a word", () => {
     expect(versionStateChip("approved", t).label).toBe("In force");
     expect(versionStateChip("superseded", t).label).toBe("Replaced");
     const n = (state: Version["notification"]["state"], late = false) => ({
@@ -191,7 +191,7 @@ describe("the statement of purpose screens (quality.md section 16; QUAL-009; HZ-
     expect(statementView([], []).startBaseline).toBe(false);
   });
 
-  it("never offers approval to the author or an editor, and says why", () => {
+  it("hazard HZ-080 never offers approval to the author or an editor, and says why", () => {
     const approve = ["quality.statement_of_purpose.approve"];
     const draft = version({ state: "draft", authorId: OTHER, contributorIds: [] });
     expect(approveBlock(draft, { tenantUserId: ME, permissions: approve })).toBeNull();

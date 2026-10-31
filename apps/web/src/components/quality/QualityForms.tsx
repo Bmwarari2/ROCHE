@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, TextArea } from "@harbour/ui";
+import { Button, Checkbox, TextArea } from "@harbour/ui";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type ReactNode, useState, useTransition } from "react";
 import { useFieldIds } from "@/components/care/form-state";
@@ -70,6 +70,7 @@ export function QualityReasonForm({
   path,
   done,
   onSend,
+  confirm,
   children,
 }: {
   readonly title: string;
@@ -80,18 +81,28 @@ export function QualityReasonForm({
   readonly path: string;
   readonly done: QualityDone;
   readonly onSend: (reason: string) => Promise<ActionResult<unknown>>;
+  /** A box that must be ticked first, for a step that cannot be undone. */
+  readonly confirm?: string;
   readonly children?: ReactNode;
 }) {
-  const ids = useFieldIds(["reason"]);
+  const ids = useFieldIds(["reason", "confirm"]);
   const titleId = `${ids.reason}-title`;
   const { result, pending, send, fail } = useQualitySend(path);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const read = readEndReason(new FormData(event.currentTarget), t);
-    if (!read.ok) return fail(read.errors);
+    const data = new FormData(event.currentTarget);
+    const read = readEndReason(data, t);
+    const unconfirmed = confirm && data.get("confirm") !== "yes";
+    if (!read.ok || unconfirmed) {
+      return fail({
+        ...(read.ok ? {} : read.errors),
+        ...(unconfirmed ? { confirm: t("quality.end.confirmError") } : {}),
+      });
+    }
     send(done, () => onSend(read.reason));
   };
   const reasonError = errorFor(result, "reason");
+  const confirmError = errorFor(result, "confirm");
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -118,6 +129,16 @@ export function QualityReasonForm({
           formatCount={(remaining) => characterCount(remaining)}
           {...(reasonError ? { error: reasonError } : {})}
         />
+        {confirm ? (
+          <Checkbox
+            id={ids.confirm}
+            name="confirm"
+            value="yes"
+            label={confirm}
+            required
+            {...(confirmError ? { error: confirmError } : {})}
+          />
+        ) : null}
         <div>
           <Button type="submit" variant="destructive" disabled={pending}>
             {pending ? t("common.saving") : submit}

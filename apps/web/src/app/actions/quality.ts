@@ -8,7 +8,7 @@ import {
   type StatementOfPurposeVersionItem,
 } from "@harbour/contracts";
 import { isUuid } from "@/lib/context-cookies";
-import type { ComposeBody, RecordChoice } from "@/lib/evidence-packs";
+import { type ComposeBody, linkStopsAt, type RecordChoice } from "@/lib/evidence-packs";
 import { t } from "@/lib/i18n";
 import { type ActionResult, refused } from "@/lib/outcome";
 import { sendQuality } from "@/lib/quality-actions";
@@ -87,7 +87,7 @@ export interface LinkIssued {
 }
 
 /**
- * The instant a link chosen to work for `days` days from now stops, by the server's clock;
+ * The instant a link chosen to work for `days` UK days from now stops, by the server's clock;
  * undefined for the organisation's default (no choice); null when the choice is not a whole
  * number of days, which is refused rather than quietly replaced by the default. The API holds
  * the maximum.
@@ -95,7 +95,7 @@ export interface LinkIssued {
 function expiryFor(days: number | null): string | undefined | null {
   if (days === null) return undefined;
   if (!Number.isInteger(days) || days < 1 || days > 366) return null;
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  return linkStopsAt(new Date(), days).toISOString();
 }
 
 /** Release a draft and issue its link (`quality.evidence_pack.release`, step-up, rule 6). */

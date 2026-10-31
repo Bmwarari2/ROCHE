@@ -5,8 +5,10 @@ import { ComposePackForm } from "@/components/quality/ComposePackForm";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext } from "@/lib/api";
 import { COMPOSE } from "@/lib/evidence-packs";
+import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { getPeopleNames } from "@/lib/quality-server";
+import { communicationSummary } from "@/lib/people";
+import { getPackPeople } from "@/lib/quality-server";
 
 export const metadata: Metadata = { title: t("quality.compose.title") };
 
@@ -18,12 +20,19 @@ export default async function ComposeEvidencePackPage() {
   const { me, locationId } = await getShellContext();
   const title = t("quality.compose.title");
   if (!me.permissions.includes(COMPOSE)) return <SafetyForbidden title={title} />;
-  const { names, locations } = await getPeopleNames();
-  const locationName = new Map(me.locations.map((l) => [l.id, l.name]));
-  const people = [...names.entries()]
-    .map(([id, name]) => {
-      const where = locationName.get(locations.get(id) ?? "");
-      return { id, label: name, ...(where ? { hint: where } : {}) };
+  const people = [...(await getPackPeople()).entries()]
+    .map(([id, p]) => {
+      const needs = communicationSummary(p, t);
+      return {
+        id,
+        label: p.name,
+        hint: t("quality.compose.personHint", {
+          location: me.locations.find((l) => l.id === p.locationId)?.name ?? "",
+          born: formatDate(p.dateOfBirth) ?? "",
+          hasBorn: String(p.dateOfBirth !== null),
+          needs: needs.kind === "recorded" ? needs.needs.join(", ") : needs.label,
+        }),
+      };
     })
     .sort((a, b) => a.label.localeCompare(b.label, "en-GB"));
 

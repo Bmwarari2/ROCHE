@@ -100,6 +100,24 @@ test("hazard HZ-080 the manager drafts a revision with its changes and prompts, 
     .getByLabel("Aims and objectives", { exact: true })
     .fill(`To support older people to live well, safely and with dignity (${TAG}).`);
   await editor.getByRole("button", { name: "Add a location" }).click();
+  // Adding a row moves focus to its first field; removing one says so and returns focus.
+  await expect(
+    editor
+      .getByRole("group", { name: /^Location \d+$/ })
+      .last()
+      .getByLabel("Name"),
+  ).toBeFocused();
+  await editor
+    .getByRole("button", { name: /^Remove location \d+$/ })
+    .last()
+    .click();
+  await expect(editor.getByRole("button", { name: "Add a location" })).toBeFocused();
+  await expect(
+    main(page)
+      .getByRole("status")
+      .filter({ hasText: /^Location \d+ removed$/ }),
+  ).toBeVisible();
+  await editor.getByRole("button", { name: "Add a location" }).click();
   const added = editor.getByRole("group", { name: /^Location \d+$/ }).last();
   await added.getByLabel("Name").fill(`Harbour Lodge ${TAG}`);
   await added.getByLabel("Business address").fill("2 Example Street, Exampleton");
@@ -126,6 +144,9 @@ test("hazard HZ-080 the owner approves the revision, sees the CQC clock and reco
   await page.goto(PATH);
   await expect(main(page).getByRole("region", { name: "What changed" })).toContainText(TAG);
   await bothThemes(page, "draft for approval");
+  await expect(main(page).getByRole("form", { name: "Approve this version" })).toContainText(
+    /starts the \d+-day period/,
+  );
   await main(page).getByRole("button", { name: "Approve this version" }).click();
   await arrived(page, /^Version approved\./);
 

@@ -6,6 +6,8 @@ export const QUALITY_DONE = [
   "composed",
   "added",
   "redacted",
+  "released",
+  "reissued",
   "revoked",
   "discarded",
   "drafted",

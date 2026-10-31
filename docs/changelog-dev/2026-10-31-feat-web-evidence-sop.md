@@ -51,9 +51,27 @@ Branch `feat/web-evidence-sop`.
 
 - None new (H-96 and H-97 cover the redaction rules, link defaults and registration prompts).
 
+## Review rounds
+
+- Round 1 (security, clinical safety and accessibility reviewer agents): the link's origin from
+  configuration only, never a request header (a forged host could have fronted the token); no
+  scan of everyone's notes to prefill a redaction (DPIA R13); the original shown read-only beside
+  an empty box and an unchanged copy refused; days left in UK calendar days, never rounded up,
+  across both clock changes, and the release preview in UK days as the API; approval says the
+  rate table's period; people with date of birth and communication needs (HZ-001 same name, AIS);
+  checkbox hints kept in their description and record times in their names; the link panel a
+  named region whose heading takes focus, with an arrival after "I have sent the link" and a
+  message when copying fails; release and changes under the right heading levels; withdraw
+  confirmed as not undoable; editor rows with ids, focus on add and remove, errors naming their
+  field; "wrong codes" reworded; server actions check their input. HZ-050 records the new
+  controls; hazard ids added to the tests that verify them.
+- For the CSO (not decided here): whether release-only holders should also withdraw a pack;
+  whether a person in scope the releaser cannot see should block release; the wording of the due,
+  overdue and approval messages (H-219).
+
 ## Tests
 
 - `apps/web/src/lib/evidence-packs.test.ts`, `apps/web/src/lib/statement-of-purpose.test.ts`
-  (35 with the copy check); `apps/web/e2e/evidence-pack.spec.ts` (3) and
+  (41); `apps/web/e2e/evidence-pack.spec.ts` (3) and
   `apps/web/e2e/statement-of-purpose.spec.ts` (2), axe in light and dark on every state, re-run
   clean; `apps/api/test/evidence-packs.test.ts` (20, the link version).

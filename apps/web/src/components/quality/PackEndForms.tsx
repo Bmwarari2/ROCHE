@@ -37,6 +37,7 @@ export function PackEndForms({
           submit={t("quality.end.submit", { action: "revoke" })}
           path={path}
           done="revoked"
+          confirm={t("quality.end.confirm")}
           onSend={(reason) => revokeEvidencePack(packId, { reason, version })}
         />
       ) : null}

@@ -15,6 +15,7 @@ import {
   RedactForm,
 } from "@/components/quality/PackForms";
 import { QualityChip } from "@/components/quality/QualityChip";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { getShellContext, problemCode, tenantApi } from "@/lib/api";
@@ -40,7 +41,7 @@ import { t } from "@/lib/i18n";
 import { incidentTitle } from "@/lib/incidents";
 import { readOrFail } from "@/lib/person-record";
 import { qualityDone } from "@/lib/quality-done";
-import { getPeopleNames, webOrigin } from "@/lib/quality-server";
+import { getPackPeople, webOrigin } from "@/lib/quality-server";
 
 type Params = Promise<{ id: string }>;
 type Search = Promise<{
@@ -179,8 +180,9 @@ export default async function EvidencePackPage({
   const done = qualityDone(query.done);
   const actions = packActions(pack, me, now);
   const counts = shareCounts(pack);
-  const { names } = await getPeopleNames();
-  const personName = (personId: string) => names.get(personId) ?? t("quality.pack.personHidden");
+  const people = await getPackPeople();
+  const personName = (personId: string) =>
+    people.get(personId)?.name ?? t("quality.pack.personHidden");
   const locationNames = pack.locationIds.map(
     (l) => me.locations.find((x) => x.id === l)?.name ?? t("quality.pack.locationHidden"),
   );
@@ -281,9 +283,23 @@ export default async function EvidencePackPage({
               {t("quality.pack.people", { count: pack.personIds.length })}
             </h3>
             <ul className="m-0 flex list-disc flex-col gap-1 ps-5">
-              {pack.personIds.map((p) => (
-                <li key={p}>{personName(p)}</li>
-              ))}
+              {pack.personIds.map((id) => {
+                const person = people.get(id);
+                return (
+                  <li key={id} className="flex flex-col gap-1">
+                    <span>
+                      {person
+                        ? t("quality.pack.personLine", {
+                            name: person.name,
+                            born: formatDate(person.dateOfBirth) ?? "",
+                            hasBorn: String(person.dateOfBirth !== null),
+                          })
+                        : t("quality.pack.personHidden")}
+                    </span>
+                    {person ? <PersonNeeds person={person} /> : null}
+                  </li>
+                );
+              })}
             </ul>
             <p className="m-0 text-body-dense text-text-secondary">
               {t("quality.pack.peopleHint")}
@@ -372,6 +388,8 @@ export default async function EvidencePackPage({
                       <dd className="m-0 flex flex-col gap-1">
                         {field.value !== null ? (
                           <span className="whitespace-pre-line">{field.value}</span>
+                        ) : field.outcome === "included" ? (
+                          <span className="text-text-secondary">{t("quality.pack.noValue")}</span>
                         ) : null}
                         {field.reasonText ? (
                           <span lang="en-GB" className="text-body-dense text-text-secondary">
@@ -456,10 +474,12 @@ export default async function EvidencePackPage({
               {excluded.map((item) => (
                 <li key={item.id}>
                   <span lang="en-GB">{item.title}</span>
-                  {", "}
-                  {formatDateTime(item.occurredAt)}
-                  {": "}
-                  {t("quality.pack.exclusion", { reason: item.exclusionReason ?? "other" })}
+                  {t("quality.pack.excludedLine", {
+                    when: formatDateTime(item.occurredAt) ?? t("common.notRecorded"),
+                    reason: t("quality.pack.exclusion", {
+                      reason: item.exclusionReason ?? "other",
+                    }),
+                  })}
                 </li>
               ))}
             </ul>

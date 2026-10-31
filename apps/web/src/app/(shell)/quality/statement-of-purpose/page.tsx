@@ -74,6 +74,15 @@ export default async function StatementOfPurposePage({
   const write = me.permissions.includes(WRITE);
   const submit = me.permissions.includes(SUBMIT);
   const block = draft ? approveBlock(draft, me) : null;
+  // The period approval starts, from the rate table (statutory, never a literal; rule 15).
+  const noticeDays =
+    draft && block === null && draft.kind === "revision"
+      ? ((
+          await api.GET("/v1/rates/{key}", {
+            params: { path: { key: "cqc.statement_of_purpose.revision_notice_days" } },
+          })
+        ).data?.value ?? null)
+      : null;
 
   return (
     <div className="mx-auto flex w-full max-w-content flex-col gap-6 break-words">
@@ -141,7 +150,7 @@ export default async function StatementOfPurposePage({
               </section>
             ) : null}
             {block === null ? (
-              <ApproveStatement id={draft.id} version={draft.version} />
+              <ApproveStatement id={draft.id} version={draft.version} noticeDays={noticeDays} />
             ) : block !== "no_permission" ? (
               <Notice
                 icon={<Info size={20} strokeWidth={1.5} aria-hidden="true" />}

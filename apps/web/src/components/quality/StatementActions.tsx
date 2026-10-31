@@ -44,9 +44,12 @@ export function StartRevision() {
 export function ApproveStatement({
   id,
   version,
+  noticeDays,
 }: {
   readonly id: string;
   readonly version: number;
+  /** The CQC period from the rate table (`cqc.statement_of_purpose.revision_notice_days`). */
+  readonly noticeDays: number | null;
 }) {
   const { result, pending, send } = useQualitySend(PATH);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -60,7 +63,10 @@ export function ApproveStatement({
           {t("quality.sop.approve.title")}
         </h3>
         <p className="m-0 max-w-prose text-body-dense text-text-secondary">
-          {t("quality.sop.approve.intro")}
+          {t("quality.sop.approve.intro", {
+            known: String(noticeDays !== null),
+            days: noticeDays ?? 0,
+          })}
         </p>
         <div>
           <Button type="submit" disabled={pending}>

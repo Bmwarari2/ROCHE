@@ -2,7 +2,6 @@ import type { EvidencePackDetail } from "@harbour/contracts";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
-  daysUntil,
   evidenceLinkUrl,
   evidencePacksShown,
   expiryChoices,
@@ -11,6 +10,7 @@ import {
   keyQuestionLabel,
   latestLink,
   linkState,
+  linkStopsAt,
   packActions,
   packStateChip,
   readComposeForm,
@@ -18,6 +18,7 @@ import {
   readRecordChoices,
   redactable,
   shareCounts,
+  ukDaysUntil,
 } from "./evidence-packs";
 
 const t = createTranslator("en-GB");
@@ -268,22 +269,54 @@ describe("the evidence pack screens (quality.md section 16; QUAL-003; HZ-050)", 
     expect(linkState(link(over), NOW)).toBe(state);
   });
 
-  it("says the link's expiry in words, rounding up so a link never reads as ended early", () => {
-    expect(daysUntil("2026-11-06T09:00:00Z", NOW)).toBe(6);
-    expect(daysUntil("2026-10-31T13:00:00Z", NOW)).toBe(1);
-    expect(daysUntil("2026-10-31T11:00:00Z", NOW)).toBe(0);
+  it.each<[string, string, string, number]>([
+    ["later today", "2026-10-31T23:00:00Z", "2026-10-31T12:00:00Z", 0],
+    ["tomorrow, even under 24 hours away", "2026-11-01T09:00:00Z", "2026-10-31T23:30:00Z", 1],
+    [
+      "28 UK days across the October change (BST to GMT)",
+      "2026-11-07T14:00:00Z",
+      "2026-10-10T13:00:00Z",
+      28,
+    ],
+    [
+      "28 UK days across the March change (GMT to BST)",
+      "2027-04-22T13:00:00+01:00",
+      "2027-03-25T13:00:00Z",
+      28,
+    ],
+    [
+      "7 UK days for a link issued before the October change",
+      "2026-10-29T10:00:00Z",
+      "2026-10-22T09:00:00Z",
+      7,
+    ],
+  ])("hazard HZ-080 counts days left in UK calendar days: %s", (_, target, from, days) => {
+    expect(ukDaysUntil(target, new Date(from))).toBe(days);
+  });
+
+  it("hazard HZ-050 says the link's expiry in words, never as further away than it is", () => {
     expect(expiryWords("2026-11-06T09:00:00Z", "06/11/2026 09:00", NOW, t)).toBe(
       "Works until 06/11/2026 09:00, in 6 days",
     );
     expect(expiryWords("2026-10-31T13:00:00Z", "31/10/2026 13:00", NOW, t)).toBe(
-      "Works until 31/10/2026 13:00, ends within a day",
+      "Works until 31/10/2026 13:00, today",
+    );
+    expect(expiryWords("2026-11-01T10:00:00Z", "01/11/2026 10:00", NOW, t)).toBe(
+      "Works until 01/11/2026 10:00, tomorrow",
     );
     expect(expiryWords("2026-10-30T09:00:00Z", "30/10/2026 09:00", NOW, t)).toBe(
       "Stopped working at 30/10/2026 09:00",
     );
   });
 
-  it("offers link lengths never past the maximum, the default among them", () => {
+  it("hazard HZ-050 previews a link's stop time in UK days, as the API works it out", () => {
+    // Issued 22/10 at 10:00 BST, 7 UK days: 29/10 at 10:00 GMT, not an hour early.
+    expect(linkStopsAt(new Date("2026-10-22T09:00:00Z"), 7).toISOString()).toBe(
+      "2026-10-29T10:00:00.000Z",
+    );
+  });
+
+  it("hazard HZ-050 offers link lengths never past the maximum, the default among them", () => {
     expect(expiryChoices(7, 30)).toEqual([1, 3, 7, 14, 30]);
     expect(expiryChoices(7, 7)).toEqual([1, 3, 7]);
     expect(expiryChoices(2, 2)).toEqual([1, 2]);

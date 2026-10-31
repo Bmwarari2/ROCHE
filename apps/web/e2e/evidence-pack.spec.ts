@@ -108,6 +108,9 @@ test("hazard HZ-050 the manager composes a pack, adds a note and redacts it, but
   await expect(shared).toContainText(EMAIL);
   await expect(shared).toContainText(PERSON_NAME);
   await expect(shared).toContainText("Staff shown by role only");
+  // Each person in scope with a second identifier and their communication needs (AIS).
+  await expect(shared).toContainText(`${PERSON_NAME}, born`);
+  await expect(shared).toContainText("Communication needs");
   await expect(shared).toContainText(`Prepared for ${RECIPIENT}, CQC`);
   await bothThemes(page, "pack composed");
 
@@ -133,8 +136,9 @@ test("hazard HZ-050 the manager composes a pack, adds a note and redacts it, but
     .getByRole("link", { name: /^Redact by hand: Note,/ })
     .first()
     .click();
+  // Focus starts on the form's heading, so its instructions are read before the box.
+  await expect(main(page).getByRole("heading", { name: /^Redact by hand: Note/ })).toBeFocused();
   const redact = main(page).getByLabel("Redacted copy");
-  await expect(redact).toBeFocused();
   // A note is not read again to prefill (DPIA R13): the composer types the redacted copy.
   await expect(redact).toHaveValue("");
   // A copy that still holds a long number is refused, in words.
@@ -183,10 +187,11 @@ test("hazard HZ-050 the owner, stepped up, reads what will be shared, releases i
     .check();
   await release.getByRole("button", { name: "Release and make the link" }).click();
 
-  const issued = main(page)
-    .getByRole("status")
-    .filter({ hasText: "Pack released: copy the link now" });
+  const issued = main(page).getByRole("region", { name: "Pack released: copy the link now" });
   await expect(issued).toBeVisible();
+  await expect(
+    issued.getByRole("heading", { name: "Pack released: copy the link now" }),
+  ).toBeFocused();
   await expect(issued).toContainText(
     `This is the only time the link is shown. Send it to ${EMAIL}.`,
   );
@@ -196,6 +201,12 @@ test("hazard HZ-050 the owner, stepped up, reads what will be shared, releases i
   await bothThemes(page, "link issued");
 
   await issued.getByRole("button", { name: "I have sent the link" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+  await expect(
+    main(page)
+      .getByRole("status")
+      .filter({ hasText: /^Pack released\./ }),
+  ).toBeVisible();
   await expect(main(page).getByText("Pack released: copy the link now")).toHaveCount(0);
   const links = page.getByRole("region", { name: "Links" });
   await expect(links).toContainText("Working");
@@ -210,6 +221,8 @@ test("hazard HZ-050 the manager withdraws the pack and its link stops", async ({
   await page.goto(packUrl);
   const end = main(page).getByRole("form", { name: "Withdraw this pack" });
   await end.getByLabel("Reason").fill(`The inspection is over (${TAG})`);
+  await expect(end).toContainText("This cannot be undone");
+  await end.getByRole("checkbox", { name: "I understand this cannot be undone" }).check();
   await bothThemes(page, "withdraw form");
   await end.getByRole("button", { name: "Withdraw the pack" }).click();
   await arrived(page, /^Pack withdrawn\./);

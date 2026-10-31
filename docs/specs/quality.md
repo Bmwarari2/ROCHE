@@ -471,3 +471,21 @@ token from the fragment and calls `/p/evidence/code`, `/verify` and `/bundle` is
   and the manager revokes it) and `apps/web/e2e/statement-of-purpose.spec.ts` (HZ-080: the manager
   drafts and cannot approve; the owner approves; the due clock shows; the owner, stepped up,
   records the notification).
+
+As built (`feat/web-evidence-sop`, review round 1, security, clinical safety and accessibility):
+
+- The link's origin is `PUBLIC_WEB_URL` (the local server outside production), never a request
+  header; without it release and a new link are not offered and the page says why.
+- A hand redaction shows the original (incidents only, read once by id) read-only beside an empty
+  box and refuses an unchanged copy; a care note is not read across the people in scope to
+  prefill it (DPIA R13), so the composer opens the record. Refusing an unchanged copy in the API
+  too is left for the API (`redactionLeaks` cannot see it).
+- Days left (link expiry and the CQC due date) are UK calendar days ("today", "tomorrow", "in n
+  days"), never rounded up, and the release preview uses `addUkDays` as the API does; approval
+  says the period from `cqc.statement_of_purpose.revision_notice_days`.
+- People are listed with date of birth and communication needs; withdrawing a pack asks for a
+  confirmation; record choices carry their time in the name; focus moves to the form, link panel
+  or row it concerns; each statement error names its field; the server actions check their input.
+- Left for later: the API's English refusal text is not yet marked `lang="en-GB"` in the shared
+  error summary (Phase 7, Welsh); revoking stays with compose holders, as specified (a question
+  for the CSO).

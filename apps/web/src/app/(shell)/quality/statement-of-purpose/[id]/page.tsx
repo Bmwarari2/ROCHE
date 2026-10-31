@@ -76,7 +76,7 @@ export default async function StatementVersionPage({
       </div>
       {changes ? (
         <Card as="section" title={t("quality.sop.changes.title")} headingLevel={2}>
-          <StatementChanges changes={changes} />
+          <StatementChanges changes={changes} headingLevel={3} />
         </Card>
       ) : null}
       <Card as="section" title={t("quality.sop.contentTitle")} headingLevel={2}>

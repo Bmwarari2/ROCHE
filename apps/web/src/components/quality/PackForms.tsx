@@ -17,6 +17,7 @@ import {
   evidenceLinkUrl,
   KEY_QUESTIONS,
   keyQuestionLabel,
+  linkStopsAt,
   REDACTION_MAX,
   readRecordChoices,
 } from "@/lib/evidence-packs";
@@ -58,6 +59,9 @@ export function AddRecordsForm({
     send("added", () => addEvidenceItems(packId, { items: read.items, version }));
   };
   const available = candidates.filter((c) => !c.inPack);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Choosing a person moves focus here, so the records to tick are what is read next (2.4.3).
+  useEffect(() => heading.current?.focus(), []);
   return (
     <div className="flex flex-col gap-4">
       <form
@@ -66,7 +70,7 @@ export function AddRecordsForm({
         noValidate
         aria-labelledby="add-title"
       >
-        <h3 id="add-title" className="m-0 text-body font-semibold">
+        <h3 id="add-title" ref={heading} tabIndex={-1} className="m-0 text-body font-semibold">
           {t("quality.records.formTitle")}
         </h3>
         <TickGroup
@@ -74,7 +78,11 @@ export function AddRecordsForm({
           name="records"
           legend={t("quality.records.legend")}
           hint={t("quality.records.hint", { count: candidates.length })}
-          options={available.map((c) => ({ id: c.key, label: c.title, hint: c.when }))}
+          options={available.map((c) => ({
+            id: c.key,
+            // The time is in the name: several records can share a title.
+            label: t("quality.records.choice", { title: c.title, when: c.when }),
+          }))}
           error={errorFor(result, "records")}
         />
         {candidates.some((c) => c.inPack) ? (
@@ -108,9 +116,10 @@ export function AddRecordsForm({
 }
 
 /**
- * Redact one withheld free-text field by hand (rule 3 and 4): edit the original into the words the
- * inspector may read. The API refuses a copy that still names someone it should not, or holds a
- * long run of digits, and records the redactor as a contributor.
+ * Redact one withheld free-text field by hand (rules 3 and 4): the original, where the web can
+ * read it, shown read-only beside an empty box, so nothing is saved unredacted by one click. A copy
+ * identical to the original is refused here; the API refuses a copy that still names someone it
+ * should not or holds a long run of digits, and records the redactor as a contributor.
  */
 export function RedactForm({
   packId,
@@ -125,22 +134,23 @@ export function RedactForm({
   readonly itemId: string;
   readonly fieldKey: string;
   readonly label: string;
-  /** The text as the redactor can already read it, to edit; empty when the web cannot fetch it. */
+  /** The text as the redactor can already read it; empty when the web cannot fetch it. */
   readonly original: string;
   readonly version: number;
   readonly path: string;
 }) {
   const ids = useFieldIds(["text"]);
+  const introId = `${ids.text}-intro`;
   const { result, pending, send, fail } = useQualitySend(path);
-  const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => ref.current?.focus(), []);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Focus the heading, so the instructions are read before the box (2.4.3).
+  useEffect(() => heading.current?.focus(), []);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = new FormData(event.currentTarget).get("text");
     const text = typeof value === "string" ? value.trim() : "";
-    if (!text || text.length > REDACTION_MAX) {
-      return fail({ text: t("quality.redact.error") });
-    }
+    if (!text || text.length > REDACTION_MAX) return fail({ text: t("quality.redact.error") });
+    if (original && text === original.trim()) return fail({ text: t("quality.redact.unchanged") });
     send("redacted", () => redactEvidenceField(packId, itemId, fieldKey, { text, version }));
   };
   const error = errorFor(result, "text");
@@ -153,23 +163,28 @@ export function RedactForm({
         aria-labelledby="redact-title"
       >
         <div className="flex flex-col gap-1">
-          <h4 id="redact-title" className="m-0 text-body font-semibold">
-            {t("quality.redact.title", { label })}
+          <h4 id="redact-title" ref={heading} tabIndex={-1} className="m-0 text-body font-semibold">
+            {t("quality.redact.title")} <span lang="en-GB">{label}</span>
           </h4>
-          <p className="m-0 max-w-prose text-body-dense text-text-secondary">
+          <p id={introId} className="m-0 max-w-prose text-body-dense text-text-secondary">
             {t("quality.redact.intro")}
           </p>
         </div>
+        {original ? (
+          <div className="flex flex-col gap-1">
+            <p className="m-0 text-body-dense font-semibold">{t("quality.redact.original")}</p>
+            <p className="m-0 whitespace-pre-line rounded-input bg-bg-secondary p-3">{original}</p>
+          </div>
+        ) : null}
         <TextArea
-          ref={ref}
           id={ids.text}
           name="text"
           label={t("quality.redact.label")}
           hint={t("quality.redact.hint", { known: original ? "true" : "false" })}
+          aria-describedby={introId}
           rows={6}
           required
           maxLength={REDACTION_MAX}
-          defaultValue={original}
           formatCount={(remaining) => characterCount(remaining)}
           {...(error ? { error } : {})}
         />
@@ -184,35 +199,51 @@ export function RedactForm({
   );
 }
 
-/** The link, shown once: copy it, send it to the recipient, and the code goes separately. */
+/**
+ * The link, shown once: copy it, send it to the recipient, and the code goes separately. A named
+ * region whose heading takes focus when it appears.
+ */
 function IssuedLink({
+  mode,
   issued,
   recipientEmail,
   origin,
   onDone,
 }: {
+  readonly mode: "release" | "reissue";
   readonly issued: LinkIssued;
   readonly recipientEmail: string;
   readonly origin: string;
-  /** The releaser has the link: forget it, and move focus to the page's heading. */
+  /** The releaser has the link: forget it and say what was done. */
   readonly onDone: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLHeadingElement>(null);
+  const [copied, setCopied] = useState<{ ok: boolean; at: number } | null>(null);
   useEffect(() => ref.current?.focus(), []);
   const url = evidenceLinkUrl(origin, issued.token);
   const until = formatDateTime(issued.expiresAt) ?? "";
+  const copy = () => {
+    const done = (ok: boolean) => setCopied({ ok, at: Date.now() });
+    if (!navigator.clipboard) return done(false);
+    navigator.clipboard.writeText(url).then(
+      () => done(true),
+      () => done(false),
+    );
+  };
   return (
-    <div
-      ref={ref}
-      tabIndex={-1}
-      role="status"
+    <section
+      aria-labelledby="issued-title"
       className="flex flex-col gap-3 rounded-input border-s-4 border-accent bg-bg-secondary p-4"
     >
-      <p className="m-0 inline-flex items-center gap-2 font-semibold">
+      <h2
+        id="issued-title"
+        ref={ref}
+        tabIndex={-1}
+        className="m-0 inline-flex items-center gap-2 text-heading-3 font-semibold"
+      >
         <Link2 size={18} strokeWidth={1.5} aria-hidden="true" />
-        {t("quality.link.issuedTitle")}
-      </p>
+        {t("quality.link.issuedTitle", { mode })}
+      </h2>
       <p className="m-0 max-w-prose">
         {t("quality.link.issuedBody", { email: recipientEmail, until })}
       </p>
@@ -225,24 +256,20 @@ function IssuedLink({
         onFocus={(event) => event.currentTarget.select()}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            void navigator.clipboard?.writeText(url).then(() => setCopied(true));
-          }}
-        >
+        <Button type="button" variant="secondary" onClick={copy}>
           <Copy size={16} strokeWidth={1.5} aria-hidden="true" />
           {t("quality.link.copy")}
         </Button>
         <Button type="button" onClick={onDone}>
           {t("quality.link.done")}
         </Button>
-        <span aria-live="polite" className="text-body-dense">
-          {copied ? t("quality.link.copied") : ""}
-        </span>
       </div>
-    </div>
+      <p role="status" className="m-0 text-body-dense">
+        {copied ? (
+          <span key={copied.at}>{t("quality.link.copied", { ok: String(copied.ok) })}</span>
+        ) : null}
+      </p>
+    </section>
   );
 }
 
@@ -250,9 +277,10 @@ function IssuedLink({
  * Release a draft (or issue a new link for a released pack) with its link (rules 6, 7 and 9):
  * how long the link works, the expiry in words before sending, and a confirmation that the
  * releaser has read every record and redaction. Step-up is the API's to ask for. The link is shown
- * once, here, kept only in this component's state, and the page refreshes when the releaser says
- * they have it. It stays mounted across the refresh (the page always renders it), so the link is
- * not lost when the pack becomes released.
+ * once, here, kept only in this component's state, and forgotten when the releaser says they have
+ * sent it; the page then opens again saying what was done. It stays mounted across the refresh the
+ * release causes (the page always renders it), so the link is not lost when the pack becomes
+ * released.
  */
 export function LinkIssuer({
   mode,
@@ -279,7 +307,9 @@ export function LinkIssuer({
 }) {
   const ids = useFieldIds(["days", "confirm"]);
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
-  const [issued, setIssued] = useState<LinkIssued | null>(null);
+  const [issued, setIssued] = useState<{ link: LinkIssued; mode: "release" | "reissue" } | null>(
+    null,
+  );
   const [days, setDays] = useState<number | null>(defaultDays);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -288,13 +318,18 @@ export function LinkIssuer({
       // The token is dropped from memory here; it was never stored or put in a URL.
       setIssued(null);
       setResult(null);
-      router.refresh();
-      const heading = document.querySelector("h1");
-      heading?.setAttribute("tabindex", "-1");
-      heading?.focus();
+      router.replace(
+        `${path}?done=${issued.mode === "release" ? "released" : "reissued"}&at=${Date.now()}`,
+      );
     };
     return (
-      <IssuedLink issued={issued} recipientEmail={recipientEmail} origin={origin} onDone={done} />
+      <IssuedLink
+        mode={issued.mode}
+        issued={issued.link}
+        recipientEmail={recipientEmail}
+        origin={origin}
+        onDone={done}
+      />
     );
   }
   if (!mode) return null;
@@ -320,17 +355,15 @@ export function LinkIssuer({
             : null;
       if (!outcome) return;
       setResult(outcome);
-      if (outcome.ok) setIssued(outcome.data);
+      if (outcome.ok) setIssued({ link: outcome.data, mode });
     });
   };
   const until =
-    days === null
-      ? null
-      : (formatDateTime(new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()) ?? null);
+    days === null ? null : (formatDateTime(linkStopsAt(new Date(), days).toISOString()) ?? null);
   const confirmError = errorFor(result, "confirm");
 
   return (
-    <div className="flex flex-col gap-4">
+    <section aria-labelledby="release-title" className="flex flex-col gap-4">
       <form
         className="flex flex-col gap-4"
         onSubmit={onSubmit}
@@ -338,9 +371,9 @@ export function LinkIssuer({
         aria-labelledby="release-title"
       >
         <div className="flex flex-col gap-1">
-          <h3 id="release-title" className="m-0 text-body font-semibold">
+          <h2 id="release-title" className="m-0 text-heading-3 font-semibold">
             {t("quality.release.title", { mode })}
-          </h3>
+          </h2>
           <p className="m-0 max-w-prose text-body-dense text-text-secondary">
             {t("quality.release.intro", { mode })}
           </p>
@@ -396,6 +429,6 @@ export function LinkIssuer({
         fieldIds={ids}
         stepUp={t("quality.release.stepUp")}
       />
-    </div>
+    </section>
   );
 }

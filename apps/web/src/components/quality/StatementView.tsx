@@ -5,8 +5,8 @@ import type {
 } from "@harbour/contracts";
 import { CircleAlert, Info } from "lucide-react";
 import { Notice } from "@/components/care/Notice";
-import { daysUntil } from "@/lib/evidence-packs";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { ukDaysUntil } from "@/lib/evidence-packs";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { notificationChip } from "@/lib/statement-of-purpose";
 import { QualityChip } from "./QualityChip";
@@ -105,7 +105,6 @@ export function NotificationStatus({
   readonly now: Date;
 }) {
   const n = version.notification;
-  const due = n.dueAt ? (formatDate(n.dueAt.slice(0, 10)) ?? "") : "";
   const dueWhen = n.dueAt ? (formatDateTime(n.dueAt) ?? "") : "";
   return (
     <div className="flex flex-col gap-1">
@@ -116,8 +115,8 @@ export function NotificationStatus({
         <span className="font-semibold">
           {t("quality.sop.dueWords", {
             state: n.state,
-            when: dueWhen || due,
-            days: n.dueAt ? daysUntil(n.dueAt, now) : 0,
+            when: dueWhen,
+            days: n.dueAt ? Math.max(0, ukDaysUntil(n.dueAt, now)) : 0,
           })}
         </span>
       ) : null}
@@ -149,7 +148,15 @@ export function EnglishLines({ lines }: { readonly lines: readonly string[] }) {
  * registration prompts (Harbour's reading, rule 13): applications CQC may also need. Harbour
  * prompts; it does not decide.
  */
-export function StatementChanges({ changes }: { readonly changes: StatementOfPurposeChanges }) {
+export function StatementChanges({
+  changes,
+  headingLevel = 4,
+}: {
+  readonly changes: StatementOfPurposeChanges;
+  /** One below the heading the changes sit under. */
+  readonly headingLevel?: 3 | 4;
+}) {
+  const Heading = headingLevel === 3 ? "h3" : "h4";
   const changed = changes.sections.filter((s) => s.change === "changed");
   return (
     <div className="flex flex-col gap-3">
@@ -160,9 +167,9 @@ export function StatementChanges({ changes }: { readonly changes: StatementOfPur
       ) : (
         changed.map((section) => (
           <div key={section.key} className="flex flex-col gap-1">
-            <h4 className="m-0 text-body font-semibold">
+            <Heading className="m-0 text-body font-semibold">
               {t("quality.sop.item", { item: section.key })}
-            </h4>
+            </Heading>
             <EnglishLines lines={section.lines} />
           </div>
         ))

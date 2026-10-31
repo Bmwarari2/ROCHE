@@ -65,6 +65,9 @@ export function TickGroup({
 }) {
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
+  // The first box takes the group's id, so the error summary can move focus to it.
+  const optionId = (value: string) =>
+    value === options[0]?.id ? id : `${id}-${value.replace(/[^A-Za-z0-9_-]/g, "_")}`;
   return (
     <fieldset
       className="m-0 flex flex-col gap-1 border-0 p-0"
@@ -79,18 +82,22 @@ export function TickGroup({
           {error}
         </p>
       ) : null}
-      {options.map((option, index) => (
+      {options.map((option) => (
         <Checkbox
           key={option.id}
-          // The first box takes the group's id, so the error summary can move focus to it.
-          {...(index === 0 ? { id } : {})}
+          id={optionId(option.id)}
           name={name}
           value={option.id}
           label={option.label}
           {...(option.hint ? { hint: option.hint } : {})}
           defaultChecked={defaultChecked.includes(option.id)}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          // Checkbox's own description (the option's hint) must survive the group's error.
+          aria-describedby={
+            [option.hint ? `${optionId(option.id)}-hint` : "", error ? errorId : ""]
+              .join(" ")
+              .trim() || undefined
+          }
         />
       ))}
     </fieldset>

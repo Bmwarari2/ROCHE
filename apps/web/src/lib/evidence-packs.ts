@@ -1,5 +1,10 @@
 import type { EvidencePackDetail, EvidencePackSummary } from "@harbour/contracts";
-import { isPlausibleEmail, MIN_EVIDENCE_PURPOSE_LENGTH } from "@harbour/domain";
+import {
+  addUkDays,
+  isPlausibleEmail,
+  MIN_EVIDENCE_PURPOSE_LENGTH,
+  ukIsoDate,
+} from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
 import type { FormValues } from "./incident-forms";
 import type { FieldErrors, FieldProblem } from "./outcome";
@@ -156,26 +161,30 @@ export function linkStateChip(state: LinkState, t: Translator): QualityChip {
   return { ...LINK_CHIPS[state], label: t("quality.link.state", { state }) };
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
- * Whole days from now until an instant, rounded up, so "in 1 day" never means a link that has
- * already stopped; 0 once it has passed.
+ * UK calendar days from now until an instant: 0 for later today, 1 for tomorrow, and so on,
+ * counted on Europe/London dates so the October and March clock changes never add or lose a day
+ * (the database counts the CQC period and link expiry in UK days too). Never rounds up, so a
+ * deadline is never shown as further away than it is.
  */
-export function daysUntil(iso: string, now: Date): number {
-  const ms = Date.parse(iso) - now.getTime();
-  return ms <= 0 ? 0 : Math.ceil(ms / DAY_MS);
+export function ukDaysUntil(iso: string, now: Date): number {
+  const days = (date: string) => Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+  return Math.round(days(ukIsoDate(new Date(iso))) - days(ukIsoDate(now)));
 }
 
 /**
- * The link's expiry in words: "Works until 07/11/2026 14:05, in 7 days", "Stopped working at
- * 07/11/2026 14:05". `when` is the formatted UK time.
+ * The link's expiry in words: "Works until 07/11/2026 14:05, in 7 days", "..., today", "Stopped
+ * working at 07/11/2026 14:05". `when` is the formatted UK time.
  */
 export function expiryWords(expiresAt: string, when: string, now: Date, t: Translator): string {
-  const days = daysUntil(expiresAt, now);
-  return days === 0
+  return Date.parse(expiresAt) <= now.getTime()
     ? t("quality.link.expiry", { tense: "past", when, days: 0 })
-    : t("quality.link.expiry", { tense: "future", when, days });
+    : t("quality.link.expiry", { tense: "future", when, days: ukDaysUntil(expiresAt, now) });
+}
+
+/** When a link chosen to work for `days` UK days from `from` stops, as the API works it out. */
+export function linkStopsAt(from: Date, days: number): Date {
+  return addUkDays(from, days);
 }
 
 /** The pack's newest link, which a new link would replace; null when there is none. */
@@ -197,7 +206,9 @@ export function evidenceLinkUrl(origin: string, token: string): string {
 
 /**
  * The days a link may be set to work, never past the maximum: a few short choices, the
- * organisation's default and the maximum, each once and in order.
+ * organisation's default and the maximum, each once and in order. The short choices are menu
+ * options under the rate table's maximum, not policy figures (the default and maximum come from
+ * `evidence_pack.link_expiry_days`).
  */
 export function expiryChoices(defaultDays: number, maxDays: number): number[] {
   const max = Math.max(1, Math.floor(maxDays));
