@@ -13880,7 +13880,7 @@
       "checkConstraints": {
         "medication_administration_outcome": {
           "name": "medication_administration_outcome",
-          "value": "outcome IN ('given','refused','not_given','not_available','self_administered','given_by_family','withheld')"
+          "value": "outcome IN ('given','refused','omitted','not_available','self_administered','given_by_family','withheld')"
         },
         "medication_administration_amount": {
           "name": "medication_administration_amount",

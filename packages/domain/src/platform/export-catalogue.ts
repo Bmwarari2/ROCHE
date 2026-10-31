@@ -114,6 +114,9 @@ export const CLINICAL_EXPORT_TABLES: readonly string[] = [
   "public.medication_reconciliation_source",
   "public.medication_reconciliation_item",
   "public.medication_reconciliation_decision",
+  "public.medication_dosing_record",
+  "public.medication_administration",
+  "public.medication_administration_witness",
   "public.pre_admission_assessment",
   "public.admission_decision",
   "public.admission_condition",
@@ -1060,6 +1063,16 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
     retention: "mar_chart",
     personal: true,
     columns: {
+      tags: {
+        description:
+          "Tags a person set at transcription: time_critical, paracetamol, bisphosphonate, psychotropic (rule 13).",
+      },
+      minimum_interval_minutes: {
+        description: "The minimum interval the prescription states, in minutes (rule 13).",
+      },
+      prn_max_per_24h: {
+        description: "A when-required entry's prescribed maximum in 24 hours, in its dose unit.",
+      },
       id: "exported",
       tenant_id: "exported",
       person_id: "exported",
@@ -1353,6 +1366,113 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
+    },
+  },
+  "public.medication_dosing_record": {
+    context: "medicines",
+    description:
+      "A dosing record for a variable dose (medicines.md rule 18): the dose for each day and time from its source, and its second check.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: { description: "The entry version it gives doses for (medication.id)." },
+      source_kind: { description: "The kind of source (for example clinic_letter)." },
+      source_reference: { description: "The source as written (for example the clinic's letter)." },
+      source_document_id: {
+        description: "The source document, when one was attached (document.id).",
+      },
+      doses: { description: "The doses as JSON: date, time and quantity in the entry's unit." },
+      recorded_by: { description: "Who transcribed it (tenant_user.id)." },
+      recorded_at: { description: "When it was recorded, by the server's clock (instant, UTC)." },
+      check_by: { description: "Who second-checked it (tenant_user.id)." },
+      check_at: { description: "When it was checked (instant, UTC)." },
+      check_outcome: { description: "matches_source or differs_from_source." },
+      check_difference: { description: "What differed from the source, when it did." },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+    },
+  },
+  "public.medication_administration": {
+    context: "medicines",
+    description:
+      "An administration record (MEDS-002; medicines.md rules 13 to 23): what happened to a dose, append-only, with corrections as new records that name the record they correct.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: { description: "The record's id, chosen by the device or browser that made it." },
+      tenant_id: "exported",
+      person_id: "exported",
+      medication_id: {
+        description: "The entry version the dose was recorded against (medication.id).",
+      },
+      due_at: { description: "The scheduled dose's time (instant, UTC); empty for when required." },
+      outcome: {
+        description:
+          "given, refused, omitted (not given), not_available, self_administered, given_by_family or withheld.",
+      },
+      reason_code: { description: "The coded reason for the outcome, when it takes one." },
+      reason_note: { description: "The reason in words, when one was needed." },
+      quantity: { description: "The amount given or taken, in the unit below." },
+      unit_code: { description: "The dm+d unit code of the amount." },
+      prescribed: { description: "The prescribed dose the amount was checked against, as JSON." },
+      dosing_record_id: {
+        description:
+          "The checked dosing record a variable dose came from (medication_dosing_record.id).",
+      },
+      amount_difference_reason: {
+        description: "Why the amount differed from the prescribed dose.",
+      },
+      timing_reason: { description: "Why the dose was early or late." },
+      interval_override_reason: {
+        description: "Why a dose was given within the minimum interval.",
+      },
+      given_before_recorded_reason: {
+        description: "Why a dose already given was recorded only later.",
+      },
+      given_at: { description: "When the dose was given or the outcome happened (instant, UTC)." },
+      device_at: { description: "The device's own clock when it sent the record, when one did." },
+      device_offset_ms: {
+        description: "The device's offset from Harbour's clock at its last sync.",
+      },
+      recorded_by: { description: "Who recorded it (tenant_user.id)." },
+      recorded_at: { description: "When Harbour stored it (instant, UTC); the record locks then." },
+      competence_override: {
+        description: "The competence override it was recorded under, as JSON, when one was.",
+      },
+      flags: { description: "The flags the rules set (for example early, late, over_maximum)." },
+      supersedes_id: {
+        description: "The record this one corrects (medication_administration.id).",
+      },
+      correction_reason: { description: "Why the record was corrected." },
+      scan_evidence: {
+        description: "Barcode evidence, when scanning is in use (empty until then).",
+      },
+      cd_entry_id: { description: "The controlled drugs register entry (empty until slice 34)." },
+      created_at: "exported",
+    },
+  },
+  "public.medication_administration_witness": {
+    context: "medicines",
+    description: "A witness's second signature on an administration record.",
+    treatment: "tenant_rows",
+    retention: "mar_chart",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      person_id: "exported",
+      administration_id: { description: "The record witnessed (medication_administration.id)." },
+      witness_id: { description: "Who witnessed it (tenant_user.id)." },
+      witnessed_at: { description: "When they signed (instant, UTC)." },
+      method: { description: "How they signed: step_up on the web, device_factor on a device." },
+      created_at: "exported",
     },
   },
   "public.safeguarding_concern": {

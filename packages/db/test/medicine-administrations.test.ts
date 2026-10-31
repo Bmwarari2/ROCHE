@@ -269,7 +269,7 @@ describe("hazard HZ-004 one record per dose, and a record never changes", () => 
       await c.query(
         `INSERT INTO medication_administration (id, person_id, medication_id, outcome, reason_code,
            given_at, recorded_by, recorded_at)
-         VALUES ($1, $2, $3, 'not_given', 'asleep', now(), $4, '2001-01-01T00:00:00Z')`,
+         VALUES ($1, $2, $3, 'omitted', 'asleep', now(), $4, '2001-01-01T00:00:00Z')`,
         [id, a.personBen, BEN_ENTRY, a.manager],
       );
       const { rows } = await c.query<{ server: boolean }>(

@@ -27351,6 +27351,660 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/people/{id}/medicine-administrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A person's administration records in a period
+     * @description Every record given in the period, with corrections linked (the corrected record shown struck through). Audited.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The records */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record an administration
+     * @description What happened to a dose, checked by slice 3's rules at the server's time (or, for a dose recorded after it was given, at the time it was given, before now, with why). Idempotent by the client's id. Refusals are audited. Escalations become tasks for the nurse in charge.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAdministration"];
+        };
+      };
+      responses: {
+        /** @description Already recorded with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationRecorded"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administrations/{id}/corrections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Correct an administration record
+     * @description A new record that refers to the latest record for the dose, with why; the record it corrects is kept and shown struck through. By its author or a holder of medicines.record.manage, with current competence. Checked by slice 3's checkCorrection.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CorrectAdministration"];
+        };
+      };
+      responses: {
+        /** @description Already corrected with this id */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationRecorded"];
+          };
+        };
+        /** @description Corrected */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicine-administrations/{id}/witness": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Witness an administration (second signature)
+     * @description The witness signs with their own session and a fresh step-up (ADR-0084); never the recorder, and only with current medicines competence. Once per record.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["WitnessAdministration"];
+        };
+      };
+      responses: {
+        /** @description Witnessed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationRecorded"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/people/{id}/medicine-round": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The doses around a time, with their state, and the when-required status
+     * @description Scheduled doses from 12 hours before to 12 hours after the time, each with its window, state in words and notices; and each when-required medicine's last given, 24-hour total and when next. Audited.
+     */
+    get: {
+      parameters: {
+        query?: {
+          at?: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The round */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MedicineRound"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/medicines/{entryId}/dosing-records": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The dosing records of a variable-dose medicine
+     * @description Every dosing record of the medicine's versions, newest last. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The dosing records */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DosingRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a dosing record for a variable dose
+     * @description The doses for each day and time from its source (for example the anticoagulant clinic's), not yet checked. Checked by slice 3's recordDosingRecord. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          entryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordDosingRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DosingRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/dosing-records/{id}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Second-check a dosing record against its source
+     * @description By a second person with current medicines competence (from the competence port), who compared it with the source. Set once. Audited, refusals included.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CheckDosingRecord"];
+        };
+      };
+      responses: {
+        /** @description Checked */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["DosingRecord"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/sub-processors": {
     parameters: {
       query?: never;
@@ -38722,6 +39376,260 @@ export interface components {
           };
       /** @default null */
       noDischargeLetterReason: string | null;
+    };
+    AdministrationRecorded: {
+      administration: components["schemas"]["Administration"];
+      escalations: {
+        /** @enum {string} */
+        severity: "urgent" | "warning";
+        message: string;
+        /** Format: uuid */
+        taskId: string;
+      }[];
+    };
+    Administration: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      entryId: string;
+      /** Format: date-time */
+      dueAt: string | null;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      outcomeInWords: string;
+      reason: {
+        code: string;
+        words: string;
+        note: string | null;
+      } | null;
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      prescribed: components["schemas"]["Dose"];
+      /** Format: uuid */
+      dosingRecordId: string | null;
+      /** Format: date-time */
+      givenAt: string;
+      recorded: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      flags: string[];
+      flagsInWords: string[];
+      givenBeforeRecordedReason: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      /** Format: uuid */
+      supersededById: string | null;
+      witness: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** @enum {string} */
+        method: "step_up" | "device_factor";
+      } | null;
+    };
+    /** @enum {string} */
+    AdministrationOutcome:
+      | "given"
+      | "refused"
+      | "omitted"
+      | "not_available"
+      | "self_administered"
+      | "given_by_family"
+      | "withheld";
+    RecordAdministration: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      dueAt: string | null;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      /** @default null */
+      reason: {
+        code: string;
+        /** @default null */
+        note: string | null;
+      } | null;
+      /** @default null */
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      /** @default null */
+      amountDifferenceReason: string | null;
+      /** @default null */
+      timingReason: string | null;
+      /** @default null */
+      intervalOverrideReason: string | null;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      givenAt: string | null;
+      /** @default null */
+      deviceOffsetMs: number | null;
+      /** @default null */
+      givenBeforeRecorded: {
+        reason: string;
+      } | null;
+    };
+    CorrectAdministration: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      entryId: string;
+      /**
+       * Format: date-time
+       * @default null
+       */
+      dueAt: string | null;
+      outcome: components["schemas"]["AdministrationOutcome"];
+      /** @default null */
+      reason: {
+        code: string;
+        /** @default null */
+        note: string | null;
+      } | null;
+      /** @default null */
+      amount: {
+        quantity: number;
+        unitCode: string;
+      } | null;
+      /** @default null */
+      amountDifferenceReason: string | null;
+      /** @default null */
+      timingReason: string | null;
+      /** @default null */
+      intervalOverrideReason: string | null;
+      correctionReason: string;
+      /** Format: date-time */
+      givenAt: string;
+    };
+    WitnessAdministration: {
+      /** @enum {boolean} */
+      witnessed: true;
+    };
+    AdministrationList: {
+      administrations: components["schemas"]["Administration"][];
+    };
+    MedicineRound: {
+      /** Format: date-time */
+      at: string;
+      doses: {
+        /** Format: uuid */
+        entryId: string;
+        /** Format: date-time */
+        dueAt: string;
+        /** Format: date */
+        date: string;
+        time: string;
+        doseInWords: string;
+        timeCritical: boolean;
+        /** @enum {string} */
+        state: "not_yet_due" | "due" | "late" | "recorded";
+        stateInWords: string;
+        /** Format: date-time */
+        opensAt: string;
+        /** Format: date-time */
+        lateAfter: string;
+        notices: string[];
+        entryStatus: {
+          words: string;
+          mayGive: boolean;
+          notice: string | null;
+        };
+      }[];
+      whenRequired: {
+        /** Format: uuid */
+        entryId: string;
+        lastGiven: {
+          /** Format: date-time */
+          at: string;
+          /** Format: uuid */
+          by: string;
+          synced: boolean;
+        } | null;
+        givenInLast24Hours: number;
+        maxPer24Hours: number | null;
+        remaining: number | null;
+        /** Format: date-time */
+        nextAllowedAt: string | null;
+        notices: string[];
+      }[];
+    };
+    DosingRecord: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      personId: string;
+      /** Format: uuid */
+      entryId: string;
+      source: {
+        kind: components["schemas"]["MarSourceKind"];
+        reference: string;
+        /** Format: uuid */
+        documentId: string | null;
+      };
+      doses: {
+        /** Format: date */
+        date: string;
+        time: string;
+        quantity: number;
+      }[];
+      recorded: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+      };
+      secondCheck: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        at: string;
+        /** @enum {string} */
+        outcome: "matches_source" | "differs_from_source";
+        difference: string | null;
+      } | null;
+    };
+    RecordDosingRecord: {
+      source: {
+        kind: components["schemas"]["MarSourceKind"];
+        reference: string;
+        /**
+         * Format: uuid
+         * @default null
+         */
+        documentId: string | null;
+      };
+      doses: {
+        /** Format: date */
+        date: string;
+        time: string;
+        quantity: number;
+      }[];
+    };
+    CheckDosingRecord: {
+      /** @enum {string} */
+      outcome: "matches_source" | "differs_from_source";
+      /** @default null */
+      difference: string | null;
+      /** @enum {boolean} */
+      comparedWithSource: true;
+    };
+    DosingRecordList: {
+      dosingRecords: components["schemas"]["DosingRecord"][];
     };
     SubProcessorOverview: {
       noticeDays: number;

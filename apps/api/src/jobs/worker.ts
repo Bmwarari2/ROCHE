@@ -12,6 +12,7 @@ import {
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateOutstandingDoses,
   escalateSafeguardingReferrals,
   escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
@@ -74,6 +75,7 @@ const QUEUES = {
   taskEscalations: "task-escalations",
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
+  outstandingDoses: "medicines-outstanding-doses",
   staffFileExpiry: "staff-file-expiry-reminders",
   policyReminders: "policy-reminders",
   statutoryNotifications: "statutory-notification-escalations",
@@ -124,6 +126,9 @@ await work(QUEUES.taskEscalations, async () => {
 });
 await work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
+});
+await work(QUEUES.outstandingDoses, async () => {
+  await escalateOutstandingDoses(deps);
 });
 await work(QUEUES.dolsExpiry, async () => {
   await remindDolsExpiry(deps);
@@ -206,6 +211,8 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // Hourly: DoLS reminders fall due by the day; outbreak detection is a safety net behind the
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
+// Every 5 minutes, so a time-critical dose's window ending is escalated promptly (HZ-003).
+await boss.schedule(QUEUES.outstandingDoses, "*/5 * * * *");
 // Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
 await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
 // Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.

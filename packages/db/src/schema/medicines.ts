@@ -617,7 +617,7 @@ export const medicationDosingRecord = pgTable(
 );
 
 const OUTCOMES =
-  "'given','refused','not_given','not_available','self_administered','given_by_family','withheld'";
+  "'given','refused','omitted','not_available','self_administered','given_by_family','withheld'";
 
 /**
  * One administration record (rules 13 to 23; slice 22): append-only, the client's UUID as its id

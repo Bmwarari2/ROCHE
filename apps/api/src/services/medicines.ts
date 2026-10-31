@@ -1,5 +1,5 @@
 import type { MedicineEntry } from "@harbour/contracts";
-import { medication, medicationSchedule, type Transaction } from "@harbour/db";
+import { document, medication, medicationSchedule, type Transaction } from "@harbour/db";
 import {
   type Dose,
   describeSchedule,
@@ -12,7 +12,8 @@ import {
   type SchedulePattern,
   type UncheckedEntryPolicy,
 } from "@harbour/domain";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { HttpProblem, problems } from "../http/problem";
 
 /**
  * Between the medicines tables and the slice 2 domain (medicines.md section 2; slice 16). The
@@ -367,4 +368,68 @@ export function entryOut(stored: StoredEntry, now: Date): MedicineEntry {
       : null,
     status: marEntryStatus(e, now, UNCHECKED_POLICY),
   };
+}
+
+/**
+ * Medicines writes for one person run one at a time (a transaction-scoped advisory lock), so two
+ * people transcribing the same product at once cannot both pass rule 6's one entry per product
+ * (security review, finding 1).
+ */
+export async function lockPerson(tx: Transaction, personId: string) {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`medicines:${personId}`}, 0))`,
+  );
+}
+
+/**
+ * A source document must be this person's, available (scanned clean, not removed): never another
+ * person's letter or one outside the caller's scope (RLS applies here, unlike a foreign key;
+ * security review, finding 2).
+ */
+export async function requireDocuments(
+  tx: Transaction,
+  personId: string,
+  ids: readonly (string | null | undefined)[],
+) {
+  for (const documentId of ids) {
+    if (!documentId) continue;
+    const [doc] = await tx
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.personId, personId),
+          eq(document.status, "available"),
+          isNull(document.deletedAt),
+        ),
+      );
+    if (!doc) throw problems.invalid("Choose a document from this person's record.");
+  }
+}
+
+function dbCode(error: unknown): string | undefined {
+  return (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+}
+
+/** A second change from the same version lands on the unique (medicine, version) key. */
+export async function guardConcurrent<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    const code = dbCode(error);
+    if (code === "23505") {
+      throw problems.conflict("The medicine changed while you were working on it. Read it again.");
+    }
+    // A database rule refusing what the domain allowed: said as a refusal, never a conflict.
+    if (code === "23514" || code === "23503") {
+      throw new HttpProblem(
+        422,
+        "medicine_refused_by_record",
+        "The medicines record cannot be changed like this.",
+        "The record's own rules refused this change. Read the medicine again and check what you entered.",
+      );
+    }
+    throw error;
+  }
 }

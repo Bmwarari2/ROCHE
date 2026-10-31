@@ -29,7 +29,7 @@ CREATE TABLE "medication_administration" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "medication_administration_tenant_id_id_key" UNIQUE("tenant_id","id"),
 	CONSTRAINT "medication_administration_tenant_person_id_key" UNIQUE("tenant_id","person_id","id"),
-	CONSTRAINT "medication_administration_outcome" CHECK (outcome IN ('given','refused','not_given','not_available','self_administered','given_by_family','withheld')),
+	CONSTRAINT "medication_administration_outcome" CHECK (outcome IN ('given','refused','omitted','not_available','self_administered','given_by_family','withheld')),
 	CONSTRAINT "medication_administration_amount" CHECK ((quantity IS NULL AND unit_code IS NULL)
        OR (quantity > 0 AND length(btrim(coalesce(unit_code, ''))) > 0)),
 	CONSTRAINT "medication_administration_given" CHECK (outcome <> 'given' OR quantity IS NOT NULL),

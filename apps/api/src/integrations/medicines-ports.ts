@@ -1,4 +1,9 @@
-import type { DmdProductFacts, DmdProductRef, MedicinesCompetence } from "@harbour/domain";
+import type {
+  CompetenceOverride,
+  DmdProductFacts,
+  DmdProductRef,
+  MedicinesCompetence,
+} from "@harbour/domain";
 
 /**
  * The two inputs the medicines rules take from outside the medicines module (medicines.md
@@ -18,6 +23,11 @@ import type { DmdProductFacts, DmdProductRef, MedicinesCompetence } from "@harbo
 
 export interface MedicinesCompetencePort {
   forMember(tenantId: string, tenantUserId: string, at: Date): Promise<MedicinesCompetence>;
+  /**
+   * The competence override in force for the member at `at`, recorded in workforce by a holder of
+   * `medicines.override.approve` (rule 22; ADR-0085), or null. Never taken from the request.
+   */
+  overrideFor(tenantId: string, tenantUserId: string, at: Date): Promise<CompetenceOverride | null>;
 }
 
 export interface DmdFactsPort {
@@ -40,6 +50,7 @@ export interface MedicinesPorts {
 /** No workforce competence source yet: nobody is competent, so nothing is checked on a guess. */
 export const unavailableCompetence: MedicinesCompetencePort = {
   forMember: async () => "not_held",
+  overrideFor: async () => null,
 };
 
 /** No dm+d reference data yet: no product is known, so nothing is transcribed. */
@@ -48,12 +59,21 @@ export const unavailableDmd: DmdFactsPort = { facts: async () => null, loaded: f
 /** A competence source for development and tests: what each member holds, `not_held` otherwise. */
 export function fixedCompetence(
   held: ReadonlyMap<string, MedicinesCompetence> = new Map(),
-): MedicinesCompetencePort & { held: Map<string, MedicinesCompetence> } {
+): MedicinesCompetencePort & {
+  held: Map<string, MedicinesCompetence>;
+  overrides: Map<string, CompetenceOverride>;
+} {
   const map = new Map(held);
+  const overrides = new Map<string, CompetenceOverride>();
   return {
     held: map,
+    overrides,
     forMember: async (tenantId, tenantUserId) =>
       map.get(`${tenantId}:${tenantUserId}`) ?? "not_held",
+    overrideFor: async (tenantId, tenantUserId, at) => {
+      const o = overrides.get(`${tenantId}:${tenantUserId}`);
+      return o && o.from.getTime() <= at.getTime() && at.getTime() < o.until.getTime() ? o : null;
+    },
   };
 }
 
