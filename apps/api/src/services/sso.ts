@@ -56,7 +56,7 @@ function httpStatus(error: unknown): number | undefined {
 /**
  * Secret Manager in europe-west2 (ADR-0091, ADR-0098): each key is a regional secret in the
  * environment's project, read through the regional endpoint with the runtime's own identity.
- * Only the latest version is used; a missing secret reads as no key.
+ * Only the latest version is used; a missing secret reads as no key, and a refused read fails.
  */
 export class SecretManagerKeyStore implements SsoKeyStore {
   constructor(
@@ -93,7 +93,12 @@ export class SecretManagerKeyStore implements SsoKeyStore {
     }
   }
 
-  /** Whether an enabled version exists, from its metadata, without reading the key (#33 review M3). */
+  /**
+   * Whether an enabled version exists, from its metadata, without reading the key (#33 review M3).
+   * The API may read only the keys granted to it, one secret at a time, and Google Cloud answers
+   * 403 for a secret that does not exist as well as for one not granted, so either counts as
+   * missing: Thapsus adds the key and its grant together (H-751).
+   */
   async has(ref: string): Promise<boolean> {
     const secretId = ssoSecretId(ref);
     if (!secretId) return false;
@@ -101,7 +106,8 @@ export class SecretManagerKeyStore implements SsoKeyStore {
       const out = (await this.getJson(this.latest(secretId))) as { state?: unknown } | null;
       return out?.state === "ENABLED";
     } catch (error) {
-      if (httpStatus(error) === 404) return false;
+      const status = httpStatus(error);
+      if (status === 404 || status === 403) return false;
       throw error;
     }
   }

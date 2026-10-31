@@ -75,10 +75,15 @@ describe("single sign-on keys in Secret Manager", () => {
     expect(urls).toEqual([]);
   });
 
-  it("fails rather than reading as no key when access is refused", async () => {
+  it("counts a key it may not read as missing, but fails a sign-in that cannot read it", async () => {
     const { keys } = store({ [LATEST]: failure(403), [`${LATEST}:access`]: failure(403) });
-    await expect(keys.has(REF)).rejects.toThrow("403");
+    expect(await keys.has(REF)).toBe(false);
     await expect(keys.get(REF)).rejects.toThrow("403");
+  });
+
+  it("fails rather than guessing when Secret Manager is unavailable", async () => {
+    const { keys } = store({ [LATEST]: failure(503) });
+    await expect(keys.has(REF)).rejects.toThrow("503");
   });
 
   it("needs the project to use Secret Manager", () => {

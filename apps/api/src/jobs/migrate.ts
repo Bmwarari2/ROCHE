@@ -29,8 +29,8 @@ import { createLogger } from "../logger";
  * 2. As harbour_owner: apply migrations, then load the statutory figures and retention schedule.
  * 3. On the PowerSync bucket-storage instance: create its login role.
  *
- * The admin connection arrives as parts (DATABASE_HOST, DATABASE_ADMIN_USER, ...) because RDS rotates
- * the master password and it may contain characters reserved in URLs.
+ * The admin connection arrives as parts (DATABASE_HOST, DATABASE_ADMIN_USER, ...) because the
+ * administrator's password comes from Secret Manager and may contain characters reserved in URLs.
  */
 
 const env = process.env;
