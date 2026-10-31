@@ -52,7 +52,8 @@ Branch `fix/api-hardening`.
 
 ## Human actions logged
 
-- None.
+- H-341 (product decision): property witnesses now need `people.property.manage` at the home, so
+  care workers cannot witness; the owner confirms or relaxes it.
 
 ## Tests
 
@@ -101,3 +102,20 @@ Branch `fix/api-hardening`.
   - L6: the worker (and the route's post-commit attempt) make the key with
     `documentStorageKey(tenant, document id)`; a test changes `storage_key` to another live
     document's and checks only the destroyed document's bytes go.
+- Re-check of #134 at 3bb849b6 (M1, M2, M4 and L6 hold; M3 holds on security), after merging
+  `main` again (#119, #130, #133, #136, #141; no conflicts):
+  - L1: a witness's acting-up grants count. `mayWitnessAt` (now `apps/api/src/services/witness.ts`)
+    reads the member's roles and unrevoked grants through `placesHoldingPermission`, as
+    `submitHolders` does. Tests: a care worker acting up there is accepted; one whose grant was
+    revoked, or who acts up at another home, is refused.
+  - L2: the role is judged when the witness witnessed (the acknowledgement's or the recipient's
+    `signedAt`, or the end of the UK day of a disposal, never later than now), and the account must
+    be active now. Tests: a team leader since an hour ago is refused for an item signed for
+    yesterday and accepted for one signed now; one whose role ended an hour ago is the reverse; a
+    suspended member is refused either way.
+  - L3: a document whose chain cannot be read back to its first version counts as held
+    (`documentHeld`). Test: `previous_version_id` pointed at a missing version takes the document
+    off the candidates, skips it at destruction and shows it as held.
+  - L4: the document view's `legalHold` uses the same judgement as destruction. Test: a later
+    version of a held document, and a flagged document, show as held; an unheld one does not.
+  - H-341 logged for the witness rule, and people.md says so.

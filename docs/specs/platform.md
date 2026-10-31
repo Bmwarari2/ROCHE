@@ -726,7 +726,9 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   - What a hold covers (`isDocumentUnderLegalHold`): a document is held when any version of it
     (its whole chain through `previous_version_id`) is flagged `legal_hold`, is held itself, is
     about a held person, or belongs to a held record (its `subject_type` and `subject_id`); a
-    hold on any version holds them all (security review of #134, M1).
+    hold on any version holds them all (security review of #134, M1). A chain that cannot be
+    read back to its first version (`previous_version_id` has no foreign key) counts as held, and
+    the document view's `legalHold` uses the same judgement (`documentHeld`; L3 and L4).
   - Holds: placing a hold and destroying both take the organisation's retention lock (a
     transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
     reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
