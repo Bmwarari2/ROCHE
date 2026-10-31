@@ -579,6 +579,28 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   states, transitions (permission, reason, step-up, separation of duties) and SLAs in code with
   `defineWorkflow`; `startWorkflow` and `moveWorkflow` (`apps/api/src/services/workflow.ts`) check
   the rules, record every move and set the next deadline (fixed hours or a rate-table figure).
+- Approvals across modules (31/10/2026): `GET /v1/workflows` lists open workflow records in the
+  reader's scope, soonest deadline first. `view=approvals` (the default) lists those waiting for the
+  reader's approval and those the reader raised that wait for someone else's. `view=all` lists every
+  open record the reader has a part in. Each item gives the state and the deadline state
+  (`workflowSlaState`: overdue once the deadline has come, due today when later on the same UK day,
+  on track, or none). It also gives who started it, the steps open to the reader
+  (`workflowActorView`), the approval step marked (one the record's creator may not take), and
+  whether the reader raised it so someone else must approve. The list is read only. Every step is
+  still taken on the record's own route, which checks the module's rules and separation of duties
+  again.
+  - The listed workflows are in `LISTED_WORKFLOWS` (`packages/domain`): incident, candour,
+    statutory notification, DoLS legal-change review, outage, discharge, transfer and death. The
+    person lifecycle is a record's status, not work, so it is not listed.
+  - An instance about nobody is listed only when its record is visible under row-level security, and
+    an unknown subject type never is.
+  - Any holder of a listed step's permission may read the list (MFA as for care records). It holds at
+    most 300 records (`truncated`) and is audited by view and count only.
+  - The web page `/approvals` ("Approvals" in the side bar for the same readers) groups the records:
+    waiting for your approval, raised by you (said in words), and other open work. Each shows its
+    state and deadline as an icon and words and links to its own page. An incident waiting for the
+    reader can be closed or sent back to open there with the incident page's own forms, carrying the
+    version the page read (HZ-013, HZ-091).
 - API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
   `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
   `POST /v1/task-series/{id}/end`. Every list and change is audited.
