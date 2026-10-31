@@ -131,57 +131,6 @@ export const peopleEnquiriesRouter = createRouter()
       }
       const result = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
-          if (body.id) {
-            const [stored] = await tx
-              .select({
-                id: person.id,
-                locationId: person.locationId,
-                status: person.status,
-                createdBy: person.createdBy,
-                givenName: person.givenName,
-                familyName: person.familyName,
-                preferredName: person.preferredName,
-                dateOfBirth: person.dateOfBirth,
-                statusChangedAt: person.statusChangedAt,
-                version: person.version,
-              })
-              .from(person)
-              .where(eq(person.id, body.id));
-            if (stored) {
-              // Only the caller's own enquiry is ever answered as a request sent again: anyone
-              // else's record, or one that has moved on, is refused without a word about it.
-              const own =
-                stored.status === "enquiry" &&
-                stored.createdBy === access.tenantUserId &&
-                stored.locationId === body.locationId;
-              if (!own) throw idRefusal(problems.invalid(ID_IN_USE), stored.id, "id_in_use");
-              const same =
-                stored.givenName === givenName &&
-                stored.familyName === familyName &&
-                (stored.preferredName ?? null) === preferredName &&
-                stored.dateOfBirth === body.dateOfBirth &&
-                (body.receivedAt === undefined ||
-                  stored.statusChangedAt.getTime() === receivedAt.getTime());
-              if (!same) {
-                throw idRefusal(
-                  new HttpProblem(
-                    409,
-                    "id_reused_with_different_details",
-                    "An enquiry was already saved with this id and other details.",
-                    "Nothing was changed. Check the enquiries list before recording it again, so the person has one record.",
-                  ),
-                  stored.id,
-                  "id_reused_with_different_details",
-                );
-              }
-              await audit(c, tx, access, {
-                action: `${ACTION}.replay`,
-                resourceType: "person",
-                resourceId: stored.id,
-              });
-              return answer(stored, true);
-            }
-          }
           const [loc] = await tx
             .select({ id: location.id })
             .from(location)
@@ -195,6 +144,9 @@ export const peopleEnquiriesRouter = createRouter()
               reason: "location_not_found",
             });
           }
+          // One path whatever the id: the insert, which does nothing when the id is in use, then
+          // a read of what holds it. An id the caller cannot see, and someone else's record they
+          // can, take the same steps and get the same answer (#118 review, L2).
           const [created] = await tx
             .insert(person)
             .values({
@@ -207,6 +159,7 @@ export const peopleEnquiriesRouter = createRouter()
               dateOfBirth: body.dateOfBirth,
               statusChangedAt: receivedAt,
             })
+            .onConflictDoNothing({ target: person.id })
             .returning({
               id: person.id,
               locationId: person.locationId,
@@ -217,15 +170,16 @@ export const peopleEnquiriesRouter = createRouter()
             .catch((error: unknown): never => {
               const e = error as { message?: string; cause?: { message?: string } };
               const message = e.cause?.message ?? e.message ?? "";
+              // The same status as an id in use, so sample mode tells a prober nothing more.
               if (SAMPLE_REFUSALS.has(message)) {
                 throw new HttpProblem(
-                  409,
+                  422,
                   "remove_sample_data_first",
                   "Remove the sample data before recording real people.",
                 );
               }
               const code = dbCode(error);
-              // An id in use where the caller cannot see it: refused like any other (HZ-011).
+              // A race with another insert of the same id: refused like any id in use.
               if (code === "23505" && body.id) {
                 throw idRefusal(problems.invalid(ID_IN_USE), body.id, "id_in_use");
               }
@@ -233,14 +187,65 @@ export const peopleEnquiriesRouter = createRouter()
               if (code?.startsWith("22")) throw problems.invalid("Check the dates and names.");
               throw error;
             });
-          if (!created) throw problems.conflict();
+          if (created) {
+            await audit(c, tx, access, {
+              action: ACTION,
+              resourceType: "person",
+              resourceId: created.id,
+              scope: { locationId: body.locationId, backdated: body.receivedAt !== undefined },
+            });
+            return answer(created, false);
+          }
+          // Nothing inserted: the id is in use (an insert without an id never conflicts).
+          const id = body.id ?? "";
+          const [stored] = await tx
+            .select({
+              id: person.id,
+              locationId: person.locationId,
+              status: person.status,
+              createdBy: person.createdBy,
+              givenName: person.givenName,
+              familyName: person.familyName,
+              preferredName: person.preferredName,
+              dateOfBirth: person.dateOfBirth,
+              statusChangedAt: person.statusChangedAt,
+              version: person.version,
+            })
+            .from(person)
+            .where(eq(person.id, id));
+          // Only the caller's own enquiry is ever answered as a request sent again: a record they
+          // cannot see, anyone else's, or one that has moved on, is refused without a word about it.
+          const own =
+            stored !== undefined &&
+            stored.status === "enquiry" &&
+            stored.createdBy === access.tenantUserId &&
+            stored.locationId === body.locationId;
+          if (!stored || !own) throw idRefusal(problems.invalid(ID_IN_USE), id, "id_in_use");
+          const same =
+            stored.givenName === givenName &&
+            stored.familyName === familyName &&
+            (stored.preferredName ?? null) === preferredName &&
+            stored.dateOfBirth === body.dateOfBirth &&
+            (body.receivedAt === undefined ||
+              stored.statusChangedAt.getTime() === receivedAt.getTime());
+          if (!same) {
+            throw idRefusal(
+              new HttpProblem(
+                409,
+                "id_reused_with_different_details",
+                "An enquiry was already saved with this id and other details.",
+                "Nothing was changed. Check the enquiries list before recording it again, so the person has one record.",
+              ),
+              stored.id,
+              "id_reused_with_different_details",
+            );
+          }
           await audit(c, tx, access, {
-            action: ACTION,
+            action: `${ACTION}.replay`,
             resourceType: "person",
-            resourceId: created.id,
-            scope: { locationId: body.locationId, backdated: body.receivedAt !== undefined },
+            resourceId: stored.id,
           });
-          return answer(created, false);
+          return answer(stored, true);
         }),
       );
       return c.json(result, 201);
