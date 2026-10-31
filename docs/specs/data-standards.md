@@ -780,6 +780,26 @@ needs `rota_and_timesheet`.
 | `return_to_work.*` | Harbour | `held_on` date; `held_by` (never the member); `fit_for_usual_duties`; the four adjustments; `notes` up to 4,000 characters | One per absence, after it ends. Notes never in an audit event. |
 | `shift_cover_need.resolution` | Harbour | `assignment_removed`, `absence_ended` | Raised once, resolved once (trigger `shift_cover_need_guard`). |
 
+## Pay calculation runs (Phase 2, slice 36)
+
+Code lists for [scheduling.md](scheduling.md) section 18. No national standard defines these; the
+payroll export (slice 76) maps them to each payroll provider. Money is whole pence (shown as
+"£1,234.56"); time is whole minutes; dates are UK dates (`YYYY-MM-DD`, shown dd/mm/yyyy).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `pay_profile.frequency`, `pay_run.frequency` | Harbour (pay reference period) | `weekly`, `monthly` | Auto-enrolment thresholds follow the period. |
+| `pay_profile.employment` | Harbour | `staff`, `bank`, `agency` | Agency workers are paid by their agency: their line pays nothing. |
+| `pay_profile.role_key`, `pay_rule_set.role_rates` keys | Harbour | Lower-case key, 1 to 60 of a-z, 0-9, `_` | The rule set's rate for the role. |
+| `pay_profile.qualifying_weekdays` | ISO 8601 weekday | 1 (Monday) to 7 (Sunday) | For SSP qualifying days. |
+| `pay_rule_set.enhancements` | Harbour | `[{ kind, mode, value }]`; kind `night`, `weekend`, `bank_holiday`, `overtime`; mode `percent` or `flat_per_hour` | Only the highest applies unless the set stacks them. |
+| `pay_rule_set.night_start_minute`, `night_end_minute` | Harbour | Minutes from UK midnight, 0 to 1439 | A window may cross midnight. |
+| `pay_run.kind`, `status` | Harbour | `regular`, `correction`; `draft`, `locked` | A locked run never changes. |
+| `pay_run_line.nmw_band` | National Minimum Wage Regulations 2015 | `21_plus`, `18_to_20`, `under_18`, `apprentice` | From the date of birth on the period's first day. |
+| `pay_run_line.ae_category` | Pensions Act 2008 | `eligible_jobholder`, `non_eligible_jobholder`, `entitled_worker`, `outside_age_range` | A flag only. |
+| `pay_run_line.input_hash` | SHA-256 | 64 lower-case hex characters | Of the canonical inputs, stored with the line. |
+| `pay_run_exception.kind` | Harbour | `unapproved_timesheet`, `no_pay_profile`, `no_role_rate`, `no_date_of_birth`, `below_nmw`, `ssp_earnings_missing`, `rate_missing` | Blocks locking until put right or overridden with a reason. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

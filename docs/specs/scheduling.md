@@ -1149,7 +1149,7 @@ payroll export file is slice 76 (only its port is here); the screens are slice 6
 
 | Table | Kind | Columns | Retention class |
 | --- | --- | --- | --- |
-| `pay_rule_set` | versioned; mutable while `draft`, fixed once `approved` | `name`, `version`, `effective_from`, `role_rates` (pence an hour by role key), `enhancements` (kind, `percent` or `flat_per_hour`, value), `stack_enhancements`, `sleep_in_flat_pence`, `mileage_pence_per_mile`, `on_call_flat_pence`, `night_start_minute`, `night_end_minute`, `bank_holidays` (dates), `overtime_after_minutes` (per pay period), `rolled_up_holiday`, `status`, `approved_by`, `approved_at` | `rota_and_timesheet` (a run cites it) |
+| `pay_rule_set` | versioned; mutable while `draft`, fixed once `approved` | `name`, `version`, `effective_from`, `role_rates` (pence an hour by role key), `enhancements` (kind, `percent` or `flat_per_hour`, value), `stack_enhancements`, `sleep_in_flat_pence`, `mileage_pence_per_mile`, `on_call_flat_pence`, `night_start_minute`, `night_end_minute`, `extra_bank_holidays` (days paid as bank holidays besides the nation's own), `overtime_after_minutes` (per pay period), `rolled_up_holiday`, `status`, `approved_by`, `approved_at` | `rota_and_timesheet` (a run cites it) |
 | `pay_profile` | mutable, versioned, one per member | `member_id`, `frequency` (`weekly`, `monthly`), `role_key`, `apprenticeship_started_on`, `irregular_hours`, `leave_year_start`, `qualifying_weekdays` (ISO weekdays), `ssp_average_weekly_earnings_pence`, `state_pension_age_on` | `staff_file` |
 | `pay_run` | mutable while `draft`; fixed once `locked` | `frequency`, `period_start`, `period_end`, `kind` (`regular`, `correction`), `corrects_run_id`, `rule_set_id`, `nation`, `rate_rows` (the rate table rows used), `calculation` (a counter), `calculated_at`, `calculated_by`, `status` (`draft`, `locked`), `locked_by`, `locked_at` | `rota_and_timesheet` |
 | `pay_run_line` | append-only, one per member per calculation | `run_id`, `calculation`, `member_id`, the figures (pence and minutes), `nmw_band`, `ae_category`, `working` (lines in words), `inputs` (the canonical inputs), `input_hash` | `rota_and_timesheet` |
@@ -1173,7 +1173,8 @@ the rows it used, so it reproduces whatever the table says later.
    the period is an `unapproved_timesheet` exception. Paid time is work, training, on-call at the
    workplace and travel between assignments, less breaks; each stretch is split at UK midnight and
    at the rule set's night window, and gets the night, weekend (Saturday or Sunday, UK date) and
-   bank holiday enhancements that apply; minutes past `overtime_after_minutes` in the period get
+   bank holiday enhancements that apply (the nation's bank holidays from the calendar, plus the rule
+   set's extra days); minutes past `overtime_after_minutes` in the period get
    the overtime enhancement. A sleep-in pays the flat allowance, on-call away the on-call
    allowance, travel entries their mileage. Gross pay is the slice 6 rule (`grossPay`).
 4. **Minimum wage** (slice 6 rule 2): the hours that count are `nmwMinutesIn` over the period

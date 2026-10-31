@@ -476,6 +476,24 @@ Logged by slice 40 (SCHED-010, [scheduling.md](../specs/scheduling.md) section 1
 | H-978 | Build a consumer of `scheduling.cover_needed` that raises a task for the rota's managers and notifies them (today the published rota reads as changed and the check counts the shift as open, but nobody is told at once), add an advisory note when assigning someone with a leave request not yet decided, tell return to work users not to record a condition in the notes, and show cover needs on the rota screens (slice 59 is on a separate branch: its builder and check pages should read `assignment.coverNeeded` and `coverNeededAssignmentIds`) and build the absence screens | Brian | phase-2.md slices 59 and 40 | Absence screens | open |
 | H-979 | Decide whether statutory family pay (SMP, SPP, ShPP, SAP, parental bereavement) is worked out on maternity, paternity and adoption absences in a later slice, using the slice 6 family pay rules | Brian with an employment adviser | `packages/domain/src/scheduling/pay/family-pay.ts` | Family leave pay | open |
 
+## Phase 2: pay calculation runs (slice 36)
+
+Logged by slice 36 (pay calculation runs, [scheduling.md](../specs/scheduling.md) section 18) on 31
+October 2026, from the block H-1100 to H-1109 the lead assigned.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1100 | At upgrade, give existing tenants' Finance role the two new pay permissions (`scheduling.pay.manage`, `scheduling.pay.approve`); built-in roles carry them for new tenants, and Registered Managers and deputies never do (pay is organisation-wide) | Brian | `roles.ts`; migration 0116 | Pay runs in existing tenants | open |
+| H-1101 | Confirm with a payroll adviser which payments count as pay for the minimum wage and holiday (built: basic, enhancements and the sleep-in allowance; never mileage or an on-call allowance for time at home; the minimum wage top-up is a line of its own) | Brian with a payroll adviser (H-529) | `payRunLine` | Pay runs in a real tenant | open |
+| H-1102 | Decide who checks and locks runs (built: a holder of `scheduling.pay.approve` who neither created nor calculated the run) and whether locking needs a step-up sign-in like an export | Brian with the DPO | rule 11 | Locking in a real tenant | open |
+| H-1103 | Build the holiday ledger the slice 6 rules leave open: the 28-day yearly cap, rounding the accrued total to the nearest hour, and holiday pay during sick and statutory leave (regs 15B, 15C, 16A) | Brian | rule 5 | Holiday balances | open |
+| H-1104 | Decide how average weekly earnings for SSP are found (built: typed on the pay profile by Finance; slice 40's H-976 asks the same) rather than worked out from the 8 weeks of locked runs before the sickness | Brian with a payroll adviser | rule 6 | SSP without typed earnings | open |
+| H-1105 | Decide whether an overtime threshold is per week or per pay period, and whether bank holidays beyond the nation's calendar (the rule set's extra days) need approval each year | Brian with a Registered Manager | rule 3 | Overtime in monthly runs | open |
+| H-1106 | Decide whether a below-minimum-wage exception may be overridden at all (built: yes, with a reason, because the top-up line is already added) or must be put right in the rule set | Brian with the Nominated Individual | rule 9 | Pay runs in a real tenant | open |
+| H-1107 | Confirm the privacy notice tells staff about pay runs, the working kept with each line and who sees it (WORK-011) | DPO | records of processing (slice 36) | Pay runs in a real tenant | open |
+| H-1108 | Choose the first payroll provider for the export port (slice 76: Xero Payroll first) and add it to the sub-processor register and DPIA before any line is sent | DPO with Brian | `PayrollExportPort` | Slice 76 | open |
+| H-1109 | Decide how deductions for the employer's own use (uniform) and accommodation are recorded for the minimum wage check (built: none; the slice 6 rule takes them) | Brian with a payroll adviser | rule 4 | Minimum wage checks with deductions | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

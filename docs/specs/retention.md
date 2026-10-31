@@ -93,6 +93,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `clock_setting`, `clock_event`, `timesheet_entry`, `sleep_in_awake_period` ([scheduling.md](scheduling.md) section 16, slice 30) | rota_and_timesheet, counted from the end of the pay reference period; clock events and awake periods append-only; approved entries corrected by superseding, never changed |
 | `working_time_opt_out` (slice 30) | working_time_opt_out |
 | `working_time_result` (slice 30) | working_time_record |
+| `pay_rule_set`, `pay_run`, `pay_run_line`, `pay_run_exception` ([scheduling.md](scheduling.md) section 18, slice 36) | rota_and_timesheet, counted from the end of the pay period; lines append-only; locked runs never changed, corrected in a later run; rule sets kept while a run cites them |
+| `pay_profile` (slice 36) | staff_file (tenant's chosen row) |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |
 | `audit_event` | audit_event, extended by audit_event.care_record |
