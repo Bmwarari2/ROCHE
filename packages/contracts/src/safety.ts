@@ -211,6 +211,12 @@ export const UpdateIncident = z
     familyInformed: FamilyInformed.nullable().optional(),
     /** Rows with an id are changed (or removed); rows without are added. */
     people: z.array(IncidentPersonInput).max(50).optional(),
+    /**
+     * Why someone affected is no longer affected (removed, or their kind or role changed),
+     * whether or not a duty of candour decision is recorded: at least 20 characters, from a holder
+     * of safety.incident.manage, audited with the person (HZ-013; #120 review round 3, M1).
+     */
+    candourReason: text(1000).optional(),
     version,
   })
   .meta({ id: "UpdateIncident" });
@@ -514,15 +520,39 @@ export const UpdateCandour = z
     enquiryResultsSharedAt: isoDateTime.nullable().optional(),
     correspondenceDocumentIds: z.array(uuid).max(100).optional(),
     outcome: text(2000).nullable().optional(),
+    /**
+     * Why, when the threshold decision differs from Harbour's finding or changes a recorded one:
+     * at least 20 characters, with `thresholdConfirmed` (candourReasonProblems; HZ-091).
+     */
+    thresholdReason: text(1000).optional(),
+    thresholdConfirmed: z.boolean().optional(),
     version: upsertVersion,
   })
   .meta({ id: "UpdateCandour" });
 export type UpdateCandour = z.infer<typeof UpdateCandour>;
 
 export const CandourStep = z
-  .object({ to: CandourState, reason: text(1000).optional(), version })
+  .object({
+    to: CandourState,
+    reason: text(1000).optional(),
+    /** "Not notifiable" after Harbour drafted a candour notification is confirmed (HZ-091). */
+    confirmed: z.boolean().optional(),
+    version,
+  })
   .meta({ id: "CandourStep" });
 export type CandourStep = z.infer<typeof CandourStep>;
+
+/**
+ * Reopens a record finished as not notifiable or no contact (#120 review round 3, H1): a reason
+ * of at least 20 characters, audited (`candourReopenProblems`).
+ */
+export const ReopenCandour = z
+  .object({
+    reason: text(1000),
+    version,
+  })
+  .meta({ id: "ReopenCandour" });
+export type ReopenCandour = z.infer<typeof ReopenCandour>;
 
 export const CandourItem = z
   .object({

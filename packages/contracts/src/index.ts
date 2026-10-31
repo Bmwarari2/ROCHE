@@ -116,7 +116,10 @@ export const Me = z
       id: uuid,
       name: z.string(),
       terminology: z.enum(["resident", "client", "person_we_support"]),
+      /** A colour that passed `checkAccent` (PLAT-002), or null for Harbour's own. */
       brandAccent: z.string().nullable(),
+      /** The white-label logo, served by GET /v1/branding/logo; null when there is none. */
+      logoDocumentId: uuid.nullable(),
       nation: z.enum(["england", "wales", "scotland", "northern_ireland"]),
     }),
     tenantUserId: uuid,
@@ -498,9 +501,13 @@ export const TENANT_HEADER = "x-harbour-tenant";
 /** Header carrying the device id, recorded in the audit log. */
 export const DEVICE_HEADER = "x-harbour-device";
 
+export * from "./branding";
 export * from "./care";
 export * from "./care-planning";
 export * from "./client-id";
+export * from "./complaints";
+export * from "./data-protection";
+export * from "./data-rights";
 export * from "./devices";
 export * from "./dpia";
 export { BackEntryInput, DeviceDeletionFlag, EntryBackEntry, EntryNotFromPaper } from "./entries";
@@ -508,6 +515,7 @@ export * from "./escalation-policy";
 export * from "./exports";
 export * from "./family-feed";
 export * from "./handover";
+export * from "./imports";
 export * from "./invitations";
 export * from "./letters";
 export * from "./mca";
@@ -517,8 +525,11 @@ export * from "./operations";
 export * from "./people";
 export * from "./person-summary";
 export * from "./quality";
+export * from "./quality-framework";
 export * from "./records";
+export * from "./safeguarding";
 export * from "./safety";
+export * from "./scheduling";
 export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";
@@ -542,3 +553,4 @@ export const AccountDeletionRequest = z
   })
   .meta({ id: "AccountDeletionRequest" });
 export type AccountDeletionRequest = z.infer<typeof AccountDeletionRequest>;
+export * from "./workforce";

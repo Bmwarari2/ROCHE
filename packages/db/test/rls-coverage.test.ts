@@ -37,6 +37,7 @@ const APPEND_ONLY_TABLES = [
   "entry_device_deletion_flag",
   "downtime_pack",
   "evidence_pack_item",
+  "framework_mapping",
   "letter",
   "feed_item",
   "feed_item_withdrawal",
@@ -46,6 +47,10 @@ const APPEND_ONLY_TABLES = [
   "dcb0160_record",
   "sub_processor_notice",
   "sub_processor_response",
+  "policy_signature",
+  "processor_breach_notice",
+  "processor_breach_notice_ack",
+  "dependency_assessment",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

@@ -1,7 +1,11 @@
 import {
   BED_RAIL_RATE_KEYS,
   type BedRailLimits,
+  CANDOUR_REASON_MIN,
   type ClassifierQuestionKey,
+  candourReasonProblems,
+  candourReopenProblems,
+  candourStepProblems,
   checkActivity,
   checkAdvanceCareRecord,
   checkEntryTime,
@@ -358,8 +362,29 @@ describe("closing an incident and the notifications (HZ-013)", () => {
       notifications: [{ kind: "cqc_reg16_death", status: "draft" }],
       openQuestions: ["death.expected"],
       candourState: "verbal_due",
+      candour: { indicated: true, notifiable: true, personId: "a", people: ["a", "b"] },
     }).join(" ");
-    expect(keysOf(detail)).toEqual(["closeNotifications", "closeQuestions", "closeCandour"]);
+    expect(keysOf(detail)).toEqual([
+      "closeNotifications",
+      "closeQuestions",
+      "closeCandour",
+      "closeCandourPeople",
+    ]);
+    const none = incidentCloseProblems({
+      notifications: [],
+      openQuestions: [],
+      candourState: null,
+      candour: { indicated: true, notifiable: null, personId: null, people: ["a"] },
+    }).join(" ");
+    expect(keysOf(none)).toEqual(["closeCandourRecord"]);
+    // One "not notifiable" decision covers only the person it names (#120 round 2, M1).
+    const notNotifiable = incidentCloseProblems({
+      notifications: [],
+      openQuestions: [],
+      candourState: "not_notifiable",
+      candour: { indicated: true, notifiable: false, personId: "a", people: ["a", "b"] },
+    }).join(" ");
+    expect(keysOf(notNotifiable)).toEqual(["closeCandourPeople"]);
   });
 
   it("knows the workflow's refusals", () => {
@@ -408,5 +433,177 @@ describe("closing an incident and the notifications (HZ-013)", () => {
       code: "separation_of_duties",
       message: t("errors.separationOfDuties"),
     });
+  });
+});
+
+describe("the duty of candour record and the investigation (HZ-013, HZ-091)", () => {
+  const nothing = {
+    threshold: null,
+    verbal: null,
+    contactAttempts: [],
+    written: null,
+    enquiryResultsSharedAt: null,
+    correspondenceDocumentIds: [],
+  };
+
+  it("hazard HZ-091 knows every reason a candour step is refused, joined as the API joins them", () => {
+    const verbal = candourStepProblems("written_due", {
+      ...nothing,
+      verbal: {
+        at: new Date(),
+        byRepresentatives: [],
+        inPerson: false,
+        accountGiven: false,
+        enquiriesAdvised: false,
+        apologyGiven: false,
+        writtenRecordId: null,
+      },
+    }).join(" ");
+    expect(keysOf(verbal)).toEqual([
+      "candourInPerson",
+      "candourRepresentatives",
+      "candourAccount",
+      "candourEnquiriesAdvised",
+      "candourApology",
+      "candourWrittenRecord",
+    ]);
+    const written = candourStepProblems("closed", {
+      ...nothing,
+      written: {
+        sentAt: new Date(),
+        documentId: null,
+        includesAccount: false,
+        includesEnquiries: false,
+        includesApology: false,
+      },
+    }).join(" ");
+    expect(keysOf(written)).toEqual([
+      "candourWrittenCopy",
+      "candourWrittenAccount",
+      "candourWrittenEnquiries",
+      "candourWrittenApology",
+      "candourResults",
+      "candourCorrespondence",
+    ]);
+    expect(keysOf(candourStepProblems("verbal_due", nothing).join(" "))).toEqual([
+      "candourThreshold",
+    ]);
+    expect(keysOf(candourStepProblems("no_contact", nothing).join(" "))).toEqual([
+      "candourAttempts",
+    ]);
+    expect(keysOf(candourStepProblems("enquiries_open", nothing).join(" "))).toEqual([
+      "candourWritten",
+    ]);
+    expect(keysOf(candourStepProblems("written_due", nothing).join(" "))).toEqual([
+      "candourVerbal",
+    ]);
+    const mismatch = candourStepProblems("not_notifiable", {
+      ...nothing,
+      threshold: { notifiable: true, decidedAt: new Date(), decidedBy: "A nurse" },
+    }).join(" ");
+    expect(keysOf(mismatch)).toEqual(["candourThresholdMismatch"]);
+  });
+
+  it("knows the API's own candour and investigation checks, at their fields", () => {
+    expect(
+      problemMessage(
+        { code: "invalid", detail: "The relevant person must be one of the people affected." },
+        t,
+      ).fields,
+    ).toEqual({ personId: t("care.refusal.candourPerson") });
+    expect(
+      problemMessage({ code: "invalid", detail: "The decision cannot be dated in the future." }, t)
+        .fields,
+    ).toEqual({ decidedAt: t("care.refusal.candourDecidedInFuture") });
+    const complete = problemMessage(
+      { code: "invalid", detail: "Record the findings and the lessons before completing it." },
+      t,
+    );
+    expect(complete.fields).toEqual({
+      findings: t("care.refusal.investigationComplete"),
+      lessons: t("care.refusal.investigationComplete"),
+    });
+    expect(keysOf("The action owner was not found.")).toEqual(["investigationPerson"]);
+    expect(keysOf("The investigation lead was not found.")).toEqual(["investigationPerson"]);
+    // apps/api/src/routes/incidents.ts: an owner who could never complete the action's task.
+    const owner = problemMessage(
+      {
+        code: "invalid",
+        detail:
+          "The action's owner cannot be given its task: they do not manage incidents at this location.",
+      },
+      t,
+    );
+    expect(owner.fields).toEqual({ newOwner: t("care.refusal.investigationOwner") });
+    // apps/api/src/routes/incidents.ts: the candour record's own checks (review L5).
+    const at = (detail: string) => problemMessage({ code: "invalid", detail }, t).fields;
+    expect(at("The decision cannot be dated before the incident happened.")).toEqual({
+      decidedAt: t("care.refusal.candourDecidedBeforeIncident"),
+    });
+    expect(at("The time they were told cannot be in the future.")).toEqual({
+      at: t("care.refusal.candourToldFuture"),
+    });
+    expect(at("The time the written notification was sent cannot be in the future.")).toEqual({
+      sentAt: t("care.refusal.candourSentFuture"),
+    });
+    expect(at("The time of an attempt to contact them cannot be in the future.")).toEqual({
+      attemptAt: t("care.refusal.candourAttemptFuture"),
+    });
+    expect(at("The time the results were shared cannot be in the future.")).toEqual({
+      resultsSharedAt: t("care.refusal.candourResultsFuture"),
+    });
+    expect(keysOf("A document cited must be on the relevant person's record.")).toEqual([
+      "candourDocument",
+    ]);
+    // #120 review round 2: the API's own checks on who the record names, the reasons it asks
+    // for, and times before the incident.
+    expect(
+      keysOf("Choose who it happened to, from the people affected, before moving the record on."),
+    ).toEqual(["candourStepPerson"]);
+    expect(at("The relevant person cannot change once the record is finished.")).toEqual({
+      personId: t("care.refusal.candourPersonFinished"),
+    });
+    expect(at(candourReasonProblems("No harm.", false).join(" "))).toEqual({
+      reason: t("care.refusal.candourReason"),
+      confirm: t("care.refusal.candourConfirm"),
+    });
+    expect(at("The time they were told cannot be before the incident happened.")).toEqual({
+      at: t("care.refusal.candourToldEarly"),
+    });
+    expect(
+      at("The time the written notification was sent cannot be before the incident happened."),
+    ).toEqual({ sentAt: t("care.refusal.candourSentEarly") });
+    expect(
+      at("The time of an attempt to contact them cannot be before the incident happened."),
+    ).toEqual({ attemptAt: t("care.refusal.candourAttemptEarly") });
+    expect(
+      keysOf(
+        `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
+      ),
+    ).toEqual(["candourPersonDropped"]);
+    // #120 review round 3: a closed incident, reopening (run in the domain), and who may take a
+    // person out of those affected; a finished record's decision has its own code.
+    expect(keysOf("The duty of candour record of a closed incident cannot be changed.")).toEqual([
+      "candourClosedIncident",
+    ]);
+    expect(at(candourReopenProblems("closed", "No.").join(" "))).toEqual({
+      reason: t("care.refusal.candourReopenReason"),
+    });
+    expect(
+      keysOf(candourReopenProblems("closed", "x".repeat(CANDOUR_REASON_MIN)).join(" ")),
+    ).toEqual(["candourReopenState"]);
+    expect(
+      keysOf("Only someone who manages incidents can take a person out of those affected."),
+    ).toEqual(["affectedManagersOnly"]);
+    expect(
+      problemMessage(
+        {
+          code: "candour_finished",
+          detail:
+            "The decision cannot change once the record is finished: reopen it first, with a reason.",
+        },
+        t,
+      ).message,
+    ).toBe(t("care.refusal.candourFinished"));
   });
 });

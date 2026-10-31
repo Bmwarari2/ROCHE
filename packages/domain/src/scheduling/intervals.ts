@@ -20,6 +20,7 @@ export const MINUTES_PER_HOUR = 60;
 export const HOURS_PER_DAY = 24;
 export const DAYS_PER_WEEK = 7;
 export const MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY;
+export const MONTHS_PER_YEAR = 12;
 
 export function minutesBetween(start: Date, end: Date): number {
   return (end.getTime() - start.getTime()) / MS_PER_MINUTE;
@@ -129,7 +130,8 @@ export function mondayOnOrBefore(isoDate: string): string {
   return plusDays(isoDate, -((weekday + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK));
 }
 
-function atMinuteOfDay(isoDate: string, minuteOfDay: number): Date {
+/** The instant a UK wall-clock minute of a date occurs (`fromUkWallClock`: the gap moves forward). */
+export function atMinuteOfDay(isoDate: string, minuteOfDay: number): Date {
   const [year, month, day] = isoDate.split("-").map(Number) as [number, number, number];
   return fromUkWallClock(
     year,

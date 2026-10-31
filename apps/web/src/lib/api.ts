@@ -4,7 +4,8 @@ import { type ApiClient, createApiClient } from "@harbour/contracts/client";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { clientAddress, trustedProxies } from "./client-address";
+import { apiRequestHeaders } from "./api-headers";
+import { trustedProxies } from "./client-address";
 import { LOCATION_COOKIE, selectLocation, selectTenant, TENANT_COOKIE } from "./context-cookies";
 import { redirectForProblem } from "./problems";
 
@@ -19,22 +20,11 @@ export const API_URL = (
   "http://localhost:4000"
 ).replace(/\/+$/, "");
 
-/** Request headers passed on to the API: the session cookie, and what the audit log records. */
-const FORWARDED = ["cookie", "user-agent", "x-request-id"] as const;
-
 const TRUSTED_PROXIES = trustedProxies(process.env.TRUSTED_PROXY_CIDRS);
 
+/** The session cookie, and what the audit log records (a request id only as a UUID). */
 async function forwardedHeaders(): Promise<Record<string, string>> {
-  const incoming = await headers();
-  const out: Record<string, string> = {};
-  for (const name of FORWARDED) {
-    const value = incoming.get(name);
-    if (value) out[name] = value;
-  }
-  // Only the address the trusted proxies saw, never what the client wrote to the left of it.
-  const address = clientAddress(incoming.get("x-forwarded-for"), TRUSTED_PROXIES);
-  if (address) out["x-forwarded-for"] = address;
-  return out;
+  return apiRequestHeaders(await headers(), TRUSTED_PROXIES);
 }
 
 /** A typed API client acting as the signed-in person, optionally for one organisation. */

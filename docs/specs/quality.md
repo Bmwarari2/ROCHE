@@ -698,3 +698,165 @@ Table-driven, in `packages/domain/src/quality/` beside each module, at 90% line 
 `quality-indicators.test.ts` (16 to 22, the last as `rule 22 missing data is never shown as
 good`), `quality-pir.test.ts` (23, 24), `policies.test.ts` (25 to 28), `quality-data-security.test.ts`
 (29 to 31) and `quality-rates.test.ts` (the rows resolve from rates.md; a missing row fails loudly).
+
+## 18. Compliance framework and evidence library (slice 14: QUAL-001, QUAL-002; migration 0076)
+
+Schema and API for rules 1 to 7 (section 17), with [ADR-0096](../decisions/0096-compliance-framework-content.md).
+Spec, schema, permission matrix and test list before the code; the screens are slice 64.
+
+### 18.1 Schema (migration 0076)
+
+| Table | Kind | Key columns | Security | Retention class |
+| --- | --- | --- | --- | --- |
+| `framework_version` | Global reference, fixed once published | id, framework key, regulator (`cqc`, `ciw`, `care_inspectorate`, `rqia`), version number, state (`draft`, `published`, `retired`), published and retired dates, source name, provision and https link | No tenant; forced RLS, read by every role, written only by the owner role in migrations; a guard allows only draft to published to retired | Not exported (global) |
+| `framework_key_question`, `framework_statement`, `framework_evidence_category` | Global reference | framework version, id (the evidence pack's id pattern), position, title; a statement names its key question | As above; content of a published version never changes, even for the owner role | Not exported (global) |
+| `framework_mapping` | Append-only, tenant | framework version, mapping version (next, set by the database's check), entries (statement id, local title, owner role, evidence categories), made by and at | Tenant policy; restrictive: `quality.evidence.manage` anywhere or a job; entries must name the version's statements and categories, each statement once | `tenant_configuration` |
+| `evidence_link` | Mutable aggregate (only to remove), tenant | record type and id, framework version, statement ids (1 to 20), tagged by and at, removed at, by and reason | Tenant policy; restrictive as above; statements must be in a published version; afterwards only removal, once, in the remover's name; no delete | `tenant_configuration` |
+
+Version 1 (CQC's single assessment framework: 5 key questions, 34 quality statements, 6 evidence
+categories, with the CQC page as source) is seeded by the migration; titles and date to be
+confirmed (H-606).
+
+### 18.2 Permissions
+
+| Permission | Allows | Held by |
+| --- | --- | --- |
+| Any of `quality.evidence.manage`, `quality.audit.manage`, `quality.policy.manage`, `quality.evidence_pack.compose`, `.release` | Read framework versions and their content | Owner, Registered Manager, deputy, nurse in charge (audits), quality lead |
+| `quality.evidence.manage` | Read and change the organisation's mapping; tag records as evidence, list and remove tags; coverage | Owner, Registered Manager, deputy, quality lead |
+
+### 18.3 API
+
+| Route | Does |
+| --- | --- |
+| `GET /v1/quality/frameworks` | Every version, the one in force today for each regulator marked (rule 3) |
+| `GET /v1/quality/frameworks/{id}` | Key questions with their statements, and evidence categories |
+| `GET /v1/quality/frameworks/{id}/mapping[?at=]` | The latest mapping, or the one in force at a moment; version 0 when none |
+| `PUT /v1/quality/frameworks/{id}/mapping` | A new mapping version (the read one plus one; 409 when stale), checked by `checkMappingChange`; `quality.framework.mapping_changed` |
+| `GET /v1/quality/frameworks/{id}/coverage` | Records per statement and the gaps (rule 7), removed tags not counted |
+| `GET /v1/evidence-links?recordType&recordId` or `?frameworkVersionId&statementId` | Links for a record or a statement, removed ones marked |
+| `POST /v1/evidence-links` | Tag a record read in the tagger's scope (anything else is 404) against a published version's statements (`checkEvidenceTag`); record types are the evidence pack's until audits, compliments, policies and surveys register theirs (422 `record_type_not_available` until then); `quality.evidence.tagged` |
+| `POST /v1/evidence-links/{id}/remove` | With a reason and the read version; `quality.evidence.untagged` |
+
+Refusals decided in the API and those the database raises are audited as denied. The evidence pack
+(compose and add items) now takes its quality statement ids from the CQC version in force: a key
+question id (as the screens send) or a statement id; an unknown id is refused with the ids named
+(422). Where no version is in force (a nation not yet loaded) the ids stay opaque.
+
+### 18.4 Tests
+
+- `packages/db/test/quality-framework.test.ts`: the seeded counts and ids; global tables
+  read-only to the application; a published version's content fixed; mappings append-only,
+  numbered next, naming real statements once; links naming real statements of a published version,
+  in the tagger's name, removed once, never deleted, versioned; cross-tenant denial and denial to
+  anyone without `quality.evidence.manage` (HZ-011). `rls-coverage.test.ts` lists
+  `framework_mapping` as append-only.
+- `apps/api/test/quality-framework.test.ts`: the framework in force; mappings by version and by
+  moment, stale and unknown refused and audited; tags in scope, refusals (unknown statement, record
+  type not yet available, never evidence, missing record), lists, coverage and removal; the
+  evidence pack taking statement and key question ids and refusing others.
+- The evidence pack's API tests use statement ids from version 1.
+
+## 18. Policy library and read-and-sign (slice 25: QUAL-008; migration 0087)
+
+Stores and serves the slice 8 policy rules (section 17.3, rules 25 to 28) in lane E. Screens are
+slice 65. Vendor PDF and structured import, the change log as its own screen, and the starter
+templates (CCTV with the camera and signage register, social media, photography and image consent,
+AI use) are left for slice 65 (section 18.7); a version's content may already be a PDF the
+organisation uploaded.
+
+### 18.1 Schema
+
+Forced row-level security on every table (ADR-0002); all three in the organisation's own data.
+
+| Table | Kind | Columns | Rules |
+| --- | --- | --- | --- |
+| `policy` | mutable, versioned | `policy_key` (`^[a-z][a-z0-9_]{1,63}$`, unique), `title`, `require_second_reviewer` (the tenant's choice for this policy), `retired_at`, `retired_reason` | One row per policy; never deleted |
+| `policy_version` | mutable while a draft, then fixed except its state | `policy_id`, `version_number` (1, 2, 3), `state` (`draft`, `published`, `superseded`, `retired`), `change` (`minor`, `major`; the first version is `major`), `change_summary` (what changed, the change log), `body` (plain text or Markdown, up to 100,000 characters) and or `document_id` (an organisation document, PDF), `roles` (the role keys whose holders must read and sign it), `review_due_on`, `author_id`, `published_by`, `published_on` (UK date), `published_at`, `superseded_at`, `retired_reason` | One draft and at most one published version per policy (unique indexes). Publishing (by the database's guard, in the publisher's own name, by a holder of `quality.policy.manage`, never the author where the policy needs a second reviewer, with a review date after the publication date) supersedes the version before it in the same transaction. Only the state changes after publication |
+| `policy_signature` | append-only | `policy_version_id`, `signer_id`, `signed_at` | One per version and member; in the signer's own name; only on the version in force (published); never changed or deleted |
+
+Retention: `organisation_document` for `policy` and `policy_version` (kept while current, then as
+the organisation's policy, with each version); `policy_signature` is a staff training and
+compliance record, `training_record` (10 years from signing). Reminder tasks follow the record they
+concern.
+
+### 18.2 Permissions
+
+No new permission. `quality.policy.manage` writes, publishes, retires and reads drafts and everyone's
+read-and-sign status (section 17.2). Every member of the organisation reads published, superseded
+and retired versions (staff must be able to open the policies they follow, as organisation
+documents) and signs the version in force; a member sees their own signatures, holders of
+`quality.policy.manage` see all. The database enforces the same (`app.holds_permission_anywhere`).
+
+### 18.3 Rules (as built)
+
+- Required signers (`readAndSignStatus`, rule 26): every member on staff holding, now, a role whose
+  key (or the built-in key it is based on) is in the version's `roles`, from the later of the
+  publication date and the start of that role assignment; a member whose assignments have all ended
+  has left. A `minor` version keeps the signatures on the one it superseded; a `major` one does not.
+- A signature is only on the version in force: signing a draft, a superseded or a retired version
+  is refused, by the API and the database (HZ-128).
+- A superseded or retired version is always served with its state and, for a superseded one, the
+  version that replaced it, so a printed or linked copy says it is not current (HZ-128). The list of
+  policies shows only the version in force.
+- Reminders (rule 27, with the slice 25 reviews): the `policy-reminders` job (hourly) raises a task
+  assigned to each outstanding member (kind `quality.policy_read_and_sign`, the generic title "Read
+  and sign a policy", source the version) on the first run after they become due, then when
+  `policy.read_and_sign.reminder_days` UK days have passed since their last reminder, cancelling
+  the previous one. A reminder is due at the next reminder, so it does not go overdue and escalate;
+  only signing completes it (`EVIDENCE_ONLY_TASK_KINDS`: no task transition closes it); a newer
+  version or retirement cancels it.
+- Review (rule 28): when a version in force is `due_soon` or `overdue` against its review date, one
+  task each (kind `quality.policy_review`, "Review a policy") for the author, else the publisher,
+  else another holder of `quality.policy.manage`, each only while they hold it, once per state;
+  a newer version or retirement ends them.
+- Roles: a version naming a role key the organisation does not have (by a role's key or the
+  built-in key it is based on) is not published.
+- PDFs: a policy's PDF is an organisation document with no subject. The general document routes list
+  and serve it only while its version is in force, and never take a new file version of it;
+  `GET /v1/policies/{id}/versions/{versionId}/document` serves any version's PDF the caller may read,
+  with `x-harbour-policy-state` and, for a superseded one, `x-harbour-policy-in-force`.
+- A policy whose only version is a draft, and the history of drafts, are read only by holders of
+  `quality.policy.manage`.
+
+### 18.4 API
+
+Every change takes `expectedVersion` where it changes a row (409 when stale) and is audited with
+opaque ids only.
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/policies` | any member | Each policy with its version in force (number, change, review status), and whether the caller must sign it and has |
+| `POST /v1/policies` | `quality.policy.manage` | A policy with its first draft |
+| `GET /v1/policies/{id}` | any member | The policy and its versions with the change log; drafts only for holders of manage |
+| `POST /v1/policies/{id}/versions` | `quality.policy.manage` | A new draft (minor or major), from the version in force unless content is given |
+| `PATCH /v1/policies/{id}/versions/{versionId}` | `quality.policy.manage` | Change a draft |
+| `POST /v1/policies/{id}/versions/{versionId}/publish` | `quality.policy.manage` | `checkPolicyPublication`, then publish and supersede the last |
+| `POST /v1/policies/{id}/retire` | `quality.policy.manage` | Retire the policy with a reason (its version in force becomes `retired`) |
+| `POST /v1/policies/{id}/versions/{versionId}/signatures` | any member | Read and sign the version in force |
+| `GET /v1/policies/{id}/versions/{versionId}/read-and-sign` | `quality.policy.manage` | Who must sign, who has and who is outstanding since when (`readAndSignStatus`) |
+| `GET /v1/policies/{id}/versions/{versionId}/document` | any member (drafts: manage) | The version's PDF, with its state in the response headers |
+| `GET /v1/me/policies` | any member | The versions in force the caller must sign and has not |
+
+Audit actions: `quality.policy.created`, `.drafted`, `.edited`, `.published`, `.retired`,
+`.signed`, `.status_viewed`; outbox `quality.policy.published` (policy, version, change).
+
+### 18.5 Clinical safety
+
+HZ-128 (staff follow a superseded policy or procedure) is added to the hazard log by this slice,
+with the controls above and a `hazard HZ-128 ...` test for each.
+
+### 18.6 Tests
+
+- `packages/db/test/policies.test.ts`: another organisation's rows never seen; drafts only for
+  holders of manage; one draft and one published version per policy; publishing supersedes, in the
+  publisher's own name, never the author with a second reviewer; a version fixed once published;
+  signatures only on the version in force, in one's own name, never changed.
+- `apps/api/test/policies.test.ts`: each route's permission and audit; publication checks; minor and
+  major changes against signatures; superseded versions served as such; reminders and review tasks
+  once each, completed by signing and cancelled by a new version.
+
+### 18.7 Left for later
+
+Vendor PDF and structured import (a PDF can already be a version's document), the starter
+templates as drafts, and the change log screen (slice 65); acknowledgement of a policy by people
+outside the staff (not planned).

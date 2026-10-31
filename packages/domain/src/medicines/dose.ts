@@ -165,8 +165,12 @@ function simpleUnitName(name: string, one: boolean): string {
   return [...words, plural(last)].join(" ");
 }
 
-/** A unit that is a measured amount of something, such as "5ml spoonful": its size and its noun. */
-const SIZED_UNIT = /^(\d+(?:\.\d+)?)\s*([a-z\u00b5\u03bc.]+)\s+(.+)$/i;
+/**
+ * A unit that is a measured amount of something, such as "5ml spoonful": its size and its noun. The
+ * noun starts with a non-space so the space before it and the noun cannot share characters, which
+ * keeps matching linear (CodeQL js/polynomial-redos); names reach it trimmed with single spaces.
+ */
+const SIZED_UNIT = /^(\d+(?:\.\d+)?)\s*([a-z\u00b5\u03bc.]+)\s+(\S.*)$/i;
 
 /**
  * The unit's name for display: in full where the BNF asks, plural unless the quantity is 1. A

@@ -24,7 +24,8 @@ import {
 import {
   checkSignature,
   type DocumentCategoryKey,
-  isUnderLegalHold,
+  documentStorageKey,
+  type GeneralDocumentCategory,
   narrowestScope,
   type Permission,
   type RetentionRule,
@@ -32,7 +33,7 @@ import {
   scopeFor,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -51,11 +52,14 @@ import {
   careEndedOn,
   contentHeaders,
   destroyingOnFailure,
+  documentHeld,
+  documentVersionChains,
   imagePrintableOf,
   readDocumentContent,
   storeDocument,
   toDocumentItems,
 } from "../services/documents";
+import { policyDocumentUse } from "../services/policies";
 import {
   conflictResponse,
   createRouter,
@@ -71,17 +75,19 @@ import {
  * about a person need the person's permissions and follow their scope.
  */
 
-const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
+const UPLOAD_PERMISSION: Record<GeneralDocumentCategory, Permission> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   care_attachment: "care.note.write",
   person_document: "people.person.update",
   organisation_document: "platform.document.manage",
+  // Set only through PUT /v1/branding/logo, which this route refuses (PLAT-002).
+  organisation_logo: "platform.tenant.manage",
 };
 
 const RETENTION_PERMISSION: Permission = "platform.retention.manage";
 const binary = z.string().meta({ format: "binary" });
-const fileBody = {
+export const fileBody = {
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -91,7 +97,7 @@ const fileBody = {
   },
   required: true,
 } as const;
-const fileResponse = (description: string) => ({
+export const fileResponse = (description: string) => ({
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -113,12 +119,14 @@ const RECORD_READ: Permission = "people.person.read";
  * is about no one and is read by any member of the organisation, as before: staff must be able to
  * open the escalation and other policies they follow (HZ-014).
  */
-export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+export const DOCUMENT_READ_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.read",
   feed_photo: "people.person.read",
   person_document: "people.person.read",
   care_attachment: "care.note.read",
   organisation_document: null,
+  // Served only by GET /v1/branding/logo, to any member; never by the document routes (PLAT-002).
+  organisation_logo: null,
 };
 
 /**
@@ -138,12 +146,13 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
  * signature is a write, so it needs the category's update permission where it reaches the person,
  * never only a read permission (which a break-glass record can open).
  */
-const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+const SIGN_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   person_document: "people.person.update",
   care_attachment: "care.note.write",
   organisation_document: null,
+  organisation_logo: null,
 };
 
 /** An organisation's document: no person, and its category says so. Anything else about no one is not served. */
@@ -183,7 +192,8 @@ async function requireRead(
 ): Promise<TenantAccess> {
   if (organisationDocument(row)) return c.get("access");
   if (!servable(row)) throw problems.notFound();
-  const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
+  const permission =
+    DOCUMENT_READ_PERMISSION[row.category as GeneralDocumentCategory] ?? RECORD_READ;
   const access = await requirePermission(c, RECORD_READ);
   return permission === RECORD_READ ? access : requirePermission(c, permission);
 }
@@ -198,8 +208,14 @@ async function documentForRead(c: Context<AppEnv>, id: string) {
   useScopeOf(c, RECORD_READ);
   const found = await withTenant(c, (tx) => findDocument(tx, id));
   if (!found) throw problems.notFound();
-  // A document about no one is served only as an organisation's document (review round 2).
-  if (organisationDocument(found)) return found;
+  // A document about no one is served only as an organisation's document (review round 2), and a
+  // policy's PDF only while its version is in force (HZ-128): a draft's, a superseded or a
+  // retired version's is opened through the policy library, which says so.
+  if (organisationDocument(found)) {
+    const use = await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]));
+    if (use.get(found.id) === "not_in_force") throw problems.notFound();
+    return found;
+  }
   if (!servable(found)) throw problems.notFound();
   await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
@@ -238,7 +254,15 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const q = c.req.valid("query");
+      // HR-only staff documents go only through the staff file (workforce.md section 5).
+      if (q.category === "staff_hr_document") {
+        throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
+      // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
+      if (q.category === "organisation_logo") {
+        throw problems.invalid("Upload the organisation's logo on the branding page.");
+      }
       // A subject is named by its type and id together (review round 3).
       if (q.subjectId && !q.subjectType) {
         throw problems.invalid("Say what kind of record the document is attached to.");
@@ -356,9 +380,17 @@ export const documentsRouter = createRouter()
           ]);
           perCategory.push(...(await inScopeOf(tx, scope, () => query(category).limit(500))));
         }
-        const rows = personId
+        const listed = personId
           ? perCategory.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 500)
           : await query(q.category).limit(500);
+        // HZ-128: a policy PDF not in force is listed only by the policy library.
+        const use = personId
+          ? new Map<string, string>()
+          : await policyDocumentUse(
+              tx,
+              listed.map((d) => d.id),
+            );
+        const rows = listed.filter((d) => use.get(d.id) !== "not_in_force");
         await auditInTx(tx, access, {
           action: "platform.document.list",
           resourceType: "document",
@@ -442,9 +474,15 @@ export const documentsRouter = createRouter()
       const found = await withTenant(c, (tx) => findDocument(tx, id));
       // A document of a person's category that names no person is not found (review round 3).
       if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
+      // A policy's PDF changes only by a new policy version (HZ-128).
+      if ((await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]))).size > 0) {
+        throw problems.conflict(
+          "This file is a policy's content. Change it as a new policy version.",
+        );
+      }
       const access = await requirePermission(
         c,
-        UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
+        UPLOAD_PERMISSION[found.category as GeneralDocumentCategory],
       );
       const previous = await withTenant(c, (tx) => findDocument(tx, id));
       if (!previous || previous.status === "destroyed" || !servable(previous)) {
@@ -506,7 +544,7 @@ export const documentsRouter = createRouter()
       // Signing a document about a person is a write: its category's update permission must reach
       // the person, found again in that narrowed scope; a break-glass record never opens it
       // (review round 2, S2-M1). An organisation's document is signed by any member, as before.
-      const sign = SIGN_PERMISSION[read.category as DocumentCategoryKey] ?? null;
+      const sign = SIGN_PERMISSION[read.category as GeneralDocumentCategory] ?? null;
       let row = read;
       if (read.personId !== null) {
         if (sign === null) throw problems.notFound();
@@ -611,10 +649,23 @@ export const documentsRouter = createRouter()
       responses: { 200: jsonBody(LegalHoldList, "Holds"), ...errorResponses },
     }),
     async (c) => {
-      await requirePermission(c, RETENTION_PERMISSION);
-      const rows = await withTenant(c, (tx) =>
-        tx.select().from(legalHold).orderBy(desc(legalHold.placedAt)).limit(500),
-      );
+      const access = await requirePermission(c, RETENTION_PERMISSION);
+      // Holds name people and give reasons: the read is audited by count, as every records read
+      // is (section 5.5; security review, 31 October 2026).
+      const rows = await withTenant(c, async (tx) => {
+        const found = await tx
+          .select()
+          .from(legalHold)
+          .orderBy(desc(legalHold.placedAt))
+          .limit(500);
+        await auditInTx(tx, access, {
+          action: "platform.legal_hold.list",
+          resourceType: "legal_hold",
+          scope: { count: found.length },
+          requestId: c.get("requestId"),
+        });
+        return found;
+      });
       return c.json({ items: rows.map(holdItem) }, 200);
     },
   )
@@ -639,6 +690,7 @@ export const documentsRouter = createRouter()
         throw problems.invalid("Choose a person, or a record type and id.");
       }
       const row = await withTenant(c, async (tx) => {
+        await lockRetention(tx, access.tenantId);
         const [placed] = await tx
           .insert(legalHold)
           .values({
@@ -735,7 +787,8 @@ export const documentsRouter = createRouter()
         // A title is shown only where the caller may read that category of document (a person's
         // record needs its own read permissions); otherwise the page says the category alone.
         const mayRead = (category: string) => {
-          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          // HR-only staff documents have no entry here, so they read as undefined: never titled.
+          const permission = DOCUMENT_READ_PERMISSION[category as GeneralDocumentCategory];
           if (permission === null) return true;
           if (permission === undefined) return false;
           return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;
@@ -796,7 +849,7 @@ export const documentsRouter = createRouter()
       tags: ["platform"],
       summary: "Destroy documents past retention and issue destruction certificates",
       description:
-        "Each id is checked again: anything held, not yet due or not found is skipped. Stored bytes (every version) are deleted; the metadata row is kept as a tombstone with the title removed.",
+        "Each id is checked again under the organisation's retention lock, with the documents locked: anything held (including a hold placed while this ran), not yet due or not found is skipped. The tombstone (title removed) and the destruction certificate are committed first; the stored bytes (every version) are deleted after, and a deletion that fails is retried from the outbox (platform.document.destroyed) until it succeeds.",
       security,
       request: { body: { content: { "application/json": { schema: DestroyDocuments } } } },
       responses: { 200: jsonBody(DestructionResult, "Destroyed"), ...errorResponses },
@@ -804,18 +857,22 @@ export const documentsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, RETENTION_PERMISSION);
       const req = c.req.valid("json");
-      const { storage } = c.get("services");
-      const result = await withTenant(c, async (tx) => {
+      const { storage, logger } = c.get("services");
+      const { result, stored } = await withTenant(c, async (tx) => {
         const now = new Date();
-        const eligible = await eligibleDocuments(tx, access.tenantId, now, req.documentIds);
+        // A hold placed before this point is committed and read below; one placed after waits
+        // for this transaction (`lockRetention`). The documents are locked against a concurrent
+        // destruction or change, and re-read as they now stand (security review, 31 October 2026).
+        await lockRetention(tx, access.tenantId);
+        const eligible = await eligibleDocuments(tx, access.tenantId, now, req.documentIds, true);
         const byClass = new Map<string, typeof eligible>();
         for (const e of eligible) {
           byClass.set(e.row.retentionClass, [...(byClass.get(e.row.retentionClass) ?? []), e]);
         }
         const certificates = [];
+        const stored: { id: string }[] = [];
         for (const [recordClass, docs] of byClass) {
-          for (const d of docs) await storage.destroy(d.row.storageKey);
-          await tx
+          const updated = await tx
             .update(document)
             .set({
               status: "destroyed",
@@ -828,23 +885,38 @@ export const documentsRouter = createRouter()
                 document.id,
                 docs.map((d) => d.row.id),
               ),
-            );
+            )
+            .returning({ id: document.id });
+          if (updated.length === 0) continue;
           const [certificate] = await tx
             .insert(destructionCertificate)
             .values({
               recordClass,
               subjectType: "document",
-              subjectIds: docs.map((d) => d.row.id),
-              recordCount: docs.length,
+              subjectIds: updated.map((d) => d.id),
+              recordCount: updated.length,
               retentionRule: docs[0]?.rule ?? {},
               reason: req.reason,
               method: `storage_delete_all_versions:${storage.provider}`,
               executedAt: now,
             })
             .returning();
-          if (certificate) certificates.push(certificate);
+          if (!certificate) throw problems.conflict();
+          certificates.push(certificate);
+          // The bytes are deleted only once this commits; the event retries the deletion until
+          // it succeeds (outboxHandlers in jobs/tasks.ts), so none outlive a failed attempt.
+          for (const d of updated) {
+            await publish(tx, {
+              context: "platform",
+              aggregateType: "document",
+              aggregateId: d.id,
+              type: "platform.document.destroyed",
+              payload: { certificateId: certificate.id },
+            });
+            stored.push(d);
+          }
         }
-        const destroyed = new Set(eligible.map((e) => e.row.id));
+        const destroyed = new Set(stored.map((d) => d.id));
         await auditInTx(tx, access, {
           action: "platform.retention.destroy",
           resourceType: "document",
@@ -853,13 +925,42 @@ export const documentsRouter = createRouter()
           requestId: c.get("requestId"),
         });
         return {
-          certificates: certificates.map(certificateItem),
-          skipped: req.documentIds.filter((id) => !destroyed.has(id)),
+          result: {
+            certificates: certificates.map(certificateItem),
+            skipped: req.documentIds.filter((id) => !destroyed.has(id)),
+          },
+          stored,
         };
       });
+      // Committed: the tombstones and certificates stand, so the bytes go now. A deletion that
+      // fails here is left to the outbox event, which the worker retries until it succeeds.
+      for (const d of stored) {
+        // The key is made from the ids, as the worker makes it (review of #134, L6).
+        await storage.destroy(documentStorageKey(access.tenantId, d.id)).catch((error: unknown) => {
+          logger.warn(
+            {
+              requestId: c.get("requestId"),
+              documentId: d.id,
+              err: { name: error instanceof Error ? error.name : "Error" },
+            },
+            "destroyed document's bytes left for the retry",
+          );
+        });
+      }
       return c.json(result, 200);
     },
   );
+
+/**
+ * One organisation's retention lock, held until the transaction ends: placing a legal hold and
+ * destroying documents both take it, so a destruction always sees every hold committed before it
+ * decides, and a hold placed meanwhile waits until the destruction has committed (security
+ * review, 31 October 2026). Releasing a hold needs no lock: a destruction that misses a release
+ * only skips a document it could have destroyed.
+ */
+async function lockRetention(tx: Transaction, tenantId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`retention:${tenantId}`}))`);
+}
 
 function certificateItem(cert: typeof destructionCertificate.$inferSelect) {
   return {
@@ -890,15 +991,17 @@ function holdItem(row: typeof legalHold.$inferSelect) {
 /**
  * Documents that are past retention, not held and not destroyed. The trigger for care-record
  * classes is when care ended (discharge or death); documents of people still receiving care are
- * never eligible. Tenant overrides of the retention class win over the global row.
+ * never eligible. Tenant overrides of the retention class win over the global row. `forUpdate`
+ * locks the documents read until the transaction ends (destruction); the holds are read after.
  */
 async function eligibleDocuments(
   tx: Transaction,
   tenantId: string,
   now: Date,
   onlyIds?: readonly string[],
+  forUpdate = false,
 ) {
-  const rows = await tx
+  const query = tx
     .select()
     .from(document)
     .where(
@@ -910,6 +1013,7 @@ async function eligibleDocuments(
     )
     .orderBy(asc(document.createdAt))
     .limit(5000);
+  const rows = forUpdate ? await query.for("update") : await query;
   const classes = await tx
     .select()
     .from(retentionClass)
@@ -918,6 +1022,10 @@ async function eligibleDocuments(
     classes.find((r) => r.recordClass === recordClass && r.tenantId === tenantId) ??
     classes.find((r) => r.recordClass === recordClass && r.tenantId === null);
   const holds = await activeHolds(tx);
+  const versions = await documentVersionChains(
+    tx,
+    rows.map((r) => r.id),
+  );
   const ended = await careEndedOn(
     tx,
     rows.flatMap((r) => (r.personId ? [r.personId] : [])),
@@ -945,10 +1053,9 @@ async function eligibleDocuments(
       },
       {
         triggerDate,
-        legalHold: isUnderLegalHold(
-          { personId: row.personId, subjectType: "document", subjectId: row.id },
-          holds,
-        ),
+        // Every version, its flag, its person and the record it belongs to; a chain that cannot
+        // be read back to its first version counts as held (security review of #134, M1 and L3).
+        legalHold: documentHeld(row.id, versions, holds),
       },
       now,
     );

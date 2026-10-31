@@ -5,6 +5,7 @@ import {
 } from "@harbour/contracts";
 import {
   candourRecord,
+  complaint,
   dolsAuthorisation,
   dolsLegalChangeReview,
   exitRecord,
@@ -17,6 +18,7 @@ import {
 } from "@harbour/db";
 import {
   approvalStates,
+  incidentCloseProblems,
   LISTED_WORKFLOW_PERMISSIONS,
   LISTED_WORKFLOWS,
   listedWorkflow,
@@ -39,6 +41,7 @@ import {
   usablePermissions,
   withTenant,
 } from "../http/context";
+import { incidentCloseViews } from "../services/safety";
 import { staffNames } from "../services/staff";
 import { errorResponses, jsonBody, security } from "./openapi";
 
@@ -126,6 +129,7 @@ async function visibleSubjects(
             version: incident.version,
             status: incident.status,
             openQuestions: incident.openQuestions,
+            classifierResult: incident.classifierResult,
           })
           .from(incident)
           .where(and(inArray(incident.id, incidentIds), isNull(incident.deletedAt)))
@@ -140,23 +144,14 @@ async function visibleSubjects(
             and(inArray(incidentPerson.incidentId, shownIds), isNull(incidentPerson.deletedAt)),
           )
       : [];
-  // A notification still a draft or ready holds closing back (HZ-013); the close route checks
-  // every one again, including any the reader cannot see.
-  const openNotifications =
-    shownIds.length > 0
-      ? await tx
-          .select({ incidentId: statutoryNotification.incidentId })
-          .from(statutoryNotification)
-          .where(
-            and(
-              inArray(statutoryNotification.incidentId, shownIds),
-              inArray(statutoryNotification.status, ["draft", "ready"]),
-              isNull(statutoryNotification.deletedAt),
-            ),
-          )
-      : [];
+  // Closing is offered only where the close route would take it: the same reading
+  // (`incidentCloseViews`, tenant-wide, so notifications and people the reader cannot see count)
+  // and the same rules (`incidentCloseProblems`: notifications, questions and the duty of candour,
+  // one record covering only the person it names; HZ-013, #120 review round 2).
+  const closeViews = await incidentCloseViews(tx, incidents);
   const byIncident = new Map<string, SubjectFacts>();
   for (const row of incidents) {
+    const close = closeViews.get(row.id);
     const visible = new Set(
       people.filter((p) => p.incidentId === row.id && p.personId).map((p) => p.personId),
     );
@@ -168,8 +163,10 @@ async function visibleSubjects(
       incident: {
         version: row.version,
         status: row.status,
+        // Unread is blocked: never offer a close the route might refuse.
         closeBlocked:
-          row.openQuestions.length > 0 || openNotifications.some((n) => n.incidentId === row.id),
+          !close ||
+          incidentCloseProblems({ ...close, openQuestions: row.openQuestions }).length > 0,
       },
     });
   }
@@ -195,6 +192,13 @@ async function visibleSubjects(
         ),
       );
     for (const row of rows) seen.set(`statutory_notification:${row.id}`, at(row.locationId));
+  }
+  if (ids("complaint").length > 0) {
+    const rows = await tx
+      .select({ id: complaint.id, locationId: complaint.locationId })
+      .from(complaint)
+      .where(and(inArray(complaint.id, ids("complaint")), isNull(complaint.deletedAt)));
+    for (const row of rows) seen.set(`complaint:${row.id}`, at(row.locationId));
   }
   if (ids("outage").length > 0) {
     const rows = await tx
