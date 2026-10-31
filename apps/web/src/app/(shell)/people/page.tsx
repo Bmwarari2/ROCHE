@@ -1,7 +1,8 @@
-import { EmptyState, PageHeader } from "@harbour/ui";
+import { ButtonLink, EmptyState, PageHeader } from "@harbour/ui";
 import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 import { PeopleTable } from "@/components/people/PeopleTable";
+import { isPreAdmissionStage, preAdmissionShown } from "@/lib/admission";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { peopleLabel, t } from "@/lib/i18n";
 import { toPersonListItem } from "@/lib/people";
@@ -36,7 +37,10 @@ export default async function PeoplePage() {
   }
 
   const locationNames = new Map(me.locations.map((l) => [l.id, l.name]));
-  const people = data.items.map((person) => toPersonListItem(person, t, locationNames));
+  // People not yet admitted are listed under enquiries and pre-admission (PEOP-005), not here.
+  const people = data.items
+    .filter((person) => !isPreAdmissionStage(person.status))
+    .map((person) => toPersonListItem(person, t, locationNames));
   const location = me.locations.find((l) => l.id === locationId);
 
   return (
@@ -45,6 +49,13 @@ export default async function PeoplePage() {
         eyebrow={location ? location.name : me.tenant.name}
         title={title}
         description={t("people.list.count", { count: people.length })}
+        secondaryActions={
+          preAdmissionShown(me.permissions) ? (
+            <ButtonLink href="/people/pre-admission" variant="secondary">
+              {t("people.preAdmission.list.title")}
+            </ButtonLink>
+          ) : undefined
+        }
       />
       <PeopleTable
         people={people}
