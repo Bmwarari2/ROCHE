@@ -512,6 +512,13 @@
       "when": 1793474213843,
       "tag": "0077_dsar_workbench",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1793474642589,
+      "tag": "0097_sponsor_licence",
+      "breakpoints": true
     }
   ]
 }

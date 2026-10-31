@@ -244,6 +244,17 @@ export const PERMISSIONS = {
       "Open and add HR-only staff documents (identity, right to work, health); every view is audited",
     sensitive: true,
   },
+  "workforce.immigration.read": {
+    description:
+      "Read sponsored workers' immigration and sponsor licence records (HR only); every view is audited",
+    sensitive: true,
+  },
+  "workforce.sponsor.manage": {
+    description:
+      "Record sponsored workers, Appendix D records, absences and reportable changes (HR only)",
+    sensitive: true,
+  },
+  "workforce.ldss.manage": { description: "Track Learning and Development Support Scheme claims" },
   "workforce.dbs_risk_assessment.sign": {
     description:
       "Sign the DBS risk assessment that lets a worker start supervised or accepts a disclosure",

@@ -125,6 +125,9 @@ that home only.
 | `workforce.staff_file.read` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.staff_file.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.hr_document.read` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.immigration.read` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.sponsor.manage` |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
+| `workforce.ldss.manage` |  |  | yes |  | yes | yes |  |  |  |  |  |  |  |  |  |  | yes |  |  |  |  |  |  |
 | `workforce.dbs_risk_assessment.sign` |  |  | yes |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | `scheduling.rota.read` |  |  | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |  |  |  |  | yes |  |
 | `scheduling.rota.manage` |  |  | yes |  | yes | yes |  |  |  | yes |  |  |  |  |  |  |  |  |  |  |  |  |  |

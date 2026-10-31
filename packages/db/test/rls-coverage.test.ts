@@ -9,6 +9,8 @@ import { createTestDatabase, type TestDatabase } from "./support/database";
  */
 
 const APPEND_ONLY_TABLES = [
+  "staff_privacy_acknowledgement",
+  "staff_image_consent",
   "audit_event",
   "record_version",
   "workflow_transition",
