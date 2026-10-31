@@ -208,7 +208,8 @@ the second step (TOTP or a passkey) within the step-up window.
     sub-processors, retention schedule version and overrides), scope (counts, data categories),
     purposes and lawful bases, necessity, and the template's risks R1 to R8, with R9 for home care
     monitoring. Optional processing adds its own section and risk: AI (AI addendum, R10), family
-    portal photos (B8, section 10, R11) and marketing (B9, section 11, R12). The prefill takes
+    portal photos (B8, section 10, R11) and marketing (B9, section 11, R12). Every DPIA also
+    carries the Phase 1 residential processing's risks R13 to R19 (template section 7A). The prefill takes
     planned modules as well as enabled ones, so the AI addendum can be signed before the module is
     switched on. Context, consultation, local risks and the tenant's own measures are the tenant's to
     complete.
