@@ -195,6 +195,24 @@ To close every correction and back-entry path in one round:
 - Docs: medicines.md rules 14, 17 and 23 and the slice 22 notes; hazard log HZ-004 and HZ-119;
   H-1067 (a routine amount correction raises a warning, for the CSO to accept or refuse).
 
+## #162 third review, third re-check (31/10/2026)
+
+Every correction path was closed; the allowances on the entered time could still be exploited:
+
+- Medium (HZ-004, HZ-119): an ordinary round record was judged only at the time entered, so
+  dating it forward within the clock tolerance cleared the maximum, an interval or the window,
+  and dating it back within the record delay recorded a dose from a stopped entry or after an
+  override had ended, or hid a late dose. An ordinary record is now judged at both the time
+  given and the server's `recordedAt` (with the administrator's competence at each,
+  `competenceAtRecording` being new); where a rule passes at one and fails at the other it is
+  refused (`differs_at_recording_time`) and goes by the flagged route. Lateness is judged at the
+  later of the two, so a dose recorded late shows as late.
+- Low: outcomes other than "given" had no delay limit (a refusal three hours back was accepted).
+  The delay and the flagged route now apply to every outcome (`recorded_after_delay`, renamed from
+  `given_earlier_than_recorded`; `givenBeforeRecorded` covers any outcome).
+- Table tests built from the reviewer's Y probes; H-1067 says what this means for doses the person
+  takes themselves.
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -232,6 +250,8 @@ To close every correction and back-entry path in one round:
 - After the re-check: 692 medicines tests; the whole domain package 6,198 tests under the three
   time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
 - After the second re-check: 718 medicines tests; the whole domain package 6,224 tests under the
+  three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
+- With the third re-check: 743 medicines tests; the whole domain package 6,249 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).
 - With the record delay: 725 medicines tests; the whole domain package 6,231 tests under the
   three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).

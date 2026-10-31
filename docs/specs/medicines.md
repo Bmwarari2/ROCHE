@@ -374,13 +374,19 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     for another person's medicine; for a time the entry has no dose; for a dose already recorded (a
     correction instead); from a version not in force or not givable (rule 6); for a reason code not
     for the outcome; at a time later than now beyond the table's clock tolerance
-    (`sync.clock_drift_flag_minutes`; `recorded_in_future`); and, on the round, a dose dated more
-    than `medicines.record_delay_tolerance_minutes` (30, to verify: carers record after a round)
-    before it is recorded (`given_earlier_than_recorded`), which is recorded instead by the route
-    below, flagged and escalated. Whichever way a dose is recorded, every time-dependent rule (the
-    window, intervals, the maximum, the scheduled gap, competence and the entry in force) is
-    judged at the dose's own time, never the time of recording, so the delay cannot clear a limit
-    (#162 third review's re-checks; H-1067). Outcomes: given, refused, not given (asleep, away from the home, in hospital,
+    (`sync.clock_drift_flag_minutes`; `recorded_in_future`); and, on the round, a record of any
+    outcome dated more than `medicines.record_delay_tolerance_minutes` (30, to verify: carers
+    record after a round) before it is recorded (`recorded_after_delay`), which is recorded instead
+    by the route for a record made after the event below, flagged and escalated. An ordinary round
+    record must also pass every rule at both the time given and the server's `recordedAt` (the
+    maximum, intervals and gap, the window, the entry in force and not held, and competence or an
+    override, with the competence at `recordedAt` from workforce's port, `competenceAtRecording`);
+    where a rule passes at one time and fails at the other it is refused
+    (`differs_at_recording_time`, naming what fails when it is recorded) and goes by the flagged
+    route, so neither allowance on the entered time can clear a limit; lateness is judged at the
+    later of the two, so a dose recorded late shows as late, with why. A record by the route is
+    judged at the time given, flagged and escalated (#162 third review's re-checks; H-1067).
+    Outcomes: given, refused, not given (asleep, away from the home, in hospital,
     nil by mouth, unable to swallow, vomiting, other), not available (out of stock, not delivered,
     other), taken by the person themselves, given by family as agreed, withheld (the prescriber said
     to, outside the limits the prescriber set, other); "other" and "withheld" always need words.
@@ -402,9 +408,10 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     review; one over
     the maximum is flagged "over maximum" and escalated `urgent`, and one with no checked dose to
     compare it with (a variable dose with no usable dosing record) needs its amount and is
-    escalated `urgent` with that amount (`no_prescribed_dose`), never only a warning. A dose
-    recorded after it was given cannot stand in for one about to be given (#162 third clinical
-    review): it needs a reason of 20 characters or more
+    escalated `urgent` with that amount (`no_prescribed_dose`), never only a warning. A record
+    made after the event (`givenBeforeRecorded`, for a dose or any other outcome) cannot stand in
+    for one made on the round (#162 third clinical review): it needs a reason of 20 characters or
+    more
     (`GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH`, as for break-glass search); its time given (`at`,
     the review's `givenAt`) must be strictly before `recordedAt`, which the API sets from the
     server's clock and never takes from the request (`given_after_recorded`); whoever records it
@@ -613,8 +620,9 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   to a dose outcome by the rules for a dose recorded after it was given; every correction flagged
   with what it changes, a dose removed, lowered or moved escalated, and breaches it creates or
   hides flagged; a dose closer to the doses either side than the schedule allows asked about, late
-  or not; a dose dated in the future, or dated back on the round beyond the record delay, refused;
-  every rule judged at the dose's own time within that delay),
+  or not; a dose dated in the future, or a record of any outcome dated back on the round beyond
+  the record delay, refused; an ordinary record judged at the time given and the time recorded,
+  refused onto the flagged route where they differ, and late when recorded late),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
   balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
   service; a blank witness; destruction; stock checks).
@@ -630,6 +638,9 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
     applied after midnight is not tried against a different day.
   - The API passes every version of a medicine to the rules (`versions`, `entryVersions`,
     `earlierEntries`), never a subset, so a scheduled version or stop is always seen.
+  - Slice 22 (#162 third re-check): the API supplies the administrator's competence at the time
+    given and at `recordedAt` (`competenceAtRecording`), both from workforce's port, so an
+    ordinary record is judged at both times.
   - Slice 22 (#162 second re-check): the stored administration keeps its outcome, amount and
     giver (`RecordedAdministration.outcome`, `amount`, `administeredBy`), which `checkCorrection`
     compares with the correction; the override report counts `corrected`, `dose_removed` and

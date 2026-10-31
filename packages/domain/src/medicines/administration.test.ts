@@ -88,6 +88,8 @@ function input(overrides: Partial<AdministrationInput> = {}): AdministrationInpu
     timingReason: null,
     intervalOverrideReason: null,
     administrator: { id: CARER, competence: "current" },
+    // The same competence when the record is made, unless a test says otherwise.
+    competenceAtRecording: overrides.administrator?.competence ?? "current",
     competenceOverride: null,
     policy: "give_with_notice",
     alreadyRecorded: false,
@@ -421,7 +423,16 @@ describe("hazard HZ-004 a scheduled dose is recorded no earlier than its own win
     ["as its window opens: on time", { at: minutes(-rates.doseEarlyMinutes) }, []],
     ["a minute before its due time: on time", { at: minutes(-1) }, []],
     ["at its due time", { at: at(2, 8) }, []],
-    ["at the end of its window", { at: minutes(rates.doseLateMinutes) }, []],
+    [
+      "at the end of its window, recorded then",
+      { at: minutes(rates.doseLateMinutes), recordedAt: minutes(rates.doseLateMinutes) },
+      [],
+    ],
+    [
+      "at the end of its window, recorded a minute later: late, as lateness is judged when recorded",
+      { at: minutes(rates.doseLateMinutes), recordedAt: minutes(rates.doseLateMinutes + 1) },
+      ["timing_reason_required"],
+    ],
     [
       "a minute after its window, with no reason",
       { at: minutes(rates.doseLateMinutes + 1) },
@@ -666,6 +677,7 @@ describe("hazard HZ-009 a dose is recorded by its window in elapsed time on the 
       versionIds: new Set([e.id]),
       dueAt: due,
       at: new Date(due.getTime() + minutes * MINUTE),
+      recordedAt: new Date(due.getTime() + minutes * MINUTE),
       timingReason,
       recordedDueTimes: marEntryDoses(e, { from: new Date(due.getTime() - 2 * DAY), to: due }).map(
         (d) => d.dueAt,
@@ -1550,16 +1562,25 @@ describe("hazard HZ-004 a dose staff record after giving it is recorded, flagged
     );
   });
 
-  it("never treats the route as used for an outcome other than given", () => {
-    expect(
-      result({
-        ...route({}, "."),
+  it.each<[string, string, AdministrationProblem[] | AdministrationFlag[]]>([
+    ["with a reason of a full stop", ".", ["given_before_recorded_reason_required"]],
+    [
+      "saying what happened",
+      "She refused at 08:30; recorded after the visit",
+      ["given_before_recorded"],
+    ],
+  ])(
+    "hazard HZ-004 applies the route to a refusal recorded after the event too, %s",
+    (_name, reason, expected) => {
+      const r = result({
+        ...route({}, reason),
         outcome: "refused",
         amount: null,
         reason: { code: "declined", note: null },
-      }),
-    ).toMatchObject({ ok: true, flags: [] });
-  });
+      });
+      expect(r.ok ? r.flags : r.issues.map((i) => i.problem)).toEqual(expected);
+    },
+  );
 
   it("counts every use of the route, and every override, per member for the override report", () => {
     const counts = countReportedFlags([
@@ -1848,11 +1869,7 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
   const delay = rates.recordDelayToleranceMinutes;
   const minutesBefore = (minutes: number) => new Date(at(2, 11).getTime() - minutes * MINUTE);
   it.each<[string, Partial<AdministrationInput>, AdministrationProblem[] | AdministrationFlag[]]>([
-    [
-      "dated back on the round (the hunt for other paths)",
-      backdated,
-      ["given_earlier_than_recorded"],
-    ],
+    ["dated back on the round (the hunt for other paths)", backdated, ["recorded_after_delay"]],
     [
       "recorded the table's record delay after it was given: an ordinary record",
       { history: [], at: minutesBefore(delay), recordedAt: at(2, 11) },
@@ -1861,7 +1878,7 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
     [
       "recorded a minute beyond that delay",
       { history: [], at: minutesBefore(delay + 1), recordedAt: at(2, 11) },
-      ["given_earlier_than_recorded"],
+      ["recorded_after_delay"],
     ],
     [
       "by the route for a dose given before it was recorded, which flags and escalates it",
@@ -1879,21 +1896,38 @@ describe("hazard HZ-004 a dose given now cannot be dated back on the round past 
     expect(result.ok ? result.flags : result.issues.map((i) => i.problem)).toEqual(expected);
   });
 
-  it("taken by the person, or given by family, is recorded after the event as a matter of course", () => {
-    expect(
-      problems(
-        prnInput({
-          ...backdated,
-          history: [],
-          outcome: "self_administered",
-          amount: { quantity: 2, unitCode: UNIT.tablet.code },
-        }),
-      ),
-    ).toEqual([]);
+  it.each<[string, Partial<AdministrationInput>, AdministrationProblem[] | AdministrationFlag[]]>([
+    [
+      "taken by the person seven hours before it is recorded, on the round",
+      { outcome: "self_administered" },
+      ["recorded_after_delay"],
+    ],
+    [
+      "taken by the person seven hours before, recorded after the event",
+      {
+        outcome: "self_administered",
+        givenBeforeRecorded: {
+          reason: "She took it at 04:00 and told me this morning",
+          recordedBy: { id: CARER, competence: "current", override: null },
+        },
+      },
+      ["given_before_recorded"],
+    ],
+  ])("hazard HZ-004 a dose %s", (_name, overrides, expected) => {
+    const result = checkAdministration(
+      prnInput({
+        ...backdated,
+        history: [],
+        amount: { quantity: 2, unitCode: UNIT.tablet.code },
+        ...overrides,
+      }),
+      rates,
+    );
+    expect(result.ok ? result.flags : result.issues.map((i) => i.problem)).toEqual(expected);
   });
 });
 
-describe("hazard HZ-004 hazard HZ-119 a dose recorded within the record delay is judged at its own time, never at the time of recording", () => {
+describe("hazard HZ-004 hazard HZ-119 a dose recorded within the record delay is still judged at its own time", () => {
   // Every record below is made the table's record delay after the dose, an ordinary record; each
   // rule is judged at the dose's time, so the delay never clears a limit.
   const delay = rates.recordDelayToleranceMinutes;
@@ -2039,6 +2073,157 @@ describe("hazard HZ-004 a dose entered later than others is checked against the 
     const result = checkAdministration(input({ ...back, history: next }), rates);
     expect(result.ok ? "" : result.issues[0]?.message).toBe(
       "This dose is late and closer to the next dose, given at 12:05, than the schedule allows. Say why.",
+    );
+  });
+});
+
+describe("hazard HZ-004 hazard HZ-119 an ordinary round record passes every rule at the time given and the time recorded, or goes by the flagged route", () => {
+  const stopped = checkedEntry(
+    entry(
+      {
+        directions: {
+          kind: "when_required",
+          dose: { kind: "range", from: 1, to: 2, unit: UNIT.tablet },
+          maxQuantityPer24Hours: 8,
+        },
+        minimumIntervalMinutes: 240,
+        stopsAt: at(2, 10),
+      },
+      "entry-st",
+    ),
+  );
+  const onStopped = { entry: stopped, dueAt: null, versionIds: new Set(["entry-st"]) };
+  const override = {
+    memberId: CARER,
+    approvedBy: "member-manager",
+    reason: "Assessment booked for tomorrow",
+    from: at(2, 6),
+    until: at(2, 12),
+  };
+  const yesterday = (hour: number, minute = 0) => fromUkWallClock(2026, 11, 1, hour, minute);
+  const route = {
+    givenBeforeRecorded: {
+      reason: "Recorded after the visit, at the time it happened",
+      recordedBy: { id: CARER, competence: "current" as const, override: null },
+    },
+  };
+  it.each<[string, AdministrationInput, AdministrationProblem[] | AdministrationFlag[]]>([
+    [
+      "Y1b: given after the entry stopped at 10:00, dated back to 09:55 and recorded 10:21",
+      prnInput({ ...onStopped, at: at(2, 9, 55), recordedAt: at(2, 10, 21) }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "Y1b, recorded instead after the event: judged at 09:55, flagged and escalated",
+      prnInput({ ...onStopped, ...route, at: at(2, 9, 55), recordedAt: at(2, 10, 21) }),
+      ["given_before_recorded"],
+    ],
+    [
+      "Y2: the 08:00 dose given 09:25, dated 08:58, recorded 09:26: late, as recorded",
+      input({ at: at(2, 8, 58), recordedAt: at(2, 9, 26) }),
+      ["timing_reason_required"],
+    ],
+    [
+      "Y2, with the reason: flagged late",
+      input({ at: at(2, 8, 58), recordedAt: at(2, 9, 26), timingReason: "Round ran late today" }),
+      ["late"],
+    ],
+    [
+      "Y3b: inside the interval at 11:56, dated forward to 12:00",
+      prnInput({ at: at(2, 12), recordedAt: at(2, 11, 56), history: [given("l", at(2, 8))] }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "Y4b: over the maximum at 13:12, dated forward to 13:16",
+      prnInput({
+        at: at(2, 13, 16),
+        recordedAt: at(2, 13, 12),
+        history: [
+          given("y", yesterday(13, 15), { quantity: 4 }),
+          given("t", at(2, 7), { quantity: 4 }),
+        ],
+      }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "Y5: recorded 06:56, before the 08:00 dose's window, dated forward to 07:00",
+      input({ at: at(2, 7), recordedAt: at(2, 6, 56) }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "Y7: a refusal dated back three hours",
+      input({
+        outcome: "refused",
+        reason: { code: "declined", note: null },
+        amount: null,
+        at: at(2, 8, 30),
+        recordedAt: at(2, 11, 30),
+      }),
+      ["recorded_after_delay"],
+    ],
+    [
+      "Y7, recorded instead after the event",
+      input({
+        ...route,
+        outcome: "refused",
+        reason: { code: "declined", note: null },
+        amount: null,
+        at: at(2, 8, 30),
+        recordedAt: at(2, 11, 30),
+      }),
+      ["given_before_recorded"],
+    ],
+    [
+      "Y8b: after the competence override ended at 12:00, dated back to 11:50",
+      prnInput({
+        administrator: { id: CARER, competence: "expired" },
+        competenceOverride: override,
+        at: at(2, 11, 50),
+        recordedAt: at(2, 12, 16),
+      }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "competence lapsing at 00:00 between the time given and the time recorded",
+      prnInput({
+        at: fromUkWallClock(2026, 11, 2, 23, 55),
+        recordedAt: fromUkWallClock(2026, 11, 3, 0, 10),
+        competenceAtRecording: "expired",
+      }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "taken by the person before the entry stopped, recorded on the round after it",
+      prnInput({
+        ...onStopped,
+        outcome: "self_administered",
+        at: at(2, 9, 55),
+        recordedAt: at(2, 10, 21),
+      }),
+      ["differs_at_recording_time"],
+    ],
+    [
+      "an honest record within the delay, passing at both times",
+      input({ at: at(2, 8, 5), recordedAt: at(2, 8, 30) }),
+      [],
+    ],
+    [
+      "an honest when-required record within the delay, passing at both times",
+      prnInput({ at: at(2, 13), recordedAt: at(2, 13, 25), history: [given("l", at(2, 8))] }),
+      [],
+    ],
+  ])("%s", (_name, record, expected) => {
+    const result = checkAdministration(record, rates);
+    expect(result.ok ? result.flags : result.issues.map((i) => i.problem)).toEqual(expected);
+  });
+
+  it("says what fails at the time of recording, and sends it by the flagged route", () => {
+    const result = checkAdministration(
+      prnInput({ at: at(2, 12), recordedAt: at(2, 11, 56), history: [given("l", at(2, 8))] }),
+      rates,
+    );
+    expect(result.ok ? "" : result.issues[0]?.message).toBe(
+      "At 11:56, when it is recorded, this would not pass: A dose was taken within the prescribed minimum interval. Do not give it unless the prescriber agrees; if you must, say why. Record it as made after the event, and say why, so the nurse in charge reviews it.",
     );
   });
 });

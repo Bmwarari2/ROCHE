@@ -139,7 +139,8 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   re-check's: every correction is flagged, counted and, when it removes, lowers or moves a dose,
   escalated; breaches a correction creates or hides are flagged; the gap check looks both ways;
   a dose cannot be dated forward, or back on the round beyond the 30-minute record delay
-  (`medicines.record_delay_tolerance_minutes`, to verify), every rule judged at the dose's time.
+  (`medicines.record_delay_tolerance_minutes`, to verify); an ordinary round record judged at the
+  time given and the time recorded, refused onto the flagged route where they differ.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
