@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type DolsNation, type DolsRates, resolveDolsRates } from "../src/care/mca/dols";
 import { type CareRates, resolveCareRates } from "../src/care/rates";
+import { type MedicinesRates, resolveMedicinesRates } from "../src/medicines/rates";
 import { type OperationsRates, resolveOperationsRates } from "../src/operations/rates";
 import { type PlatformRates, type RateRow, resolvePlatformRates } from "../src/platform/rates";
 import {
@@ -90,6 +91,11 @@ export function tableDolsRates(nation: DolsNation = "england", on = "2026-10-11"
 /** The platform completion figures (agency window, export expiry, DPIA review, sub-processor notice). */
 export function tablePlatformRates(on = "2026-10-11"): PlatformRates {
   return resolvePlatformRates(readRateTable(), "england", on, null);
+}
+
+/** The medicines record figures (the MAR cycle) for an English location. */
+export function tableMedicinesRates(on = "2026-10-31"): MedicinesRates {
+  return resolveMedicinesRates(readRateTable(), "england", on, null);
 }
 
 /** The downtime pack and back-entry figures for an English location. */

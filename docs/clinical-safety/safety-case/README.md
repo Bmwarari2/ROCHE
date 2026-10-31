@@ -32,3 +32,4 @@ DCB0129 requires the manufacturer to produce a clinical safety case, and a clini
 | --- | --- | --- |
 | [v0.0](safety-case-v0.0-phase0.md) | Phase 0 foundations | Draft, awaiting CSO review |
 | [v0.1](safety-case-v0.1-phase1.md) | Phase 1 residential MVP | Draft, awaiting CSO review and sign-off (H-381) |
+| [v0.2](safety-case-v0.2-phase2.md) | Phase 2 medicines, workforce and safety | First draft while Phase 2 is built; awaiting CSO review and sign-off (H-840) |

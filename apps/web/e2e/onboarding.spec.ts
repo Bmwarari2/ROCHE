@@ -44,7 +44,7 @@ test("the Registered Manager reads the checklist and is offered no decision", as
   await page.goto(PAGE);
   await expect(main(page).getByText(/of 15 done\./)).toBeVisible();
   await expect(item(page, "The DPIA is signed")).toBeVisible();
-  await expect(main(page).getByRole("button", { name: /^Accept Harbour's setting/ })).toHaveCount(
+  await expect(main(page).getByRole("button", { name: /^Accept Harbour's setting: / })).toHaveCount(
     0,
   );
   // A go-live item Harbour cannot check yet says so, and blocks.
@@ -71,16 +71,16 @@ test("the owner records the decisions, and each closes what it answers", async (
 
   const settings = item(page, "Other settings Harbour chose for you are reviewed");
   await expect(settings.getByText(/^Harbour's setting: /).first()).toBeVisible();
-  const accept = settings.getByRole("button", { name: /^Accept Harbour's setting / }).first();
+  const accept = settings.getByRole("button", { name: /^Accept Harbour's setting: / }).first();
   const key = ((await accept.getAttribute("aria-label")) ?? "").replace(
-    "Accept Harbour's setting ",
+    "Accept Harbour's setting: ",
     "",
   );
   await accept.click();
   await recorded(page);
   await expect(
     item(page, "Other settings Harbour chose for you are reviewed").getByRole("button", {
-      name: `Accept Harbour's setting ${key}`,
+      name: `Accept Harbour's setting: ${key}`,
     }),
   ).toHaveCount(0);
 
@@ -120,7 +120,7 @@ test("the owner records the decisions, and each closes what it answers", async (
   // HZ-027: a clinical setting is accepted only naming the clinical lead or CSO who reviewed it.
   const clinical = () => item(page, "Your clinical lead has reviewed the clinical settings");
   const first = clinical().getByRole("listitem").first();
-  await first.getByRole("button", { name: /^Accept Harbour's setting / }).click();
+  await first.getByRole("button", { name: /^Accept Harbour's setting: / }).click();
   await expect(
     first
       .getByText("Choose the clinical lead or Clinical Safety Officer who reviewed this setting")
@@ -129,16 +129,16 @@ test("the owner records the decisions, and each closes what it answers", async (
   await expectAccessible(page, "clinical setting without its reviewer");
   const clinicalKey = (
     (await first
-      .getByRole("button", { name: /^Accept Harbour's setting / })
+      .getByRole("button", { name: /^Accept Harbour's setting: / })
       .getAttribute("aria-label")) ?? ""
-  ).replace("Accept Harbour's setting ", "");
+  ).replace("Accept Harbour's setting: ", "");
   await first
     .getByLabel("Reviewed by the clinical lead or Clinical Safety Officer")
     .selectOption({ label: "Nell Nurse" });
-  await first.getByRole("button", { name: /^Accept Harbour's setting / }).click();
+  await first.getByRole("button", { name: /^Accept Harbour's setting: / }).click();
   await recorded(page);
   await expect(
-    clinical().getByRole("button", { name: `Accept Harbour's setting ${clinicalKey}` }),
+    clinical().getByRole("button", { name: `Accept Harbour's setting: ${clinicalKey}` }),
   ).toHaveCount(0);
 
   const dcb = item(page, "Your DCB0160 clinical safety assessment is recorded");

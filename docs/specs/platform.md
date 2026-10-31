@@ -571,6 +571,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
   SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
+- `request_id`: always a UUID the API makes for the request, never anything the caller sent, so
+  no caller text (personal data included) enters the hash chain and no caller can reuse another
+  request's id there; the response's `x-request-id` gives it. A caller's `x-request-id` is kept
+  only in the API's log, in one `caller request id` line beside the API's id, and only when it is a
+  canonical lower-case UUID (`apps/api/src/http/request-id.ts`); the web passes on only such an id
+  (`apps/web/src/lib/request-id.ts`) (security reviews, 31 October 2026 and of #134, M4).
 - Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
   not a member); notification acknowledgement; sync token issue and uploads; integration settings
   and quarantine decisions; operator requests and tenant decisions.
@@ -787,9 +793,34 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (owner, quality lead); RLS enforces the same.
 - `GET /v1/retention/candidates`: documents past their class's period (care-record documents
   count from discharge or death; people still receiving care are never eligible) with no hold.
-- `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
-  row without the title, and writes an append-only `destruction_certificate` per record class
-  (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
+  Audited as `platform.retention_candidate.list` with the listed ids; `GET /v1/legal-holds` is
+  audited by count (`platform.legal_hold.list`).
+- `POST /v1/retention/destroy`: re-checks each id, keeps a tombstone row without the title, writes
+  an append-only `destruction_certificate` per record class (ids, rule, reason, method), then
+  deletes every stored version. Held, current or unknown ids are returned as skipped.
+  - What a hold covers (`isDocumentUnderLegalHold`): a document is held when any version of it
+    (its whole chain through `previous_version_id`) is flagged `legal_hold`, is held itself, is
+    about a held person, or belongs to a held record (its `subject_type` and `subject_id`); a
+    hold on any version holds them all (security review of #134, M1). A chain that cannot be
+    read back to its first version (`previous_version_id` has no foreign key) counts as held, and
+    the document view's `legalHold` uses the same judgement (`documentHeld`; L3 and L4).
+  - Holds: placing a hold and destroying both take the organisation's retention lock (a
+    transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
+    reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
+    is always seen and a hold placed meanwhile waits for it to commit (security review, 31
+    October 2026).
+  - Order: the tombstones, the certificate, the audit event and one `platform.document.destroyed`
+    outbox event per document commit together, before any bytes are touched; the bytes are
+    deleted after the commit, so a failed transaction never leaves bytes gone without a
+    certificate. The worker deletes them again from the outbox event (idempotent, only for a
+    document recorded as destroyed, the key made from the tenant and document ids, never read
+    from the row) until the storage accepts it, backing off up to an hour. On S3 a deletion counts
+    only when the batch delete reports no per-object error and a fresh listing finds no version
+    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6).
+  - A failed deletion is detected by the worker's `worker.job.failed` line (queue
+    `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
+    (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
+    `platform.document.destroyed` outbox event with its attempts and error kind.
 - `GET /v1/destruction-certificates` (`platform.retention.manage`, step-up): every certificate,
   newest first (audited as `platform.destruction_certificate.list`). Candidates also carry when the
   document was stored, and its title where the caller may read that category of document (a
@@ -1021,6 +1052,515 @@ Act 2025; ICO guidance on time limits):
   domain, different email, not invited, family member, operator, role not allowed, allowed;
   second factor still required for care records and step-up).
 
+## Phase 2: the DSAR workbench (PLAT-022, WORK-011)
+
+Phase 2 slice 15 ([phase-2.md](../plans/phase-2.md), [ADR-0090](../decisions/0090-dsar-workbench-and-disclosure-collector.md)):
+the subject access request workbench, built on the slice 9 rules (`data-rights.ts`). Procedure:
+[dsar-procedure.md](../compliance/dsar-procedure.md). Screens are slice 66 (built: see the screens note at the end of this section); this slice is schema,
+rules and API. Code: `packages/db/src/schema/data-rights.ts`, migration 0077,
+`packages/domain/src/platform/dsar.ts`, `apps/api/src/routes/dsar.ts`, `apps/api/src/services/dsar.ts`.
+
+**Data.** `dsar_case` (mutable aggregate, versioned): the request kind (`access`, `rectification`,
+`erasure`, `portability`), the subject (a person, a person's contact, or a member of staff; exactly
+one, by composite foreign keys), the requester (the subject or a representative, with the authority
+checked: health and welfare or property and financial LPA, deputyship, written authority, other),
+channel, day received, identity (required or not, the day and method it was checked), clarification
+pauses, the extension (months, grounds, reason, day decided), the response day, status (`open`,
+`closed`, `withdrawn`), outcome and reason, the rectification and erasure records, and the bundle's
+SHA-256 and issue time. `dsar_item` (mutable, versioned): one row per record collected (table and
+record id), with the reviewer's decision (`pending`, `disclose`, `redact`, `withhold`), the fields
+redacted, the reason (an exemption under DPA 2018 Schedules 2 to 4, or third-party data), who
+reviewed it and when. Retention class `data_rights_case` ([retention.md](retention.md)).
+
+**Rules that are easy to get wrong**
+
+1. Only members holding `quality.dsar.manage` through an organisation-wide role (kept, not
+   renamed: ADR-0090) see or change cases and items; a location role that includes it (registered
+   manager, deputy) is refused, because a case reaches every person and module (#149 H1). The API
+   checks it with MFA, row-level security checks it again (`holds_role_permission_at(..., NULL)`,
+   for the application and the owner role alike). Opening a record, issuing the bundle and
+   responding also need a fresh step-up (#149 H2). The permission is a care-record permission
+   (MFA). Collection and the item view read records in the organisation's own context, as the full
+   export does, after that check (ADR-0090).
+2. The clock is `dsarClock` (slice 9 rules 1 to 5) with the tenant's rates and the bank holidays of
+   the organisation's nation, worked out on every read; nothing stores a due date that could go
+   stale. Pauses and the extension are refused in the slice 9 rule's words.
+3. Collection runs over the export catalogue through a subject map (`dsarSubjectMap`): every
+   exported tenant table with personal data, by the column that names the subject (`person_id` for a
+   person, `contact_id` or the contact row itself for a contact, the staff reference columns and the
+   `tenant_user` row for staff). A new table joins the map by its catalogue entry; a table with
+   personal data but no column naming this kind of subject (worked out for each request: a
+   contact request lists every table that names no contact), and a searched table whose read policy depends on the member
+   reading it (`DSAR_MEMBER_SCOPED_TABLES`, kept in step with the database by a test; none today), are
+   listed as not searched with the reason and what to do, on the case and on the bundle's cover;
+   never a silent gap. Collecting again adds only new records. The organisation's own system context
+   (the full export) reads cases and items; it never writes them.
+4. Redaction is by a person, item by item: the item's view highlights the names of everyone else
+   the organisation records (staff, people supported, contacts) found in any text in the record,
+   JSON fields included (`findThirdPartyNames`; #149 M5), but redacts nothing itself. Redacting
+   needs at least one field and a reason; withholding needs a reason. Each decision carries the
+   SHA-256 of the record as the reviewer opened it, and is refused if the record changed since.
+5. The bundle is issued only when every item has a decision and the requester's identity is
+   confirmed (checked again by the database, #149 M4); a record that changed or went since its
+   decision goes back to pending, so what is sent is what was reviewed (#149 M3). Redacted fields
+   read `[redacted]` and withheld items are left out with a count. On responding, the bundle is
+   kept in the exports bucket under its own `dsar/` prefix, outside the exports' 30-day expiry
+   (SSE-KMS, a key of the organisation and case ids, checked by the database), with its SHA-256, and can be
+   fetched again exactly as sent through a step-up route; responding closes the clock (a late
+   response stays late).
+6. Erasure is assessed record by record against retention (`erasureAssessment`): a record under a
+   legal hold or within its class's period is retained, with the class and the date it may go; only
+   what retention allows is listed as erasable. The decision is recorded on the case; deletion itself
+   is done by the retention engine (retention-and-deletion.md), never by the workbench.
+7. Portability (UK GDPR Art 20) applies only to data the subject provided, processed by consent or
+   contract by automated means: in Harbour, a member of staff's own records; for a person's care
+   records (public task and health care bases) the case records that it does not apply and offers
+   access instead (`portabilityApplies`).
+8. Rectification records which records were corrected (or why not); the correction itself is made
+   in the module, as a new version or a superseding entry, never by the workbench.
+9. Audit: every read and change is audited with the case id, counts and opaque ids, never the
+   requester's name or any record content; reads across the organisation say so (`read:
+   organisation`), and viewing an item's content is also recorded against the subject (#149 L9).
+
+**Screens (slice 66).** Data rights in the menu, for holders of `quality.dsar.manage` across the
+whole organisation (`dataRightsShown`; the API and row-level security check it again), with tabs
+for requests, breaches and complaints under `/data-rights`. Requests: the list with each clock as
+an icon, a word and a sentence; recording a request (a person supported or a member of staff; a
+member of staff only when the staff list can be read, which needs `platform.user.manage`); the
+request page in work order (identity, pause and extension, finding the records with the "not
+searched" list first as a warning, each record's decision, the response); the record page (step-up)
+with other people's names marked by a bold underline and the words "Name of another person", never
+by colour alone, and listed; the response page (step-up) with the counts, the fingerprint, a JSON
+file to send and the response form; erasure assessed and portability stated. Breaches: the
+register with the ICO clock in words from `reportHours` and the clock (no figure in code), the
+stage, and each step's form only while it applies. Complaints: the list with the acknowledgement
+and update clocks in words, recording, acknowledging, updates and closing. Code:
+`apps/web/src/app/(shell)/data-rights/`, `apps/web/src/components/data-rights/`,
+`components/breaches/`, `components/dp-complaints/`, `apps/web/src/lib/dsar.ts`, `breaches.ts`,
+`dp-complaints.ts`, `data-protection-refusals.ts`; journeys `apps/web/e2e/dsar.spec.ts`,
+`breaches.spec.ts`, `dp-complaints.spec.ts` (axe in light and dark). Not on the screens yet: a
+contact's own request, recording rectification decisions, correcting a breach's facts, linking a
+complaint to a person or a breach, and deciding a collected record that no longer exists (the API
+needs its fingerprint; H-881).
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| List, open, create, change a case; collect; review items; issue the bundle; respond | `quality.dsar.manage` | MFA (care records); tenant-wide roles (owner, quality lead) |
+| Everyone else | - | 403; row-level security returns nothing |
+
+**Tests (written before the code)**
+
+- `packages/domain/src/platform/dsar.test.ts`: `PLAT-022 the subject map` (built from the catalogue;
+  person, contact and staff columns; tables with personal data and no subject column reported);
+  `third-party names highlighted, nothing redacted`; `redaction decisions` (reason and fields
+  required); `bundle readiness and redaction applied`; `erasure assessment` (held, within period,
+  past period); `portability applies` (staff yes, person and contact no); `new case checks`
+  (representative needs an authority, subject matches its kind).
+- `packages/db/test/data-rights.test.ts`: `PLAT-022 a DSAR case stays in its tenant` (cross-tenant
+  denial by id, no writes into or changes in another tenant, no subject or case of another tenant);
+  `only holders of quality.dsar.manage see or write a case` (a care worker sees nothing, no DELETE);
+  `the case's shape` (subject of its kind, a representative's authority, extension and redaction
+  checks); `a closed case is the record of what was done` (never reopens, takes no items, reasons
+  for a refusal).
+- `apps/api/test/dsar.test.ts`: create, identity, pause and resume, extension (refused late), clock
+  states; collect for a person (records from several modules, again adds nothing); item view with
+  highlights (audited); decisions; bundle refused until all reviewed, then issued with redactions;
+  respond closes; erasure assessment; portability refused for a person; refusals for a member
+  without the permission and without MFA; audit scopes hold no names.
+
+### Breach register and data protection complaints (slice 20, PLAT-022)
+
+Schema, API and audit for rules 6 to 10; the screens are slice 66 (see the screens note in the DSAR workbench section). Migration 0082 (lane F;
+renumbered at merge). Procedures: [breach-response.md](../compliance/breach-response.md),
+[data-protection-complaints.md](../compliance/data-protection-complaints.md).
+
+**Tables** (all with `tenant_id`, forced RLS, the tenant policy, no DELETE for the application):
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `dp_breach` | mutable aggregate (`version`, `capture_version`) | One register entry per breach, reportable or not: what happened (no names), when the organisation became aware, its source (`tenant` or `processor_notice`), the factors and the suggested severity, the decision with reasoning, the ICO report (time, reference, reasons for delay), the notice to the people affected and when they were told, closure with lessons |
+| `processor_breach_notice` | append-only | Thapsus's notice to the organisation as processor (Art 33(2); DPA clause 8.2): nature, categories and approximate numbers of people and records, likely consequences, measures, what the organisation needs to do, Thapsus contact. A later notice about the same breach follows the first (`follows_id`) |
+| `processor_breach_notice_ack` | append-only | Who in the organisation acknowledged a notice, and when (one per notice) |
+| `dp_complaint` | mutable aggregate | A data protection complaint: received on, channel, who complained (name and contact), the data subject when it is someone the organisation supports, what it is about, a summary, acknowledged on, last contact on, outcome, whether the outcome told them they can complain to the ICO, closed on, and a link to a breach |
+
+**Rules**
+
+18. Every breach is recorded (rule 7). Recording one needs `quality.dsar.manage` held across the
+    whole organisation; so do reading and every change. The register is the organisation's data
+    protection function, not a location's: someone who holds the permission for one home only (a
+    Registered Manager or deputy) is refused by the API (403) and sees nothing through row-level
+    security (`app.holds_role_permission_at(..., NULL)`; #149 security review). A location is
+    recorded when there is one. The organisation's own system context (no member, the whole
+    organisation) reads all four tables, so the free full export includes them; it never writes.
+    Database refusals are said plainly: a check or guard (23514) is a
+    422 with the guard's code, a missing reference (23503) a 422; logs carry codes, never values.
+19. The ICO clock is `breachClock` over `aware_at` and `ico.breach.report_hours` from the rate table,
+    worked out when read, never stored. `aware_at` may be corrected only until the ICO report is
+    recorded; it may move later only before the decision, and never later than Thapsus's first
+    notice for an entry Thapsus opened (Art 33(2)). Every change is in the record's history. The
+    database pins the assessor, decider and closer to the person making the change, and keeps the
+    creator and removal fixed (security review round 1).
+20. The assessment stores the factors and `assessBreach`'s suggestion as decision support. The
+    decision is refused unless `checkBreachDecision` passes against the stored suggestion (reasoning,
+    the decider is the person recording it, acknowledgement when going against the suggestion). It
+    is recorded once; a change of mind is a new decision with its own reasoning, kept in history.
+21. Recording the ICO report needs a decision to report; a report after the deadline is refused
+    without the reasons for the delay (Art 33(1)). The ICO's reference is kept as given.
+22. The notice to the people affected is drafted from Harbour's plain-English template (what
+    happened, what it means for them, what has been done, what they can do, who to contact), edited
+    by a person, and recorded with the day they were told. It needs a decision to tell them.
+23. A breach closes only once decided, with lessons of at least 20 characters; once closed nothing
+    changes.
+24. Thapsus records a processor notice from the operator console (an active admin with a fresh
+    step-up) through `app.send_processor_breach_notice`, which in one transaction stores the notice,
+    opens the organisation's register entry (`source = processor_notice`, `aware_at` the time of
+    the notice; the organisation may correct it under rule 19 to its own awareness), and writes the
+    organisation's audit event and an outbox event so its data protection lead and owners are told.
+    A follow-up notice links to the same entry (a composite key ties it to the first notice's
+    breach); a follow-up to a closed entry is refused, so new facts after closure come as a new
+    first notice. The function restores the caller's tenant context. The organisation acknowledges
+    each notice once.
+25. A complaint's clocks are `complaintClock` with `dp_complaint.*` from the rate table and the
+    location's nation's bank holidays (England when there is no location), worked out when read. It
+    closes only through `checkComplaintClosure` (outcome recorded, the ICO right stated); once
+    closed nothing changes. The acknowledgement and each contact are dates on or after receipt and
+    not in the future.
+26. Audit: every read of a list, a record or a notice draft and every change writes `audit_event`
+    with ids and codes only, never the summary, names, contact details, reasoning or notice text.
+    Lists return up to 1,000 entries and say `truncated` when there are more.
+27. Linking a complaint to a person needs `people.person.read` too, and only someone in the
+    recorder's scope can be linked (422 `person_not_found` otherwise).
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the breach register, a breach, processor notices; record, assess, decide, report, tell, close a breach; acknowledge a notice | `quality.dsar.manage`, organisation-wide | RLS checks it again, binding `harbour_owner` too |
+| Read, record, acknowledge, contact and close a complaint | `quality.dsar.manage`, organisation-wide | RLS checks it again |
+| Send a processor breach notice | operator admin, fresh step-up | definer function, not a tenant permission |
+
+Built-in roles holding `quality.dsar.manage` organisation-wide: owner and quality lead (a Registered
+Manager or deputy holds it only for their home unless their assignment is organisation-wide, and is
+refused here). Each of them already needs MFA through their care-record permissions, so the permission is not
+itself marked as a care record; a custom role holding it alone would not force MFA (a decision for
+slice 15, which also uses it). Row-level security counts the permission through roles
+(`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:
+grant it through a role.
+
+**Retention**: interim `audit_event` (8 years from creation) for all four tables until the DPO sets
+periods (H-670; retention.md already lists them as open).
+
+**Tests**
+
+- `packages/db/test/data-protection-registers.test.ts`: `hazard HZ-011` isolation (another
+  organisation's breaches, notices, acknowledgements and complaints are invisible and cannot be
+  written), the permission policies, append-only notices and acknowledgements, the check
+  constraints (decision complete, report needs a decision, closure), and the definer function
+  (admin only, opens the register entry, writes the audit and outbox events).
+- `apps/api/test/data-protection-registers.test.ts`: the routes (permission refused, clock and
+  suggestion returned, decision refusals from `checkBreachDecision`, late report without reasons
+  refused, notice draft, closure rules, complaint clocks and closure, stale `version` refused,
+  audit events without personal data, the operator notice and its acknowledgement).
+
+### Import wizard: schema and API (slice 26, ADR-0092)
+
+Phase 2 slice 26 builds the API for the rules above, starting with people (demographics), the
+record type the slice 9 rules support. The web wizard is slice 67; contacts, allergies, staff
+and the round trip with the full export (HZ-071) follow (slices 51 and 67). Code:
+`packages/domain/src/platform/imports.ts`, `packages/db/src/schema/imports.ts` and migration
+0088, `apps/api/src/routes/platform-imports.ts`, `apps/api/src/services/platform-imports.ts`.
+Hazards: HZ-130 (imported records mis-mapped, duplicated or attached to the wrong person), HZ-007
+(allergy status), HZ-072 (sample data), HZ-011 (scope).
+
+**Schema** (migration 0088, one file with its security SQL):
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `import_batch` | `id`, `tenant_id`, `record_type` (`people`), `location_id` (every imported person's home), `status` (`staged`, `committed`, `undone`, `discarded`, `expired`), `row_count`, `uploaded_by`, `uploaded_at`, `expires_at`, `dry_run_at`, `dry_run_by`, `dry_run_errors`, `dry_run_warnings`, `closed_at`, `closed_by`, `created_at`, `created_by` | One upload. Inserted staged, in the uploader's own name. A guard keeps who uploaded what, where and when; moves the status forward only (staged to committed, discarded or expired; committed to undone); commits only after a dry run and before `expires_at`; closes in the member's own name, or as the system only once `expires_at` has passed; never deleted. Opaque ids, counts and times only: no file name, heading or value |
+| `import_row` | `id`, `tenant_id`, `batch_id`, `row_number` (1 is the first row under the header), `cells` (JSON: Harbour field key to the text as given) | The quarantine: personal data, held only while the batch is staged. INSERT and SELECT only for the application, into a staged batch; never updated; deleted, every row of the batch, in the transaction that commits, discards or expires it (`app.import_batch_closed`, a trigger owned by `harbour_import_owner`) |
+| `import_commit` | `id`, `tenant_id`, `batch_id` (one per batch), `record_ids` (the people created), `record_count`, `committed_by`, `committed_at`, `undone_at`, `undone_by`, `created_at`, `created_by` | The commit record: inserted in the committer's own name with the batch committed; undone only by `app.undo_import_batch` |
+| `person.import_batch_id` | The batch that created the person, or empty | Set only as the person is created, only while that batch is staged after its dry run (the commit creates people before it closes the batch), never changed (`app.person_import_batch_guard`); an undo removes only people carrying the batch's id (#150 review, security M1). The people sync streams do not select it |
+
+Every table has `tenant_id`, forced row-level security and the tenant policy, plus a restrictive
+policy for the application: the request's scope is `tenant` and its member holds
+`platform.import.run` and the permissions to create and read the batch's records
+(`people.person.create`, `people.person.read`) across the organisation (`app.import_reachable`,
+using `app.holds_permission_at(..., NULL)`), or it
+is a job with no member in the organisation's view (the expiry sweep). Staged rows and the commit
+record follow their batch. None of them syncs to devices.
+
+**Permission matrix.** The catalogue's existing `platform.import.run` is reused (now a care-record
+permission: MFA), with `people.person.create` and `people.person.read` for a people import. Built
+in, only the owner holds all three; a tenant may give them to another role scoped to the
+organisation.
+
+| Route | Needs | Step-up |
+| --- | --- | --- |
+| `POST /v1/imports` (upload) | `platform.import.run`, `people.person.create` and `people.person.read`, all across the organisation | No |
+| `GET /v1/imports`, `GET /v1/imports/{id}` | The same | No |
+| `POST /v1/imports/{id}/dry-run` | The same | No |
+| `POST /v1/imports/{id}/commit` | The same | Yes |
+| `POST /v1/imports/{id}/undo` | The same | Yes |
+| `DELETE /v1/imports/{id}` (discard) | The same | No |
+
+**Rules that are easy to get wrong** (continuing the numbering above):
+
+18. **Only across the whole organisation.** Each route needs the three permissions reaching the
+    whole organisation (reading people too, since a warning names an existing record; #150 review
+    round 2), in the API and again in row-level security for every command. NHS numbers are
+    unique within an organisation, so an import by someone who sees only some homes could tell
+    them, by succeeding or not, that a person they cannot see exists. A member who holds the
+    permissions only at some locations is therefore refused with one answer,
+    `organisation_wide_required`, before anything in the request is read, whatever the file holds.
+    The importer can see everyone in the organisation, so matching (rule 21) only ever reports
+    people they can already see, and may name their records. Another organisation's people are
+    never read: a row with an NHS number used by another provider is treated exactly as one used
+    nowhere. Another organisation's batch, or one that does not exist, is `not_found` alike
+    (HZ-130, HZ-011).
+19. **Upload.** A record type (`people`), a location of the organisation, and either CSV text (UTF-8,
+    one header row, RFC 4180 quoting, comma separated) or JSON rows (objects of text), within
+    `IMPORT_LIMITS` (rows, columns and characters a cell; product limits, not statutory figures),
+    enforced while the file is read, so reading stops at the first row, column or cell too many.
+    Each column is matched to a Harbour field by the mapping given (column heading to field key, or
+    `null` to leave the column out), else by its field key or label, ignoring case, spaces,
+    hyphens and underscores (own keys only). A column that matches nothing, a mapping to a field
+    Harbour does not import, or two columns for one field refuse the upload (422
+    `columns_not_mapped`), naming each column by its position, never its heading (a file without a
+    header row would make its first person's details the headings). A cell that could not be
+    stored (a control character, or half of a character: a lone UTF-16 surrogate) refuses the
+    upload (422), naming the row and the field, before anything is written. Blank lines are not
+    rows. Only matched columns are kept, as staged rows, never in anyone's record, until commit.
+    The batch expires `import.staging_expiry_days` after upload.
+20. **Validation** (rules 11 and 12, for people): besides the field rules, a person needs an NHS
+    number or a local identifier (people.md, as for a person added by hand); a date of birth is
+    from 1 January 1900 to today; a postcode is a full UK postcode, stored upper case with one
+    space; text with control characters or lone surrogates is refused; an NHS number or a local
+    identifier appears on one row only. A 999-range test NHS number, or 0000000000 (which passes
+    the check digit), is refused (`test_nhs_number`) unless the environment takes them
+    (`IMPORT_TEST_NHS_NUMBERS`: on for demonstration and test environments, whose people are
+    invented; off by default in production).
+21. **Matching, never merging** (HZ-130). A row whose NHS number or local identifier is already on
+    a person's record in the organisation (any status, soft-deleted or not) is an error,
+    `already_in_harbour`, naming that record: an import never updates, merges with or attaches
+    anything to an existing person; changes to an existing person are made on their record. A row
+    with the same date of birth as an existing person, or as another row, where either has no NHS
+    number, is a warning, `possible_duplicate`, when the names agree: the same name, the names
+    swapped, the same family name, or the same given name (perhaps a changed family name). Names are
+    compared as letters only (case, accents, apostrophes, hyphens and spaces aside), the given name
+    whole or its first word (so a middle name does not hide a match). Each warning names the other
+    row or the existing record, and has a key. Two people with different NHS numbers are different
+    people. Warnings are kept few enough to read (`IMPORT_WARNING_LIMITS`; #150 security review
+    round 2): rows that may be one person are warned of once a pair, on the later row, naming the
+    earliest row it matches; a row names at most three existing records (`recordMatchesCapped`
+    says when it matched more); a file where more than 50 rows share one date of birth is refused
+    without comparing them (`too_many_same_birth_date`), and one with more than 500 possible
+    duplicates is refused (`too_many_possible_duplicates`), each asking for the file to be checked
+    or split. So the dry run always lists every warning it finds, and each can be acknowledged.
+22. **Dry run** (`POST /v1/imports/{id}/dry-run`): validation and matching against the people as
+    they are now, committing nothing. The report gives rows, valid rows, errors by code, each error
+    and warning by row and field key with a code and plain words (never a value or a heading), the
+    warning keys, what the file stated for each person's allergy status (none, no known allergies,
+    has allergies), and, in plain words (`whatHappens`), what committing will do: create that many
+    people at the chosen home as current residents, changing nobody already in Harbour; show them
+    to staff at once, on the web and on phones at their next sync, after which the import can no
+    longer be undone; where phones are in use (`phonesInUse`: a sync token carrying people issued in
+    the organisation within `mobile.offline_window_days`), that the import should be treated as one
+    that cannot be undone, since phones can receive the people within minutes, and that a person
+    imported by mistake can then only be corrected, not removed; import every allergy status as not
+    recorded until staff check it, each person whose status the file stated getting a task; import
+    no allergies themselves; give them no photo, room or placement (HZ-001). `mayCommit` is true
+    only with no errors and no possible duplicates; with possible duplicates only,
+    `needsAcknowledgement` is true. Each dry run records when it ran, by whom and its error and
+    warning counts.
+23. **Commit** (`POST /v1/imports/{id}/commit`, fresh step-up): only a staged batch that has had a
+    dry run and is not past `expires_at` (`expired`; the guard refuses it too). The dry run is
+    repeated inside the commit's own transaction with the batch locked, and the batch commits
+    whole only with no error and with `acknowledgedWarnings` listing exactly the warning keys found
+    now: one missing, one extra, one repeated or a new one since the person read the report
+    refuses it (`possible_duplicates_unacknowledged`). Where phones are in use (rule 22, decided
+    again now), the commit also needs `acceptNoUndo` (`no_undo_not_accepted`; #150 clinical review
+    round 2, M-B), and the acceptance is audited. Otherwise nothing is created (409 with the
+    reason). Each row becomes a person at the batch's location, status `active` (current residents
+    moving from another system; no photo, room, placement or admission record is made, HZ-001),
+    tied to the batch (`import_batch_id`), with allergy status `unknown` ("not recorded") whatever
+    the file stated, confirmed by no one, until a member of staff checks and records it (HZ-007:
+    an imported "no known allergies" must never read as freshly confirmed by the committer). Each
+    person whose status the file stated gets a task, `people.allergy_status_check` (needs
+    `people.person.update`; for the registered manager; due now; urgent when the file said they
+    have allergies), carrying what the file said as a code (`details.importedAllergyStatus`), so
+    it outlives the response. Rows and people are paired by NHS number, else local identifier
+    (each unique in a committed file), never by row order, and the commit fails whole if one does
+    not pair. The response lists them with their tasks (`allergyStatusToConfirm`, again on a
+    replay; #150 clinical review round 2, M-A). Each person gets a
+    `people.person.imported` audit event. The commit record keeps the people's ids, and the staged
+    rows are deleted in the same transaction. Committing a committed batch again returns the same
+    commit (idempotent), so a retried request never creates anyone twice. A batch and a commit say
+    whether the commit can be undone now (`undoAvailable`; rule 24), with `undoClosesAt` only
+    while it can (#150 clinical review round 2, M-C). People are refused while
+    sample data is in place (`remove_sample_data_first`, HZ-072). Someone added by another route
+    between the check and the insert ends the commit with nothing created (409 `records_changed`;
+    run the dry run again).
+24. **Undo** (`POST /v1/imports/{id}/undo`, fresh step-up): rule 14, decided again by
+    `app.undo_import_batch`, a definer function owned by the no-login `harbour_import_owner`, which
+    removes only people carrying the batch's `import_batch_id` and exactly the commit's record ids,
+    the whole batch or nothing. It is refused past `import.undo_window_days` (read from the rate
+    table in the database too); once a phone may hold the people (`sent_to_devices`: a sync token
+    carrying people at any home was issued in the organisation from one token's lifetime before the
+    commit, so a phone may have recorded care for them offline, which an undo would strand; #150
+    clinical review H2, chosen as simpler than holding imported people off phones); when a person
+    has been changed (saved since, or soft-deleted); and when anything refers to one of them by a
+    foreign key (a note, task, document, allergy, contact, legal hold and so on). The allergy
+    status checks the commit raised go with them while still open; one someone has acted on
+    refuses the undo. The application role never holds DELETE. Audit events about them stay. In
+    practice undo is for an import checked straight away, before phones next sync, as at
+    onboarding before devices are in use. After that a person imported by mistake can have their
+    details corrected but cannot be removed or marked as created in error: there is no such
+    status yet (a follow-up for the people lifecycle in STATUS.md; the CSO decides, H-680).
+25. **Discard and expiry.** A staged batch may be discarded (`DELETE /v1/imports/{id}`); the hourly
+    `import-expiry` job expires staged batches past `expires_at` (on the database's clock), as the
+    system. Either way, as at commit, the staged rows are deleted in the same transaction and the
+    batch row stays as the record of what happened.
+26. **Nothing echoed.** No error, problem, log line or audit event carries an imported value or a
+    column heading: rows and columns by number and field key, counts, and opaque ids (a matched
+    record's id goes only to the importer, who can see it). A database failure while writing
+    imported values is rethrown carrying only its SQLSTATE (`ImportWriteFailed`), so a failed
+    query's message, which holds its parameters, never reaches a log; the API's error log keeps
+    only an error's kind, code and stack frames. Audited: `platform.import.uploaded`,
+    `platform.import.read` (list and batch views), `platform.import.dry_run`,
+    `platform.import.committed` (records, possible duplicates acknowledged, allergy status checks,
+    whether no undo was accepted), `people.person.imported` (one per person),
+    `platform.import.undone` (by the database), `platform.import.discarded`,
+    `platform.import.expired`. Refusals for a missing permission, `organisation_wide_required`, a
+    stale step-up and a batch's state (409) are audited as `denied` with their code and the batch
+    id; a file refused as malformed (422) is not, since nothing was stored.
+
+**Tests (written before the code)**:
+
+- `packages/domain/src/platform/imports.test.ts`: `PLAT-014 reading an import file` (quoting,
+  doubled quotes, line breaks in a cell, a byte order mark, CRLF, blank lines, a ragged row, each
+  limit, stopping at the first row, cell or column past a limit, no value in a problem);
+  `PLAT-014 matching columns` (a mapping, keys and labels, a column left out, unknown by position
+  only, two columns for one field, a mapping to no field); `PLAT-014 person import rules`
+  (identifier, local identifier on two rows, dates from 1900, the postcode, control characters and
+  lone surrogates, test NHS numbers, a cell that cannot be stored found by row and field);
+  `hazard HZ-130 ...` (an NHS number or local identifier already in Harbour, naming the record;
+  possible duplicates by every kind of name agreement, naming the row or record; different NHS
+  numbers never warned; the commit check table with exactly the warnings seen; round 2: a pair
+  warned once on the later row, the warnings bounded per row and in total, a crowded date of birth
+  refused, 5000 rows on one date of birth bounded, phones in use said and needing acceptance);
+  `hazard HZ-007 the
+  dry run says every allergy status is imported as not recorded`; the report's words; staging
+  expiry and undo deadline from the rate table; undo refused once phones may hold the people.
+- `packages/db/test/imports.test.ts`: `hazard HZ-130 hazard HZ-011 the import tables (migration
+  0088)`: another organisation never sees or writes a batch, a staged row or a commit record; a
+  holder at one location only, a member without the permissions, and one with the import
+  permission but not the right to create people, see nothing; staged rows are insert-only and go
+  when the batch closes; the guard's transitions, no commit past expiry; `app.undo_import_batch`
+  (permission, the window from the rate table, a people sync token since the commit, changed and
+  referenced refusals, only the batch's own people, whole or nothing, audited, the other
+  organisation's people untouched); a person tied to a batch only as it commits, never changed;
+  an importer without `people.person.read` sees nothing; the commit's open allergy status checks
+  go with an undo, and one acted on refuses it.
+- `apps/api/test/imports.test.ts`: `hazard HZ-130 ...` over HTTP: upload, dry run, commit, undo,
+  discard; the organisation-wide refusal identical whatever the file holds; another
+  organisation's NHS number treated as new and its batch as not found; no value or heading in any
+  response, audit event or log line (a NUL and a lone surrogate refused at upload, logging
+  nothing personal; a failed write rethrown as its code); allergy status imported as not
+  recorded; exactly the warnings seen acknowledged; idempotent commit; step-up; expiry; undo
+  refused after a sync token, with `undoAvailable` false; with phones in use, the dry run's words
+  and a commit refused without `acceptNoUndo`; allergy status checks raised, paired by NHS number
+  or local identifier, replayed and removed by an undo; test NHS numbers; sample data; the expiry
+  sweep.
+
+## Phase 2: single sign-on (PLAT-005)
+
+Phase 2 slice 33 ([phase-2.md](../plans/phase-2.md), [ADR-0091](../decisions/0091-single-sign-on.md)):
+per-organisation OpenID Connect sign-in on the Better Auth SSO plugin, built on the slice 9 rules
+15 to 17 (`sso.ts`). Screens are slice 67; this slice is schema, rules and API. SAML 2.0 follows
+when a design partner needs it (H-753). Code: `packages/db/src/schema/sso.ts`, migration 0095,
+`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, `apps/api/src/services/sso.ts`,
+`apps/api/src/auth/better-auth.ts`.
+
+**Data.** `sso_connection` (one per organisation, mutable, versioned): the provider id Harbour
+derives from the organisation (`harbour-<tenant id>`), the issuer and its discovery URL (https), the
+client id, the name of the private key in the managed secret store and its key id, the roles
+allowed to use SSO, and whether it is switched on. `sso_domain` (mutable, versioned): an email
+domain the organisation claims, the SHA-256 of the DNS TXT token that proves it, when and by whom it
+was verified, and when it was removed. Better Auth's own `auth.sso_provider` row is a projection of
+the connection that only the API writes. Retention: tenant configuration, kept while current, each
+change in `record_version` and the audit trail.
+
+**Rules that are easy to get wrong**
+
+18. No client secret or private key is ever stored in the database, returned by the API or logged.
+    The client authenticates to the provider with `private_key_jwt`; the key lives in the managed
+    secret store under `harbour/sso/<tenant id>/<name>` and is read only at sign-in
+    (`resolvePrivateKey`). Client-secret authentication is refused. Saving a connection checks the
+    key exists in the store (`DescribeSecret`) without reading it. Discovery runs only after these
+    checks, to public https hosts only, and fails with a generic error; identity providers are
+    never trusted origins.
+19. A domain counts only once verified by a DNS TXT record `_harbour-verification.<domain>` holding
+    `harbour-verification=<token>`; the token is shown once and stored only as a hash. Public email
+    domains and malformed names are refused (`checkSsoDomain`); a domain verified by one
+    organisation cannot be verified by another.
+20. Linking: the SSO callback runs `ssoSignInDecision` (rules 15 and 16) for the organisation the
+    provider belongs to, and refuses a provider account already linked to another sign-in (one
+    account, one sign-in, across organisations). An SSO session reaches only that organisation. A
+    new issuer, client or discovery URL switches SSO off until every domain is proved again. An active member with a Harbour sign-in is linked to it; an invited member
+    with none gets a sign-in created and is linked by `app.link_sso_member`, which accepts any open
+    invitation and is audited. Anyone else is refused with the rule's words; nothing is created for
+    them.
+21. Rule 17 holds through the existing session factor (ADR-0072): an SSO session has no Harbour
+    factor recorded, so care records and step-up ask for the passkey or authenticator code on that
+    session (HZ-112). A provider's MFA claim is never read.
+22. Only holders of `platform.tenant.manage` read or change the configuration; every change needs a
+    fresh step-up and is audited (no key names, tokens or domains in the audit scope, only ids and
+    what changed). Better Auth's own provider-management routes are switched off.
+23. Single sign-on is behind the `platform.sso` flag, off by default: with it off the configuration
+    API refuses and the SSO sign-in and callback answer 404. An SSO session carries its
+    organisation on its own row and reaches no other; on Better Auth's routes it may only read
+    itself, sign out and confirm a Harbour code. No implicit linking by email.
+24. While the flag is off, an SSO session is refused and ended on every request: the session
+    middleware checks the flag before it accepts the session or moves its expiry on, on every
+    `/v1` route (the tenantless ones, `/v1/memberships`, `/v1/me/sessions*` and the invitation
+    routes, included) and the operator console, and the auth gate does the same on Better Auth's
+    routes (401 `sso_session_ended`). An idle session is ended at its next request, so nothing it
+    does in between keeps it alive, and switching the flag back on revives none. The flag is
+    changed outside the API (Flagsmith or the `feature_flag` table), so no write path deletes the
+    rows at that moment. The operator console refuses any SSO session.
+25. Wrong Harbour codes are throttled per member across all sessions as well as per session, the
+    sign-in's own code step included (HZ-112): the member's attempts are counted in Postgres; after
+    five in an hour each waits a minute, then four, then 15 (the cap), and at most ten are checked
+    in an hour.
+26. Discovery connects only to the address it checked: its connection's DNS lookup refuses any
+    non-public address, so a host cannot resolve to a public address for the check and a private
+    one for the fetch; the document is refused as soon as it passes 256 KB.
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the SSO configuration and domains | `platform.tenant.manage` | |
+| Save the connection, switch it on or off, add, verify or remove a domain | `platform.tenant.manage` | Step-up |
+| Sign in with SSO | - | Invited or active members only (rules 15, 16, 20) |
+
+**Tests (written before the code)**
+
+- `packages/domain/src/platform/sso.test.ts`: `PLAT-005 SSO connection checks` (https issuer and
+  discovery URL, key name shape, client-secret refused, roles known); `PLAT-005 domain checks`
+  (malformed, public email, verified elsewhere); `PLAT-005 DNS proof` (record name and value, token
+  match, stray records); provider id round trip.
+- `packages/db/test/sso.test.ts`: cross-tenant denial for both tables, only `platform.tenant.manage`,
+  no DELETE, one connection per organisation, a domain verified by only one organisation,
+  `app.link_sso_member` links only an invited member at a verified domain.
+- `apps/api/test/sso.test.ts`: configuration saved with step-up and audited without secrets; a key
+  missing from the store refused; domain added, proved by a mocked DNS answer, refused without it;
+  sign-in started with PKCE and the client id; the resolver links an active member, links and
+  activates an invited one, refuses a stranger, a family member and a role not allowed; an SSO
+  session is refused care records until a Harbour factor is used (HZ-112).
+
 ## Permission matrix
 
 Generated: [permissions.md](permissions.md).
@@ -1031,4 +1571,6 @@ Audit events, record versions and break-glass records keep the `audit_event` cla
 [retention.md](retention.md)); deliveries and inbound data are operational and follow the class of
 the record they relate to (retention engine, Phase 1). `device_binding`, `device_session` and
 `handed_over_entry` keep the `audit_event` class; `request_quota` is operational (a row holds at most a day's hits and is overwritten in
-place).
+place). `import_batch` and `import_commit` keep the `audit_event` class; `import_row` (staged rows)
+is never retained: deleted when its batch commits, is discarded or expires, at most
+`import.staging_expiry_days` after upload (rule 25).

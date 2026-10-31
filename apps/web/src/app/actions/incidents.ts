@@ -152,6 +152,8 @@ export async function submitNotification(
   input: {
     readonly submittedAt: string | null;
     readonly externalReference: string;
+    /** The evidence kept instead of a regulator's reference (a candour letter's copy). */
+    readonly evidenceDocumentId?: string | null;
     readonly version: number;
   },
 ): Promise<ActionResult<StatutoryNotificationDetail>> {
@@ -165,7 +167,14 @@ export async function submitNotification(
   return sendAndRevalidate(notificationPaths(incidentId), (api) =>
     api.POST("/v1/notifications/statutory/{id}/submit", {
       params: { path: { id: notificationId } },
-      body: { submittedAt, externalReference: input.externalReference, version: input.version },
+      body: {
+        submittedAt,
+        ...(input.externalReference ? { externalReference: input.externalReference } : {}),
+        ...(input.evidenceDocumentId && isUuid(input.evidenceDocumentId)
+          ? { evidenceDocumentId: input.evidenceDocumentId }
+          : {}),
+        version: input.version,
+      },
     }),
   );
 }

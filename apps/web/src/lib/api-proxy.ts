@@ -4,6 +4,8 @@
  * serves every environment. Pure, unit tested; used by `app/api/auth/[...path]/route.ts`.
  */
 
+import { REQUEST_ID_HEADER, wellFormedRequestId } from "./request-id";
+
 /** Connection-level headers that describe one hop and must not be forwarded (RFC 9110 7.6.1). */
 const HOP_BY_HOP = new Set([
   "connection",
@@ -38,7 +40,10 @@ const DROPPED_RESPONSE = new Set([...HOP_BY_HOP, "content-encoding", "content-le
 export function forwardRequestHeaders(incoming: Headers): Headers {
   const out = new Headers();
   for (const [name, value] of incoming) {
-    if (!DROPPED_REQUEST.has(name) && !name.startsWith("x-middleware-")) out.append(name, value);
+    if (DROPPED_REQUEST.has(name) || name.startsWith("x-middleware-")) continue;
+    // A request id goes on only as a UUID, for the API's log (request-id.ts).
+    if (name === REQUEST_ID_HEADER && !wellFormedRequestId(value)) continue;
+    out.append(name, value);
   }
   return out;
 }

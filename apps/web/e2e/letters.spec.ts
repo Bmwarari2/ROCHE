@@ -184,12 +184,12 @@ test("hazard HZ-051 a letter changed since the preview is shown again to check, 
   const email = `Email ${RUN}`;
   await approvedTemplate(page, owner, "email", email);
   await page.goto(PATH);
-  await page.getByLabel("Template").selectOption({ label: email });
-  await page.getByRole("button", { name: "Preview the letter" }).click();
-  await page.getByLabel("I have checked who this letter is about").check();
-  await page.getByRole("button", { name: "Send the email" }).click();
-  await expect(alertIn(page)).toContainText(
-    "Sending email is not available yet. Send it as a letter.",
-  );
-  await expectAccessible(page, "email refused");
+  // Sending email is not built: an email template is not offered, and the page says why.
+  await expect(page.getByLabel("Template").locator("option", { hasText: email })).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Email templates are not offered here yet, because Harbour cannot send email yet.",
+    ),
+  ).toBeVisible();
+  await expectAccessible(page, "email templates left out");
 });

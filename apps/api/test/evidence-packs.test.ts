@@ -110,7 +110,13 @@ async function addNote(pack: Pack, noteId: string, who = "manager") {
   return as(who, `/v1/evidence-packs/${pack.id}/items`, {
     method: "POST",
     body: {
-      items: [{ recordType: "care_note", recordId: noteId, qualityStatementIds: ["safe.1"] }],
+      items: [
+        {
+          recordType: "care_note",
+          recordId: noteId,
+          qualityStatementIds: ["safe.learning_culture"],
+        },
+      ],
       version: pack.version,
     },
   });
@@ -224,7 +230,13 @@ describe("hazard HZ-050 composing and minimising an evidence pack", () => {
     const response = await as("manager", `/v1/evidence-packs/${pack.id}/items`, {
       method: "POST",
       body: {
-        items: [{ recordType: "observation", recordId: obs?.id, qualityStatementIds: ["safe.2"] }],
+        items: [
+          {
+            recordType: "observation",
+            recordId: obs?.id,
+            qualityStatementIds: ["safe.safeguarding"],
+          },
+        ],
         version: pack.version,
       },
     });
@@ -566,7 +578,13 @@ describe("hazard HZ-050 release and a new link stop at what the releaser can sta
     as(who, `/v1/evidence-packs/${pack.id}/items`, {
       method: "POST",
       body: {
-        items: [{ recordType: "incident", recordId: incidentId, qualityStatementIds: ["safe.3"] }],
+        items: [
+          {
+            recordType: "incident",
+            recordId: incidentId,
+            qualityStatementIds: ["safe.safe_environments"],
+          },
+        ],
         version: pack.version,
       },
     });
@@ -681,7 +699,13 @@ describe("hazard HZ-050 release and a new link stop at what the releaser can sta
     const added = await as("manager", `/v1/evidence-packs/${pack.id}/items`, {
       method: "POST",
       body: {
-        items: [{ recordType: "observation", recordId: obs?.id, qualityStatementIds: ["safe.2"] }],
+        items: [
+          {
+            recordType: "observation",
+            recordId: obs?.id,
+            qualityStatementIds: ["safe.safeguarding"],
+          },
+        ],
         version: pack.version,
       },
     });

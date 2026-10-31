@@ -96,3 +96,34 @@ export function isUnderLegalHold(record: HeldRecord, holds: readonly LegalHoldVi
         (h.subjectType === record.subjectType && h.subjectId === record.subjectId)),
   );
 }
+
+/** One version of a document, as the destruction check reads it. */
+export interface HeldDocumentVersion {
+  readonly id: string;
+  readonly personId: string | null;
+  /** The record the document belongs to (an incident, a care note), if any. */
+  readonly subjectType: string | null;
+  readonly subjectId: string | null;
+  /** The document's own legal hold flag. */
+  readonly legalHold: boolean;
+}
+
+/**
+ * True when a legal hold covers a document, judged across every version of it (security review,
+ * 31 October 2026): a version is held by its own flag, by a hold on the document (that version),
+ * by a hold on the person it is about, or by a hold on the record it belongs to; a hold on any
+ * version holds them all. `versions` is the document's whole version chain.
+ */
+export function isDocumentUnderLegalHold(
+  versions: readonly HeldDocumentVersion[],
+  holds: readonly LegalHoldView[],
+): boolean {
+  return versions.some(
+    (v) =>
+      v.legalHold ||
+      isUnderLegalHold({ personId: v.personId, subjectType: "document", subjectId: v.id }, holds) ||
+      (v.subjectType !== null &&
+        v.subjectId !== null &&
+        isUnderLegalHold({ subjectType: v.subjectType, subjectId: v.subjectId }, holds)),
+  );
+}

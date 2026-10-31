@@ -20,7 +20,8 @@ import { type AiProvider, subProcessorsInUse } from "./sub-processors";
  * text, family portal photos, marketing) adds its own section. The tenant's designated data
  * protection officer or named lead signs it in-app before go-live, and cannot be one of the people
  * who prepared it. A signed DPIA is flagged for re-review when the processing changes (a purpose,
- * sub-processor, data category or feature it did not cover) and yearly (`dpia.review_interval_months`).
+ * sub-processor, data category, feature or standard risk it did not cover) and yearly
+ * (`dpia.review_interval_months`).
  */
 
 /** What a signed DPIA covered; compared with the current configuration to find what is new. */
@@ -29,6 +30,12 @@ export interface DpiaBasis {
   readonly subProcessors: readonly string[];
   readonly dataCategories: readonly string[];
   readonly features: readonly string[];
+  /**
+   * The ids of the standard risks every tenant's DPIA carries (base, Phase 1 and Phase 2) when it
+   * was signed. A basis saved before this field existed covered the base risks R1 to R8 only, so
+   * adding a standard risk flags every signed DPIA that did not assess it.
+   */
+  readonly standardRisks?: readonly string[];
 }
 
 export type DeviceMode = "personal" | "shared" | "kiosk";
@@ -77,6 +84,7 @@ export function dpiaBasis(config: DpiaConfig): DpiaBasis {
     subProcessors: subProcessorsInUse(config).sort(),
     dataCategories: tenantDataCategories(processingConfig(config)),
     features: dpiaFeatures(config.features),
+    standardRisks: standardRiskIds(),
   };
 }
 
@@ -283,6 +291,94 @@ const PHASE_1_RISKS: readonly DpiaRisk[] = [
   },
 ];
 
+/**
+ * The Phase 2 processing's risks (dpia-template.md sections 6, 7 and 7B; plan slice 84): staff
+ * vetting records, silos for speaking up and casework, location at clock-in, subject access
+ * bundles, breaches, adapter providers, imports, single sign-on, staff surveys and applicants.
+ * Standard for every tenant once Phase 2 ships; R22, R25 and R28 cover processing still being
+ * built, which section 7B says, and a tenant records what it does not use there.
+ */
+const PHASE_2_RISKS: readonly DpiaRisk[] = [
+  {
+    id: "R20",
+    risk: "Staff vetting and employment records (DBS and criminal offence data, right to work and immigration, health declarations, fit notes) seen beyond HR or kept too long",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R21",
+    risk: "The identity of a whistleblower or the subject of a case disclosed, or a silo reached by a wider role",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R22",
+    risk: "Clock-in location, NFC and lone-worker check-ins used to monitor staff beyond their purpose",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R23",
+    risk: "A subject access bundle or disclosure that reveals third parties, misses records or goes beyond its legal basis",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R24",
+    risk: "A breach not assessed or reported within 72 hours, or a tenant not told by Thapsus as processor",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R25",
+    risk: "Payroll, vetting, learning and e-signature providers receiving staff or care data, possibly outside the UK",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R26",
+    risk: "Imported data inaccurate, excessive, or about people outside the service",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R27",
+    risk: "An identity provider account linked to the wrong member, or sign-in without Harbour's second factor",
+    likelihood: "possible",
+    severity: "severe",
+    overall: "high",
+  },
+  {
+    id: "R28",
+    risk: "A respondent identified from small-group staff survey results",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+  {
+    id: "R29",
+    risk: "Applicants' data kept after an unsuccessful application or used beyond recruitment",
+    likelihood: "possible",
+    severity: "significant",
+    overall: "medium",
+  },
+];
+
+/** The ids every tenant's DPIA carries whatever its configuration (not the conditional ones). */
+export function standardRiskIds(): string[] {
+  return [...BASE_RISKS, ...PHASE_1_RISKS, ...PHASE_2_RISKS].map((r) => r.id);
+}
+
+/** What a basis saved before `standardRisks` existed covered: the base risks R1 to R8. */
+const STANDARD_RISKS_BEFORE_THE_FIELD: readonly string[] = BASE_RISKS.map((r) => r.id);
+
 export interface DpiaDraft {
   readonly generatedAt: string;
   readonly basis: DpiaBasis;
@@ -451,6 +547,7 @@ export function prefillDpia(config: DpiaConfig, generatedAt: Date): DpiaDraft {
       ...BASE_RISKS,
       ...CONDITIONAL_RISKS.filter((r) => r.when(config)).map((r) => r.risk),
       ...PHASE_1_RISKS,
+      ...PHASE_2_RISKS,
     ],
     missingConfig: missingConfig(config),
   };
@@ -596,6 +693,7 @@ export type DpiaReviewTrigger =
   | { readonly kind: "new_sub_processor"; readonly items: readonly string[] }
   | { readonly kind: "new_data_category"; readonly items: readonly string[] }
   | { readonly kind: "feature_enabled"; readonly items: readonly string[] }
+  | { readonly kind: "new_standard_risk"; readonly items: readonly string[] }
   | { readonly kind: "yearly_review"; readonly dueAt: Date };
 
 /** The yearly review date: the rate-table interval after sign-off, in UK calendar months. */
@@ -606,7 +704,11 @@ export function dpiaReviewDueAt(
   return addUkMonths(signedAt, rates.dpiaReviewIntervalMonths);
 }
 
-/** What has changed since the DPIA was signed. Removing processing never triggers a review. */
+/**
+ * What has changed since the DPIA was signed. Removing processing never triggers a review. A
+ * standard risk Harbour has added since (for example the Phase 2 risks R20 to R29) does: the
+ * signed version never assessed it.
+ */
 export function dpiaReviewTriggers(
   signed: { readonly signedAt: Date; readonly basis: DpiaBasis },
   current: DpiaBasis,
@@ -621,6 +723,11 @@ export function dpiaReviewTriggers(
     ["new_sub_processor", signed.basis.subProcessors, current.subProcessors],
     ["new_data_category", signed.basis.dataCategories, current.dataCategories],
     ["feature_enabled", signed.basis.features, current.features],
+    [
+      "new_standard_risk",
+      signed.basis.standardRisks ?? STANDARD_RISKS_BEFORE_THE_FIELD,
+      current.standardRisks ?? STANDARD_RISKS_BEFORE_THE_FIELD,
+    ],
   ] as const;
   for (const [kind, before, after] of checks) {
     const items = added(before, after);

@@ -8,6 +8,7 @@ const PRODUCTION = {
   BETTER_AUTH_SECRET: "a-deployed-secret-that-is-long-enough-0123456789",
   EVIDENCE_LINK_SECRET: "a-deployed-evidence-link-key-long-enough-0123456789",
   ELEARNING_LAUNCH_SECRET: "a-deployed-elearning-launch-key-long-enough-0123456789",
+  SPEAK_UP_THROTTLE_SECRET: "a-deployed-speak-up-throttle-key-long-enough-0123456789",
   SYNC_SIGNING_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----",
   DATABASE_APP_URL: "postgres://harbour_app@db.internal/harbour",
   DATABASE_AUTH_URL: "postgres://harbour_auth@db.internal/harbour",
@@ -18,6 +19,7 @@ const PRODUCTION = {
   S3_EXPORTS_BUCKET: "harbour-dev-exports",
   MALWARE_SCANNER: "clamd",
   SAFETY_CASE_VERSION: "v0.0",
+  SSO_KEY_STORE: "aws",
 } as const;
 
 describe("loadConfig", () => {
@@ -29,6 +31,7 @@ describe("loadConfig", () => {
     "BETTER_AUTH_SECRET",
     "EVIDENCE_LINK_SECRET",
     "ELEARNING_LAUNCH_SECRET",
+    "SPEAK_UP_THROTTLE_SECRET",
     "SYNC_SIGNING_KEY_PEM",
     "DATABASE_APP_URL",
     "DATABASE_AUTH_URL",
@@ -51,6 +54,13 @@ describe("loadConfig", () => {
       "more than 10 sign-ins a minute",
       { AUTH_SIGN_IN_PER_MINUTE: "11" },
       "AUTH_SIGN_IN_PER_MINUTE",
+    ],
+    ["single sign-on keys outside the managed store", { SSO_KEY_STORE: "memory" }, "SSO_KEY_STORE"],
+    ["mocked single sign-on lookups", { SSO_LOOKUPS: "mock" }, "SSO_LOOKUPS"],
+    [
+      "a trusted test identity provider",
+      { SSO_TEST_IDP_ORIGINS: "http://127.0.0.1:9999" },
+      "SSO_TEST_IDP_ORIGINS",
     ],
     [
       "a Flagsmith key with no address",

@@ -15,6 +15,7 @@ import {
 } from "@/lib/people";
 import { getCareProfile, getPerson } from "@/lib/person-record";
 import type { CareProfileLoad } from "@/lib/record-data";
+import { BREAK_GLASS_REASON_CODES } from "@/lib/search";
 import { formatUkTime } from "@/lib/uk-time";
 import { RecordTabs } from "./RecordTabs";
 
@@ -77,6 +78,13 @@ export async function RecordFrame({
                   body: t("people.breakGlass.body"),
                   justification: t("people.breakGlass.justification"),
                   hint: t("people.breakGlass.hint", { min: BREAK_GLASS_MIN_LENGTH }),
+                  reasonCode: t("people.breakGlass.reasonCode"),
+                  chooseReason: t("platform.breakGlassSearch.chooseReason"),
+                  reasonOptions: BREAK_GLASS_REASON_CODES.map((code) => ({
+                    value: code,
+                    label: t("platform.breakGlassSearch.reasonOption", { code }),
+                  })),
+                  noReasonCode: t("people.breakGlass.noReasonCode"),
                   submit: t("people.breakGlass.submit"),
                   cancel: t("common.cancel"),
                   close: t("common.close"),

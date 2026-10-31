@@ -33,9 +33,13 @@ import type {
 /** S3 multipart parts (the minimum is 5 MiB): the most of an export held in memory at once. */
 const PART_BYTES = 8 * 1024 * 1024;
 
-/** A document's bytes, or an export's archive (`exportStoragePrefix` plus `export.zip`). */
+/**
+ * A document's bytes, an export's archive (`exportStoragePrefix` plus `export.zip`), or an issued
+ * DSAR bundle (`dsarBundleStorageKey`, #149 M3), or an issued disclosure pack
+ * (`disclosurePackStorageKey`, SAFE-016).
+ */
 const KEY_PATTERN =
-  /^tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip)$/;
+  /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip|disclosures\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
 
 function assertKey(key: string): void {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
@@ -106,6 +110,20 @@ export class LocalDocumentStorage implements DocumentStoragePort {
   async health(): Promise<HealthResult> {
     await mkdir(this.root, { recursive: true });
     return { ok: true, detail: "local disk" };
+  }
+}
+
+/**
+ * Stored bytes that could not be deleted. `code` is S3's error code for the first object (or
+ * `VersionsRemain`), which the worker logs; never the key or anything else about the object.
+ */
+export class StorageDeleteFailed extends Error {
+  constructor(
+    readonly code: string,
+    readonly count: number,
+  ) {
+    super("Stored versions could not be deleted.");
+    this.name = "StorageDeleteFailed";
   }
 }
 
@@ -221,9 +239,36 @@ export class S3DocumentStorage implements DocumentStoragePort {
     }
   }
 
-  /** Deletes every version and delete marker, so nothing survives destruction in a versioned bucket. */
+  /**
+   * Deletes every version and delete marker, so nothing survives destruction in a versioned bucket.
+   * A batch delete answers 200 with the objects it could not delete in `Errors` (Quiet only leaves
+   * out the ones it did), so any error throws; and the versions are listed again afterwards, so
+   * anything still there throws too. The caller's retry then goes on until the key is empty
+   * (security review of #134, M2).
+   */
   async destroy(key: string): Promise<void> {
     assertKey(key);
+    const versions = await this.versionsOf(key);
+    // DeleteObjects takes at most 1,000 objects.
+    for (let at = 0; at < versions.length; at += 1000) {
+      const result = await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: versions.slice(at, at + 1000), Quiet: true },
+        }),
+      );
+      const failed = result.Errors ?? [];
+      if (failed.length > 0) {
+        throw new StorageDeleteFailed(failed[0]?.Code ?? "DeleteObjectsError", failed.length);
+      }
+    }
+    const left = await this.versionsOf(key);
+    if (left.length > 0) throw new StorageDeleteFailed("VersionsRemain", left.length);
+  }
+
+  /** Every version and delete marker stored under exactly this key. */
+  private async versionsOf(key: string): Promise<{ Key: string; VersionId: string }[]> {
+    const found: { Key: string; VersionId: string }[] = [];
     let keyMarker: string | undefined;
     let versionMarker: string | undefined;
     do {
@@ -235,20 +280,13 @@ export class S3DocumentStorage implements DocumentStoragePort {
           VersionIdMarker: versionMarker,
         }),
       );
-      const objects = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]
-        .filter((v) => v.Key === key && v.VersionId)
-        .map((v) => ({ Key: key, VersionId: v.VersionId }));
-      if (objects.length > 0) {
-        await this.client.send(
-          new DeleteObjectsCommand({
-            Bucket: this.bucket,
-            Delete: { Objects: objects, Quiet: true },
-          }),
-        );
+      for (const v of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
+        if (v.Key === key && v.VersionId) found.push({ Key: key, VersionId: v.VersionId });
       }
       keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
       versionMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
     } while (keyMarker);
+    return found;
   }
 
   async health(): Promise<HealthResult> {

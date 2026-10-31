@@ -13,7 +13,9 @@
 ## With a password and an authenticator app
 
 1. Enter your **Email address** and **Password**, then choose **Sign in**.
-2. Open your authenticator app and type the 6-digit code under **Enter your 6-digit code**.
+2. Open your authenticator app and type the 6-digit code under
+   **Enter your 6-digit code or a backup code**. If you cannot use the app (a lost or changed
+   phone), type one of your backup codes instead. Each backup code works once.
 3. Choose **Sign in**.
 
 If the code does not match, enter the newest one: codes change every 30 seconds.
@@ -41,6 +43,5 @@ computer.
 ## Good to know
 
 - After several attempts, Harbour asks you to wait a minute. It never locks you out.
-- There is no "forgot password" link and backup codes cannot be typed in yet. Ask your manager if
-  you cannot sign in.
+- There is no "forgot password" link. Ask your manager if you cannot sign in.
 - First time? See [How to accept an invitation](accept-an-invitation.md).

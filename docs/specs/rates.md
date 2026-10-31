@@ -14,7 +14,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
   `valid_from` dates or nations; for a given key and nation, date ranges never overlap.
 - **value**: a plain number with no currency symbol or thousands separator. Money is in pounds with two
   decimals (12.71). Percentages are numbers (12.07 means 12.07%).
-- **unit**: `GBP_per_hour`, `GBP_per_day`, `GBP_per_week`, `GBP_per_year`, `GBP`, `percent`, `days`,
+- **unit**: `GBP_per_hour`, `GBP_per_day`, `GBP_per_week`, `GBP_per_month`, `GBP_per_year`, `GBP`, `percent`, `days`,
   `working_days`, `working_hours`, `hours`, `minutes`, `seconds`, `weeks`, `months`, `years`, `celsius`,
   `mm`, `count`, `day_of_month`, `month_of_year`, `minute_of_day` (0 to 1439 minutes after midnight, UK local time; 07:30 is 450).
 - **valid_from / valid_to**: ISO dates, inclusive. `valid_to` is `-` while the figure is current; when a
@@ -52,16 +52,27 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | nmw.accommodation_offset.daily | 10.66 | GBP_per_day | 2025-04-01 | 2026-03-31 | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
 | nmw.accommodation_offset.weekly | 77.70 | GBP_per_week | 2026-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
 | nmw.accommodation_offset.weekly | 74.62 | GBP_per_week | 2025-04-01 | 2026-03-31 | uk | https://www.gov.uk/national-minimum-wage-accommodation | verified |
-| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | england | https://www.gov.uk/statutory-sick-pay | verified |
-| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | wales | https://www.gov.uk/statutory-sick-pay | verified |
-| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | scotland | https://www.gov.uk/statutory-sick-pay | verified |
-| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | england | https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
-| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | wales | https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
-| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | scotland | https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
-| ssp.waiting_days | 0 | days | 2026-04-06 | - | england | master prompt 3, 12.3 (SSP from day one) | master-prompt |
-| ssp.waiting_days | 0 | days | 2026-04-06 | - | wales | master prompt 3, 12.3 (SSP from day one) | master-prompt |
-| ssp.waiting_days | 0 | days | 2026-04-06 | - | scotland | master prompt 3, 12.3 (SSP from day one) | master-prompt |
-| ssp.max_weeks | 28 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/employers-sick-pay | verified |
+| nmw.age.21_plus | 21 | years | 2024-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the "21 and over" band) | verified |
+| nmw.age.18_to_20 | 18 | years | 2024-04-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the "18 to 20" band) | verified |
+| nmw.apprentice.age_limit | 19 | years | 2000-01-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (apprentices aged under 19, or 19 or over in the first year) | verified |
+| nmw.apprentice.first_year_months | 12 | months | 2000-01-01 | - | uk | https://www.gov.uk/national-minimum-wage-rates (the first year of the apprenticeship) | verified |
+| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | england | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(a), the sum set by S.I. 2026/148 from 6 April 2026); https://www.gov.uk/statutory-sick-pay | verified |
+| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | wales | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(a), the sum set by S.I. 2026/148 from 6 April 2026); https://www.gov.uk/statutory-sick-pay | verified |
+| ssp.weekly | 123.25 | GBP_per_week | 2026-04-06 | - | scotland | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(a), the sum set by S.I. 2026/148 from 6 April 2026); https://www.gov.uk/statutory-sick-pay | verified |
+| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | england | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(b) as substituted by the Employment Rights Act 2025 s 11 from 6 April 2026, S.I. 2026/373); https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
+| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | wales | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(b) as substituted by the Employment Rights Act 2025 s 11 from 6 April 2026, S.I. 2026/373); https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
+| ssp.earnings_percentage | 80 | percent | 2026-04-06 | - | scotland | https://www.legislation.gov.uk/ukpga/1992/4/section/157 (s 157(1)(b) as substituted by the Employment Rights Act 2025 s 11 from 6 April 2026, S.I. 2026/373); https://www.gov.uk/employers-sick-pay; master prompt 12.3 | verified |
+| ssp.waiting_days | 0 | days | 2026-04-06 | - | england | https://www.legislation.gov.uk/ukpga/1992/4/section/155 (s 155(1), the waiting days, omitted by the Employment Rights Act 2025 s 10(6) from 6 April 2026, S.I. 2026/373); master prompt 3, 12.3 | verified |
+| ssp.waiting_days | 0 | days | 2026-04-06 | - | wales | https://www.legislation.gov.uk/ukpga/1992/4/section/155 (s 155(1), the waiting days, omitted by the Employment Rights Act 2025 s 10(6) from 6 April 2026, S.I. 2026/373); master prompt 3, 12.3 | verified |
+| ssp.waiting_days | 0 | days | 2026-04-06 | - | scotland | https://www.legislation.gov.uk/ukpga/1992/4/section/155 (s 155(1), the waiting days, omitted by the Employment Rights Act 2025 s 10(6) from 6 April 2026, S.I. 2026/373); master prompt 3, 12.3 | verified |
+| ssp.max_weeks | 28 | weeks | 2000-01-01 | - | uk | https://www.legislation.gov.uk/ukpga/1992/4/section/155 (s 155(4): the entitlement limit is 28 times the weekly rate); https://www.gov.uk/employers-sick-pay | verified |
+| smp.standard_weekly | 194.32 | GBP_per_week | 2026-04-05 | - | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 ("The Statutory Maternity Pay (SMP) rate applies from 5 April 2026"); https://www.gov.uk/maternity-pay-leave/pay | verified |
+| smp.standard_weekly | 187.18 | GBP_per_week | 2025-04-06 | 2026-04-04 | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026 ("These rates apply from 6 April 2025") | verified |
+| family_pay.standard_weekly | 194.32 | GBP_per_week | 2026-04-06 | - | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 (paternity, adoption, shared parental and parental bereavement pay; "All other rates apply from 6 April 2026") | verified |
+| family_pay.standard_weekly | 187.18 | GBP_per_week | 2025-04-06 | 2026-04-05 | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2025-to-2026 ("These rates apply from 6 April 2025") | verified |
+| family_pay.earnings_percentage | 90 | percent | 2000-01-01 | - | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 (90% of the employee's average weekly earnings for each kind); https://www.gov.uk/maternity-pay-leave/pay | verified |
+| smp.higher_rate_weeks | 6 | weeks | 2000-01-01 | - | uk | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 (maternity and adoption pay: the first 6 weeks at 90%); https://www.gov.uk/maternity-pay-leave/pay | verified |
+| smp.total_weeks | 39 | weeks | 2007-04-01 | - | uk | https://www.gov.uk/maternity-pay-leave/pay ("paid for up to 39 weeks") | verified |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | england | master prompt 12.3 (holiday reforms 2024) | master-prompt |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | wales | master prompt 12.3 (holiday reforms 2024) | master-prompt |
 | holiday.accrual_percentage.irregular_hours | 12.07 | percent | 2024-04-01 | - | scotland | master prompt 12.3 (holiday reforms 2024) | master-prompt |
@@ -99,15 +110,29 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | wtr.young_worker.restricted_late_start_minute | 1380 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
 | wtr.young_worker.restricted_late_end_minute | 420 | minute_of_day | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/2 ("the restricted period": 11 p.m. to 7 a.m. where the contract provides for work after 10 p.m.) | verified |
 | wtr.young_worker.weekly_rest_reduced_min_hours | 36 | hours | 2003-04-06 | - | uk | https://www.legislation.gov.uk/uksi/1998/1833/regulation/11 (reg 11(8)(b): reduced for technical or organisation reasons "but not to less than 36 consecutive hours") | verified |
-| awr.qualifying_weeks | 12 | weeks | 2011-10-01 | - | uk | master prompt 12.3 (AWR 2010) | master-prompt |
+| awr.qualifying_weeks | 12 | weeks | 2011-10-01 | - | uk | https://www.legislation.gov.uk/uksi/2010/93/regulation/7 (reg 7(2): 12 continuous calendar weeks in the same role with the same hirer); master prompt 12.3 | verified |
+| awr.break_reset_weeks | 6 | weeks | 2011-10-01 | - | uk | https://www.legislation.gov.uk/uksi/2010/93/regulation/7 (reg 7(8)(a): a break for any reason of not more than six calendar weeks keeps continuity) | verified |
+| awr.sickness_pause_max_weeks | 28 | weeks | 2011-10-01 | - | uk | https://www.legislation.gov.uk/uksi/2010/93/regulation/7 (reg 7(8)(b) and (9)(a): a break wholly for sickness or injury keeps continuity only if it is 28 calendar weeks or less) | verified |
+| absence.bradford.window_weeks | 52 | weeks | 2000-01-01 | - | all | Tenant default: the Bradford factor has no statutory basis (phase-2.md, slice 6; H-583) | to-verify |
 | auto_enrolment.earnings_trigger | 10000.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627; master prompt 12.3 | verified |
 | auto_enrolment.qualifying_earnings.lower | 6240.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
 | auto_enrolment.qualifying_earnings.upper | 50270.00 | GBP_per_year | 2026-04-06 | - | uk | https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627 | verified |
+| auto_enrolment.earnings_trigger.weekly | 192.00 | GBP_per_week | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.earnings_trigger.monthly | 833.00 | GBP_per_month | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.qualifying_earnings.lower.weekly | 120.00 | GBP_per_week | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.qualifying_earnings.lower.monthly | 520.00 | GBP_per_month | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.qualifying_earnings.upper.weekly | 967.00 | GBP_per_week | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.qualifying_earnings.upper.monthly | 4189.00 | GBP_per_month | 2024-04-06 | - | uk | https://www.thepensionsregulator.gov.uk/en/employers/new-employers/im-an-employer-who-has-to-provide-a-pension/declare-your-compliance/ongoing-duties-for-employers/earnings-thresholds (the 2026-2027 table; the DWP review keeps the 2025-26 values for 2026-27) | verified |
+| auto_enrolment.eligible_min_age | 22 | years | 2012-10-01 | - | uk | https://www.legislation.gov.uk/ukpga/2008/30/section/3 (s 3(1)(a): aged at least 22, and (b) not reached pensionable age) | verified |
+| auto_enrolment.min_age | 16 | years | 2012-10-01 | - | uk | https://www.legislation.gov.uk/ukpga/2008/30/section/1 (s 1(1)(b): a jobholder is aged at least 16 and under 75) | verified |
+| auto_enrolment.max_age | 74 | years | 2012-10-01 | - | uk | https://www.legislation.gov.uk/ukpga/2008/30/section/1 (s 1(1)(b): under 75, so 74 is the highest age) | verified |
 | sponsor.salary_floor.care_worker | 25000.00 | GBP_per_year | 2025-07-22 | - | uk | master prompt 12.1; shown as the lower going rate for SOC 6135 and 6136 at https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | master-prompt |
 | sponsor.salary_floor.care_worker_hourly | 12.82 | GBP_per_hour | 2025-07-22 | - | uk | https://www.gov.uk/government/publications/skilled-worker-visa-going-rates-for-eligible-occupations/skilled-worker-visa-going-rates-for-eligible-occupation-codes | to-verify |
 | sponsor.change_report_working_days | 10 | working_days | 2000-01-01 | - | uk | master prompt 2, 12.1 | master-prompt |
 | sponsor.switching_evidence_months | 3 | months | 2025-07-22 | - | uk | master prompt 12.1 ("3-month switching evidence") | to-verify |
 | sponsor.counted_weekly_hours_max | 48 | hours | 2025-07-22 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, salary requirements (pay counted for at most 48 hours a week) | to-verify |
+| sponsor.unauthorised_absence_working_days | 10 | working_days | 2000-01-01 | - | uk | Home Office, Workers and Temporary Workers: guidance for sponsors, reporting duties (a sponsored worker absent without permission for more than 10 consecutive working days is reported) | to-verify |
+| sponsor.visa_expiry_warning_days | 90 | days | 2025-01-01 | - | uk | Harbour default: how far ahead a sponsored worker's visa expiry is flagged (no statutory figure) | to-verify |
 | fnc.weekly.standard | 267.68 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
 | fnc.weekly.standard | 254.06 | GBP_per_week | 2025-04-01 | 2026-03-31 | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost | verified |
 | fnc.weekly.higher | 368.24 | GBP_per_week | 2026-04-01 | - | england | https://www.gov.uk/government/news/better-community-care-thanks-to-nursing-funding-boost; master prompt 14.1 | verified |
@@ -133,6 +158,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | dp_complaint.update_interval_months | 1 | months | 2026-06-19 | - | uk | docs/compliance/data-protection-complaints.md section 2 (keep the complainant informed at least monthly; tenant default, the Act says only "keep informed") | to-verify |
 | dsar.due_soon_days | 7 | days | 2018-05-25 | - | uk | Harbour default for the "due soon" warning on the DSAR register (no statutory figure) | to-verify |
 | import.undo_window_days | 7 | days | 2026-10-31 | - | all | Harbour default for undoing an import batch (phase-2.md slice 9, ADR-0092; no statutory figure) | to-verify |
+| import.staging_expiry_days | 7 | days | 2026-10-31 | - | all | Harbour default for data minimisation: how long an uploaded import's staged rows are kept before they are deleted unless committed or discarded first (platform.md rule 19, ADR-0092; UK GDPR Art 5(1)(c) and (e); no statutory figure) | to-verify |
 | reg14.absence_notice_days | 28 | days | 2000-01-01 | - | england | master prompt 11.2 (CQC Registration Regulations 2009 reg 14) | master-prompt |
 | cqc.statement_of_purpose.revision_notice_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/12 (reg 12(3): written details of any revision to the statement of purpose to the Commission within 28 days of the revision); master prompt 11.2 | verified |
 | riddor.report_days | 10 | days | 2013-10-01 | - | england | https://www.hse.gov.uk/riddor/when-do-i-report.htm; master prompt 11.1 | verified |
@@ -145,6 +171,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| candour.close_blocked_days | 14 | days | 2000-01-01 | - | england | Harbour default (#120 review round 2, M4): an incident the duty of candour holds open (no candour record where Harbour found it may apply, the record open, or someone affected not told) for longer than this many days after it happened gets an urgent task for its Registered Manager, which the task engine escalates; tenant default | to-verify |
 | safeguarding.referral_hours | 24 | hours | 2000-01-01 | - | all | Tenant target: Care Act 2014 s.42 sets no time; the local authority's procedures usually say the same day (phase-2.md slice 7; H-590) | to-verify |
 | complaint.acknowledge_working_days | 3 | working_days | 2000-01-01 | - | all | Tenant target: Regulation 16 sets none for independent providers (phase-2.md decisions; H-590) | to-verify |
 | complaint.response_working_days | 20 | working_days | 2000-01-01 | - | all | Tenant target, as above | to-verify |
@@ -156,6 +183,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | ahra.response_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5) (40 days) and the Northern Ireland Order 1993 | to-verify |
 | ahra.recent_record_response_days | 21 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) (21 days where the record was made in the 40 days before the application) | to-verify |
 | ahra.recent_record_days | 40 | days | 1991-11-01 | - | uk | Access to Health Records Act 1990 s.3(5)(b) | to-verify |
+| speak_up.reply_token_days | 180 | days | 2000-01-01 | - | all | Harbour default: how long an anonymous reporter's reply token opens their concern after it was raised; no statutory figure (ADR-0089; H-721) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | england | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
+| coroner.prevention_report_response_days | 56 | days | 2013-07-25 | - | wales | Coroners (Investigations) Regulations 2013 reg 29(3) (a response to a prevention of future deaths report within 56 days) | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -207,6 +237,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
 | competence.default_refresh_months | 12 | months | 2000-01-01 | - | all | Harbour default for observed competences other than medicines (no statutory figure; tenant may set sooner; H-690) | to-verify |
+| retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
@@ -321,16 +352,28 @@ literals, and tests assert against the table, not a literal (section 7, section 
   figure (Phase 2 slice 9). The Act sets only the 30-day acknowledgement and "keep informed"; the
   DSAR warning and the import undo window are product choices. A tenant may override each; the DPO
   confirms the defaults (H-610).
+- `import.staging_expiry_days` (7): how long an uploaded import's staged rows (personal data in
+  quarantine, never yet anyone's record) are kept before the nightly sweep deletes them, unless the
+  batch is committed or discarded first, which deletes them at once (Phase 2 slice 26). A data
+  minimisation default, not a statutory figure: long enough to correct a file over a working week,
+  short enough that an abandoned upload does not linger. A tenant may shorten it; the DPO confirms
+  it (H-681).
 - `sponsor.salary_floor.care_worker_hourly` (12.82): the gov.uk going-rates page lists £25,000 a year
   (£12.82 an hour) as the lower going rate for occupation codes 6135 and 6136, but does not say which
   column applies to care workers, and the page shows no effective date (last updated 22 July 2025, used
   as `valid_from`). Confirm the applicable rate and its start date with the Home Office sponsor guidance.
+- `sponsor.unauthorised_absence_working_days` (10) and `sponsor.visa_expiry_warning_days` (90, a Harbour
+  default): confirm the absence reporting threshold against the current guidance for sponsors and the
+  warning window with the organisation's HR lead before the sponsor module is used (H-900, H-902).
 - `sponsor.switching_evidence_months` (3): section 12.1 asks for "3-month switching evidence" without
   defining it. It is read here as the evidence period for in-country switching into the care worker
   route. Confirm the rule and its start date before the sponsor module (Phase 2) uses it.
 - `homecare.minimum_price.hourly` (34.42): stated in section 14.4 but flagged in section 21 as reported
   second-hand. The Homecare Association publishes it; it is not a gov.uk figure. Confirm against the
   Homecare Association 2026/27 publication. It is context for unit economics, not a statutory rate.
+- `candour.close_blocked_days` (14): no statutory figure. How long an incident may stay open on the
+  duty of candour before its Registered Manager is given an urgent task (safety.md section 5, part 5,
+  review round 2; HZ-013). A tenant default for the CSO to confirm (H-480).
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
@@ -499,9 +542,14 @@ literals, and tests assert against the table, not a literal (section 7, section 
 
 ## Other notes
 
-- Dates inferred rather than read from the source page: `ssp.*` rows use 6 April 2026 (the start of the
-  2026/27 tax year, when the Employment Rights Act 2025 SSP changes take effect); the gov.uk SSP pages
-  confirm the figures but not the date. `pea.weekly` uses 1 April 2026: the circular applies it "for the
+- `ssp.*` rows from 6 April 2026: confirmed on legislation.gov.uk on 31 October 2026. The
+  Employment Rights Act 2025 ss 10 and 11 (commenced 6 April 2026 by S.I. 2026/373) omitted the
+  waiting days (Social Security Contributions and Benefits Act 1992 s 155(1)) and the lower
+  earnings limit (Schedule 11 para 2(c)), made a period of incapacity one day or more
+  (s 152(2)), and set the weekly rate as the lower of £123.25 (S.I. 2026/148) and 80% of normal
+  weekly earnings (s 157(1)). `ssp.max_weeks` is the multiplier of the weekly rate in the
+  entitlement limit (s 155(4)). Payments are rounded up to the next penny (SSP (General)
+  Regulations 1982 reg 11). `pea.weekly` uses 1 April 2026: the circular applies it "for the
   financial year 2026 to 2027" without naming a day, and many councils apply it from the benefit uprating
   week. `capital.*` rows start at 1 April 2026 because only the 2026/27 circular was checked; the same
   values have applied for many years and earlier rows can be added if historical charging is imported.
@@ -563,4 +611,16 @@ literals, and tests assert against the table, not a literal (section 7, section 
   may agree (night time, reference periods) is the tenant's working-time setting
   ([scheduling.md](scheduling.md) section 4). How the rules are read is for the employment law
   adviser to confirm (H-580).
+- Pay rows added by Phase 2 slice 6 and checked on 31 October 2026: `smp.standard_weekly` and
+  `family_pay.standard_weekly` (gov.uk "Rates and thresholds for employers" 2025 to 2026 and 2026 to
+  2027: £187.18 from 6 April 2025; for 2026 to 2027 "The Statutory Maternity Pay (SMP) rate
+  applies from 5 April 2026. All other rates apply from 6 April 2026", so maternity pay has its
+  own row); `family_pay.earnings_percentage`, `smp.higher_rate_weeks` and `smp.total_weeks`
+  (gov.uk); `awr.*` (Agency Workers Regulations 2010 reg 7 on legislation.gov.uk); the
+  auto-enrolment age bands (Pensions Act 2008 ss 1 and 3). The per-period auto-enrolment
+  thresholds were read in The Pensions Regulator's 2026-2027 table (the statutory regulator's own
+  page, treated as an official source here); their `valid_from` of 6 April 2024 rests on the DWP
+  reviews keeping the values, and only the 2026-27 table was read. Statutory family payments are
+  rounded up to the next penny (SMP (General) Regulations 1986 reg 28 and the equivalents for the
+  other kinds). `absence.bradford.window_weeks` is a tenant default with no statutory basis (H-583).
 - Retention periods are not in this table; they live in `docs/specs/retention.md`.

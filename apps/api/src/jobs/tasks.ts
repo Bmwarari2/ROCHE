@@ -1,6 +1,7 @@
 import {
   auditEvent,
   type Database,
+  document,
   escalationChain,
   notification,
   notificationDelivery,
@@ -12,6 +13,7 @@ import {
 import {
   type DocumentStoragePort,
   deliveryOutcome,
+  documentStorageKey,
   dueEscalationSteps,
   type EscalationStep,
   EXPORT_ARCHIVE_FILE,
@@ -21,25 +23,43 @@ import {
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
 } from "../services/break-glass-report";
+import {
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
+  raiseCandourBlockedTasks,
+} from "../services/candour-blocked";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
   withdrawDeathNotifications,
 } from "../services/death-notifications";
+import {
+  openDeathRecord,
+  raiseHerbertReviews,
+  withdrawDeathRecord,
+} from "../services/deaths-missing";
 import { raiseDevelopmentReminders } from "../services/development";
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
+import { endLeaversAccess } from "../services/leavers";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
+import { expireImportBatches } from "../services/platform-imports";
+import { raisePolicyReminders } from "../services/policies";
 import { REFUSED_REVIEW_UNROUTED_ACTION } from "../services/refused-entries";
 import { roleHolders, toldOf } from "../services/role-holders";
+import {
+  escalateOverdueSafeguardingReferrals,
+  SAFEGUARDING_UNROUTED_ACTION,
+} from "../services/safeguarding";
 import {
   detectLocationOutbreaks,
   escalateOverdueNotifications,
@@ -69,7 +89,12 @@ export interface TaskDeps {
   readonly logger: Logger;
   /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
   readonly exportStorage?: DocumentStoragePort;
+  /** The documents bucket, for the bytes of documents destroyed past retention. */
+  readonly storage?: DocumentStoragePort;
 }
+
+/** The queue named in `worker.job.failed` when a destroyed document's bytes could not be deleted. */
+export const DOCUMENT_DESTRUCTION_QUEUE = "document-destruction";
 
 /** An outbox handler receives a published event; handlers must be idempotent (at-least-once). */
 export type OutboxHandler = (event: {
@@ -334,7 +359,8 @@ export function retryUnroutedTasks(deps: TaskDeps, now = new Date()): Promise<nu
 /**
  * The audit actions that mean no one could be told about safety work (ADR-0071 review rounds 2 to
  * 4): an overdue task, a sync task, an escalation chain step, an urgent refused-entry review, an
- * urgent result alert and a break-glass alert.
+ * urgent result alert, a break-glass alert, an overdue statutory notification, an overdue
+ * safeguarding referral and an incident the duty of candour holds open.
  */
 export const UNROUTED_ACTIONS = [
   TASK_ESCALATION_UNROUTED_ACTION,
@@ -344,6 +370,10 @@ export const UNROUTED_ACTIONS = [
   CARE_ALERT_UNROUTED_ACTION,
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   NOTIFICATION_UNROUTED_ACTION,
+  SAFEGUARDING_UNROUTED_ACTION,
+  // An incident the duty of candour holds open, with no one who manages incidents there to tell
+  // (#120 review round 4, M2).
+  CANDOUR_BLOCKED_UNROUTED_ACTION,
 ] as const;
 
 /** The structured log line the operator alarms on (docs/runbooks/on-call.md). */
@@ -472,6 +502,28 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
 }
 
 /**
+ * Leavers' access (workforce.md rule 22): ended from the day after the leaving date, once each.
+ */
+export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promise<number> {
+  const ended = await eachTenant(deps, "leaver-access", (tx, tenantId) =>
+    endLeaversAccess(tx, tenantId, now),
+  );
+  if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
+  return ended;
+}
+
+/**
+ * Policy read-and-sign reminders and review tasks (quality.md section 18.3; HZ-128).
+ */
+export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "policy-reminders", (tx, tenantId) =>
+    raisePolicyReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "policy reminders raised");
+  return raised;
+}
+
+/**
  * Training and competence expiry reminders (workforce.md section 5; HZ-119): one task for HR per
  * reminder day before a required topic or a competence runs out, never twice.
  */
@@ -480,6 +532,21 @@ export async function remindDevelopmentExpiry(deps: TaskDeps, now = new Date()):
     raiseDevelopmentReminders(tx, tenantId, now),
   );
   if (raised > 0) deps.logger.info({ raised }, "training and competence reminders raised");
+  return raised;
+}
+
+/**
+ * Data security renewal tasks (quality.md rule 36): the DSPT deadline and Cyber Essentials and ICO
+ * registration expiries, each raised once to the owner role.
+ */
+export async function remindDataSecurityRenewals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "data-security-renewals", (tx, tenantId) =>
+    raiseDataSecurityReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Data security renewal tasks raised");
   return raised;
 }
 
@@ -497,6 +564,53 @@ export async function escalateStatutoryNotifications(
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
   return escalated;
+}
+
+/**
+ * Safeguarding concerns past their referral target (safety.md "Safeguarding log", HZ-126): one
+ * alert to the holders of `safety.safeguarding.manage`, escalated through the tenant's chain until
+ * the concern is referred or a reason not to refer is recorded.
+ */
+export async function escalateSafeguardingReferrals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const escalated = await eachTenant(deps, "safeguarding-referral-escalation", (tx, tenantId) =>
+    escalateOverdueSafeguardingReferrals(tx, tenantId, now),
+  );
+  if (escalated > 0) deps.logger.info({ escalated }, "overdue safeguarding referrals escalated");
+  return escalated;
+}
+
+/**
+ * Incidents the duty of candour has held open for longer than the organisation's period
+ * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, on its own
+ * escalation ladder, every day until nothing holds it (#120 review rounds 2 and 3; HZ-013).
+ */
+export async function raiseCandourBlocked(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "candour-blocked", (tx, tenantId) =>
+    raiseCandourBlockedTasks(tx, tenantId, now, () =>
+      // Opaque ids only: which tenant has no figure for the period.
+      deps.logger.warn({ tenantId }, "candour blocked tasks not raised: no rate-table figure"),
+    ),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "incidents held open by the duty of candour");
+  return raised;
+}
+
+/**
+ * Herbert Protocol profiles past their review get a review task each (slice 37; HZ-127), escalated
+ * by the task engine when overdue.
+ */
+export async function raiseHerbertProfileReviews(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "herbert-profile-reviews", (tx, tenantId) =>
+    raiseHerbertReviews(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Herbert Protocol profile reviews raised");
+  return raised;
 }
 
 /** Outbreak detection across each location's infection cases (safety.md rule 7). */
@@ -599,6 +713,18 @@ export async function sweepEvidenceBundlesJob(deps: TaskDeps, now = new Date()):
 }
 
 /**
+ * Staged imports past `expires_at` (platform.md rule 25): each is expired as the system, which
+ * deletes its staged rows in the same transaction; audited with the row count.
+ */
+export async function expireImportsJob(deps: TaskDeps): Promise<number> {
+  const expired = await eachTenant(deps, "import-expiry", (tx, tenantId) =>
+    expireImportBatches(tx, tenantId),
+  );
+  if (expired > 0) deps.logger.info({ expired }, "staged imports expired");
+  return expired;
+}
+
+/**
  * Revised statements of purpose past their regulation 12(3) date (quality.md rule 15): the
  * holders of safety.notification.submit are told once, through the overdue chain.
  */
@@ -682,17 +808,53 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       `${exportStoragePrefix(event.tenantId, exportId)}${EXPORT_ARCHIVE_FILE}`,
     );
   };
+  // A document destroyed past retention (PLAT-012): its tombstone and certificate are committed
+  // first, and the API tries the bytes at once; this deletes them again (idempotent, every
+  // version) until the storage accepts it, only for a document recorded as destroyed. A failure
+  // writes `worker.job.failed` (queue `document-destruction`, opaque ids), which the operator's
+  // alarm watches, and throws, so the relay backs off and tries again (security review, 31
+  // October 2026).
+  const deleteDestroyedDocument: OutboxHandler = async (event) => {
+    try {
+      if (!deps.storage) throw new Error("The worker has no document storage.");
+      const [row] = await inTenant(event.tenantId, (tx) =>
+        tx
+          .select({ status: document.status })
+          .from(document)
+          .where(eq(document.id, event.aggregateId)),
+      );
+      if (row?.status !== "destroyed") return;
+      // The key is made from the event's ids as uploads make it, never read from the row, so a
+      // changed storage_key cannot point the deletion at another object (review of #134, L6).
+      await deps.storage.destroy(documentStorageKey(event.tenantId, event.aggregateId));
+    } catch (error) {
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: DOCUMENT_DESTRUCTION_QUEUE,
+          tenantId: event.tenantId,
+          outboxEventId: event.id,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      );
+      throw error;
+    }
+  };
   const handlers = new Map<string, OutboxHandler>([
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
+    ["platform.document.destroyed", deleteDestroyedDocument],
     [
       "people.person.died",
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId) return;
-        await inTenant(event.tenantId, (tx) =>
-          draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await draftDeathNotifications(tx, event.tenantId, exitRecordId, new Date());
+          // The death record: the judgement, the steps and the mortality review (slice 37).
+          await openDeathRecord(tx, event.tenantId, exitRecordId);
+        });
       },
     ],
     [
@@ -700,9 +862,10 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       async (event) => {
         const exitRecordId = exitIdOf(event.payload);
         if (!exitRecordId || (event.payload as { from?: unknown }).from !== "deceased") return;
-        await inTenant(event.tenantId, (tx) =>
-          withdrawDeathNotifications(tx, exitRecordId, new Date()),
-        );
+        await inTenant(event.tenantId, async (tx) => {
+          await withdrawDeathNotifications(tx, exitRecordId, new Date());
+          await withdrawDeathRecord(tx, exitRecordId);
+        });
       },
     ],
   ]);
@@ -735,6 +898,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // Thapsus's breach notices (platform.md rule 24): the lead and owners are told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  handlers.set("platform.breach.processor_notice_sent", async (event) => {
+    const noticeId = (event.payload as { noticeId?: unknown } | null)?.noticeId;
+    if (typeof noticeId !== "string") return;
+    await inTenant(event.tenantId, (tx) =>
+      tellAboutBreachNotice(tx, event.tenantId, noticeId, new Date()),
+    );
+  });
   handlers.set("operations.downtime_places.changed", async (event) => {
     const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
     if (typeof locationId !== "string") return;

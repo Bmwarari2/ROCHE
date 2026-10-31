@@ -12,24 +12,31 @@ import {
   compileHandovers,
   detectOutbreaks,
   endExpiredAssignments,
+  escalateSafeguardingReferrals,
   escalateStatementsOfPurpose,
   escalateStatutoryNotifications,
   escalateTasks,
+  expireImportsJob,
   generatePlanTaskSeries,
   materialiseTaskSeries,
   outboxHandlers,
   processDeliveries,
+  raiseCandourBlocked,
   raiseCareReviews,
+  raiseHerbertProfileReviews,
   raiseReviews,
   relayOutbox,
+  remindDataSecurityRenewals,
   remindDevelopmentExpiry,
   remindDolsExpiry,
+  remindPolicies,
   remindStaffFileExpiry,
   reportBreakGlass,
   reportUnroutedDaily,
   retryUnroutedTasks,
   runEscalations,
   sweepEvidenceBundlesJob,
+  sweepLeaverAccess,
 } from "./tasks";
 
 /**
@@ -51,6 +58,8 @@ const deps = {
   appDb: createDatabase(appPool),
   logger,
   exportStorage: createExportStorage(config),
+  // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
+  storage: createDocumentServices(config).storage,
 };
 
 /** Module handlers subscribe to outbox events here as modules land (Phase 1 onwards). */
@@ -70,9 +79,13 @@ const QUEUES = {
   careReviews: "care-reviews",
   dolsExpiry: "dols-expiry-reminders",
   staffFileExpiry: "staff-file-expiry-reminders",
+  policyReminders: "policy-reminders",
   developmentExpiry: "development-expiry-reminders",
+  leaverAccess: "leaver-access",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
+  candourBlocked: "candour-blocked-incidents",
+  herbertReviews: "herbert-profile-reviews",
   peopleReviews: "people-reviews",
   breakGlassReport: "break-glass-weekly-report",
   planTasks: "care-plan-rounds",
@@ -81,10 +94,12 @@ const QUEUES = {
   unroutedReport: "unrouted-daily-report",
   downtimePacks: "downtime-packs",
   invitations: "invitation-sweep",
+  speakUpIntake: "speak-up-intake-sweep",
   evidenceBundles: "evidence-bundle-sweep",
   fullExports: "full-exports",
   exportExpiry: "export-expiry",
   statementOverdue: "statement-of-purpose-overdue",
+  importExpiry: "import-expiry",
 } as const;
 
 for (const name of Object.values(QUEUES)) await boss.createQueue(name);
@@ -119,19 +134,38 @@ await work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
 });
 await work(QUEUES.dolsExpiry, async () => {
-  await remindDolsExpiry(deps);
+  // Each on its own: one failing never skips the other; a failure still fails the job, so it retries.
+  const results = await Promise.allSettled([
+    remindDolsExpiry(deps),
+    remindDataSecurityRenewals(deps),
+  ]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed && failed.status === "rejected") throw failed.reason;
 });
 await work(QUEUES.staffFileExpiry, async () => {
   await remindStaffFileExpiry(deps);
 });
+await work(QUEUES.policyReminders, async () => {
+  await remindPolicies(deps);
+});
 await work(QUEUES.developmentExpiry, async () => {
   await remindDevelopmentExpiry(deps);
 });
+await work(QUEUES.leaverAccess, async () => {
+  await sweepLeaverAccess(deps);
+});
 await work(QUEUES.statutoryNotifications, async () => {
   await escalateStatutoryNotifications(deps);
+  await escalateSafeguardingReferrals(deps);
 });
 await work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
+});
+await work(QUEUES.candourBlocked, async () => {
+  await raiseCandourBlocked(deps);
+});
+await work(QUEUES.herbertReviews, async () => {
+  await raiseHerbertProfileReviews(deps);
 });
 await work(QUEUES.peopleReviews, async () => {
   await raiseReviews(deps);
@@ -158,6 +192,10 @@ await work(QUEUES.invitations, async () => {
   await sweepInvitations({ workerPool, appPool, authPool, logger });
 });
 
+// Public speak-up intake windows that have passed (ADR-0089): counts only, no personal data.
+await work(QUEUES.speakUpIntake, async () => {
+  await workerPool.query("DELETE FROM speak_up_intake WHERE window_end < now()");
+});
 await work(QUEUES.evidenceBundles, async () => {
   await sweepEvidenceBundlesJob(deps);
 });
@@ -165,7 +203,7 @@ await work(QUEUES.evidenceBundles, async () => {
 const exportDeps = {
   ...deps,
   appPool,
-  storage: createDocumentServices(config).storage,
+  storage: deps.storage,
   exportStorage: deps.exportStorage,
 };
 await work(QUEUES.fullExports, async () => {
@@ -176,6 +214,9 @@ await work(QUEUES.exportExpiry, async () => {
 });
 await work(QUEUES.statementOverdue, async () => {
   await escalateStatementsOfPurpose(deps);
+});
+await work(QUEUES.importExpiry, async () => {
+  await expireImportsJob(deps);
 });
 
 // Every minute: escalations are measured in minutes (section 9.1, e.g. on-call after 10 minutes).
@@ -194,9 +235,16 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 // Staff check expiry reminders (workforce.md section 5), hourly at 17 past.
 await boss.schedule(QUEUES.staffFileExpiry, "17 * * * *");
+// Policy read-and-sign reminders and review tasks (quality.md section 18.3), hourly at 27 past.
+await boss.schedule(QUEUES.policyReminders, "27 * * * *");
 // Training and competence expiry reminders (workforce.md section 5), hourly at 21 past.
 await boss.schedule(QUEUES.developmentExpiry, "21 * * * *");
+// Leavers' access (workforce.md rule 22), hourly at 7 past: ended within the first hour of the
+// day after the leaving date.
+await boss.schedule(QUEUES.leaverAccess, "7 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
+await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
+await boss.schedule(QUEUES.herbertReviews, "31 4 * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
 await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
 // Daily in the small hours: the week before is reported once it has ended (Monday), and a missed
@@ -217,6 +265,7 @@ await boss.schedule(QUEUES.unroutedReport, "47 6 * * *");
 await boss.schedule(QUEUES.downtimePacks, "23 * * * *");
 // Nightly: lapsed invitations are revoked (clearing the address) and unlinked sign-ins deleted.
 await boss.schedule(QUEUES.invitations, "17 3 * * *");
+await boss.schedule(QUEUES.speakUpIntake, "23 * * * *");
 
 // Every 5 minutes: an expired link's bundle goes soon after the link ends (quality.md rule 10).
 await boss.schedule(QUEUES.evidenceBundles, "*/5 * * * *");
@@ -225,6 +274,8 @@ await boss.schedule(QUEUES.statementOverdue, "11 * * * *");
 // Every minute: an export asked for starts at once; every 15 minutes, archives past expiry go.
 await boss.schedule(QUEUES.fullExports, "* * * * *");
 await boss.schedule(QUEUES.exportExpiry, "*/15 * * * *");
+// Hourly: a staged import's rows (personal data in quarantine) go within the hour of expiry.
+await boss.schedule(QUEUES.importExpiry, "31 * * * *");
 
 logger.info("Harbour worker started");
 
