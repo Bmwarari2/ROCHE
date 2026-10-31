@@ -575,6 +575,68 @@ describe("PLAT-011 open workflows and approvals", () => {
     expect(items.some((i) => i.subjectId === foreign)).toBe(false);
   });
 
+  it("hazard HZ-013 marks closing blocked as the close route would, the duty of candour included (#120 round 2)", async () => {
+    // Two people we support affected; every question answered, so only the duty of candour can
+    // hold the incident back.
+    const second = "0194d000-0000-7000-8600-000000000004";
+    const response = await as("manager", "/v1/incidents", {
+      method: "POST",
+      body: {
+        locationId: DEMO.locationId,
+        type: "medication",
+        occurredAt: ago(2 * 60 * MIN),
+        description: "Two residents were given each other's evening tablets.",
+        people: [DEMO_RESIDENT, second].map((personId) => ({
+          kind: "service_user",
+          role: "affected",
+          personId,
+        })),
+      },
+    });
+    expect(response.status, await response.clone().text()).toBe(201);
+    const twoPeople = await json<IncidentDetail>(response);
+    await answerEverything(twoPeople.id);
+    const blocked = async () =>
+      forIncident((await list("owner", "all")).items, twoPeople.id)?.incident?.closeBlocked;
+    expect(await blocked()).toBe(false);
+
+    // One record, decided not notifiable for the first person only: it covers only them, so the
+    // second is still to be told and closing waits, in the list as on the close route.
+    const path = `/v1/incidents/${twoPeople.id}/candour`;
+    const saved = await json<{ record: { version: number } }>(
+      await as("owner", path, {
+        method: "PUT",
+        body: {
+          personId: DEMO_RESIDENT,
+          threshold: { notifiable: false, decidedAt: ago(MIN), decidedBy: "A GP" },
+          thresholdReason: "The GP found no harm came to the first person.",
+          thresholdConfirmed: true,
+          version: 0,
+        },
+      }),
+    );
+    const stepped = await as("owner", `${path}/step`, {
+      method: "POST",
+      body: {
+        to: "not_notifiable",
+        reason: "The GP found no harm came to the first person.",
+        confirmed: true,
+        version: saved.record.version,
+      },
+    });
+    expect(stepped.status, await stepped.clone().text()).toBe(200);
+    expect(await blocked()).toBe(true);
+    const current = await json<IncidentDetail>(await as("owner", `/v1/incidents/${twoPeople.id}`));
+    const close = await as("owner", `/v1/incidents/${twoPeople.id}/close`, {
+      method: "POST",
+      body: { reason: "Both were checked by the GP.", version: current.version },
+    });
+    expect(close.status).toBe(422);
+    expect((await json<ProblemDetails>(close)).detail).toContain(
+      "Someone affected has no finished duty of candour record of their own",
+    );
+  });
+
   it("records the view in the audit trail without content", async () => {
     const events = await asDemoTenant(async (c) => {
       const { rows } = await c.query<{ scope: Record<string, unknown> }>(
