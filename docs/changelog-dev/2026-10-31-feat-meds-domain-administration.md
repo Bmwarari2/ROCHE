@@ -162,6 +162,35 @@ The re-check confirmed the four fixes above and found two more:
   is now the time-critical early check alone.
 - Docs: medicines.md rules 14 and 23; hazard log HZ-004 and HZ-119; H-1067 and H-1068.
 
+## #162 third review, second re-check (31/10/2026)
+
+To close every correction and back-entry path in one round:
+
+- Medium (HZ-004, HZ-119): a dose corrected away was accepted with no flag, count or escalation
+  ("given 4" corrected to refused with "typo" freed the maximum). Every correction now needs a
+  20-character reason and is flagged `corrected` with what it changes (`corrected`: outcome,
+  amount, time, giver or detail), counted per member (`REPORTED_FLAGS` gains `corrected`,
+  `dose_removed`, `dose_moved`). One that removes or lowers a dose recorded as taken (another unit
+  counts as none) is flagged `dose_removed`, one that moves it `dose_moved`, each escalated as a
+  warning, or urgent when the entry has a maximum, an interval or the paracetamol tag. The maximum,
+  intervals and scheduled gap are re-checked both ways around the dose before and after the
+  correction; a breach it creates or hides is flagged `breach_created` or `breach_hidden` and
+  escalated urgently. The stored record keeps its outcome, amount and giver.
+- Low (HZ-004): the scheduled-gap check now looks both ways (`close_to_next_dose`), so an 08:00
+  dose back-entered at 11:30 is checked against the 12:00 dose given at 12:05.
+- Found while hunting for other paths, and closed: a dose given now could be dated back on the
+  round past an interval, a window, a competence lapse or a held entry, or dated forward past an
+  interval. A record later than now beyond the typed-time tolerance is refused
+  (`recorded_in_future`), and on the round a dose dated earlier than that before it is recorded
+  is refused and goes by the flagged route (`given_earlier_than_recorded`). A dose that has
+  happened and broke a rule now escalates urgently whatever its outcome (taken by the person,
+  given by family, recorded after it was given, or a correction), and one taken inside a minimum
+  interval is flagged for review (`inside_minimum_interval`).
+- Every reviewer probe in scratchpad/probe-gbr/ was run against this commit (the two written for
+  the input before `recordedAt` through their adapted copies).
+- Docs: medicines.md rules 14, 17 and 23 and the slice 22 notes; hazard log HZ-004 and HZ-119;
+  H-1067 (a routine amount correction raises a warning, for the CSO to accept or refuse).
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -198,3 +227,5 @@ The re-check confirmed the four fixes above and found two more:
   three time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
 - After the re-check: 692 medicines tests; the whole domain package 6,198 tests under the three
   time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
+- After the second re-check: 718 medicines tests; the whole domain package 6,224 tests under the
+  three time zones, 99.69% line coverage (medicines 99.51%, `administration.ts` 100%).

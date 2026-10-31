@@ -757,7 +757,7 @@ describe("hazard HZ-004 a later dose is not given while an earlier dose of the m
       flags: ["earlier_dose_outstanding"],
       escalations: [
         {
-          severity: "warning",
+          severity: "urgent",
           reason: "review",
           message:
             "Recorded for the nurse in charge to review under your organisation's policy: an earlier dose had no outcome.",
@@ -880,14 +880,14 @@ describe("hazard HZ-004 a dose the person took themselves, or their family gave,
       "the entry may not be given from at that time",
     ],
   ])(
-    "hazard HZ-004 records a dose already taken %s, flagged for review",
+    "hazard HZ-004 records a dose already taken %s, flagged and escalated urgently for review",
     (_name, overrides, flags, words) => {
       expect(checkAdministration(prnInput(overrides), rates)).toMatchObject({
         ok: true,
         flags,
         escalations: [
           {
-            severity: "warning",
+            severity: "urgent",
             reason: "review",
             message: `Recorded for the nurse in charge to review under your organisation's policy: ${words}.`,
           },
@@ -1059,11 +1059,17 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
     entryId: "entry-1",
     dueAt: at(2, 8),
     at: at(2, 8, 5),
+    // Recorded as refused; corrections below say what really happened.
+    outcome: "refused",
+    amount: null,
+    administeredBy: CARER,
     recordedBy: CARER,
     serverReceivedAt: null,
     supersededById: null,
   };
   const synced = { ...record, serverReceivedAt: at(2, 8, 7) };
+  const TWO = { quantity: 2, unitCode: UNIT.tablet.code };
+  const givenSynced: RecordedAdministration = { ...synced, outcome: "given", amount: TWO };
   const NURSE: Parameters<typeof checkCorrection>[1]["correctedBy"] = {
     id: "member-nurse",
     competence: "current",
@@ -1107,7 +1113,7 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
   >([
     [
       "the latest record, for the same person and dose, with a reason",
-      synced,
+      givenSynced,
       refusal,
       {},
       "Recorded as given; the person refused",
@@ -1115,27 +1121,35 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
     ],
     [
       "a record already corrected",
-      { ...synced, supersededById: "admin-2" },
+      { ...givenSynced, supersededById: "admin-2" },
       refusal,
       {},
-      "Refused",
+      "Recorded as given; the person refused",
       ["already_corrected"],
     ],
-    ["with no reason", synced, refusal, {}, " ", ["correction_reason_required"]],
+    ["with no reason", givenSynced, refusal, {}, " ", ["correction_reason_required"]],
+    [
+      'with a reason too short to say what happened ("typo")',
+      givenSynced,
+      refusal,
+      {},
+      "typo",
+      ["correction_reason_required"],
+    ],
     [
       "that moves the record to another dose",
-      synced,
-      { ...refusal, dueAt: at(2, 18), at: at(2, 18) },
+      givenSynced,
+      { ...refusal, dueAt: at(2, 18), at: at(2, 18), recordedAt: at(2, 18, 1) },
       {},
-      "Wrong dose",
+      "Recorded against the wrong dose",
       ["correction_moves_dose"],
     ],
     [
       "that moves the record to another person",
-      synced,
+      givenSynced,
       { ...refusal, personId: "person-ben-example" },
       {},
-      "Wrong person",
+      "Recorded against the wrong person",
       ["correction_moves_dose", "wrong_person"],
     ],
     [
@@ -1156,19 +1170,31 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
     ],
     [
       "recorded by someone whose competence has expired",
-      synced,
+      givenSynced,
       refusal,
       { competence: "expired" },
-      "Refused",
+      "Recorded as given; the person refused",
       ["competence_expired"],
     ],
     [
       "recorded by someone never signed off",
-      synced,
+      givenSynced,
       refusal,
       { competence: "not_held" },
-      "Refused",
+      "Recorded as given; the person refused",
       ["competence_not_held"],
+    ],
+    [
+      "of a time later than now, beyond the clock's tolerance",
+      givenSynced,
+      {
+        ...refusal,
+        at: new Date(at(2, 8, 30).getTime() + (rates.clockDriftMinutes + 1) * MINUTE),
+        recordedAt: at(2, 8, 30),
+      },
+      {},
+      "Recorded as given; the person refused",
+      ["recorded_in_future"],
     ],
   ])(
     "hazard HZ-004 takes or refuses a correction %s",
@@ -1200,7 +1226,7 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
     [
       "a dose given then",
       toGiven({}),
-      { flags: ["given_before_recorded"], escalated: ["warning:review"] },
+      { flags: ["given_before_recorded", "corrected"], escalated: ["warning:review"] },
     ],
     ["with no amount", toGiven({ amount: null }), { problems: ["amount_required"] }],
     [
@@ -1239,23 +1265,32 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
         at: new Date(at(2, 8).getTime() - (rates.doseEarlyMinutes + 1) * MINUTE),
         timingReason: "Given early in error",
       }),
-      { flags: ["given_before_recorded", "before_window"], escalated: ["urgent:review"] },
+      {
+        flags: ["given_before_recorded", "before_window", "corrected"],
+        escalated: ["urgent:review"],
+      },
     ],
     [
       "given by a member whose competence had expired then",
       toGiven({ administrator: { id: CARER, competence: "expired" } }),
-      { flags: ["given_before_recorded", "competence_not_current"], escalated: ["urgent:review"] },
+      {
+        flags: ["given_before_recorded", "competence_not_current", "corrected"],
+        escalated: ["urgent:review"],
+      },
     ],
     [
       "given by a member never signed off (the re-check: urgent, never only a warning)",
       toGiven({ administrator: { id: CARER, competence: "not_held" } }),
-      { flags: ["given_before_recorded", "competence_not_current"], escalated: ["urgent:review"] },
+      {
+        flags: ["given_before_recorded", "competence_not_current", "corrected"],
+        escalated: ["urgent:review"],
+      },
     ],
     [
       "given from an entry held until it is checked (the re-check's probe: urgent)",
       toGiven({ entry: entry(), policy: "hold_until_checked" }),
       {
-        flags: ["given_before_recorded", "entry_not_usable", "entry_not_yet_checked"],
+        flags: ["given_before_recorded", "entry_not_usable", "entry_not_yet_checked", "corrected"],
         escalated: ["urgent:review"],
       },
     ],
@@ -1264,7 +1299,7 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
       prnInput({ alreadyRecorded: true, history: fullPrn }),
       {
         original: prnRecord,
-        flags: ["given_before_recorded", "over_maximum"],
+        flags: ["given_before_recorded", "over_maximum", "corrected", "breach_created"],
         escalated: ["urgent:over_maximum", "urgent:review"],
       },
     ],
@@ -1278,21 +1313,25 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
           given("admin-p", at(2, 13)),
         ],
       }),
-      { original: prnRecord, flags: ["given_before_recorded"], escalated: ["warning:review"] },
+      {
+        original: { ...prnRecord, outcome: "given", amount: TWO },
+        flags: ["given_before_recorded", "corrected"],
+        escalated: ["warning:review"],
+      },
     ],
     [
       "by a manager, not the member who gave it",
       toGiven({}),
       {
         by: NURSE,
-        flags: ["given_before_recorded", "given_by_someone_else"],
+        flags: ["given_before_recorded", "given_by_someone_else", "corrected"],
         escalated: ["warning:review"],
       },
     ],
     [
       "taken by the person themselves (any outcome recording that a dose happened)",
       toGiven({ outcome: "self_administered" }),
-      { flags: ["given_before_recorded"], escalated: ["warning:review"] },
+      { flags: ["given_before_recorded", "corrected"], escalated: ["warning:review"] },
     ],
   ])(
     "hazard HZ-004 hazard HZ-119 records a dose corrected to %s by the rules for a dose recorded after it was given",
@@ -1319,7 +1358,13 @@ describe("hazard HZ-004 a MAR row locks once synced and changes only by a refere
     const counts = countReportedFlags([
       { recordedBy: CARER, flags: corrected.ok ? corrected.flags : [] },
     ]);
-    expect(counts.get(CARER)).toEqual({ competence_override: 0, given_before_recorded: 1 });
+    expect(counts.get(CARER)).toEqual({
+      competence_override: 0,
+      given_before_recorded: 1,
+      corrected: 1,
+      dose_removed: 0,
+      dose_moved: 0,
+    });
   });
 
   it.each<[string, AdministrationInput]>([
@@ -1372,7 +1417,11 @@ describe("hazard HZ-004 a dose staff record after giving it is recorded, flagged
     r.ok ? r.escalations.map((e) => `${e.severity}:${e.reason}`) : null;
 
   it.each<[string, Partial<AdministrationInput>, AdministrationProblem[]]>([
-    ["over the 24-hour maximum, on the round", prnOver, ["prn_maximum_reached"]],
+    [
+      "over the 24-hour maximum, on the round",
+      { ...prnOver, recordedAt: at(2, 13, 1) },
+      ["prn_maximum_reached"],
+    ],
     [
       "with a reason of a full stop (the #162 probe)",
       route({}, "."),
@@ -1512,10 +1561,405 @@ describe("hazard HZ-004 a dose staff record after giving it is recorded, flagged
       { recordedBy: "a", flags: ["competence_override"] },
       { recordedBy: "b", flags: ["early"] },
     ]);
+    const none = { corrected: 0, dose_removed: 0, dose_moved: 0 };
     expect(Object.fromEntries(counts)).toEqual({
-      a: { competence_override: 1, given_before_recorded: 2 },
-      b: { competence_override: 0, given_before_recorded: 0 },
+      a: { competence_override: 1, given_before_recorded: 2, ...none },
+      b: { competence_override: 0, given_before_recorded: 0, ...none },
     });
-    expect(REPORTED_FLAGS).toEqual(["competence_override", "given_before_recorded"]);
+    expect(REPORTED_FLAGS).toEqual([
+      "competence_override",
+      "given_before_recorded",
+      "corrected",
+      "dose_removed",
+      "dose_moved",
+    ]);
+  });
+});
+
+describe("hazard HZ-004 hazard HZ-119 every correction is a reviewable event, and none frees a dose past a limit unseen", () => {
+  const FOUR = { quantity: 4, unitCode: UNIT.tablet.code };
+  const TWO = { quantity: 2, unitCode: UNIT.tablet.code };
+  const WHY = "Recorded wrongly at the bedside; corrected after checking";
+  const AUTHOR = { id: CARER, competence: "current" as const, override: null };
+  const stored = (overrides: Partial<RecordedAdministration>): RecordedAdministration => ({
+    id: "b",
+    personId: PERSON,
+    entryId: "entry-prn",
+    dueAt: null,
+    at: at(2, 7),
+    outcome: "given",
+    amount: FOUR,
+    administeredBy: CARER,
+    recordedBy: CARER,
+    serverReceivedAt: at(2, 7, 1),
+    supersededById: null,
+    ...overrides,
+  });
+  const night = given("a", at(2, 1), { quantity: 4 });
+  const prnFix = (overrides: Partial<AdministrationInput>) =>
+    prnInput({
+      at: at(2, 7),
+      recordedAt: at(2, 12, 55),
+      alreadyRecorded: true,
+      history: [night, given("b", at(2, 7), { quantity: 4 })],
+      ...overrides,
+    });
+  const refusedNow = {
+    outcome: "refused" as const,
+    reason: { code: "declined", note: null },
+    amount: null,
+  };
+  type Row = {
+    original: RecordedAdministration;
+    corrected: AdministrationInput;
+    reason?: string;
+    problems?: string[];
+    flags?: AdministrationFlag[];
+    kinds?: string[];
+    escalated?: string[];
+  };
+  it.each<[string, Row]>([
+    [
+      "'given 4' corrected to refused with the reason 'typo' (the re-check's probe)",
+      {
+        original: stored({}),
+        corrected: prnFix(refusedNow),
+        reason: "typo",
+        problems: ["correction_reason_required"],
+      },
+    ],
+    [
+      "'given 4' corrected to refused: the dose removed frees room under the maximum, so urgent",
+      {
+        original: stored({}),
+        corrected: prnFix(refusedNow),
+        flags: ["corrected", "dose_removed"],
+        kinds: ["outcome", "amount"],
+        escalated: ["urgent:dose_removed"],
+      },
+    ],
+    [
+      "'given 4' corrected to 'given 2': a lower amount is a dose removed",
+      {
+        original: stored({}),
+        corrected: prnFix({ amount: TWO }),
+        flags: ["given_before_recorded", "corrected", "dose_removed"],
+        kinds: ["amount"],
+        escalated: ["urgent:dose_removed", "urgent:review"],
+      },
+    ],
+    [
+      "'given 4' at 07:00 moved to 05:00: a dose moved frees room too",
+      {
+        original: stored({}),
+        corrected: prnFix({
+          at: at(2, 5),
+          amount: FOUR,
+          amountDifferenceReason: "Four tablets given in error",
+        }),
+        flags: ["given_before_recorded", "amount_differs", "corrected", "dose_moved"],
+        kinds: ["time"],
+        escalated: ["urgent:dose_moved", "urgent:review"],
+      },
+    ],
+    [
+      "'taken by the person, 4 tablets' corrected to 10 ml: another unit is not counted, so removed",
+      {
+        original: stored({ outcome: "self_administered" }),
+        corrected: prnFix({
+          outcome: "self_administered",
+          amount: { quantity: 10, unitCode: UNIT.ml.code },
+        }),
+        flags: ["given_before_recorded", "amount_in_other_unit", "corrected", "dose_removed"],
+        kinds: ["amount"],
+        escalated: ["urgent:dose_removed", "urgent:review"],
+      },
+    ],
+    [
+      "a dose whose 24 hours were over the maximum corrected away: the breach it hides is flagged",
+      {
+        original: stored({}),
+        corrected: prnFix({
+          ...refusedNow,
+          history: [night, given("b", at(2, 7), { quantity: 4 }), given("c", at(2, 13))],
+        }),
+        flags: ["corrected", "dose_removed", "breach_hidden"],
+        kinds: ["outcome", "amount"],
+        escalated: ["urgent:dose_removed", "urgent:review"],
+      },
+    ],
+    [
+      "a dose inside the minimum interval moved out of it: the breach it hides is flagged",
+      {
+        original: stored({ at: at(2, 9), amount: TWO }),
+        corrected: prnFix({
+          at: at(2, 7),
+          amount: TWO,
+          history: [given("b", at(2, 9)), given("d", at(2, 11))],
+        }),
+        flags: ["given_before_recorded", "corrected", "dose_moved", "breach_hidden"],
+        kinds: ["time"],
+        escalated: ["urgent:dose_moved", "urgent:review"],
+      },
+    ],
+    [
+      "refused corrected to given over the maximum: the breach it creates is flagged",
+      {
+        original: stored({ outcome: "refused", amount: null, at: at(2, 13) }),
+        corrected: prnFix({
+          at: at(2, 13),
+          recordedAt: at(2, 13, 30),
+          amount: TWO,
+          history: [night, given("e", at(2, 7), { quantity: 4 })],
+        }),
+        flags: ["given_before_recorded", "over_maximum", "corrected", "breach_created"],
+        kinds: ["outcome", "amount"],
+        escalated: ["urgent:over_maximum", "urgent:review"],
+      },
+    ],
+    [
+      "a routine amount correction on a regular medicine: a warning, for the CSO to confirm (H-1067)",
+      {
+        original: stored({
+          entryId: "entry-1",
+          dueAt: at(2, 8),
+          at: at(2, 8, 5),
+          amount: { quantity: 3, unitCode: UNIT.tablet.code },
+        }),
+        corrected: input({ alreadyRecorded: true, recordedAt: at(2, 9) }),
+        flags: ["given_before_recorded", "corrected", "dose_removed"],
+        kinds: ["amount"],
+        escalated: ["warning:dose_removed", "warning:review"],
+      },
+    ],
+    [
+      "a dose moved closer to the last one than the schedule allows: the gap it creates is flagged",
+      {
+        original: stored({ entryId: "entry-1", dueAt: at(2, 18), at: at(2, 18, 5), amount: TWO }),
+        corrected: input({
+          alreadyRecorded: true,
+          dueAt: at(2, 18),
+          at: at(2, 17),
+          recordedAt: at(2, 19),
+          recordedDueTimes: [at(2, 8)],
+          timingReason: "Given early before going out",
+          history: [given("m", at(2, 9), { entryId: "entry-1" })],
+        }),
+        flags: [
+          "given_before_recorded",
+          "close_to_last_dose",
+          "corrected",
+          "dose_moved",
+          "breach_created",
+        ],
+        kinds: ["time"],
+        escalated: ["warning:dose_moved", "urgent:review"],
+      },
+    ],
+    [
+      "only the member named as giver",
+      {
+        original: stored({
+          entryId: "entry-1",
+          dueAt: at(2, 8),
+          at: at(2, 8, 5),
+          amount: TWO,
+          administeredBy: "member-agency",
+        }),
+        corrected: input({ alreadyRecorded: true, recordedAt: at(2, 9) }),
+        flags: ["given_before_recorded", "corrected"],
+        kinds: ["giver"],
+        escalated: ["warning:review"],
+      },
+    ],
+    [
+      "only the coded reason of a refusal",
+      {
+        original: stored({
+          entryId: "entry-1",
+          dueAt: at(2, 8),
+          at: at(2, 8, 5),
+          outcome: "refused",
+          amount: null,
+        }),
+        corrected: input({
+          alreadyRecorded: true,
+          recordedAt: at(2, 9),
+          outcome: "refused",
+          amount: null,
+          reason: { code: "other", note: "Said she would take it later" },
+        }),
+        flags: ["corrected"],
+        kinds: ["detail"],
+        escalated: [],
+      },
+    ],
+  ])("%s", (_name, row) => {
+    const result = checkCorrection(
+      row.original,
+      { reason: row.reason ?? WHY, record: row.corrected, correctedBy: AUTHOR },
+      rates,
+    );
+    if (row.problems) {
+      expect(result.ok ? [] : result.issues.map((i) => i.problem)).toEqual(row.problems);
+      return;
+    }
+    expect(result).toMatchObject({ ok: true, flags: row.flags, corrected: row.kinds });
+    expect(result.ok ? result.escalations.map((e) => `${e.severity}:${e.reason}`) : null).toEqual(
+      row.escalated,
+    );
+  });
+
+  it("says what a hidden breach was, and counts corrections and doses removed for the report", () => {
+    const result = checkCorrection(
+      stored({}),
+      {
+        reason: WHY,
+        record: prnFix({
+          ...refusedNow,
+          history: [night, given("b", at(2, 7), { quantity: 4 }), given("c", at(2, 13))],
+        }),
+        correctedBy: AUTHOR,
+      },
+      rates,
+    );
+    expect(result.ok ? result.escalations.map((e) => e.message) : []).toEqual([
+      'A dose recorded as taken has been corrected to "Refused". That frees room under its 24-hour maximum or minimum interval for another dose. Tell the nurse in charge, who reviews it under your organisation\'s policy.',
+      "Recorded for the nurse in charge to review under your organisation's policy: the correction takes away a breach of the 24-hour maximum that the original record showed.",
+    ]);
+    const counts = countReportedFlags([
+      { recordedBy: CARER, flags: result.ok ? result.flags : [] },
+    ]);
+    expect(counts.get(CARER)).toMatchObject({ corrected: 1, dose_removed: 1, dose_moved: 0 });
+  });
+});
+
+describe("hazard HZ-004 a dose given now cannot be dated back on the round past an interval", () => {
+  // 2 tablets at 08:00; at 11:00 a dose given inside the 4-hour interval, recorded as if at 04:00.
+  const earlier = [given("d1", at(2, 8))];
+  const backdated = { history: earlier, at: at(2, 4), recordedAt: at(2, 11) };
+  it.each<[string, Partial<AdministrationInput>, AdministrationProblem[] | AdministrationFlag[]]>([
+    [
+      "dated back on the round (the hunt for other paths)",
+      backdated,
+      ["given_earlier_than_recorded"],
+    ],
+    [
+      "recorded within the typed-time tolerance",
+      {
+        history: [],
+        at: new Date(at(2, 11).getTime() - rates.clockDriftMinutes * MINUTE),
+        recordedAt: at(2, 11),
+      },
+      [],
+    ],
+    [
+      "by the route for a dose given before it was recorded, which flags and escalates it",
+      {
+        ...backdated,
+        givenBeforeRecorded: {
+          reason: "Given at 04:00 during the night, recorded now",
+          recordedBy: { id: CARER, competence: "current", override: null },
+        },
+      },
+      ["given_before_recorded"],
+    ],
+  ])("hazard HZ-004 a when-required dose %s", (_name, overrides, expected) => {
+    const result = checkAdministration(prnInput(overrides), rates);
+    expect(result.ok ? result.flags : result.issues.map((i) => i.problem)).toEqual(expected);
+  });
+
+  it("taken by the person, or given by family, is recorded after the event as a matter of course", () => {
+    expect(
+      problems(
+        prnInput({
+          ...backdated,
+          history: [],
+          outcome: "self_administered",
+          amount: { quantity: 2, unitCode: UNIT.tablet.code },
+        }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("hazard HZ-004 a dose recorded at a time later than now is refused, so it cannot step past an interval", () => {
+  it.each<[string, number, AdministrationProblem[]]>([
+    ["at the clock's tolerance", rates.clockDriftMinutes, []],
+    ["a minute beyond it", rates.clockDriftMinutes + 1, ["recorded_in_future"]],
+  ])("a dose recorded %s after now", (_name, minutes, expected) => {
+    const now = at(2, 8, 5);
+    expect(
+      problems(input({ at: new Date(now.getTime() + minutes * MINUTE), recordedAt: now })),
+    ).toEqual(expected);
+  });
+});
+
+describe("hazard HZ-004 a dose entered later than others is checked against the doses after it too (the scheduled gap, both ways)", () => {
+  // Four times a day: the 08:00 dose back-entered at 11:30, the 12:00 dose already given at 12:05.
+  const QDS = checkedEntry(
+    entry(
+      {
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "every_day" },
+            times: ["08:00", "12:00", "16:00", "20:00"].map((time) => ({
+              time,
+              dose: { kind: "amount" as const, quantity: 2, unit: UNIT.tablet },
+            })),
+          },
+        },
+      },
+      "entry-q",
+    ),
+  );
+  const back = {
+    entry: QDS,
+    versionIds: new Set(["entry-q"]),
+    dueAt: at(2, 8),
+    at: at(2, 11, 30),
+    recordedAt: at(2, 13),
+    givenBeforeRecorded: {
+      reason: "Given late after a hospital visit",
+      recordedBy: { id: CARER, competence: "current" as const, override: null },
+    },
+  };
+  const next = [given("n", at(2, 12, 5), { entryId: "entry-q" })];
+  it.each<[string, Partial<AdministrationInput>, AdministrationProblem[] | AdministrationFlag[]]>([
+    ["with no reason (the re-check's probe)", { history: next }, ["timing_reason_required"]],
+    [
+      "with a reason: late, and close to the next dose",
+      { history: next, timingReason: "Given late after a hospital visit" },
+      ["given_before_recorded", "late", "close_to_next_dose"],
+    ],
+    [
+      "with two later doses: the nearest decides",
+      {
+        history: [given("m", at(2, 16), { entryId: "entry-q" }), ...next],
+        timingReason: "Given late after a hospital visit",
+      },
+      ["given_before_recorded", "late", "close_to_next_dose"],
+    ],
+    [
+      "with the next dose given on time at 16:00 instead",
+      {
+        dueAt: at(2, 12),
+        at: at(2, 12),
+        history: [given("n", at(2, 16), { entryId: "entry-q" })],
+        recordedDueTimes: [at(2, 8)],
+      },
+      ["given_before_recorded"],
+    ],
+  ])("hazard HZ-004 a back-entered dose %s", (_name, overrides, expected) => {
+    const result = checkAdministration(input({ ...back, ...overrides }), rates);
+    expect(result.ok ? result.flags : result.issues.map((i) => i.problem)).toEqual(expected);
+  });
+
+  it("names the next dose when it asks why", () => {
+    const result = checkAdministration(input({ ...back, history: next }), rates);
+    expect(result.ok ? "" : result.issues[0]?.message).toBe(
+      "This dose is late and closer to the next dose, given at 12:05, than the schedule allows. Say why.",
+    );
   });
 });
