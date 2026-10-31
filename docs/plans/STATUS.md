@@ -33,8 +33,9 @@ notices (organisation and operator sides), search and break-glass search, sample
 for definer functions left executable by PUBLIC (#97), the Phase 1 gate gap report (#100) and
 ADR-0073 (one development-log file per pull request).
 
-**Mobile** stays paused by the owner: do not work on `apps/mobile`, the phone sync streams or the
-screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
+**Mobile** was paused by the owner on 16/10/2026 and **unpaused on 31/10/2026**: `apps/mobile`, the
+phone sync streams, the screens gate, draft PR #50 and `feat/mobile-round-screen` are open for work
+again. The Phase 1 safety case (v0.1) still excludes the mobile app until its journeys run in CI.
 
 **Resumed on 31/10/2026.** Six branches pushed, none merged yet; merge them in this order (each
 touches `phase-1-gate.md`, so expect small conflicts there; take both sides):
