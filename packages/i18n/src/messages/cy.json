@@ -90,7 +90,7 @@
   "dashboard.tile.dols.count": "{partial, select, yes {{count, plural, =0 {None found in what we could load} one {At least # DoLS reminder open} other {At least # DoLS reminders open}}} other {{count, plural, =0 {No DoLS reminders open} one {# DoLS reminder open} other {# DoLS reminders open}}}}",
   "dashboard.tile.dols.apart": "{count, plural, other {# of them overdue}}",
   "dashboard.tile.dols.description": "Reminders to renew or review an authorisation before it ends. Each person's DoLS register shows the days left.",
-  "dashboard.tile.dols.link": "View the reminders on the round",
+  "dashboard.tile.dols.link": "View the round",
   "dashboard.tile.reviews.title": "Reviews due",
   "dashboard.tile.reviews.count": "{partial, select, yes {{count, plural, =0 {None found in what we could load} one {At least # review due or overdue} other {At least # reviews due or overdue}}} other {{count, plural, =0 {No reviews due or overdue} one {# review due or overdue} other {# reviews due or overdue}}}}",
   "dashboard.tile.reviews.apart": "{count, plural, other {# of them overdue}}",

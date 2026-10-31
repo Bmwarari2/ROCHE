@@ -40,19 +40,25 @@ export function SummaryTile({ tile }: { readonly tile: TileSummary }) {
   if (apart) details.push(apart);
   if (tile.current) details.push(t("dashboard.tile.handover.current", { state: tile.current }));
   if (tile.id === "dols" && tile.count !== null) details.push(t("dashboard.tile.dols.description"));
-  const description = details.length > 0 ? details.join(" ") : undefined;
   return (
     <Tile
       headingLevel={3}
       title={t(`dashboard.tile.${tile.id}.title` satisfies MessageKey)}
       icon={<Icon size={24} strokeWidth={1.5} aria-hidden="true" />}
-      value={countLine(tile, t)}
-      status={tileChips(tile, t).map((chip) => <SafetyChip key={chip.label} chip={chip} />)}
-      {...(description ? { description } : {})}
       link={{ href: tile.href, label: t(`dashboard.tile.${tile.id}.link` satisfies MessageKey) }}
       linkComponent={Link}
       data-tile={tile.id}
       data-state={tile.state}
-    />
+    >
+      <p className="m-0 font-semibold text-body">{countLine(tile, t)}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {tileChips(tile, t).map((chip) => (
+          <SafetyChip key={chip.label} chip={chip} />
+        ))}
+      </div>
+      {details.length > 0 ? (
+        <p className="m-0 text-body-dense text-text-secondary">{details.join(" ")}</p>
+      ) : null}
+    </Tile>
   );
 }
