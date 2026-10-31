@@ -515,6 +515,8 @@ export async function moveCase(
           noHearingReason: bool(values, "noHearing")
             ? ("employee_repeatedly_did_not_attend" as const)
             : null,
+          // H-802: only with an action short of dismissal; the API refuses it otherwise.
+          removesFromRegulatedActivity: bool(values, "removesFromRegulatedActivity"),
         }
       : to === "appeal"
         ? { to, on, expectedVersion: version, grounds: req(values, "grounds") }

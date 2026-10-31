@@ -25,6 +25,7 @@ import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
 import { caseworkRouter } from "./routes/casework";
+import { caseworkSupportRouter } from "./routes/casework-support";
 import { colleaguesRouter } from "./routes/colleagues";
 import { devicesRouter } from "./routes/devices";
 import { documentsRouter } from "./routes/documents";
@@ -320,6 +321,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", staffFilesRouter);
   app.route("/", recruitmentRouter);
   app.route("/", caseworkRouter);
+  app.route("/", caseworkSupportRouter);
   app.route("/", inductionRouter);
   app.route("/", colleaguesRouter);
   app.route("/", policiesRouter);

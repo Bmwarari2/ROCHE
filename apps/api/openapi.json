@@ -21780,6 +21780,16 @@
                   "null"
                 ],
                 "format": "uuid"
+              },
+              "removesFromRegulatedActivity": {
+                "type": "boolean"
+              },
+              "retentionClass": {
+                "type": "string",
+                "enum": [
+                  "staff_file",
+                  "casework_no_sanction"
+                ]
               }
             },
             "required": [
@@ -21805,7 +21815,9 @@
               "suspensionReviewOverdue",
               "closedReason",
               "closedOn",
-              "safeguardingIncidentId"
+              "safeguardingIncidentId",
+              "removesFromRegulatedActivity",
+              "retentionClass"
             ]
           },
           "referrals": {
@@ -22233,6 +22245,29 @@
           "openedOn"
         ]
       },
+      "CaseExport": {
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "harbour.employee_case.v1"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/CaseDetail"
+          }
+        },
+        "required": [
+          "exportedAt",
+          "format",
+          "detail"
+        ]
+      },
       "NameCaseMember": {
         "type": "object",
         "properties": {
@@ -22354,6 +22389,10 @@
                       null
                     ],
                     "default": null
+                  },
+                  "removesFromRegulatedActivity": {
+                    "type": "boolean",
+                    "default": false
                   }
                 },
                 "required": [
@@ -22592,6 +22631,114 @@
         "required": [
           "body",
           "occurredOn"
+        ]
+      },
+      "CaseworkSupportTicketList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseworkSupportTicket"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CaseworkSupportTicket": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "newManagerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "approvedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "usedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "caseId",
+          "newManagerId",
+          "requestedBy",
+          "reason",
+          "approvedBy",
+          "approvedAt",
+          "usedAt"
+        ]
+      },
+      "RaiseCaseworkSupportTicket": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "newManagerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "caseId",
+          "newManagerId",
+          "reason"
+        ]
+      },
+      "ApproveCaseworkSupportTicket": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedVersion"
         ]
       },
       "InductionDetail": {
@@ -23414,13 +23561,13 @@
             "enum": [
               "factual",
               "conduct"
-            ]
+            ],
+            "default": "conduct"
           }
         },
         "required": [
           "requestedOn",
-          "requester",
-          "kind"
+          "requester"
         ]
       },
       "AnswerReferenceRequest": {
@@ -23451,9 +23598,9 @@
               "null"
             ],
             "enum": [
-              "no_consent_to_share",
               "not_employed_here",
               "duplicate_request",
+              "requester_not_verified",
               null
             ],
             "default": null
@@ -50485,6 +50632,86 @@
         }
       }
     },
+    "/v1/workforce/cases/{id}/export": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Export an employee relations case",
+        "description": "A case manager of the case, with a fresh step-up (H-805): the whole case as JSON, to take with the provider. Not found for anyone else; refused to other members. Casework never goes in the organisation-wide export. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workforce/cases/{id}/members": {
       "post": {
         "tags": [
@@ -51337,6 +51564,240 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/casework-support-tickets": {
+      "get": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Casework support tickets",
+        "description": "platform.user.manage or platform.dpia.sign. The organisation's tickets, newest first, by ids only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tickets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseworkSupportTicketList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Ask support to give a case a new case manager",
+        "description": "platform.user.manage. Names the case by id and the member who will be its case manager (never oneself). Approved by the data protection lead before support can act. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseCaseworkSupportTicket"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Raised",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseworkSupportTicket"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workforce/casework-support-tickets/{id}/approve": {
+      "post": {
+        "tags": [
+          "workforce"
+        ],
+        "summary": "Approve a casework support ticket",
+        "description": "platform.dpia.sign, with a fresh step-up, never one's own request or one naming oneself. Once. Audited.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveCaseworkSupportTicket"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseworkSupportTicket"
                 }
               }
             }
@@ -57360,6 +57821,94 @@
                   },
                   "required": [
                     "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint": {
+      "post": {
+        "tags": [
+          "operator"
+        ],
+        "summary": "Appoint the case manager an approved casework support ticket names",
+        "description": "H-804: for a case whose case managers have all left, on a ticket the organisation raised and its data protection lead approved. Support never reads the case. Once per ticket. Audited to the organisation and its owners are told.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "tenantId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "ticketId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ticketId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "ticketId"
                   ]
                 }
               }

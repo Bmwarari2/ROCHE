@@ -211,3 +211,42 @@ $$;
 REVOKE ALL ON FUNCTION app.operator_appoint_case_manager(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION app.operator_appoint_case_manager(uuid, uuid) TO harbour_operator;
+--> statement-breakpoint
+
+-- H-805: for a staff subject access request, the cases about or naming the requester and each
+-- one's case managers still employed, so the DSAR workbench raises a task for each to collect the
+-- case (casework is never searched by the workbench: a restricted silo). Ids only, never content;
+-- a case with no case manager employed comes back with a null case manager (support, H-804).
+-- Called by the system or a holder of quality.dsar.manage.
+CREATE OR REPLACE FUNCTION app.casework_for_subject_access(p_requester uuid)
+RETURNS TABLE (case_id uuid, case_manager_id uuid)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF app.current_tenant_id() IS NULL OR NOT (
+       app.is_system() OR app.holds_permission_anywhere('quality.dsar.manage')) THEN
+    RAISE EXCEPTION 'Casework for a subject access request needs quality.dsar.manage'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN QUERY
+  WITH cases AS (
+    SELECT c.id FROM public.employee_case c
+     WHERE c.tenant_id = app.current_tenant_id() AND c.deleted_at IS NULL
+       AND (c.subject_tenant_user_id = p_requester OR EXISTS (
+         SELECT 1 FROM public.employee_case_member m
+          WHERE m.tenant_id = c.tenant_id AND m.case_id = c.id AND m.tenant_user_id = p_requester
+            AND m.deleted_at IS NULL)))
+  SELECT cases.id, managers.tenant_user_id
+    FROM cases
+    LEFT JOIN LATERAL (
+      SELECT m.tenant_user_id FROM public.employee_case_member m
+        JOIN public.tenant_user u ON u.tenant_id = m.tenant_id AND u.id = m.tenant_user_id
+       WHERE m.tenant_id = app.current_tenant_id() AND m.case_id = cases.id
+         AND m.member_role = 'case_manager' AND m.removed_at IS NULL AND m.deleted_at IS NULL
+         AND u.status = 'active' AND u.deleted_at IS NULL
+         AND m.tenant_user_id <> p_requester) managers ON true;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.casework_for_subject_access(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.casework_for_subject_access(uuid) TO harbour_app;

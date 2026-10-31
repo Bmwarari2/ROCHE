@@ -321,7 +321,11 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                                 label: t("workforce.references.declinedReason"),
                                 emptyOption: t("workforce.form.choose"),
                                 options: codeOptions(
-                                  ["no_consent_to_share", "not_employed_here", "duplicate_request"],
+                                  [
+                                    "not_employed_here",
+                                    "duplicate_request",
+                                    "requester_not_verified",
+                                  ],
                                   "workforce.references.declined",
                                   t,
                                 ),
@@ -364,8 +368,11 @@ export default async function LeavingPage({ params }: { params: Promise<{ id: st
                       kind: "select",
                       name: "kind",
                       label: t("workforce.references.kindLabel"),
+                      hint: t("workforce.references.kindHint"),
                       required: true,
                       emptyOption: t("workforce.form.choose"),
+                      // H-876: a conduct reference unless a factual one is chosen on purpose.
+                      defaultValue: "conduct",
                       options: codeOptions(["factual", "conduct"], "workforce.references.kind", t),
                     },
                   ]}

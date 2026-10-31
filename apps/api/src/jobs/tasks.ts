@@ -1,5 +1,6 @@
 import {
   auditEvent,
+  authSession,
   type Database,
   document,
   escalationChain,
@@ -21,6 +22,7 @@ import {
   nextEscalationAt,
 } from "@harbour/domain";
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Logger } from "../logger";
 import {
@@ -36,7 +38,13 @@ import {
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
-import { endLeaversAccess } from "../services/leavers";
+import {
+  type EndedLeaver,
+  endLeaversAccess,
+  NO_ROTA,
+  type RotaPort,
+  raiseStaffFileReviews,
+} from "../services/leavers";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -70,6 +78,8 @@ export interface TaskDeps {
   readonly workerPool: pg.Pool;
   readonly appDb: Database;
   readonly logger: Logger;
+  /** The auth schema, for ending leavers' sign-in sessions (H-879); absent where never needed. */
+  readonly authPool?: pg.Pool;
   /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
   readonly exportStorage?: DocumentStoragePort;
   /** The documents bucket, for the bytes of documents destroyed past retention. */
@@ -480,14 +490,73 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
 }
 
 /**
- * Leavers' access (workforce.md rule 22): ended from the day after the leaving date, once each.
+ * Leavers' access (workforce.md rule 22, H-873): ended at the later of the end of the leaving day
+ * and the end of a rostered shift that starts on it, once each. Then (H-879) each leaver who works
+ * for no other organisation in Harbour is signed out of every device: their Care mode sessions end,
+ * and entries not yet sent stay on the device for hand-over under the device controls (HZ-040,
+ * HZ-110), never deleted. Someone who still works elsewhere keeps their sign-in there; here their
+ * access has already ended.
  */
-export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promise<number> {
-  const ended = await eachTenant(deps, "leaver-access", (tx, tenantId) =>
-    endLeaversAccess(tx, tenantId, now),
-  );
+export async function sweepLeaverAccess(
+  deps: TaskDeps,
+  now = new Date(),
+  rota: RotaPort = NO_ROTA,
+): Promise<number> {
+  const endedLeavers: { tenantId: string; leaver: EndedLeaver }[] = [];
+  const ended = await eachTenant(deps, "leaver-access", async (tx, tenantId) => {
+    const leavers: EndedLeaver[] = [];
+    const count = await endLeaversAccess(tx, tenantId, now, rota, leavers);
+    for (const leaver of leavers) endedLeavers.push({ tenantId, leaver });
+    return count;
+  });
   if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
+  // H-874: files with no keep-until date come up for a person's decision, once each.
+  const reviews = await eachTenant(deps, "staff-file-reviews", (tx, tenantId) =>
+    raiseStaffFileReviews(tx, tenantId, now),
+  );
+  if (reviews > 0) deps.logger.info({ reviews }, "staff file retention reviews raised");
+  if (deps.authPool) {
+    for (const { tenantId, leaver } of endedLeavers) {
+      await endLeaverSessions(deps, deps.authPool, tenantId, leaver);
+    }
+  }
   return ended;
+}
+
+/** H-879: signs a leaver out of every device, unless they still work for another organisation. */
+async function endLeaverSessions(
+  deps: TaskDeps,
+  authPool: pg.Pool,
+  tenantId: string,
+  leaver: EndedLeaver,
+): Promise<void> {
+  if (!leaver.authUserId) return;
+  const elsewhere = await deps.appDb.execute<{ tenant_id: string }>(
+    sql`SELECT tenant_id FROM app.memberships_for_auth_user(${leaver.authUserId})`,
+  );
+  const otherOrganisation = elsewhere.rows.some((r) => r.tenant_id !== tenantId);
+  let sessions = 0;
+  if (!otherOrganisation) {
+    sessions = (
+      await drizzle(authPool)
+        .delete(authSession)
+        .where(eq(authSession.userId, leaver.authUserId))
+        .returning({ id: authSession.id })
+    ).length;
+  }
+  // Audited by opaque ids and counts only, in the organisation the member left.
+  const context = { tenantId, userId: null, scope: "tenant" as const, locationIds: [] };
+  await withRequestContext(deps.appDb, context, (tx) =>
+    tx.insert(auditEvent).values({
+      tenantId,
+      action: "workforce.leaving.sessions_ended",
+      outcome: otherOrganisation ? "denied" : "success",
+      resourceType: "tenant_user",
+      resourceId: leaver.tenantUserId,
+      ...(otherOrganisation ? { reason: "member_of_other_organisation" } : {}),
+      scope: { by: "sweep", sessions },
+    }),
+  );
 }
 
 /**

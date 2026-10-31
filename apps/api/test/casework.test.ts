@@ -1,5 +1,7 @@
+import { createDatabase, withRequestContext } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { raiseCaseworkDsarTasks } from "../src/services/casework-dsar";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
@@ -43,6 +45,7 @@ interface Detail {
     appealOutcome: string | null;
     suspended: boolean;
     closedReason: string | null;
+    retentionClass: string;
   };
   referrals: { dbs: { due: boolean; decision: string | null } };
   members: { id: string; tenantUserId: string; role: string; version: number }[];
@@ -52,6 +55,8 @@ interface Detail {
 
 const SUMMARY = "Concerns about medicines records on two night shifts";
 let agencyId = "";
+/** The quality lead, who is also the caseworker (see beforeAll). */
+const QUALITY = "0194d000-0000-7000-8000-000000000305";
 let caseId = "";
 let detail: Detail;
 
@@ -283,6 +288,15 @@ describe("a disciplinary case to an appeal decided (rules 15 to 18)", () => {
       appealRightGiven: true,
     });
     expect(byCaseManager.status).toBe(403);
+    // H-802: the removal flag goes only with an action short of dismissal.
+    const flagged = await move("owner", {
+      to: "outcome",
+      on: "2026-11-12",
+      outcome: "dismissal",
+      appealRightGiven: true,
+      removesFromRegulatedActivity: true,
+    });
+    expect(flagged.status).toBe(422);
     await keep(
       await move("owner", {
         to: "outcome",
@@ -372,6 +386,8 @@ describe("a disciplinary case to an appeal decided (rules 15 to 18)", () => {
       closedReason: "appeal_decided",
       appealOutcome: "not_upheld",
     });
+    // H-806: a dismissal referred to the DBS stays with the staff file.
+    expect(detail.case.retentionClass).toBe("staff_file");
     const late = await as("agency", `/v1/workforce/cases/${caseId}/notes`, {
       method: "POST",
       body: { body: "A later note", occurredOn: "2026-11-23" },
@@ -414,6 +430,63 @@ describe("a disciplinary case to an appeal decided (rules 15 to 18)", () => {
       },
     );
     expect(last.status).toBe(422);
+  });
+});
+
+describe("H-805 a case goes with the provider, never in the organisation-wide export", () => {
+  it("is exported by its case manager, and by no other member", async () => {
+    const exported = await as("quality", `/v1/workforce/cases/${caseId}/export`);
+    expect(exported.status, await exported.clone().text()).toBe(200);
+    expect(exported.headers.get("content-disposition")).toContain("attachment");
+    const body = await json<{ format: string; detail: { case: { id: string } } }>(exported);
+    expect(body.format).toBe("harbour.employee_case.v1");
+    expect(body.detail.case.id).toBe(caseId);
+    // A member who is not a case manager is refused: the manager, named investigator on a new case.
+    const fresh = await as("quality", "/v1/workforce/cases", {
+      method: "POST",
+      body: {
+        caseType: "capability",
+        subjectTenantUserId: DEMO.users.carer.id,
+        summary: SUMMARY,
+        openedOn: "2026-11-02",
+      },
+    });
+    expect(fresh.status, await fresh.clone().text()).toBe(201);
+    const freshId = (await json<Detail>(fresh)).case.id;
+    const named = await as("quality", `/v1/workforce/cases/${freshId}/members`, {
+      method: "POST",
+      body: {
+        tenantUserId: DEMO.users.manager.id,
+        role: "investigator",
+        independenceException: null,
+      },
+    });
+    expect(named.status, await named.clone().text()).toBe(200);
+    expect((await as("manager", `/v1/workforce/cases/${freshId}/export`)).status).toBe(403);
+    expect([403, 404]).toContain(
+      (await as("carer", `/v1/workforce/cases/${caseId}/export`)).status,
+    );
+  });
+
+  it("raises a task for the case manager when the member of staff asks for their data", async () => {
+    // The data protection lead runs the request: the quality lead holds quality.dsar.manage.
+    const raised = await withRequestContext(
+      createDatabase(h.db.pool("harbour_app")),
+      { tenantId: DEMO.tenantId, userId: DEMO.users.owner.id, scope: "tenant", locationIds: [] },
+      (tx) =>
+        raiseCaseworkDsarTasks(tx, {
+          requesterId: DEMO.users.carer.id,
+          dsarReference: "DSAR-0001",
+          dueOn: "2026-12-31",
+        }),
+    );
+    expect(raised.tasks).toBeGreaterThan(0);
+    const tasks = await sql<{ assignee_tenant_user_id: string; details: unknown }>(
+      `SELECT assignee_tenant_user_id, details FROM task
+        WHERE kind = 'workforce.casework_dsar_collection'`,
+    );
+    expect(tasks.map((t) => t.assignee_tenant_user_id)).toContain(QUALITY);
+    expect(JSON.stringify(tasks)).not.toContain(SUMMARY);
   });
 });
 
@@ -507,5 +580,86 @@ describe("audit (ids and codes only)", () => {
       `SELECT count(*)::int AS n FROM audit_event WHERE action LIKE 'workforce.case.%' AND outcome = 'denied'`,
     );
     expect(refusals[0]?.n).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("H-804 Thapsus support appoints a case manager on an approved ticket", () => {
+  it("appoints the member the ticket names to a case whose case managers have all left", async () => {
+    // A second case, then its only case manager leaves the organisation.
+    const opened = await as("quality", "/v1/workforce/cases", {
+      method: "POST",
+      body: {
+        caseType: "grievance",
+        subjectTenantUserId: DEMO.users.carer.id,
+        summary: SUMMARY,
+        openedOn: "2026-11-02",
+      },
+    });
+    expect(opened.status, await opened.clone().text()).toBe(201);
+    const orphan = (await json<Detail>(opened)).case.id;
+    await sql("UPDATE tenant_user SET status = 'left' WHERE id = $1", [QUALITY]);
+    // The Registered Manager is the organisation's data protection lead.
+    await sql(
+      `INSERT INTO role (key, name, permissions, scope_kind)
+       VALUES ('s804_dpl', 'Data protection lead', ARRAY['platform.dpia.sign'], 'tenant')`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id)
+       SELECT $1::uuid, id FROM role WHERE key = 's804_dpl'`,
+      [DEMO.users.manager.id],
+    );
+
+    const raised = await as("owner", "/v1/workforce/casework-support-tickets", {
+      method: "POST",
+      body: {
+        caseId: orphan,
+        newManagerId: DEMO.users.nurse.id,
+        reason: "The case manager has left the organisation",
+      },
+    });
+    expect(raised.status, await raised.clone().text()).toBe(201);
+    const ticket = await json<{ id: string; version: number }>(raised);
+    const appoint = () =>
+      h.request(
+        `/operator/tenants/${DEMO.tenantId}/casework-support-tickets/${ticket.id}/appoint`,
+        {
+          method: "POST",
+          token: h.tokens.opsAdmin,
+        },
+      );
+    // Not before the data protection lead approves it, and never by the requester.
+    expect((await appoint()).status).toBe(409);
+    expect(
+      (
+        await as("owner", `/v1/workforce/casework-support-tickets/${ticket.id}/approve`, {
+          method: "POST",
+          body: { expectedVersion: ticket.version },
+        })
+      ).status,
+    ).toBe(403);
+    const approved = await as(
+      "manager",
+      `/v1/workforce/casework-support-tickets/${ticket.id}/approve`,
+      {
+        method: "POST",
+        body: { expectedVersion: ticket.version },
+      },
+    );
+    expect(approved.status, await approved.clone().text()).toBe(200);
+
+    expect((await appoint()).status).toBe(200);
+    expect((await appoint()).status).toBe(409);
+    const [member] = await sql<{ member_role: string }>(
+      "SELECT member_role FROM employee_case_member WHERE case_id = $1 AND tenant_user_id = $2",
+      [orphan, DEMO.users.nurse.id],
+    );
+    expect(member?.member_role).toBe("case_manager");
+    // Shown to the organisation, by ids only.
+    const [shown] = await sql<{ n: number }>(
+      `SELECT count(*)::int AS n FROM audit_event
+        WHERE action = 'workforce.case.manager_appointed_by_support' AND resource_id = $1`,
+      [ticket.id],
+    );
+    expect(shown?.n).toBe(1);
   });
 });

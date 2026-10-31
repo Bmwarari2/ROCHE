@@ -17916,6 +17916,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/workforce/cases/{id}/export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Export an employee relations case
+     * @description A case manager of the case, with a fresh step-up (H-805): the whole case as JSON, to take with the provider. Not found for anyone else; refused to other members. Casework never goes in the organisation-wide export. Audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The case */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseExport"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/workforce/cases/{id}/members": {
     parameters: {
       query?: never;
@@ -18673,6 +18750,225 @@ export interface paths {
           };
           content: {
             "application/json": components["schemas"]["CaseDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/casework-support-tickets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Casework support tickets
+     * @description platform.user.manage or platform.dpia.sign. The organisation's tickets, newest first, by ids only.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Tickets */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseworkSupportTicketList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask support to give a case a new case manager
+     * @description platform.user.manage. Names the case by id and the member who will be its case manager (never oneself). Approved by the data protection lead before support can act. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RaiseCaseworkSupportTicket"];
+        };
+      };
+      responses: {
+        /** @description Raised */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseworkSupportTicket"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workforce/casework-support-tickets/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve a casework support ticket
+     * @description platform.dpia.sign, with a fresh step-up, never one's own request or one naming oneself. Once. Audited.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApproveCaseworkSupportTicket"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CaseworkSupportTicket"];
           };
         };
         /** @description Not signed in */
@@ -24082,6 +24378,78 @@ export interface paths {
             "application/json": {
               /** Format: uuid */
               id: string;
+            };
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Appoint the case manager an approved casework support ticket names
+     * @description H-804: for a case whose case managers have all left, on a ticket the organisation raised and its data protection lead approved. Support never reads the case. Once per ticket. Audited to the organisation and its owners are told.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          tenantId: string;
+          ticketId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Appointed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              /** Format: uuid */
+              ticketId: string;
             };
           };
         };
@@ -32905,6 +33273,9 @@ export interface components {
         closedOn: string | null;
         /** Format: uuid */
         safeguardingIncidentId: string | null;
+        removesFromRegulatedActivity: boolean;
+        /** @enum {string} */
+        retentionClass: "staff_file" | "casework_no_sanction";
       };
       referrals: {
         dbs: {
@@ -33036,6 +33407,13 @@ export interface components {
       /** Format: date */
       openedOn: string;
     };
+    CaseExport: {
+      /** Format: date-time */
+      exportedAt: string;
+      /** @enum {string} */
+      format: "harbour.employee_case.v1";
+      detail: components["schemas"]["CaseDetail"];
+    };
     NameCaseMember: {
       /** Format: uuid */
       tenantUserId: string;
@@ -33077,6 +33455,8 @@ export interface components {
            * @enum {string|null}
            */
           noHearingReason: "employee_repeatedly_did_not_attend" | null;
+          /** @default false */
+          removesFromRegulatedActivity: boolean;
         }
       | {
           /** @enum {string} */
@@ -33150,6 +33530,37 @@ export interface components {
       body: string;
       /** Format: date */
       occurredOn: string;
+    };
+    CaseworkSupportTicketList: {
+      items: components["schemas"]["CaseworkSupportTicket"][];
+    };
+    CaseworkSupportTicket: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      caseId: string;
+      /** Format: uuid */
+      newManagerId: string;
+      /** Format: uuid */
+      requestedBy: string;
+      reason: string;
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+      /** Format: date-time */
+      usedAt: string | null;
+    };
+    RaiseCaseworkSupportTicket: {
+      /** Format: uuid */
+      caseId: string;
+      /** Format: uuid */
+      newManagerId: string;
+      reason: string;
+    };
+    ApproveCaseworkSupportTicket: {
+      expectedVersion: number;
     };
     InductionDetail: {
       /** Format: uuid */
@@ -33391,7 +33802,10 @@ export interface components {
       /** Format: date */
       requestedOn: string;
       requester: string;
-      /** @enum {string} */
+      /**
+       * @default conduct
+       * @enum {string}
+       */
       kind: "factual" | "conduct";
     };
     AnswerReferenceRequest: {
@@ -33407,7 +33821,7 @@ export interface components {
        * @default null
        * @enum {string|null}
        */
-      declinedReason: "no_consent_to_share" | "not_employed_here" | "duplicate_request" | null;
+      declinedReason: "not_employed_here" | "duplicate_request" | "requester_not_verified" | null;
     };
     ColleagueList: {
       items: components["schemas"]["StaffName"][];

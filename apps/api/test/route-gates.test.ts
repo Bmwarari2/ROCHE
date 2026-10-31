@@ -62,6 +62,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "PUT /v1/workforce/cases/{id}/referrals": CASE_MEMBER,
   "PUT /v1/workforce/cases/{id}/safeguarding-link": CASE_MEMBER,
   "POST /v1/workforce/cases/{id}/notes": CASE_MEMBER,
+  "GET /v1/workforce/cases/{id}/export":
+    "a case manager's route (H-805): MFA, a fresh step-up, and row-level security opens only the cases the member is named on (migration 0101)",
   "POST /p/evidence/code":
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
@@ -70,6 +72,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /operator/tenants/{tenantId}/support-access": "an operator route (support access request)",
   "POST /operator/sub-processor-notices":
     "an operator route (announcing a notice; each organisation read in its own context)",
+  "POST /operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint":
+    "an operator route (H-804: an approved ticket, through app.operator_appoint_case_manager)",
   "POST /operator/tenants/{tenantId}/owner-invitation":
     "an operator route (the first owner's invitation, through app.invite_first_owner)",
 };

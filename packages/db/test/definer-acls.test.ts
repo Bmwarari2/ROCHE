@@ -32,6 +32,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.seed_discard_reasons(uuid)": [],
   // H-804 (migration 0116): Thapsus support appoints a case manager on an approved ticket.
   "app.operator_appoint_case_manager(uuid, uuid)": ["harbour_operator"],
+  // H-805 (migration 0116): the cases a staff subject access request must collect, by id.
+  "app.casework_for_subject_access(uuid)": ["harbour_app"],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
   "app.refresh_earlier_plan(uuid, uuid[])": [],
   "app.task_from_earlier_plan(uuid, uuid)": [],

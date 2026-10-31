@@ -362,6 +362,14 @@ whatever the clock change.
     dismissal or a final written warning (disciplinary or capability), or is linked to a
     safeguarding concern. A decision is `referred` on a date or `not_required` with a reason code.
     Harbour never decides or makes a referral (H-802).
+
+    H-802 (recommended answer applied 31/10/2026, reviewed at testing): the DBS decision is also due when a disciplinary or capability case ends in redeployment, or in an action short of dismissal marked as removing the member from regulated activity (`removes_from_regulated_activity`, decided with the outcome), because the Safeguarding Vulnerable Groups Act 2006 s 35 duty applies to any such removal. Harbour still only asks for the decision.
+
+    H-806: a case closed as a grievance, with no case to answer or withdrawn takes `casework_no_sanction` (6 years after closure); one ending in a sanction, dismissal or referral, or concerning safeguarding, stays with the staff file (`caseRetentionClass`; set by the database as the case closes, migration 0116). Expired warnings stay on the case marked as no longer counting.
+
+    H-804: when every case manager has left, a holder of `platform.user.manage` raises a support ticket naming the case by id and the new case manager (never themselves, the approver or the member of staff the case is about); the data protection lead (`platform.dpia.sign`) approves it with step-up; Thapsus support appoints them once (`app.operator_appoint_case_manager`) without reading the case, audited to the organisation, whose owners are told.
+
+    H-805: a case manager exports their case as JSON with a fresh step-up (`GET /v1/workforce/cases/{id}/export`, audited); the organisation-wide export still never carries casework. A staff subject access request raises a task for each case about or naming the requester for its case manager (`raiseCaseworkDsarTasks`, through `app.casework_for_subject_access`, ids only); a case with no case manager employed goes to support (H-804).
 18. **Hearings and suspension** (`checkHearingInvitation`, `checkHearingChange`,
     `checkSuspension`). A hearing or appeal hearing is arranged only once the employee has the
     issue in writing (and, in a disciplinary or capability case, the evidence) and has been told
@@ -409,10 +417,14 @@ whatever the clock change.
     a summary the leaver may see). A reference request names the organisation asking; it is sent
     once, in the sender's own name, or declined with a reason. Leaving items are overdue from the
     day after the leaving date.
+
+    H-873 (applied 31/10/2026): the sweep ends access at the later of the end of the leaving day and the end of the last rostered shift that starts on it (`accessEndsAt`; the rota through `RotaPort`), so a night worker is never cut off mid-shift; ending access at once with step-up stays for dismissals. H-879: the sweep then signs the leaver out of every device, unless they still work for another organisation, keeping unsent entries on the device for hand-over; a leaver keeps no access to their own staff file and asks through a subject access request. H-876: a reference request is a conduct reference by default, and "requester not verified" replaces "no consent to share" (references rest on legitimate interests with the staff privacy notice, never consent).
 23. **Keeping the staff file** (`staffFileRetainUntil`). From the leaving date: the organisation's
     own `staff_file.after_leaving` row when it set one (6 years by default), otherwise the default
     to the later of leaving and the birthday at `retention.staff_file.birthday_age` (75); with no
     date of birth the file is kept and the date left empty for a person to decide (H-874).
+
+    H-874 (applied 31/10/2026): a leaver with no date of birth gives HR a task to record it at leaving; until it is, the file is kept and comes up for a person's decision once the after-leaving period (`staff_file.after_leaving`) has passed (`staffFileReviewDue`, a task raised once by the leaver sweep), never kept indefinitely without review. Each organisation chooses its staff file row once at onboarding, approved by its data protection lead.
 
 Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
@@ -768,15 +780,16 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
 | Casework does not stop someone holding the caseworker role from being named on a case about a colleague they are close to, or a member reading a case after their own conflict arises (slice 39) | Conflicts of interest are for the case manager to manage | A declared-conflict check when naming members (slice 58) |
-| A case nobody can read once its last case manager leaves (slice 39) | The case stays, unread, until support acts under an approval ticket | The support route (H-804) |
+| A case nobody can read once its last case manager leaves (slice 39) | Closed by H-804 (31/10/2026): a support ticket, raised by a user manager and approved by the data protection lead, lets Thapsus support appoint the case manager it names, without reading the case | Screens to raise and approve tickets (the routes exist) |
 | Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
-| Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
+| Casework is left out of the organisation-wide export (slice 39) | H-805 (31/10/2026): each case manager exports their case with step-up; a staff subject access request raises a task for the case manager of each case about or naming the requester (`raiseCaseworkDsarTasks`) | The DSAR workbench (on main) calls `raiseCaseworkDsarTasks` when a staff request opens, once the two are merged |
 | Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
 | Opening a case tells the opener whether the member of staff is on a professional register (`subject_registered`, copied from the staff file, which the caseworker role cannot read) (slice 39) | A caseworker learns one fact of a colleague's staff file by opening a case about them; every opening is audited | Accepted: rule 17 needs it; reviewed with the screens (slice 58) |
 | Read-and-sign at induction counts the published policies the worker's roles need now (slice 29) | A policy published later joins the count; who has not signed which policy is the policy library's view (quality.md) | Nothing to close; documented |
 | Shadow shifts are recorded by HR, not by the colleague shadowed, and are not linked to the rota (slice 29) | The shift is the manager's account | Link to rota shifts (slice 17's rota port) |
 | A leaving date, once recorded, is not corrected (slice 29) | A wrong date needs support to correct it, with the audit trail | A correction that records the change and recomputes access and retention (slice 58) |
-| Device sessions of a leaver are not ended by the sweep (slice 29) | The member holds nothing once left (no role is counted), so the API refuses them; a Care mode device keeps their unsent entries | Revoke the leaver's devices with the sweep (with platform device management) |
+| Device sessions of a leaver are not ended by the sweep (slice 29) | Closed by H-879 (31/10/2026): the sweep signs the leaver out of every device unless they still work for another organisation; entries not yet sent stay on the device for hand-over (HZ-040, HZ-110) | Nothing to close |
+| Access ends after a rostered shift that starts on the leaving day (H-873) | The rota is not merged here, so `NO_ROTA` answers no shift and access ends at the end of the leaving day | Wire the rota builder's adapter to `RotaPort` when scheduling merges |
 | The keep-until date is worked out once, when the leaving is recorded (slice 29) | A later change of the organisation's retention row or date of birth does not move it | The retention engine's employment triggers (with H-575) |
 | A member named on a case without `workforce.casework.manage` has no navigation entry (slice 58) | They reach the case by its link (the silo shows nothing in the navigation) | Show the entry when `GET /v1/workforce/cases` is not empty, without a count, if the CSO and DPO agree (H-933) |
 | A case manager who does not hold `workforce.casework.manage` cannot load the colleagues list (slice 58) | They cannot name members from the screen; a caseworker names them | Let active case managers read colleagues for their case (H-934) |

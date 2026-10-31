@@ -90,8 +90,15 @@ const LEAD_ROLE: Record<string, string> = {
  * the case manager runs the case, the hearing chair decides the outcome, the appeal chair the
  * appeal, the member leading a hearing records it, and anyone named adds a note.
  */
-export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CasePage({
+  params,
+  searchParams,
+}: {
+  readonly params: Promise<{ id: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const exportProblem = (await searchParams).export;
   if (!isUuid(id)) notFound();
   const { me } = await getShellContext();
   const api = await tenantApi();
@@ -182,6 +189,16 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
               })}
             </p>
           ) : null}
+          {c.outcome && c.removesFromRegulatedActivity ? (
+            <p className="m-0 text-body-dense">
+              {t("workforce.cases.removedFromRegulatedActivity")}
+            </p>
+          ) : null}
+          {closed ? (
+            <p className="m-0 text-body-dense text-text-secondary">
+              {codeLabel("workforce.cases.retention", c.retentionClass, t)}
+            </p>
+          ) : null}
           {(["dbs", "regulator"] as const).map((body) =>
             detail.referrals[body].due || detail.referrals[body].decision ? (
               <p key={body} className="m-0 text-body-dense">
@@ -196,6 +213,31 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
       </Card>
+
+      {manager ? (
+        <Card>
+          <div className="flex flex-col gap-2">
+            <h2 className="m-0 text-body font-semibold">{t("workforce.cases.export")}</h2>
+            <p className="m-0 max-w-prose text-body-dense">{t("workforce.cases.exportHint")}</p>
+            {exportProblem === "failed" || exportProblem === "refused" ? (
+              <p role="alert" className="m-0 text-body-dense font-semibold">
+                {exportProblem === "refused"
+                  ? t("workforce.cases.exportRefused")
+                  : t("workforce.cases.exportFailed")}
+              </p>
+            ) : null}
+            <p className="m-0">
+              <a
+                href={`/workforce/cases/${id}/export`}
+                className="inline-flex min-h-target items-center underline"
+                download
+              >
+                {t("workforce.cases.exportLink")}
+              </a>
+            </p>
+          </div>
+        </Card>
+      ) : null}
 
       <section aria-labelledby="members" className="flex flex-col gap-3">
         <h2 id="members" className="m-0 text-heading-3 font-semibold">
@@ -648,6 +690,16 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
                 required: true,
               },
               { kind: "checkbox", name: "noHearing", label: t("workforce.cases.noHearing") },
+              ...(c.caseType === "disciplinary"
+                ? [
+                    {
+                      kind: "checkbox" as const,
+                      name: "removesFromRegulatedActivity",
+                      label: t("workforce.cases.removesFromRegulatedActivity"),
+                      hint: t("workforce.cases.removesFromRegulatedActivityHint"),
+                    },
+                  ]
+                : []),
             ]}
           />
         </Card>

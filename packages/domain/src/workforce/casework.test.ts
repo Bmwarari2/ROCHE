@@ -106,6 +106,22 @@ describe("checkCaseMove (workforce.md rule 15)", () => {
       "outcome_not_for_case_type",
     ],
     [
+      "H-802 decides an action short of dismissal that removes the member from regulated activity",
+      facts(),
+      decide({
+        outcome: "action_short_of_dismissal",
+        warningExpiresOn: null,
+        removesFromRegulatedActivity: true,
+      }),
+      "outcome",
+    ],
+    [
+      "H-802 refuses the removal flag with any other outcome",
+      facts(),
+      decide({ removesFromRegulatedActivity: true }),
+      "removal_only_with_action_short_of_dismissal",
+    ],
+    [
       "refuses a warning without the date it stops counting",
       facts(),
       decide({ warningExpiresOn: null }),

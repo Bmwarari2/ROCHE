@@ -51,6 +51,8 @@ const deps = {
   workerPool,
   appDb: createDatabase(appPool),
   logger,
+  // Leavers' sign-in sessions are ended by the access sweep (H-879).
+  authPool,
   exportStorage: createExportStorage(config),
   // The documents bucket: the export reads it, and destroyed documents' bytes are deleted from it.
   storage: createDocumentServices(config).storage,

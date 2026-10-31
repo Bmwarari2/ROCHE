@@ -2,6 +2,7 @@ import {
   AddCaseNote,
   ArrangeHearing,
   CaseDetail,
+  CaseExport,
   type CaseHearing,
   CaseList,
   type CaseMember,
@@ -54,6 +55,8 @@ import {
   type AppEnv,
   mfaRefusal,
   requirePermission,
+  stepUpFresh,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -81,6 +84,7 @@ import { audit, dbCode } from "./people-shared";
 
 const OPEN = "workforce.casework.manage";
 const A = {
+  exported: "workforce.case.exported",
   opened: "workforce.case.opened",
   viewed: "workforce.case.viewed",
   listed: "workforce.case.listed",
@@ -202,6 +206,7 @@ async function factsOf(tx: Transaction, row: CaseRow): Promise<CaseFacts> {
     regulatorReferral: (row.regulatorReferral ?? null) as ReferralDecision | null,
     subjectRegistered: row.subjectRegistered,
     linkedToSafeguarding: row.safeguardingIncidentId !== null,
+    removesFromRegulatedActivity: row.removesFromRegulatedActivity,
   };
 }
 
@@ -328,6 +333,8 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
       closedReason: (row.closedReason ?? null) as CaseDetail["case"]["closedReason"],
       closedOn: row.closedOn,
       safeguardingIncidentId: row.safeguardingIncidentId,
+      removesFromRegulatedActivity: row.removesFromRegulatedActivity,
+      retentionClass: row.retentionClass as CaseDetail["case"]["retentionClass"],
     },
     referrals: {
       dbs: {
@@ -508,6 +515,43 @@ export const caseworkRouter = createRouter()
   )
   .openapi(
     createRoute({
+      method: "get",
+      path: "/v1/workforce/cases/{id}/export",
+      tags: ["workforce"],
+      summary: "Export an employee relations case",
+      description:
+        "A case manager of the case, with a fresh step-up (H-805): the whole case as JSON, to take with the provider. Not found for anyone else; refused to other members. Casework never goes in the organisation-wide export. Audited.",
+      security,
+      request: { params: IdParam },
+      responses: { 200: jsonBody(CaseExport, "The case"), ...errorResponses, ...notFoundResponse },
+    }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const access = memberAccess(c);
+      const stepUp = c.get("access");
+      if (!stepUpFresh(stepUp)) throw stepUpRefusal(stepUp);
+      const detail = await withAuditedRefusal(c, access, () =>
+        withTenant(c, async (tx) => {
+          const loaded = await loadCase(tx, access, A.exported, id);
+          requireRole(loaded, A.exported, ["case_manager"]);
+          await auditCase(c, tx, access, A.exported, id);
+          return detailOf(tx, loaded);
+        }),
+      );
+      c.header("Content-Disposition", `attachment; filename="employee-case-${id}.json"`);
+      c.header("Cache-Control", "no-store");
+      return c.json(
+        {
+          exportedAt: new Date().toISOString(),
+          format: "harbour.employee_case.v1" as const,
+          detail,
+        },
+        200,
+      );
+    },
+  )
+  .openapi(
+    createRoute({
       method: "post",
       path: "/v1/workforce/cases/{id}/members",
       tags: ["workforce"],
@@ -678,6 +722,7 @@ export const caseworkRouter = createRouter()
               warningExpiresOn: body.warningExpiresOn,
               appealRightGiven: body.appealRightGiven,
               noHearingReason: body.noHearingReason,
+              removesFromRegulatedActivity: body.removesFromRegulatedActivity,
             };
             break;
           case "appeal":
@@ -712,6 +757,7 @@ export const caseworkRouter = createRouter()
                 outcome: body.outcome,
                 outcomeDecidedOn: body.on,
                 warningExpiresOn: body.warningExpiresOn,
+                removesFromRegulatedActivity: body.removesFromRegulatedActivity,
               }
             : {}),
           ...(body.to === "closed"

@@ -17,7 +17,17 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { Context, MiddlewareHandler } from "hono";
 import { sessionFactorState } from "../auth/session-factor";
 import type { AppEnv } from "../http/context";
-import { problems } from "../http/problem";
+import { HttpProblem, problems } from "../http/problem";
+
+/** Why an approved casework support ticket cannot be used now (app.operator_appoint_case_manager). */
+const SUPPORT_TICKET_REFUSALS = new Set([
+  "ticket_not_approved",
+  "ticket_used",
+  "case_not_open",
+  "case_has_manager",
+  "manager_not_allowed",
+]);
+
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 /**
@@ -220,6 +230,51 @@ export const operatorRouter = createRouter()
       }
       await recordForTenant(c, id, "platform.tenant.provisioned", id, null);
       return c.json({ id }, 201);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/operator/tenants/{tenantId}/casework-support-tickets/{ticketId}/appoint",
+      tags: ["operator"],
+      summary: "Appoint the case manager an approved casework support ticket names",
+      description:
+        "H-804: for a case whose case managers have all left, on a ticket the organisation raised and its data protection lead approved. Support never reads the case. Once per ticket. Audited to the organisation and its owners are told.",
+      security,
+      request: { params: z.object({ tenantId: z.uuid(), ticketId: z.uuid() }) },
+      responses: {
+        200: jsonBody(z.object({ ticketId: z.uuid() }), "Appointed"),
+        ...errorResponses,
+      },
+    }),
+    async (c) => {
+      const { tenantId, ticketId } = c.req.valid("param");
+      const operator = c.get("operator");
+      const client = await c.get("services").operatorPool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+        await client.query("SELECT app.operator_appoint_case_manager($1, $2)", [
+          ticketId,
+          operator.id,
+        ]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        const message = error instanceof Error ? error.message : "";
+        if (message === "ticket_not_found") throw problems.notFound();
+        if (SUPPORT_TICKET_REFUSALS.has(message)) {
+          throw new HttpProblem(409, message, "This ticket cannot be used for that.");
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+      await recordForTenant(c, tenantId, "workforce.case.manager_appointed_by_support", ticketId, {
+        title: "Thapsus support appointed a case manager, as your approved ticket asked",
+        link: "/settings/support-access",
+      });
+      return c.json({ ticketId }, 200);
     },
   )
   .openapi(

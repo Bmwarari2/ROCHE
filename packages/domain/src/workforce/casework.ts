@@ -172,6 +172,8 @@ export type CaseMove =
       readonly warningExpiresOn: string | null;
       readonly appealRightGiven: boolean;
       readonly noHearingReason: (typeof NO_HEARING_REASONS)[number] | null;
+      /** H-802: an action short of dismissal that takes the member out of regulated activity. */
+      readonly removesFromRegulatedActivity?: boolean;
     }
   | { readonly to: "appeal" }
   | {
@@ -189,6 +191,7 @@ export type CaseMoveProblem =
   | "warning_expiry_required"
   | "warning_expiry_not_allowed"
   | "appeal_right_required"
+  | "removal_only_with_action_short_of_dismissal"
   | "appeal_hearing_required"
   | "appeal_outcome_required"
   | "reason_not_for_stage"
@@ -241,6 +244,9 @@ export function checkCaseMove(facts: CaseFacts, move: CaseMove): CaseMoveCheck {
         return fail("warning_expiry_not_allowed");
       }
       if (!move.appealRightGiven) return fail("appeal_right_required");
+      if (move.removesFromRegulatedActivity && move.outcome !== "action_short_of_dismissal") {
+        return fail("removal_only_with_action_short_of_dismissal");
+      }
       return { ok: true, to: "outcome" };
     }
     case "appeal":

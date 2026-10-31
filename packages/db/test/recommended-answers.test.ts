@@ -291,3 +291,50 @@ describe("H-876 decline reasons", () => {
     expect(def).toContain("no_consent_to_share");
   });
 });
+
+describe("H-805 casework for a staff subject access request", () => {
+  const dsarLead = "0199f400-0000-7000-8000-000000000305";
+  const forRequest = (user: string, requester: string) =>
+    as(user, async (c) => {
+      const { rows } = await c.query<{ case_id: string; case_manager_id: string | null }>(
+        "SELECT case_id, case_manager_id FROM app.casework_for_subject_access($1)",
+        [requester],
+      );
+      return rows;
+    });
+
+  beforeAll(async () => {
+    await asOwnerRole(async (c) => {
+      await c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ($1, 'auth-ra-dsar', 'Dara Example', 'dara.ra@example.invalid', 'active')`,
+        [dsarLead],
+      );
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions)
+         VALUES ('0199f400-0000-7000-8000-000000000505', 'dsar_lead', 'DSAR lead', 'tenant', '{quality.dsar.manage}')`,
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id)
+         VALUES ($1, '0199f400-0000-7000-8000-000000000505')`,
+        [dsarLead],
+      );
+    });
+  });
+
+  it("lists the cases about the requester with their case managers still employed, by id", async () => {
+    const rows = await forRequest(dsarLead, a.carer);
+    expect(rows.length).toBeGreaterThan(0);
+    // The orphaned case now has the manager support appointed; others have the second caseworker.
+    for (const row of rows) expect([U.newManager, U.caseworker2]).toContain(row.case_manager_id);
+    expect(Object.keys(rows[0] ?? {}).sort()).toEqual(["case_id", "case_manager_id"]);
+  });
+
+  it("names nothing for someone with no case", async () => {
+    expect(await forRequest(dsarLead, U.dpl)).toEqual([]);
+  });
+
+  it("is refused to anyone without the DSAR permission", async () => {
+    await expect(forRequest(U.caseworker2, a.carer)).rejects.toThrow(/quality.dsar.manage/);
+  });
+});

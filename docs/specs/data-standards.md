@@ -707,6 +707,9 @@ and left out of the organisation-wide export (H-805).
 | `employee_case.warning_expires_on` | Tenant policy | `YYYY-MM-DD`, after the decision | Warnings only (H-808) |
 | `employee_case.appeal_outcome` | Acas Code | `upheld`, `partly_upheld`, `not_upheld` | Decided by the appeal chair |
 | `employee_case.closed_reason` | Harbour | `outcome_accepted`, `appeal_decided`, `resolved_informally`, `no_case_to_answer`, `withdrawn`, `left_employment` | |
+| `employee_case.removes_from_regulated_activity` | Safeguarding Vulnerable Groups Act 2006 s 35 | Boolean | Only with `action_short_of_dismissal`; decided with the outcome (H-802) |
+| `employee_case.retention_class` | retention.md | `staff_file`, `casework_no_sanction` | Set by the database as the case closes (H-806) |
+| `casework_support_ticket` | Harbour | `case_id`, `new_manager_id`, `requested_by`, `reason` (10 to 1,000 characters), `approved_by`, `approved_at`, `used_by_operator`, `used_at` | H-804: ids only; never the case's content |
 | `employee_case.suspended_on`, `suspension_review_on` | Acas Code (suspension a precaution) | `YYYY-MM-DD`, set together; review after the start | Disciplinary only; ends before closing |
 | `employee_case.dbs_referral`, `regulator_referral` | SVGA 2006 s.35; NMC, HCPC, SWE, GMC guidance | `referred` (with `_on`, a date) or `not_required` (with `_reason`: `harm_test_not_met`, `not_regulated_activity`, `referred_by_another_body`, `other_recorded_in_case`) | The people's decision; Harbour refers nobody |
 | `employee_case.subject_registered` | Harbour | Boolean, from the staff profile's `registration_body` when opened | Makes the regulator decision due |
@@ -753,7 +756,7 @@ H-871).
 | `leaver_record.reason` | Harbour (ASC-WDS leaving reasons to map later) | `resignation`, `end_of_fixed_term`, `retirement`, `dismissal`, `redundancy`, `tupe_transfer_out`, `death_in_service`, `other` | H-873 |
 | `leaver_record.exit_interview` | Harbour | `not_offered`, `offered`, `declined`, `held` | Forward only |
 | `leaver_record.staff_file_retain_until` | Records Management Code of Practice | `YYYY-MM-DD` or empty | Rule 23 |
-| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct`; `requested`, `sent`, `declined`; `no_consent_to_share`, `not_employed_here`, `duplicate_request` | H-876 |
+| `reference_request.kind`, `state`, `declined_reason` | Harbour; Schedule 3 paragraph 4 (conduct) | `factual`, `conduct` (default `conduct`); `requested`, `sent`, `declined`; `not_employed_here`, `duplicate_request`, `requester_not_verified` (`no_consent_to_share` kept only on requests declined with it before H-876) | H-876, applied 31/10/2026 |
 
 ## Platform operational tables (not part of the MODS export)
 

@@ -183,6 +183,10 @@ export const CaseDetail = z
       closedReason: CaseClosingReason.nullable(),
       closedOn: isoDate.nullable(),
       safeguardingIncidentId: uuid.nullable(),
+      /** H-802: the outcome takes the member out of regulated activity. */
+      removesFromRegulatedActivity: z.boolean(),
+      /** H-806: how long the case is kept once closed (retention.md). */
+      retentionClass: z.enum(["staff_file", "casework_no_sanction"]),
     }),
     referrals: z.object({ dbs: referralView, regulator: referralView }),
     members: z.array(CaseMember),
@@ -194,6 +198,19 @@ export const CaseDetail = z
     daysAtStage: z.number().int().nullable(),
   })
   .meta({ id: "CaseDetail" });
+
+/**
+ * H-805: one case as its case manager takes it with them (step-up, audited): everything the case
+ * shows its members, the timeline's notes and grounds included, with when it was exported. The
+ * organisation-wide export never carries casework (a restricted silo).
+ */
+export const CaseExport = z
+  .object({
+    exportedAt: z.iso.datetime(),
+    format: z.literal("harbour.employee_case.v1"),
+    detail: CaseDetail,
+  })
+  .meta({ id: "CaseExport" });
 export type CaseDetail = z.infer<typeof CaseDetail>;
 
 export const NameCaseMember = z
@@ -220,6 +237,8 @@ export const MoveCase = z
         warningExpiresOn: isoDate.nullable().default(null),
         appealRightGiven: z.boolean(),
         noHearingReason: z.enum(["employee_repeatedly_did_not_attend"]).nullable().default(null),
+        /** H-802: an action short of dismissal that takes the member out of regulated activity. */
+        removesFromRegulatedActivity: z.boolean().default(false),
       }),
       z.object({ to: z.literal("appeal"), grounds: text(3, 10000) }),
       z.object({
@@ -282,3 +301,30 @@ export const LinkSafeguarding = z
 export const AddCaseNote = z
   .object({ body: text(1, 10000), occurredOn: isoDate })
   .meta({ id: "AddCaseNote" });
+
+/** H-804: ask Thapsus support to give a case whose case managers have all left a new one. */
+export const RaiseCaseworkSupportTicket = z
+  .object({ caseId: uuid, newManagerId: uuid, reason: text(10, 1000) })
+  .meta({ id: "RaiseCaseworkSupportTicket" });
+
+export const ApproveCaseworkSupportTicket = z
+  .object({ expectedVersion: z.number().int().min(1) })
+  .meta({ id: "ApproveCaseworkSupportTicket" });
+
+export const CaseworkSupportTicket = z
+  .object({
+    id: uuid,
+    version: z.number().int(),
+    caseId: uuid,
+    newManagerId: uuid,
+    requestedBy: uuid,
+    reason: z.string(),
+    approvedBy: uuid.nullable(),
+    approvedAt: z.iso.datetime().nullable(),
+    usedAt: z.iso.datetime().nullable(),
+  })
+  .meta({ id: "CaseworkSupportTicket" });
+
+export const CaseworkSupportTicketList = z
+  .object({ items: z.array(CaseworkSupportTicket) })
+  .meta({ id: "CaseworkSupportTicketList" });
