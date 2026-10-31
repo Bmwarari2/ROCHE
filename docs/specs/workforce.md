@@ -120,8 +120,8 @@ tables with forced row-level security, read only by the members named on a case.
 
 | Table | Columns | Rules |
 | --- | --- | --- |
-| `employee_case` | `case_type`, `subject_tenant_user_id` (the member of staff it is about), `subject_registered` (set by the database from the staff profile when opened), `summary`, `opened_on`, `stage` and `stage_since`, `outcome`, `outcome_decided_on`, `warning_expires_on`, `appeal_outcome`, `appeal_decided_on`, `suspended_on` and `suspension_review_on`, `closed_reason`, `closed_on`, `dbs_referral`, `_on`, `_reason`, `regulator_referral`, `_on`, `_reason`, `safeguarding_incident_id` | Mutable (`expected_version`). Opened open with nothing decided, never about the opener; keeps its type and subject; moves forward only; an outcome stays once decided; a closed case never changes; the safeguarding link is set once, to a concern the member can see |
-| `employee_case_member` | `case_id`, `tenant_user_id`, `member_role` (`CASE_MEMBER_ROLES`), `independence_exception`, `added_by`, `removed_at`, `removed_by` | Mutable, only ever removed. Never the subject; nobody names themselves (but the opener as first case manager); the last case manager stays |
+| `employee_case` | `case_type`, `subject_tenant_user_id` (the member of staff it is about), `subject_registered` (set by the database from the staff profile when opened), `summary`, `opened_on`, `stage` and `stage_since`, `outcome`, `outcome_decided_on`, `warning_expires_on`, `appeal_outcome`, `appeal_decided_on`, `suspended_on` and `suspension_review_on`, `closed_reason`, `closed_on`, `dbs_referral`, `_on`, `_reason`, `regulator_referral`, `_on`, `_reason`, `safeguarding_incident_id` | Mutable (`expected_version`). Opened only through `app.open_employee_case` (which names the opener its first case manager and writes the opening event), open with nothing decided, never about the opener; keeps its type, subject and summary; moves forward only; an outcome stays once decided; a chair who is not a case manager changes only their own decision; a closed case never changes; the safeguarding link is set once, to a concern the member can see |
+| `employee_case_member` | `case_id`, `tenant_user_id`, `member_role` (`CASE_MEMBER_ROLES`), `independence_exception`, `added_by`, `removed_at`, `removed_by` | Mutable, only ever removed. Never the subject; nobody names themselves (the opener is named by the opening); independence counts parts someone was removed from; the last case manager stays |
 | `employee_case_hearing` | `case_id`, `kind` (`investigation_meeting`, `hearing`, `appeal_hearing`), `led_by`, `invited_on`, `scheduled_at`, `issue_set_out`, `evidence_shared`, `companion_right_given`, `state`, `held_on`, `accompanied`, `postponed_reason` | Mutable. Led by the member in the matching role; a held, unattended or cancelled one is final |
 | `employee_case_event` | `case_id`, `kind`, `from_stage`, `to_stage`, `occurred_on`, `body` (a note or the appeal grounds only), `recorded_by` | Append-only: the timeline. Written in one's own name, never after the case closes |
 
@@ -166,8 +166,12 @@ Registered Manager, deputy manager) leave it out, and HR's role no longer carrie
 built-in role `employee_relations_lead` (Employee relations caseworker, no person scope) carries
 it alone. Migration 0101 removes it from existing roles that carry anything else, and the database
 refuses a role mixing it with any other permission, an access grant carrying it, someone
-appointing themselves to a role carrying it, and holding it together with a role that manages
-users or roles (`platform.user.manage`, `platform.role.manage`), whichever comes first. What each
+appointing themselves to a role carrying it, a role already held being edited into one carrying
+it, and holding it together with a role that manages users or roles (`platform.user.manage`,
+`platform.role.manage`), whichever comes first, by assignment or by editing a role; the migration
+stops if anyone already holds both. Members give the caseworker role through the operator or
+support for now: `app.may_assign_role` needs the giver to hold every permission of the role
+through an organisation or location role, and no such role carries the silo permission (H-803). What each
 member may do on a case comes from their part on it (rule 16), not from a permission:
 
 | Action | Who |
@@ -612,3 +616,4 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
 | Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
 | Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
+| Opening a case tells the opener whether the member of staff is on a professional register (`subject_registered`, copied from the staff file, which the caseworker role cannot read) (slice 39) | A caseworker learns one fact of a colleague's staff file by opening a case about them; every opening is audited | Accepted: rule 17 needs it; reviewed with the screens (slice 58) |

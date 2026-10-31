@@ -337,20 +337,15 @@ async function detailOf(tx: Transaction, loaded: Loaded): Promise<CaseDetail> {
 }
 
 /** Writes the audit event for a case action: the case id and codes only. */
+// No codes either: a case's type, stage or referral would tell readers of the audit log about a
+// case they are not named on (ADR-0089).
 const auditCase = (
   c: Context<AppEnv>,
   tx: Transaction,
   access: TenantAccess,
   action: string,
   id: string,
-  scopeExtra?: Record<string, string>,
-) =>
-  audit(c, tx, access, {
-    action,
-    resourceType: "employee_case",
-    resourceId: id,
-    ...(scopeExtra ? { scopeExtra } : {}),
-  });
+) => audit(c, tx, access, { action, resourceType: "employee_case", resourceId: id });
 
 const detailResponses = {
   200: jsonBody(CaseDetail, "The case"),
@@ -442,29 +437,14 @@ export const caseworkRouter = createRouter()
         throw problems.invalid("You cannot open a case about yourself.");
       }
       const detail = await change(c, access, A.opened, async (tx) => {
-        // No RETURNING here either: the opener reads the new case only through the opening
-        // transaction's own row, which RETURNING's check cannot see yet (migration 0101).
-        const ids = await tx.execute<{ id: string }>(sql`SELECT app.uuid_v7() AS id`);
-        const caseId = ids.rows[0]?.id;
-        if (!caseId) throw new Error("no case id");
-        await tx.insert(employeeCase).values({
-          id: caseId,
-          caseType: body.caseType,
-          subjectTenantUserId: body.subjectTenantUserId,
-          summary: body.summary,
-          openedOn: body.openedOn,
-          stageSince: body.openedOn,
-        });
-        const row = { id: caseId };
-        // No RETURNING: the new membership is visible only from the next statement.
-        await tx.insert(employeeCaseMember).values({
-          caseId: row.id,
-          tenantUserId: access.tenantUserId,
-          memberRole: "case_manager",
-          addedBy: access.tenantUserId,
-        });
-        await event(tx, row.id, "opened", body.openedOn, { toStage: "open" });
-        await auditCase(c, tx, access, A.opened, row.id, { caseType: body.caseType });
+        // The definer opens the case, names the caller its first case manager and writes the
+        // opening event together (migration 0101).
+        const opened = await tx.execute<{ id: string }>(
+          sql`SELECT app.open_employee_case(${body.caseType}, ${body.subjectTenantUserId}::uuid, ${body.summary}, ${body.openedOn}::date) AS id`,
+        );
+        const row = { id: opened.rows[0]?.id ?? "" };
+        if (!row.id) throw new Error("case not opened");
+        await auditCase(c, tx, access, A.opened, row.id);
         return detailOf(tx, await loadCase(tx, access, A.opened, row.id));
       });
       return c.json(detail, 201);
@@ -531,6 +511,9 @@ export const caseworkRouter = createRouter()
           role: body.role,
           subjectTenantUserId: loaded.row.subjectTenantUserId,
           active: activeMembers(loaded.members),
+          removed: loaded.members
+            .filter((m) => m.removedAt !== null)
+            .map((m) => ({ tenantUserId: m.tenantUserId, role: m.memberRole as CaseMemberRole })),
           exception: body.independenceException,
         });
         if (!check.ok) {
@@ -549,7 +532,7 @@ export const caseworkRouter = createRouter()
           addedBy: access.tenantUserId,
         });
         await event(tx, id, "member_added", today());
-        await auditCase(c, tx, access, A.memberNamed, id, { role: body.role });
+        await auditCase(c, tx, access, A.memberNamed, id);
       });
       return c.json(detail, 200);
     },
@@ -601,7 +584,7 @@ export const caseworkRouter = createRouter()
             ),
           );
         await event(tx, id, "member_removed", today());
-        await auditCase(c, tx, access, A.memberRemoved, id, { role: member.memberRole });
+        await auditCase(c, tx, access, A.memberRemoved, id);
       });
       return c.json(detail, 200);
     },
@@ -704,7 +687,7 @@ export const caseworkRouter = createRouter()
         if (body.to === "appeal") {
           await event(tx, id, "appeal_grounds", body.on, { body: body.grounds });
         }
-        await auditCase(c, tx, access, A.moved, id, { from: row.stage, to: check.to });
+        await auditCase(c, tx, access, A.moved, id);
       });
       return c.json(detail, 200);
     },
@@ -776,7 +759,7 @@ export const caseworkRouter = createRouter()
           companionRightGiven: body.companionRightGiven,
         });
         await event(tx, id, "hearing_arranged", body.invitedOn);
-        await auditCase(c, tx, access, A.hearingArranged, id, { kind: body.kind });
+        await auditCase(c, tx, access, A.hearingArranged, id);
       });
       return c.json(detail, 200);
     },
@@ -856,7 +839,7 @@ export const caseworkRouter = createRouter()
             ),
           );
         await event(tx, id, "hearing_updated", body.heldOn ?? today());
-        await auditCase(c, tx, access, A.hearingUpdated, id, { state: body.state });
+        await auditCase(c, tx, access, A.hearingUpdated, id);
       });
       return c.json(detail, 200);
     },
@@ -920,7 +903,7 @@ export const caseworkRouter = createRouter()
               ? "suspension_reviewed"
               : "suspension_ended";
         await event(tx, id, kind, body.on);
-        await auditCase(c, tx, access, A.suspension, id, { kind: body.kind });
+        await auditCase(c, tx, access, A.suspension, id);
       });
       return c.json(detail, 200);
     },
@@ -976,10 +959,7 @@ export const caseworkRouter = createRouter()
               },
         );
         await event(tx, id, "referral_recorded", body.referredOn ?? today());
-        await auditCase(c, tx, access, A.referral, id, {
-          body: body.body,
-          decision: body.decision,
-        });
+        await auditCase(c, tx, access, A.referral, id);
       });
       return c.json(detail, 200);
     },

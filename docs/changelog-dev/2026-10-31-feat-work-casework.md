@@ -51,5 +51,18 @@ Branch `feat/work-casework`, stacked on `feat/work-applicant-tracking` (slice 23
 ## Tests
 
 - `packages/domain/src/workforce/casework.test.ts` (table-driven), `packages/db/test/casework.test.ts`
-  (22), `apps/api/test/casework.test.ts` (14); RLS coverage (silo tables unversioned, the
+  (25), `apps/api/test/casework.test.ts` (14); RLS coverage (silo tables unversioned, the
   timeline append-only), definer ACLs, seed (22 built-in roles), export catalogue re-run.
+
+## Review rounds
+
+- Self-review (security reviewer agent):
+  - Cases are now opened only through the definer `app.open_employee_case`, which also names the first case manager and writes the opening. No policy relies on `age(xmin)` any more; that also matched rows only updated in the transaction.
+  - A role already held is never edited into a silo role, nor a caseworker's role into user management. The migration stops if anyone already holds both.
+  - A chair changes only their own decision, and the summary never changes.
+  - Hearings are arranged by case managers and updated by them or the member leading.
+  - Event kinds are limited by part, and the closing event is written once.
+  - Independence counts parts someone was removed from.
+  - Casework audit events carry the case id and the action only, with no type, stage or referral code.
+- Fixed on the way: equality monitoring forms (slice 23) are left out of the full export. The database lets no role read one, so the export failed; H-734 stays open.
+- Accepted and logged in section 11: the opener learns whether a colleague is on a professional register.

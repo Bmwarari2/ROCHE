@@ -318,7 +318,7 @@ export type MemberProblem =
 /**
  * Rule 16: who may be named on a case. Never the member of staff it is about. Where practicable
  * (Acas Code paragraphs 6 and 27) the investigator does not chair the hearing, and the appeal is
- * heard by someone involved in neither; a small organisation records why it is not practicable
+ * heard by someone involved in neither (a part someone was removed from still counts); a small organisation records why it is not practicable
  * (`no_other_manager_available`).
  */
 export function checkMemberAppointment(input: {
@@ -326,14 +326,20 @@ export function checkMemberAppointment(input: {
   readonly role: CaseMemberRole;
   readonly subjectTenantUserId: string;
   readonly active: readonly ActiveMember[];
+  /** Parts on the case people were removed from: they still count for independence. */
+  readonly removed?: readonly ActiveMember[];
   readonly exception: IndependenceException | null;
 }): { ok: true } | { ok: false; problem: MemberProblem } {
   const { tenantUserId, role, active, exception } = input;
   if (tenantUserId === input.subjectTenantUserId) {
     return { ok: false, problem: "subject_cannot_be_member" };
   }
-  const roles = new Set(active.filter((m) => m.tenantUserId === tenantUserId).map((m) => m.role));
-  if (roles.has(role)) return { ok: false, problem: "already_in_role" };
+  const current = new Set(active.filter((m) => m.tenantUserId === tenantUserId).map((m) => m.role));
+  if (current.has(role)) return { ok: false, problem: "already_in_role" };
+  const roles = new Set([
+    ...current,
+    ...(input.removed ?? []).filter((m) => m.tenantUserId === tenantUserId).map((m) => m.role),
+  ]);
   if (exception === null) {
     if (role === "hearing_chair" && roles.has("investigator")) {
       return { ok: false, problem: "chair_was_investigator" };

@@ -53,7 +53,7 @@ const ROLE = {
   caseworker: "0199f300-0000-7000-8000-000000000503",
   colleague: "0199f300-0000-7000-8000-000000000504",
 };
-const CASE = "0199f300-0000-7000-8000-000000000001";
+let CASE = "";
 const INCIDENT = "0199f300-0000-7000-8000-000000000601";
 
 /** The owner: every wide permission, user and role management included; organisation-wide. */
@@ -86,6 +86,26 @@ const NONE = {
   employee_case_hearing: 0,
   employee_case_event: 0,
 };
+
+/** Whether the member sees the main case, or anything on it. */
+const seesCase = (user: string) =>
+  as(user, async (c) => {
+    let n = 0;
+    for (const t of ["employee_case", "employee_case_event"]) {
+      const col = t === "employee_case" ? "id" : "case_id";
+      n += (await c.query(`SELECT 1 FROM ${t} WHERE ${col} = $1`, [CASE])).rowCount ?? 0;
+    }
+    return n > 0;
+  });
+
+/** Opens a case through the definer, which names the opener its first case manager. */
+async function openCase(c: pg.PoolClient, type: string, subject: string): Promise<string> {
+  const { rows } = await c.query<{ id: string }>(
+    "SELECT app.open_employee_case($1, $2, 'Alleged conduct on a night shift', '2026-11-02') AS id",
+    [type, subject],
+  );
+  return rows[0]?.id ?? "";
+}
 
 async function addMember(
   c: pg.PoolClient,
@@ -149,20 +169,8 @@ beforeAll(async () => {
     );
   });
   // The caseworker opens a case about the carer and names themselves its case manager.
-  await as(U.caseworker, async (c) => {
-    await c.query(
-      `INSERT INTO employee_case (id, case_type, subject_tenant_user_id, summary, opened_on, stage_since)
-       VALUES ($1, 'disciplinary', $2, 'Alleged conduct on a night shift', '2026-11-02', '2026-11-02')`,
-      [CASE, a.carer],
-    );
-    await addMember(c, U.caseworker, "case_manager");
-    await c.query(
-      `INSERT INTO employee_case_event (case_id, kind, to_stage, occurred_on)
-       VALUES ($1, 'opened', 'open', '2026-11-02')`,
-      [CASE],
-    );
-    await addMember(c, U.investigator, "investigator");
-  });
+  CASE = await as(U.caseworker, (c) => openCase(c, "disciplinary", a.carer));
+  await as(U.caseworker, (c) => addMember(c, U.investigator, "investigator"));
 }, 120_000);
 
 afterAll(async () => {
@@ -232,8 +240,20 @@ describe("only the case's members read it (ADR-0089)", () => {
 
 describe("opening a case and naming its members", () => {
   it("lets only a holder of the silo permission open one", async () => {
+    await expect(asOwner((c) => openCase(c, "grievance", a.carer))).rejects.toMatchObject({
+      code: "42501",
+    });
+  });
+
+  it("never lets a caseworker open a case about themselves", async () => {
     await expect(
-      asOwner((c) =>
+      as(U.caseworker, (c) => openCase(c, "grievance", U.caseworker)),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("never lets the application insert a case, or its opening, directly", async () => {
+    await expect(
+      as(U.caseworker, (c) =>
         c.query(
           `INSERT INTO employee_case (case_type, subject_tenant_user_id, summary, opened_on, stage_since)
            VALUES ('grievance', $1, 'A grievance', '2026-11-02', '2026-11-02')`,
@@ -241,27 +261,39 @@ describe("opening a case and naming its members", () => {
         ),
       ),
     ).rejects.toMatchObject({ code: "42501" });
-  });
-
-  it("never lets a caseworker open a case about themselves", async () => {
     await expect(
       as(U.caseworker, (c) =>
         c.query(
-          `INSERT INTO employee_case (case_type, subject_tenant_user_id, summary, opened_on, stage_since)
-           VALUES ('grievance', $1, 'About me', '2026-11-02', '2026-11-02')`,
-          [U.caseworker],
+          `INSERT INTO employee_case_event (case_id, kind, to_stage, occurred_on)
+           VALUES ($1, 'opened', 'open', '2026-11-03')`,
+          [CASE],
         ),
       ),
     ).rejects.toMatchObject({ code: "42501" });
   });
 
-  it("opens a case open, with nothing decided", async () => {
+  it("counts a part someone was removed from: a removed investigator never chairs unexcepted", async () => {
+    const other = await as(U.otherCaseworker, (c) => openCase(c, "capability", a.carer));
+    await as(U.otherCaseworker, (c) =>
+      c.query(
+        `INSERT INTO employee_case_member (case_id, tenant_user_id, member_role, added_by)
+         VALUES ($1, $2, 'investigator', app.current_user_id())`,
+        [other, U.appealChair],
+      ),
+    );
+    await as(U.otherCaseworker, (c) =>
+      c.query(
+        `UPDATE employee_case_member SET removed_at = now(), removed_by = app.current_user_id()
+          WHERE case_id = $1 AND tenant_user_id = $2`,
+        [other, U.appealChair],
+      ),
+    );
     await expect(
       as(U.otherCaseworker, (c) =>
         c.query(
-          `INSERT INTO employee_case (case_type, subject_tenant_user_id, summary, opened_on, stage_since, stage, closed_on, closed_reason)
-           VALUES ('grievance', $1, 'A grievance', '2026-11-02', '2026-11-02', 'closed', '2026-11-02', 'withdrawn')`,
-          [a.carer],
+          `INSERT INTO employee_case_member (case_id, tenant_user_id, member_role, added_by)
+           VALUES ($1, $2, 'hearing_chair', app.current_user_id())`,
+          [other, U.appealChair],
         ),
       ),
     ).rejects.toMatchObject({ code: "23514" });
@@ -302,7 +334,7 @@ describe("opening a case and naming its members", () => {
 
   it("removes a member, who then reads nothing, and keeps the last case manager", async () => {
     await as(U.caseworker, (c) => addMember(c, U.otherCaseworker, "note_taker"));
-    expect((await as(U.otherCaseworker, visible)).employee_case).toBe(1);
+    expect(await seesCase(U.otherCaseworker)).toBe(true);
     await as(U.caseworker, (c) =>
       c.query(
         `UPDATE employee_case_member SET removed_at = now(), removed_by = app.current_user_id()
@@ -310,7 +342,7 @@ describe("opening a case and naming its members", () => {
         [CASE, U.otherCaseworker],
       ),
     );
-    expect(await as(U.otherCaseworker, visible)).toEqual(NONE);
+    expect(await seesCase(U.otherCaseworker)).toBe(false);
     await expect(
       as(U.caseworker, (c) =>
         c.query(
@@ -386,6 +418,17 @@ describe("the case's rules in the database", () => {
     ).rejects.toMatchObject({ code: "23000" });
   });
 
+  it("lets a chair record only their own decision", async () => {
+    await expect(
+      as(U.chair, (c) =>
+        c.query(
+          "UPDATE employee_case SET dbs_referral = 'not_required', dbs_referral_reason = 'harm_test_not_met' WHERE id = $1",
+          [CASE],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
   it("links only a safeguarding concern the member can see, refusing an unknown one alike", async () => {
     await expect(
       as(U.caseworker, (c) =>
@@ -449,6 +492,32 @@ describe("the silo guards (ADR-0089)", () => {
         c.query(
           "UPDATE role SET permissions = permissions || '{workforce.casework.manage}' WHERE id = $1",
           [ROLE.owner],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("never turns a role already held into a silo role, nor gives a caseworker's role user management", async () => {
+    await expect(
+      asOwnerRole(TENANT_A, (c) =>
+        c.query("UPDATE role SET permissions = '{workforce.casework.manage}' WHERE id = $1", [
+          ROLE.colleague,
+        ]),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    // The colleague role is held by the investigator; a caseworker also holding it would gain user
+    // management by an edit of it.
+    await asOwnerRole(TENANT_A, (c) =>
+      c.query("INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, $2)", [
+        U.otherCaseworker,
+        ROLE.colleague,
+      ]),
+    );
+    await expect(
+      asOwnerRole(TENANT_A, (c) =>
+        c.query(
+          "UPDATE role SET permissions = '{workforce.self.read,platform.user.manage}' WHERE id = $1",
+          [ROLE.colleague],
         ),
       ),
     ).rejects.toMatchObject({ code: "23514" });

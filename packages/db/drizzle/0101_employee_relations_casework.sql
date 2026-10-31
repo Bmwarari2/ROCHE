@@ -198,12 +198,11 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
--- Cases: read by their members, and by the member opening one within the transaction that opened
--- it (so they can name themselves its case manager). Opened only by a holder of the silo
--- permission, never about themselves; changed by its case managers and chairs.
+-- Cases: read only by their members. Opened only through app.open_employee_case (below), which
+-- names the opener its first case manager in the same statement; the application role has no
+-- INSERT on cases. Changed by its case managers and chairs, each within their part (the guard).
 CREATE POLICY employee_case_read ON public.employee_case AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (app.casework_member(id)
-    OR (created_by = app.current_user_id() AND age(xmin) = 0));
+  USING (app.casework_member(id));
 --> statement-breakpoint
 CREATE POLICY employee_case_open ON public.employee_case AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (app.casework_silo_holder() AND created_by = app.current_user_id()
@@ -213,46 +212,54 @@ CREATE POLICY employee_case_change ON public.employee_case AS RESTRICTIVE FOR UP
   USING (app.casework_member(id, ARRAY['case_manager', 'hearing_chair', 'appeal_chair']))
   WITH CHECK (app.casework_member(id, ARRAY['case_manager', 'hearing_chair', 'appeal_chair']));
 --> statement-breakpoint
--- Members: every member sees who is on their case. A case manager names others (never
--- themselves); the opener names themselves case manager only in the transaction that opened it,
--- before the case has ever been changed (version 1), so no later member can use the clause.
+-- Members: every member sees who is on their case. A case manager names others, never
+-- themselves (the opener is named by app.open_employee_case).
 CREATE POLICY employee_case_member_read ON public.employee_case_member AS RESTRICTIVE FOR SELECT
   TO harbour_app USING (app.casework_member(case_id));
 --> statement-breakpoint
 CREATE POLICY employee_case_member_add ON public.employee_case_member AS RESTRICTIVE FOR INSERT
   TO harbour_app WITH CHECK (added_by = app.current_user_id() AND removed_at IS NULL
-    AND ((tenant_user_id <> app.current_user_id()
-          AND app.casework_member(case_id, ARRAY['case_manager']))
-      OR (tenant_user_id = app.current_user_id() AND member_role = 'case_manager'
-          AND EXISTS (SELECT 1 FROM public.employee_case c
-                       WHERE c.id = case_id AND c.created_by = app.current_user_id()
-                         AND c.version = 1 AND age(c.xmin) = 0))));
+    AND tenant_user_id <> app.current_user_id()
+    AND app.casework_member(case_id, ARRAY['case_manager']));
 --> statement-breakpoint
 CREATE POLICY employee_case_member_change ON public.employee_case_member AS RESTRICTIVE FOR UPDATE
   TO harbour_app USING (app.casework_member(case_id, ARRAY['case_manager']))
   WITH CHECK (removed_by = app.current_user_id());
 --> statement-breakpoint
--- Hearings: read by the case's members; arranged and updated by its case managers, investigators
--- and chairs.
+-- Hearings: read by the case's members; arranged by its case managers; updated by them or by the
+-- member leading the hearing.
 CREATE POLICY employee_case_hearing_read ON public.employee_case_hearing AS RESTRICTIVE FOR SELECT
   TO harbour_app USING (app.casework_member(case_id));
 --> statement-breakpoint
-CREATE POLICY employee_case_hearing_write ON public.employee_case_hearing AS RESTRICTIVE FOR ALL
-  TO harbour_app
-  USING (app.casework_member(case_id, ARRAY['case_manager', 'investigator', 'hearing_chair', 'appeal_chair']))
-  WITH CHECK (app.casework_member(case_id, ARRAY['case_manager', 'investigator', 'hearing_chair', 'appeal_chair']));
+CREATE POLICY employee_case_hearing_arrange ON public.employee_case_hearing AS RESTRICTIVE FOR INSERT
+  TO harbour_app WITH CHECK (app.casework_member(case_id, ARRAY['case_manager']));
 --> statement-breakpoint
--- The timeline: read by the case's members; written in one's own name, by a member (or the opener
--- in the opening transaction), and never after the case has closed (but for its closing).
+CREATE POLICY employee_case_hearing_change ON public.employee_case_hearing AS RESTRICTIVE FOR UPDATE
+  TO harbour_app
+  USING (app.casework_member(case_id, ARRAY['case_manager'])
+    OR (led_by = app.current_user_id() AND app.casework_member(case_id)))
+  WITH CHECK (app.casework_member(case_id, ARRAY['case_manager'])
+    OR (led_by = app.current_user_id() AND app.casework_member(case_id)));
+--> statement-breakpoint
+-- The timeline: read by the case's members; written in one's own name. Any member adds a note; the
+-- member leading a hearing records it; every other kind is a case manager's or a chair's; the
+-- opening is written only by app.open_employee_case. Nothing after the case has closed but its
+-- one closing event.
 CREATE POLICY employee_case_event_read ON public.employee_case_event AS RESTRICTIVE FOR SELECT
   TO harbour_app USING (app.casework_member(case_id));
 --> statement-breakpoint
 CREATE POLICY employee_case_event_write ON public.employee_case_event AS RESTRICTIVE FOR INSERT
-  TO harbour_app WITH CHECK (recorded_by = app.current_user_id() AND EXISTS (
+  TO harbour_app WITH CHECK (recorded_by = app.current_user_id() AND kind <> 'opened'
+    AND (kind = 'note' OR app.casework_member(case_id,
+           CASE WHEN kind = 'hearing_updated'
+                THEN ARRAY['case_manager', 'investigator', 'hearing_chair', 'appeal_chair']
+                ELSE ARRAY['case_manager', 'hearing_chair', 'appeal_chair'] END))
+    AND EXISTS (
     SELECT 1 FROM public.employee_case c
      WHERE c.id = case_id
        AND (c.stage <> 'closed' OR (kind = 'stage_changed' AND to_stage = 'closed'
-                                    AND age(c.xmin) = 0))));
+            AND NOT EXISTS (SELECT 1 FROM public.employee_case_event e
+                             WHERE e.case_id = c.id AND e.to_stage = 'closed')))));
 --> statement-breakpoint
 -- Opening a case: it starts open, with nothing decided, and the database notes from the staff
 -- profile whether the member of staff is on a professional register (rule 17). A definer
@@ -280,6 +287,43 @@ REVOKE ALL ON FUNCTION app.employee_case_open() FROM PUBLIC;
 CREATE TRIGGER employee_case_open BEFORE INSERT ON public.employee_case
   FOR EACH ROW EXECUTE FUNCTION app.employee_case_open();
 --> statement-breakpoint
+-- Opening a case: only a holder of the silo permission, never about themselves. The case, its
+-- first case manager (the opener) and the opening event are written together, so no policy has
+-- to recognise "the row I have just inserted". Returns the case's id.
+CREATE OR REPLACE FUNCTION app.open_employee_case(p_type text, p_subject uuid, p_summary text,
+  p_opened_on date) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_me uuid := app.current_user_id();
+  v_case uuid;
+BEGIN
+  IF v_me IS NULL OR app.current_tenant_id() IS NULL OR NOT app.casework_silo_holder() THEN
+    RAISE EXCEPTION 'Opening a case needs workforce.casework.manage'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF p_subject = v_me THEN
+    RAISE EXCEPTION 'Nobody opens a case about themselves'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  INSERT INTO public.employee_case (tenant_id, case_type, subject_tenant_user_id, summary,
+      opened_on, stage_since, created_by, updated_by)
+    VALUES (app.current_tenant_id(), p_type, p_subject, p_summary, p_opened_on, p_opened_on,
+      v_me, v_me)
+    RETURNING id INTO v_case;
+  INSERT INTO public.employee_case_member (tenant_id, case_id, tenant_user_id, member_role,
+      added_by, created_by, updated_by)
+    VALUES (app.current_tenant_id(), v_case, v_me, 'case_manager', v_me, v_me, v_me);
+  INSERT INTO public.employee_case_event (tenant_id, case_id, kind, to_stage, occurred_on,
+      recorded_by)
+    VALUES (app.current_tenant_id(), v_case, 'opened', 'open', p_opened_on, v_me);
+  RETURN v_case;
+END
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION app.open_employee_case(text, uuid, text, date) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION app.open_employee_case(text, uuid, text, date) TO harbour_app;
+--> statement-breakpoint
 -- Changing a case (rule 15, the database's part): it keeps who and what it is about; it moves only
 -- forward; an outcome once decided stays; a closed case never changes; the safeguarding link is
 -- set once, to a concern the member can see; it is removed only by the retention schedule.
@@ -287,12 +331,36 @@ CREATE OR REPLACE FUNCTION app.employee_case_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF (NEW.id, NEW.tenant_id, NEW.case_type, NEW.subject_tenant_user_id, NEW.subject_registered,
-      NEW.opened_on, NEW.created_at, NEW.created_by)
+      NEW.summary, NEW.opened_on, NEW.created_at, NEW.created_by)
      IS DISTINCT FROM
      (OLD.id, OLD.tenant_id, OLD.case_type, OLD.subject_tenant_user_id, OLD.subject_registered,
-      OLD.opened_on, OLD.created_at, OLD.created_by) THEN
-    RAISE EXCEPTION 'A case keeps its type, the member of staff it is about and its opening'
+      OLD.summary, OLD.opened_on, OLD.created_at, OLD.created_by) THEN
+    RAISE EXCEPTION 'A case keeps its type, the member of staff it is about, its summary and its opening'
       USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  -- A chair who is not a case manager changes only their own decision: the hearing chair the
+  -- outcome (hearing to outcome), the appeal chair the appeal (appeal to closed, appeal decided).
+  IF app.current_user_id() IS NOT NULL
+     AND NOT app.casework_member(OLD.id, ARRAY['case_manager']) THEN
+    IF (NEW.suspended_on, NEW.suspension_review_on, NEW.dbs_referral, NEW.dbs_referral_on,
+        NEW.dbs_referral_reason, NEW.regulator_referral, NEW.regulator_referral_on,
+        NEW.regulator_referral_reason, NEW.safeguarding_incident_id, NEW.deleted_at)
+       IS DISTINCT FROM
+       (OLD.suspended_on, OLD.suspension_review_on, OLD.dbs_referral, OLD.dbs_referral_on,
+        OLD.dbs_referral_reason, OLD.regulator_referral, OLD.regulator_referral_on,
+        OLD.regulator_referral_reason, OLD.safeguarding_incident_id, OLD.deleted_at)
+       OR NOT (
+         (app.casework_member(OLD.id, ARRAY['hearing_chair'])
+          AND OLD.stage = 'hearing' AND NEW.stage = 'outcome'
+          AND (NEW.appeal_outcome, NEW.appeal_decided_on, NEW.closed_on, NEW.closed_reason)
+              IS NOT DISTINCT FROM (OLD.appeal_outcome, OLD.appeal_decided_on, OLD.closed_on, OLD.closed_reason))
+         OR (app.casework_member(OLD.id, ARRAY['appeal_chair'])
+          AND OLD.stage = 'appeal' AND NEW.stage = 'closed' AND NEW.closed_reason = 'appeal_decided'
+          AND (NEW.outcome, NEW.outcome_decided_on, NEW.warning_expires_on)
+              IS NOT DISTINCT FROM (OLD.outcome, OLD.outcome_decided_on, OLD.warning_expires_on))) THEN
+      RAISE EXCEPTION 'A chair records only their own decision on a case'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
   END IF;
   IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
     IF app.current_user_id() IS NOT NULL THEN
@@ -345,7 +413,8 @@ CREATE TRIGGER employee_case_guard BEFORE UPDATE ON public.employee_case
 --> statement-breakpoint
 -- Naming and removing members (rule 16, the database's part): never the member of staff the case
 -- is about; where practicable the investigator does not chair the hearing and the appeal is heard
--- by someone involved in neither (else the exception is recorded); a membership keeps its case,
+-- by someone involved in neither, counting parts they were removed from (else the exception is
+-- recorded); a membership keeps its case,
 -- member and role, is only removed (in the remover's name), and the last case manager stays.
 CREATE OR REPLACE FUNCTION app.employee_case_member_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
@@ -361,8 +430,7 @@ BEGIN
     IF NEW.independence_exception IS NULL THEN
       SELECT coalesce(array_agg(m.member_role), '{}') INTO v_roles
         FROM public.employee_case_member m
-       WHERE m.case_id = NEW.case_id AND m.tenant_user_id = NEW.tenant_user_id
-         AND m.removed_at IS NULL;
+       WHERE m.case_id = NEW.case_id AND m.tenant_user_id = NEW.tenant_user_id;
       IF (NEW.member_role = 'hearing_chair' AND v_roles && ARRAY['investigator', 'appeal_chair'])
          OR (NEW.member_role = 'investigator' AND v_roles && ARRAY['hearing_chair', 'appeal_chair'])
          OR (NEW.member_role = 'appeal_chair' AND v_roles && ARRAY['investigator', 'hearing_chair'])
@@ -456,8 +524,12 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON public.employee_case, public.employee_case_member,
-  public.employee_case_hearing TO harbour_app;
+GRANT SELECT, UPDATE ON public.employee_case TO harbour_app;
+--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE ON public.employee_case_member, public.employee_case_hearing
+  TO harbour_app;
+--> statement-breakpoint
+REVOKE INSERT ON public.employee_case FROM harbour_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON public.employee_case_event TO harbour_app;
 --> statement-breakpoint
@@ -472,11 +544,38 @@ REVOKE UPDATE ON public.employee_case_event FROM harbour_app;
 -- holds such a role together with one that manages users or roles, whichever comes first.
 CREATE OR REPLACE FUNCTION app.casework_role_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_admin text[] := ARRAY['platform.user.manage', 'platform.role.manage']::text[];
+  v_silo text[] := ARRAY['workforce.casework.manage']::text[];
 BEGIN
   IF 'workforce.casework.manage' = ANY (NEW.permissions)
      AND cardinality(array_remove(NEW.permissions, 'workforce.casework.manage')) > 0 THEN
     RAISE EXCEPTION 'A role carrying a silo permission carries nothing else (ADR-0089)'
       USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'UPDATE' THEN
+    -- A role already held never becomes a silo role (its holders would be appointed by an edit,
+    -- perhaps their own, past the assignment guard); a role becoming one of user or role
+    -- management never reaches a holder of a silo role.
+    IF NEW.permissions && v_silo AND NOT (OLD.permissions && v_silo) AND EXISTS (
+         SELECT 1 FROM public.role_assignment ra
+          WHERE ra.tenant_id = NEW.tenant_id AND ra.role_id = NEW.id AND ra.deleted_at IS NULL
+            AND (ra.valid_to IS NULL OR ra.valid_to > now())) THEN
+      RAISE EXCEPTION 'A role already held never becomes a silo role (ADR-0089)'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.permissions && v_admin AND NOT (OLD.permissions && v_admin) AND EXISTS (
+         SELECT 1 FROM public.role_assignment ra
+           JOIN public.role_assignment rs ON rs.tenant_id = ra.tenant_id
+                                         AND rs.tenant_user_id = ra.tenant_user_id
+           JOIN public.role r ON r.tenant_id = rs.tenant_id AND r.id = rs.role_id
+          WHERE ra.tenant_id = NEW.tenant_id AND ra.role_id = NEW.id AND ra.deleted_at IS NULL
+            AND (ra.valid_to IS NULL OR ra.valid_to > now())
+            AND rs.deleted_at IS NULL AND (rs.valid_to IS NULL OR rs.valid_to > now())
+            AND r.permissions && v_silo) THEN
+      RAISE EXCEPTION 'A silo role is never held with user or role management (ADR-0089)'
+        USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
   RETURN NEW;
 END
@@ -551,6 +650,21 @@ BEGIN
     UPDATE public.access_grant
        SET permissions = array_remove(permissions, 'workforce.casework.manage')
      WHERE 'workforce.casework.manage' = ANY (permissions);
+    -- Nobody may already hold a silo role together with user or role management: stop here so
+    -- the organisation decides which to end, rather than this migration choosing.
+    IF EXISTS (
+      SELECT 1 FROM public.role_assignment a
+        JOIN public.role ra ON ra.tenant_id = a.tenant_id AND ra.id = a.role_id
+        JOIN public.role_assignment b ON b.tenant_id = a.tenant_id
+                                     AND b.tenant_user_id = a.tenant_user_id
+        JOIN public.role rb ON rb.tenant_id = b.tenant_id AND rb.id = b.role_id
+       WHERE a.deleted_at IS NULL AND (a.valid_to IS NULL OR a.valid_to > now())
+         AND b.deleted_at IS NULL AND (b.valid_to IS NULL OR b.valid_to > now())
+         AND 'workforce.casework.manage' = ANY (ra.permissions)
+         AND rb.permissions && ARRAY['platform.user.manage', 'platform.role.manage']::text[]) THEN
+      RAISE EXCEPTION 'Tenant % has a member holding a silo role with user or role management (ADR-0089)', t
+        USING ERRCODE = 'check_violation';
+    END IF;
   END LOOP;
   PERFORM set_config('app.tenant_id', '', true);
 END

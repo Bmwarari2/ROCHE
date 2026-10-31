@@ -447,6 +447,23 @@ describe("checkMemberAppointment (rule 16)", () => {
       true,
     ],
   ];
+  it("counts a part someone was removed from", () => {
+    const removed = [{ tenantUserId: "u1", role: "investigator" as const }];
+    const input = {
+      tenantUserId: "u1",
+      role: "hearing_chair" as const,
+      subjectTenantUserId: subject,
+      active: [],
+    };
+    expect(checkMemberAppointment({ ...input, removed, exception: null })).toEqual({
+      ok: false,
+      problem: "chair_was_investigator",
+    });
+    expect(
+      checkMemberAppointment({ ...input, removed, exception: "no_other_manager_available" }).ok,
+    ).toBe(true);
+  });
+
   it.each(cases)("%s", (_name, input, expected) => {
     const check = checkMemberAppointment(input);
     expect(check.ok ? true : check.problem).toBe(expected);
