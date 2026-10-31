@@ -2,16 +2,17 @@ import type { CandourItem, ClassifierView, DocumentItem, IncidentDetail } from "
 import {
   availableTransitions,
   CANDOUR_WORKFLOW,
+  type CandourCloseFacts,
   type CandourRecordView,
   type CandourState,
   candourStepProblems,
 } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
-import { formatDateTime } from "./format";
+import { formatDate, formatDateTime } from "./format";
 import type { SafetyChip, TimeLine } from "./incidents";
 import type { FieldErrors } from "./outcome";
 import { knownRefusals } from "./refusals";
-import { readDateTimeField } from "./uk-time";
+import { formatUkTime, readDateTimeField, ukToday } from "./uk-time";
 
 /**
  * View logic for the duty of candour record on the incident page (safety.md section 4 rule 5;
@@ -88,6 +89,11 @@ export interface CandourStepOffer {
   readonly to: CandourState;
   /** The workflow asks for a reason (not notifiable, no contact, closed). */
   readonly needsReason: boolean;
+  /**
+   * "Not notifiable" after Harbour drafted a candour notification: the reason must be a sentence
+   * (`DISAGREE_REASON_MIN`) and the decision confirmed (review M4, as H-265 for notifications).
+   */
+  readonly strict: boolean;
   /** What must be recorded first; the step is offered only when this is empty. */
   readonly needs: readonly string[];
 }
@@ -101,6 +107,8 @@ export function candourSteps(
   item: CandourItem | null,
   viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] },
   t: Translator,
+  /** Harbour drafted a candour notification on the incident (from its answers or a decision). */
+  drafted = false,
 ): CandourStepOffer[] {
   if (!item) return [];
   const state = item.state as CandourState;
@@ -122,7 +130,8 @@ export function candourSteps(
       const rule = CANDOUR_WORKFLOW.transitions.find((r) => r.to === to);
       return {
         to,
-        needsReason: Boolean(rule?.requiresReason),
+        needsReason: Boolean(rule?.requiresReason) || (drafted && to === "not_notifiable"),
+        strict: drafted && to === "not_notifiable",
         needs: candourStepNeeds(to, item, t),
       };
     });
@@ -182,6 +191,72 @@ export function candourFinding(
   return "none";
 }
 
+/**
+ * What closing needs to know about the duty of candour, read from the incident as the API reads it
+ * (`incidentCloseProblems`; review H1 and H2): whether Harbour found it may apply, the record's
+ * decision and relevant person, and the people we support affected by the incident.
+ */
+export function candourCloseFacts(
+  incident: Pick<IncidentDetail, "people" | "classifier">,
+  record: Pick<CandourItem, "threshold" | "personId"> | null,
+): CandourCloseFacts {
+  const classifier = incident.classifier;
+  return {
+    indicated:
+      (classifier?.outputs ?? []).some((o) => o.kind === "candour") ||
+      (classifier?.notifications ?? []).some(
+        (n) => n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
+      ),
+    notifiable: record?.threshold?.notifiable ?? null,
+    personId: record?.personId ?? null,
+    people: [
+      ...new Set(
+        incident.people.flatMap((p) =>
+          p.kind === "service_user" && p.role === "affected" && p.personId ? [p.personId] : [],
+        ),
+      ),
+    ],
+  };
+}
+
+/**
+ * What Harbour found on the answers recorded, to set beside the threshold question (review M4):
+ * that it may be notifiable (a candour draft or output), that it is not (the classifier excluded
+ * it), or that it is waiting for answers. Null once a decision is recorded, because the classifier
+ * then follows the decision.
+ */
+export type HarbourFinding = "notifiable" | "notNotifiable" | "waiting";
+
+export function harbourFinding(
+  classifier: Pick<
+    ClassifierView,
+    "outputs" | "notifications" | "pending" | "tasks" | "exclusions"
+  > | null,
+  record: Pick<CandourItem, "threshold"> | null,
+): HarbourFinding | null {
+  if (record?.threshold || !classifier) return null;
+  const found = candourFinding(classifier);
+  if (found === "found") return "notifiable";
+  if (found === "waiting") return "waiting";
+  return classifier.exclusions.some((e) => e.kind === "candour") ? "notNotifiable" : null;
+}
+
+/** The shortest reason for a decision that differs from Harbour's finding, or changes one. */
+export const DISAGREE_REASON_MIN = 20;
+
+/**
+ * Whether a threshold answer needs a confirmation and a reason (review M4): it changes a decision
+ * already recorded, or differs from what Harbour found on the answers.
+ */
+export function thresholdDisagrees(
+  notifiable: boolean,
+  finding: HarbourFinding | null,
+  current: CandourItem["threshold"],
+): boolean {
+  if (current) return current.notifiable !== notifiable;
+  return (finding === "notifiable" && !notifiable) || (finding === "notNotifiable" && notifiable);
+}
+
 /** Whether the incident page shows the candour section: there is a record, or someone it could be about. */
 export function candourShown(
   incident: Pick<IncidentDetail, "restricted" | "people">,
@@ -212,7 +287,7 @@ export function candourClocks(
   if (item.state === "not_notifiable" || item.threshold?.notifiable === false) return null;
   const clocks: CandourClock[] = [];
   const at = (iso: string) => formatDateTime(iso);
-  if (item.verbal) {
+  if (item.verbal?.inPerson) {
     clocks.push({
       chip: {
         status: "done",
@@ -221,6 +296,16 @@ export function candourClocks(
       },
       line: line(
         t("safety.candour.toldAt", { dateTime: at(item.verbal.at) ?? "" }),
+        item.verbal.at,
+        t,
+      ),
+    });
+  } else if (item.verbal && item.state !== "no_contact") {
+    // Recorded, but not in person: regulation 20(3)(a) is not met, so it is still due (review M2).
+    clocks.push({
+      chip: { status: "due", icon: "clock", label: t("safety.candour.clock", { clock: "due" }) },
+      line: line(
+        t("safety.candour.notInPerson", { dateTime: at(item.verbal.at) ?? "" }),
         item.verbal.at,
         t,
       ),
@@ -275,7 +360,7 @@ export function candourClocks(
       line: line(
         t("safety.candour.writtenTarget", {
           days: writtenDays ?? "none",
-          dateTime: at(target) ?? "",
+          when: byWhen(target, t),
         }),
         target,
         t,
@@ -283,6 +368,23 @@ export function candourClocks(
     });
   }
   return { clocks, provisional: item.clocks.provisional };
+}
+
+/**
+ * When a target falls due, in words: a target at midnight UK time is the end of the day before
+ * ("by the end of 13/11/2026"), never "by 14/11/2026 00:00" (review L2); any other time is
+ * "by" that date and time.
+ */
+export function byWhen(iso: string, t: Translator): string {
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return t("safety.notification.dueUnknown");
+  if (formatUkTime(iso) === "00:00") {
+    return t("safety.candour.byWhen", {
+      end: "true",
+      date: formatDate(ukToday(new Date(at - 1))) ?? "",
+    });
+  }
+  return t("safety.candour.byWhen", { end: "false", date: formatDateTime(iso) ?? "" });
 }
 
 /** A moment in words; one that cannot be read warns. */
@@ -411,6 +513,11 @@ export interface ThresholdInput {
   /** Null for just now. */
   readonly decidedAt: string | null;
   readonly decidedBy: string;
+  /**
+   * Why, when the decision differs from Harbour's finding or changes one (review M4): the record
+   * then moves on with it as the step's reason, kept with the record. Null otherwise.
+   */
+  readonly reason: string | null;
 }
 
 /**
@@ -424,6 +531,7 @@ export function readThresholdForm(
   current: CandourItem["threshold"],
   now: Date,
   t: Translator,
+  finding: HarbourFinding | null = null,
 ): Read<{ readonly input: ThresholdInput }> {
   const found = newErrors();
   let personId: string | null = null;
@@ -451,11 +559,30 @@ export function readThresholdForm(
   if (decidedBy.length < 2 || decidedBy.length > CANDOUR_LIMITS.decidedBy) {
     found.errors.decidedBy = t("safety.candour.error", { field: "decidedBy" });
   }
+  const disagrees = notifiable !== undefined && thresholdDisagrees(notifiable, finding, current);
+  const reason = text(form, "reason");
+  if (disagrees) {
+    if (reason.length < DISAGREE_REASON_MIN || reason.length > CANDOUR_LIMITS.reason) {
+      found.errors.reason = t("safety.candour.error", { field: "reason" });
+    }
+    if (text(form, "confirm") !== "yes") {
+      found.errors.confirm = t("safety.candour.error", { field: "confirm" });
+    }
+  }
   const failure = failed<{ input: ThresholdInput }>(found);
   if (failure || notifiable === undefined || decidedAt === undefined) {
     return failure ?? { ok: false, errors: found.errors };
   }
-  return { ok: true, input: { personId, notifiable, decidedAt, decidedBy } };
+  return {
+    ok: true,
+    input: {
+      personId,
+      notifiable,
+      decidedAt,
+      decidedBy,
+      reason: disagrees ? reason : null,
+    },
+  };
 }
 
 export interface VerbalInput {

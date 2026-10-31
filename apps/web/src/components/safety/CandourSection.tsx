@@ -15,6 +15,7 @@ import {
   candourShown,
   candourStateChip,
   candourSteps,
+  harbourFinding,
 } from "@/lib/candour";
 import { can, tabHref } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
@@ -88,6 +89,7 @@ function Given({
 export async function CandourSection({
   incident,
   record,
+  unknown = false,
   viewer,
   names,
   records,
@@ -95,6 +97,8 @@ export async function CandourSection({
 }: {
   readonly incident: IncidentDetail;
   readonly record: CandourItem | null;
+  /** The candour record could not be read: say so, offer nothing (review M3). */
+  readonly unknown?: boolean;
   readonly viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] };
   /** The people we support, by id, in the reader's words. */
   readonly names: ReadonlyMap<string, string>;
@@ -102,7 +106,25 @@ export async function CandourSection({
   readonly records: ReadonlyMap<string, PersonNeedsOf>;
   readonly now: Date;
 }) {
-  if (!candourShown(incident, record)) return null;
+  if (!candourShown(incident, record) && !unknown) return null;
+  if (unknown) {
+    return (
+      <Card as="section" aria-labelledby="candour">
+        <div className="flex flex-col gap-4 break-words">
+          <h2 id="candour" tabIndex={-1} className="hb-card__title scroll-mt-nav">
+            {t("safety.candour.title")}
+          </h2>
+          <Notice
+            tone="warning"
+            icon={<CircleAlert {...iconProps} />}
+            title={t("safety.candour.unknown")}
+          >
+            {t("safety.candour.unknownHint")}
+          </Notice>
+        </div>
+      </Card>
+    );
+  }
   const manage = candourManageable(incident, viewer.permissions);
   const api = await tenantApi();
   // The organisation's target for the written notification, from the rate table on the
@@ -153,7 +175,20 @@ export async function CandourSection({
     }));
   const finding = candourFinding(incident.classifier);
   const forms = manage ? candourForms(record?.state ?? null) : [];
-  const steps = manage ? candourSteps(record, viewer, t) : [];
+  // A candour notification Harbour drafted makes "not notifiable" need a sentence and a tick.
+  const drafted = (incident.classifier?.notifications ?? []).some((n) => n.kind === "candour");
+  const steps = manage ? candourSteps(record, viewer, t, drafted) : [];
+  // The threshold question repeats regulation 20(9), its prolonged period from the rate table on
+  // the incident's date (`candour.prolonged_harm_days`), never a literal (review M4).
+  const prolonged = forms.includes("threshold")
+    ? await api.GET("/v1/rates/{key}", {
+        params: {
+          path: { key: "candour.prolonged_harm_days" },
+          query: { on: ukToday(new Date(incident.occurredAt)) },
+        },
+      })
+    : null;
+  const closedWithout = incident.status === "closed" && !record;
 
   return (
     <Card as="section" aria-labelledby="candour">
@@ -285,6 +320,16 @@ export async function CandourSection({
               {record.outcome ? <Detail field="outcome">{record.outcome}</Detail> : null}
             </dl>
           </>
+        ) : closedWithout ? (
+          // Closed before closing waited for the candour record (review H2): said plainly, never
+          // as something to record here (a closed incident takes no candour forms).
+          <Notice
+            tone={finding === "none" ? "info" : "warning"}
+            icon={finding === "none" ? <Info {...iconProps} /> : <CircleAlert {...iconProps} />}
+            title={t("safety.candour.closedWithout", { finding })}
+          >
+            {t("safety.candour.closedWithoutHint", { finding })}
+          </Notice>
         ) : finding === "found" ? (
           <Notice
             tone="warning"
@@ -306,6 +351,8 @@ export async function CandourSection({
             steps={steps}
             people={people}
             documents={documents}
+            finding={harbourFinding(incident.classifier, record)}
+            {...(prolonged?.data ? { prolongedDays: prolonged.data.value } : {})}
           />
         ) : null}
         {personId && names.has(personId) && can(viewer.permissions, "people.person.read") ? (

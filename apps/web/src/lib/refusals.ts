@@ -85,7 +85,15 @@ export type RefusalKey =
   | "candourCorrespondence"
   | "investigationComplete"
   | "investigationPerson"
-  | "investigationOwner";
+  | "investigationOwner"
+  | "closeCandourRecord"
+  | "closeCandourPeople"
+  | "candourDecidedBeforeIncident"
+  | "candourToldFuture"
+  | "candourSentFuture"
+  | "candourAttemptFuture"
+  | "candourResultsFuture"
+  | "candourDocument";
 
 export interface KnownRefusal {
   readonly key: RefusalKey;
@@ -309,6 +317,16 @@ const RULES: readonly Rule[] = [
     fields: [],
     found: has("Complete the duty of candour record before closing."),
   },
+  {
+    key: "closeCandourRecord",
+    fields: [],
+    found: has("Record the duty of candour threshold decision before closing."),
+  },
+  {
+    key: "closeCandourPeople",
+    fields: [],
+    found: has("The duty of candour applies to more than one person"),
+  },
   { key: "stepReason", fields: ["reason"], found: has("Give a reason for this step.") },
   {
     key: "stepNotPossible",
@@ -348,6 +366,36 @@ const RULES: readonly Rule[] = [
     key: "candourDecidedInFuture",
     fields: ["decidedAt"],
     found: has("The decision cannot be dated in the future."),
+  },
+  {
+    key: "candourDecidedBeforeIncident",
+    fields: ["decidedAt"],
+    found: has("The decision cannot be dated before the incident happened."),
+  },
+  {
+    key: "candourToldFuture",
+    fields: ["at"],
+    found: has("The time they were told cannot be in the future."),
+  },
+  {
+    key: "candourSentFuture",
+    fields: ["sentAt"],
+    found: has("The time the written notification was sent cannot be in the future."),
+  },
+  {
+    key: "candourAttemptFuture",
+    fields: ["attemptAt"],
+    found: has("The time of an attempt to contact them cannot be in the future."),
+  },
+  {
+    key: "candourResultsFuture",
+    fields: ["resultsSharedAt"],
+    found: has("The time the results were shared cannot be in the future."),
+  },
+  {
+    key: "candourDocument",
+    fields: [],
+    found: has("A document cited must be on the relevant person's record."),
   },
   {
     key: "candourThreshold",

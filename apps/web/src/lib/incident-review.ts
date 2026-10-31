@@ -1,11 +1,12 @@
-import type { IncidentDetail, StatutoryNotificationDetail } from "@harbour/contracts";
+import type { CandourItem, IncidentDetail, StatutoryNotificationDetail } from "@harbour/contracts";
 import {
   availableTransitions,
-  CANDOUR_WORKFLOW,
+  candourCloseBlock,
   INCIDENT_WORKFLOW,
   type IncidentState,
 } from "@harbour/domain";
 import type { Translator } from "@harbour/i18n";
+import { candourCloseFacts } from "./candour";
 import type { ActionResult, FieldErrors } from "./outcome";
 import { readDateTimeField } from "./uk-time";
 
@@ -39,9 +40,23 @@ export type CloseOffer =
       readonly kind: "blocked";
       readonly notifications: readonly { readonly id: string; readonly kind: string }[];
       readonly questions: number;
-      /** The duty of candour record is still open (not finished or decided not notifiable). */
-      readonly candour: boolean;
+      readonly candour: CandourBlock;
     };
+
+/** What the duty of candour still needs before closing (`candourCloseBlock`, HZ-013). */
+export interface CandourBlock {
+  /** The duty may apply and no candour record is started (review H2). */
+  readonly noRecord: boolean;
+  /** The candour record is not finished. */
+  readonly open: boolean;
+  /** People affected with no finished candour record of their own (review H1). */
+  readonly stillToTell: readonly string[];
+  /** The candour record could not be read, so whether it blocks is not known (review M3). */
+  readonly unknown: boolean;
+}
+
+/** The candour record as the page read it: null for none, "unread" when the read failed. */
+export type CandourRead = Pick<CandourItem, "state" | "threshold" | "personId"> | null | "unread";
 
 export interface IncidentManageView {
   /** "under_review" to start the review, "open" to send it back with a reason, or neither. */
@@ -53,17 +68,18 @@ export interface IncidentManageView {
  * The review and close forms one viewer is offered on an incident, or null for none: only to a
  * holder of `safety.incident.manage`, never on a closed incident or one they cannot see whole
  * (the API refuses both), and "close" never to the person who raised it. With a notification
- * still a draft or ready, a question still open or the duty of candour record still open (its
- * stage, read from the candour record; null when there is none), the page says what to do first
- * instead of offering a form the API would refuse (`incidentCloseProblems`).
+ * still a draft or ready, a question still open, or the duty of candour not done (no record
+ * where Harbour found it may apply, the record open, someone affected not told, or the record not
+ * read), the page says what to do first instead of offering a form the API would refuse
+ * (`incidentCloseProblems`).
  */
 export function incidentManageView(
   incident: Pick<
     IncidentDetail,
-    "status" | "raisedBy" | "restricted" | "openQuestionCount" | "classifier"
+    "status" | "raisedBy" | "restricted" | "openQuestionCount" | "classifier" | "people"
   >,
   viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] },
-  candourState: string | null = null,
+  candourRecord: CandourRead = null,
 ): IncidentManageView | null {
   if (!viewer.permissions.includes("safety.incident.manage")) return null;
   if (incident.restricted || incident.status === "closed") return null;
@@ -79,10 +95,18 @@ export function incidentManageView(
     .filter((n) => n.status === "draft" || n.status === "ready")
     .map((n) => ({ id: n.id, kind: n.kind }));
   const questions = incident.openQuestionCount;
-  const candour =
-    candourState !== null &&
-    !(CANDOUR_WORKFLOW.terminal as readonly string[]).includes(candourState);
-  if (notifications.length > 0 || questions > 0 || candour) {
+  const unknown = candourRecord === "unread";
+  const record = candourRecord === "unread" ? null : candourRecord;
+  const block = candourCloseBlock(record?.state ?? null, candourCloseFacts(incident, record));
+  const candour: CandourBlock = { ...block, unknown };
+  if (
+    notifications.length > 0 ||
+    questions > 0 ||
+    candour.noRecord ||
+    candour.open ||
+    candour.stillToTell.length > 0 ||
+    unknown
+  ) {
     return { review, close: { kind: "blocked", notifications, questions, candour } };
   }
   return { review, close: { kind: "form" } };
@@ -325,9 +349,16 @@ export type SubmitRead =
 /**
  * Reads "record that it was submitted": when, chosen every time (just now, or earlier with the
  * date and time, never in the future), and the regulator's reference. The web cannot attach the
- * submitted form yet, so the reference is needed (`submissionEvidenceProblems`).
+ * submitted form yet, so the reference is needed (`submissionEvidenceProblems`), except with
+ * `reference: false`: a duty of candour notification goes to the person, not a regulator, and its
+ * evidence is the written notification's copy on the candour record (review H2).
  */
-export function readSubmitForm(form: FormValues, now: Date, t: Translator): SubmitRead {
+export function readSubmitForm(
+  form: FormValues,
+  now: Date,
+  t: Translator,
+  options: { readonly reference?: boolean } = {},
+): SubmitRead {
   const errors: Record<string, string> = {};
   const parts: Record<string, readonly string[]> = {};
   const mode = text(form, "submittedAt-mode");
@@ -351,7 +382,10 @@ export function readSubmitForm(form: FormValues, now: Date, t: Translator): Subm
     errors.submittedAt = t("safety.manage.submitError", { field: "submittedAt" });
   }
   const externalReference = text(form, "externalReference");
-  if (!externalReference || externalReference.length > REFERENCE_MAX) {
+  if (
+    options.reference !== false &&
+    (!externalReference || externalReference.length > REFERENCE_MAX)
+  ) {
     errors.externalReference = t("safety.manage.submitError", { field: "externalReference" });
   }
   if (Object.keys(errors).length > 0) {

@@ -1,6 +1,8 @@
 import type { IncidentDetail, InvestigationItem } from "@harbour/contracts";
 import { Card } from "@harbour/ui";
+import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
+import { Notice } from "@/components/care/Notice";
 import { tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
@@ -40,15 +42,36 @@ function Detail({ field, children }: { readonly field: string; readonly children
 export async function InvestigationSection({
   incident,
   record,
+  unknown = false,
   viewer,
   now,
 }: {
   readonly incident: IncidentDetail;
   readonly record: InvestigationItem | null;
+  /** The investigation could not be read: say so, offer no form (review M3). */
+  readonly unknown?: boolean;
   readonly viewer: { readonly tenantUserId: string; readonly permissions: readonly string[] };
   readonly now: Date;
 }) {
   if (incident.restricted) return null;
+  if (unknown) {
+    return (
+      <Card as="section" aria-labelledby="investigation">
+        <div className="flex flex-col gap-4 break-words">
+          <h2 id="investigation" tabIndex={-1} className="hb-card__title scroll-mt-nav">
+            {t("safety.investigation.title")}
+          </h2>
+          <Notice
+            tone="warning"
+            icon={<CircleAlert size={20} strokeWidth={1.5} aria-hidden="true" />}
+            title={t("safety.investigation.unknown")}
+          >
+            {t("safety.investigation.unknownHint")}
+          </Notice>
+        </div>
+      </Card>
+    );
+  }
   const manage = investigationManageable(incident, viewer.permissions);
   // The team at the incident's location, by name, for those who manage the team.
   const listed =

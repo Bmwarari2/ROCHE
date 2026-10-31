@@ -1,9 +1,11 @@
 import type { IncidentDetail, StatutoryNotificationSummary } from "@harbour/contracts";
 import { Card } from "@harbour/ui";
-import { CircleAlert, ExternalLink } from "lucide-react";
+import { CircleAlert, CircleCheck, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Notice } from "@/components/care/Notice";
 import { afterDeath, LEDER_REPORT_URL, type LederPrompt, packSections } from "@/lib/after-death";
+import { tenantApi } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { notificationClockChip, notificationStatusChip } from "@/lib/incidents";
 import { PersonNeeds, type PersonNeedsOf } from "./PersonNeeds";
@@ -99,45 +101,57 @@ export function ExaminerPack({
 }
 
 /**
- * The LeDeR prompt (safety.md rule 6): a drafted notification says to report the death on
- * LeDeR's own online form, which anyone can use, then record it; when the incident does not
- * record whether the person had a learning disability or was autistic, staff are asked to check.
+ * The LeDeR prompt (safety.md rule 6), following the notification's status (review M1): a draft
+ * or ready notification says to report the death on LeDeR's own online form, which anyone can
+ * use, then record it; one recorded as submitted says so and when (`submittedAt`, where the
+ * reader may open the notification); one recorded as not required says only that. When the
+ * incident does not record whether the person had a learning disability or was autistic, staff
+ * are asked to check, and a closed incident says it was not answered (review M7).
  */
 export function LederNotice({
   prompt,
   name,
   linked,
   now,
+  submittedAt = null,
   onNotificationPage = false,
 }: {
   readonly prompt: LederPrompt;
   readonly name: string;
   readonly linked: boolean;
   readonly now: Date;
+  /** When a submitted LeDeR notification was submitted, when the reader may see it. */
+  readonly submittedAt?: string | null;
   /** On the LeDeR notification's own page, whose clock and status are already shown. */
   readonly onNotificationPage?: boolean;
 }) {
   if (prompt.kind === "none") return null;
+  const done = prompt.kind === "submitted" || prompt.kind === "notRequired";
+  const kind = prompt.kind === "unknown" && prompt.closed ? "unknownClosed" : prompt.kind;
+  const when = formatDateTime(submittedAt);
   return (
     <Notice
-      tone="warning"
-      icon={<CircleAlert {...iconProps} />}
-      title={t("safety.afterDeath.lederTitle", { kind: prompt.kind })}
+      tone={done ? "info" : "warning"}
+      icon={done ? <CircleCheck {...iconProps} /> : <CircleAlert {...iconProps} />}
+      title={t("safety.afterDeath.lederTitle", { kind })}
     >
       <div className="flex flex-col gap-2">
         <p className="m-0">
           {t("safety.afterDeath.lederBody", {
-            kind: onNotificationPage ? "here" : prompt.kind,
+            kind: onNotificationPage ? "here" : kind,
             name,
+            dateTime: when ?? "none",
           })}
         </p>
-        <p className="m-0">
-          <a href={LEDER_REPORT_URL} className={`${link} gap-1`} rel="noreferrer">
-            {t("safety.afterDeath.lederLink")}
-            <ExternalLink size={16} strokeWidth={1.5} aria-hidden="true" />
-          </a>
-        </p>
-        {prompt.kind === "drafted" && !onNotificationPage ? (
+        {done ? null : (
+          <p className="m-0">
+            <a href={LEDER_REPORT_URL} className={`${link} gap-1`} rel="noreferrer">
+              {t("safety.afterDeath.lederLink")}
+              <ExternalLink size={16} strokeWidth={1.5} aria-hidden="true" />
+            </a>
+          </p>
+        )}
+        {prompt.kind !== "unknown" && !onNotificationPage ? (
           <NotificationLine notification={prompt.notification} linked={linked} now={now} />
         ) : null}
       </div>
@@ -151,14 +165,14 @@ export function LederNotice({
  * sections with where each is kept, and the LeDeR prompt. Nothing here judges the death. Not shown
  * to a reader who sees the incident only in part.
  */
-export function AfterDeath({
+export async function AfterDeath({
   incident,
   names,
   records,
   linked,
   now,
 }: {
-  readonly incident: Pick<IncidentDetail, "id" | "restricted" | "people" | "classifier">;
+  readonly incident: Pick<IncidentDetail, "id" | "restricted" | "people" | "classifier" | "status">;
   readonly names: ReadonlyMap<string, string>;
   /** The people we support from the reader's own list, for their communication needs (AIS). */
   readonly records: ReadonlyMap<string, PersonNeedsOf>;
@@ -168,6 +182,18 @@ export function AfterDeath({
 }) {
   const deaths = afterDeath(incident);
   if (deaths.length === 0) return null;
+  // When each LeDeR notification recorded as submitted was submitted, for a reader who may open
+  // the notification (the summary on the incident does not carry it).
+  const api = linked ? await tenantApi() : null;
+  const submitted = new Map<string, string | null>();
+  for (const { leder } of deaths) {
+    if (api && leder.kind === "submitted") {
+      const read = await api.GET("/v1/notifications/statutory/{id}", {
+        params: { path: { id: leder.notification.id } },
+      });
+      submitted.set(leder.notification.id, read.data?.submittedAt ?? null);
+    }
+  }
   return (
     <Card as="section" aria-labelledby="after-death">
       <div className="flex flex-col gap-6 break-words">
@@ -189,7 +215,15 @@ export function AfterDeath({
                 <p className="m-0">{t("safety.afterDeath.about", { name })}</p>
               )}
               {needs ? <PersonNeeds person={needs} /> : null}
-              <LederNotice prompt={leder} name={name} linked={linked} now={now} />
+              <LederNotice
+                prompt={leder}
+                name={name}
+                linked={linked}
+                now={now}
+                submittedAt={
+                  leder.kind === "submitted" ? (submitted.get(leder.notification.id) ?? null) : null
+                }
+              />
               {examiner ? (
                 <NotificationLine notification={examiner} linked={linked} now={now} />
               ) : null}

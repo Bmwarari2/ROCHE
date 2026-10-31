@@ -38,6 +38,8 @@ function incident(
     restricted?: boolean;
     openQuestionCount?: number;
     notifications?: readonly never[];
+    outputs?: readonly string[];
+    affected?: readonly string[];
   } = {},
 ) {
   return {
@@ -45,9 +47,19 @@ function incident(
     raisedBy: RAISER,
     restricted: overrides.restricted ?? false,
     openQuestionCount: overrides.openQuestionCount ?? 0,
-    classifier: { notifications: overrides.notifications ?? [] } as never,
+    classifier: {
+      notifications: overrides.notifications ?? [],
+      outputs: (overrides.outputs ?? []).map((kind) => ({ kind })),
+    } as never,
+    people: (overrides.affected ?? []).map((personId) => ({
+      kind: "service_user",
+      role: "affected",
+      personId,
+    })) as never,
   };
 }
+
+const NO_CANDOUR = { noRecord: false, open: false, stillToTell: [], unknown: false };
 
 describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
   const manager = { tenantUserId: MANAGER, permissions: MANAGE };
@@ -100,7 +112,7 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
         { id: "n2", kind: "riddor_death" },
       ],
       questions: 2,
-      candour: false,
+      candour: NO_CANDOUR,
     });
   });
 
@@ -115,14 +127,71 @@ describe("incidentManageView (safety.md rule 11, HZ-013)", () => {
   ])(
     "hazard HZ-013 hazard HZ-091 says the duty of candour record at %s must finish first: %s",
     (state, open) => {
-      const view = incidentManageView(incident(), manager, state);
+      const view = incidentManageView(incident(), manager, {
+        state: state as never,
+        threshold: null,
+        personId: null,
+      });
       expect(view?.close).toEqual(
         open
-          ? { kind: "blocked", notifications: [], questions: 0, candour: true }
+          ? {
+              kind: "blocked",
+              notifications: [],
+              questions: 0,
+              candour: { ...NO_CANDOUR, open: true },
+            }
           : { kind: "form" },
       );
     },
   );
+
+  it("hazard HZ-013 hazard HZ-091 says a duty of candour Harbour found needs a record first (review H2)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada"] }),
+      manager,
+      null,
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, noRecord: true },
+    });
+    // A candour notification decided not required, with no output, needs nothing more.
+    const decided = incidentManageView(
+      incident({
+        notifications: [notification("c", "candour", "not_required")],
+        affected: ["ada"],
+      }),
+      manager,
+      null,
+    );
+    expect(decided?.close).toEqual({ kind: "form" });
+  });
+
+  it("hazard HZ-013 hazard HZ-091 names who is still to be told when two people were harmed (review H1)", () => {
+    const view = incidentManageView(
+      incident({ outputs: ["candour"], affected: ["ada", "ben"] }),
+      manager,
+      { state: "closed", threshold: null, personId: "ada" },
+    );
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, stillToTell: ["ben"] },
+    });
+  });
+
+  it("hazard HZ-013 keeps close blocked while the candour record could not be read (review M3)", () => {
+    const view = incidentManageView(incident(), manager, "unread");
+    expect(view?.close).toEqual({
+      kind: "blocked",
+      notifications: [],
+      questions: 0,
+      candour: { ...NO_CANDOUR, unknown: true },
+    });
+  });
 
   it("offers close once every notification is submitted or decided", () => {
     const view = incidentManageView(
@@ -332,6 +401,12 @@ describe("hazard HZ-091 readSubmitForm (HZ-090: no time assumed)", () => {
         externalReference: "Enter the regulator's reference in at most 120 characters",
       },
     });
+  });
+
+  it("hazard HZ-091 asks no regulator's reference for a duty of candour notification (review H2)", () => {
+    expect(
+      readSubmitForm(form({ "submittedAt-mode": "now" }), NOW, t, { reference: false }),
+    ).toEqual({ ok: true, submittedAt: null, externalReference: "" });
   });
 
   it("leaves just now to the server", () => {

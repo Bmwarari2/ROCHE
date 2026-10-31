@@ -63,19 +63,43 @@ export function packSections(personId: string | null, incidentId: string): PackS
  * (both recorded as no, or they were under 18 and the classifier excluded it).
  */
 export type LederPrompt =
+  /** A LeDeR notification still a draft or ready: report it on LeDeR's form, then record it. */
   | { readonly kind: "drafted"; readonly notification: StatutoryNotificationSummary }
-  | { readonly kind: "unknown" }
+  /** Recorded as submitted: said so, with when where the reader may see it (review M1). */
+  | { readonly kind: "submitted"; readonly notification: StatutoryNotificationSummary }
+  /**
+   * Recorded as not required: said so, never that the person had a learning disability or was
+   * autistic (review M1).
+   */
+  | { readonly kind: "notRequired"; readonly notification: StatutoryNotificationSummary }
+  /** Not recorded on the incident: staff check; on a closed incident, said it was not answered. */
+  | { readonly kind: "unknown"; readonly closed: boolean }
   | { readonly kind: "none" };
 
+const LEDER_ORDER: Record<string, number> = { draft: 0, ready: 0, submitted: 1, not_required: 2 };
+
+/**
+ * The LeDeR prompt for someone who died, following the notification's status (review M1): an open
+ * draft first, then one submitted, then one not required; with none, whether the incident records
+ * a learning disability or autism (review M7: kept on a closed incident, saying it was not
+ * answered).
+ */
 export function lederPrompt(
   person: Pick<IncidentPersonItem, "personId" | "learningDisability" | "autistic">,
   notifications: readonly StatutoryNotificationSummary[],
+  closed = false,
 ): LederPrompt {
-  const drafted = notifications.find((n) => n.kind === "leder" && n.personId === person.personId);
-  if (drafted) return { kind: "drafted", notification: drafted };
+  const leder = notifications
+    .filter((n) => n.kind === "leder" && n.personId === person.personId)
+    .toSorted((a, b) => (LEDER_ORDER[a.status] ?? 3) - (LEDER_ORDER[b.status] ?? 3))[0];
+  if (leder) {
+    if (leder.status === "submitted") return { kind: "submitted", notification: leder };
+    if (leder.status === "not_required") return { kind: "notRequired", notification: leder };
+    return { kind: "drafted", notification: leder };
+  }
   if (person.learningDisability === true || person.autistic === true) return { kind: "none" };
   if (person.learningDisability === false && person.autistic === false) return { kind: "none" };
-  return { kind: "unknown" };
+  return { kind: "unknown", closed };
 }
 
 export interface AfterDeath {
@@ -90,7 +114,7 @@ export interface AfterDeath {
  * only in part (the notifications are not theirs to see).
  */
 export function afterDeath(
-  incident: Pick<IncidentDetail, "restricted" | "people" | "classifier">,
+  incident: Pick<IncidentDetail, "restricted" | "people" | "classifier" | "status">,
 ): AfterDeath[] {
   if (incident.restricted) return [];
   const notifications = incident.classifier?.notifications ?? [];
@@ -102,6 +126,6 @@ export function afterDeath(
         notifications.find(
           (n) => n.kind === "medical_examiner" && n.personId === person.personId,
         ) ?? null,
-      leder: lederPrompt(person, notifications),
+      leder: lederPrompt(person, notifications, incident.status === "closed"),
     }));
 }

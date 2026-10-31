@@ -8,7 +8,7 @@ import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, problemCode, tenantApi } from "@/lib/api";
 import { can } from "@/lib/care-record";
 import { t } from "@/lib/i18n";
-import { monthLabel, trendMonths, trendTable } from "@/lib/incident-trends";
+import { monthLabel, trendMonths, trendsLimited, trendTable } from "@/lib/incident-trends";
 import { INCIDENT_LIST_LIMIT } from "@/lib/incidents";
 
 export const metadata: Metadata = { title: t("safety.trends.title") };
@@ -71,6 +71,17 @@ export default async function IncidentTrendsPage() {
       <Notice icon={<Info {...iconProps} />} title={t("safety.trends.countsOnly")}>
         {t("safety.trends.countsOnlyHint")}
       </Notice>
+      {trendsLimited(me.scope) ? (
+        // Someone who sees only their own people is never shown a low count as the whole
+        // picture (review L4).
+        <Notice
+          tone="warning"
+          icon={<TriangleAlert {...iconProps} />}
+          title={t("safety.trends.limited")}
+        >
+          {t("safety.trends.limitedHint")}
+        </Notice>
+      ) : null}
       {table.capped.length > 0 ? (
         <Notice
           tone="warning"

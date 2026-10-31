@@ -359,8 +359,21 @@ describe("closing an incident and the notifications (HZ-013)", () => {
       notifications: [{ kind: "cqc_reg16_death", status: "draft" }],
       openQuestions: ["death.expected"],
       candourState: "verbal_due",
+      candour: { indicated: true, notifiable: true, personId: "a", people: ["a", "b"] },
     }).join(" ");
-    expect(keysOf(detail)).toEqual(["closeNotifications", "closeQuestions", "closeCandour"]);
+    expect(keysOf(detail)).toEqual([
+      "closeNotifications",
+      "closeQuestions",
+      "closeCandour",
+      "closeCandourPeople",
+    ]);
+    const none = incidentCloseProblems({
+      notifications: [],
+      openQuestions: [],
+      candourState: null,
+      candour: { indicated: true, notifiable: null, personId: null, people: ["a"] },
+    }).join(" ");
+    expect(keysOf(none)).toEqual(["closeCandourRecord"]);
   });
 
   it("knows the workflow's refusals", () => {
@@ -509,5 +522,25 @@ describe("the duty of candour record and the investigation (HZ-013, HZ-091)", ()
       t,
     );
     expect(owner.fields).toEqual({ newOwner: t("care.refusal.investigationOwner") });
+    // apps/api/src/routes/incidents.ts: the candour record's own checks (review L5).
+    const at = (detail: string) => problemMessage({ code: "invalid", detail }, t).fields;
+    expect(at("The decision cannot be dated before the incident happened.")).toEqual({
+      decidedAt: t("care.refusal.candourDecidedBeforeIncident"),
+    });
+    expect(at("The time they were told cannot be in the future.")).toEqual({
+      at: t("care.refusal.candourToldFuture"),
+    });
+    expect(at("The time the written notification was sent cannot be in the future.")).toEqual({
+      sentAt: t("care.refusal.candourSentFuture"),
+    });
+    expect(at("The time of an attempt to contact them cannot be in the future.")).toEqual({
+      attemptAt: t("care.refusal.candourAttemptFuture"),
+    });
+    expect(at("The time the results were shared cannot be in the future.")).toEqual({
+      resultsSharedAt: t("care.refusal.candourResultsFuture"),
+    });
+    expect(keysOf("A document cited must be on the relevant person's record.")).toEqual([
+      "candourDocument",
+    ]);
   });
 });

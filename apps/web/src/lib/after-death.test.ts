@@ -7,8 +7,8 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000003";
 const INCIDENT = "0194d000-0000-7000-8000-00000000e001";
 
-const notification = (kind: string, personId: string | null = PERSON) =>
-  ({ id: `${kind}-id`, kind, personId, status: "draft", clock: "overdue" }) as never;
+const notification = (kind: string, personId: string | null = PERSON, status = "draft") =>
+  ({ id: `${kind}-${status}`, kind, personId, status, clock: "overdue" }) as never;
 
 function person(overrides: object = {}) {
   return {
@@ -63,14 +63,53 @@ describe("the LeDeR prompt (safety.md rule 6)", () => {
     expect(LEDER_REPORT_URL).toBe(SOURCES.leder);
   });
 
-  it("hazard HZ-013 says to report a drafted LeDeR notification", () => {
-    const drafted = notification("leder");
-    expect(lederPrompt(person(), [drafted])).toEqual({ kind: "drafted", notification: drafted });
+  it.each([
+    ["draft", "drafted"],
+    ["ready", "drafted"],
+    ["submitted", "submitted"],
+    ["not_required", "notRequired"],
+  ])("hazard HZ-013 follows a LeDeR notification that is %s (review M1)", (status, kind) => {
+    const leder = notification("leder", PERSON, status);
+    expect(lederPrompt(person(), [leder])).toEqual({ kind, notification: leder });
+  });
+
+  it("hazard HZ-013 prefers an open LeDeR draft to one already decided", () => {
+    const open = notification("leder", PERSON, "draft");
+    const done = notification("leder", PERSON, "not_required");
+    expect(lederPrompt(person(), [done, open])).toEqual({ kind: "drafted", notification: open });
+  });
+
+  it("hazard HZ-013 says a learning disability or autism only for an open LeDeR draft (review M1)", () => {
+    const words = (kind: string) =>
+      t("safety.afterDeath.lederBody", { kind, name: "Ada Example", dateTime: "none" });
+    expect(words("drafted")).toContain("records that Ada Example had a learning disability");
+    for (const kind of ["submitted", "notRequired"]) {
+      expect(words(kind)).not.toContain("learning disability");
+    }
+    expect(
+      t("safety.afterDeath.lederBody", {
+        kind: "submitted",
+        name: "Ada Example",
+        dateTime: "31/10/2026 10:00",
+      }),
+    ).toBe("It was recorded as submitted 31/10/2026 10:00.");
   });
 
   it("hazard HZ-013 asks staff to check when the incident does not record learning disability or autism", () => {
-    expect(lederPrompt(person(), [])).toEqual({ kind: "unknown" });
-    expect(lederPrompt(person({ learningDisability: false }), [])).toEqual({ kind: "unknown" });
+    expect(lederPrompt(person(), [])).toEqual({ kind: "unknown", closed: false });
+    expect(lederPrompt(person({ learningDisability: false }), [])).toEqual({
+      kind: "unknown",
+      closed: false,
+    });
+    // On a closed incident it stays, saying it was not answered (review M7).
+    expect(lederPrompt(person(), [], true)).toEqual({ kind: "unknown", closed: true });
+    expect(
+      t("safety.afterDeath.lederBody", {
+        kind: "unknownClosed",
+        name: "Ada Example",
+        dateTime: "none",
+      }),
+    ).toMatch(/^This incident was closed without recording whether Ada Example/);
     expect(lederPrompt(person({ learningDisability: false, autistic: false }), [])).toEqual({
       kind: "none",
     });
@@ -79,6 +118,7 @@ describe("the LeDeR prompt (safety.md rule 6)", () => {
     // Another person's draft is not theirs.
     expect(lederPrompt(person(), [notification("leder", "someone-else")])).toEqual({
       kind: "unknown",
+      closed: false,
     });
   });
 });
@@ -87,6 +127,7 @@ describe("afterDeath", () => {
   it("lists each person we support who died, with their pack notification and the LeDeR prompt", () => {
     const examiner = notification("medical_examiner");
     const deaths = afterDeath({
+      status: "closed",
       restricted: false,
       people: [
         person(),
@@ -97,10 +138,12 @@ describe("afterDeath", () => {
     });
     expect(deaths).toHaveLength(1);
     expect(deaths[0]?.examiner).toBe(examiner);
-    expect(deaths[0]?.leder).toEqual({ kind: "unknown" });
+    expect(deaths[0]?.leder).toEqual({ kind: "unknown", closed: true });
   });
 
   it("shows nothing to a reader who sees the incident only in part", () => {
-    expect(afterDeath({ restricted: true, people: [person()], classifier: null })).toEqual([]);
+    expect(
+      afterDeath({ status: "open", restricted: true, people: [person()], classifier: null }),
+    ).toEqual([]);
   });
 });

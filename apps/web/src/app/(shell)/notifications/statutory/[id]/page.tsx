@@ -147,6 +147,15 @@ export default async function StatutoryNotificationPage({
   // reader cannot open at all reaches nothing. About no one, the held permissions decide.
   const reaching = item.personId ? (person ? (person.access?.reaching ?? null) : []) : null;
   const manage = notificationManageView(item, me.permissions, reaching);
+  // A duty of candour notification is recorded with the written notification's copy from the
+  // incident's candour record, never a regulator's reference (review H2).
+  const candourRead =
+    item.kind === "candour" && item.incidentId && manage.submit
+      ? await api.GET("/v1/incidents/{id}/candour", { params: { path: { id: item.incidentId } } })
+      : null;
+  const candourEvidence = candourRead
+    ? { documentId: candourRead.data?.record?.written?.documentId ?? null }
+    : null;
   const fields = contentFields(item.requiredContent);
   const shownDone = doneToShow(done, item.status);
   const names = new Map(
@@ -287,6 +296,7 @@ export default async function StatutoryNotificationPage({
             view={manage}
             fields={fields}
             content={item.content}
+            {...(candourEvidence ? { candour: candourEvidence } : {})}
           />
         </Card>
       ) : Object.keys(item.content).length > 0 ? (

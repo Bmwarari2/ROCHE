@@ -1,6 +1,6 @@
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
-import { monthLabel, trendMonths, trendTable } from "./incident-trends";
+import { monthLabel, trendMonths, trendsLimited, trendTable } from "./incident-trends";
 import { INCIDENT_LIST_LIMIT } from "./incidents";
 
 const t = createTranslator("en-GB");
@@ -38,6 +38,16 @@ describe("trendMonths", () => {
   it("names a month in words", () => {
     expect(monthLabel({ year: 2026, month: 10 }, t)).toBe("October 2026");
     expect(monthLabel({ year: 2027, month: 1 }, t)).toBe("January 2027");
+  });
+});
+
+describe("trendsLimited (review L4)", () => {
+  it("hazard HZ-073 tells a reader who sees only their own people that counts leave some out", () => {
+    expect(trendsLimited("assigned")).toBe(true);
+    expect(trendsLimited("none")).toBe(true);
+    expect(trendsLimited("locations")).toBe(false);
+    expect(trendsLimited("tenant")).toBe(false);
+    expect(t("safety.trends.capped", { limit: 500 })).toContain("500 or more");
   });
 });
 

@@ -57,12 +57,15 @@ export function IncidentManage({
   version,
   view,
   notificationLabels,
+  personNames,
 }: {
   readonly incidentId: string;
   readonly version: number;
   readonly view: IncidentManageView;
   /** Each notification's name, by kind, in the reader's words. */
   readonly notificationLabels: Readonly<Record<string, string>>;
+  /** The people we support on the incident, by id, in the reader's words. */
+  readonly personNames: Readonly<Record<string, string>>;
 }) {
   const path = `/incidents/${incidentId}`;
   const close = view.close;
@@ -122,10 +125,39 @@ export function IncidentManage({
                 </a>
               </li>
             ) : null}
-            {close.candour ? (
+            {close.candour.unknown ? (
+              <li>
+                <a href="#candour" className={link}>
+                  {t("safety.candour.closeBlock", { block: "unknown" })}
+                </a>
+              </li>
+            ) : null}
+            {close.candour.noRecord ? (
+              <li>
+                <a href="#candour" className={link}>
+                  {t("safety.candour.closeBlock", { block: "noRecord" })}
+                </a>
+              </li>
+            ) : null}
+            {close.candour.open ? (
               <li>
                 <a href="#candour" className={link}>
                   {t("safety.candour.closeFirst")}
+                </a>
+              </li>
+            ) : null}
+            {close.candour.stillToTell.length > 0 ? (
+              <li>
+                <a href="#candour" className={link}>
+                  {t("safety.candour.stillToTell", {
+                    count: close.candour.stillToTell.length,
+                    names: close.candour.stillToTell
+                      .map(
+                        (id) =>
+                          personNames[id] ?? t("safety.incident.unnamed", { kind: "service_user" }),
+                      )
+                      .join(", "),
+                  })}
                 </a>
               </li>
             ) : null}

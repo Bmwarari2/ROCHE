@@ -146,10 +146,14 @@ export default async function IncidentPage({
         api.GET("/v1/incidents/{id}/candour", { params: { path: { id } } }),
         api.GET("/v1/incidents/{id}/investigation", { params: { path: { id } } }),
       ]);
+  // A read that failed is not known, never "none" (review M3): the sections warn and offer no
+  // forms, and closing waits for the candour record to be read.
   const candourRecord = candour?.data?.record ?? null;
+  const candourUnknown = candour !== null && !candour.data;
   const investigationRecord = investigation?.data?.record ?? null;
+  const investigationUnknown = investigation !== null && !investigation.data;
   // Review and close, for a manager, never "close" for the person who raised it (rule 11).
-  const manage = incidentManageView(incident, me, candourRecord?.state ?? null);
+  const manage = incidentManageView(incident, me, candourUnknown ? "unread" : candourRecord);
   const shownDone = doneToShow(done, incident.status);
   const followUpDone = followUpDoneToShow(
     done,
@@ -324,6 +328,7 @@ export default async function IncidentPage({
       <CandourSection
         incident={incident}
         record={candourRecord}
+        unknown={candourUnknown}
         viewer={me}
         names={names}
         records={people}
@@ -332,6 +337,7 @@ export default async function IncidentPage({
       <InvestigationSection
         incident={incident}
         record={investigationRecord}
+        unknown={investigationUnknown}
         viewer={me}
         now={now}
       />
@@ -347,6 +353,7 @@ export default async function IncidentPage({
                 notificationKindLabel(n.kind, t, threshold?.data?.value),
               ]),
             )}
+            personNames={Object.fromEntries(names)}
           />
         </Card>
       ) : null}

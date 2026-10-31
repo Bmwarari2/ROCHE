@@ -3,7 +3,9 @@ import { type CandourState, candourStepProblems } from "@harbour/domain";
 import { createTranslator } from "@harbour/i18n";
 import { describe, expect, it } from "vitest";
 import {
+  byWhen,
   candourClocks,
+  candourCloseFacts,
   candourDocuments,
   candourFinding,
   candourForms,
@@ -12,12 +14,15 @@ import {
   candourStateChip,
   candourStepNeeds,
   candourSteps,
+  DISAGREE_REASON_MIN,
+  harbourFinding,
   readAttemptForm,
   readFollowUpForm,
   readRepresentatives,
   readThresholdForm,
   readVerbalForm,
   readWrittenForm,
+  thresholdDisagrees,
   toCandourRecordView,
 } from "./candour";
 import { knownRefusals } from "./refusals";
@@ -55,7 +60,7 @@ function record(overrides: Partial<CandourItem> = {}): CandourItem {
     outcome: null,
     clocks: {
       verbalDueAt: "2026-10-30T09:00:00Z",
-      writtenTargetAt: "2026-11-13T09:00:00Z",
+      writtenTargetAt: "2026-11-14T00:00:00Z",
       writtenTargetWording: "English from the API, never shown",
       provisional: true,
       ...overrides.clocks,
@@ -280,12 +285,12 @@ describe("candourClocks (ADR-0021)", () => {
     const clocks = candourClocks(record({ threshold: notifiable }), NOW, t, 10);
     expect(clocks?.clocks[1]?.chip).toEqual({ status: "due", icon: "clock", label: "Target" });
     expect(clocks?.clocks[1]?.line.text).toBe(
-      "Written notification: your organisation's target is 10 working days from the decision, by 13/11/2026 09:00. This is a target, not a legal deadline: the law says as soon as reasonably practicable.",
+      "Written notification: your organisation's target is 10 working days from the decision, by the end of 13/11/2026. This is a target, not a legal deadline: the law says as soon as reasonably practicable.",
     );
     expect(clocks?.clocks[1]?.line.text).not.toMatch(/statutory/i);
     // Without the figure the date still shows, with no number made up.
     expect(candourClocks(record(), NOW, t)?.clocks[1]?.line.text).toMatch(
-      /^Written notification: your organisation's target is 13\/11\/2026 09:00\./,
+      /^Written notification: your organisation's target is by the end of 13\/11\/2026\./,
     );
   });
 
@@ -412,6 +417,7 @@ describe("reading the candour forms (HZ-090: nothing assumed)", () => {
         notifiable: true,
         decidedAt: null,
         decidedBy: "A health care professional",
+        reason: null,
       },
     });
     const earlier = readThresholdForm(
@@ -598,5 +604,152 @@ describe("reading the candour forms (HZ-090: nothing assumed)", () => {
     });
     const half = readFollowUpForm(form({ "resultsSharedAt-day": "31" }), offered, [], NOW, t);
     expect(half.ok).toBe(false);
+  });
+});
+
+describe("review round 1 (HZ-013, HZ-091)", () => {
+  it("hazard HZ-013 keeps telling the person due when it was recorded but not in person (review M2)", () => {
+    const clocks = candourClocks(
+      record({
+        state: "verbal_due",
+        threshold: notifiable,
+        verbal: { ...verbalDone, inPerson: false },
+      }),
+      NOW,
+      t,
+      10,
+    );
+    expect(clocks?.clocks[0]?.chip).toEqual({ status: "due", icon: "clock", label: "Due now" });
+    expect(clocks?.clocks[0]?.line.text).toBe(
+      "Recorded 30/10/2026 11:00, not in person: regulation 20(3) needs them told in person, with an apology, as soon as reasonably practicable.",
+    );
+    expect(clocks?.clocks.map((c) => c.chip.label)).not.toContain("Told in person");
+  });
+
+  it("hazard HZ-013 says a target at UK midnight as the end of the day before (review L2)", () => {
+    // In summer UK midnight is 23:00 UTC the day before.
+    expect(byWhen("2026-07-14T23:00:00Z", t)).toBe("by the end of 14/07/2026");
+    expect(byWhen("2026-11-14T00:00:00Z", t)).toBe("by the end of 13/11/2026");
+    expect(byWhen("2026-11-13T15:30:00Z", t)).toBe("by 13/11/2026 15:30");
+    expect(byWhen("not a time", t)).toBe("Due time not known");
+  });
+
+  it("hazard HZ-013 reads the candour facts closing needs as the API does (review H1, H2)", () => {
+    const incident = {
+      people: [
+        { kind: "service_user", role: "affected", personId: "ada" },
+        { kind: "service_user", role: "witness", personId: "cal" },
+        { kind: "worker", role: "affected", personId: null },
+        { kind: "service_user", role: "affected", personId: "ben" },
+      ],
+      classifier: {
+        outputs: [],
+        notifications: [
+          { kind: "candour", status: "draft", noLongerIndicated: true },
+          { kind: "candour", status: "not_required", noLongerIndicated: false },
+        ],
+      },
+    } as never;
+    expect(candourCloseFacts(incident, null)).toEqual({
+      indicated: false,
+      notifiable: null,
+      personId: null,
+      people: ["ada", "ben"],
+    });
+    const found = {
+      people: [],
+      classifier: { outputs: [{ kind: "candour" }], notifications: [] },
+    } as never;
+    expect(
+      candourCloseFacts(found, { threshold: { ...notifiable, notifiable: true }, personId: "ada" }),
+    ).toMatchObject({ indicated: true, notifiable: true, personId: "ada" });
+  });
+
+  it("hazard HZ-013 sets Harbour's finding beside the question until a decision is recorded (review M4)", () => {
+    const view = (over: object) =>
+      ({
+        outputs: [],
+        notifications: [],
+        pending: [],
+        tasks: [],
+        exclusions: [],
+        ...over,
+      }) as never;
+    expect(harbourFinding(view({ outputs: [{ kind: "candour" }] }), null)).toBe("notifiable");
+    expect(harbourFinding(view({ pending: [{ kind: "candour" }] }), null)).toBe("waiting");
+    expect(harbourFinding(view({ exclusions: [{ kind: "candour" }] }), null)).toBe("notNotifiable");
+    expect(harbourFinding(view({}), null)).toBeNull();
+    expect(
+      harbourFinding(view({ outputs: [{ kind: "candour" }] }), { threshold: notifiable }),
+    ).toBe(null);
+  });
+
+  it.each([
+    [false, "notifiable", null, true],
+    [true, "notifiable", null, false],
+    [true, "notNotifiable", null, true],
+    [false, "notNotifiable", null, false],
+    [false, "waiting", null, false],
+    [true, null, notifiable, false],
+    [false, null, notifiable, true],
+  ] as const)(
+    "hazard HZ-091 an answer of notifiable %s against %s (decision %j) needs a reason: %s",
+    (answer, finding, current, needs) => {
+      expect(thresholdDisagrees(answer, finding, current)).toBe(needs);
+    },
+  );
+
+  it("hazard HZ-091 asks a reason of a sentence and a tick when the decision differs from Harbour's (review M4)", () => {
+    const base = {
+      personId: PERSON,
+      notifiable: "no",
+      decidedBy: "A GP",
+      "decidedAt-mode": "now",
+    };
+    const bare = readThresholdForm(form(base), [PERSON], null, NOW, t, "notifiable");
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(Object.keys(bare.errors)).toEqual(["reason", "confirm"]);
+    const short = readThresholdForm(
+      form({ ...base, reason: "x".repeat(DISAGREE_REASON_MIN - 1), confirm: "yes" }),
+      [PERSON],
+      null,
+      NOW,
+      t,
+      "notifiable",
+    );
+    expect(short.ok).toBe(false);
+    const reason = "The GP saw no harm from the double dose.";
+    const read = readThresholdForm(
+      form({ ...base, reason, confirm: "yes" }),
+      [PERSON],
+      null,
+      NOW,
+      t,
+      "notifiable",
+    );
+    expect(read).toMatchObject({ ok: true, input: { notifiable: false, reason } });
+    // Agreeing with Harbour needs no reason, and keeps none.
+    const agrees = readThresholdForm(
+      form({ ...base, notifiable: "yes", reason }),
+      [PERSON],
+      null,
+      NOW,
+      t,
+      "notifiable",
+    );
+    expect(agrees).toMatchObject({ ok: true, input: { reason: null } });
+  });
+
+  it("hazard HZ-091 makes not notifiable strict once Harbour drafted a candour notification", () => {
+    const decided = record({ threshold: { ...notifiable, notifiable: false } });
+    expect(candourSteps(decided, MANAGER, t, true)[0]).toMatchObject({
+      to: "not_notifiable",
+      needsReason: true,
+      strict: true,
+    });
+    expect(candourSteps(decided, MANAGER, t, false)[0]).toMatchObject({
+      to: "not_notifiable",
+      strict: false,
+    });
   });
 });

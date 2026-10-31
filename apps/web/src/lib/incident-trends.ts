@@ -43,6 +43,14 @@ export function trendMonths(now: Date, count: number = TREND_MONTHS): TrendMonth
   return months;
 }
 
+/**
+ * Whether the reader's counts leave out incidents at the location they cannot see (review L4):
+ * someone who sees only the people assigned to them, or no one, is told so.
+ */
+export function trendsLimited(scope: string): boolean {
+  return scope !== "tenant" && scope !== "locations";
+}
+
 /** "October 2026", in the catalogue's words. */
 export function monthLabel(month: Pick<TrendMonth, "year" | "month">, t: Translator): string {
   return t("safety.trends.month", { month: month.month, year: String(month.year) });

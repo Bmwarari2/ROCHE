@@ -108,10 +108,28 @@ export async function saveCandour(
       break;
     }
   }
-  return sendAndRevalidate(paths(incidentId), (api) =>
+  const saved = await sendAndRevalidate(paths(incidentId), (api) =>
     api.PUT("/v1/incidents/{id}/candour", {
       params: { path: { id: incidentId } },
       body: { ...body, version },
+    }),
+  );
+  // A decision that differs from Harbour's finding, or changes one, moves the record on at once
+  // with its reason, so the reason is kept with the record (review M4). If the step is refused,
+  // the decision stands and the page offers the step again, asking for the reason.
+  if (!saved.ok || change.part !== "threshold" || !change.input.reason) return saved;
+  const record = saved.data.record;
+  if (!record) return saved;
+  const reason = change.input.reason;
+  const to = change.input.notifiable ? "verbal_due" : "not_notifiable";
+  return sendAndRevalidate(paths(incidentId), (api) =>
+    api.POST("/v1/incidents/{id}/candour/step", {
+      params: { path: { id: incidentId } },
+      body: {
+        to,
+        reason,
+        version: record.version,
+      },
     }),
   );
 }

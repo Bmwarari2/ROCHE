@@ -12,7 +12,7 @@ import {
   TextArea,
   TextField,
 } from "@harbour/ui";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { type CandourChange, saveCandour, stepCandour } from "@/app/actions/incident-follow-up";
@@ -23,11 +23,14 @@ import {
   type CandourDocument,
   type CandourForm,
   type CandourStepOffer,
+  DISAGREE_REASON_MIN,
+  type HarbourFinding,
   readAttemptForm,
   readFollowUpForm,
   readThresholdForm,
   readVerbalForm,
   readWrittenForm,
+  thresholdDisagrees,
 } from "@/lib/candour";
 import { formatDateTime } from "@/lib/format";
 import { characterCount, t } from "@/lib/i18n";
@@ -130,6 +133,7 @@ function YesNo({
   id,
   error,
   value,
+  onAnswer,
 }: {
   readonly name: string;
   readonly legend: string;
@@ -137,6 +141,8 @@ function YesNo({
   readonly id: string;
   readonly error?: string;
   readonly value?: boolean | null;
+  /** Called with the answer as it is chosen. */
+  readonly onAnswer?: (answer: boolean) => void;
 }) {
   return (
     <RadioGroup<"yes" | "no">
@@ -145,6 +151,7 @@ function YesNo({
       id={id}
       layout="inline"
       required
+      {...(onAnswer ? { onValueChange: (next: "yes" | "no") => onAnswer(next === "yes") } : {})}
       {...(hint ? { hint } : {})}
       {...(error ? { error } : {})}
       {...(value === true
@@ -296,8 +303,8 @@ const pathOf = (incidentId: string) => `/incidents/${incidentId}`;
 function useCandourSave(target: Target) {
   const path = pathOf(target.incidentId);
   const manage = useManageSend(path);
-  const save = (change: CandourChange) =>
-    manage.send("candourSaved", () => saveCandour(target.incidentId, change, target.version));
+  const save = (change: CandourChange, done: "candourSaved" | "candourMoved" = "candourSaved") =>
+    manage.send(done, () => saveCandour(target.incidentId, change, target.version));
   return { ...manage, save, path };
 }
 
@@ -311,20 +318,36 @@ function SaveButton({ pending, label }: { readonly pending: boolean; readonly la
   );
 }
 
-const THRESHOLD_FIELDS = ["personId", "notifiable", "decidedAt", "decidedBy"] as const;
+const THRESHOLD_FIELDS = [
+  "personId",
+  "notifiable",
+  "decidedAt",
+  "decidedBy",
+  "confirm",
+  "reason",
+] as const;
 
 /** The threshold decision (regulation 20(9)) and who it happened to. */
 function ThresholdForm({
   target,
   record,
   people,
+  finding,
+  prolongedDays,
 }: {
   readonly target: Target;
   readonly record: CandourItem | null;
   readonly people: readonly { readonly value: string; readonly label: string }[];
+  /** What Harbour found on the answers recorded, or null once a decision is recorded. */
+  readonly finding: HarbourFinding | null;
+  /** `candour.prolonged_harm_days` from the rate table, for the question's hint. */
+  readonly prolongedDays?: number;
 }) {
   const ids = useFieldIds(THRESHOLD_FIELDS);
   const { result, pending, fail, save, path } = useCandourSave(target);
+  const [answer, setAnswer] = useState<boolean | null>(record?.threshold?.notifiable ?? null);
+  const disagrees =
+    answer !== null && thresholdDisagrees(answer, finding, record?.threshold ?? null);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const read = readThresholdForm(
@@ -333,9 +356,10 @@ function ThresholdForm({
       record?.threshold ?? null,
       new Date(),
       t,
+      finding,
     );
     if (!read.ok) return fail(read.errors, read.parts);
-    save({ part: "threshold", input: read.input });
+    save({ part: "threshold", input: read.input }, read.input.reason ? "candourMoved" : undefined);
   };
   const current = record?.personId ?? (people.length === 1 ? (people[0]?.value ?? null) : null);
   return (
@@ -363,14 +387,57 @@ function ThresholdForm({
             options={people}
           />
         ) : null}
+        {finding ? (
+          <p className="m-0 flex items-start gap-2">
+            <Info size={18} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+            {t("safety.candour.finding", { finding })}
+          </p>
+        ) : null}
         <YesNo
           name="notifiable"
           id={ids.notifiable}
           legend={t("safety.candour.label", { field: "notifiable" })}
-          hint={t("safety.candour.hint", { field: "notifiable" })}
+          hint={t("safety.candour.notifiableHint", { days: prolongedDays ?? "none" })}
           value={record?.threshold?.notifiable ?? null}
+          onAnswer={setAnswer}
           {...(errorFor(result, "notifiable") ? { error: errorFor(result, "notifiable") } : {})}
         />
+        {disagrees ? (
+          // A decision that differs from Harbour's finding, or changes one, is confirmed with a
+          // reason kept with the record, and moves the record on at once (review M4; H-265).
+          <div className="flex flex-col gap-4 border-s-4 border-warning ps-4">
+            <p className="m-0 flex items-start gap-2 font-semibold">
+              <CircleAlert
+                size={18}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+              />
+              {t("safety.candour.disagree", {
+                kind: record?.threshold ? "change" : (finding ?? "none"),
+              })}
+            </p>
+            <TextArea
+              id={ids.reason}
+              name="reason"
+              label={t("safety.candour.label", { field: "disagreeReason" })}
+              hint={t("safety.candour.hint", { field: "disagreeReason" })}
+              rows={3}
+              required
+              maxLength={CANDOUR_LIMITS.reason}
+              formatCount={(remaining) => characterCount(remaining)}
+              {...(errorFor(result, "reason") ? { error: errorFor(result, "reason") } : {})}
+            />
+            <Checkbox
+              id={ids.confirm}
+              name="confirm"
+              value="yes"
+              label={t("safety.candour.confirm")}
+              required
+              {...(errorFor(result, "confirm") ? { error: errorFor(result, "confirm") } : {})}
+            />
+          </div>
+        ) : null}
         <MomentField
           name="decidedAt"
           id={ids.decidedAt}
@@ -841,6 +908,9 @@ function CandourSteps({
             {...(offer.to === "not_notifiable" || offer.to === "no_contact"
               ? { destructive: true }
               : {})}
+            {...(offer.strict
+              ? { min: DISAGREE_REASON_MIN, confirm: t("safety.candour.confirm") }
+              : {})}
             onSend={(reason) =>
               stepCandour(target.incidentId, {
                 to: offer.to as Parameters<typeof stepCandour>[1]["to"],
@@ -867,6 +937,8 @@ export function CandourForms({
   steps,
   people,
   documents,
+  finding,
+  prolongedDays,
 }: {
   readonly incidentId: string;
   readonly record: CandourItem | null;
@@ -875,13 +947,23 @@ export function CandourForms({
   /** The people we support on the incident, for the relevant person. */
   readonly people: readonly { readonly value: string; readonly label: string }[];
   readonly documents: DocumentChoice;
+  /** What Harbour found on the answers recorded, beside the threshold question. */
+  readonly finding: HarbourFinding | null;
+  /** `candour.prolonged_harm_days` from the rate table. */
+  readonly prolongedDays?: number;
 }) {
   const target = { incidentId, version: record?.version ?? 0 };
   return (
     <div className="flex flex-col gap-8">
       {steps.length > 0 ? <CandourSteps target={target} steps={steps} /> : null}
       {forms.includes("threshold") ? (
-        <ThresholdForm target={target} record={record} people={people} />
+        <ThresholdForm
+          target={target}
+          record={record}
+          people={people}
+          finding={finding}
+          {...(prolongedDays !== undefined ? { prolongedDays } : {})}
+        />
       ) : null}
       {record && forms.includes("verbal") ? (
         <VerbalForm target={target} record={record} documents={documents} />
