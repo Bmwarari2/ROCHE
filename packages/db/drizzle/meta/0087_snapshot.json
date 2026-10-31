@@ -1,6 +1,6 @@
 {
   "id": "5974ec84-a22c-4084-94f0-38d22246cba2",
-  "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
+  "prevId": "6fd26ce0-66b8-40b9-a099-b8831f8d34c4",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -27538,6 +27538,996 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.dp_breach": {
+      "name": "dp_breach",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aware_at": {
+          "name": "aware_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "factors": {
+          "name": "factors",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggested_severity": {
+          "name": "suggested_severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggested_report_to_ico": {
+          "name": "suggested_report_to_ico",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggested_tell_individuals": {
+          "name": "suggested_tell_individuals",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assessed_by": {
+          "name": "assessed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assessed_at": {
+          "name": "assessed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "report_to_ico": {
+          "name": "report_to_ico",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tell_individuals": {
+          "name": "tell_individuals",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_reasoning": {
+          "name": "decision_reasoning",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "acknowledged_suggestion": {
+          "name": "acknowledged_suggestion",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reported_at": {
+          "name": "reported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ico_reference": {
+          "name": "ico_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delay_reason": {
+          "name": "delay_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_notice": {
+          "name": "subject_notice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "individuals_told_on": {
+          "name": "individuals_told_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "lessons": {
+          "name": "lessons",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_by": {
+          "name": "closed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "dp_breach_open_idx": {
+          "name": "dp_breach_open_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "aware_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dp_breach_tenant_id_tenant_id_fk": {
+          "name": "dp_breach_tenant_id_tenant_id_fk",
+          "tableFrom": "dp_breach",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_breach_location_fk": {
+          "name": "dp_breach_location_fk",
+          "tableFrom": "dp_breach",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_breach_assessed_by_fk": {
+          "name": "dp_breach_assessed_by_fk",
+          "tableFrom": "dp_breach",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "assessed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_breach_decided_by_fk": {
+          "name": "dp_breach_decided_by_fk",
+          "tableFrom": "dp_breach",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "decided_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_breach_closed_by_fk": {
+          "name": "dp_breach_closed_by_fk",
+          "tableFrom": "dp_breach",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "closed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dp_breach_tenant_id_id_key": {
+          "name": "dp_breach_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "dp_breach_source": {
+          "name": "dp_breach_source",
+          "value": "source IN ('tenant', 'processor_notice')"
+        },
+        "dp_breach_status": {
+          "name": "dp_breach_status",
+          "value": "status IN ('open', 'closed')"
+        },
+        "dp_breach_summary": {
+          "name": "dp_breach_summary",
+          "value": "char_length(btrim(summary)) BETWEEN 10 AND 4000"
+        },
+        "dp_breach_assessed": {
+          "name": "dp_breach_assessed",
+          "value": "(factors IS NULL) = (suggested_severity IS NULL)\n        AND (factors IS NULL) = (suggested_report_to_ico IS NULL)\n        AND (factors IS NULL) = (suggested_tell_individuals IS NULL)\n        AND (factors IS NULL) = (assessed_at IS NULL)\n        AND (suggested_severity IS NULL OR suggested_severity IN ('low', 'medium', 'high', 'critical'))"
+        },
+        "dp_breach_decided": {
+          "name": "dp_breach_decided",
+          "value": "(decided_at IS NULL) = (report_to_ico IS NULL)\n        AND (decided_at IS NULL) = (tell_individuals IS NULL)\n        AND (decided_at IS NULL) = (decided_by IS NULL)\n        AND (decided_at IS NULL OR (factors IS NOT NULL\n          AND char_length(btrim(decision_reasoning)) BETWEEN 20 AND 4000))"
+        },
+        "dp_breach_reported": {
+          "name": "dp_breach_reported",
+          "value": "(reported_at IS NULL) = (ico_reference IS NULL)\n        AND (reported_at IS NULL OR report_to_ico IS TRUE)\n        AND (ico_reference IS NULL OR char_length(btrim(ico_reference)) BETWEEN 1 AND 100)\n        AND (delay_reason IS NULL OR char_length(btrim(delay_reason)) BETWEEN 1 AND 4000)"
+        },
+        "dp_breach_individuals": {
+          "name": "dp_breach_individuals",
+          "value": "(individuals_told_on IS NULL) = (subject_notice IS NULL)\n        AND (individuals_told_on IS NULL OR tell_individuals IS TRUE)\n        AND (subject_notice IS NULL OR char_length(btrim(subject_notice)) BETWEEN 20 AND 10000)"
+        },
+        "dp_breach_closed": {
+          "name": "dp_breach_closed",
+          "value": "(status = 'closed') = (closed_at IS NOT NULL AND closed_by IS NOT NULL)\n        AND (status = 'open' OR (decided_at IS NOT NULL\n          AND char_length(btrim(lessons)) BETWEEN 20 AND 4000))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.dp_complaint": {
+      "name": "dp_complaint",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_on": {
+          "name": "received_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complainant_kind": {
+          "name": "complainant_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complainant_name": {
+          "name": "complainant_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complainant_contact": {
+          "name": "complainant_contact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "about": {
+          "name": "about",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acknowledged_on": {
+          "name": "acknowledged_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_contact_on": {
+          "name": "last_contact_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ico_right_stated": {
+          "name": "ico_right_stated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "breach_id": {
+          "name": "breach_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "closed_on": {
+          "name": "closed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_by": {
+          "name": "closed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "dp_complaint_open_idx": {
+          "name": "dp_complaint_open_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "dp_complaint_tenant_id_tenant_id_fk": {
+          "name": "dp_complaint_tenant_id_tenant_id_fk",
+          "tableFrom": "dp_complaint",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_complaint_location_fk": {
+          "name": "dp_complaint_location_fk",
+          "tableFrom": "dp_complaint",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_complaint_person_fk": {
+          "name": "dp_complaint_person_fk",
+          "tableFrom": "dp_complaint",
+          "tableTo": "person",
+          "columnsFrom": [
+            "tenant_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_complaint_breach_fk": {
+          "name": "dp_complaint_breach_fk",
+          "tableFrom": "dp_complaint",
+          "tableTo": "dp_breach",
+          "columnsFrom": [
+            "tenant_id",
+            "breach_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "dp_complaint_closed_by_fk": {
+          "name": "dp_complaint_closed_by_fk",
+          "tableFrom": "dp_complaint",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "closed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dp_complaint_tenant_id_id_key": {
+          "name": "dp_complaint_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "dp_complaint_channel": {
+          "name": "dp_complaint_channel",
+          "value": "channel IN ('form', 'email', 'letter', 'phone', 'in_person', 'forwarded_by_thapsus', 'other')"
+        },
+        "dp_complaint_complainant_kind": {
+          "name": "dp_complaint_complainant_kind",
+          "value": "complainant_kind IN ('person_supported', 'representative', 'family', 'staff', 'other')"
+        },
+        "dp_complaint_about": {
+          "name": "dp_complaint_about",
+          "value": "about IN ('access', 'accuracy', 'sharing', 'security', 'retention', 'other')"
+        },
+        "dp_complaint_status": {
+          "name": "dp_complaint_status",
+          "value": "status IN ('open', 'closed')"
+        },
+        "dp_complaint_text": {
+          "name": "dp_complaint_text",
+          "value": "char_length(btrim(complainant_name)) BETWEEN 1 AND 200\n        AND (complainant_contact IS NULL OR char_length(btrim(complainant_contact)) BETWEEN 1 AND 500)\n        AND char_length(btrim(summary)) BETWEEN 10 AND 4000"
+        },
+        "dp_complaint_dates": {
+          "name": "dp_complaint_dates",
+          "value": "(acknowledged_on IS NULL OR acknowledged_on >= received_on)\n        AND (last_contact_on IS NULL OR last_contact_on >= received_on)\n        AND (closed_on IS NULL OR closed_on >= received_on)"
+        },
+        "dp_complaint_closed": {
+          "name": "dp_complaint_closed",
+          "value": "(status = 'closed') = (closed_on IS NOT NULL AND closed_by IS NOT NULL)\n        AND (status = 'open' OR (ico_right_stated\n          AND char_length(btrim(outcome)) BETWEEN 20 AND 10000))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.processor_breach_notice": {
+      "name": "processor_breach_notice",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "breach_id": {
+          "name": "breach_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "follows_id": {
+          "name": "follows_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nature": {
+          "name": "nature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_categories": {
+          "name": "data_categories",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approx_people": {
+          "name": "approx_people",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approx_records": {
+          "name": "approx_records",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "likely_consequences": {
+          "name": "likely_consequences",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "measures": {
+          "name": "measures",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_actions": {
+          "name": "tenant_actions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact": {
+          "name": "contact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_by_operator": {
+          "name": "sent_by_operator",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "processor_breach_notice_breach_idx": {
+          "name": "processor_breach_notice_breach_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "breach_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "processor_breach_notice_tenant_id_tenant_id_fk": {
+          "name": "processor_breach_notice_tenant_id_tenant_id_fk",
+          "tableFrom": "processor_breach_notice",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "processor_breach_notice_follows_fk": {
+          "name": "processor_breach_notice_follows_fk",
+          "tableFrom": "processor_breach_notice",
+          "tableTo": "processor_breach_notice",
+          "columnsFrom": [
+            "tenant_id",
+            "breach_id",
+            "follows_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "breach_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "processor_breach_notice_breach_fk": {
+          "name": "processor_breach_notice_breach_fk",
+          "tableFrom": "processor_breach_notice",
+          "tableTo": "dp_breach",
+          "columnsFrom": [
+            "tenant_id",
+            "breach_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "processor_breach_notice_tenant_id_id_key": {
+          "name": "processor_breach_notice_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "processor_breach_notice_breach_id_key": {
+          "name": "processor_breach_notice_breach_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "breach_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "processor_breach_notice_text": {
+          "name": "processor_breach_notice_text",
+          "value": "char_length(btrim(nature)) BETWEEN 10 AND 4000\n        AND char_length(btrim(data_categories)) BETWEEN 3 AND 2000\n        AND char_length(btrim(likely_consequences)) BETWEEN 3 AND 4000\n        AND char_length(btrim(measures)) BETWEEN 3 AND 4000\n        AND char_length(btrim(tenant_actions)) BETWEEN 3 AND 4000\n        AND char_length(btrim(contact)) BETWEEN 3 AND 500"
+        },
+        "processor_breach_notice_counts": {
+          "name": "processor_breach_notice_counts",
+          "value": "(approx_people IS NULL OR approx_people >= 0)\n        AND (approx_records IS NULL OR approx_records >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.processor_breach_notice_ack": {
+      "name": "processor_breach_notice_ack",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "notice_id": {
+          "name": "notice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "acknowledged_by": {
+          "name": "acknowledged_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_user_id()"
+        },
+        "acknowledged_at": {
+          "name": "acknowledged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "processor_breach_notice_ack_tenant_id_tenant_id_fk": {
+          "name": "processor_breach_notice_ack_tenant_id_tenant_id_fk",
+          "tableFrom": "processor_breach_notice_ack",
+          "tableTo": "tenant",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "processor_breach_notice_ack_notice_fk": {
+          "name": "processor_breach_notice_ack_notice_fk",
+          "tableFrom": "processor_breach_notice_ack",
+          "tableTo": "processor_breach_notice",
+          "columnsFrom": [
+            "tenant_id",
+            "notice_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "processor_breach_notice_ack_by_fk": {
+          "name": "processor_breach_notice_ack_by_fk",
+          "tableFrom": "processor_breach_notice_ack",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "acknowledged_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "processor_breach_notice_ack_notice_key": {
+          "name": "processor_breach_notice_ack_notice_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "notice_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

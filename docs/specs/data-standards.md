@@ -615,6 +615,41 @@ Code lists for [platform-completions.md](platform-completions.md). None maps to 
 | `break_glass_event.kind` | Harbour | `open`, `search` | A break-glass search names no person (`person_id` empty) and lasts no time (`expires_at` equals `opened_at`); the people shown are in its audit event, and the homes they live at in `shown_location_ids` for the weekly report (migration 0070). |
 | Search match quality | Harbour | `exact` (every term a whole word), `prefix` | Ranks results; a break-glass search shows only `exact` matches. |
 
+## Breach register and data protection complaints (Phase 2, slice 20)
+
+Code lists for [platform.md](platform.md) rules 18 to 26 (migration 0082). None maps to a national
+standard; dates are UK calendar dates (`YYYY-MM-DD`, shown dd/mm/yyyy) and instants UTC. Clocks are
+never stored: they are worked out from these fields and the rate table.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `dp_breach.source` | Harbour | `tenant`, `processor_notice` | Only Thapsus's definer function writes `processor_notice`. |
+| `dp_breach.aware_at`, `occurred_at` | UK GDPR Art 33(1) | Instants (UTC) | The ICO clock runs `ico.breach.report_hours` from `aware_at`; it may change only until `reported_at` is set. |
+| `dp_breach.factors` | breach-response.md section 4 | JSON `BreachFactors`: `peopleAffected` (whole number), `identifiable`, `specialCategory`, `safeguardingOrLocationAtRisk`, `disclosedOutsideOrganisation`, `careRecordsUnavailable`, `contained` (booleans) | Set with the suggestion; reassessing after a decision is refused. |
+| `dp_breach.suggested_severity` | Harbour severity guide | `low`, `medium`, `high`, `critical` | Decision support only (`assessBreach`); `suggested_report_to_ico` and `suggested_tell_individuals` beside it. |
+| `dp_breach` decision | UK GDPR Arts 33(5) and 34 | `report_to_ico`, `tell_individuals` (booleans), `decision_reasoning` (20 to 4,000 characters), `acknowledged_suggestion`, `decided_by` (tenant_user id), `decided_at` | All set together (check `dp_breach_decided`). |
+| `dp_breach.ico_reference` | ICO | Free text, 1 to 100 characters, as the ICO gives it | Set with `reported_at`; needs `report_to_ico`; `delay_reason` when late. |
+| `dp_breach.subject_notice`, `individuals_told_on` | UK GDPR Art 34 | Notice text 20 to 10,000 characters; UK date | From the template (`subjectNoticeDraft`); refused while a `[Write ...]` prompt remains. |
+| `dp_breach.status` | Harbour | `open`, `closed` | Closing needs the decision, its report and notice, and `lessons` (20 to 4,000 characters). |
+| `processor_breach_notice` | UK GDPR Art 33(2); DPA clause 8.2 | `nature`, `data_categories`, `approx_people`, `approx_records` (whole numbers or empty), `likely_consequences`, `measures`, `tenant_actions`, `contact`; `follows_id` for a follow-up | Append-only; no names of the people affected. |
+| `dp_complaint.channel` | Harbour | `form`, `email`, `letter`, `phone`, `in_person`, `forwarded_by_thapsus`, `other` | |
+| `dp_complaint.complainant_kind` | Harbour | `person_supported`, `representative`, `family`, `staff`, `other` | `complainant_name` (1 to 200 characters) and `complainant_contact` (as given) are personal data. |
+| `dp_complaint.about` | data-protection-complaints.md section 1 | `access`, `accuracy`, `sharing`, `security`, `retention`, `other` | |
+| `dp_complaint` dates | DPA 2018 as amended (DUAA 2025) | `received_on`, `acknowledged_on`, `last_contact_on`, `closed_on` (UK dates, none before receipt) | Acknowledgement due `dp_complaint.acknowledge_days` after receipt for complaints from 19/06/2026; closing needs an outcome (20 to 10,000 characters) stating the right to complain to the ICO (`ico_right_stated`). |
+
+## Data security evidence (Phase 2, slice 32)
+
+Code lists for [quality.md](quality.md) section 18 (migration 0094). Statuses are never stored.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `dspt_assertion.financial_year`, `dspt_submission.financial_year` | DSPT (NHS England) | `YYYY/YY`, the financial year the toolkit closes (`2025/26` for the deadline of 30/06/2026) | From `dsptDeadline`; one submission per year. |
+| `dspt_assertion.assertion_ref` | DSPT assertion numbering | Two to four numbers separated by full stops (`1.1.1`) | Unique per organisation and year. |
+| `dspt_assertion.status` | Harbour | `not_started`, `in_progress`, `met`, `not_met`, `not_applicable` | `met` needs evidence linked; `not_met` and `not_applicable` need notes. |
+| `dspt_evidence.kind` | Harbour | `linked`, `unlinked` | Append-only; each document's latest event says whether it is evidence now; an organisation document only. |
+| `dspt_submission.outcome` | DSPT status | `standards_met`, `approaching_standards`, `standards_not_met` | `standards_not_met` is submitted but flagged. |
+| `security_certificate.kind` | NCSC Cyber Essentials; ICO data protection fee | `cyber_essentials`, `cyber_essentials_plus`, `ico_registration` | `reference` is the certificate or ICO registration number (1 to 100 characters); `expires_on` only when the certificate states it, after `issued_on`. |
+
 ## Phase 1 tables completed for the gate
 
 Eight Phase 1 tables that hold personal or care data and were named only in passing above (Phase 1

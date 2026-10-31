@@ -22,6 +22,7 @@ import {
   raiseCareReviews,
   raiseReviews,
   relayOutbox,
+  remindDataSecurityRenewals,
   remindDolsExpiry,
   remindPolicies,
   reportBreakGlass,
@@ -119,7 +120,13 @@ await work(QUEUES.careReviews, async () => {
   await raiseCareReviews(deps);
 });
 await work(QUEUES.dolsExpiry, async () => {
-  await remindDolsExpiry(deps);
+  // Each on its own: one failing never skips the other; a failure still fails the job, so it retries.
+  const results = await Promise.allSettled([
+    remindDolsExpiry(deps),
+    remindDataSecurityRenewals(deps),
+  ]);
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed && failed.status === "rejected") throw failed.reason;
 });
 await work(QUEUES.policyReminders, async () => {
   await remindPolicies(deps);

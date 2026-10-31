@@ -803,3 +803,73 @@ with the controls above and a `hazard HZ-128 ...` test for each.
 Vendor PDF and structured import (a PDF can already be a version's document), the starter
 templates as drafts, and the change log screen (slice 65); acknowledgement of a policy by people
 outside the staff (not planned).
+
+## 18. Data security evidence (slice 32: QUAL-012)
+
+Schema, API and renewal tasks for rules 29 to 31 (section 17.3); the screens are slice 65.
+Migration 0094 (lane E; renumbered at merge). Stacked on slice 20 (the breach register and data
+protection complaints, platform.md rules 18 to 27), which it links to.
+
+### 18.1 Tables
+
+All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
+and `harbour_owner`; the application never deletes.
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `dspt_assertion` | mutable aggregate (`version`) | One DSPT assertion the organisation tracks for a financial year (`2025/26`): its reference as the toolkit numbers it (`1.1.1`), title, status (`not_started`, `in_progress`, `met`, `not_met`, `not_applicable`), notes and an owner |
+| `dspt_evidence` | append-only | Evidence linked to an assertion: an organisation document (never a person's), and later its unlinking, each with who and when; the current evidence is each document's latest event |
+| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
+| `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
+
+### 18.2 Rules
+
+32. Everything needs `quality.dsar.manage` held across the whole organisation, as the breach
+    register (platform.md rule 18): a manager who holds it for one home only is refused by the API
+    and sees nothing through row-level security (`app.holds_role_permission_at(..., NULL)`). The
+    system (no member, the organisation's view) reads all four tables, for the renewal job and the
+    organisation's full export; it never writes them.
+33. The overview (`GET /v1/data-security`) works out, on every read from the rate table, the DSPT
+    status for the year in question (`dsptStatus`, rule 30), each certificate kind's status
+    (`certificateStatus`, rule 31; `missing` when there is no record, never assumed current), the
+    current year's assertions by status with those `met` but holding no evidence counted apart,
+    and links to the breach register and complaints (open breaches, those past the ICO clock, open
+    complaints). The DSAR register joins when slice 15 lands.
+34. An assertion is unique per organisation, year and reference. Marking it `met` needs at least one
+    piece of evidence linked; `not_met` and `not_applicable` need notes. Evidence, and a
+    certificate's copy, must be an available organisation document: category
+    `organisation_document`, no person, not removed, attached to nothing or only to an organisation
+    record (`app.is_organisation_document`, checked by the API and again in the RLS policies);
+    linking one already linked, or unlinking one not linked, is refused.
+35. A DSPT submission is one per year, for a year whose deadline is not more than a year away,
+    submitted on a day not in the future; it may be corrected (history kept). A certificate is
+    issued on a day not in the future; a stated expiry is after issue. A later record of the same
+    kind supersedes the earlier one for its status (the newest by issue date counts).
+36. Renewal tasks (hourly worker, once each): when the DSPT year is `due_soon` or `overdue` and not
+    submitted, one task `quality.dspt_submission` due on the deadline; when the newest certificate of
+    a kind is `due_soon` or `expired`, one task `quality.certificate_renewal` due on its expiry. Each
+    goes to the owner role with `quality.dsar.manage` required, carries ids only and a generic
+    title, falls due at 23:59 UK time on the day, and is raised once per kind, source and due time
+    (two certificates expiring the same day each get one). A sweep that fails for any reason but a
+    missing rate fails the organisation's job, so the failed-job alarm sees it; it runs beside the
+    DoLS reminders so one failing never skips the other.
+37. Audit: every read and change writes `audit_event` with ids and codes only (never notes, titles
+    or references).
+
+### 18.3 Permission matrix
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the overview, assertions, evidence, submissions and certificates; record and change them | `quality.dsar.manage`, organisation-wide | RLS checks it again |
+| Link evidence | also the document is the organisation's and available | API and composite key |
+
+Retention: interim `audit_event` (8 years from creation) until the DPO sets periods (H-810).
+
+### 18.4 Tests
+
+- `packages/db/test/data-security-evidence.test.ts`: isolation across organisations, a manager for
+  one home sees nothing, append-only evidence, check constraints, one submission per year.
+- `apps/api/test/data-security-evidence.test.ts`: permissions, the overview's statuses from the rate
+  table (missing, current, due soon, expired, DSPT due and submitted), assertion rules (met needs
+  evidence, notes for not met), evidence refusals (a person's document, unknown, already linked),
+  stale versions, audit without text, and the renewal tasks raised once.

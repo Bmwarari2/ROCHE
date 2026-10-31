@@ -23,12 +23,14 @@ import {
 import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type pg from "pg";
 import type { Logger } from "../logger";
+import { tellAboutBreachNotice } from "../services/breach-notices";
 import {
   BREAK_GLASS_ALERT_UNROUTED_ACTION,
   generateBreakGlassReports,
 } from "../services/break-glass-report";
 import { CARE_ALERT_UNROUTED_ACTION } from "../services/care";
 import { raiseOverdueCareReviews } from "../services/care-planning";
+import { raiseDataSecurityReminders } from "../services/data-security";
 import {
   draftDeathNotifications,
   withdrawDeathNotifications,
@@ -477,6 +479,21 @@ export async function remindPolicies(deps: TaskDeps, now = new Date()): Promise<
 }
 
 /**
+ * Data security renewal tasks (quality.md rule 36): the DSPT deadline and Cyber Essentials and ICO
+ * registration expiries, each raised once to the owner role.
+ */
+export async function remindDataSecurityRenewals(
+  deps: TaskDeps,
+  now = new Date(),
+): Promise<number> {
+  const raised = await eachTenant(deps, "data-security-renewals", (tx, tenantId) =>
+    raiseDataSecurityReminders(tx, tenantId, now),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "Data security renewal tasks raised");
+  return raised;
+}
+
+/**
  * Overdue statutory notifications (safety.md rule 10, HZ-013): one alert to the holders of
  * `safety.notification.submit`, escalated through the tenant's chain until the notification is
  * submitted or marked not required, and `safety.notification.overdue`.
@@ -762,6 +779,15 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       );
     });
   }
+  // Thapsus's breach notices (platform.md rule 24): the lead and owners are told; a failure throws,
+  // so the relay retries, and the dedupe key tells no one twice.
+  handlers.set("platform.breach.processor_notice_sent", async (event) => {
+    const noticeId = (event.payload as { noticeId?: unknown } | null)?.noticeId;
+    if (typeof noticeId !== "string") return;
+    await inTenant(event.tenantId, (tx) =>
+      tellAboutBreachNotice(tx, event.tenantId, noticeId, new Date()),
+    );
+  });
   handlers.set("operations.downtime_places.changed", async (event) => {
     const locationId = (event.payload as { locationId?: unknown } | null)?.locationId;
     if (typeof locationId !== "string") return;

@@ -47,6 +47,9 @@ const APPEND_ONLY_TABLES = [
   "sub_processor_notice",
   "sub_processor_response",
   "policy_signature",
+  "processor_breach_notice",
+  "processor_breach_notice_ack",
+  "dspt_evidence",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */
 const NULLABLE_TENANT_TABLES = ["audit_event", "record_version"];

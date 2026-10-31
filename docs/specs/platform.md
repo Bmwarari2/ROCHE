@@ -1052,6 +1052,100 @@ Act 2025; ICO guidance on time limits):
   domain, different email, not invited, family member, operator, role not allowed, allowed;
   second factor still required for care records and step-up).
 
+### Breach register and data protection complaints (slice 20, PLAT-022)
+
+Schema, API and audit for rules 6 to 10; the screens follow in slice 66. Migration 0082 (lane F;
+renumbered at merge). Procedures: [breach-response.md](../compliance/breach-response.md),
+[data-protection-complaints.md](../compliance/data-protection-complaints.md).
+
+**Tables** (all with `tenant_id`, forced RLS, the tenant policy, no DELETE for the application):
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `dp_breach` | mutable aggregate (`version`, `capture_version`) | One register entry per breach, reportable or not: what happened (no names), when the organisation became aware, its source (`tenant` or `processor_notice`), the factors and the suggested severity, the decision with reasoning, the ICO report (time, reference, reasons for delay), the notice to the people affected and when they were told, closure with lessons |
+| `processor_breach_notice` | append-only | Thapsus's notice to the organisation as processor (Art 33(2); DPA clause 8.2): nature, categories and approximate numbers of people and records, likely consequences, measures, what the organisation needs to do, Thapsus contact. A later notice about the same breach follows the first (`follows_id`) |
+| `processor_breach_notice_ack` | append-only | Who in the organisation acknowledged a notice, and when (one per notice) |
+| `dp_complaint` | mutable aggregate | A data protection complaint: received on, channel, who complained (name and contact), the data subject when it is someone the organisation supports, what it is about, a summary, acknowledged on, last contact on, outcome, whether the outcome told them they can complain to the ICO, closed on, and a link to a breach |
+
+**Rules**
+
+18. Every breach is recorded (rule 7). Recording one needs `quality.dsar.manage` held across the
+    whole organisation; so do reading and every change. The register is the organisation's data
+    protection function, not a location's: someone who holds the permission for one home only (a
+    Registered Manager or deputy) is refused by the API (403) and sees nothing through row-level
+    security (`app.holds_role_permission_at(..., NULL)`; #149 security review). A location is
+    recorded when there is one. The organisation's own system context (no member, the whole
+    organisation) reads all four tables, so the free full export includes them; it never writes.
+    Database refusals are said plainly: a check or guard (23514) is a
+    422 with the guard's code, a missing reference (23503) a 422; logs carry codes, never values.
+19. The ICO clock is `breachClock` over `aware_at` and `ico.breach.report_hours` from the rate table,
+    worked out when read, never stored. `aware_at` may be corrected only until the ICO report is
+    recorded; it may move later only before the decision, and never later than Thapsus's first
+    notice for an entry Thapsus opened (Art 33(2)). Every change is in the record's history. The
+    database pins the assessor, decider and closer to the person making the change, and keeps the
+    creator and removal fixed (security review round 1).
+20. The assessment stores the factors and `assessBreach`'s suggestion as decision support. The
+    decision is refused unless `checkBreachDecision` passes against the stored suggestion (reasoning,
+    the decider is the person recording it, acknowledgement when going against the suggestion). It
+    is recorded once; a change of mind is a new decision with its own reasoning, kept in history.
+21. Recording the ICO report needs a decision to report; a report after the deadline is refused
+    without the reasons for the delay (Art 33(1)). The ICO's reference is kept as given.
+22. The notice to the people affected is drafted from Harbour's plain-English template (what
+    happened, what it means for them, what has been done, what they can do, who to contact), edited
+    by a person, and recorded with the day they were told. It needs a decision to tell them.
+23. A breach closes only once decided, with lessons of at least 20 characters; once closed nothing
+    changes.
+24. Thapsus records a processor notice from the operator console (an active admin with a fresh
+    step-up) through `app.send_processor_breach_notice`, which in one transaction stores the notice,
+    opens the organisation's register entry (`source = processor_notice`, `aware_at` the time of
+    the notice; the organisation may correct it under rule 19 to its own awareness), and writes the
+    organisation's audit event and an outbox event so its data protection lead and owners are told.
+    A follow-up notice links to the same entry (a composite key ties it to the first notice's
+    breach); a follow-up to a closed entry is refused, so new facts after closure come as a new
+    first notice. The function restores the caller's tenant context. The organisation acknowledges
+    each notice once.
+25. A complaint's clocks are `complaintClock` with `dp_complaint.*` from the rate table and the
+    location's nation's bank holidays (England when there is no location), worked out when read. It
+    closes only through `checkComplaintClosure` (outcome recorded, the ICO right stated); once
+    closed nothing changes. The acknowledgement and each contact are dates on or after receipt and
+    not in the future.
+26. Audit: every read of a list, a record or a notice draft and every change writes `audit_event`
+    with ids and codes only, never the summary, names, contact details, reasoning or notice text.
+    Lists return up to 1,000 entries and say `truncated` when there are more.
+27. Linking a complaint to a person needs `people.person.read` too, and only someone in the
+    recorder's scope can be linked (422 `person_not_found` otherwise).
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the breach register, a breach, processor notices; record, assess, decide, report, tell, close a breach; acknowledge a notice | `quality.dsar.manage`, organisation-wide | RLS checks it again, binding `harbour_owner` too |
+| Read, record, acknowledge, contact and close a complaint | `quality.dsar.manage`, organisation-wide | RLS checks it again |
+| Send a processor breach notice | operator admin, fresh step-up | definer function, not a tenant permission |
+
+Built-in roles holding `quality.dsar.manage` organisation-wide: owner and quality lead (a Registered
+Manager or deputy holds it only for their home unless their assignment is organisation-wide, and is
+refused here). Each of them already needs MFA through their care-record permissions, so the permission is not
+itself marked as a care record; a custom role holding it alone would not force MFA (a decision for
+slice 15, which also uses it). Row-level security counts the permission through roles
+(`app.holds_role_permission_somewhere`), so a time-boxed grant of it alone reads an empty register:
+grant it through a role.
+
+**Retention**: interim `audit_event` (8 years from creation) for all four tables until the DPO sets
+periods (H-670; retention.md already lists them as open).
+
+**Tests**
+
+- `packages/db/test/data-protection-registers.test.ts`: `hazard HZ-011` isolation (another
+  organisation's breaches, notices, acknowledgements and complaints are invisible and cannot be
+  written), the permission policies, append-only notices and acknowledgements, the check
+  constraints (decision complete, report needs a decision, closure), and the definer function
+  (admin only, opens the register entry, writes the audit and outbox events).
+- `apps/api/test/data-protection-registers.test.ts`: the routes (permission refused, clock and
+  suggestion returned, decision refusals from `checkBreachDecision`, late report without reasons
+  refused, notice draft, closure rules, complaint clocks and closure, stale `version` refused,
+  audit events without personal data, the operator notice and its acknowledgement).
+
 ## Permission matrix
 
 Generated: [permissions.md](permissions.md).
