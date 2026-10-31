@@ -326,6 +326,20 @@ reserves (H-550 onwards).
 | H-548 | Before paper MARs are scanned during a migration, confirm the tenant's DPIA covers it and that every scanned medicine is second-checked before use | CSO, tenant DPO | ADR-0095; slices 51, 79 | OCR of paper MARs | open |
 | H-549 | Confirm with CQC or a regulatory adviser when a medication error is notifiable under regulation 18 (with H-63), and when it must also go to safeguarding | CSO with a regulatory adviser | Slice 7 classifier questions; slice 45 | Medication error notifications for a real tenant | open |
 
+## Phase 2: quality (slice 8)
+
+Logged by slice 8 (Quality Phase 2 domain rules, [quality.md](../specs/quality.md) section 17) on
+31 October 2026, from the lane E block.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-600 | Confirm the indicator definitions and methods on the quality dashboard (falls, pressure ulcers and medication errors per occupied bed-days; missed visits; overdue reviews; training compliance; agency hours; complaints; staff turnover; incident response), and that an indicator with missing or incomplete data is never rated | Quality lead at the design partner, CSO | quality.md rules 16 to 22; `packages/domain/src/quality/quality-indicators.ts` | Slice 47 dashboard for a real tenant | open |
+| H-601 | Confirm the audit scoring method (yes in full, partial half, no nothing, not applicable left out, weights per question) and that the self-rating stays a person's judgement on the CQC scale | Quality lead at the design partner | quality.md rules 9 to 15; `packages/domain/src/quality/quality-audits.ts` | Slice 19 audits for a real tenant | open |
+| H-602 | Check the PIR data points against CQC's current Provider Information Return questions for adult social care, and the key question each belongs to | Registered Manager at the design partner | quality.md rules 23 and 24; `packages/domain/src/quality/quality-pir.ts` | Slice 47 PIR prefill for a real tenant | open |
+| H-603 | Agree the Harbour defaults each tenant may change: audit action due days (28), read-and-sign reminder (7 days), policy review due-soon window (30 days), longest review interval (36 months), renewal reminder (60 days) | Brian with the design partner's quality lead | rates.md notes; quality.md section 17.4 | First tenant's settings | open |
+| H-604 | Confirm on the NCSC and ICO pages that a Cyber Essentials certificate is renewed every 12 months and the data protection fee every 12 months, and record the page and date in rates.md | Data protection lead | rates.md `cyber_essentials.certificate_valid_months`, `ico.registration.renewal_months` | Slice 32 data security evidence for a real tenant | open |
+| H-605 | Decide whether a minor policy change keeps earlier signatures (Harbour's default) or every change needs a new signature, per tenant | Quality lead at the design partner | quality.md rule 26; `packages/domain/src/quality/policies.ts` | Slice 25 read-and-sign for a real tenant | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment
