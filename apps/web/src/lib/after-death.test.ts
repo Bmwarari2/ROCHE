@@ -141,6 +141,36 @@ describe("afterDeath", () => {
     expect(deaths[0]?.leder).toEqual({ kind: "unknown", closed: true });
   });
 
+  it("hazard HZ-013 puts the person's CQC death notification beside the pack, with its clock (H-481)", () => {
+    const death = notification("cqc_reg16_death");
+    const someoneElse = notification("cqc_reg16_death", "0194d000-0000-7000-8600-000000000009");
+    const [entry] = afterDeath({
+      status: "open",
+      restricted: false,
+      people: [person()],
+      classifier: {
+        notifications: [someoneElse, death, notification("medical_examiner")],
+      } as never,
+    });
+    expect(entry?.death).toBe(death);
+    expect(t("safety.afterDeath.deathNotification", { kind: "cqc_reg16_death" })).toBe(
+      "CQC death notification (regulation 16): tell CQC without delay",
+    );
+    expect(t("safety.afterDeath.notificationLink", { kind: "cqc_reg16_death" })).toBe(
+      "Open the notification: CQC death notification",
+    );
+  });
+
+  it("has no death notification line when none is drafted", () => {
+    const [entry] = afterDeath({
+      status: "open",
+      restricted: false,
+      people: [person()],
+      classifier: { notifications: [notification("medical_examiner")] } as never,
+    });
+    expect(entry?.death).toBeNull();
+  });
+
   it("shows nothing to a reader who sees the incident only in part", () => {
     expect(
       afterDeath({ status: "open", restricted: true, people: [person()], classifier: null }),

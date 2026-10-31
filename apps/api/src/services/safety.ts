@@ -591,10 +591,35 @@ interface TaskSpec {
   readonly urgent: boolean;
 }
 
+/**
+ * Questions the reporter left open, answered later from the record (not classifier tasks): whether
+ * the emergency services were called and the GP contacted (H-264, HZ-090), and, for a person we
+ * support who died, whether they had a learning disability or were autistic, so LeDeR is decided
+ * from an answer (H-482, HZ-013).
+ */
+export type OpenAnswerTaskKind = "record_contacts" | "record_learning_disability_autism";
+
+/** Task kinds marked done, not cancelled, once what they ask is answered. */
+const ANSWERED_KINDS: ReadonlySet<string> = new Set([
+  "safety.answer_classifier_questions",
+  "safety.record_contacts",
+  "safety.record_learning_disability_autism",
+]);
+
 /** Generic titles only: the person is a reference on the task, never text in it. */
 export const SAFETY_TASKS: Readonly<
-  Record<ClassifierTaskKind | "post_fall_observation", TaskSpec>
+  Record<ClassifierTaskKind | OpenAnswerTaskKind | "post_fall_observation", TaskSpec>
 > = {
+  record_contacts: {
+    title: "Find out whether the emergency services were called and the GP contacted",
+    permission: "safety.incident.manage",
+    urgent: true,
+  },
+  record_learning_disability_autism: {
+    title: "Record whether the person had a learning disability or was autistic",
+    permission: "safety.incident.manage",
+    urgent: false,
+  },
   post_fall_injury_check: {
     title: "Check for injury after a fall",
     permission: "care.note.write",
@@ -741,6 +766,25 @@ function desiredTasks(loaded: LoadedIncident, result: ClassifierResult): Desired
       }
     }
   }
+  // Answers left as "Not known yet" stay open with a task until they are recorded (H-264, H-482).
+  if (loaded.row.emergencyServicesCalled === null || loaded.row.gpContacted === null) {
+    desired.push({ kind: "record_contacts", personId: null, dueAt: null, until: null });
+  }
+  for (const p of loaded.people) {
+    if (
+      p.kind === "service_user" &&
+      p.died &&
+      p.personId &&
+      (p.learningDisability === null || p.autistic === null)
+    ) {
+      desired.push({
+        kind: "record_learning_disability_autism",
+        personId: p.personId,
+        dueAt: null,
+        until: null,
+      });
+    }
+  }
   return desired;
 }
 
@@ -778,7 +822,7 @@ async function reconcileTasks(
   for (const t of existing) {
     if (t.status !== "open" && t.status !== "in_progress") continue;
     if (wanted.has(keyOf(t))) continue;
-    const answered = t.kind === "safety.answer_classifier_questions";
+    const answered = ANSWERED_KINDS.has(t.kind);
     await tx
       .update(task)
       .set(
@@ -787,7 +831,10 @@ async function reconcileTasks(
               status: "done",
               completedAt: now,
               completedBy: actorTenantUserId,
-              statusReason: "Every notification question is answered",
+              statusReason:
+                t.kind === "safety.answer_classifier_questions"
+                  ? "Every notification question is answered"
+                  : "The question is answered on the incident",
             }
           : {
               status: "cancelled",

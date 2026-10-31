@@ -3413,8 +3413,14 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       description: { description: "What happened, in words." },
       immediate_actions: { description: "What was done straight away, in words." },
-      emergency_services_called: { description: "True when emergency services were called." },
-      gp_contacted: { description: "True when the GP was contacted." },
+      emergency_services_called: {
+        description:
+          "True when emergency services were called, false when not; empty when the reporter answered not known yet.",
+      },
+      gp_contacted: {
+        description:
+          "True when the GP was contacted, false when not; empty when the reporter answered not known yet.",
+      },
       contact_notes: { description: "Who was contacted and what they advised, in words." },
       family_informed_who: {
         description: "Which family member or representative was told, in words.",

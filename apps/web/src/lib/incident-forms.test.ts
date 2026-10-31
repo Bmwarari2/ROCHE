@@ -281,7 +281,7 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
   });
 
   it("hazard HZ-027 a fall asks the point-of-care questions, not sure yet included", () => {
-    const fall = { ...filled, type: "fall", location: MEWS };
+    const fall = { ...filled, type: "fall", location: MEWS, fallWitnessed: "yes" };
     const unanswered = readIncidentForm(form(fall), context, t);
     expect(unanswered.ok).toBe(false);
     expect(!unanswered.ok && Object.keys(unanswered.errors)).toEqual(
@@ -308,6 +308,169 @@ describe("reading the record an incident form (#42 review; HZ-027)", () => {
         { key: "falls.anticoagulant", value: "yes" },
       ],
     });
+  });
+
+  it.each<[string, Record<string, string>, boolean | null, boolean | null]>([
+    ["yes and no", { emergencyServicesCalled: "yes", gpContacted: "no" }, true, false],
+    [
+      "not known yet for both",
+      { emergencyServicesCalled: "not_known", gpContacted: "not_known" },
+      null,
+      null,
+    ],
+    [
+      "not known yet for the GP",
+      { emergencyServicesCalled: "no", gpContacted: "not_known" },
+      false,
+      null,
+    ],
+  ])(
+    "hazard HZ-090 records %s for the emergency services and the GP, never guessing (H-264)",
+    (_label, answers, emergency, gp) => {
+      const read = readIncidentForm(form({ ...filled, location: HOME, ...answers }), context, t);
+      expect(read.ok && read.draft).toMatchObject({
+        emergencyServicesCalled: emergency,
+        gpContacted: gp,
+      });
+    },
+  );
+
+  it("hazard HZ-090 says the person in charge is asked first, and what not known yet does (H-264)", () => {
+    const hint = t("safety.record.hint", { field: "askFirst" });
+    expect(hint).toMatch(/^Ask the person in charge first\./);
+    expect(hint).toContain("choose not known yet");
+    expect(t("safety.questions.answer", { answer: "not_known" })).toBe("Not known yet");
+    expect(t("safety.incident.answer", { answer: "null" })).toBe("Not known yet");
+  });
+
+  describe("hazard HZ-027 when the person was found (H-262)", () => {
+    const fall = {
+      ...filled,
+      type: "fall",
+      location: MEWS,
+      [questionField("falls.head_injury")]: "no",
+      [questionField("falls.anticoagulant")]: "no",
+    };
+    const foundEarlier = {
+      "foundAt-mode": "earlier",
+      "foundAt-day": "16",
+      "foundAt-month": "10",
+      "foundAt-year": "2026",
+      "foundAt-hour": "08",
+      "foundAt-minute": "40",
+    };
+
+    it("asks whether anyone saw the fall, and when nobody did, when they were found", () => {
+      const asked = readIncidentForm(form(fall), context, t);
+      expect(!asked.ok && asked.errors).toEqual({
+        fallWitnessed: "Say whether anyone saw the fall happen",
+      });
+      const unwitnessed = readIncidentForm(form({ ...fall, fallWitnessed: "no" }), context, t);
+      expect(!unwitnessed.ok && Object.keys(unwitnessed.errors)).toEqual(["foundAt"]);
+    });
+
+    it("sends the time they were found as foundAt, and keeps the time it happened as the estimate", () => {
+      const read = readIncidentForm(
+        form({
+          ...fall,
+          fallWitnessed: "no",
+          "occurredAt-mode": "earlier",
+          "occurredAt-day": "16",
+          "occurredAt-month": "10",
+          "occurredAt-year": "2026",
+          "occurredAt-hour": "08",
+          "occurredAt-minute": "15",
+          ...foundEarlier,
+        }),
+        context,
+        t,
+      );
+      // 08:15 and 08:40 British Summer Time.
+      expect(read.ok && read.draft).toMatchObject({
+        occurredAt: "2026-10-16T07:15:00.000Z",
+        foundAt: "2026-10-16T07:40:00.000Z",
+      });
+      expect(read.ok && "foundAtNow" in read.draft).toBe(false);
+    });
+
+    it("leaves just now to the server, as for the time it happened", () => {
+      const read = readIncidentForm(
+        form({ ...fall, fallWitnessed: "no", "foundAt-mode": "now" }),
+        context,
+        t,
+      );
+      expect(read.ok && read.draft).toMatchObject({ foundAtNow: true });
+      expect(read.ok && "foundAt" in read.draft).toBe(false);
+    });
+
+    it("refuses a found time before the time it happened", () => {
+      const read = readIncidentForm(
+        form({
+          ...fall,
+          fallWitnessed: "no",
+          "occurredAt-mode": "earlier",
+          "occurredAt-day": "16",
+          "occurredAt-month": "10",
+          "occurredAt-year": "2026",
+          "occurredAt-hour": "09",
+          "occurredAt-minute": "00",
+          ...foundEarlier,
+        }),
+        context,
+        t,
+      );
+      expect(!read.ok && Object.keys(read.errors)).toEqual(["foundAt"]);
+    });
+
+    it("does not ask for a fall someone saw, and asks a missing person's only once found", () => {
+      const seen = readIncidentForm(
+        form({ ...fall, fallWitnessed: "yes", ...foundEarlier }),
+        context,
+        t,
+      );
+      expect(seen.ok && "foundAt" in seen.draft).toBe(false);
+      const missing = { ...filled, type: "missing_person", location: HOME };
+      const stillMissing = readIncidentForm(form(missing), context, t);
+      expect(stillMissing.ok && "foundAt" in stillMissing.draft).toBe(false);
+      const found = readIncidentForm(form({ ...missing, ...foundEarlier }), context, t);
+      expect(found.ok && found.draft.foundAt).toBe("2026-10-16T07:40:00.000Z");
+    });
+  });
+
+  describe("hazard HZ-013 a death asks about a learning disability and autism (H-482)", () => {
+    const about = { ...context, personId: PERSON, locationIds: [HOME] };
+    const died = { ...filled, died: "yes" };
+
+    it("asks both questions for a death, and neither otherwise", () => {
+      const read = readIncidentForm(form(died), about, t);
+      expect(!read.ok && read.errors).toEqual({
+        learningDisability:
+          "Say whether they had a learning disability, or that it is not known yet",
+        autistic: "Say whether they were autistic, or that it is not known yet",
+      });
+      expect(readIncidentForm(form({ ...filled, died: "no" }), about, t).ok).toBe(true);
+    });
+
+    it.each<[string, string, string, Record<string, boolean>]>([
+      ["yes and no", "yes", "no", { learningDisability: true, autistic: false }],
+      ["not known yet for both", "not_known", "not_known", {}],
+      ["not known yet for autism", "no", "not_known", { learningDisability: false }],
+    ])(
+      "sends %s as the API takes them, leaving a not known answer open",
+      (_label, ld, autistic, sent) => {
+        const read = readIncidentForm(
+          form({ ...died, learningDisability: ld, autistic }),
+          about,
+          t,
+        );
+        expect(read.ok).toBe(true);
+        const person = read.ok ? read.draft.people?.[0] : undefined;
+        expect(person).toMatchObject({ died: true, ...sent });
+        for (const key of ["learningDisability", "autistic"] as const) {
+          if (!(key in sent)) expect(person && key in person).toBe(false);
+        }
+      },
+    );
   });
 
   it("refuses a location it does not offer, an unknown type and a short description", () => {

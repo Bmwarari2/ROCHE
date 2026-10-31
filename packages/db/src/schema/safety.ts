@@ -140,8 +140,12 @@ export const incident = pgTable(
     harmGrade: text("harm_grade"),
     description: text("description").notNull(),
     immediateActions: text("immediate_actions"),
-    emergencyServicesCalled: boolean("emergency_services_called").notNull().default(false),
-    gpContacted: boolean("gp_contacted").notNull().default(false),
+    /**
+     * Null when the reporter answered "Not known yet" (H-264, HZ-090): the question stays open
+     * with a task for the person in charge. Expand-only from migration 0118.
+     */
+    emergencyServicesCalled: boolean("emergency_services_called").default(false),
+    gpContacted: boolean("gp_contacted").default(false),
     contactNotes: text("contact_notes"),
     familyInformedWho: text("family_informed_who"),
     familyInformedAt: timestamp("family_informed_at", { withTimezone: true }),

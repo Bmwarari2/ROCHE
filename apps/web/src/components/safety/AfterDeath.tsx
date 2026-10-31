@@ -161,7 +161,8 @@ export function LederNotice({
 
 /**
  * After a death on an incident (SAFE-008; safety.md rules 6 and 8; hazard HZ-013): for each person
- * we support who died, the medical examiner pack's notification with its clock and the pack's
+ * we support who died, the CQC death notification (regulation 16) with its clock and a link to it
+ * (H-481), the medical examiner pack's notification with its clock and the pack's
  * sections with where each is kept, and the LeDeR prompt. Nothing here judges the death. Not shown
  * to a reader who sees the incident only in part.
  */
@@ -200,7 +201,7 @@ export async function AfterDeath({
         <h2 id="after-death" className="hb-card__title">
           {t("safety.afterDeath.title")}
         </h2>
-        {deaths.map(({ person, examiner, leder }) => {
+        {deaths.map(({ person, death, examiner, leder }) => {
           const name =
             (person.personId ? names.get(person.personId) : undefined) ??
             t("safety.incident.unnamed", { kind: person.kind });
@@ -215,6 +216,15 @@ export async function AfterDeath({
                 <p className="m-0">{t("safety.afterDeath.about", { name })}</p>
               )}
               {needs ? <PersonNeeds person={needs} /> : null}
+              {death ? (
+                // The statutory death notification and its clock, seen with the pack (H-481).
+                <div className="flex flex-col gap-1" data-death-notification="">
+                  <p className="m-0 font-semibold">
+                    {t("safety.afterDeath.deathNotification", { kind: death.kind })}
+                  </p>
+                  <NotificationLine notification={death} linked={linked} now={now} />
+                </div>
+              ) : null}
               <LederNotice
                 prompt={leder}
                 name={name}

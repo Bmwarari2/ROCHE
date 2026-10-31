@@ -250,6 +250,11 @@ export function readAnswers(
  */
 export type IncidentDraft = Omit<CreateIncident, "id" | "deviceTime" | "occurredAt"> & {
   readonly occurredAt: string | null;
+  /**
+   * "Just now" for when the person was found (H-262): the server action takes the time on the
+   * server, as for `occurredAt`, so a wrong browser clock never times it (HZ-090).
+   */
+  readonly foundAtNow?: boolean;
 };
 
 export type IncidentRead =
@@ -266,10 +271,27 @@ const yesNo = (form: FormValues, name: string): boolean | null => {
 };
 
 /**
+ * Yes, no or "Not known yet" (H-264, H-482): `undefined` when nothing was chosen, `null` for not
+ * known yet, which records no answer and keeps the question open with a task.
+ */
+const yesNoNotKnown = (form: FormValues, name: string): boolean | null | undefined => {
+  const value = text(form, name);
+  if (value === "not_known") return null;
+  return value === "yes" ? true : value === "no" ? false : undefined;
+};
+
+/** Incident types that ask when the person was found (H-262, HZ-027). */
+export const FOUND_AT_TYPES: readonly IncidentType[] = ["fall", "missing_person"];
+
+/**
  * Reads the "record an incident" form. Whether emergency services were called and whether the
- * GP was contacted are asked every time and never assumed "no" (#42 review); so is whether the
- * person died, when the incident is about someone. A fall asks the point-of-care questions
- * (HZ-027), each answered, "not sure yet" included. Errors come in the form's order.
+ * GP was contacted are asked every time and never assumed "no" (#42 review): "Not known yet"
+ * records no answer and leaves the question open with a task (H-264). So is whether the person
+ * died, when the incident is about someone, and for a death whether they had a learning
+ * disability or were autistic, "Not known yet" included (H-482). A fall asks whether anyone saw it
+ * and, when nobody did, when the person was found (required); a missing person asks when they were
+ * found, if they have been (H-262, HZ-027). A fall asks the point-of-care questions (HZ-027), each
+ * answered, "not sure yet" included. Errors come in the form's order.
  */
 export function readIncidentForm(
   form: FormValues,
@@ -307,20 +329,49 @@ export function readIncidentForm(
       error("occurredAt");
     }
   }
+  // When the person was found (H-262, HZ-027): post-fall observations count from here, not from
+  // the estimated time it happened. Required for a fall nobody saw; for a missing person, only
+  // once they have been found.
+  const witnessed = type === "fall" ? yesNo(form, "fallWitnessed") : null;
+  if (type === "fall" && witnessed === null) error("fallWitnessed");
+  const asksFound = (type === "fall" && witnessed === false) || type === "missing_person";
+  const foundMode = asksFound ? text(form, "foundAt-mode") : "";
+  let foundAt: string | null = null;
+  if (foundMode === "earlier") {
+    const read = readWhen(form, "foundAt", t, {
+      now: context.now,
+      subject: t("safety.record.label", { field: "foundAt" }),
+    });
+    if (read.ok) foundAt = read.instant;
+    else if ("message" in read) {
+      errors.foundAt = read.message;
+      parts.foundAt = read.parts;
+    } else error("foundAt");
+  } else if (foundMode !== "now" && type === "fall" && witnessed === false) {
+    error("foundAt");
+  }
+  if (foundAt && when.ok && when.instant && Date.parse(foundAt) < Date.parse(when.instant)) {
+    error("foundAt");
+  }
   const description = text(form, "description");
   if (description.length < 3 || description.length > DESCRIPTION_MAX) error("description");
   const immediateActions = text(form, "immediateActions");
   if (immediateActions.length > DESCRIPTION_MAX) error("immediateActions");
   const severity = text(form, "severity");
   const harmGrade = text(form, "harmGrade");
-  const emergencyServicesCalled = yesNo(form, "emergencyServicesCalled");
-  if (emergencyServicesCalled === null) error("emergencyServicesCalled");
-  const gpContacted = yesNo(form, "gpContacted");
-  if (gpContacted === null) error("gpContacted");
+  const emergencyServicesCalled = yesNoNotKnown(form, "emergencyServicesCalled");
+  if (emergencyServicesCalled === undefined) error("emergencyServicesCalled");
+  const gpContacted = yesNoNotKnown(form, "gpContacted");
+  if (gpContacted === undefined) error("gpContacted");
   const contactNotes = text(form, "contactNotes");
   if (contactNotes.length > NOTES_MAX) error("contactNotes");
   const died = context.personId ? yesNo(form, "died") : false;
   if (died === null) error("died");
+  // For a death, so LeDeR is drafted from an answer (H-482, HZ-013).
+  const learningDisability = died === true ? yesNoNotKnown(form, "learningDisability") : null;
+  if (learningDisability === undefined) error("learningDisability");
+  const autistic = died === true ? yesNoNotKnown(form, "autistic") : null;
+  if (autistic === undefined) error("autistic");
   const injuryDetails = text(form, "injuryDetails");
   if (injuryDetails.length > NOTES_MAX) error("injuryDetails");
   const answers =
@@ -345,8 +396,10 @@ export function readIncidentForm(
       ...((HARM_GRADES as readonly string[]).includes(harmGrade)
         ? { harmGrade: harmGrade as IncidentDraft["harmGrade"] & string }
         : {}),
-      emergencyServicesCalled: emergencyServicesCalled === true,
-      gpContacted: gpContacted === true,
+      ...(foundAt ? { foundAt } : {}),
+      ...(foundMode === "now" ? { foundAtNow: true } : {}),
+      emergencyServicesCalled: emergencyServicesCalled ?? null,
+      gpContacted: gpContacted ?? null,
       ...(contactNotes ? { contactNotes } : {}),
       people: context.personId
         ? [
@@ -355,6 +408,8 @@ export function readIncidentForm(
               role: "affected",
               personId: context.personId,
               died: died === true,
+              ...(typeof learningDisability === "boolean" ? { learningDisability } : {}),
+              ...(typeof autistic === "boolean" ? { autistic } : {}),
               bodyMapMarkIds: [],
               ...(injuryDetails ? { injuryDetails } : {}),
             },
