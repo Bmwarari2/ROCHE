@@ -157,6 +157,8 @@ export interface PersonListItem {
   readonly sortName: string;
   /** An invented sample person (HZ-072): shown with the "Sample" badge. */
   readonly sample: boolean;
+  /** The lifecycle status, shown beside the name unless the person is receiving care (PEOP-010). */
+  readonly status: PersonRow["status"];
 }
 
 export function toPersonListItem(
@@ -181,5 +183,6 @@ export function toPersonListItem(
     communication: communicationSummary(person, t),
     sortName: `${person.familyName} ${person.givenName}`,
     sample: person.sample,
+    status: person.status,
   };
 }

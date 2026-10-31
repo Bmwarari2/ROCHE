@@ -158,6 +158,13 @@ export const task = pgTable(
      * fresh window, or done because an entry answered it while it was stopped (people.md rule 2).
      */
     restoreCode: text("restore_code"),
+    /**
+     * True for a round of a care plan series that its plan no longer drives (the plan is not active,
+     * or the series has ended): the round view's "From an earlier plan: check the current plan"
+     * (`planRoundNotice`; HZ-024). Kept by the database (migration 0071's triggers, from the series
+     * and its plan), never written by the API, so the phone can say it offline.
+     */
+    fromEarlierPlan: boolean("from_earlier_plan").notNull().default(false),
     /** The exit record that ended the task (`ended_at_exit`); see `task_series.stopped_by_exit_id`. */
     stoppedByExitId: uuid("stopped_by_exit_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),

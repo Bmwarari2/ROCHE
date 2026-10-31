@@ -4,6 +4,7 @@ import { DataTable, type DataTableColumn, EmptyState } from "@harbour/ui";
 import { Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PersonStatusBadge } from "@/components/exit/ExitChip";
 import type { PersonListItem } from "@/lib/people";
 import { AllergyChip } from "./AllergyChip";
 import { CommunicationStatus } from "./CommunicationStatus";
@@ -64,6 +65,7 @@ export function PeopleTable({
               {person.hasPreferred ? person.preferred : person.full}
             </Link>
             <SampleBadge sample={person.sample} />
+            <PersonStatusBadge status={person.status} />
           </span>
           {person.hasPreferred ? (
             <span className="text-callout font-normal text-text-secondary">{person.full}</span>

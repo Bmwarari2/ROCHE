@@ -1,13 +1,14 @@
 "use client";
 
 import type { SearchResultItem, SearchResults } from "@harbour/contracts";
-import { Button, Checkbox, SelectField, StatusChip, TextField } from "@harbour/ui";
+import { Button, Checkbox, SelectField, TextField } from "@harbour/ui";
 import { CircleAlert, Search } from "lucide-react";
 import Link from "next/link";
 import { type FormEvent, useEffect, useRef, useState, useTransition } from "react";
 import { runSearch } from "@/app/actions/search";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
+import { PersonStatusBadge } from "@/components/exit/ExitChip";
 import { PersonAvatar } from "@/components/people/PersonAvatar";
 import { SampleBadge } from "@/components/people/SampleBadge";
 import { formatDate, formatDateTime, formatNhsNumber } from "@/lib/format";
@@ -215,10 +216,7 @@ function ResultRow({ item }: { readonly item: SearchResultItem }) {
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <SampleBadge sample={p.sample} />
-            <StatusChip
-              status="neutral"
-              label={t("platform.search.status", { status: p.status })}
-            />
+            <PersonStatusBadge status={p.status} always />
           </div>
           {p.communicationNeeds.length > 0 ? (
             <p className="m-0 text-body-dense">

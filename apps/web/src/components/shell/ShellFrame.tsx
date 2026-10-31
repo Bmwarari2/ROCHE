@@ -25,6 +25,7 @@ import {
   LogOut,
   Mail,
   Newspaper,
+  Palette,
   ScrollText,
   Search,
   ShieldAlert,
@@ -88,6 +89,8 @@ export interface ShellFrameLabels {
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
   readonly dataProtection?: string | undefined;
+  /** The branding settings (PLAT-002), for platform.tenant.manage. */
+  readonly branding?: string | undefined;
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
   readonly breakGlassReport?: string | undefined;
   readonly onboarding?: string | undefined;
@@ -104,6 +107,8 @@ export interface ShellFrameLabels {
 export interface ShellFrameProps {
   readonly user: { readonly name: string; readonly email: string };
   readonly organisation: { readonly id: string; readonly name: string };
+  /** The organisation's white-label logo, through the web tier (PLAT-002). */
+  readonly brandLogoSrc?: string;
   readonly memberships: readonly { readonly tenantId: string; readonly tenantName: string }[];
   readonly locations: readonly {
     readonly id: string;
@@ -137,6 +142,7 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
+  if (pathname.startsWith("/settings/branding")) return "branding";
   if (pathname.startsWith("/break-glass")) return "break-glass";
   if (pathname.startsWith("/settings")) return "settings";
   return "home";
@@ -149,6 +155,7 @@ function currentSection(pathname: string): string {
 export function ShellFrame({
   user,
   organisation,
+  brandLogoSrc,
   memberships,
   locations,
   locationId,
@@ -173,7 +180,11 @@ export function ShellFrame({
   const tenantSwitcher: AppBarSwitcher = {
     label: labels.organisation,
     menuLabel: labels.organisationMenu,
-    options: memberships.map((m) => ({ id: m.tenantId, label: m.tenantName })),
+    // The active organisation by its display name (PLAT-002); the others by the name listed.
+    options: memberships.map((m) => ({
+      id: m.tenantId,
+      label: m.tenantId === organisation.id ? organisation.name : m.tenantName,
+    })),
     value: organisation.id,
     onValueChange: (id) => {
       if (id === organisation.id) return;
@@ -354,6 +365,16 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.branding
+      ? [
+          {
+            id: "branding",
+            label: labels.branding,
+            href: "/settings/branding",
+            icon: <Palette {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.breakGlassReport
       ? [
           {
@@ -406,6 +427,7 @@ export function ShellFrame({
     <div className="flex min-h-dvh flex-col bg-bg-secondary">
       <AppBar
         tenant={tenantSwitcher}
+        {...(brandLogoSrc ? { brandLogoSrc } : {})}
         {...(locationSwitcher ? { location: locationSwitcher } : {})}
         skipLinkLabel={labels.skipLink}
         linkComponent={Link}
