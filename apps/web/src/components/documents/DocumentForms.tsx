@@ -4,9 +4,10 @@ import { Button, Checkbox, TextField } from "@harbour/ui";
 import { FilePlus, FileUp, PenLine } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
-import { signDocument, uploadDocument, uploadVersion } from "@/app/actions/documents";
+import { signDocument } from "@/app/actions/documents";
 import { FormFeedback } from "@/components/care/FormFeedback";
 import { useFieldIds } from "@/components/care/form-state";
+import { UPLOAD_PATH, type UploadAnswer } from "@/lib/document-upload";
 import {
   DEFAULT_SIGNATURE_STATEMENT,
   DOCUMENTS_PAGE,
@@ -22,6 +23,25 @@ import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 const MB = ORGANISATION_LIMIT_MB;
+
+/**
+ * Sends the file to this site's upload route as the request body (not a server action, so no
+ * other form accepts a large body); the route checks the origin, type and size and streams it to
+ * the API. Answers as a server action would, so the form says a refusal the same way.
+ */
+async function sendUpload(query: Record<string, string>, file: File): Promise<UploadAnswer> {
+  try {
+    const response = await fetch(`${UPLOAD_PATH}?${new URLSearchParams(query).toString()}`, {
+      method: "POST",
+      body: file,
+      headers: { "content-type": file.type || "application/pdf" },
+      credentials: "same-origin",
+    });
+    return (await response.json()) as UploadAnswer;
+  } catch {
+    return { ok: false, code: "unavailable", message: t("care.errors.unavailable") };
+  }
+}
 
 /** Opens `path` saying what was done; `at` makes each a new arrival. */
 function arrive(path: string, done: string) {
@@ -60,7 +80,7 @@ export function UploadDocumentForm() {
     const read = readUpload(form, t, { needsTitle: true });
     if (!read.ok) return setResult(fieldErrors(read.errors));
     send(
-      () => uploadDocument(form),
+      () => sendUpload({ title: read.title, fileName: read.file.name }, form.get("file") as File),
       (data) =>
         data ? arrive(documentPage(data.id), "uploaded") : arrive(DOCUMENTS_PAGE, "uploaded"),
       formElement,
@@ -109,7 +129,7 @@ export function NewVersionForm({ id }: { readonly id: string }) {
     const read = readUpload(form, t, { needsTitle: false });
     if (!read.ok) return setResult(fieldErrors(read.errors));
     send(
-      () => uploadVersion(id, form),
+      () => sendUpload({ versionOf: id }, form.get("file") as File),
       (data) => arrive(documentPage(data?.id ?? id), "version"),
       formElement,
     );

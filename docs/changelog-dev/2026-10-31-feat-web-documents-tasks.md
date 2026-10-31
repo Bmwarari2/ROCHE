@@ -15,8 +15,7 @@ Branch `feat/web-documents-tasks`.
   cancel with a reason; managers take, unassign and create a task (once, every day or every week)
   at one of their locations. A stale version is refused and the task shown again.
 - Web: `/documents` ("Documents"): the organisation's documents, latest version first, with status,
-  legal hold, size and signatures; upload (PDF, 25 MB, through a server action whose body limit
-  now matches); `/documents/{id}/details` with the retention class, fingerprint, versions,
+  legal hold, size and signatures; upload (PDF, 25 MB, through `/api/documents/upload`); `/documents/{id}/details` with the retention class, fingerprint, versions,
   signatures, signing bound to the version's SHA-256, and a new version. An earlier version says it
   has been replaced and is not offered for signing. Letter templates are linked.
 - Web: `/settings/retention` ("Records retention", `platform.retention.manage`, step-up): legal
@@ -37,7 +36,7 @@ Branch `feat/web-documents-tasks`.
 - Documents about a person on the person's record (upload and signing there); crypto-shredding.
 - Welsh for the new strings.
 - The task list does not yet re-read on its own or say that tasks about people are hidden from a
-  session without MFA (H-450).
+  session without MFA (H-451).
 
 ## Human actions logged
 
@@ -61,4 +60,9 @@ Branch `feat/web-documents-tasks`.
   described by their task, "Record as not done", "Unassign task", "Keep task"; the document list's
   error link focuses its group; the acknowledgement box is required; each document page is named
   after the document; a stale task closes its dialog; a repeating task cannot start in the past;
-  clock-change tests (HZ-009). H-450 asks the CSO about the missed-rounds evidence.
+  clock-change tests (HZ-009). H-451 asks the CSO about the missed-rounds evidence.
+- Round 2 (lead): uploads move from a server action to the route handler `/api/documents/upload`
+  (same origin by configuration, PDF only, Content-Length checked before reading and bytes counted
+  while streaming to the API), so the global server-action and proxy body limits go back to Next's
+  defaults; unit tests for the refusals and a journey case for a cross-site post, an oversize body
+  and a 12 MB upload. The CSO question is H-451.

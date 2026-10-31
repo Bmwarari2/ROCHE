@@ -127,3 +127,39 @@ test("a care worker reads the library but is offered no upload", async ({ page }
   await expect(main(page).getByRole("region", { name: "Sign this document" })).toBeVisible();
   await bothThemes(page, "care worker document");
 });
+
+test("the upload route refuses another site and a file over the limit, and takes a large PDF from the page", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signIn(page, "manager@example.invalid");
+  const route = `/api/documents/upload?title=${encodeURIComponent(`Refused ${RUN}`)}`;
+  const crossSite = await page.request.post(route, {
+    headers: { "content-type": "application/pdf", origin: "https://elsewhere.example.invalid" },
+    data: pdf("cross-site").buffer,
+  });
+  expect(crossSite.status()).toBe(403);
+  const origin = new URL(page.url()).origin;
+  const oversize = await page.request.post(route, {
+    headers: { "content-type": "application/pdf", origin },
+    data: Buffer.alloc(25 * 1024 * 1024 + 1, 0x20),
+  });
+  expect(oversize.status()).toBe(413);
+  expect(await oversize.json()).toMatchObject({ ok: false, code: "too_large" });
+
+  // A 12 MB PDF goes through from the page (server actions keep Next's default body limit).
+  await page.goto("/documents");
+  const upload = main(page).getByRole("region", { name: "Add a document" });
+  await upload.getByLabel("Title").fill(`Large policy ${RUN}`);
+  await upload.getByLabel("File").setInputFiles({
+    name: "large-policy.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.concat([
+      Buffer.from("%PDF-1.7\n"),
+      Buffer.alloc(12 * 1024 * 1024, 0x20),
+      Buffer.from("\n%%EOF\n"),
+    ]),
+  });
+  await upload.getByRole("button", { name: "Upload document" }).click();
+  await expect(status(page, "Document uploaded.")).toBeVisible({ timeout: 60_000 });
+});

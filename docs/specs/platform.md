@@ -585,8 +585,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - Web (Phase 1 slice 9): `/documents` lists the organisation's documents (policies, procedures;
   any member reads them) with the version, when stored, the file size, the status as an icon and a
   word (available, quarantined) and a legal hold flag; holders of `platform.document.manage`
-  upload one (PDF, up to the category limit; the file goes through a server action whose body limit
-  matches the API's) and add a new version on its page. `/documents/{id}/details` shows the
+  upload one (PDF, up to the category limit) through its own route handler,
+  `/api/documents/upload`, not a server action, so server actions keep Next's default body limit
+  (ASVS L2 input limits): it takes posts from this site only (the origin configuration names, as
+  the invitation routes check, never request headers), PDFs only, refuses a length over the API's
+  document limit before reading and counts bytes again as it streams the body to the API with the
+  person's session, and answers with the refusals the form already says and add a new version on its page. `/documents/{id}/details` shows the
   document's details, retention class, versions and signatures, and a signing form (typed full
   name, the statement, bound to the SHA-256 of the version shown, so a changed document is refused
   and the page says to read the new version). Downloads use `/documents/{id}` (audited by the

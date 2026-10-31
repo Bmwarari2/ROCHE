@@ -50,15 +50,6 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
   reactStrictMode: true,
-  // Organisation documents are uploaded through a server action (PLAT-009), which keeps Next's
-  // origin check against cross-site posts: its body limit, and the proxy's (src/proxy.ts runs on
-  // page paths, where actions post, and buffers 10 MB by default), match the API's largest
-  // document category (25 MB) with room for the form. The API applies each category's own limit
-  // again and refuses anything larger.
-  experimental: {
-    serverActions: { bodySizeLimit: "26mb" },
-    proxyClientMaxBodySize: "26mb",
-  },
   transpilePackages: ["@harbour/ui", "@harbour/contracts", "@harbour/i18n", "@harbour/domain"],
   async headers() {
     return [
