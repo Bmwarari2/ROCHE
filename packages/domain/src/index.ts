@@ -79,6 +79,7 @@ export * from "./platform/sessions";
 export * from "./platform/sub-processors";
 export * from "./platform/tasks";
 export * from "./platform/workflow";
+export * from "./platform/workflow-registry";
 export * from "./quality/evidence-pack";
 export * from "./quality/rates";
 export * from "./quality/statement-of-purpose";

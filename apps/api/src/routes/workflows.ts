@@ -14,15 +14,10 @@ import {
   workflowInstance,
 } from "@harbour/db";
 import {
-  CANDOUR_WORKFLOW,
-  DOLS_LEGAL_CHANGE_REVIEW_WORKFLOW,
-  EXIT_WORKFLOWS,
-  INCIDENT_WORKFLOW,
-  OUTAGE_WORKFLOW,
+  LISTED_WORKFLOW_PERMISSIONS,
+  LISTED_WORKFLOWS,
+  listedWorkflow,
   type Permission,
-  requiresStepUp,
-  STATUTORY_NOTIFICATION_WORKFLOW,
-  type WorkflowDefinition,
   workflowActorView,
   workflowPermissions,
   workflowSlaState,
@@ -47,32 +42,13 @@ import { errorResponses, jsonBody, security } from "./openapi";
  * separation of duties again. This list says where each open record stands against its deadline
  * and which steps the reader may take, marking the approval step the record's creator may not take.
  *
- * Only the workflows below are listed. The person lifecycle is a record's status, not work waiting
- * for someone, so it is left out. An instance about nobody (an incident, an outage) is listed only
- * when the reader can see its record under row-level security; an unknown subject type is never
- * listed (closed by default).
+ * Only the workflows in `LISTED_WORKFLOWS` (packages/domain) are listed; the person lifecycle is a
+ * record's status, not work waiting for someone, so it is not among them. An instance about nobody
+ * (an incident, an outage) is listed only when the reader can see its record under row-level
+ * security; an unknown subject type is never listed (closed by default).
  */
 
-// biome-ignore lint/suspicious/noExplicitAny: why: one registry holds workflows whose state unions differ.
-type AnyWorkflow = WorkflowDefinition<any>;
-
-const WORKFLOWS: readonly AnyWorkflow[] = [
-  INCIDENT_WORKFLOW,
-  CANDOUR_WORKFLOW,
-  STATUTORY_NOTIFICATION_WORKFLOW,
-  DOLS_LEGAL_CHANGE_REVIEW_WORKFLOW,
-  OUTAGE_WORKFLOW,
-  ...Object.values(EXIT_WORKFLOWS),
-];
-const BY_KEY = new Map(WORKFLOWS.map((w) => [w.key, w]));
-
-/**
- * Anyone holding a permission some listed step needs may read the list. Step-up permissions go
- * last, so a session without a fresh factor is judged on one it can use (`requireAnyPermission`).
- */
-const LIST_PERMISSIONS = [...new Set(WORKFLOWS.flatMap((w) => [...workflowPermissions(w)]))].sort(
-  (a, b) => Number(requiresStepUp(a)) - Number(requiresStepUp(b)),
-) as [Permission, ...Permission[]];
+const LIST_PERMISSIONS = LISTED_WORKFLOW_PERMISSIONS as [Permission, ...Permission[]];
 
 /** Most instances one list holds; `truncated` says when more were open. */
 const LIMIT = 300;
@@ -145,7 +121,7 @@ async function visibleSubjects(
 
 /** Open instances: each listed workflow's, outside its terminal states. */
 function openCondition(): SQL {
-  const parts = WORKFLOWS.map((w) =>
+  const parts = LISTED_WORKFLOWS.map((w) =>
     w.terminal.length > 0
       ? and(
           eq(workflowInstance.definitionKey, w.key),
@@ -200,7 +176,7 @@ export const workflowsRouter = new OpenAPIHono<AppEnv>().openapi(
       const byPerson = new Map<string, ReadonlySet<Permission>>();
       const items: WorkflowInstanceItem[] = [];
       for (const row of open) {
-        const definition = BY_KEY.get(row.definitionKey);
+        const definition = listedWorkflow(row.definitionKey);
         const facts = subjects.get(`${row.subjectType}:${row.subjectId}`);
         if (!definition || !facts) continue;
         let permissions = general;
