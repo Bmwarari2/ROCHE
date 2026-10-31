@@ -69,8 +69,10 @@ describe("Care mode screens", () => {
     // Screens opened from a record beside the round stay on the round's stack, in one push, so
     // saving returns to the round (#73 clinical review M3: never two pushes across tabs).
     const round = read("../app/(care)/round/index.tsx");
-    expect(round).toContain("pathname: `/round/[personId]/${screen}`");
-    expect(round).not.toContain("pathname: `/people/[personId]/${screen}`");
+    // The route's own template literal, spelt here as plain text.
+    const routeTo = (stack: string) => `pathname: \`/${stack}/[personId]/$\{screen}\``;
+    expect(round).toContain(routeTo("round"));
+    expect(round).not.toContain(routeTo("people"));
     for (const form of ["note", "chart", "body-map", "care-plan", "risks"]) {
       expect(read(`../app/(care)/round/[personId]/${form}.tsx`), form).toContain(
         `export { default } from "../../people/[personId]/${form}";`,
