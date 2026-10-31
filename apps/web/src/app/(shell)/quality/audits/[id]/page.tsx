@@ -116,7 +116,10 @@ export default async function AuditPage({
       <Card as="section" title={t("quality.audit.scoreTitle")} headingLevel={2}>
         <div className="flex flex-col gap-2">
           <p className="m-0 text-heading-3 font-semibold">{scoreText(audit.score.percent, t)}</p>
-          <p className="m-0 max-w-prose">{audit.score.method}</p>
+          {/* The method speaks of answered questions; before any, it would mislead. */}
+          {audit.score.possible > 0 || audit.score.complete ? (
+            <p className="m-0 max-w-prose">{audit.score.method}</p>
+          ) : null}
           {audit.score.unanswered.length > 0 ? (
             <p className="m-0">
               {t("quality.audit.unanswered", { count: audit.score.unanswered.length })}
