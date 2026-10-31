@@ -101,6 +101,20 @@ export class LocalDocumentStorage implements DocumentStoragePort {
   }
 }
 
+/**
+ * Stored bytes that could not be deleted. `code` is S3's error code for the first object (or
+ * `VersionsRemain`), which the worker logs; never the key or anything else about the object.
+ */
+export class StorageDeleteFailed extends Error {
+  constructor(
+    readonly code: string,
+    readonly count: number,
+  ) {
+    super("Stored versions could not be deleted.");
+    this.name = "StorageDeleteFailed";
+  }
+}
+
 export class S3DocumentStorage implements DocumentStoragePort {
   readonly provider = "s3";
 
@@ -200,9 +214,36 @@ export class S3DocumentStorage implements DocumentStoragePort {
     }
   }
 
-  /** Deletes every version and delete marker, so nothing survives destruction in a versioned bucket. */
+  /**
+   * Deletes every version and delete marker, so nothing survives destruction in a versioned bucket.
+   * A batch delete answers 200 with the objects it could not delete in `Errors` (Quiet only leaves
+   * out the ones it did), so any error throws; and the versions are listed again afterwards, so
+   * anything still there throws too. The caller's retry then goes on until the key is empty
+   * (security review of #134, M2).
+   */
   async destroy(key: string): Promise<void> {
     assertKey(key);
+    const versions = await this.versionsOf(key);
+    // DeleteObjects takes at most 1,000 objects.
+    for (let at = 0; at < versions.length; at += 1000) {
+      const result = await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: versions.slice(at, at + 1000), Quiet: true },
+        }),
+      );
+      const failed = result.Errors ?? [];
+      if (failed.length > 0) {
+        throw new StorageDeleteFailed(failed[0]?.Code ?? "DeleteObjectsError", failed.length);
+      }
+    }
+    const left = await this.versionsOf(key);
+    if (left.length > 0) throw new StorageDeleteFailed("VersionsRemain", left.length);
+  }
+
+  /** Every version and delete marker stored under exactly this key. */
+  private async versionsOf(key: string): Promise<{ Key: string; VersionId: string }[]> {
+    const found: { Key: string; VersionId: string }[] = [];
     let keyMarker: string | undefined;
     let versionMarker: string | undefined;
     do {
@@ -214,20 +255,13 @@ export class S3DocumentStorage implements DocumentStoragePort {
           VersionIdMarker: versionMarker,
         }),
       );
-      const objects = [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]
-        .filter((v) => v.Key === key && v.VersionId)
-        .map((v) => ({ Key: key, VersionId: v.VersionId }));
-      if (objects.length > 0) {
-        await this.client.send(
-          new DeleteObjectsCommand({
-            Bucket: this.bucket,
-            Delete: { Objects: objects, Quiet: true },
-          }),
-        );
+      for (const v of [...(page.Versions ?? []), ...(page.DeleteMarkers ?? [])]) {
+        if (v.Key === key && v.VersionId) found.push({ Key: key, VersionId: v.VersionId });
       }
       keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined;
       versionMarker = page.IsTruncated ? page.NextVersionIdMarker : undefined;
     } while (keyMarker);
+    return found;
   }
 
   async health(): Promise<HealthResult> {

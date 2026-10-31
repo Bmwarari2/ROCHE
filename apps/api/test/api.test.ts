@@ -483,6 +483,70 @@ describe("audit trail access", () => {
   });
 });
 
+describe("request ids in the audit trail (security reviews, 31 October 2026 and #134 M4)", () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const resident = "0194d000-0000-7000-8600-000000000001";
+  /** Opens a care record with the request id given, and reads back what the audit row kept. */
+  const viewWith = async (requestId: string) => {
+    const response = await h.request(`/v1/people/${resident}`, {
+      token: h.tokens.manager,
+      tenant: DEMO.tenantId,
+      headers: { "x-request-id": requestId },
+    });
+    expect(response.status).toBe(200);
+    const echoed = response.headers.get("x-request-id") ?? "";
+    const rows = await asTenant<{ request_id: string | null }>(
+      DEMO.tenantId,
+      "SELECT request_id FROM audit_event WHERE action = 'people.person.view' AND request_id = $1",
+      [echoed],
+    );
+    const kept = await asTenant<{ n: number }>(
+      DEMO.tenantId,
+      "SELECT count(*)::int AS n FROM audit_event WHERE request_id = $1",
+      [requestId],
+    );
+    return { echoed, audited: rows.map((r) => r.request_id), kept: kept[0]?.n };
+  };
+
+  it.each([
+    ["a canonical UUID", "0194d000-0000-7000-8000-0000000a0001"],
+    ["an id-shaped name and NHS number", "Ada-Example-9434765919"],
+    ["free text with personal data", "Ada Example 9990000000 ada@example.invalid"],
+    ["an id longer than 64 characters", "a".repeat(65)],
+    ["markup", "<img src=x onerror=alert(1)>"],
+  ])("writes the API's own id to the audit row, never %s the caller sent", async (_label, sent) => {
+    const { echoed, audited, kept } = await viewWith(sent);
+    expect(echoed).toMatch(UUID);
+    expect(echoed).not.toBe(sent);
+    expect(audited).toEqual([echoed]);
+    expect(kept).toBe(0);
+  });
+
+  it("gives two requests carrying the same id two different audit ids", async () => {
+    const reused = "0194d000-0000-7000-8000-0000000a0002";
+    const first = await viewWith(reused);
+    const second = await viewWith(reused);
+    expect(first.echoed).not.toBe(second.echoed);
+  });
+
+  it("logs a caller's canonical UUID beside the API's id, and nothing else the caller sent", async () => {
+    const logged = vi.spyOn(h.handle.services.logger, "info");
+    try {
+      const sent = "0194d000-0000-7000-8000-0000000a0003";
+      const { echoed } = await viewWith(sent);
+      expect(logged).toHaveBeenCalledWith(
+        { requestId: echoed, callerRequestId: sent },
+        "caller request id",
+      );
+      logged.mockClear();
+      await viewWith("Ada-Example-9434765919");
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("Ada-Example");
+    } finally {
+      logged.mockRestore();
+    }
+  });
+});
+
 describe("offline sync", () => {
   // Each test starts with no sync tasks: they are retired (soft-deleted), so each reporter's day of
   // raised devices (HZ-008) starts again.
