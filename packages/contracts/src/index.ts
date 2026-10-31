@@ -434,7 +434,16 @@ export const RecordVersion = z
   .meta({ id: "RecordVersion" });
 
 export const RecordHistory = z
-  .object({ table: z.string(), recordId: uuid, versions: z.array(RecordVersion) })
+  .object({
+    table: z.string(),
+    recordId: uuid,
+    versions: z.array(RecordVersion),
+    /**
+     * The record as it is now, stored the way versions are, so the newest earlier version can show
+     * what the latest change altered. Present only when there is at least one earlier version.
+     */
+    current: z.record(z.string(), z.unknown()).optional(),
+  })
   .meta({ id: "RecordHistory", description: "Human-readable history of a mutable record" });
 export type RecordHistory = z.infer<typeof RecordHistory>;
 

@@ -642,6 +642,9 @@ describe("staff names on records (care.md section 5)", () => {
     expect(history.versions[0]?.changedByStaff).toMatchObject({
       displayName: DEMO.users.manager.name,
     });
+    // The record as it is now, stored like the versions, so the latest change can be marked.
+    expect(history.versions[0]?.data).toMatchObject({ id: risk.id, status: "active" });
+    expect(history.current).toMatchObject({ id: risk.id, status: "closed" });
   });
 });
 

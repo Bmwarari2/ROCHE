@@ -97,9 +97,19 @@ test("the history tab lists a reviewed risk assessment and its earlier version p
   await expect(first).toHaveCount(1);
   await expect(versions.getByRole("listitem")).toHaveCount(1);
   await expect(first.getByText("Changed by you")).toBeVisible();
-  await expect(first.getByRole("row", { name: /^Controls / })).toHaveText(
-    /Staff with them at meals and snacks$/,
+  // The review added a control, so the controls as they were are marked as changed since.
+  const controls = first.getByRole("row", { name: /^Controls / });
+  await expect(controls).toHaveText(/Staff with them at meals and snacks/);
+  await expect(controls).toContainText("Changed in the next version");
+  // Fields the review left alone are not marked.
+  await expect(first.getByRole("row", { name: /^Hazard / })).not.toContainText(
+    "Changed in the next version",
   );
+  // Answers read as the template's questions in words, not stored data.
+  const answers = first.getByRole("row", { name: /^Answers / });
+  await expect(answers).toContainText("Does the person need someone with them when eating? Yes");
+  await expect(answers).not.toContainText("{");
+  await expect(first.getByRole("row", { name: /^Status / })).toHaveText(/In use/);
   await expectAccessible(page, "risk assessment history");
   await page.emulateMedia({ colorScheme: "dark" });
   await expectAccessible(page, "risk assessment history, dark theme");

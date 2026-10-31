@@ -1,21 +1,21 @@
-import type { RecordHistory } from "@harbour/contracts";
 import { StatusChip } from "@harbour/ui";
 import { PencilLine } from "lucide-react";
 import { entryAuthor } from "@/lib/care-record";
 import { formatDateTime } from "@/lib/format";
-import { versionViews } from "@/lib/history";
+import { type HistoryInput, versionViews } from "@/lib/history";
 import { t } from "@/lib/i18n";
 
 /**
  * Earlier versions of a record, newest first: when each was in place, who changed it, and every
- * field as it was, with the fields the next version changed marked in word and icon.
+ * field as it was, with the fields the next version (or, for the newest, the record as it is now)
+ * changed marked in word and icon.
  */
 export function VersionList({
   history,
   tenantUserId,
   label,
 }: {
-  readonly history: Pick<RecordHistory, "versions">;
+  readonly history: HistoryInput;
   readonly tenantUserId: string;
   readonly label: string;
 }) {

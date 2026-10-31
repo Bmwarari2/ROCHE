@@ -1186,6 +1186,10 @@
             "items": {
               "$ref": "#/components/schemas/RecordVersion"
             }
+          },
+          "current": {
+            "type": "object",
+            "additionalProperties": {}
           }
         },
         "required": [

@@ -54,7 +54,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
@@ -1356,11 +1356,15 @@ export const carePlansRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, "care.plan.read");
       const { id: personId, table, recordId } = c.req.valid("param");
-      const versions = await withTenant(c, async (tx) => {
+      const history = await withTenant(c, async (tx) => {
         await personContext(tx, personId);
         const source = HISTORY_TABLES[table];
+        // The row as stored, in the same shape the version trigger keeps (to_jsonb of the row).
         const [record] = await tx
-          .select({ personId: source.personId })
+          .select({
+            personId: source.personId,
+            data: sql<Record<string, unknown>>`to_jsonb(${source})`,
+          })
           .from(source)
           .where(eq(source.id, recordId));
         if (record?.personId !== personId) throw problems.notFound();
@@ -1378,7 +1382,7 @@ export const carePlansRouter = createRouter()
           tx,
           rows.map((v) => v.changedBy),
         );
-        return rows.map((v) => ({
+        const versions = rows.map((v) => ({
           version: v.recordVersion,
           validFrom: v.validFrom.toISOString(),
           validTo: v.validTo.toISOString(),
@@ -1386,7 +1390,8 @@ export const carePlansRouter = createRouter()
           changedByStaff: staff(v.changedBy),
           data: v.data as Record<string, unknown>,
         }));
+        return { versions, current: versions.length > 0 ? record?.data : undefined };
       });
-      return c.json({ table, recordId, versions }, 200);
+      return c.json({ table, recordId, ...history }, 200);
     },
   );

@@ -1,5 +1,6 @@
 import type { RecordHistory } from "@harbour/contracts";
-import type { Translator } from "@harbour/i18n";
+import { RISK_TEMPLATES, type RiskTemplate, type RiskTemplateKey } from "@harbour/domain";
+import type { MessageKey, Translator } from "@harbour/i18n";
 import { formatDate, formatDateTime } from "./format";
 
 /**
@@ -95,8 +96,64 @@ export function fieldValue(value: unknown, t: Translator): string {
       ? t("care.history.empty")
       : value.map((item) => fieldValue(item, t)).join("; ");
   }
-  const json = JSON.stringify(value);
-  return json.length > 300 ? `${json.slice(0, 300)}…` : json;
+  if (typeof value === "object") return objectLines(value as Record<string, unknown>, t);
+  return String(value);
+}
+
+/** An object as one "Label: value" line per entry; `labels` names keys the label cannot. */
+function objectLines(
+  value: Record<string, unknown>,
+  t: Translator,
+  labels: Readonly<Record<string, string>> = {},
+): string {
+  const entries = Object.entries(value);
+  if (entries.length === 0) return t("care.history.empty");
+  return entries
+    .map(([key, item]) => {
+      const label = labels[key] ?? fieldLabel(key);
+      // A question already ends in a question mark: "Can they stand? Yes", not "stand?: Yes".
+      return `${label}${label.endsWith("?") ? "" : ":"} ${fieldValue(item, t)}`;
+    })
+    .join("\n");
+}
+
+/** The statuses that already have words, by the table the record lives in. */
+const STATUS_MESSAGES: Readonly<Record<string, MessageKey>> = {
+  person: "platform.search.status",
+  care_plan: "care.plan.status",
+  advance_care_record: "care.advance.status",
+  dols_authorisation: "care.mca.dols.status",
+};
+
+/** One field of a stored row in words, using what the table says about it where Harbour knows. */
+export function recordFieldValue(
+  table: string | undefined,
+  key: string,
+  data: Readonly<Record<string, unknown>>,
+  t: Translator,
+): string {
+  const value = data[key];
+  if (key === "status" && typeof value === "string") {
+    if (table === "risk_assessment" && (value === "active" || value === "closed")) {
+      return t(value === "active" ? "care.risk.active.title" : "care.risk.closed.title");
+    }
+    const message = table ? STATUS_MESSAGES[table] : undefined;
+    if (message) return t(message, { status: value });
+  }
+  if (
+    table === "risk_assessment" &&
+    key === "answers" &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    const template = RISK_TEMPLATES[data.template_key as RiskTemplateKey] as
+      | RiskTemplate
+      | undefined;
+    const labels = Object.fromEntries(template?.questions.map((q) => [q.key, q.text]) ?? []);
+    return objectLines(value as Record<string, unknown>, t, labels);
+  }
+  return fieldValue(value, t);
 }
 
 export interface VersionView {
@@ -113,23 +170,42 @@ export interface VersionView {
   }[];
 }
 
-/** Versions newest first, each field in words, marked where the next version changed it. */
-export function versionViews(
-  history: Pick<RecordHistory, "versions">,
-  t: Translator,
-): VersionView[] {
+/** What the version list needs: the versions, and the table and current row when known. */
+export type HistoryInput = Pick<RecordHistory, "versions"> &
+  Partial<Pick<RecordHistory, "table" | "current">>;
+
+/** Key order does not matter in stored objects (jsonb does not keep it). */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  return (
+    aKeys.length === bKeys.length &&
+    aKeys.every((key) =>
+      sameValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  );
+}
+
+/**
+ * Versions newest first, each field in words, marked where the next version changed it. The
+ * newest earlier version is compared with the record as it is now (`current`), so the latest
+ * change is marked too.
+ */
+export function versionViews(history: HistoryInput, t: Translator): VersionView[] {
   const ordered = [...history.versions].sort((a, b) => a.version - b.version);
   return ordered
     .map((version, index) => {
-      const next = ordered[index + 1];
+      const next = ordered[index + 1]?.data ?? history.current;
       const fields = Object.entries(version.data)
         .filter(([key]) => !HIDDEN.has(key))
         .map(([key, value]) => ({
           key,
           label: fieldLabel(key),
-          value: fieldValue(value, t),
-          changedNext:
-            next !== undefined && JSON.stringify(next.data[key]) !== JSON.stringify(value),
+          value: recordFieldValue(history.table, key, version.data, t),
+          changedNext: next !== undefined && !sameValue(next[key], value),
         }));
       return {
         version: version.version,

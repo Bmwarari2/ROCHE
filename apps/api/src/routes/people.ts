@@ -284,7 +284,11 @@ export const peopleRouter = createRouter()
       const access = await requirePermission(c, "people.person.read");
       const { id } = c.req.valid("param");
       const history = await withTenant(c, async (tx) => {
-        const [visible] = await tx.select({ id: person.id }).from(person).where(eq(person.id, id));
+        // The row as stored, in the same shape the version trigger keeps (to_jsonb of the row).
+        const [visible] = await tx
+          .select({ id: person.id, data: sql<Record<string, unknown>>`to_jsonb(${person})` })
+          .from(person)
+          .where(eq(person.id, id));
         if (!visible) return null;
         const versions = await tx
           .select()
@@ -301,7 +305,7 @@ export const peopleRouter = createRouter()
           tx,
           versions.map((v) => v.changedBy),
         );
-        return versions.map((v) => ({
+        const items = versions.map((v) => ({
           version: v.recordVersion,
           validFrom: v.validFrom.toISOString(),
           validTo: v.validTo.toISOString(),
@@ -309,9 +313,10 @@ export const peopleRouter = createRouter()
           changedByStaff: staff(v.changedBy),
           data: v.data as Record<string, unknown>,
         }));
+        return { versions: items, current: items.length > 0 ? visible.data : undefined };
       });
       if (!history) throw problems.notFound();
-      return c.json({ table: "person", recordId: id, versions: history }, 200);
+      return c.json({ table: "person", recordId: id, ...history }, 200);
     },
   )
   .openapi(
