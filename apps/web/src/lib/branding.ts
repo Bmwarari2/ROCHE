@@ -13,7 +13,7 @@ export const BRANDING_PAGE = "/settings/branding";
 export const MANAGE_BRANDING = "platform.tenant.manage";
 /** The logo, through the web tier (the browser never reaches the API's /v1 routes itself). */
 export const LOGO_ROUTE = "/branding/logo";
-export const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const LOGO_TYPES = ["image/png", "image/jpeg"] as const;
 export const LOGO_MAX_BYTES = 512 * 1024;
 
 export function brandingShown(permissions: readonly string[]): boolean {
@@ -55,6 +55,7 @@ export type AccentAdvice =
     }
   | {
       readonly state: "fails";
+      readonly problem: "too_light" | "too_dark";
       readonly accent: string;
       readonly message: string;
       readonly suggestion: string;
@@ -71,8 +72,9 @@ export function accentAdvice(raw: string, t: Translator): AccentAdvice {
   }
   return {
     state: "fails",
+    problem: verdict.problem,
     accent: verdict.accent,
-    message: t("branding.accent.refused", { problem: verdict.problem }),
+    message: t("branding.accent.failsSummary", { problem: verdict.problem }),
     suggestion: verdict.suggestion,
     checks: verdict.checks,
   };
@@ -109,7 +111,10 @@ export function readBranding(
   if (advice.state === "not_a_colour" || advice.state === "fails") {
     fields.accent =
       advice.state === "fails"
-        ? `${advice.message} ${t("branding.accent.trySuggestion", { suggestion: advice.suggestion })}`
+        ? t("branding.accent.refusedWithSuggestion", {
+            problem: advice.problem,
+            suggestion: advice.suggestion,
+          })
         : advice.message;
   }
   if (Object.keys(fields).length > 0 || !name.ok) return { ok: false, fields };

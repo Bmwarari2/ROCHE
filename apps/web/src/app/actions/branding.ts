@@ -48,15 +48,23 @@ export async function uploadLogo(form: FormData): Promise<ActionResult<null>> {
   }
   const type = chosen.type as (typeof LOGO_TYPES)[number];
   const bytes = new Uint8Array(await chosen.arrayBuffer());
-  return send(async (api) => {
-    const { response, error } = await api.PUT("/v1/branding/logo", {
+  let quarantined = false;
+  const sent = await send(async (api) => {
+    const { response, error, data } = await api.PUT("/v1/branding/logo", {
       // why: the generated type for a binary body is a string; the API reads the raw bytes.
       body: bytes as unknown as string,
       bodySerializer: (body: unknown) => body as BodyInit,
       headers: { "content-type": type },
     });
+    // Stored but not shown: it could not be scanned for malware (a quarantined file).
+    quarantined = response.ok && data?.status !== "available";
     return { ok: response.ok, error };
   });
+  if (sent.ok && quarantined) {
+    const message = t("branding.logo.quarantined");
+    return { ok: false, code: "quarantined", message, fields: { logo: message } };
+  }
+  return sent;
 }
 
 /** Stops showing the logo; the file stays in the document store under its retention. */

@@ -1,12 +1,13 @@
 import { Me, Membership } from "@harbour/contracts";
 import { featureFlag, location, tenant } from "@harbour/db";
-import { scopeFor } from "@harbour/domain";
+import { checkAccent, scopeFor } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { eq, isNull } from "drizzle-orm";
 import { membershipsFor, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
 import { sampleDataState } from "../services/onboarding";
+import { logoOf } from "./branding";
 import { createRouter, errorResponses, jsonBody, security } from "./openapi";
 
 export const membershipsRouter = createRouter().openapi(
@@ -82,8 +83,9 @@ export const meRouter = createRouter().openapi(
           id: t.id,
           name: t.brandName ?? t.name,
           terminology: t.terminology,
-          brandAccent: t.brandAccent,
-          logoDocumentId: t.logoDocumentId,
+          // Only what the shell may show (security review): a passing accent, a clean logo.
+          brandAccent: t.brandAccent && checkAccent(t.brandAccent).ok ? t.brandAccent : null,
+          logoDocumentId: (await logoOf(tx, t))?.documentId ?? null,
           nation: t.nation,
         },
         tenantUserId: access.tenantUserId,

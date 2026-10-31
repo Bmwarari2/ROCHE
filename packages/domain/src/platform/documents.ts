@@ -74,11 +74,13 @@ export const DOCUMENT_CATEGORIES = {
   },
   /**
    * The organisation's white-label logo (PLAT-002): shown in the shell's app bar to every member,
-   * so small and image only (never SVG, which can carry script). About no one.
+   * so small, PNG or JPEG only (never SVG, which can carry script) and stripped of metadata.
+   * About no one.
    */
   organisation_logo: {
     label: "Organisation logo",
-    contentTypes: IMAGES,
+    // PNG or JPEG only: the API strips their metadata before storing (`stripImageMetadata`).
+    contentTypes: ["image/jpeg", "image/png"],
     maxBytes: 512 * 1024,
     personRequired: false,
     retentionClass: "organisation_document",

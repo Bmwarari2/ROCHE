@@ -23925,7 +23925,7 @@
           "platform"
         ],
         "summary": "Set the organisation's logo (the body is the image)",
-        "description": "platform.tenant.manage. PNG, JPEG or WebP (never SVG), at most 512 KB, checked by its contents and scanned for malware like any document. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).",
+        "description": "platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).",
         "security": [
           {
             "bearerAuth": []

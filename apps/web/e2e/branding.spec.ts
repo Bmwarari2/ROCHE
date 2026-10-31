@@ -5,7 +5,8 @@ import { expectAccessible, signInWithDemoPasskey } from "./support";
  * White-label branding (PLAT-002; platform.md, white-label branding) against the demo tenant. The
  * owner sets a display name and a colour that fails contrast: the screen says why in plain words
  * and offers the nearest colour that works, which they take and save; the shell shows the name and
- * the accent. They upload a logo, see it in the app bar, and remove it. Every state is checked with
+ * the accent, the colour taken by keyboard alone. They upload a logo, see it in the app bar, and
+ * remove it after being asked. Every state is checked with
  * axe in the light and dark themes. The display name carries a per-run tag, and the demo tenant's
  * branding is put back afterwards, so the journey can run again and other journeys see no change.
  */
@@ -58,6 +59,9 @@ async function restore(browser: Browser, baseURL: string | undefined) {
   const remove = region(page, "Logo").getByRole("button", { name: "Remove logo" });
   if (await remove.isVisible()) {
     await remove.click();
+    await region(page, "Remove your organisation's logo?")
+      .getByRole("button", { name: "Remove logo" })
+      .click();
     await arrived(page, "Logo removed.");
   }
   await context.close();
@@ -86,11 +90,11 @@ test("the owner sets a display name and takes the colour offered when theirs fai
   await details.getByLabel("Display name").fill(NAME);
   const accent = details.getByLabel("Accent colour");
   await accent.fill("#ffff00");
-  await expect(
-    details.getByText(
-      "This colour cannot be used. This colour is too light: white words on it, such as on buttons, would be hard to read.",
-    ),
-  ).toBeVisible();
+  const tooLight =
+    "This colour cannot be used: it is too light, so white words on it, such as on buttons, would be hard to read.";
+  await expect(details.getByText(tooLight).first()).toBeVisible();
+  // Said to a screen reader once, after typing stops, by the status alone.
+  await expect(details.getByRole("status").filter({ hasText: tooLight })).toBeAttached();
   await expect(details.getByText(/^Fails$/).first()).toBeVisible();
   await bothThemes(page, "a colour that fails, with the suggestion previewed");
 
@@ -101,13 +105,17 @@ test("the owner sets a display name and takes the colour offered when theirs fai
   const offer = details.getByRole("button", { name: /^Use #[0-9a-f]{6} instead$/ });
   const suggested = /Use (#[0-9a-f]{6}) instead/.exec((await offer.textContent()) ?? "")?.[1];
   expect(suggested).toBeTruthy();
-  await offer.click();
+  // By keyboard alone: from the field to the offer, take it, and save from the field.
+  await accent.focus();
+  await page.keyboard.press("Tab");
+  await expect(offer).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(accent).toHaveValue(suggested ?? "");
   await expect(accent).toBeFocused();
   await expect(
-    details.getByText("This colour can be read in the light and dark themes."),
+    details.getByText("This colour can be read in the light and dark themes.").first(),
   ).toBeVisible();
-  await details.getByRole("button", { name: "Save name and colour" }).click();
+  await page.keyboard.press("Enter");
   await arrived(page, "Name and colour saved.");
 
   // The shell shows the name and the accent, in both themes.
@@ -132,7 +140,7 @@ test("the owner uploads a logo, sees it in the app bar and removes it", async ({
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
   });
   await logo.getByRole("button", { name: "Upload logo" }).click();
-  await expect(logo.getByText("The logo must be a PNG, JPEG or WebP image.").first()).toBeVisible();
+  await expect(logo.getByText("Choose a PNG or JPEG image.").first()).toBeVisible();
 
   await logo
     .getByLabel("Logo image")
@@ -147,7 +155,18 @@ test("the owner uploads a logo, sees it in the app bar and removes it", async ({
     .toBe(1);
   await bothThemes(page, "branding with a logo");
 
-  await logo.getByRole("button", { name: "Remove logo" }).click();
+  // Removing asks first, saying what it does; keeping it puts focus back on the button.
+  const removeButton = logo.getByRole("button", { name: "Remove logo" });
+  await removeButton.click();
+  const ask = logo.getByRole("region", { name: "Remove your organisation's logo?" });
+  await expect(
+    ask.getByRole("heading", { name: "Remove your organisation's logo?" }),
+  ).toBeFocused();
+  await bothThemes(page, "removing the logo, asked first");
+  await ask.getByRole("button", { name: "Keep logo" }).click();
+  await expect(removeButton).toBeFocused();
+  await removeButton.click();
+  await ask.getByRole("button", { name: "Remove logo" }).click();
   await arrived(page, "Logo removed.");
   await expect(page.getByRole("banner").locator("img.hb-appbar__logo")).toHaveCount(0);
 });

@@ -236,6 +236,13 @@
     object-fit: contain;
   }
 
+  /* On phones the logo gives way, so the switchers and account menu keep their room. */
+  @media (max-width: 734px) {
+    .hb-appbar__logo {
+      display: none;
+    }
+  }
+
   .hb-appbar__switchers {
     display: flex;
     align-items: center;

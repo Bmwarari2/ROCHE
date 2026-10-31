@@ -42,16 +42,22 @@ least 4.5:1 contrast on white and on black. The columns are already on `tenant` 
    ratios. Auto-adjusting is offered, never done silently, so the owner sees the colour their staff
    will see. No accent: Harbour's own. The focus ring keeps Harbour's own colour in both themes,
    so an accent never weakens it; status colours are fixed tokens and never take the accent.
-2. The display name (`checkBrandName`: trimmed, spaces collapsed, at most 80 characters, no
-   control characters; blank means none) replaces the registered name in the shell (`Me.tenant.name`
+2. The display name (`checkBrandName`: NFC-normalised, trimmed, spaces collapsed, at most 80
+   characters, no control, bidirectional-override or zero-width characters, so one organisation's
+   name cannot be made to look like another's; blank means none) replaces the registered name in the shell (`Me.tenant.name`
    and every page's eyebrow). The registered name stays on statutory documents, letters (the
    `tenant.name` merge field) and the audit trail.
-3. The logo is a PNG, JPEG or WebP of at most 512 KB (never SVG, which can carry script), stored
-   through the document store in its own category, `organisation_logo` (content sniffed, malware
-   scanned, encrypted; retention `organisation_document`). The general document routes neither
+3. The logo is a PNG or JPEG of at most 512 KB (never SVG, which can carry script), refused above
+   that size before it is read (its own body limit). It is shown to every member, so EXIF, XMP,
+   IPTC, comments and PNG text chunks are removed before storing (`stripImageMetadata`), and it is
+   stored through the document store in its own category, `organisation_logo` (content sniffed,
+   malware scanned, encrypted; retention `organisation_document`). Refusals are audited. The web
+   tier caches it privately for an hour under an address bound to the current logo document
+   (`/branding/logo?v=<id>`; any other id is not found), so a switch of organisation in another
+   tab never leaves another organisation's logo in the cache. The general document routes neither
    accept nor serve it. It is shown at 24 px high beside the product name in the app bar's home
    link, with empty alternative text: the organisation's name is already in the organisation
-   switcher beside it. Removing it clears the reference; the document stays in the
+   switcher beside it. Removing it asks first, saying it stops showing for all staff, then clears the reference; the document stays in the
    store under its retention class. A quarantined file is kept but never shown.
 4. Every member of the organisation may read the branding and the logo (they are shown in the
    shell); only `platform.tenant.manage` changes them, with the version read (409 when stale). Each

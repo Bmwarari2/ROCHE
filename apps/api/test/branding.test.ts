@@ -2,7 +2,7 @@ import type { Branding, DocumentItem, Me, ProblemDetails } from "@harbour/contra
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EICAR } from "../src/integrations/storage";
-import { createHarness, type Harness } from "./support/harness";
+import { createHarness, type Harness, OTHER } from "./support/harness";
 
 /**
  * White-label branding (PLAT-002; platform.md, white-label branding): every member reads it, only
@@ -12,8 +12,30 @@ import { createHarness, type Harness } from "./support/harness";
 
 let h: Harness;
 
-const PNG = new Uint8Array([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+const ascii = (text: string) => [...text].map((ch) => ch.charCodeAt(0));
+const u32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+const chunk = (type: string, data: number[]) => [
+  ...u32(data.length),
+  ...ascii(type),
+  ...data,
+  0,
+  0,
+  0,
+  0,
+];
+const SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const IHDR = chunk("IHDR", [0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0]);
+const IDAT = chunk("IDAT", [1, 2, 3]);
+const IEND = chunk("IEND", []);
+/** A well-formed PNG (the stripper reads its chunks; the CRCs are not checked). */
+const PNG = new Uint8Array([...SIG, ...IHDR, ...IDAT, ...IEND]);
+/** The same picture with an invented GPS position in a text chunk. */
+const PNG_WITH_GPS = new Uint8Array([
+  ...SIG,
+  ...IHDR,
+  ...chunk("tEXt", ascii("GPS 51.5N 0.1W")),
+  ...IDAT,
+  ...IEND,
 ]);
 
 beforeAll(async () => {
@@ -169,25 +191,86 @@ describe("branding: the logo", () => {
     expect((await audits("platform.branding.logo")).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("refuses an SVG, a PDF, a file over 512 KB and an infected file", async () => {
+  it("removes metadata such as a GPS position before storing the logo", async () => {
+    const put = await as("owner", "/v1/branding/logo", {
+      method: "PUT",
+      raw: { bytes: PNG_WITH_GPS, contentType: "image/png" },
+    });
+    expect(put.status).toBe(201);
+    const served = new Uint8Array(await (await as("carer", "/v1/branding/logo")).arrayBuffer());
+    expect(served).toEqual(PNG);
+    expect(new TextDecoder().decode(served)).not.toContain("GPS");
+    await as("owner", "/v1/branding/logo", { method: "DELETE" });
+  });
+
+  it("refuses an SVG, a PDF, a WebP, a file over 512 KB and an infected file, and audits it", async () => {
     const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
     const pdf = new TextEncoder().encode("%PDF-1.7\n%%EOF\n");
+    const webp = new Uint8Array([...ascii("RIFF"), 0, 0, 0, 0, ...ascii("WEBPVP8 ")]);
     const big = new Uint8Array(600 * 1024);
     big.set(PNG);
-    const infected = new Uint8Array([...PNG, ...new TextEncoder().encode(EICAR)]);
-    for (const [bytes, type] of [
-      [svg, "image/png"],
-      [pdf, "image/png"],
-      [big, "image/png"],
-      [infected, "image/png"],
+    const infected = new Uint8Array([...SIG, ...IHDR, ...chunk("IDAT", ascii(EICAR)), ...IEND]);
+    const before = (await audits("platform.branding.logo")).filter(
+      (a) => a.outcome === "denied",
+    ).length;
+    for (const [bytes, type, status] of [
+      [svg, "image/png", 422],
+      [pdf, "image/png", 422],
+      [webp, "image/webp", 422],
+      [big, "image/png", 413],
+      [infected, "image/png", 422],
     ] as const) {
       const response = await as("owner", "/v1/branding/logo", {
         method: "PUT",
         raw: { bytes, contentType: type },
       });
-      expect(response.status).toBe(422);
+      expect(response.status).toBe(status);
     }
     expect((await read("owner")).logo).toBeNull();
+    const after = (await audits("platform.branding.logo")).filter((a) => a.outcome === "denied");
+    expect(after.length - before).toBe(4);
+  });
+
+  it("is never reached through the general document routes, nor from another organisation", async () => {
+    const put = await as("owner", "/v1/branding/logo", {
+      method: "PUT",
+      raw: { bytes: PNG, contentType: "image/png" },
+    });
+    const { id } = await json<DocumentItem>(put);
+    expect((await as("carer", `/v1/documents/${id}`)).status).toBe(404);
+    expect(
+      (
+        await as("owner", `/v1/documents/${id}/versions`, {
+          method: "POST",
+          raw: { bytes: PNG, contentType: "image/png" },
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await as("owner", `/v1/documents/${id}/signatures`, {
+          method: "POST",
+          body: { typedName: "Olive Owner", sha256Seen: "0".repeat(64) },
+        })
+      ).status,
+    ).toBe(404);
+    const listed = await json<{ items: { id: string }[] }>(await as("carer", "/v1/documents"));
+    expect(listed.items.map((d) => d.id)).not.toContain(id);
+
+    // A member of another organisation sees their own branding, never this logo.
+    const other = (path: string) =>
+      h.request(path, { token: h.tokens.rae, tenant: OTHER.tenantId });
+    expect((await other("/v1/branding/logo")).status).toBe(404);
+    const theirs = await json<Branding>(await other("/v1/branding"));
+    expect(theirs.logo).toBeNull();
+    expect(theirs.registeredName).not.toBe((await read("carer")).registeredName);
+    // Naming this organisation without being a member of it is refused.
+    const cross = await h.request("/v1/branding/logo", {
+      token: h.tokens.rae,
+      tenant: DEMO.tenantId,
+    });
+    expect(cross.status).toBe(403);
+    await as("owner", "/v1/branding/logo", { method: "DELETE" });
   });
 
   it("refuses the logo through the general upload route and from other members", async () => {

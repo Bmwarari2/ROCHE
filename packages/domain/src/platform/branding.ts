@@ -225,13 +225,20 @@ export type BrandNameVerdict =
   | { readonly ok: false; readonly problem: "too_long" | "control_characters" };
 
 /**
- * The organisation's display name (PLAT-002): trimmed, inner spaces collapsed; blank means "use
- * the registered name". At most 80 characters and no control characters.
+ * The organisation's display name (PLAT-002): NFC-normalised, trimmed, inner spaces collapsed;
+ * blank means "use the registered name". At most 80 characters; no control, bidirectional or
+ * zero-width characters.
  */
 export function checkBrandName(input: string | null | undefined): BrandNameVerdict {
-  const raw = input ?? "";
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses.
-  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(raw.replace(/[\t\n\r]/g, " "))) {
+  const raw = (input ?? "").normalize("NFC");
+  // Bidirectional overrides and zero-width characters too: they could make one organisation's
+  // name look like another's in the switcher (security review, PLAT-002).
+  if (
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it refuses.
+    /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/.test(
+      raw.replace(/[\t\n\r]/g, " "),
+    )
+  ) {
     return { ok: false, problem: "control_characters" };
   }
   const name = raw.replace(/\s+/g, " ").trim();

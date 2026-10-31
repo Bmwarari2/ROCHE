@@ -93,12 +93,13 @@ describe("checkBrandName", () => {
   it.each([
     ["Riverside Care", "Riverside Care"],
     ["  Riverside   Care  ", "Riverside Care"],
-    ["Ty\u0302 Gofal", "Ty\u0302 Gofal"],
+    ["Ty\u0302 Gofal", "T\u0177 Gofal"],
     ["", null],
     ["   ", null],
     [null, null],
     [undefined, null],
     ["Line\none", "Line one"],
+    ["Ty\u0302", "T\u0177"],
     ["x".repeat(BRAND_NAME_MAX), "x".repeat(BRAND_NAME_MAX)],
   ])("%j is kept as %j", (input, name) => {
     expect(checkBrandName(input)).toEqual({ ok: true, name });
@@ -109,6 +110,10 @@ describe("checkBrandName", () => {
     ["Bell\u0007", "control_characters"],
     ["Null\u0000", "control_characters"],
     ["Split\u2028line", "control_characters"],
+    ["Care\u202eemoH", "control_characters"],
+    ["Lodge\u200bCare", "control_characters"],
+    ["\u2066Lodge\u2069", "control_characters"],
+    ["\ufeffLodge", "control_characters"],
   ])("%j is refused as %s", (input, problem) => {
     expect(checkBrandName(input)).toEqual({ ok: false, problem });
   });

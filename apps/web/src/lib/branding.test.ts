@@ -39,12 +39,20 @@ describe("accentStyle", () => {
     expect(style).not.toMatch(/focus|status|info/);
   });
 
-  it.each([null, undefined, "", "#0071e3", "#ffff00", "red;}body{display:none", "#12345"])(
-    "applies nothing for %j (no accent, or one that fails)",
-    (accent) => {
-      expect(accentStyle(accent)).toBeNull();
-    },
-  );
+  it.each([
+    null,
+    undefined,
+    "",
+    "#0071e3",
+    "#ffff00",
+    "red;}body{display:none",
+    "#000000;}body{x",
+    "#0074e8\n}body{display:none",
+    "red",
+    "#12345",
+  ])("applies nothing for %j (no accent, or one that fails)", (accent) => {
+    expect(accentStyle(accent)).toBeNull();
+  });
 });
 
 describe("accentAdvice", () => {
@@ -63,13 +71,13 @@ describe("accentAdvice", () => {
     const light = accentAdvice("#ffff00", t);
     if (light.state !== "fails") throw new Error("expected a failure");
     expect(light.message).toBe(
-      "This colour is too light: white words on it, such as on buttons, would be hard to read.",
+      "This colour cannot be used: it is too light, so white words on it, such as on buttons, would be hard to read.",
     );
     expect(accentAdvice(light.suggestion, t).state).toBe("passes");
     const dark = accentAdvice("#000080", t);
     if (dark.state !== "fails") throw new Error("expected a failure");
     expect(dark.message).toBe(
-      "This colour is too dark: it would be hard to see against the dark theme's black background.",
+      "This colour cannot be used: it is too dark, so it would be hard to see against the dark theme's black background.",
     );
   });
 });
@@ -138,10 +146,11 @@ describe("the logo", () => {
   it.each([
     [null, "Choose an image file for the logo."],
     [{ type: "image/png", size: 0 }, "Choose an image file for the logo."],
-    [{ type: "image/svg+xml", size: 100 }, "The logo must be a PNG, JPEG or WebP image."],
-    [{ type: "application/pdf", size: 100 }, "The logo must be a PNG, JPEG or WebP image."],
-    [{ type: "image/png", size: 512 * 1024 + 1 }, "The logo must be 512 KB or smaller."],
-    [{ type: "image/webp", size: 512 * 1024 }, null],
+    [{ type: "image/svg+xml", size: 100 }, "Choose a PNG or JPEG image."],
+    [{ type: "application/pdf", size: 100 }, "Choose a PNG or JPEG image."],
+    [{ type: "image/png", size: 512 * 1024 + 1 }, "Choose an image of 512 KB or less."],
+    [{ type: "image/webp", size: 100 }, "Choose a PNG or JPEG image."],
+    [{ type: "image/png", size: 512 * 1024 }, null],
     [{ type: "image/jpeg", size: 2048 }, null],
   ])("%j: %j", (file, problem) => {
     expect(logoProblem(file, t)).toBe(problem);

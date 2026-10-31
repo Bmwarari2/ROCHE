@@ -1,6 +1,11 @@
 import { Branding, DocumentItem, SaveBranding } from "@harbour/contracts";
 import { document, type Transaction, tenant } from "@harbour/db";
-import { checkAccent, checkBrandName } from "@harbour/domain";
+import {
+  checkAccent,
+  checkBrandName,
+  DOCUMENT_CATEGORIES,
+  stripImageMetadata,
+} from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Context } from "hono";
@@ -35,6 +40,7 @@ import {
 const MANAGE = "platform.tenant.manage" as const;
 const LOGO_CATEGORY = "organisation_logo" as const;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const LOGO_MAX_BYTES = DOCUMENT_CATEGORIES[LOGO_CATEGORY].maxBytes;
 type ImageType = (typeof IMAGE_TYPES)[number];
 
 const binary = z.string().meta({ format: "binary" });
@@ -60,7 +66,8 @@ const NAME_REFUSAL = {
 
 type TenantRow = typeof tenant.$inferSelect;
 
-async function logoOf(tx: Transaction, t: TenantRow): Promise<Branding["logo"]> {
+/** The logo shown in the shell: clean, of its own category, under the tenant's RLS. */
+export async function logoOf(tx: Transaction, t: TenantRow): Promise<Branding["logo"]> {
   if (!t.logoDocumentId) return null;
   const [row] = await tx
     .select({ id: document.id, contentType: document.contentType })
@@ -236,7 +243,7 @@ export const brandingRouter = createRouter()
       tags: ["platform"],
       summary: "Set the organisation's logo (the body is the image)",
       description:
-        "platform.tenant.manage. PNG, JPEG or WebP (never SVG), at most 512 KB, checked by its contents and scanned for malware like any document. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).",
+        "platform.tenant.manage. PNG or JPEG (never SVG), at most 512 KB, stripped of EXIF, XMP, IPTC and text chunks, checked by its contents and scanned for malware like any document. Refusals are audited. The logo is shown once it is clean; a quarantined file is kept but never shown. The previous logo stays in the document store until its retention ends. Audited (platform.branding.logo).",
       security,
       request: { body: { content: imageContent, required: true } },
       responses: {
@@ -247,7 +254,25 @@ export const brandingRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, MANAGE);
-      const bytes = new Uint8Array(await c.req.arrayBuffer());
+      const received = new Uint8Array(await c.req.arrayBuffer());
+      const denied = (reason: string) =>
+        writeAudit(c.get("services").appPool, access, {
+          action: "platform.branding.logo",
+          outcome: "denied",
+          reason,
+          requestId: c.get("requestId"),
+        });
+      // Size first, so nothing larger than a logo is ever decoded (security review, PLAT-002).
+      if (received.length > LOGO_MAX_BYTES) {
+        await denied("too_large");
+        throw problems.invalid("The logo must be 512 KB or smaller.");
+      }
+      // The logo is shown to every member: EXIF, XMP, IPTC and text chunks are removed first.
+      const bytes = stripImageMetadata(received);
+      if (!bytes) {
+        await denied("type_not_allowed");
+        throw problems.invalid("The logo must be a PNG or JPEG image.");
+      }
       // Decided before the transaction opens: decoding an image never holds a connection.
       const imagePrintable = imagePrintableOf(bytes);
       const { scanner } = c.get("services");
@@ -279,7 +304,11 @@ export const brandingRouter = createRouter()
           const [view] = await toDocumentItems(tx, [row]);
           return view;
         }),
-      );
+      ).catch(async (error: unknown) => {
+        // A refusal (the type, the size or the malware scan) is audited too, then passed on.
+        if (error instanceof HttpProblem && error.status === 422) await denied("refused");
+        throw error;
+      });
       return c.json(item as DocumentItem, 201);
     },
   )

@@ -16,7 +16,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger } from "./logger";
-import { brandingRouter } from "./routes/branding";
+import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
 import { careRouter } from "./routes/care";
@@ -180,12 +180,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     c.header("cache-control", "no-store");
   });
   // Uploads are capped before they are read (largest category limit plus headroom; ASVS V5).
-  for (const path of [
-    "/v1/documents",
-    "/v1/documents/*",
-    "/v1/people/:id/photo",
-    "/v1/branding/logo",
-  ]) {
+  for (const path of ["/v1/documents", "/v1/documents/*", "/v1/people/:id/photo"]) {
     app.use(
       path,
       bodyLimit({
@@ -195,6 +190,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // The logo is small (512 KB): a larger body is refused before it is read or decoded.
+  app.use(
+    "/v1/branding/logo",
+    bodyLimit({
+      maxSize: LOGO_MAX_BYTES + 64 * 1024,
+      onError: (c) =>
+        problemResponse(c, new HttpProblem(413, "too_large", "The file is too large.")),
+    }),
+  );
   // Sync bodies are small JSON (a token request, a batch of changes, a deletion record, a device
   // report): anything larger is refused before it is read (security review round 4, M4).
   app.use(
