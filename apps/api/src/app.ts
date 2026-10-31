@@ -35,6 +35,7 @@ import { familyFeedRouter } from "./routes/family-feed";
 import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
+import { inductionRouter } from "./routes/induction";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
@@ -318,6 +319,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", staffFilesRouter);
   app.route("/", recruitmentRouter);
   app.route("/", caseworkRouter);
+  app.route("/", inductionRouter);
   app.route("/", policiesRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);

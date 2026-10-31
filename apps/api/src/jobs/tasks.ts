@@ -36,6 +36,7 @@ import {
 import { buildNightlyPacks, rebuildAfterMove, rebuildLocation } from "../services/downtime-pack";
 import { sweepEvidenceBundles } from "../services/evidence-pack";
 import { sweepHandovers } from "../services/handover";
+import { endLeaversAccess } from "../services/leavers";
 import { raiseDolsReminders } from "../services/mca";
 import { raisePeopleReviews } from "../services/people";
 import { generatePlanTasks } from "../services/plan-tasks";
@@ -476,6 +477,17 @@ export async function remindStaffFileExpiry(deps: TaskDeps, now = new Date()): P
   );
   if (raised > 0) deps.logger.info({ raised }, "staff file expiry reminders raised");
   return raised;
+}
+
+/**
+ * Leavers' access (workforce.md rule 22): ended from the day after the leaving date, once each.
+ */
+export async function sweepLeaverAccess(deps: TaskDeps, now = new Date()): Promise<number> {
+  const ended = await eachTenant(deps, "leaver-access", (tx, tenantId) =>
+    endLeaversAccess(tx, tenantId, now),
+  );
+  if (ended > 0) deps.logger.info({ ended }, "leavers' access ended");
+  return ended;
 }
 
 /**
