@@ -37,15 +37,21 @@ export function rolePermissionMix(permissions: readonly string[]): RolePermissio
 /**
  * Permissions whose records show what other permissions read, so they reach no further than those
  * do (ADR-0071, family list; #50 review round 1, S-M1). A handover item's summary carries an
- * incident's type, a NEWS2 score, a body-map mark, a task's title and why it was not done: whoever
- * reads handovers (`care.handover.manage`) must also read incidents, notes and the person, at the
- * same or a wider scope. A role or grant that carries one without the others is refused when it
+ * incident's type, a NEWS2 score, a body-map mark, a task's title, the care plan action it carries
+ * out (the plan's own words) and why it was not done: whoever reads handovers
+ * (`care.handover.manage`) must also read incidents, notes, the person and care plans, at the same
+ * or a wider scope (#123 security review, M1). A role or grant that carries one without the others is refused when it
  * is defined, and `resolveAccess` narrows it to where they all reach if one is ever stored.
  */
 export const PERMISSION_PREREQUISITES: Readonly<
   Partial<Record<Permission, readonly Permission[]>>
 > = {
-  "care.handover.manage": ["safety.incident.read", "care.note.read", "people.person.read"],
+  "care.handover.manage": [
+    "safety.incident.read",
+    "care.note.read",
+    "people.person.read",
+    "care.plan.read",
+  ],
 };
 
 function missingPrerequisites(permissions: readonly string[]): boolean {

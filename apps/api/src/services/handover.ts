@@ -386,6 +386,8 @@ export async function handoverSources(
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * A care result's alert with why it was raised, from its observation's stored flags (a NEWS2
  * threshold or an IDDSI problem), so the handover item says what the alert is about (#50 review
@@ -395,16 +397,17 @@ async function withAlertReasons(
   tx: Transaction,
   rows: readonly AlertNotification[],
 ): Promise<AlertNotification[]> {
+  // Only well-formed ids, compared as uuids so the primary key is used (#123 security review, L3).
   const ids = [
     ...new Set(
       rows.filter((r) => r.sourceType === "observation" && r.sourceId).map((r) => r.sourceId),
     ),
-  ].filter((id): id is string => typeof id === "string");
+  ].filter((id): id is string => typeof id === "string" && UUID.test(id));
   if (ids.length === 0) return [...rows];
   const flagged = await tx
     .select({ id: observation.id, flags: observation.flags })
     .from(observation)
-    .where(inArray(sql`${observation.id}::text`, ids));
+    .where(inArray(observation.id, ids));
   const reasons = new Map(flagged.map((o) => [o.id, alertReasonFromFlags(o.flags)]));
   return rows.map((r) => {
     const reason =

@@ -6,7 +6,7 @@ import { FlatList, View } from "react-native";
 import { useVault } from "../../../../app-state/vault";
 import type { EntryItem } from "../../../../care/entry-view";
 import { recentEntries } from "../../../../care/entry-view";
-import { useTenantId } from "../../../../care/hooks";
+import { useRoundTaskFor, useTenantId } from "../../../../care/hooks";
 import {
   MARKS_SQL,
   type MarkRow,
@@ -43,16 +43,18 @@ export default function PersonScreen() {
   const theme = useTheme();
   const router = useRouter();
   const vault = useVault();
-  const { personId, task, taskTitle } = useLocalSearchParams<{
+  const { personId, task } = useLocalSearchParams<{
     personId: string;
     task?: string;
-    taskTitle?: string;
   }>();
   const id = typeof personId === "string" ? personId : "";
   // Came from the round to record the entry a task asks for: the new entry answers that task,
   // and only the first: once one is saved here, later entries are not tagged with it (HZ-029).
-  const askedTask = typeof task === "string" && task ? task : null;
+  // Only a task this device holds for this person, still open: never one named by a link alone,
+  // and never its words from the route (#123 security review, M2).
   const tenantId = useTenantId();
+  const roundTask = useRoundTaskFor(id, typeof task === "string" && task ? task : null);
+  const askedTask = roundTask?.id ?? null;
   const evidenceParams = useMemo(() => [tenantId, askedTask ?? ""], [tenantId, askedTask]);
   const { data: evidence } = useQuery<{ count: number }>(TASK_EVIDENCE_SQL, evidenceParams);
   const taskAnswered = askedTask !== null && Number(evidence[0]?.count ?? 0) > 0;
@@ -124,7 +126,7 @@ export default function PersonScreen() {
                   {askedTask && mayRecord ? (
                     <Text testID="person-for-task">
                       {t(taskAnswered ? "mobile.person.forTaskRecorded" : "mobile.person.forTask", {
-                        title: typeof taskTitle === "string" ? taskTitle : "",
+                        title: roundTask?.title ?? "",
                       })}
                     </Text>
                   ) : null}

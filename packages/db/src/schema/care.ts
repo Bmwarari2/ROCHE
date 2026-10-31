@@ -963,11 +963,13 @@ export const handoverItem = pgTable(
       "handover_item_source_type",
       sql`source_type IN ('task', 'observation', 'incident', 'body_map_mark', 'care_note', 'notification')`,
     ),
-    // A catalogue key in the handover summary namespace and an object of parameters, never free
-    // English; a malformed summary is refused, not taken as none.
+    // One of the eleven summary keys and an object of parameters, nothing else, each a string,
+    // number or boolean, at most 4 KiB in all. The key and codes are never English, but a task's
+    // parameters are staff's free text (title, plan action, reason not done). A malformed summary
+    // is refused, not taken as none (migration 0071; #123 security review, L2).
     check(
       "handover_item_summary",
-      sql`summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' LIKE 'handover.summary.%' AND jsonb_typeof(summary -> 'params') = 'object', false)`,
+      sql`summary IS NULL OR coalesce(jsonb_typeof(summary) = 'object' AND jsonb_typeof(summary -> 'key') = 'string' AND summary ->> 'key' IN ('handover.summary.fall', 'handover.summary.news2', 'handover.summary.incident', 'handover.summary.alert', 'handover.summary.bodyMapMark', 'handover.summary.flaggedNote', 'handover.summary.overdueTask', 'handover.summary.skippedTask', 'handover.summary.unfinishedTask', 'handover.summary.mustFollowUp', 'handover.summary.refusal') AND jsonb_typeof(summary -> 'params') = 'object' AND (summary - 'key' - 'params') = '{}'::jsonb AND NOT jsonb_path_exists(summary -> 'params', 'strict $.* ? (@.type() == "object" || @.type() == "array")') AND octet_length(summary::text) <= 4096, false)`,
     ),
   ],
 );

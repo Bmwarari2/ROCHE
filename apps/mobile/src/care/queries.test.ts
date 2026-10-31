@@ -397,3 +397,35 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
     db.prepare("DELETE FROM care_note WHERE id = 'n-x'").run();
   });
 });
+
+describe("hazard HZ-029 hazard HZ-004 a route's task is used only when this device holds it for that person, open (#123 security review, M2)", () => {
+  const TASK = "t-route";
+  beforeAll(() => {
+    db.prepare(
+      "INSERT INTO task (id, tenant_id, person_id, title, status, due_at) VALUES (?, ?, ?, ?, 'open', ?)",
+    ).run(TASK, DEMO_TENANT_ID, demoPeople[0]?.id ?? "", "Reposition", "2026-10-11T10:00:00Z");
+  });
+  const find = (taskId: string, personId: string) =>
+    all<{ id: string; title: string | null }>(db, queries.ROUND_TASK_FOR_PERSON_SQL, [
+      DEMO_TENANT_ID,
+      taskId,
+      personId,
+    ]);
+
+  it("finds the task for its own person, with its synced title", () => {
+    expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([{ id: TASK, title: "Reposition" }]);
+  });
+
+  it("refuses it for another person, once closed, once marked here, or in another organisation", () => {
+    expect(find(TASK, demoPeople[1]?.id ?? "")).toEqual([]);
+    expect(find("no-such-task", demoPeople[0]?.id ?? "")).toEqual([]);
+    expect(
+      all(db, queries.ROUND_TASK_FOR_PERSON_SQL, [OTHER, TASK, demoPeople[0]?.id ?? ""]),
+    ).toEqual([]);
+    db.prepare("UPDATE task SET queued_transition = '{}' WHERE id = ?").run(TASK);
+    expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([]);
+    db.prepare("UPDATE task SET queued_transition = NULL, status = 'done' WHERE id = ?").run(TASK);
+    expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([]);
+    db.prepare("UPDATE task SET status = 'open' WHERE id = ?").run(TASK);
+  });
+});

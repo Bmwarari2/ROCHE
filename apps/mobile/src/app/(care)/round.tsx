@@ -67,7 +67,8 @@ export default function RoundScreen() {
       if (!item.personId) return;
       router.push({
         pathname: "/people/[personId]",
-        params: { personId: item.personId, task: item.id, taskTitle: item.title },
+        // The task's id only: the record looks it up on this device and shows its synced title.
+        params: { personId: item.personId, task: item.id },
       });
     },
     [router],
