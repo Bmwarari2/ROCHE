@@ -5,6 +5,7 @@ import {
   type AccountMenuItem,
   AppBar,
   type AppBarSwitcher,
+  NavMenu,
   Sidebar,
   type SidebarItem,
   type SwitcherOption,
@@ -37,7 +38,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { switchLocation, switchOrganisation } from "@/app/actions/context";
 import { signOutAndForget } from "@/lib/sign-out";
 
@@ -100,6 +101,9 @@ export interface ShellFrameLabels {
   readonly settings: string;
   /** Accessible name of the account menu button, for example "Your account: Ada Example". */
   readonly accountMenu: string;
+  /** The phone navigation's button word ("Menu") and its close button's name. */
+  readonly menu: string;
+  readonly closeMenu: string;
   readonly security: string;
   readonly signOut: string;
 }
@@ -166,16 +170,10 @@ export function ShellFrame({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  // Null until the browser has said whether this is a phone: the sidebar then collapses by CSS on a
-  // narrow screen, so the first paint never lays out the full-width sidebar there.
-  const [collapsed, setCollapsed] = useState<boolean | null>(null);
+  // The sidebar shows above 734 px only; phones get the app bar's "Menu" (NavMenu), so the page
+  // keeps its whole width (MOB-013, WCAG 1.4.10). The CSS hides it before the app runs.
+  const [collapsed, setCollapsed] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-
-  // Icons only on phones, so the content keeps the width (the labels stay as tooltips).
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 734px)");
-    setCollapsed(query.matches);
-  }, []);
 
   const tenantSwitcher: AppBarSwitcher = {
     label: labels.organisation,
@@ -431,6 +429,16 @@ export function ShellFrame({
         {...(locationSwitcher ? { location: locationSwitcher } : {})}
         skipLinkLabel={labels.skipLink}
         linkComponent={Link}
+        leading={
+          <NavMenu
+            items={items}
+            currentId={currentSection(pathname)}
+            label={labels.navigation}
+            buttonLabel={labels.menu}
+            closeLabel={labels.closeMenu}
+            linkComponent={Link}
+          />
+        }
         actions={
           <AccountMenu
             userName={user.name}
@@ -446,14 +454,13 @@ export function ShellFrame({
         }
       />
       <div className="flex flex-1">
-        <div className="sticky top-nav h-[calc(100dvh-var(--nav-height))] shrink-0 self-start">
+        <div className="sticky top-nav h-[calc(100dvh-var(--nav-height))] shrink-0 self-start max-sm:hidden">
           <Sidebar
             items={items}
             currentId={currentSection(pathname)}
             label={labels.navigation}
-            collapsed={collapsed ?? false}
+            collapsed={collapsed}
             onCollapsedChange={setCollapsed}
-            {...(collapsed === null ? { className: "hb-sidebar--narrow-auto" } : {})}
             linkComponent={Link}
           />
         </div>

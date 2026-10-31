@@ -101,6 +101,9 @@ const darkMediaBlock = declarations(
 const darkAttributeBlock = declarations(findRule(root, ['[data-theme="dark"]']));
 const rootBlock = declarations(findRule(root, [":root"]));
 
+/** Type sizes are written in rem (16 px each), so text follows the browser's text size (WCAG 1.4.4). */
+const rem = (px: number) => `${px / 16}rem`;
+
 describe("tokens.css colours", () => {
   it("light colours match colorLight", () => {
     expectColours(lightBlock, colorLight);
@@ -173,7 +176,7 @@ describe("tokens.css type, layout and other groups", () => {
   it("type scale matches typeScale", () => {
     for (const [name, style] of Object.entries(typeScale)) {
       const prefix = `--type-${kebab(name)}`;
-      expect(rootBlock.get(`${prefix}-size`), name).toBe(`${style.size}px`);
+      expect(rootBlock.get(`${prefix}-size`), name).toBe(rem(style.size));
       expect(rootBlock.get(`${prefix}-line-height`), name).toBe(String(style.lineHeight));
       expect(rootBlock.get(`${prefix}-weight`), name).toBe(String(style.weight));
       expect(rootBlock.get(`${prefix}-tracking`), name).toBe(`${style.letterSpacingEm}em`);
@@ -192,7 +195,7 @@ describe("tokens.css type, layout and other groups", () => {
       ["small", small],
     ] as const) {
       for (const [name, style] of Object.entries(typeScaleResponsive[size])) {
-        expect(block.get(`--type-${name}-size`), `${size} ${name}`).toBe(`${style.size}px`);
+        expect(block.get(`--type-${name}-size`), `${size} ${name}`).toBe(rem(style.size));
         expect(block.get(`--type-${name}-line-height`), `${size} ${name}`).toBe(
           String(style.lineHeight),
         );
@@ -218,11 +221,11 @@ describe("tokens.css type, layout and other groups", () => {
       "--corner-input": `${radius.input}px`,
       "--corner-chip": `${radius.chip}px`,
       "--nav-backdrop": navBlur.backdropFilter,
-      "--nav-text-size": `${navBlur.textSizeDesktop}px`,
-      "--nav-text-size-drawer": `${navBlur.textSizeDrawer}px`,
+      "--nav-text-size": rem(navBlur.textSizeDesktop),
+      "--nav-text-size-drawer": rem(navBlur.textSizeDrawer),
       "--button-padding-y": `${button.paddingY}px`,
       "--button-padding-x": `${button.paddingX}px`,
-      "--button-font-size": `${button.fontSize}px`,
+      "--button-font-size": rem(button.fontSize),
       "--button-min-height": `${button.minHeight}px`,
       "--hairline": `${elevation.hairline}px`,
       "--elevation-floating": elevation.floating.css,

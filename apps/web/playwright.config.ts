@@ -59,6 +59,18 @@ export default defineConfig({
         "team.spec.ts",
       ],
     },
+    {
+      // WCAG 1.4.10 measures reflow at 320 CSS px (docs/compliance/accessibility-checklist.md):
+      // the screen-by-screen checks again at that width.
+      name: "mobile-320",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 320, height: 640 },
+        deviceScaleFactor: 2,
+        hasTouch: true,
+      },
+      testMatch: ["responsive.spec.ts"],
+    },
   ],
   webServer: [
     {

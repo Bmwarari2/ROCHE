@@ -3433,5 +3433,7 @@
   "approvals.asOf": "Deadlines worked out at {time}",
   "approvals.itemTitle": "{workflow}, raised {when}",
   "approvals.emptyTruncated": "None found in the records this page could check. Use each module's own list to be sure.",
-  "approvals.done": "{done, select, closed {Incident closed: {title}} reopened {Sent back to open: {title}} other {Saved: {title}}}"
+  "approvals.done": "{done, select, closed {Incident closed: {title}} reopened {Sent back to open: {title}} other {Saved: {title}}}",
+  "shell.nav.menu": "Menu",
+  "shell.nav.closeMenu": "Close the menu"
 }

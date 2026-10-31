@@ -3,9 +3,10 @@ import { demoPerson, expectAccessible, signIn } from "./support";
 
 /**
  * Responsive web down to 360 px (MOB-013, master prompt 17.4; WCAG 1.4.10 reflow). Run by the
- * `mobile-360` project at 360 × 740: every screen sampled here fits the width with no horizontal
- * page scroll (wide tables scroll inside their own container), keeps 44 px targets on what can be
- * pressed, and passes axe. Demo accounts and invented people only.
+ * `mobile-360` project at 360 × 740 and the `mobile-320` project at WCAG's 320 px: every screen
+ * sampled here fits the width with no horizontal page scroll (wide tables scroll inside their own
+ * container), keeps 44 px targets on what can be pressed, menus included, and passes axe; type
+ * follows the browser's text size. Demo accounts and invented people only.
  */
 
 const HARBOUR_HOUSE = "0194d000-0000-7000-8000-000000000101";
@@ -46,21 +47,50 @@ async function expectNoHorizontalOverflow(page: Page, name: string) {
 }
 
 /**
- * Buttons and links that can be pressed are at least 44 px in both directions, or inline in text
- * (WCAG 2.5.8 allows inline links; Harbour's own rule is 44 px for controls).
+ * Everything that can be pressed or typed into is at least 44 px in both directions (section 8),
+ * menus and sheets included. A radio or checkbox is measured by its card or label, which is the
+ * target. A link exempt as inline (WCAG 2.5.8) is one inside a sentence: its nearest block has
+ * other words besides it.
  */
 async function expectTouchTargets(page: Page, name: string) {
   const small = await page.evaluate(() => {
     const out: string[] = [];
-    const controls = document.querySelectorAll<HTMLElement>(
-      "main button, main [role=button], main a[href]:not(p a):not(li > a:only-child), header button, nav a[href], nav button",
-    );
-    for (const el of Array.from(controls)) {
-      const box = el.getBoundingClientRect();
-      if (box.width === 0 || box.height === 0) continue;
-      if (getComputedStyle(el).display === "inline") continue;
-      // Visually hidden helpers (skip links before focus) are not targets yet.
+    const selector = [
+      "a[href]",
+      "button",
+      "input:not([type=hidden])",
+      "select",
+      "textarea",
+      "summary",
+      "[tabindex='0']",
+      ...["button", "tab", "switch", "checkbox", "radio", "menuitem", "option", "link"].map(
+        (role) => `[role=${role}]`,
+      ),
+    ].join(", ");
+    const blockOf = (el: Element): Element => {
+      let p = el.parentElement;
+      while (p && getComputedStyle(p).display.startsWith("inline")) p = p.parentElement;
+      return p ?? document.body;
+    };
+    const inSentence = (el: HTMLElement): boolean => {
+      if (el.tagName !== "A") return false;
+      const block = blockOf(el);
+      const own = (el.textContent ?? "").trim();
+      const all = (block.textContent ?? "").trim();
+      return all.length > own.length + 1;
+    };
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+      if (el.closest("[aria-hidden=true], [inert]")) continue;
+      // The skip link waits off screen until it has focus.
+      if (el.classList.contains("hb-skip-link")) continue;
+      let target: Element = el;
+      if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
+        target = el.closest("label") ?? el;
+      }
+      const box = target.getBoundingClientRect();
       if (box.width <= 1 || box.height <= 1) continue;
+      if (getComputedStyle(el).visibility === "hidden") continue;
+      if (inSentence(el)) continue;
       if (box.height < 43.5 || box.width < 43.5) {
         const label = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 40);
         out.push(
@@ -137,19 +167,31 @@ test.describe("360 px wide", () => {
   test("the app bar and navigation work at 360 px", async ({ page }) => {
     await signIn(page, "manager@example.invalid");
     await expectNoHorizontalOverflow(page, "dashboard");
-    // The account menu, with sign out, stays on screen.
+    // The sidebar gives way to the app bar's "Menu", so the page keeps its whole width.
+    await expect(page.getByRole("navigation", { name: "Modules" })).toBeHidden();
     const account = page.getByRole("button", { name: /^Your account/ });
     await expect(account).toBeInViewport();
-    // Every section of the navigation is reachable and opens its page.
-    const nav = page.getByRole("navigation", { name: "Modules" }).first();
-    await expect(nav).toBeVisible();
-    // The section name follows the organisation's terminology ("Residents", "People"); its address does not.
-    await nav.locator('a[href="/people"]').click();
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    await expect(menu).toBeInViewport();
+    await menu.click();
+    const sheet = page.getByRole("dialog", { name: "Modules" });
+    await expect(sheet).toBeVisible();
+    await expectTouchTargets(page, "the navigation menu");
+    await expectAccessible(page, "the navigation menu");
+    // The section name follows the organisation's terminology ("Residents", "People"); its
+    // address does not.
+    await sheet.locator('a[href="/people"]').click();
     await page.waitForURL((url) => url.pathname === "/people");
-    await expectNoHorizontalOverflow(page, "people from the navigation");
+    await expect(sheet).toBeHidden();
+    await expectNoHorizontalOverflow(page, "people from the menu");
+    // Escape closes the menu and returns focus to its button.
+    await menu.click();
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeFocused();
     await account.click();
     const signOut = page.getByRole("menuitem", { name: "Sign out" });
     await expect(signOut).toBeInViewport();
+    await expectTouchTargets(page, "the account menu");
     await signOut.click();
     await page.waitForURL((url) => url.pathname === "/sign-in");
   });
@@ -168,11 +210,20 @@ test.describe("360 px wide", () => {
     });
   }
 
-  test("text at 200% still reflows on the person's record", async ({ page }) => {
-    await signIn(page, "manager@example.invalid");
-    await page.goto(`/people/${demoPerson(1)}`);
-    // Text-only resize, as a browser's text size setting does (WCAG 1.4.4).
-    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
-    await expectNoHorizontalOverflow(page, "person overview at 200% text");
-  });
+  // Type sizes are in rem, so a browser's text size setting resizes them (WCAG 1.4.4).
+  for (const [path, name] of [
+    [`/people/${demoPerson(1)}`, "person overview"],
+    ["/tasks", "tasks"],
+    ["/incidents/new", "new incident"],
+  ] as const) {
+    test(`text at 200% still reflows: ${name}`, async ({ page }) => {
+      await signIn(page, "manager@example.invalid");
+      await page.goto(path);
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      const body = await page.evaluate(() => getComputedStyle(document.body).fontSize);
+      // 17 px body text at the default; 34 px at 200%.
+      expect(body).toBe("34px");
+      await expectNoHorizontalOverflow(page, `${name} at 200% text`);
+    });
+  }
 });

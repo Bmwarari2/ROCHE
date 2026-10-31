@@ -3434,6 +3434,8 @@
     "approvals.asOf",
     "approvals.itemTitle",
     "approvals.emptyTruncated",
-    "approvals.done"
+    "approvals.done",
+    "shell.nav.menu",
+    "shell.nav.closeMenu"
   ]
 }

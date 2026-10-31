@@ -102,6 +102,8 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         unreadNotifications: t("shell.nav.unread", { count: unread }),
         settings: t("shell.nav.settings"),
         accountMenu: t("shell.account.menu", { name: me.user.name }),
+        menu: t("shell.nav.menu"),
+        closeMenu: t("shell.nav.closeMenu"),
         security: t("security.title"),
         signOut: t("common.signOut"),
       }}
