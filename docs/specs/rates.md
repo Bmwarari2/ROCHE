@@ -229,6 +229,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | training.default_refresh_years | 3 | years | 2000-01-01 | - | all | master prompt 12.2 (tenant may set sooner) | master-prompt |
 | training.oliver_mcgowan.refresh_years | 3 | years | 2000-01-01 | - | england | master prompt 12.2 (Oliver McGowan Code of Practice 2025) | master-prompt |
 | competence.medicines.refresh_months | 12 | months | 2000-01-01 | - | all | master prompt 10.2, 12.2 (annual medicines competence) | master-prompt |
+| retention.staff_file.birthday_age | 75 | years | 2000-01-01 | - | all | NHS Records Management Code of Practice (staff records to the 75th birthday); retention.md staff_file.to_75th_birthday | master-prompt |
 | supervision.per_year | 6 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | appraisal.per_year | 1 | count | 2000-01-01 | - | all | master prompt 12.2 (tenant policy example) | master-prompt |
 | document_expiry.reminder_days.first | 90 | days | 2000-01-01 | - | all | master prompt 12 rules | master-prompt |
