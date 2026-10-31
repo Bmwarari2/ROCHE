@@ -40,7 +40,7 @@ import {
   usablePermissions,
   withTenant,
 } from "../http/context";
-import { incidentCloseView } from "../services/safety";
+import { incidentCloseViews } from "../services/safety";
 import { staffNames } from "../services/staff";
 import { errorResponses, jsonBody, security } from "./openapi";
 
@@ -143,13 +143,14 @@ async function visibleSubjects(
             and(inArray(incidentPerson.incidentId, shownIds), isNull(incidentPerson.deletedAt)),
           )
       : [];
+  // Closing is offered only where the close route would take it: the same reading
+  // (`incidentCloseViews`, tenant-wide, so notifications and people the reader cannot see count)
+  // and the same rules (`incidentCloseProblems`: notifications, questions and the duty of candour,
+  // one record covering only the person it names; HZ-013, #120 review round 2).
+  const closeViews = await incidentCloseViews(tx, incidents);
   const byIncident = new Map<string, SubjectFacts>();
   for (const row of incidents) {
-    // Closing is offered only where the close route would take it: the same reading
-    // (`incidentCloseView`, tenant-wide, so notifications and people the reader cannot see count)
-    // and the same rules (`incidentCloseProblems`: notifications, questions and the duty of
-    // candour, one record covering only the person it names; HZ-013, #120 review round 2).
-    const close = await incidentCloseView(tx, row);
+    const close = closeViews.get(row.id);
     const visible = new Set(
       people.filter((p) => p.incidentId === row.id && p.personId).map((p) => p.personId),
     );
@@ -161,7 +162,9 @@ async function visibleSubjects(
       incident: {
         version: row.version,
         status: row.status,
+        // Unread is blocked: never offer a close the route might refuse.
         closeBlocked:
+          !close ||
           incidentCloseProblems({ ...close, openQuestions: row.openQuestions }).length > 0,
       },
     });

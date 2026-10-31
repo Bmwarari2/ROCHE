@@ -1338,57 +1338,101 @@ export async function affectedServiceUsers(tx: Transaction, incidentId: string):
   return [...new Set(rows.flatMap((p) => (p.personId ? [p.personId] : [])))];
 }
 
-/**
- * Everything closing an incident checks (`incidentCloseProblems`), read with tenant-wide scope so
- * notifications and people the closer cannot see still count: the notifications, the candour
- * record's stage, and the duty of candour facts.
- */
-export async function incidentCloseView(
-  tx: Transaction,
-  row: Pick<typeof incident.$inferSelect, "id" | "classifierResult">,
-): Promise<{
+/** What closing an incident checks (`incidentCloseProblems`), apart from its open questions. */
+export interface IncidentCloseRead {
   readonly notifications: readonly { kind: string; status: NotificationStatus }[];
   readonly candourState: string | null;
   readonly candour: CandourCloseFacts;
-}> {
+}
+
+type CloseSource = Pick<typeof incident.$inferSelect, "id" | "classifierResult">;
+
+/**
+ * Everything closing each incident checks (`incidentCloseProblems`), read with tenant-wide scope so
+ * notifications and people the closer cannot see still count: the notifications, the candour
+ * record's stage, and the duty of candour facts. Three reads however many incidents, for the
+ * approvals list and the stuck-candour job as for the close route.
+ */
+export async function incidentCloseViews(
+  tx: Transaction,
+  rows: readonly CloseSource[],
+): Promise<Map<string, IncidentCloseRead>> {
+  const views = new Map<string, IncidentCloseRead>();
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return views;
   return withTenantWideScope(tx, async () => {
     const notifications = await tx
       .select({
+        incidentId: statutoryNotification.incidentId,
         kind: statutoryNotification.kind,
         status: statutoryNotification.status,
         noLongerIndicated: statutoryNotification.noLongerIndicated,
       })
       .from(statutoryNotification)
       .where(
-        and(eq(statutoryNotification.incidentId, row.id), isNull(statutoryNotification.deletedAt)),
+        and(
+          inArray(statutoryNotification.incidentId, ids),
+          isNull(statutoryNotification.deletedAt),
+        ),
       );
-    const [record] = await tx
+    const records = await tx
       .select({
+        incidentId: candourRecord.incidentId,
         state: candourRecord.state,
         notifiable: candourRecord.thresholdNotifiable,
         personId: candourRecord.personId,
       })
       .from(candourRecord)
-      .where(eq(candourRecord.incidentId, row.id));
-    const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
-    return {
-      notifications: notifications.map((n) => ({
-        kind: n.kind,
-        status: n.status as NotificationStatus,
-      })),
-      candourState: record?.state ?? null,
-      candour: {
-        indicated:
-          (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
-          notifications.some(
-            (n) => n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
-          ),
-        notifiable: record?.notifiable ?? null,
-        personId: record?.personId ?? null,
-        people: await affectedServiceUsers(tx, row.id),
-      },
-    };
+      .where(inArray(candourRecord.incidentId, ids));
+    const people = await tx
+      .select({ incidentId: incidentPerson.incidentId, personId: incidentPerson.personId })
+      .from(incidentPerson)
+      .where(
+        and(
+          inArray(incidentPerson.incidentId, ids),
+          eq(incidentPerson.kind, "service_user"),
+          eq(incidentPerson.role, "affected"),
+          isNull(incidentPerson.deletedAt),
+        ),
+      );
+    for (const row of rows) {
+      const mine = notifications.filter((n) => n.incidentId === row.id);
+      const record = records.find((r) => r.incidentId === row.id);
+      const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
+      views.set(row.id, {
+        notifications: mine.map((n) => ({
+          kind: n.kind,
+          status: n.status as NotificationStatus,
+        })),
+        candourState: record?.state ?? null,
+        candour: {
+          indicated:
+            (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
+            mine.some(
+              (n) => n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
+            ),
+          notifiable: record?.notifiable ?? null,
+          personId: record?.personId ?? null,
+          people: [
+            ...new Set(
+              people.flatMap((p) => (p.incidentId === row.id && p.personId ? [p.personId] : [])),
+            ),
+          ],
+        },
+      });
+    }
+    return views;
   });
+}
+
+/** What closing one incident checks: `incidentCloseViews` for that incident alone. */
+export async function incidentCloseView(
+  tx: Transaction,
+  row: CloseSource,
+): Promise<IncidentCloseRead> {
+  const view = (await incidentCloseViews(tx, [row])).get(row.id);
+  if (!view) throw new Error("incident close view missing");
+  return view;
 }
 
 /** The task that says an incident is held open by the duty of candour (#120 round 2, M4). */
@@ -1453,8 +1497,10 @@ export async function raiseCandourBlockedTasks(
         ),
       );
     let raised = 0;
+    const views = await incidentCloseViews(tx, waiting);
     for (const row of waiting) {
-      const view = await incidentCloseView(tx, row);
+      const view = views.get(row.id);
+      if (!view) continue;
       const block = candourCloseBlock(view.candourState, view.candour);
       if (!block.noRecord && !block.open && block.stillToTell.length === 0) {
         await finishCandourBlockedTasks(tx, row.id, now);
