@@ -2070,7 +2070,7 @@
   "sample.banner.body": "People marked Sample are invented, so you can practise. Remove the sample data before you add real people.",
   "sample.banner.manage": "Manage sample data",
   "onboarding.sample.title": "Sample data",
-  "onboarding.sample.intro": "Load a few invented people to practise with before you add real people. They are marked Sample on every screen and left out of exports, notifications and reports.",
+  "onboarding.sample.intro": "Load a few invented people to practise with before you add real people. They are marked Sample on every screen and print, and left out of the full export. Harbour can still draft a notification about them: if it does, decide it is not required.",
   "onboarding.sample.present": "Sample data is loaded. Nobody can add a real person until you remove it.",
   "onboarding.sample.absent": "No sample data is loaded.",
   "onboarding.sample.unavailable": "Sample data can only be loaded before you add your first real person.",

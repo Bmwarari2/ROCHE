@@ -19998,6 +19998,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "sample": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -20005,7 +20008,8 @@
               "fullName",
               "preferredName",
               "roomLabel",
-              "photoUrl"
+              "photoUrl",
+              "sample"
             ]
           },
           "channel": {
@@ -37114,6 +37118,86 @@
           },
           "409": {
             "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/locations/{id}/dols": {
+      "get": {
+        "tags": [
+          "care"
+        ],
+        "summary": "DoLS requests and authorisations needing attention at a location, soonest first",
+        "description": "Requests waiting for an outcome, authorisations inside their first expiry reminder window and authorisations past their end, for the people the caller may see there (row-level security; HZ-020). For the role dashboards (INSI-001). Ending soonest first; requests, which have no end yet, last, oldest request first.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorisations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DolsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

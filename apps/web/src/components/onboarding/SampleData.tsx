@@ -7,7 +7,7 @@ import { type ReactNode, useState, useTransition } from "react";
 import { loadSampleData, removeSampleData } from "@/app/actions/onboarding";
 import { ManageFeedback } from "@/components/safety/ManageForms";
 import { t } from "@/lib/i18n";
-import { ONBOARDING_PAGE } from "@/lib/onboarding";
+import { ONBOARDING_PAGE, SAMPLE_DATA_SECTION } from "@/lib/onboarding";
 import type { ActionResult } from "@/lib/outcome";
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
@@ -70,7 +70,7 @@ function SampleAction({
         {children}
         <ManageFeedback
           result={result}
-          path={ONBOARDING_PAGE}
+          path={SAMPLE_DATA_SECTION}
           stepUp={t("onboarding.sample.stepUp")}
         />
         <div className="flex flex-wrap justify-end gap-2">
