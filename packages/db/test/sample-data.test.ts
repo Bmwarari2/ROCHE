@@ -384,10 +384,12 @@ describe("hazard HZ-072 sample data is never mixed with real people (migration 0
 // notification (migration 0093), so it stops removal too; its cases go with the person. Data
 // security evidence (migration 0094) refers only to organisation documents, never a person's (the
 // API refuses one), so it never holds up a removal in practice; listed so a document it cites is
-// never removed with a sample.
+// never removed with a sample. A disclosure request about a sample person is a real record of a
+// disclosure (migration 0103).
 const BLOCKS_REMOVAL = [
   "complaint",
   "compliment",
+  "disclosure_request",
   "downtime_pack",
   "dp_complaint",
   "dsar_case",

@@ -198,7 +198,7 @@ const itemOf = (row: ItemRow, names: Awaited<ReturnType<typeof staffNames>>) => 
 });
 
 /** Canonical JSON (sorted keys) so the bundle's hash is stable. */
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value !== null && typeof value === "object") {
     return `{${Object.keys(value)
@@ -210,12 +210,12 @@ function canonical(value: unknown): string {
 }
 
 /** SHA-256 of a record as the reviewer sees it (its disclosable columns), for #149 M3. */
-function recordSha256(record: Record<string, unknown>): string {
+export function recordSha256(record: Record<string, unknown>): string {
   return createHash("sha256").update(canonical(record)).digest("hex");
 }
 
 /** Every string in a field, with its path inside JSON (#149 M5: JSON fields are scanned too). */
-function stringsIn(value: unknown, path: string): { field: string; text: string }[] {
+export function stringsIn(value: unknown, path: string): { field: string; text: string }[] {
   if (typeof value === "string") return [{ field: path, text: value }];
   if (Array.isArray(value)) return value.flatMap((v, i) => stringsIn(v, `${path}[${i}]`));
   if (value !== null && typeof value === "object")

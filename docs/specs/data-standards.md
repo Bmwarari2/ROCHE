@@ -790,6 +790,26 @@ for PKCE. Retention: tenant configuration, kept while current.
 | `sso_domain.verified_at`, `verified_by`, `removed_at` | ISO 8601 UTC; `tenant_user` id | Set together when proved | |
 | `auth.sso_provider.oidc_config` | Better Auth SSO plugin | JSON: issuer, client id, discovery, authorization, token, JWKS and user info endpoints, `private_key_jwt`, PKCE, scopes `openid email profile` | Written only by the API; no secret. |
 
+## Disclosure requests (Phase 2, slice 41)
+
+Code lists for disclosure requests ([safety.md](safety.md) section 11, SAFE-016; migration 0103).
+None maps to a national standard. Every column of `disclosure_request` and `disclosure_item` is
+exported except `disclosure_request.pack_storage_key` (internal). Retention class
+`serious_incident` (H-820).
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `disclosure_request.type` | Harbour (`DISCLOSURE_TYPES`) | `coroner`, `safeguarding_adults_review`, `domestic_homicide_review`, `police`, `solicitor`, `access_to_health_records` | An Access to Health Records Act request needs the person's status `deceased`. |
+| `disclosure_request.legal_basis` | Statute as named by `legalBasis` | Free text, 10 to 500 characters | Stored as stated when the request was logged, so a later change to the wording does not rewrite history. |
+| `disclosure_request.requester_name`, `requester_organisation`, `requester_reference`, `stated_purpose` | Harbour | Free text (1 to 200; 1 to 200; 1 to 100; 3 to 2,000 characters) | A stated purpose is required for police and solicitor requests before they move on (check `disclosure_request_purpose`). Never in the audit trail or logs. |
+| `disclosure_request.received_at`, `due_at` | ISO 8601 date-time, UTC | `due_at` only for an Access to Health Records Act request (`ahraDueAt`, rates `ahra.*`) | Shown dd/mm/yyyy, 24-hour. |
+| `disclosure_request.state`, `reason` | Harbour (`DISCLOSURE_WORKFLOW`) | `requested`, `prepared`, `approved`, `released`, `refused`, `withdrawn`; a reason for refused and withdrawn | Released, refused and withdrawn requests never change except the Regulation 28 dates (trigger `disclosure_request_guard`). |
+| `disclosure_request.prepared_by`, `decided_by`, `released_by` and their times | Harbour | `tenant_user` ids; UTC | The decider is never `created_by` (check `disclosure_request_approver`). |
+| `disclosure_request.pack_sha256`, `pack_storage_key` | SHA-256; storage key | 64 lower-case hex characters of the canonical JSON of the records, redacted count and withheld count; `tenants/<tenant>/disclosures/<request>/<pack>.json` (`disclosurePackStorageKey`, ids only) | Set together on release (check `disclosure_request_pack`). The key is internal. |
+| `disclosure_request.not_searched`, `collected_at` | Harbour (`EXPORT_TABLES`) | Table names; UTC | As `dsar_case`. |
+| `disclosure_request.prevention_report_on`, `prevention_responded_on` | Coroners (Investigations) Regulations 2013, regulation 28 and 29 | `YYYY-MM-DD`; coroner requests only; the response on or after the report | The response is due `coroner.prevention_report_response_days` (rate table) after the report; never stored. |
+| `disclosure_item.*` | As `dsar_item` | `pending`, `disclose`, `redact`, `withhold`; redacted fields from the table's exported columns; `content_sha256` of the record as reviewed | Redacted fields read `[redacted]` in the pack; withheld records are counted. Records are in date order (the chronology). |
+
 ## Phase 1 tables completed for the gate
 
 Eight Phase 1 tables that hold personal or care data and were named only in passing above (Phase 1

@@ -1057,3 +1057,70 @@ Refusals decided in the API and those the database raises are audited as denied,
   people or staff of another organisation refused; an update following its row after the person
   moved; residents' rows hidden from a manager who cannot see them; one outbreak per report; no
   closure without a report; no delete grant.
+
+## 11. Disclosure requests (slice 41: SAFE-016)
+
+Schema, API and audit for Phase 2 rule 6 (`disclosure.ts`); the screens follow later. Migration
+0103 (lane D; renumbered at merge). Collection reuses the DSAR collector of slice 15 (ADR-0090):
+the same subject map over the export catalogue, the same item review by a person, the same stored
+pack. Procedure owner: the Registered Manager with the data protection lead.
+
+### 11.1 Tables
+
+All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
+and `harbour_owner`; the application never deletes. The organisation's system context (no member,
+the whole organisation) reads them for the full export, never writes.
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `disclosure_request` | mutable aggregate (`version`) | One request about one person: the type and the legal basis as stated when it was logged, who asked (name, organisation, their reference), what it says the information is for (police and solicitors), when it arrived and when the answer is due, the state (`DISCLOSURE_WORKFLOW`), who prepared, approved, refused, released or withdrew it with reasons, the issued pack's SHA-256 and storage key, and for a coroner the Regulation 28 report and response dates |
+| `disclosure_item` | mutable aggregate | One record found for the request and the decision a person made about it: disclose, redact named fields or withhold with a reason, bound to the record's content hash as reviewed (as `dsar_item`) |
+
+### 11.2 Rules
+
+38. **Scope.** A request concerns one person. It is logged, collected, reviewed and released by a
+    holder of `safety.incident.manage`, and approved or refused by a holder of
+    `safety.disclosure.approve`, either across the organisation or at that person's location (the
+    location is stored with the request). The API checks this and row-level security again
+    (`app.holds_role_permission_at(..., location_id)` or across the organisation).
+39. **Legal basis.** Every request records its type and the legal basis from `DISCLOSURE_TYPES`,
+    copied when logged so a later wording change never rewrites what was relied on. Police and
+    solicitor requests also record what the request says the information is for
+    (`disclosurePrepareProblems`). Access to Health Records Act requests get their due time from
+    `ahraDueAt` (`ahra.*` rates) and need the person to have died.
+40. **Collection and review.** Collect finds the person's records through the DSAR collector, in the
+    organisation's context after the route has authorised the member, with tables not searched named
+    with reasons. Every record is reviewed by a person: disclose, redact named fields, or withhold
+    with a reason. Nothing is redacted automatically; names of others are highlighted. A record that
+    changed since review returns to pending.
+41. **Separation of duties.** Preparing needs every item decided and `disclosurePrepareProblems`
+    clear. Approval and refusal need `safety.disclosure.approve` and a person who is not the one who
+    logged the request (database check too); refusal and withdrawal need a reason.
+42. **Issuing.** Release needs approval and a fresh step-up. The pack is built from the decisions,
+    in date order (the chronology for a SAR or DHR), redacted fields reading `[redacted]` and withheld
+    records counted, hashed, stored as sent in the exports bucket (SSE-KMS, opaque key) and can be
+    fetched again exactly, with step-up. The disclosure log is the list of requests with their basis,
+    approver and release.
+43. **Coroner tracker.** A coroner request may record a Regulation 28 prevention of future deaths
+    report received on a day; the response is due `coroner.prevention_report_response_days` later
+    (Coroners (Investigations) Regulations 2013 reg 29, rate table) and is recorded when sent.
+44. **Audit.** Every read and change writes `audit_event` with ids, codes and counts only, never the
+    requester's name, purpose, reasons or record content; viewing records and the pack are audited
+    as care-record views.
+
+### 11.3 Permission matrix
+
+| Action | Permission | Scope | Notes |
+| --- | --- | --- | --- |
+| Log, collect, review items, prepare, withdraw, record Regulation 28 dates | `safety.incident.manage` | organisation or the person's location | MFA (care records) |
+| Approve or refuse | `safety.disclosure.approve` | organisation or the person's location | never the person who logged it |
+| Release (issue the pack), fetch the issued pack, view a record | `safety.incident.manage` | as above | fresh step-up |
+
+### 11.4 Tests
+
+- `packages/db/test/disclosure-requests.test.ts`: isolation, location scope (a manager at another
+  home sees nothing), approver not the requester, checks, system read.
+- `apps/api/test/disclosure-requests.test.ts`: the workflow end to end (log, collect, review,
+  prepare, approve by someone else, release with step-up, fetch as issued), refusals (same person
+  approving, police without purpose, AHRA for a living person, release without step-up), the
+  Regulation 28 clock from the rate table, audit without text.

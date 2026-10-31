@@ -573,6 +573,24 @@ H-770 to H-779.
 | H-775 | Confirm the retention of the slice 37 records: the death record and its steps as `serious_incident`, the missing person episode and timeline as their incident, and the Herbert Protocol profile as `care_record` (destroyed with the person's record) | DPO | The export catalogue (`packages/domain/src/platform/export-catalogue.ts`) | Before a real tenant relies on slice 37 | open |
 | H-776 | Decide whether a death recorded only on an incident (the person on the incident died, no exit recorded yet) should open a death record too; today only an exit does, and the incident's death notifications count for the exit within a day | CSO | `openDeathRecord`; `notificationsForExit` | Before a real tenant relies on slice 37 | open |
 
+## Phase 2: safety disclosure requests (slice 41)
+
+Logged by slice 41 (SAFE-016, disclosure requests, [safety.md](../specs/safety.md) section 11) on
+31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-820 | Agree a retention class for disclosure requests and issued packs, or confirm that they stay under `serious_incident` (20 years from closure) as set for now | DPO lead | retention.md; `packages/db/src/schema/disclosure.ts` | Retention engine for disclosure packs | open |
+| H-821 | Confirm the legal basis wording stored for each disclosure type (adds to H-592), including that police and solicitor requests rest on DPA 2018 Schedule 2 exemptions and need a stated purpose | DPO lead | safety.md rule 38; `legalBasis` in `packages/domain/src/safety/disclosure.ts` | Production use of disclosure requests | open |
+| H-822 | Confirm the 56-day response time for a Regulation 28 prevention of future deaths report (Coroners (Investigations) Regulations 2013, regulation 29) on legislation.gov.uk and record the page and date in rates.md | Brian | rates.md `coroner.prevention_report_response_days` (to-verify) | Marking the rate verified | open |
+| H-823 | Agree with the design partner who holds `safety.disclosure.approve` (Harbour's default: the Registered Manager and the owner) and whether a home may approve its own requests or only the organisation | Registered Manager at the design partner | safety.md section 11 permission matrix | Role design at onboarding | open |
+| H-824 | Decide whether the disclosure log (requests about a person) should be offered in a later pack, for example to a Safeguarding Adults Review; Harbour leaves it out of every pack and a subject access request still finds it | DPO lead | `apps/api/src/routes/disclosures.ts` collect | None (default applied) | open |
+| H-825 | Review the disclosure steps with the CSO: a person reviews every record, the approver is not the requester, records in date order as the chronology, and a record changed after review is returned for review | CSO | hazard HZ-011; safety.md rules 39 to 43 | Clinical safety case sign-off | open |
+| H-826 | Agree how an issued pack is sent to the recipient (secure email, the recipient's portal, encrypted media) and record it in the disclosure procedure; Harbour stores the pack and does not send it | DPO lead with the design partner | safety.md rule 42 | Sending packs from Harbour (later slice) | open |
+| H-827 | Confirm that an Access to Health Records Act request counts its answer time from the person's latest care note (records added in the 40 days before the request), or name the records that should count | DPO lead | `ahraDueAt`; `apps/api/src/routes/disclosures.ts` | None (default applied) | open |
+| H-828 | Add disclosure requests to the DPIA: recipients by type, the stored pack, the step-up on release, and who may see the log | DPO lead | records-of-processing.md (disclosure requests note); DPIA template | DPIA sign-off | open |
+| H-829 | Agree the web screens for the disclosure log and review with the design partner (a later slice builds them on these API routes) | Brian with the design partner | safety.md section 11; `/v1/disclosures` | Web slice for SAFE-016 | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

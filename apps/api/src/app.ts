@@ -32,6 +32,7 @@ import { dataSecurityRouter } from "./routes/data-security";
 import { deathsMissingRouter } from "./routes/deaths-missing";
 import { developmentRouter } from "./routes/development";
 import { devicesRouter } from "./routes/devices";
+import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
@@ -411,6 +412,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", dataProtectionRouter);
   app.route("/", dataSecurityRouter);
   app.route("/", dsarRouter);
+  app.route("/", disclosuresRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
