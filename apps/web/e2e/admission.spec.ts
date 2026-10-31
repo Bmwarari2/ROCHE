@@ -48,6 +48,32 @@ test.beforeAll(async ({ browser }, testInfo) => {
   }
 });
 
+/**
+ * The person this run admitted leaves again (a discharge home, which releases their bed), so later
+ * journeys and runs find the home as it was. Their record stays, as discharged records do.
+ */
+test.afterAll(async ({ browser }, testInfo) => {
+  if (!personId) return;
+  const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  await context.addCookies(sessions.manager);
+  const person = await api<{ status: string; version: number }>(
+    context.request,
+    "get",
+    `/v1/people/${personId}`,
+  );
+  if (person.status === "active") {
+    await api(context.request, "post", `/v1/people/${personId}/status`, {
+      to: "discharged",
+      effectiveAt: new Date().toISOString(),
+      reason: `End of the admission journey (${RUN})`,
+      exitKind: "discharge",
+      exit: { destinationType: "own_home" },
+      version: person.version,
+    });
+  }
+  await context.close();
+});
+
 async function as(context: BrowserContext, who: keyof typeof sessions) {
   await context.clearCookies();
   await context.addCookies(sessions[who]);

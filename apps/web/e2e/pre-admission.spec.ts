@@ -49,6 +49,33 @@ test.beforeAll(async ({ browser }, testInfo) => {
   }
 });
 
+/** Every person this run made, so the run can close what it left open. */
+const createdIds: string[] = [];
+
+/**
+ * Enquiries and assessments this run left open are closed as not admitted, so the enquiries list
+ * does not grow with every run and later journeys find it as it was.
+ */
+test.afterAll(async ({ browser }, testInfo) => {
+  const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+  await context.addCookies(sessions.manager);
+  for (const id of createdIds) {
+    const person = await api<{ status: string; version: number }>(
+      context.request,
+      "get",
+      `/v1/people/${id}`,
+    );
+    if (person.status !== "enquiry" && person.status !== "pre_admission") continue;
+    await api(context.request, "post", `/v1/people/${id}/status`, {
+      to: "not_admitted",
+      effectiveAt: new Date().toISOString(),
+      reason: `End of the pre-admission journey (${RUN})`,
+      version: person.version,
+    });
+  }
+  await context.close();
+});
+
 async function as(context: BrowserContext, who: keyof typeof sessions) {
   await context.clearCookies();
   await context.addCookies(sessions[who]);
@@ -93,6 +120,7 @@ async function assessedPerson(
     dateOfBirth: "1940-04-04",
     receivedAt: new Date(Date.now() - 2 * DAY).toISOString(),
   });
+  createdIds.push(person.id);
   const services = await api<{ items: { id: string; serviceType: string }[] }>(
     request,
     "get",
@@ -202,6 +230,7 @@ test("hazard HZ-007 hazard HZ-015 hazard HZ-016 the manager records an enquiry, 
   await main(page).getByRole("button", { name: "Record the enquiry" }).click();
   await page.waitForURL(/\/people\/[0-9a-f-]{36}\/pre-admission/);
   const personId = new URL(page.url()).pathname.split("/")[2] ?? "";
+  createdIds.push(personId);
   await expect(arrival(page)).toContainText("Enquiry recorded");
   // The page title names the tab, never the person.
   await expect(page).toHaveTitle(/Pre-admission/);
