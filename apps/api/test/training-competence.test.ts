@@ -53,7 +53,7 @@ interface Development {
 }
 
 /** The port as medicines will call it: on the server, in the care worker's own request context. */
-const port = (at = new Date()) =>
+const port = (claimedAt: Date | null = null) =>
   withRequestContext(
     createDatabase(h.db.pool("harbour_app")),
     {
@@ -62,7 +62,7 @@ const port = (at = new Date()) =>
       scope: "assigned",
       locationIds: [],
     },
-    (tx) => competencePort(tx, CARER, "medicines_administration", at),
+    (tx) => competencePort(tx, CARER, "medicines_administration", claimedAt),
   );
 
 beforeAll(async () => {
@@ -233,15 +233,14 @@ describe("hazard HZ-119 observed competence and the port (ADR-0085)", () => {
     expect(carer.status).toBe(403);
   });
 
-  it("hazard HZ-119 blocks at once when the valid sign-offs are withdrawn", async () => {
+  it("hazard HZ-119 blocks at once when the newest sign-off is withdrawn, whatever older ones say", async () => {
     const record = (await (await as("manager", `${dev(CARER)}/development`)).json()) as Development;
-    for (const signOff of record.signOffs) {
-      const withdrawn = await as("manager", `${dev(CARER)}/competences/${signOff.id}/withdraw`, {
-        method: "POST",
-        body: { reason: "Observed an error at the medicines round" },
-      });
-      expect(withdrawn.status).toBe(200);
-    }
+    const newest = record.signOffs[0];
+    const withdrawn = await as("manager", `${dev(CARER)}/competences/${newest?.id}/withdraw`, {
+      method: "POST",
+      body: { reason: "Observed an error at the medicines round" },
+    });
+    expect(withdrawn.status).toBe(200);
     expect(await port()).toMatchObject({ allowed: false, reason: "withdrawn" });
     const short = await as(
       "manager",
@@ -254,12 +253,49 @@ describe("hazard HZ-119 observed competence and the port (ADR-0085)", () => {
     expect(short.status).toBe(422);
   });
 
+  it("hazard HZ-119 never reinstates a withdrawn competence with a backdated sign-off", async () => {
+    const backdated = await as("nurse", `${dev(CARER)}/competences`, {
+      method: "POST",
+      body: { competence: "medicines_administration", observedOn: daysFromToday(-5) },
+    });
+    expect(backdated.status).toBe(422);
+    expect(await port()).toMatchObject({ allowed: false, reason: "withdrawn" });
+  });
+
   it("hazard HZ-119 allows again after a new observation", async () => {
     await as("nurse", `${dev(CARER)}/competences`, {
       method: "POST",
       body: { competence: "medicines_administration", observedOn: today() },
     });
     expect(await port()).toMatchObject({ allowed: true });
+  });
+
+  it("hazard HZ-119 lets a device's earlier time block, never allow", async () => {
+    // The only sign-off in force was observed today: an administration the device dates last
+    // week is blocked, whatever the server's own answer is.
+    expect(await port(new Date(Date.now() - 7 * 86_400_000))).toMatchObject({ allowed: false });
+  });
+
+  it("hazard HZ-119 answers about another member whatever the caller can read", async () => {
+    // The care worker cannot read the nurse's training; the port still answers, with dates only.
+    await as("manager", `${dev(NURSE)}/competences`, {
+      method: "POST",
+      body: { competence: "controlled_drugs", observedOn: today() },
+    });
+    const ask = () =>
+      withRequestContext(
+        createDatabase(h.db.pool("harbour_app")),
+        { tenantId: DEMO.tenantId, userId: CARER, scope: "assigned", locationIds: [] },
+        (tx) => competencePort(tx, NURSE, "controlled_drugs"),
+      );
+    expect(await ask()).toMatchObject({ allowed: true });
+    const record = (await (await as("manager", `${dev(NURSE)}/development`)).json()) as Development;
+    const id = record.signOffs.find((o) => o.competence === "controlled_drugs")?.id;
+    await as("manager", `${dev(NURSE)}/competences/${id}/withdraw`, {
+      method: "POST",
+      body: { reason: "Controlled drug count error on the night round" },
+    });
+    expect(await ask()).toMatchObject({ allowed: false, reason: "withdrawn" });
   });
 });
 
@@ -311,8 +347,34 @@ describe("the member's own record", () => {
   });
 });
 
-describe("training and competence reminders (workforce.md section 5)", () => {
-  it("raises a reminder for training due soon once, for HR", async () => {
+describe("the training record correction", () => {
+  it("corrects a record against the version loaded, keeping the earlier one", async () => {
+    const record = (await (await as("manager", `${dev(CARER)}/development`)).json()) as {
+      trainingRecords: { id: string; version: number; topic: string }[];
+    };
+    const fire = record.trainingRecords.find((t) => t.topic === "fire_safety");
+    const body = (provider: string | null) => ({
+      expectedVersion: fire?.version,
+      topic: "fire_safety",
+      tier: null,
+      completedOn: daysFromToday(-31),
+      expiresOn: null,
+      provider,
+    });
+    const url = `${dev(CARER)}/training-records/${fire?.id}`;
+    expect(
+      (await as("manager", url, { method: "PATCH", body: body("Example Training Ltd") })).status,
+    ).toBe(200);
+    expect((await as("manager", url, { method: "PATCH", body: body(null) })).status).toBe(409);
+  });
+});
+
+describe("hazard HZ-124 training and competence reminders (workforce.md section 5)", () => {
+  it("hazard HZ-124 raises a reminder for training and for a competence due soon, once each, for HR", async () => {
+    await as("nurse", `${dev(CARER)}/competences`, {
+      method: "POST",
+      body: { competence: "catheter_care", observedOn: ukIsoDate(addUkMonths(new Date(), -11)) },
+    });
     await as("manager", `${dev(CARER)}/training-records`, {
       method: "POST",
       body: {
@@ -328,7 +390,7 @@ describe("training and competence reminders (workforce.md section 5)", () => {
       appDb: createDatabase(h.db.pool("harbour_app")),
       logger: createLogger("silent"),
     };
-    expect(await remindDevelopmentExpiry(deps)).toBe(1);
+    expect(await remindDevelopmentExpiry(deps)).toBe(2);
     expect(await remindDevelopmentExpiry(deps)).toBe(0);
     const [task] = await sql<{
       title: string;
@@ -348,5 +410,31 @@ describe("training and competence reminders (workforce.md section 5)", () => {
         reminderDueOn: daysFromToday(10),
       },
     });
+  });
+});
+
+describe("hazard HZ-124 reminders end with a renewal, and readers come from the database's rule", () => {
+  it("hazard HZ-124 cancels the competence reminder when it is observed again", async () => {
+    await as("nurse", `${dev(CARER)}/competences`, {
+      method: "POST",
+      body: { competence: "catheter_care", observedOn: today() },
+    });
+    const rows = await sql<{ status: string }>(
+      "SELECT status FROM task WHERE kind = 'workforce.competence_expiry'",
+    );
+    expect(rows.map((r) => r.status)).toEqual(["cancelled"]);
+  });
+
+  it("refuses a reader whose permission comes only from a role scoped to assigned people", async () => {
+    await sql(
+      `INSERT INTO role (key, name, scope_kind, permissions)
+       VALUES ('senior_carer_clone', 'Senior carer', 'assigned', '{workforce.competence.observe}')`,
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'senior_carer_clone'`,
+      [CARER, DEMO.locationId],
+    );
+    expect((await as("carer", `${dev(NURSE)}/development`)).status).toBe(404);
   });
 });

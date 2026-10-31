@@ -6,7 +6,10 @@ import { sql } from "drizzle-orm";
  * view), then puts back exactly the member and scope the transaction had, also when `fn` fails.
  * For a narrow question the caller may ask but whose rows its own row-level security hides: the
  * competence port (ADR-0085) and ending an item's reminder tasks (workforce.md section 5). Never
- * for anything the caller then shows beyond what that question answers.
+ * for anything the caller then shows beyond what that question answers. Callers must await it
+ * alone: a query run alongside it on the same transaction would run with the system's rights
+ * (security review round 1 of slice 17, finding 5; definer functions are the longer-term shape,
+ * workforce.md section 11).
  */
 export async function withSystemRights<T>(tx: Transaction, fn: () => Promise<T>): Promise<T> {
   const saved = await tx.execute<{ user_id: string | null; scope: string | null }>(

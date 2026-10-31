@@ -63,16 +63,28 @@ export type CompetenceDecision =
     };
 
 /**
- * Whether the member may do the action on `today`: allowed through the valid-until day of their
- * newest sign-off in force (observed on or before today, not withdrawn by today); expired from the
- * day after; withdrawn when the only sign-offs left were withdrawn; missing otherwise.
+ * Whether the member may do the action on `today` (clinical safety review round 1, finding 1). A
+ * withdrawal is about the member, not one sign-off: from the day of the latest withdrawal by today,
+ * only a sign-off observed on or after that day counts. Then the newest sign-off in force (observed
+ * on or before today, not itself withdrawn by today) allows the action through its valid-until day;
+ * expired from the day after; `withdrawn` when a withdrawal left nothing in force; `missing`
+ * otherwise.
  */
 export function competenceDecision(
   signOffs: readonly StoredSignOff[],
   today: string,
 ): CompetenceDecision {
   const observed = signOffs.filter((s) => s.observedOn <= today);
-  const inForce = observed.filter((s) => s.withdrawnOn === null || s.withdrawnOn > today);
+  const lastWithdrawal = observed
+    .map((s) => s.withdrawnOn)
+    .filter((on): on is string => on !== null && on <= today)
+    .sort()
+    .at(-1);
+  const inForce = observed.filter(
+    (s) =>
+      (s.withdrawnOn === null || s.withdrawnOn > today) &&
+      (lastWithdrawal === undefined || s.observedOn >= lastWithdrawal),
+  );
   const best = inForce
     .map((s) => s.validUntil)
     .sort()
@@ -82,6 +94,23 @@ export function competenceDecision(
       ? { allowed: true, validUntil: best }
       : { allowed: false, reason: "expired", validUntil: best };
   }
-  if (observed.length > 0) return { allowed: false, reason: "withdrawn", validUntil: null };
+  if (lastWithdrawal !== undefined)
+    return { allowed: false, reason: "withdrawn", validUntil: null };
   return { allowed: false, reason: "missing", validUntil: null };
+}
+
+/**
+ * The decision for an action at `serverNow`, and also at the time the device says it happened when
+ * one is given (an administration recorded offline): blocked if either is (clinical safety review
+ * round 1, finding 2; ADR-0085). A device's time can never allow what the server's time blocks.
+ */
+export function competenceDecisionAt(
+  signOffs: readonly StoredSignOff[],
+  serverToday: string,
+  claimedDay: string | null,
+): CompetenceDecision {
+  const now = competenceDecision(signOffs, serverToday);
+  if (!now.allowed || claimedDay === null || claimedDay === serverToday) return now;
+  const claimed = competenceDecision(signOffs, claimedDay);
+  return claimed.allowed ? now : claimed;
 }

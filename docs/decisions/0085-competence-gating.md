@@ -42,9 +42,15 @@ keeps the module boundary and never trusts a client-supplied value.
 - The port is `competencePort` in `apps/api/src/services/competence-port.ts`: given a member, a
   competence code and an instant, it reads that member's acceptable, unwithdrawn sign-offs with the
   system's rights for that one question (the caller may not see the member's training file) and
-  returns `competenceDecision` from `packages/domain/src/workforce/competence-port.ts`: allowed with
-  the valid-until date, or blocked with the reason (`missing`, `expired`, `withdrawn`). Medicines
-  and scheduling call it on the server; their APIs never accept a competence from the client.
+  returns `competenceDecisionAt` from `packages/domain/src/workforce/competence-port.ts`: allowed
+  with the valid-until date, or blocked with the reason (`missing`, `expired`, `withdrawn`).
+  Medicines and scheduling call it on the server with a member id the server knows (the member
+  acting, never one from the request body); their APIs never accept a competence from the client.
+- Time: the server's clock decides. A caller may also pass the time the device says the action
+  happened (an administration recorded offline); the port then decides at both and blocks if
+  either blocks, so a device's earlier or later time can only block, never allow.
+- A withdrawal is about the member: from the day of the latest withdrawal only a sign-off
+  observed on or after that day counts, and the database refuses one dated before it.
 - On the device, the member's own sign-offs sync for offline administration (slice 71); the
   server checks again when the administration arrives, and a mismatch becomes a review task
   (section 17.1).
@@ -65,5 +71,5 @@ keeps the module boundary and never trusts a client-supplied value.
 ### Confirmation
 
 `apps/api/test/training-competence.test.ts` (the port: allowed, expired, withdrawn, missing, a
-client value ignored), `packages/domain/src/workforce/competence-port.test.ts`, and the HZ-119 and
+device's earlier time blocking, another member whatever the caller can read), `packages/domain/src/workforce/competence-port.test.ts`, and the HZ-119 and
 HZ-124 verification rows.

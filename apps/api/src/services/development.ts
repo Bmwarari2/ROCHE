@@ -83,17 +83,6 @@ async function memberRoles(
   });
 }
 
-/** The member's start date, for the first supervision and appraisal (system rights: one date). */
-function memberStartedOn(tx: Transaction, memberId: string): Promise<string | null> {
-  return withSystemRights(tx, async () => {
-    const [row] = await tx
-      .select({ startsOn: staffProfile.startsOn })
-      .from(staffProfile)
-      .where(and(eq(staffProfile.tenantUserId, memberId), isNull(staffProfile.deletedAt)));
-    return row?.startsOn ?? null;
-  });
-}
-
 /** The organisation's requirements for a set of role keys, merged per topic (highest tier, shortest refresh). */
 export async function requirementsFor(
   tx: Transaction,
@@ -135,6 +124,24 @@ const trainingRates = (rates: WorkforceRates) => ({
   reminderDaysFirst: rates.reminderDaysFirst,
 });
 
+/** The nation whose figures apply to a member: where they work (England for organisation-wide roles). */
+export async function memberNation(tx: Transaction, memberId: string, now: Date): Promise<Nation> {
+  return (await memberRoles(tx, memberId, now)).nation;
+}
+
+/**
+ * Whether the caller may read this member's development record, asked of the database before
+ * anything is read with the system's rights (security review round 1, finding 1): the system, a
+ * holder of a workforce read permission as the database counts it, or the member themselves.
+ */
+async function mayReadDevelopment(tx: Transaction, memberId: string): Promise<boolean> {
+  const result = await tx.execute<{ ok: boolean }>(
+    sql`SELECT app.is_system() OR app.reads_development()
+               OR app.reads_own_development(${memberId}::uuid) AS ok`,
+  );
+  return result.rows[0]?.ok === true;
+}
+
 /** One member's development record, as the caller's row-level security lets them read it. */
 export async function developmentRecord(
   tx: Transaction,
@@ -142,6 +149,7 @@ export async function developmentRecord(
   memberId: string,
   now: Date,
 ): Promise<DevelopmentRecord | null> {
+  if (!(await mayReadDevelopment(tx, memberId))) return null;
   const today = ukIsoDate(now);
   const { keys, nation } = await memberRoles(tx, memberId, now);
   const rates = await workforceRates(tx, tenantId, nation, today);
@@ -213,13 +221,20 @@ export async function developmentRecord(
     },
   );
 
-  const startedOn = await memberStartedOn(tx, memberId);
   const held = supervisions.map((s) => ({
     kind: s.kind as "supervision" | "appraisal" | "spot_check",
     heldOn: s.heldOn,
   }));
-  const next = (kind: "supervision" | "appraisal", perYear: number) =>
-    startedOn ? nextMeeting(kind, held, startedOn, perYear, today) : null;
+  // From the last one held only: the start date is in the staff file, which these readers may not
+  // see (security review round 1, finding 1); the first is due from the start (slice 57's screens).
+  const next = (kind: "supervision" | "appraisal", perYear: number) => {
+    const last = held
+      .filter((h) => h.kind === kind && h.heldOn <= today)
+      .map((h) => h.heldOn)
+      .sort()
+      .at(-1);
+    return last ? nextMeeting(kind, held, last, perYear, today) : null;
+  };
 
   const plan = evidence
     ? revalidationPlan(
@@ -368,7 +383,17 @@ export async function raiseDevelopmentReminders(
     });
     raised += 1;
   };
+  const left = new Set(
+    (
+      await tx
+        .select({ id: staffProfile.tenantUserId })
+        .from(staffProfile)
+        .where(sql`${staffProfile.leftOn} IS NOT NULL AND ${staffProfile.leftOn} < ${today}`)
+    ).map((r) => r.id),
+  );
   for (const memberId of members) {
+    // Leavers get no reminders (clinical safety review round 1, finding 8).
+    if (left.has(memberId)) continue;
     const { nation } = await memberRoles(tx, memberId, now);
     const rates = await workforceRates(tx, tenantId, nation, today);
     const record = await developmentRecord(tx, tenantId, memberId, now);
@@ -397,4 +422,37 @@ export async function raiseDevelopmentReminders(
     }
   }
   return raised;
+}
+
+/**
+ * Cancels a member's open reminders for one topic or competence once it is recorded again (a
+ * renewal), so HR is not left with overdue tasks it need not act on (clinical safety review round
+ * 1, finding 8); the new date's reminders follow from the sweep. With the system's rights, for
+ * that member and subject only, because the reminders are about no person and no location.
+ */
+export function endDevelopmentReminders(
+  tx: Transaction,
+  memberId: string,
+  subject: { readonly trainingTopic: string } | { readonly competence: string },
+): Promise<number> {
+  const [kind, key, value] =
+    "trainingTopic" in subject
+      ? [TRAINING_EXPIRY_TASK, "trainingTopic", subject.trainingTopic]
+      : [COMPETENCE_EXPIRY_TASK, "competence", subject.competence];
+  return withSystemRights(tx, async () => {
+    const ended = await tx
+      .update(task)
+      .set({ status: "cancelled", statusReason: "Ended: recorded again" })
+      .where(
+        and(
+          eq(task.kind, kind),
+          eq(task.sourceType, "tenant_user"),
+          eq(task.sourceId, memberId),
+          inArray(task.status, ["open", "in_progress"]),
+          sql`${task.details}->>${key} = ${value}`,
+        ),
+      )
+      .returning({ id: task.id });
+    return ended.length;
+  });
 }

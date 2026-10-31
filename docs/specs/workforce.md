@@ -267,7 +267,7 @@ Slice 17 (training, competence, supervision, revalidation; members by `tenant_us
 | --- | --- | --- |
 | `GET /v1/workforce/training-requirements` | `workforce.training.manage` | The organisation's matrix: requirements by role |
 | `PUT /v1/workforce/training-requirements` | `workforce.training.manage` | Add or change one role and topic's requirement (`expectedVersion` when it exists) |
-| `GET /v1/workforce/members/{memberId}/development` | read (section 3) | The member's training matrix today (`trainingMatrix`), records, competences with their state, next supervision and appraisal (`nextMeeting`), and the revalidation plan (`revalidationPlan`) |
+| `GET /v1/workforce/members/{memberId}/development` | read (section 3, as the database counts it: a reader whose permission comes only from a role scoped to assigned people or to the person gets 404) | The member's training matrix today (`trainingMatrix`), records, competences with their state, next supervision and appraisal after the last one held (`nextMeeting`; none before the first, since the start date is in the staff file), and the revalidation plan (`revalidationPlan`) |
 | `POST /v1/workforce/members/{memberId}/training-records` | `workforce.training.manage` | Record training |
 | `PATCH /v1/workforce/members/{memberId}/training-records/{recordId}` | `workforce.training.manage` | Correct a record (`expectedVersion`) |
 | `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
@@ -318,9 +318,15 @@ slice 3, so its rows from this slice are listed here for that entry:
 
 | Test (slice 17) | For HZ-119 |
 | --- | --- |
-| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (allowed through the valid-until day, expired from the day after, withdrawn, missing, a future sign-off ignored, the newest unwithdrawn sign-off counts) | Passing (slice 17) |
-| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (a sign-off only in the observer's own name, by a holder of the observe permission, never self, never dated in the future, never changed or deleted; a withdrawal never by the worker) | Passing (slice 17) |
-| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks an expired and a withdrawn competence and allows a valid one, whatever the caller can see; a sign-off changes the port's answer at once) | Passing (slice 17) |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (allowed through the valid-until day, expired from the day after; a withdrawal blocks the competence until a new observation on or after it, whatever older sign-offs say; missing; future sign-offs ignored; a device's time can only block; the UK day across the autumn clock change) | Passing (slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (a sign-off only in the observer's own name, by a holder of the observe permission, never self, never dated in the future, never before a withdrawal, valid exactly until the day before its refresh whoever inserts it, never changed or deleted; a withdrawal never by the worker) | Passing (slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks missing, expired and withdrawn competence, a backdated re-sign-off and a device's earlier time, and allows a valid one, about another member whose training the caller cannot read; a sign-off changes the answer at once) | Passing (slice 17) |
+
+Decisions for the CSO from the slice 17 review are in H-691: whether a withdrawal blocks the
+competence as a whole (built so: the safer reading), which time medicines and the rota pass,
+retiring `competenceGate`, whether a later, shorter refresh applies to sign-offs already made, who
+receives competence reminders, and the month-end rule (31 March plus a month is valid until 29
+April; 29 February plus a year until 27 February, always on the short side).
 
 The competence catalogue is the organisation's own record of observed practice, not a clinical
 judgement about a person receiving care: it stays inside the medical-device boundary
@@ -423,6 +429,9 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
 | Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
 | Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
+| Reminders cover upcoming expiry only: required training never done, a member with no records, and an expired or withdrawn competence raise no task (the matrix and the port show them) | HR sees them in the development record, not in tasks | Slice 57 with the matrix screens (H-691) |
+| `withSystemRights` answers the port's and the record's narrow questions inside the caller's transaction; callers must await it alone | A concurrent query on the same transaction would run with the system's rights | Security-definer functions owned by a NOLOGIN role (ADR-0002), before slice 22 calls the port |
+| A location's team leader (`workforce.competence.observe`) reads development records and signs off competence across the organisation; the rule that an observer holds a valid sign-off for the same competence where the tenant requires it is not built | Wider than need-to-know; withdrawal reasons are free text | DPO decision (H-694); the observer rule in slice 57 |
 | HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
 | Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |

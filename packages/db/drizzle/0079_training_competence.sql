@@ -239,9 +239,9 @@ CREATE POLICY supervision_record_insert ON public.supervision_record AS RESTRICT
 CREATE POLICY supervision_record_update ON public.supervision_record AS RESTRICTIVE FOR UPDATE
   TO harbour_app
   USING (app.is_system() OR (app.holds_staff_permission('workforce.supervision.manage')
-    AND worker_id <> app.current_user_id()))
+    AND worker_id <> app.current_user_id() AND held_by = app.current_user_id()))
   WITH CHECK (app.is_system() OR (app.holds_staff_permission('workforce.supervision.manage')
-    AND worker_id <> app.current_user_id()));
+    AND worker_id <> app.current_user_id() AND held_by = app.current_user_id()));
 --> statement-breakpoint
 -- HZ-119: a sign-off is observed in the observer's own name by a holder of the observe permission,
 -- never for themselves, on a UK date no later than today.
@@ -250,6 +250,41 @@ CREATE POLICY competence_sign_off_insert ON public.competence_sign_off AS RESTRI
   WITH CHECK (app.is_system() OR (app.holds_staff_permission('workforce.competence.observe')
     AND observer_id = app.current_user_id() AND worker_id <> app.current_user_id()
     AND observed_on <= (now() AT TIME ZONE 'Europe/London')::date));
+--> statement-breakpoint
+-- HZ-119 (clinical safety review round 1, findings 5 and 6): a sign-off's valid-until is exactly the
+-- day before observed plus the competence's refresh months from the rate table, whoever inserts it,
+-- and a sign-off is never observed before a withdrawal of the same member's competence (a backdated
+-- sign-off never reinstates a withdrawn competence).
+CREATE OR REPLACE FUNCTION app.competence_sign_off_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_key text := CASE WHEN NEW.competence IN ('medicines_administration', 'controlled_drugs',
+      'insulin_administration', 'epilepsy_rescue_medication')
+    THEN 'competence.medicines.refresh_months' ELSE 'competence.default_refresh_months' END;
+  v_months numeric := app.quality_rate(v_key, NEW.observed_on::timestamptz);
+BEGIN
+  IF v_months IS NULL THEN
+    RAISE EXCEPTION 'No % figure', v_key USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF NEW.valid_until IS DISTINCT FROM
+     ((NEW.observed_on + make_interval(months => v_months::int))::date - 1) THEN
+    RAISE EXCEPTION 'A sign-off is valid until the day before its refresh'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.competence_withdrawal w
+    JOIN public.competence_sign_off s ON s.id = w.sign_off_id
+    WHERE s.worker_id = NEW.worker_id AND s.competence = NEW.competence
+      AND (w.created_at AT TIME ZONE 'Europe/London')::date > NEW.observed_on) THEN
+    RAISE EXCEPTION 'A sign-off is observed on or after the day the competence was withdrawn'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER competence_sign_off_guard BEFORE INSERT ON public.competence_sign_off
+  FOR EACH ROW EXECUTE FUNCTION app.competence_sign_off_guard();
 --> statement-breakpoint
 CREATE POLICY competence_withdrawal_insert ON public.competence_withdrawal AS RESTRICTIVE FOR INSERT
   TO harbour_app
@@ -267,9 +302,12 @@ BEGIN
     RAISE EXCEPTION 'A development record keeps its member of staff'
       USING ERRCODE = 'integrity_constraint_violation';
   END IF;
-  IF TG_TABLE_NAME = 'supervision_record' AND NEW.held_by IS DISTINCT FROM OLD.held_by THEN
-    RAISE EXCEPTION 'A supervision keeps who held it'
-      USING ERRCODE = 'integrity_constraint_violation';
+  -- Nested: plpgsql resolves NEW.held_by even when the table test is false.
+  IF TG_TABLE_NAME = 'supervision_record' THEN
+    IF NEW.held_by IS DISTINCT FROM OLD.held_by THEN
+      RAISE EXCEPTION 'A supervision keeps who held it'
+        USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
   END IF;
   RETURN NEW;
 END
@@ -310,9 +348,11 @@ REVOKE UPDATE, DELETE, TRUNCATE ON public.competence_sign_off, public.competence
 --> statement-breakpoint
 
 -- Task visibility (workforce.md section 11, closing slice 11's gap): a task about no person and no
--- location whose required permission is a workforce one is also visible to holders of that
--- permission, so HR's role (no person scope) sees the reminders raised for it. Otherwise as
--- app.task_visible (migration 0008).
+-- location whose required permission is a workforce one (never workforce.self.read, which every
+-- staff role holds) is also visible to holders of that permission, so HR's role (no person scope)
+-- sees and completes the reminders raised for it (security review round 1, finding 4). The API
+-- sets a task's required permission itself (never from the request), so no member can make a
+-- task visible this way; the jobs that raise these tasks write as the system.
 CREATE OR REPLACE FUNCTION app.task_visible_with(p_person_id uuid, p_location_id uuid,
   p_assignee uuid, p_required_permission text)
 RETURNS boolean
@@ -320,6 +360,7 @@ LANGUAGE sql STABLE AS $$
   SELECT app.task_visible(p_person_id, p_location_id, p_assignee)
     OR (p_person_id IS NULL AND p_location_id IS NULL
         AND p_required_permission LIKE 'workforce.%'
+        AND p_required_permission <> 'workforce.self.read'
         AND app.holds_staff_permission(p_required_permission))
 $$;
 --> statement-breakpoint
@@ -335,4 +376,14 @@ BEGIN
   END LOOP;
 END
 $$;
+--> statement-breakpoint
+
+-- Earlier versions of development records follow the records' own read rule: the versions table is
+-- otherwise readable across the organisation (security review round 1, finding 2; as 0073 did for
+-- staff files).
+CREATE POLICY record_version_development ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app
+  USING (table_name NOT IN ('training_record', 'supervision_record', 'revalidation_evidence')
+    OR app.is_system() OR app.reads_development()
+    OR app.reads_own_development((data->>'worker_id')::uuid));
 

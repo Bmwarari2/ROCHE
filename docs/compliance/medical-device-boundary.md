@@ -29,6 +29,14 @@ This statement is used, unchanged, in the clinical safety case, the user guides,
 | Enforce safety rules on record-keeping | Refuse an administration without person, dose and outcome; block a duplicate within the prescribed minimum interval (the interval comes from the prescription or PRN protocol, not from Harbour) |
 | Draft, summarise and search records with the optional AI module, labelled as drafts for human review | Shift handover draft generated from records |
 
+**Training and competence (Phase 2, slice 17)**: these stay inside the boundary and add no
+score. Training, observed competence sign-offs, supervision and revalidation are records about
+staff, not about a person receiving care. The competence port (ADR-0085;
+`packages/domain/src/workforce/competence-port.ts`) answers whether a member holds an unwithdrawn,
+in-date sign-off for a named competence on a UK date, from dates the organisation recorded; it
+blocks an action the organisation's rules say needs the competence, and makes no judgement about
+the person, the medicine or the dose.
+
 ## 4. What Harbour must never do
 
 | Harbour must never | Notes |
@@ -98,14 +106,6 @@ sections such as end of life and medicines are never announced (`FEED_CARE_PLAN_
 Approved phrases say what happened, never how the person is. Notifications carry an approved
 generic line and a link only. Nothing interprets, scores or predicts
 ([comms.md](../specs/comms.md) rules 7 to 13).
-
-**Training and competence (Phase 2, slice 17)**: these stay inside the boundary and add no
-score. Training, observed competence sign-offs, supervision and revalidation are records about
-staff, not about a person receiving care. The competence port (ADR-0085;
-`packages/domain/src/workforce/competence-port.ts`) answers whether a member holds an unwithdrawn,
-in-date sign-off for a named competence on a UK date, from dates the organisation recorded; it
-blocks an action the organisation's rules say needs the competence, and makes no judgement about
-the person, the medicine or the dose.
 
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
 

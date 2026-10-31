@@ -33,7 +33,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
-import { developmentRecord } from "../services/development";
+import { developmentRecord, endDevelopmentReminders, memberNation } from "../services/development";
 import { workforceRates } from "../services/staff-files";
 import {
   conflictResponse,
@@ -304,6 +304,7 @@ export const developmentRouter = createRouter()
           .insert(trainingRecord)
           .values({ workerId: memberId, ...body })
           .returning({ id: trainingRecord.id });
+        await endDevelopmentReminders(tx, memberId, { trainingTopic: body.topic });
         await audit(c, tx, access, {
           action: A.trained,
           resourceType: "training_record",
@@ -379,7 +380,9 @@ export const developmentRouter = createRouter()
       await change(c, access, A.signedOff, memberId, async (tx) => {
         if (memberId === access.tenantUserId) throw own(A.signedOff, memberId);
         notFuture(body.observedOn, A.signedOff, memberId);
-        const rates = await workforceRates(tx, access.tenantId, "england", body.observedOn);
+        // The member's own nation's figures (clinical safety review round 1, finding 4).
+        const nation = await memberNation(tx, memberId, new Date());
+        const rates = await workforceRates(tx, access.tenantId, nation, body.observedOn);
         const validUntil = competenceValidUntil(
           body.observedOn,
           competenceRefreshMonths(body.competence, rates),
@@ -401,6 +404,7 @@ export const developmentRouter = createRouter()
           resourceId: row.id,
           scopeExtra: { memberId, competence: body.competence },
         });
+        await endDevelopmentReminders(tx, memberId, { competence: body.competence });
         await publish(tx, {
           context: "workforce",
           aggregateType: "competence_sign_off",
@@ -583,6 +587,13 @@ export const developmentRouter = createRouter()
     }),
     async (c) => {
       const access = await requirePermission(c, SELF);
-      return c.json(await recordFor(c, access, access.tenantUserId), 200);
+      const record = await recordFor(c, access, access.tenantUserId);
+      await writeAudit(c.get("services").appPool, access, {
+        action: A.viewed,
+        resourceType: SOURCE,
+        resourceId: access.tenantUserId,
+        requestId: c.get("requestId"),
+      });
+      return c.json(record, 200);
     },
   );

@@ -47,11 +47,33 @@ rows WORK-005, WORK-008, WORK-009 and WORK-012 (schema and API; screens come wit
 
 ## Human actions logged
 
-- H-690 (competence catalogue and default refresh), H-691 (CSO review of ADR-0085), H-692
-  (supervision notes), H-693 (who records revalidation evidence).
+- H-690 (competence catalogue and default refresh), H-691 (CSO review of ADR-0085 and the review
+  decisions), H-692 (supervision notes), H-693 (who records revalidation evidence), H-694 (how far
+  observers read).
 
 ## Tests
 
-- `packages/domain/src/workforce/competence-port.test.ts`: 14 tests.
-- `packages/db/test/training-competence.test.ts`: 15 tests.
-- `apps/api/test/training-competence.test.ts`: 14 tests.
+- `packages/domain/src/workforce/competence-port.test.ts`: 20 tests.
+- `packages/db/test/training-competence.test.ts`: 20 tests.
+- `apps/api/test/training-competence.test.ts`: 20 tests; `routing-roles.test.ts` checks the
+  reminder roles hold their permissions.
+
+## Review rounds
+
+- Round 1 (clinical safety and security reviews):
+  - A withdrawal now blocks the competence as a whole until a new observation on or after it (was
+    one sign-off only), and the database refuses a sign-off dated before a withdrawal.
+  - The server's time decides the port; a device's time can only block (`competenceDecisionAt`).
+  - The database fixes each sign-off's valid-until to the rate table; sign-offs use the member's
+    nation; the HZ-124 log no longer points the rota at `competenceGate` (marked deprecated for
+    gating).
+  - Reminders are cancelled by a renewal and skip leavers; HZ-124 tests named.
+  - The development record asks the database whether the caller may read the member before
+    anything is read with system rights, and no longer infers the start date from the staff file;
+    earlier versions of development records follow their read rule; staff file reminders need MFA
+    to open, assign or complete, not only to list; `workforce.self.read` tasks are never widened;
+    a supervision is changed only by whoever held it; the own-record view is audited.
+  - Fixed a guard defect the new tests found: correcting a training record failed because the
+    update guard read a supervision column on every table.
+  - Left as gaps (workforce.md section 11): reminders for missing items; definer functions in
+    place of `withSystemRights`; how far observers read (H-694).

@@ -61,6 +61,13 @@ const training = (c: pg.PoolClient, worker: string, id: string | null = null) =>
 beforeAll(async () => {
   db = await createTestDatabase();
   await seedTwoTenants(db.pool("harbour_owner"));
+  await inContext(db.pool("harbour_owner"), null, (c) =>
+    c.query(
+      `INSERT INTO rate_table (key, value, unit, nation, valid_from, source, verification_status)
+       VALUES ('competence.medicines.refresh_months', 12, 'months', 'all', '2000-01-01', 'rates.md', 'master-prompt'),
+              ('competence.default_refresh_months', 12, 'months', 'all', '2000-01-01', 'rates.md', 'to-verify')`,
+    ),
+  );
   await asOwner(TENANT_A, async (c) => {
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
@@ -160,13 +167,55 @@ describe("who reads and writes development records (workforce.md section 3)", ()
       ),
     ).rejects.toThrow(/row-level security/);
     await expect(
-      asHr((c) =>
+      asNorth((c) =>
         c.query("UPDATE supervision_record SET held_by = $2 WHERE id = $1", [
           SUPERVISION,
           a.manager,
         ]),
       ),
     ).rejects.toThrow(/keeps who held it/);
+  });
+
+  it("lets only the supervisor who held it change a supervision", async () => {
+    const changed = await asHr(
+      async (c) =>
+        (
+          await c.query("UPDATE supervision_record SET kind = 'appraisal' WHERE id = $1", [
+            SUPERVISION,
+          ])
+        ).rowCount,
+    );
+    expect(changed).toBe(0);
+  });
+
+  it("keeps earlier versions of development records from members who cannot read them", async () => {
+    await asHr((c) =>
+      c.query("UPDATE training_record SET provider = 'Example Training Ltd' WHERE id = $1", [
+        TRAINING,
+      ]),
+    );
+    const versions = (fn: typeof asHr) =>
+      fn((c) =>
+        count(c, "SELECT count(*) AS n FROM record_version WHERE table_name = 'training_record'"),
+      );
+    expect(await versions(asHr)).toBe(1);
+    // The carer reads their own record's history.
+    expect(await versions(asCarer)).toBe(1);
+    // A member with no workforce role reads none.
+    await asOwner(TENANT_A, (c) =>
+      c.query("UPDATE role_assignment SET deleted_at = now() WHERE tenant_user_id = $1", [
+        a.northManager,
+      ]),
+    );
+    try {
+      expect(await versions(asNorth)).toBe(0);
+    } finally {
+      await asOwner(TENANT_A, (c) =>
+        c.query("UPDATE role_assignment SET deleted_at = NULL WHERE tenant_user_id = $1", [
+          a.northManager,
+        ]),
+      );
+    }
   });
 
   it("keeps a training record's member", async () => {
@@ -202,6 +251,18 @@ describe("hazard HZ-119 competence sign-offs (workforce.md section 2b)", () => {
     await expect(
       asNorth((c) => signOff(c, { worker: a.carer, observedOn: "2099-01-01" })),
     ).rejects.toThrow(/row-level security/);
+  });
+
+  it("hazard HZ-119 is valid exactly until the day before its refresh, whoever inserts it", async () => {
+    await expect(
+      asSystem((c) =>
+        c.query(
+          `INSERT INTO competence_sign_off (worker_id, competence, observed_on, observer_id, valid_until)
+           VALUES ($1, 'catheter_care', DATE '2026-10-01', $2, DATE '2099-12-31')`,
+          [a.carer, a.northManager],
+        ),
+      ),
+    ).rejects.toThrow(/day before its refresh/);
   });
 
   it("hazard HZ-119 is never changed or deleted, by anyone", async () => {
@@ -250,6 +311,12 @@ describe("hazard HZ-119 competence sign-offs (workforce.md section 2b)", () => {
       1,
     );
   });
+
+  it("hazard HZ-119 never reinstates a withdrawn competence with a sign-off dated before the withdrawal", async () => {
+    await expect(
+      asNorth((c) => signOff(c, { worker: a.carer, observedOn: "2026-09-01" })),
+    ).rejects.toThrow(/on or after the day the competence was withdrawn/);
+  });
 });
 
 describe("workforce reminder tasks reach their permission's holders (workforce.md section 5)", () => {
@@ -271,5 +338,19 @@ describe("workforce reminder tasks reach their permission's holders (workforce.m
       );
     expect(await titles(asHr)).toEqual(["workforce.training_expiry"]);
     expect(await titles(asCarer)).toEqual([]);
+  });
+
+  it("never shows a workforce.self.read task to everyone who holds it", async () => {
+    await asSystem((c) =>
+      c.query(
+        `INSERT INTO task (kind, title, required_permission, due_at)
+         VALUES ('workforce.self_reminder', 'A reminder', 'workforce.self.read', now())`,
+      ),
+    );
+    expect(
+      await asCarer((c) =>
+        count(c, "SELECT count(*) AS n FROM task WHERE kind = 'workforce.self_reminder'"),
+      ),
+    ).toBe(0);
   });
 });
