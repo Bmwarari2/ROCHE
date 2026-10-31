@@ -1,6 +1,7 @@
-import { agencyBooking, shift, shiftAssignment, type Transaction } from "@harbour/db";
+import { agencyBooking, shift, shiftAssignment, type Transaction, tenantUser } from "@harbour/db";
 import { agencyAccessWindow } from "@harbour/domain";
 import { and, eq, isNull } from "drizzle-orm";
+import { rateNumber } from "./rates";
 import { withSystemRights } from "./system-rights";
 
 /**
@@ -34,4 +35,25 @@ export async function currentBookedShiftEnd(
     .filter((r) => agencyAccessWindow([r], now, postShiftHours) !== null)
     .sort((a, b) => b.end.getTime() - a.end.getTime());
   return open[0]?.end ?? null;
+}
+
+/**
+ * When a bank or agency member's access window ends now (the open booked shift's end plus the
+ * rate table's hours), or null for anyone else. A member with no open window gets nothing anyway:
+ * their roles reach nothing (ADR-0088).
+ */
+export async function agencyWindowEnd(
+  tx: Transaction,
+  tenantId: string,
+  memberId: string,
+  now: Date = new Date(),
+): Promise<Date | null> {
+  const [me] = await tx
+    .select({ isAgency: tenantUser.isAgency })
+    .from(tenantUser)
+    .where(eq(tenantUser.id, memberId));
+  if (!me?.isAgency) return null;
+  const hours = await rateNumber(tx, tenantId, "access.agency.post_shift_hours");
+  const end = await currentBookedShiftEnd(tx, memberId, now, hours);
+  return end ? new Date(end.getTime() + hours * 3_600_000) : now;
 }

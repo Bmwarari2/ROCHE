@@ -1,6 +1,7 @@
 import { DEMO } from "@harbour/db/seed";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { SyncTokenSigner } from "../src/sync/token";
 import { createHarness, type Harness } from "./support/harness";
 
 /**
@@ -107,8 +108,16 @@ describe("agencies and workers", () => {
     agencyId = ((await made.json()) as { id: string }).id;
   });
 
+  it("refuses registration to a member without the rota and member permissions", async () => {
+    const response = await as("nurse", "/v1/agency-workers", {
+      method: "POST",
+      body: { tenantUserId: ash, kind: "agency", agencyId, roleTitle: "Care assistant" },
+    });
+    expect(response.status).toBe(403);
+  });
+
   it("refuses to register a member who holds another role", async () => {
-    const response = await as("manager", "/v1/agency-workers", {
+    const response = await as("owner", "/v1/agency-workers", {
       method: "POST",
       body: { tenantUserId: DEMO.users.carer.id, kind: "agency", agencyId, roleTitle: "Carer" },
     });
@@ -116,7 +125,7 @@ describe("agencies and workers", () => {
   });
 
   it("hazard HZ-011 an agency member reaches nothing before they are booked", async () => {
-    const register = await as("manager", "/v1/agency-workers", {
+    const register = await as("owner", "/v1/agency-workers", {
       method: "POST",
       body: { tenantUserId: ash, kind: "agency", agencyId, roleTitle: "Care assistant" },
     });
@@ -140,6 +149,22 @@ describe("hazard HZ-124 booking applies the rostering rule", () => {
     await sql("UPDATE shift SET deleted_at = now(), cancel_reason = 'Test' WHERE id = $1", [
       shift.id,
     ]);
+  });
+
+  it("hazard HZ-124 refuses a confirmation dated after today", async () => {
+    const response = await as("manager", `/v1/agency-workers/${workerId}/confirmation`, {
+      method: "PUT",
+      body: {
+        version: workerVersion,
+        dbsConfirmedOn: inDays(3),
+        dbsEnhancedBarred: true,
+        rightToWorkConfirmedOn: inDays(-30),
+        rightToWorkExpiresOn: null,
+        registrationBody: null,
+        registrationValidUntil: null,
+      },
+    });
+    expect(response.status).toBe(422);
   });
 
   it("records the agency's confirmation in the recorder's name", async () => {
@@ -175,6 +200,45 @@ describe("hazard HZ-124 booking applies the rostering rule", () => {
     expect(mine.status).toBe(200);
     // Not yet published: the worker does not see it among their shifts.
     expect(((await mine.json()) as { items: unknown[] }).items).toHaveLength(0);
+  });
+
+  it("hazard HZ-011 refuses putting a bank or agency worker on a shift without booking them", async () => {
+    const shift = await openShift(8, 12);
+    const response = await as("manager", `/v1/shifts/${shift.id}/assignment`, {
+      method: "POST",
+      body: { workerId: ash, version: shift.version },
+    });
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { code: string }).code).toBe("book_instead");
+    await sql("UPDATE shift SET deleted_at = now(), cancel_reason = 'Test' WHERE id = $1", [
+      shift.id,
+    ]);
+  });
+
+  it("caps a bank or agency member's sync token at the end of their window", async () => {
+    const signer = new SyncTokenSigner("test-key");
+    const now = new Date("2026-11-02T12:00:00Z");
+    const { expiresAt } = await signer.sign(
+      {
+        sub: ash,
+        tenant_id: DEMO.tenantId,
+        location_ids: [],
+        people_location_ids: [],
+        care_location_ids: [],
+        entries_location_ids: [],
+        people_assigned: false,
+        care_assigned: false,
+        entries_assigned: false,
+        handover_location_ids: [],
+        handover_assigned: false,
+        entries_write_location_ids: [],
+        entries_write_assigned: false,
+        offline_days: [],
+      } as unknown as Parameters<SyncTokenSigner["sign"]>[0],
+      now,
+      new Date("2026-11-02T12:01:00Z"),
+    );
+    expect(expiresAt.toISOString()).toBe("2026-11-02T12:01:00.000Z");
   });
 
   it("refuses a second booking on a shift that is no longer open", async () => {
@@ -235,21 +299,57 @@ describe("hazard HZ-124 booking applies the rostering rule", () => {
     expect((await myShifts()).status).toBe(403);
   });
 
-  it("marks a worker not to be booked again after do-not-rebook feedback, and refuses the next booking", async () => {
+  it("hazard HZ-124 sends a safeguarding concern to the Registered Manager as an urgent task", async () => {
+    const missing = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
+      method: "POST",
+      body: { bookingId: booking.id, kind: "concern", notes: "Rough handling seen at 07:00" },
+    });
+    expect(missing.status).toBe(422);
+    const raised = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
+      method: "POST",
+      body: {
+        bookingId: booking.id,
+        kind: "concern",
+        notes: "Rough handling seen at 07:00",
+        safeguarding: true,
+      },
+    });
+    expect(raised.status).toBe(201);
+    const tasks = await sql<{ priority: string; assignee_role_key: string }>(
+      "SELECT priority, assignee_role_key FROM task WHERE kind = 'scheduling.agency_safeguarding_concern'",
+    );
+    expect(tasks).toEqual([{ priority: "urgent", assignee_role_key: "registered_manager" }]);
+  });
+
+  it("hazard HZ-124 cancels future bookings after do-not-rebook feedback, and refuses the next booking", async () => {
+    const future = await openShift(6, 12);
+    const booked = await as("manager", `/v1/shifts/${future.id}/booking`, {
+      method: "POST",
+      body: { workerId: ash, version: future.version },
+    });
+    expect(booked.status).toBe(201);
+    const futureBooking = (await booked.json()) as Booking & { concernsRecorded: number };
+    expect(futureBooking.concernsRecorded).toBe(1);
     const feedback = await as("manager", `/v1/agency-workers/${workerId}/feedback`, {
       method: "POST",
       body: {
         bookingId: booking.id,
         kind: "do_not_rebook",
         notes: "Left the floor without handing over",
+        safeguarding: false,
       },
     });
     expect(feedback.status).toBe(201);
+    const [after] = await sql<{ status: string }>(
+      "SELECT status FROM agency_booking WHERE id = $1",
+      [futureBooking.id],
+    );
+    expect(after?.status).toBe("cancelled");
     const audits = await sql<{ detail: string }>(
       "SELECT row_to_json(a)::text AS detail FROM audit_event a WHERE action = 'scheduling.agency_feedback.recorded'",
     );
     expect(audits[0]?.detail).not.toContain("handing over");
-    const shift = await openShift(6, 12);
+    const shift = await openShift(13, 18);
     const response = await as("manager", `/v1/shifts/${shift.id}/booking`, {
       method: "POST",
       body: { workerId: ash, version: shift.version },

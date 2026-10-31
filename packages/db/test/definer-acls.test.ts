@@ -18,7 +18,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
     ["harbour_app"],
   "app.auth_user_has_membership(text)": ["harbour_invitation_owner"],
   // The agency access window (ADR-0088, migration 0104), read by row-level security.
-  "app.agency_access_open(uuid)": ["harbour_app"],
+  "app.agency_access_open(uuid, uuid)": ["harbour_app"],
+  "app.member_is_agency(uuid)": ["harbour_app"],
   "app.claim_invitation(text)": ["harbour_app"],
   "app.evidence_pack_link_for_token(text)": ["harbour_app"],
   "app.family_can_see(uuid, text, text, timestamp with time zone)": [

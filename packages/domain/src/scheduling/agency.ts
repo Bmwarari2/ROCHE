@@ -1,8 +1,8 @@
 import {
   DAYS_PER_WEEK,
+  daysFrom,
   MINUTES_PER_HOUR,
   minutesBetween,
-  mondayOnOrBefore,
   plusDays,
   plusMinutes,
   ukDateOf,
@@ -32,23 +32,23 @@ export function bookingCostPence(
 }
 
 /**
- * The AWR weeks from an agency worker's booked shifts with one hirer: each calendar week (Monday
- * to Sunday, UK) with a shift is `worked`; each week between two worked weeks with none is a break
- * with no recorded reason (Harbour does not yet record why; H-924), so the clock reads it as
- * uncovered. Weeks after the last worked week up to `throughWeek` are breaks too, so a long gap
- * since the last booking shows the clock as it will stand.
+ * The AWR weeks from an agency worker's shifts with one hirer that have started by `throughDate`
+ * (never a future booking): AWR regulation 7(4) counts weeks of seven days from the first day of
+ * the first assignment, so week 0 starts on the UK date of the first shift. A week with a shift is
+ * `worked`; each week between two worked weeks with none is a break with no recorded reason
+ * (Harbour does not yet record why; H-924), so the clock reads it as uncovered. Weeks after the
+ * last worked week up to `throughDate` are breaks too, so a long gap shows the clock as it stands.
  */
 export function awrWeeksFromShifts(shiftStarts: readonly Date[], throughDate: string): AwrWeek[] {
-  if (shiftStarts.length === 0) return [];
-  const worked = new Set(shiftStarts.map((s) => mondayOnOrBefore(ukDateOf(s))));
-  const sorted = [...worked].sort();
-  const first = sorted[0] as string;
-  const last =
-    mondayOnOrBefore(throughDate) > (sorted.at(-1) as string)
-      ? mondayOnOrBefore(throughDate)
-      : (sorted.at(-1) as string);
+  const days = shiftStarts.map((s) => ukDateOf(s)).filter((d) => d <= throughDate);
+  if (days.length === 0) return [];
+  const anchor = [...days].sort()[0] as string;
+  const weekOf = (date: string) =>
+    plusDays(anchor, Math.floor(daysFrom(anchor, date) / DAYS_PER_WEEK) * DAYS_PER_WEEK);
+  const worked = new Set(days.map(weekOf));
+  const last = weekOf(throughDate);
   const weeks: AwrWeek[] = [];
-  for (let w = first; w <= last; w = plusDays(w, DAYS_PER_WEEK)) {
+  for (let w = anchor; w <= last; w = plusDays(w, DAYS_PER_WEEK)) {
     weeks.push(
       worked.has(w) ? { week: w, kind: "worked" } : { week: w, kind: "break", reason: "none" },
     );

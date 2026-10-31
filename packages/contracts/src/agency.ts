@@ -63,6 +63,26 @@ export const AgencyConfirmationBody = z
     registrationBody: z.enum(["nmc", "hcpc", "swe", "gmc"]).nullable(),
     registrationValidUntil: isoDate.nullable(),
   })
+  .superRefine((v, ctx) => {
+    if (
+      v.rightToWorkExpiresOn &&
+      v.rightToWorkConfirmedOn &&
+      v.rightToWorkExpiresOn < v.rightToWorkConfirmedOn
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rightToWorkExpiresOn"],
+        message: "The expiry is on or after the confirmation.",
+      });
+    }
+    if ((v.registrationBody === null) !== (v.registrationValidUntil === null)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["registrationValidUntil"],
+        message: "Give the register and how long the registration is valid together.",
+      });
+    }
+  })
   .meta({ id: "AgencyConfirmation" });
 
 export const AgencyWorkerItem = z
@@ -85,6 +105,8 @@ export const AgencyWorkerItem = z
       })
       .nullable(),
     doNotBook: z.boolean(),
+    /** Future bookings cancelled because the worker may no longer work them (this change only). */
+    bookingsCancelled: z.number().int(),
   })
   .meta({ id: "AgencyWorkerItem" });
 
@@ -125,6 +147,8 @@ export const AgencyBookingItem = z
     status: z.enum(["confirmed", "cancelled"]),
     /** No induction recorded at this location: induct them on arrival (H-922). */
     inductionDue: z.boolean(),
+    /** Concerns recorded about this worker at any location (the count only, never the words). */
+    concernsRecorded: z.number().int(),
   })
   .meta({ id: "AgencyBookingItem" });
 
@@ -178,6 +202,15 @@ export const RecordAgencyFeedback = z
     bookingId: uuid,
     kind: z.enum(["positive", "concern", "do_not_rebook"]),
     notes: z.string().trim().min(1).max(2000),
+    /**
+     * Required for a concern or do not rebook: whether it is a safeguarding matter. If so, the
+     * Registered Manager at the location gets an urgent task to raise it as an incident.
+     */
+    safeguarding: z.boolean().optional(),
+  })
+  .refine((v) => v.kind === "positive" || v.safeguarding !== undefined, {
+    path: ["safeguarding"],
+    message: "Say whether this is a safeguarding matter.",
   })
   .meta({ id: "RecordAgencyFeedback" });
 

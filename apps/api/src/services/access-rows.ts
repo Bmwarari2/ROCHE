@@ -5,7 +5,7 @@ import {
   rolePermissionMix,
   type ScopeKind,
 } from "@harbour/domain";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { ON_STAFF } from "./role-holders";
 
 /** One member's role assignments and grants, as the domain's access functions read them. */
@@ -58,6 +58,9 @@ export async function accessRowsOf(
       and(
         inArray(roleAssignment.tenantUserId, ids),
         isNull(roleAssignment.deletedAt),
+        // A bank or agency member holds a role only while a booked shift at its location is open
+        // (ADR-0088), also when someone else asks about them (security review of slice 27, M1).
+        sql`app.agency_access_open(${roleAssignment.tenantUserId}, ${roleAssignment.locationId})`,
         isNull(role.archivedAt),
         isNull(role.deletedAt),
         inArray(tenantUser.status, [...ON_STAFF]),
@@ -86,6 +89,7 @@ export async function accessRowsOf(
       and(
         inArray(accessGrant.tenantUserId, ids),
         isNull(accessGrant.deletedAt),
+        sql`app.agency_access_open(${accessGrant.tenantUserId}, ${accessGrant.locationId})`,
         inArray(tenantUser.status, [...ON_STAFF]),
         isNull(tenantUser.deletedAt),
       ),

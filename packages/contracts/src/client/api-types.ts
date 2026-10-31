@@ -34432,6 +34432,7 @@ export interface components {
         confirmedBy: string | null;
       } | null;
       doNotBook: boolean;
+      bookingsCancelled: number;
     };
     /** @enum {string} */
     AgencyWorkerKind: "agency" | "bank";
@@ -34481,6 +34482,7 @@ export interface components {
       /** @enum {string} */
       status: "confirmed" | "cancelled";
       inductionDue: boolean;
+      concernsRecorded: number;
     };
     BookShift: {
       /** Format: uuid */
@@ -34560,6 +34562,7 @@ export interface components {
       /** @enum {string} */
       kind: "positive" | "concern" | "do_not_rebook";
       notes: string;
+      safeguarding?: boolean;
     };
     AgencyCostList: {
       /** Format: uuid */

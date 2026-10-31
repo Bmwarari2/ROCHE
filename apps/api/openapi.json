@@ -29191,6 +29191,9 @@
           },
           "doNotBook": {
             "type": "boolean"
+          },
+          "bookingsCancelled": {
+            "type": "integer"
           }
         },
         "required": [
@@ -29201,7 +29204,8 @@
           "agencyId",
           "roleTitle",
           "confirmation",
-          "doNotBook"
+          "doNotBook",
+          "bookingsCancelled"
         ]
       },
       "AgencyWorkerKind": {
@@ -29361,6 +29365,9 @@
           },
           "inductionDue": {
             "type": "boolean"
+          },
+          "concernsRecorded": {
+            "type": "integer"
           }
         },
         "required": [
@@ -29376,7 +29383,8 @@
           "chargePencePerHour",
           "costPence",
           "status",
-          "inductionDue"
+          "inductionDue",
+          "concernsRecorded"
         ]
       },
       "BookShift": {
@@ -29668,6 +29676,9 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "safeguarding": {
+            "type": "boolean"
           }
         },
         "required": [

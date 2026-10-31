@@ -77,19 +77,15 @@ async function book(startHours: number, endHours: number) {
     };
   });
 }
-/** Cancels a booking and takes the worker off the shift, as the API does. */
+/** Takes the worker off the shift, which cancels the booking (migration 0104). */
 const cancel = (bookingId: string) =>
-  asNorth(async (c) => {
-    await c.query(
+  asNorth((c) =>
+    c.query(
       `UPDATE shift_assignment SET deleted_at = now(), remove_reason = 'Booking cancelled'
         WHERE id = (SELECT assignment_id FROM agency_booking WHERE id = $1) AND deleted_at IS NULL`,
       [bookingId],
-    );
-    return c.query(
-      "UPDATE agency_booking SET status = 'cancelled', cancelled_at = now(), cancel_reason = 'Not needed' WHERE id = $1",
-      [bookingId],
-    );
-  });
+    ),
+  );
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -104,7 +100,7 @@ beforeAll(async () => {
     await c.query(
       `INSERT INTO role (id, key, name, scope_kind, permissions) VALUES
          ('0199f400-0000-7000-8000-000000000501', 'rota_lead', 'Rota lead', 'location',
-          '{scheduling.rota.manage,scheduling.rota.approve}'),
+          '{scheduling.rota.manage,scheduling.rota.approve,platform.user.manage}'),
          ('0199f400-0000-7000-8000-000000000502', 'rota_reader', 'Rota reader', 'location',
           '{scheduling.rota.read}'),
          ($1, 'agency_worker', 'Agency or bank worker', 'assigned', '{scheduling.timesheet.self}')`,
@@ -237,6 +233,113 @@ describe("hazard HZ-011 agency access comes only from a booked shift (ADR-0088)"
     await expect(cancel(bookingId)).resolves.toBeDefined();
   });
 
+  it("hazard HZ-011 closes at once when the worker is marked do not book", async () => {
+    const { bookingId } = await book(-1, 4);
+    expect((await ashHolds()).self).toBe(true);
+    await asNorth((c) =>
+      c.query(
+        "UPDATE agency_worker SET do_not_book = true, do_not_book_reason = 'Suspended by the agency' WHERE id = $1",
+        [WORKER],
+      ),
+    );
+    expect((await ashHolds()).self).toBe(false);
+    await asNorth((c) =>
+      c.query(
+        "UPDATE agency_worker SET do_not_book = false, do_not_book_reason = NULL WHERE id = $1",
+        [WORKER],
+      ),
+    );
+    await cancel(bookingId);
+  });
+
+  it("hazard HZ-124 refuses an agency confirmation dated after today", async () => {
+    await expect(
+      asNorth((c) =>
+        c.query(
+          "UPDATE agency_worker SET dbs_confirmed_on = (now() AT TIME ZONE 'Europe/London')::date + 5 WHERE id = $1",
+          [WORKER],
+        ),
+      ),
+    ).rejects.toThrow(/no later than today/);
+  });
+
+  it("hazard HZ-011 opens only the role at the booked location", async () => {
+    const southRota = "0199f400-0000-7000-8000-0000000000c2";
+    await asOwner(TENANT_A, async (c) => {
+      await c.query(
+        `INSERT INTO rota (id, location_id, starts_on, ends_on)
+         VALUES ($1, $2, (now() AT TIME ZONE 'Europe/London')::date - 2,
+           (now() AT TIME ZONE 'Europe/London')::date + 3)`,
+        [southRota, a.locationSouth],
+      );
+      const s = await c.query<{ id: string }>(
+        `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at)
+         VALUES ($1, $2, 'South', 'work', now() - interval '1 hour', now() + interval '4 hours') RETURNING id`,
+        [southRota, a.locationSouth],
+      );
+      const asg = await c.query<{ id: string }>(
+        `INSERT INTO shift_assignment (shift_id, location_id, worker_id) VALUES ($1, $2, $3) RETURNING id`,
+        [s.rows[0]?.id, a.locationSouth, ASH],
+      );
+      await c.query(
+        `INSERT INTO agency_booking (shift_id, assignment_id, location_id, worker_id, agency_id, kind,
+           charge_pence_per_hour, cost_pence) VALUES ($1, $2, $3, $4, $5, 'agency', 2500, 0)`,
+        [s.rows[0]?.id, asg.rows[0]?.id, a.locationSouth, ASH, AGENCY],
+      );
+    });
+    // Ash's role is at North; a booking at South opens nothing there.
+    expect(await ashHolds()).toEqual({ rows: 0, self: false });
+    await asOwner(TENANT_A, (c) =>
+      c.query("UPDATE shift SET deleted_at = now(), cancel_reason = 'Test' WHERE rota_id = $1", [
+        southRota,
+      ]),
+    );
+  });
+
+  it("hazard HZ-011 refuses a bank or agency member put on a shift without a booking", async () => {
+    await expect(
+      asNorth(async (c) => {
+        const s = await c.query<{ id: string }>(
+          `INSERT INTO shift (rota_id, location_id, label, kind, starts_at, ends_at)
+           VALUES ($1, $2, 'Day', 'work', now() + interval '50 hours', now() + interval '58 hours') RETURNING id`,
+          [ROTA, a.locationNorth],
+        );
+        await c.query(
+          `INSERT INTO shift_assignment (shift_id, location_id, worker_id) VALUES ($1, $2, $3)`,
+          [s.rows[0]?.id, a.locationNorth, ASH],
+        );
+      }),
+    ).rejects.toThrow(/by booking them/);
+  });
+
+  it("hazard HZ-011 never lets the application clear or set the agency flag directly", async () => {
+    await expect(
+      asOwner(TENANT_A, (c) =>
+        c.query("UPDATE tenant_user SET is_agency = false WHERE id = $1", [ASH]),
+      ),
+    ).rejects.toThrow(/nothing clears it/);
+    await expect(
+      asOwner(TENANT_A, (c) =>
+        c.query("UPDATE tenant_user SET is_agency = true WHERE id = $1", [a.carer]),
+      ),
+    ).rejects.toThrow(/nothing clears it/);
+  });
+
+  it("cancels the booking when the shift is cancelled", async () => {
+    const { shiftId, bookingId } = await book(60, 66);
+    await asNorth((c) =>
+      c.query("UPDATE shift SET deleted_at = now(), cancel_reason = 'Not needed' WHERE id = $1", [
+        shiftId,
+      ]),
+    );
+    const [row] = (
+      await asNorth((c) =>
+        c.query<{ status: string }>("SELECT status FROM agency_booking WHERE id = $1", [bookingId]),
+      )
+    ).rows;
+    expect(row?.status).toBe("cancelled");
+  });
+
   it("leaves other members' roles alone", async () => {
     const rows = await asNorth((c) =>
       count(c, "SELECT count(*) AS n FROM role_assignment WHERE tenant_user_id = $1", [
@@ -337,15 +440,30 @@ describe("bookings, inductions and feedback", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("lets a rota reader see bookings and inductions but not feedback", async () => {
+  it("refuses feedback about a booking at another location or another worker", async () => {
+    const { bookingId } = await book(70, 76);
+    await expect(
+      asNorth((c) =>
+        c.query(
+          `INSERT INTO agency_worker_feedback (worker_id, booking_id, location_id, kind, notes)
+           VALUES ($1, $2, $3, 'concern', 'Wrong worker')`,
+          [a.carer, bookingId, a.locationNorth],
+        ),
+      ),
+    ).rejects.toThrow(/booking's worker/);
+  });
+
+  it("lets a rota reader see bookings and inductions but not feedback or workers", async () => {
     const seen = await asReader(async (c) => ({
       bookings: await count(c, "SELECT count(*) AS n FROM agency_booking"),
       inductions: await count(c, "SELECT count(*) AS n FROM location_induction"),
       feedback: await count(c, "SELECT count(*) AS n FROM agency_worker_feedback"),
+      workers: await count(c, "SELECT count(*) AS n FROM agency_worker"),
     }));
     expect(seen.bookings).toBeGreaterThan(0);
     expect(seen.inductions).toBe(1);
     expect(seen.feedback).toBe(0);
+    expect(seen.workers).toBe(0);
   });
 
   it("refuses agency writes from a rota reader", async () => {

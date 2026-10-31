@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { builtinRole } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
+import { SAFEGUARDING_CONCERN_ROLE } from "../src/routes/agency";
 import { REVIEW_TASKS } from "../src/services/care-planning";
 import {
   DEVELOPMENT_REMINDER_PERMISSION,
@@ -123,5 +124,11 @@ describe("workforce reminders reach a role that can act on them (workforce.md se
     [DEVELOPMENT_REMINDER_ROLE, DEVELOPMENT_REMINDER_PERMISSION],
   ])("%s holds %s", (roleKey, permission) => {
     expect(bundle(roleKey)).toContain(permission);
+  });
+});
+
+describe("a safeguarding concern about a bank or agency worker reaches a role that can act", () => {
+  it("the role told holds safety.incident.report", () => {
+    expect(bundle(SAFEGUARDING_CONCERN_ROLE)).toContain("safety.incident.report");
   });
 });

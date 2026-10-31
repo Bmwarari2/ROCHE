@@ -28,12 +28,14 @@ import {
   shift,
   shiftAssignment,
   type Transaction,
+  task,
 } from "@harbour/db";
 import {
   awrClock,
   awrWeeksFromShifts,
   blockerKey,
   bookingCostPence,
+  overrideCovers,
   PAY_RATE_KEYS,
   resolvePayRates,
   ukEndOfDay,
@@ -41,7 +43,7 @@ import {
   ukStartOfDay,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte } from "drizzle-orm";
 import { requireAnyPermission, requirePermission, withTenant } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
@@ -79,6 +81,8 @@ import {
  */
 
 const READERS = ["scheduling.rota.manage", "scheduling.rota.read"] as const;
+/** Who a safeguarding concern about a worker goes to (the organisation may give the role to anyone). */
+export const SAFEGUARDING_CONCERN_ROLE = "registered_manager";
 const A = {
   agencyCreated: "scheduling.agency.created",
   agencyArchived: "scheduling.agency.archived",
@@ -110,6 +114,7 @@ const agencyItem = (r: AgencyRow): z.infer<typeof AgencyItem> => ({
 function workerItem(
   w: WorkerRow,
   names: Awaited<ReturnType<typeof staffNames>>,
+  bookingsCancelled = 0,
 ): z.infer<typeof AgencyWorkerItem> {
   return {
     id: w.id,
@@ -135,10 +140,15 @@ function workerItem(
           }
         : null,
     doNotBook: w.doNotBook,
+    bookingsCancelled,
   };
 }
 
-const bookingItem = (b: BookingRow, inductionDue: boolean): z.infer<typeof AgencyBookingItem> => ({
+const bookingItem = (
+  b: BookingRow,
+  inductionDue: boolean,
+  concernsRecorded = 0,
+): z.infer<typeof AgencyBookingItem> => ({
   id: b.id,
   version: b.version,
   shiftId: b.shiftId,
@@ -152,6 +162,7 @@ const bookingItem = (b: BookingRow, inductionDue: boolean): z.infer<typeof Agenc
   costPence: b.costPence,
   status: b.status as "confirmed" | "cancelled",
   inductionDue,
+  concernsRecorded,
 });
 
 async function loadWorker(tx: Transaction, id: string): Promise<WorkerRow | null> {
@@ -169,6 +180,80 @@ async function inducted(tx: Transaction, workerId: string, locationId: string) {
     )
     .limit(1);
   return rows.length > 0;
+}
+
+/** Concerns recorded about a worker at any location: the count only (clinical review H5). */
+async function concernsAbout(tx: Transaction, workerId: string): Promise<number> {
+  const rows = await withSystemRights(tx, () =>
+    tx
+      .select({ id: agencyWorkerFeedback.id })
+      .from(agencyWorkerFeedback)
+      .where(
+        and(
+          eq(agencyWorkerFeedback.workerId, workerId),
+          inArray(agencyWorkerFeedback.kind, ["concern", "do_not_rebook"]),
+        ),
+      ),
+  );
+  return rows.length;
+}
+
+/**
+ * After a worker's standing changes (do not book, a new confirmation), every booking of theirs not
+ * yet over is checked again with the rostering rule; one the rule now blocks, with no override
+ * covering it, is cancelled, which takes them off the shift and closes their access (clinical
+ * safety review of slice 27, H1). Read and cancelled at every location with the system's rights:
+ * the caller's own scope must not leave a booking standing elsewhere.
+ */
+async function recheckBookings(
+  tx: Transaction,
+  tenantId: string,
+  memberId: string,
+  reason: string,
+): Promise<number> {
+  const now = new Date();
+  const live = await withSystemRights(tx, () =>
+    tx
+      .select({ booking: agencyBooking, shiftRow: shift })
+      .from(agencyBooking)
+      .innerJoin(shift, eq(shift.id, agencyBooking.shiftId))
+      .where(
+        and(
+          eq(agencyBooking.workerId, memberId),
+          eq(agencyBooking.status, "confirmed"),
+          isNull(shift.deletedAt),
+          gt(shift.endsAt, now),
+        ),
+      ),
+  );
+  let cancelled = 0;
+  for (const { booking, shiftRow } of live) {
+    const decision = await shiftEligibility(tx, tenantId, shiftRow, memberId, null, now);
+    if (decision.allowed) continue;
+    const overridden = await withSystemRights(tx, () =>
+      tx
+        .select({ keys: rosterOverride.blockerKeys })
+        .from(rosterOverride)
+        .where(eq(rosterOverride.assignmentId, booking.assignmentId)),
+    );
+    if (
+      overrideCovers(
+        overridden.flatMap((o) => o.keys),
+        decision.blockers,
+      )
+    )
+      continue;
+    await withSystemRights(tx, () =>
+      tx
+        .update(shiftAssignment)
+        .set({ deletedAt: now, removeReason: reason })
+        .where(
+          and(eq(shiftAssignment.id, booking.assignmentId), isNull(shiftAssignment.deletedAt)),
+        ),
+    );
+    cancelled++;
+  }
+  return cancelled;
 }
 
 export const agencyRouter = createRouter()
@@ -286,7 +371,8 @@ export const agencyRouter = createRouter()
       responses: { 200: jsonBody(AgencyWorkerList, "Workers"), ...errorResponses },
     }),
     async (c) => {
-      await requireAnyPermission(c, READERS);
+      // The agency's confirmation and do-not-book are for rota builders only (security review M3).
+      await requirePermission(c, "scheduling.rota.manage");
       const items = await withTenant(c, async (tx) => {
         const rows = await tx.select().from(agencyWorker).orderBy(asc(agencyWorker.createdAt));
         const names = await staffNames(
@@ -315,7 +401,9 @@ export const agencyRouter = createRouter()
       },
     }),
     async (c) => {
-      const access = await requirePermission(c, "scheduling.rota.manage");
+      await requirePermission(c, "scheduling.rota.manage");
+      // Registering changes what the member may ever hold (ADR-0088): member management too.
+      const access = await requirePermission(c, "platform.user.manage");
       const body = c.req.valid("json");
       if ((body.kind === "agency") !== (body.agencyId !== null)) {
         throw problems.invalid("An agency worker names their agency; a bank worker names none.");
@@ -332,6 +420,10 @@ export const agencyRouter = createRouter()
         access,
         { action: A.registered, resourceType: "tenant_user", id: body.tenantUserId },
         async (tx) => {
+          if (body.agencyId) {
+            const [a] = await tx.select().from(agency).where(eq(agency.id, body.agencyId));
+            if (!a || a.deletedAt) throw problems.invalid("That agency is not a live agency.");
+          }
           const [made] = await tx.insert(agencyWorker).values(body).returning();
           if (!made) throw new Error("worker not stored");
           await audit(c, tx, access, {
@@ -367,6 +459,15 @@ export const agencyRouter = createRouter()
       const access = await requirePermission(c, "scheduling.rota.manage");
       const { id } = c.req.valid("param");
       const { version, ...body } = c.req.valid("json");
+      const today = ukIsoDate(new Date());
+      if (
+        (body.dbsConfirmedOn && body.dbsConfirmedOn > today) ||
+        (body.rightToWorkConfirmedOn && body.rightToWorkConfirmedOn > today)
+      ) {
+        throw problems.invalid(
+          "A confirmation is of checks already made: date it today or earlier.",
+        );
+      }
       const item = await change(
         c,
         access,
@@ -383,12 +484,19 @@ export const agencyRouter = createRouter()
             .where(and(eq(agencyWorker.id, id), eq(agencyWorker.version, version)))
             .returning();
           if (!done) throw stale();
+          const bookingsCancelled = await recheckBookings(
+            tx,
+            access.tenantId,
+            done.tenantUserId,
+            "The agency's confirmation changed",
+          );
           await audit(c, tx, access, {
             action: A.confirmed,
             resourceType: "agency_worker",
             resourceId: id,
+            scopeExtra: { bookingsCancelled },
           });
-          return workerItem(done, await staffNames(tx, [done.tenantUserId]));
+          return workerItem(done, await staffNames(tx, [done.tenantUserId]), bookingsCancelled);
         },
       );
       if (!item) throw problems.notFound();
@@ -452,10 +560,11 @@ export const agencyRouter = createRouter()
             };
           }
           let charge = body.chargePencePerHour;
-          if (charge === undefined && w.agencyId) {
+          if (w.agencyId) {
             const [a] = await tx.select().from(agency).where(eq(agency.id, w.agencyId));
-            if (a?.deletedAt) throw problems.invalid("That worker's agency has been archived.");
-            charge = a?.defaultChargePencePerHour ?? undefined;
+            if (!a || a.deletedAt)
+              throw problems.invalid("That worker's agency has been archived.");
+            charge ??= a.defaultChargePencePerHour ?? undefined;
           }
           if (charge === undefined) {
             throw problems.invalid("Give the charge per hour for this booking.");
@@ -557,7 +666,11 @@ export const agencyRouter = createRouter()
             payload: { bookingId: booking.id, shiftId: s.id, locationId: s.locationId },
           });
           return {
-            item: bookingItem(booking, !(await inducted(tx, body.workerId, s.locationId))),
+            item: bookingItem(
+              booking,
+              !(await inducted(tx, body.workerId, s.locationId)),
+              await concernsAbout(tx, body.workerId),
+            ),
           };
         },
       );
@@ -597,6 +710,10 @@ export const agencyRouter = createRouter()
           requireLocationInScope(access, b.locationId);
           if (b.status === "cancelled") throw stateConflict("This booking is already cancelled.");
           const s = await loadShift(tx, b.shiftId);
+          if (s && s.endsAt <= new Date()) {
+            // A worked booking stays: its cost and AWR week stand (security review L4).
+            throw stateConflict("This shift is over: a worked booking cannot be cancelled.");
+          }
           const locked = s ? await lockRota(tx, s.rotaId) : null;
           const now = new Date();
           const [done] = await tx
@@ -662,11 +779,14 @@ export const agencyRouter = createRouter()
             .select({ startsAt: shift.startsAt })
             .from(agencyBooking)
             .innerJoin(shift, eq(shift.id, agencyBooking.shiftId))
+            .innerJoin(shiftAssignment, eq(shiftAssignment.id, agencyBooking.assignmentId))
             .where(
               and(
                 eq(agencyBooking.workerId, w.tenantUserId),
                 eq(agencyBooking.status, "confirmed"),
                 isNull(shift.deletedAt),
+                isNull(shiftAssignment.deletedAt),
+                lte(shift.startsAt, new Date()),
               ),
             ),
         );
@@ -695,7 +815,7 @@ export const agencyRouter = createRouter()
           weeksWithoutReason: weeks.filter((x) => x.kind === "break").length,
           resets: clock.resets.map((r) => ({ ...r })),
           method: [
-            "Each calendar week (Monday to Sunday, UK) with a booked shift counts as a week worked.",
+            "Weeks run for seven days from the day of the first booked shift (regulation 7(4)); a week with a shift that has started counts as worked. Future bookings do not count.",
             "Weeks with no booking between bookings are breaks with no reason recorded, so the clock treats them as uncovered; record the reason where one applies.",
             `Equal basic terms apply after ${rates.awrQualifyingWeeks} qualifying weeks (Agency Workers Regulations 2010, regulation 7).`,
           ],
@@ -849,17 +969,51 @@ export const agencyRouter = createRouter()
             })
             .returning();
           if (!made) throw new Error("feedback not stored");
+          let bookingsCancelled = 0;
           if (body.kind === "do_not_rebook" && !w.doNotBook) {
             await tx
               .update(agencyWorker)
               .set({ doNotBook: true, doNotBookReason: "Feedback after a booking: do not rebook" })
               .where(eq(agencyWorker.id, w.id));
+            bookingsCancelled = await recheckBookings(
+              tx,
+              access.tenantId,
+              w.tenantUserId,
+              "Marked not to be booked again",
+            );
+          }
+          // A safeguarding concern is never left in feedback (clinical safety review H5): an urgent
+          // task for the Registered Manager at the location to raise it as an incident.
+          if (body.safeguarding) {
+            await tx.insert(task).values({
+              kind: "scheduling.agency_safeguarding_concern",
+              title: "Raise a safeguarding concern about a bank or agency worker",
+              requiredPermission: "safety.incident.report",
+              locationId: b.locationId,
+              sourceType: "agency_worker_feedback",
+              sourceId: made.id,
+              assigneeRoleKey: SAFEGUARDING_CONCERN_ROLE,
+              dueAt: new Date(),
+              priority: "urgent",
+            });
+            await publish(tx, {
+              context: "scheduling",
+              aggregateType: "agency_worker_feedback",
+              aggregateId: made.id,
+              type: "scheduling.agency_safeguarding_concern_raised",
+              payload: { feedbackId: made.id, workerId: w.tenantUserId, locationId: b.locationId },
+            });
           }
           await audit(c, tx, access, {
             action: A.feedback,
             resourceType: "agency_worker_feedback",
             resourceId: made.id,
-            scopeExtra: { workerId: w.tenantUserId, kind: body.kind },
+            scopeExtra: {
+              workerId: w.tenantUserId,
+              kind: body.kind,
+              safeguarding: body.safeguarding ?? false,
+              bookingsCancelled,
+            },
           });
           return feedbackItem(made);
         },
@@ -889,6 +1043,9 @@ export const agencyRouter = createRouter()
       const { from, to } = c.req.valid("query");
       requireLocationInScope(access, id);
       if (to < from) throw problems.invalid("The last date must not be before the first.");
+      if (Date.parse(to) - Date.parse(from) > 92 * 86_400_000) {
+        throw problems.invalid("Ask for at most 93 days at a time.");
+      }
       const rows = await withTenant(c, (tx) =>
         tx
           .select({
@@ -902,6 +1059,7 @@ export const agencyRouter = createRouter()
             and(
               eq(agencyBooking.locationId, id),
               eq(agencyBooking.status, "confirmed"),
+              isNull(shift.deletedAt),
               gte(shift.startsAt, ukStartOfDay(from)),
               lt(shift.startsAt, ukEndOfDay(to)),
             ),

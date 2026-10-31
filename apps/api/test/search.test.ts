@@ -185,14 +185,27 @@ describe("hazard HZ-011 search follows permission and scope through the API", ()
   });
 
   it("refuses an agency worker with no booked shift (ADR-0088: their roles reach nothing)", async () => {
-    await sql("UPDATE tenant_user SET is_agency = true WHERE id = $1", [DEMO.users.carer.id]);
-    try {
-      const refused = await search("carer", { query: "Ada" });
-      expect(refused.status).toBe(403);
-      expect(((await refused.json()) as { code: string }).code).toBe("missing_permission");
-    } finally {
-      await sql("UPDATE tenant_user SET is_agency = false WHERE id = $1", [DEMO.users.carer.id]);
-    }
+    const [member] = await sql<{ id: string }>(
+      "SELECT id FROM tenant_user WHERE email = 'agency@example.invalid'",
+    );
+    await sql(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'agency_worker' LIMIT 1`,
+      [member?.id, DEMO.locationId],
+    );
+    // Registering a bank worker flags the member (migration 0104); nothing clears it.
+    await sql(
+      "INSERT INTO agency_worker (tenant_user_id, kind, role_title) VALUES ($1, 'bank', 'Bank carer')",
+      [member?.id],
+    );
+    const refused = await h.request("/v1/search", {
+      method: "POST",
+      body: { query: "Ada" },
+      token: h.tokens.agency,
+      tenant: DEMO.tenantId,
+    });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { code: string }).code).toBe("missing_permission");
   });
 
   it("refuses a query over 200 characters before any other work", async () => {

@@ -303,3 +303,29 @@ describe("hazard HZ-124 one decision across the dates a shift touches", () => {
     expect(combinedRosterDecision(perDay, override, 10)).toMatchObject(expected);
   });
 });
+
+describe("hazard HZ-124 an agency worker's DBS is never overridden", () => {
+  const dbsMissing: RosterBlocker = { kind: "dbs", reason: "no_certificate" };
+  it("hazard HZ-124 refuses an override of a DBS blocker when the caller marks it strict", () => {
+    const decision = combinedRosterDecision(
+      [[dbsMissing]],
+      { justification: "Short-staffed tonight", blockerKeys: [blockerKey(dbsMissing)] },
+      10,
+      (b) => b.kind === "dbs",
+    );
+    expect(decision).toMatchObject({
+      allowed: false,
+      overridable: false,
+      overrideRefused: "not_overridable",
+    });
+  });
+
+  it("still lets a staff member's DBS blocker be overridden by default", () => {
+    const decision = combinedRosterDecision(
+      [[dbsMissing]],
+      { justification: "Short-staffed tonight", blockerKeys: [blockerKey(dbsMissing)] },
+      10,
+    );
+    expect(decision.allowed).toBe(true);
+  });
+});

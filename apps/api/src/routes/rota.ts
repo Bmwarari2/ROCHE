@@ -332,6 +332,14 @@ export async function worksAt(
   return rows.rows[0]?.ok === true;
 }
 
+/** Whether the member is a bank or agency worker (read with the system's rights). */
+async function isAgencyMember(tx: Transaction, memberId: string): Promise<boolean> {
+  const rows = await withSystemRights(tx, () =>
+    tx.execute<{ yes: boolean }>(sql`SELECT app.member_is_agency(${memberId}) AS yes`),
+  );
+  return rows.rows[0]?.yes === true;
+}
+
 /** Takes one member's assignment lock (the database guard takes the same one; M1). */
 export async function lockWorker(tx: Transaction, tenantId: string, workerId: string) {
   await tx.execute(
@@ -1149,6 +1157,17 @@ export const rotaRouter = createRouter()
           if (!s || !locked) return null;
           if (s.version !== body.version) throw stale();
           if (!(await worksAt(tx, body.workerId, s.locationId))) return null;
+          // Bank and agency workers go on a shift by booking (scheduling.md section 15 rule 2; the
+          // database refuses it otherwise): the booking records the cost and opens their access.
+          if (await isAgencyMember(tx, body.workerId)) {
+            return {
+              refused: new HttpProblem(
+                409,
+                "book_instead",
+                "This is a bank or agency worker: book them onto the shift instead.",
+              ),
+            };
+          }
           const now = new Date();
           const decision = await shiftEligibility(
             tx,

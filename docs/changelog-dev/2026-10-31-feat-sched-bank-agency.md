@@ -41,3 +41,35 @@ API. The screens are slice 59 and the clock-in check is slice 30.
 - Data protection: records of processing (B3), data standards, retention, and the export catalogue
   (five tables).
 - Human actions H-920 to H-929.
+
+## Review round 1 (security and clinical safety)
+
+- **Access window**:
+  - per location;
+  - applied when others ask about an agency member;
+  - closed for a worker marked do not book;
+  - the sync token is capped at its end;
+  - the policy also covers owner-run functions;
+  - a missing member row is closed.
+- **`is_agency`** is set only by registering, which now needs member management as well, and
+  nothing clears it.
+- **Booking**:
+  - bank and agency members go on shifts only by booking (deferred database guard; the assign
+    route answers `book_instead`);
+  - cancelling the shift or taking the worker off it cancels the booking;
+  - a worked booking cannot be cancelled;
+  - an archived agency is refused.
+- **Agency checks**:
+  - an agency worker's DBS is never overridden;
+  - confirmations are dated no later than today;
+  - do not book, or a changed confirmation, re-checks future bookings and cancels the ones that
+    are now blocked.
+- **Safeguarding**: a concern or do not rebook must say whether it is a safeguarding matter; if it
+  is, an urgent task goes to the Registered Manager. Bookings show the number of concerns.
+- **AWR clock**: weeks of seven days from the first shift's day; only started shifts with live
+  assignments count.
+- **Cost**: totals leave out cancelled shifts and cover at most 93 days.
+- **Who can read what**:
+  - agency workers' confirmations are read by rota managers only;
+  - feedback must match its booking.
+- **Docs**: ADR-0088, the spec, HZ-011, HZ-124, H-921, H-923 and H-928 updated.

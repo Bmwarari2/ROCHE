@@ -4,6 +4,8 @@ import { agencyAccessWindow, awrWeeksFromShifts, bookingCostPence } from "./agen
 import { awrClock } from "./pay/awr";
 import { resolvePayRates } from "./pay/rates";
 
+const ukDate = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/London" });
+
 const at = (iso: string) => new Date(iso);
 
 describe("what a booking costs", () => {
@@ -30,23 +32,36 @@ describe("what a booking costs", () => {
   });
 });
 
-describe("the AWR weeks from bookings (AWR 2010 reg 7)", () => {
-  it("counts each calendar week with a shift once, and weeks between as breaks", () => {
+describe("the AWR weeks from bookings (AWR 2010 reg 7(4): weeks from the first day)", () => {
+  it("counts weeks of seven days from the first shift's day, and weeks between as breaks", () => {
     const weeks = awrWeeksFromShifts(
-      [at("2026-11-02T08:00:00Z"), at("2026-11-04T08:00:00Z"), at("2026-11-17T08:00:00Z")],
-      "2026-11-18",
+      [at("2026-11-04T08:00:00Z"), at("2026-11-06T08:00:00Z"), at("2026-11-19T08:00:00Z")],
+      "2026-11-19",
     );
     expect(weeks).toEqual([
-      { week: "2026-11-02", kind: "worked" },
-      { week: "2026-11-09", kind: "break", reason: "none" },
-      { week: "2026-11-16", kind: "worked" },
+      { week: "2026-11-04", kind: "worked" },
+      { week: "2026-11-11", kind: "break", reason: "none" },
+      { week: "2026-11-18", kind: "worked" },
     ]);
   });
 
-  it("puts a Sunday night in its own week (UK dates)", () => {
-    expect(awrWeeksFromShifts([at("2026-11-08T20:00:00Z")], "2026-11-08")).toEqual([
-      { week: "2026-11-02", kind: "worked" },
+  it("counts a Sunday and the Monday after as one week when the first shift was on a Sunday", () => {
+    expect(
+      awrWeeksFromShifts([at("2026-11-08T08:00:00Z"), at("2026-11-09T08:00:00Z")], "2026-11-09"),
+    ).toEqual([{ week: "2026-11-08", kind: "worked" }]);
+  });
+
+  it("uses UK dates: 23:30 BST on a Sunday is that Sunday", () => {
+    expect(awrWeeksFromShifts([at("2026-07-05T22:30:00Z")], "2026-07-05")).toEqual([
+      { week: "2026-07-05", kind: "worked" },
     ]);
+  });
+
+  it("never counts a booking that has not started by the date", () => {
+    expect(
+      awrWeeksFromShifts([at("2026-11-02T08:00:00Z"), at("2026-12-02T08:00:00Z")], "2026-11-02"),
+    ).toEqual([{ week: "2026-11-02", kind: "worked" }]);
+    expect(awrWeeksFromShifts([at("2026-12-02T08:00:00Z")], "2026-11-02")).toEqual([]);
   });
 
   it("runs the breaks on to the date asked", () => {
@@ -62,7 +77,8 @@ describe("the AWR weeks from bookings (AWR 2010 reg 7)", () => {
     const starts = Array.from({ length: rates.awrQualifyingWeeks }, (_, i) =>
       at(new Date(Date.UTC(2026, 10, 2 + i * 7, 8)).toISOString()),
     );
-    const clock = awrClock(awrWeeksFromShifts(starts, "2026-11-02"), rates);
+    const last = ukDate(starts.at(-1) as Date);
+    const clock = awrClock(awrWeeksFromShifts(starts, last), rates);
     expect(clock.qualifyingWeeks).toBe(rates.awrQualifyingWeeks);
     expect(clock.qualifiedFromWeek).not.toBeNull();
   });
@@ -84,6 +100,27 @@ describe("the access window a booked shift opens (ADR-0088)", () => {
     const night = { start: at("2026-11-02T20:00:00Z"), end: at("2026-11-03T08:00:00Z") };
     expect(agencyAccessWindow([day, night], at("2026-11-02T21:00:00Z"), 2)?.end.toISOString()).toBe(
       "2026-11-03T10:00:00.000Z",
+    );
+  });
+
+  it.each([
+    [
+      "the night the clocks go back",
+      "2026-10-24T19:00:00Z",
+      "2026-10-25T08:00:00Z",
+      "2026-10-25T09:59:00Z",
+      true,
+    ],
+    [
+      "the night the clocks go forward",
+      "2027-03-27T20:00:00Z",
+      "2027-03-28T07:00:00Z",
+      "2027-03-28T09:00:00Z",
+      false,
+    ],
+  ] as const)("measures the window in real time on %s", (_, start, end, now, open) => {
+    expect(agencyAccessWindow([{ start: at(start), end: at(end) }], at(now), 2) !== null).toBe(
+      open,
     );
   });
 

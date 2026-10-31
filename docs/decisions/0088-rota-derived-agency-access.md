@@ -2,7 +2,7 @@
 status: "accepted"
 date: 2026-10-31
 decision-makers: Harbour engineering (Phase 2 lane C)
-consulted: Security reviewer, clinical safety officer (HZ-011, HZ-124; rating at the Phase 2 workshop, H-543)
+consulted: Security reviewer and clinical safety reviewer (agents, review round 1); the clinical safety officer is to confirm it (HZ-011, HZ-124; H-543, H-921)
 informed: Platform (search, access), workforce and care builders
 ---
 
@@ -66,6 +66,35 @@ Rejected:
   passes through the invitation triggers. It would also leave any long role assignment a manager
   made for an agency worker still open.
 - **An API-only check.** It breaks section 5.3.
+
+### Review round 1 (security and clinical safety reviews of slice 27)
+
+- **Per location.** The window opens a role or grant only at the location of a booked shift; one
+  across the organisation opens with a booking anywhere. `app.agency_access_open(member, location)`.
+- **Both ways.** The API's `accessRowsOf` applies the same function to other members, so checks
+  about an agency member (witness, nurse in charge, holders of a permission) see the window. It is
+  the window now, not at an earlier time asked about.
+- **The flag is protected.** `is_agency` is set only by registering, inside the guard, and is
+  never cleared by the application (`app.is_agency_guard`). Registering needs
+  `platform.user.manage` as well as the rota permission. A member with no live role or grant but
+  `agency_worker` may be registered.
+- **Booking is the only way onto a shift.** A deferred constraint trigger refuses a bank or
+  agency member's assignment without a confirmed booking, and the assign route refuses them
+  (`book_instead`). Cancelling the shift or taking the worker off it cancels the booking.
+- **Do not book closes it.** A worker marked do not book has no window, is never rostered, and
+  their future bookings are re-checked and cancelled where the rule now blocks. So is a changed
+  confirmation.
+- **Sync ends with it.** The sync token's expiry is capped at the window's end.
+- **The policy covers owner-run definer functions too** (`harbour_owner`). The member test runs
+  once per statement.
+- **Missing member row.** A member whose row cannot be found is treated as an agency member, so
+  closed.
+- **Not changed.** Routes that run without a permission (a member's own tasks about nobody,
+  organisation documents) still answer an agency member outside the window; they show nothing
+  about people. Offline entries recorded in the window and uploaded after it closes are refused
+  like any other upload after access ends (H-921). `harbour_app` can ask whether a member's window
+  is open: no route shows it. The new definer functions are owned by `harbour_owner`; moving them
+  to a NOLOGIN owner is H-928.
 
 ### Consequences
 

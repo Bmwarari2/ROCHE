@@ -35,6 +35,7 @@ import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
+import { agencyWindowEnd } from "../services/agency-window";
 import {
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
@@ -345,7 +346,11 @@ export function createSyncRouter(signer: SyncTokenSigner) {
             bindDevice(tx, deviceId, access.tenantUserId, new Date(), access.session.sessionId),
           );
         }
-        const { token, expiresAt } = await signer.sign(claims);
+        // A bank or agency member's token ends with their access window (ADR-0088).
+        const notAfter = await withTenant(c, (tx) =>
+          agencyWindowEnd(tx, access.tenantId, access.tenantUserId),
+        );
+        const { token, expiresAt } = await signer.sign(claims, new Date(), notAfter);
         return c.json(
           { token, endpoint: config.POWERSYNC_URL, expiresAt: expiresAt.toISOString() },
           200,

@@ -295,7 +295,7 @@ checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2
    resets: a sickness break longer than its limit resets it, and so does a long break that is only
    partly for a covered reason. Pregnancy, maternity, adoption and paternity leave within the
    assignment's original or likely length counts as weeks worked (reg 7(6)). Jury service (up to
-   28 weeks) is not modelled yet: record it as a covered break until slice 27 adds it.
+   28 weeks) is not modelled yet: record it as a covered break until break reasons are recorded (H-924).
 7. **Auto-enrolment flags** (`auto-enrolment.ts`; Pensions Act 2008 ss 1 and 3). For a pay
    reference period of a week or a month: eligible jobholder (aged
    `auto_enrolment.eligible_min_age` and under state pension age, earnings over the period's
@@ -686,7 +686,7 @@ Master prompt section 12.3 (the rota builder with skills, continuity, swaps, ban
 safe staffing planner comparing rota hours and skill mix with the dependency requirement, showing
 the gap and the method) and section 12's rule that a worker without the required DBS result, right
 to work or competence cannot be rostered. Hazards HZ-123 and HZ-124. Slice 21 builds the schema
-and API; the screens are slice 59, clock-in on the day slice 27, offline swaps slice 71. Human
+and API; the screens are slice 59, clock-in on the day slice 30 (H-920), offline swaps slice 71. Human
 actions H-830 to H-839.
 
 ### Schema (migration 0083)
@@ -827,7 +827,7 @@ Audit events (opaque ids only, never a blocker's detail, a justification or a fi
   with slice 12's route through `apps/api/src/services/staffing-requirement.ts`; contracts in
   `packages/contracts/src/rota.ts`.
 - Not in this slice: swaps with approval and open-shift offers (H-838), the clock-in check on the
-  day (slice 27), the screens (slice 59), offline swap requests (slice 71).
+  day (slice 30, H-920), the screens (slice 59), offline swap requests (slice 71).
 
 ## 15. Bank and agency workers (slice 27; SCHED-009)
 
@@ -855,7 +855,8 @@ on `role_assignment` and `access_grant`.
 ### Rules
 
 1. **Agency or bank.** An agency worker is employed by the agency, which makes the checks; the
-   organisation records the agency's written confirmation (`agencyRosterChecks`): a confirmed
+   organisation records the agency's written confirmation, dated no later than today
+   (`agencyRosterChecks`): a confirmed
    enhanced DBS with the adults' barred list clears, anything less does not; a right to work is
    confirmed with its expiry; a registered role needs its registration confirmed through the day. A
    bank worker is the organisation's own: their checks come from the staff file (section 14 rule
@@ -863,24 +864,35 @@ on `role_assignment` and `access_grant`.
 2. **Booking** (HZ-124): an open shift is booked for a named worker with the agency's reference and
    charge per hour. The rostering rule applies exactly as in assigning (section 14 rule 3, every UK
    date the shift touches; an override names the blockers shown; never a right to work, never a
-   member not active). A worker marked `do_not_book` is refused. Booking makes the shift's
-   assignment and the booking together; cancelling a booking takes the worker off the shift and
-   closes their access window at once.
+   member not active; an agency worker's DBS is never overridden: the agency's confirmation is all
+   there is). A worker marked `do_not_book` is refused, and so is an archived agency. Booking
+   makes the shift's assignment and the booking together; cancelling a booking takes the worker off
+   the shift and closes their access window at once; a booking whose shift is over cannot be
+   cancelled. When a worker is marked do not book, or the agency's confirmation changes, their
+   bookings not yet over are checked again and cancelled where the rule now blocks. The booking
+   says how many concerns are recorded about the worker at any location (the count only).
 3. **Cost** (`bookingCostPence`): the shift's elapsed minutes less its planned break, at the charge
    per hour, rounded to the nearest penny. Location totals per agency for a date range.
 4. **AWR clock** (`awrWeeksFromShifts` then slice 6's `awrClock`): from the agency worker's booked
-   shifts with this organisation, every calendar week with a shift worked; weeks between are breaks
+   shifts with this organisation that have started (never a future booking; cancelled and removed
+   ones left out), weeks of seven days from the first shift's day (reg 7(4)), each with a shift
+   worked; weeks between are breaks
    with no recorded reason (H-924), which the clock treats as uncovered. Shown with the weeks
    counted and the week equal terms apply from. Bank workers have no AWR clock.
 5. **Induction at the location**: recorded by a member who is not the worker, with the checklist
    items done. A booking at a location where the worker has no induction says so, and the rota's
    check lists it as a warning; whether it should block is H-922.
-6. **Access window** (ADR-0088): an agency or bank member holds their role's permissions only from
-   the start of a confirmed, live booked shift to its end plus `access.agency.post_shift_hours`;
-   otherwise nothing, in the API and in Postgres. Search uses the same end.
+6. **Access window** (ADR-0088): an agency or bank member holds a role or grant at a location only
+   from the start of a confirmed, live booked shift there to its end plus
+   `access.agency.post_shift_hours`; otherwise nothing, in the API and in Postgres, whoever asks.
+   A worker marked do not book has no window. Search and the sync token end with the window.
+   Bank and agency members go on shifts only by booking (the database refuses an assignment
+   without one); cancelling the shift or taking them off cancels the booking.
 7. **Feedback** after a booking: positive, a concern, or do not rebook (which sets `do_not_book`
-   with the reason). Never by the worker about themselves; shown to rota managers, never to the
-   agency through Harbour.
+   with the reason). A concern or do not rebook says whether it is a safeguarding matter; if so the
+   Registered Manager at the location gets an urgent task to raise it as an incident. Never by the
+   worker about themselves; shown to rota managers at the location, never to the agency through
+   Harbour. Agency workers and their confirmations are read by rota managers only.
 
 ### API, audit and outbox
 

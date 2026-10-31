@@ -73,7 +73,7 @@ export const BLOCKER_MESSAGES: Readonly<Record<RosterBlocker["kind"], string>> =
   registration: "Their professional registration is not current on the day.",
   competence: "They are not signed off as competent for this on the day.",
   not_active:
-    "They are not working for your organisation on the day (suspended, left or not yet started). This cannot be overridden.",
+    "They are not working for your organisation on the day (suspended, left, not yet started, or marked not to be booked). This cannot be overridden.",
 };
 
 export function blockerItems(blockers: readonly RosterBlocker[]) {
@@ -117,8 +117,12 @@ async function staffFileChecks(
       : [];
     return { profile: p ?? null, items: rows, member: m ?? null, agencyRow: w ?? null };
   });
+  // A bank or agency worker marked do not book is not working for the organisation (clinical
+  // safety review of slice 27, H1): never rostered, never overridden.
   const membership: Membership = {
-    status: (member?.status ?? "left") as Membership["status"],
+    status: agencyRow?.doNotBook
+      ? "suspended"
+      : ((member?.status ?? "left") as Membership["status"]),
     leftOn: profile?.leftOn ?? null,
     startsOn: profile?.startsOn ?? null,
   };
@@ -126,6 +130,8 @@ async function staffFileChecks(
   // rule 1); a bank worker's, like any member's, come from the staff file.
   if (agencyRow?.kind === "agency") {
     return {
+      // The agency's DBS confirmation is all the organisation has: never overridden (H3).
+      strictDbs: true,
       registrationBody: agencyRow.registrationBody,
       checks: agencyRosterChecks(
         {
@@ -144,6 +150,7 @@ async function staffFileChecks(
   const nation = await nationOfLocation(tx, shiftLocationId);
   const rates = await workforceRates(tx, tenantId, nation, day);
   return {
+    strictDbs: false,
     registrationBody: profile?.registrationBody ?? null,
     checks: rosterChecks(
       profile ? profileFacts(profile) : null,
@@ -185,8 +192,15 @@ export async function shiftEligibility(
   const end = lastInstant(row.endsAt);
   if (ukIsoDate(end) !== ukIsoDate(row.startsAt)) instants.push(end);
   const perDay: RosterBlocker[][] = [];
+  let strictDbs = false;
   for (const at of instants) {
-    const { checks } = await staffFileChecks(tx, tenantId, workerId, ukIsoDate(at), row.locationId);
+    const { checks, strictDbs: strict } = await staffFileChecks(
+      tx,
+      tenantId,
+      workerId,
+      ukIsoDate(at),
+      row.locationId,
+    );
     const competences = [];
     for (const competence of row.requiredCompetences.filter(isCompetence)) {
       competences.push({
@@ -194,9 +208,12 @@ export async function shiftEligibility(
         gate: await competencePort(tx, workerId, competence, at, now),
       });
     }
+    strictDbs ||= strict;
     perDay.push([...rosterBlockers({ ...checks, competences, shiftSupervised: row.supervised })]);
   }
-  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION);
+  return combinedRosterDecision(perDay, override, MIN_OVERRIDE_JUSTIFICATION, (b) =>
+    strictDbs ? b.kind === "dbs" || b.kind === "dbs_supervised_only" : false,
+  );
 }
 
 /**

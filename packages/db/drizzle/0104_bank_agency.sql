@@ -166,12 +166,16 @@ CREATE POLICY agency_insert ON public.agency AS RESTRICTIVE FOR INSERT TO harbou
 CREATE POLICY agency_update ON public.agency AS RESTRICTIVE FOR UPDATE TO harbour_app
   USING (app.manages_rotas_anywhere()) WITH CHECK (app.manages_rotas_anywhere());
 --> statement-breakpoint
+-- The agency's confirmation (DBS, right to work) and do-not-book are read only by rota builders,
+-- never by rota readers (security review of slice 27, M3).
 CREATE POLICY agency_worker_read ON public.agency_worker AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (app.reads_rotas_anywhere());
+  USING (app.manages_rotas_anywhere());
 --> statement-breakpoint
 -- Never by the worker about themselves; a confirmation in the recorder's own name.
+-- Registering changes what the member may hold: it also needs platform.user.manage (review M5).
 CREATE POLICY agency_worker_insert ON public.agency_worker AS RESTRICTIVE FOR INSERT TO harbour_app
-  WITH CHECK (app.manages_rotas_anywhere() AND tenant_user_id <> app.current_user_id());
+  WITH CHECK (app.manages_rotas_anywhere() AND tenant_user_id <> app.current_user_id()
+    AND app.holds_role_permission_somewhere('platform.user.manage'));
 --> statement-breakpoint
 CREATE POLICY agency_worker_update ON public.agency_worker AS RESTRICTIVE FOR UPDATE TO harbour_app
   USING (app.manages_rotas_anywhere() AND tenant_user_id <> app.current_user_id())
@@ -216,6 +220,12 @@ BEGIN
     RAISE EXCEPTION 'A confirmation is recorded in the recorder''s own name'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
+  -- The agency's confirmation is of checks already made: never dated after today (UK; clinical
+  -- safety review of slice 27, H4).
+  IF GREATEST(NEW.dbs_confirmed_on, NEW.right_to_work_confirmed_on)
+       > (now() AT TIME ZONE 'Europe/London')::date THEN
+    RAISE EXCEPTION 'A confirmation is dated no later than today' USING ERRCODE = 'check_violation';
+  END IF;
   IF TG_OP = 'UPDATE' THEN
     IF NEW.tenant_user_id IS DISTINCT FROM OLD.tenant_user_id OR NEW.kind IS DISTINCT FROM OLD.kind
         OR NEW.agency_id IS DISTINCT FROM OLD.agency_id THEN
@@ -223,6 +233,16 @@ BEGIN
         USING ERRCODE = 'integrity_constraint_violation';
     END IF;
     RETURN NEW;
+  END IF;
+  -- Lock the member so a role given at the same moment is seen by one guard or the other (M5).
+  PERFORM 1 FROM public.tenant_user u
+   WHERE u.tenant_id = NEW.tenant_id AND u.id = NEW.tenant_user_id FOR UPDATE;
+  IF EXISTS (
+    SELECT 1 FROM public.access_grant g
+    WHERE g.tenant_id = NEW.tenant_id AND g.tenant_user_id = NEW.tenant_user_id
+      AND g.deleted_at IS NULL AND g.revoked_at IS NULL AND g.valid_to > now()) THEN
+    RAISE EXCEPTION 'Only a member with no role but agency or bank worker can be registered'
+      USING ERRCODE = 'check_violation';
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.role_assignment ra
@@ -233,8 +253,10 @@ BEGIN
     RAISE EXCEPTION 'Only a member with no role but agency or bank worker can be registered'
       USING ERRCODE = 'check_violation';
   END IF;
+  PERFORM set_config('app.registering_agency_worker', 'on', true);
   UPDATE public.tenant_user SET is_agency = true
    WHERE tenant_id = NEW.tenant_id AND id = NEW.tenant_user_id AND NOT is_agency;
+  PERFORM set_config('app.registering_agency_worker', 'off', true);
   RETURN NEW;
 END
 $$;
@@ -246,6 +268,8 @@ CREATE TRIGGER agency_worker_guard BEFORE INSERT OR UPDATE ON public.agency_work
 CREATE OR REPLACE FUNCTION app.agency_member_role_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 BEGIN
+  PERFORM 1 FROM public.tenant_user u
+   WHERE u.tenant_id = NEW.tenant_id AND u.id = NEW.tenant_user_id FOR UPDATE;
   IF NEW.deleted_at IS NULL AND EXISTS (
       SELECT 1 FROM public.tenant_user u
       WHERE u.tenant_id = NEW.tenant_id AND u.id = NEW.tenant_user_id AND u.is_agency)
@@ -300,6 +324,10 @@ BEGIN
   IF v_worker.do_not_book THEN
     RAISE EXCEPTION 'This worker is not to be booked' USING ERRCODE = 'check_violation';
   END IF;
+  IF NEW.agency_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.agency g
+      WHERE g.tenant_id = NEW.tenant_id AND g.id = NEW.agency_id AND g.deleted_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'An archived agency is not booked' USING ERRCODE = 'check_violation';
+  END IF;
   RETURN NEW;
 END
 $$;
@@ -308,40 +336,142 @@ CREATE TRIGGER agency_booking_guard BEFORE INSERT OR UPDATE ON public.agency_boo
   FOR EACH ROW EXECUTE FUNCTION app.agency_booking_guard();
 --> statement-breakpoint
 
--- ADR-0088: an agency or bank member's access comes only from a confirmed booking of a live shift,
--- from its start to its end plus access.agency.post_shift_hours (rate table; none recorded gives
--- no hours after). Definer: it reads bookings and shifts the member may not read, and so cannot
--- recurse through the rota policies. Everyone else is always open.
-CREATE OR REPLACE FUNCTION app.agency_access_open(p_user uuid) RETURNS boolean
+-- ADR-0088: an agency or bank member's access comes only from a confirmed booking of a live shift
+-- at the location of each role or grant (security review of slice 27, M2), from the shift's start
+-- to its end plus access.agency.post_shift_hours (rate table; none recorded gives no hours after),
+-- and never for a worker marked do not book. A role or grant across the organisation opens with a
+-- booking anywhere. Definer: it reads bookings and shifts the member may not read, and so cannot
+-- recurse through the rota policies. A member who is not an agency or bank worker is always open;
+-- a member whose row cannot be found is closed (review L2).
+CREATE OR REPLACE FUNCTION app.member_is_agency(p_user uuid) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
-  SELECT NOT COALESCE((SELECT u.is_agency FROM public.tenant_user u
-                        WHERE u.tenant_id = app.current_tenant_id() AND u.id = p_user), false)
-    OR EXISTS (
+  SELECT p_user IS NOT NULL AND COALESCE((SELECT u.is_agency FROM public.tenant_user u
+                        WHERE u.tenant_id = app.current_tenant_id() AND u.id = p_user), true)
+$$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION app.agency_access_open(p_user uuid, p_location uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  SELECT NOT app.member_is_agency(p_user)
+    OR (NOT EXISTS (SELECT 1 FROM public.agency_worker w
+                    WHERE w.tenant_id = app.current_tenant_id() AND w.tenant_user_id = p_user
+                      AND w.do_not_book)
+    AND EXISTS (
       SELECT 1
       FROM public.agency_booking b
       JOIN public.shift s ON s.tenant_id = b.tenant_id AND s.id = b.shift_id
       JOIN public.shift_assignment a ON a.tenant_id = b.tenant_id AND a.id = b.assignment_id
       WHERE b.tenant_id = app.current_tenant_id() AND b.worker_id = p_user
+        AND (p_location IS NULL OR b.location_id = p_location)
         AND b.status = 'confirmed' AND s.deleted_at IS NULL AND a.deleted_at IS NULL
         AND s.starts_at <= now()
         AND now() < s.ends_at + COALESCE(app.quality_rate('access.agency.post_shift_hours', now()), 0)
-          * interval '1 hour')
+          * interval '1 hour'))
 $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.agency_access_open(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.member_is_agency(uuid), app.agency_access_open(uuid, uuid) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.agency_access_open(uuid) TO harbour_app, harbour_owner;
+GRANT EXECUTE ON FUNCTION app.member_is_agency(uuid), app.agency_access_open(uuid, uuid)
+  TO harbour_app, harbour_owner;
 --> statement-breakpoint
 -- Every permission check (app.holds_* and the API's accessRowsOf) reads the caller's own role rows
 -- with invoker rights, so hiding an agency member's own rows outside the window closes every door
--- at once. Other members' rows, and managers reading them, are unaffected.
-CREATE POLICY agency_window ON public.role_assignment AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (tenant_user_id IS DISTINCT FROM app.current_user_id()
-    OR app.agency_access_open(tenant_user_id));
+-- at once. Other members' rows are read through the API, which applies the same function
+-- (accessRowsOf). The member test runs once per statement (an initplan), so members who are not
+-- agency workers pay nothing per row (review L3). Owner-run definer functions see the same window
+-- (review L1).
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['role_assignment', 'access_grant'] LOOP
+    EXECUTE format(
+      'CREATE POLICY agency_window ON public.%I AS RESTRICTIVE FOR SELECT TO harbour_app, harbour_owner '
+      'USING (tenant_user_id IS DISTINCT FROM app.current_user_id() '
+      'OR NOT (SELECT app.member_is_agency(app.current_user_id())) '
+      'OR app.agency_access_open(tenant_user_id, location_id))', t);
+  END LOOP;
+END
+$$;
 --> statement-breakpoint
-CREATE POLICY agency_window ON public.access_grant AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (tenant_user_id IS DISTINCT FROM app.current_user_id()
-    OR app.agency_access_open(tenant_user_id));
+
+-- Only the registration guard sets is_agency, and it is never cleared by the application (security
+-- review of slice 27, M4): the guard sets a transaction-local flag around its own update.
+CREATE OR REPLACE FUNCTION app.is_agency_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.is_agency IS DISTINCT FROM OLD.is_agency
+     AND NOT (NEW.is_agency
+       AND COALESCE(current_setting('app.registering_agency_worker', true), '') = 'on') THEN
+    RAISE EXCEPTION 'Only registering a bank or agency worker sets this, and nothing clears it'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER is_agency_guard BEFORE UPDATE OF is_agency ON public.tenant_user
+  FOR EACH ROW EXECUTE FUNCTION app.is_agency_guard();
+--> statement-breakpoint
+
+-- An agency or bank member is on a shift only through a booking (security review H1, clinical H2):
+-- at the end of the transaction a live assignment of theirs needs a confirmed booking of it.
+CREATE OR REPLACE FUNCTION app.agency_assignment_booked() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF NEW.deleted_at IS NULL AND app.member_is_agency(NEW.worker_id) AND NOT EXISTS (
+      SELECT 1 FROM public.agency_booking b
+      WHERE b.tenant_id = NEW.tenant_id AND b.assignment_id = NEW.id AND b.status = 'confirmed') THEN
+    RAISE EXCEPTION 'A bank or agency worker is put on a shift by booking them'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END
+$$;
+--> statement-breakpoint
+CREATE CONSTRAINT TRIGGER agency_assignment_booked AFTER INSERT ON public.shift_assignment
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app.agency_assignment_booked();
+--> statement-breakpoint
+-- A booking ends with its assignment or its shift (review L4): taking the worker off, or cancelling
+-- the shift, cancels the booking, so access closes and cost and the AWR clock stop counting it.
+CREATE OR REPLACE FUNCTION app.agency_booking_follows() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL THEN
+    IF TG_TABLE_NAME = 'shift_assignment' THEN
+      UPDATE public.agency_booking SET status = 'cancelled', cancelled_at = now(),
+        cancel_reason = 'Taken off the shift'
+       WHERE tenant_id = NEW.tenant_id AND assignment_id = NEW.id AND status = 'confirmed';
+    ELSE
+      UPDATE public.agency_booking SET status = 'cancelled', cancelled_at = now(),
+        cancel_reason = 'The shift was cancelled'
+       WHERE tenant_id = NEW.tenant_id AND shift_id = NEW.id AND status = 'confirmed';
+    END IF;
+  END IF;
+  RETURN NULL;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER agency_booking_follows AFTER UPDATE OF deleted_at ON public.shift_assignment
+  FOR EACH ROW EXECUTE FUNCTION app.agency_booking_follows();
+--> statement-breakpoint
+CREATE TRIGGER agency_booking_follows AFTER UPDATE OF deleted_at ON public.shift
+  FOR EACH ROW EXECUTE FUNCTION app.agency_booking_follows();
+--> statement-breakpoint
+-- Feedback is about the booking's worker at the booking's location (review L5).
+CREATE OR REPLACE FUNCTION app.agency_feedback_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.agency_booking b
+      WHERE b.tenant_id = NEW.tenant_id AND b.id = NEW.booking_id
+        AND b.worker_id = NEW.worker_id AND b.location_id = NEW.location_id) THEN
+    RAISE EXCEPTION 'Feedback is about the booking''s worker at its location'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER agency_feedback_guard BEFORE INSERT ON public.agency_worker_feedback
+  FOR EACH ROW EXECUTE FUNCTION app.agency_feedback_guard();
 --> statement-breakpoint
 
 DO $$
@@ -379,4 +509,5 @@ CREATE POLICY record_version_agency ON public.record_version AS RESTRICTIVE FOR 
   TO harbour_app
   USING (table_name NOT IN ('agency', 'agency_worker', 'agency_booking')
     OR (table_name = 'agency_booking' AND app.reads_rota((data->>'location_id')::uuid))
-    OR (table_name <> 'agency_booking' AND app.reads_rotas_anywhere()));
+    OR (table_name = 'agency' AND app.reads_rotas_anywhere())
+    OR (table_name = 'agency_worker' AND app.manages_rotas_anywhere()));
