@@ -80,6 +80,7 @@ import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
+import { timeAttendanceRouter } from "./routes/time-attendance";
 import { workflowsRouter } from "./routes/workflows";
 import { SyncTokenSigner } from "./sync/token";
 
@@ -343,6 +344,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", schedulingDependencyRouter);
   app.route("/", rotaRouter);
   app.route("/", agencyRouter);
+  app.route("/", timeAttendanceRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

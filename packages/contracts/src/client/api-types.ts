@@ -26554,6 +26554,1081 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/me/clock-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clock in, out or a break
+     * @description Always for oneself. Keeps the device's and the server's time and flags a late upload or a device clock ahead (HZ-010). A staff member needs scheduling.timesheet.self; a bank or agency member a confirmed booking of the shift, and a late upload after their window closes is accepted inside the booked window, flagged, never dropped (ADR-0088). Clocking in to a shift applies the rostering rule on the day and, for bank and agency workers, needs an induction at the location: refused online (422), flagged with an urgent task when uploaded late. A clock-out makes a draft timesheet entry. Idempotent by the client's id.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      /** @description The event */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordClockEvent"];
+        };
+      };
+      responses: {
+        /** @description Already recorded */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockEventItem"];
+          };
+        };
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockEventItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/timesheets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** My timesheet entries */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Entries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/clock-setting": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Clock evidence at a location */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The setting */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockSettingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    /**
+     * Set clock evidence at a location
+     * @description Location or NFC evidence is employee monitoring: it needs dpiaApproved, confirming the employee-monitoring DPIA is approved (H-527). Never a position: only whether the phone was at the location or read the location's tag.
+     */
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The setting */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeClockSetting"];
+        };
+      };
+      responses: {
+        /** @description Set */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockSettingItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/timesheets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Timesheet entries at a location */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Entries */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Enter time by hand
+     * @description A draft for someone else, never oneself.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The entry */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Change a draft entry
+     * @description Never one's own; an approved entry is corrected instead.
+     */
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ChangeTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Changed */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve an entry
+     * @description By a holder of scheduling.rota.approve at the location, never the worker. Runs the working time check for the worker and stores the result (advice; a breach or conditional finding raises a task, never blocks).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApproveTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Approved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ApprovedTimesheet"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/corrections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Correct an approved entry
+     * @description A new draft superseding it, with a reason; once approved, the original is struck through. One open correction at a time; never one's own.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The correction */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CorrectTimesheetEntry"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/timesheet-entries/{id}/awake-periods": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a time awake on a sleep-in
+     * @description On a sleep-in draft, inside it; never one's own.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The period */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAwakePeriod"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["TimesheetEntryItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/clock-exceptions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Clock exceptions at a location
+     * @description Flagged clock events, and drafts waiting for approval, between two UK dates.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Exceptions */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ClockExceptionList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/working-time-opt-outs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's opt-outs on file
+     * @description The member's own, or an approver's view; audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Opt-outs */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OptOutList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record an opt-out from the signed agreement
+     * @description By a holder of scheduling.rota.approve, never the worker (reg 4(1), 5).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The agreement */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordOptOut"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OptOutItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/working-time": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's stored working time results
+     * @description Newest first; the member's own, or an approver's view.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Results */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["WorkingTimeResultList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -34579,6 +35654,268 @@ export interface components {
         costPence: number;
       }[];
       totalPence: number;
+    };
+    ClockEventItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      workerId: string;
+      kind: components["schemas"]["ClockKind"];
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      shiftId: string | null;
+      /** Format: date-time */
+      deviceTime: string;
+      /** Format: date-time */
+      recordedAt: string;
+      evidence: components["schemas"]["ClockEvidence"];
+      flags: string[];
+      /** Format: uuid */
+      timesheetEntryId: string | null;
+    };
+    /** @enum {string} */
+    ClockKind: "in" | "out" | "break_start" | "break_end";
+    /** @enum {string} */
+    ClockEvidence: "none" | "at_location" | "nfc";
+    RecordClockEvent: {
+      /** Format: uuid */
+      id: string;
+      kind: components["schemas"]["ClockKind"];
+      /** Format: uuid */
+      locationId: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      shiftId: string | null;
+      /** Format: date-time */
+      deviceTime: string;
+      /** @default null */
+      deviceId: string | null;
+      evidence?: components["schemas"]["ClockEvidence"];
+      /** @default null */
+      nfcTagRef: string | null;
+    };
+    TimesheetList: {
+      items: components["schemas"]["TimesheetEntryItem"][];
+    };
+    TimesheetEntryItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: uuid */
+      shiftId: string | null;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel: components["schemas"]["TravelKind"];
+      mileageTenths: number | null;
+      /** @enum {string} */
+      source: "clock" | "manual";
+      /** @enum {string} */
+      status: "draft" | "approved";
+      /** Format: uuid */
+      approvedBy: string | null;
+      /** Format: date-time */
+      approvedAt: string | null;
+      /** Format: uuid */
+      supersedesId: string | null;
+      correctionReason: string | null;
+      superseded: boolean;
+      workedMinutes: number;
+      problems: string[];
+      awakePeriods: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+    };
+    /** @enum {string} */
+    TimesheetKind:
+      | "work"
+      | "sleep_in"
+      | "on_call_at_workplace"
+      | "on_call_away"
+      | "training"
+      | "travel";
+    /** @enum {string|null} */
+    TravelKind:
+      | "between_assignments"
+      | "home_to_first_assignment"
+      | "last_assignment_to_home"
+      | "commute_to_fixed_workplace"
+      | null;
+    ClockSettingItem: {
+      /** Format: uuid */
+      locationId: string;
+      version: number | null;
+      evidence: components["schemas"]["ClockEvidence"];
+      nfcTagRefs: string[];
+    };
+    ChangeClockSetting: {
+      version: number | null;
+      evidence: components["schemas"]["ClockEvidence"];
+      /** @default [] */
+      nfcTagRefs: string[];
+      /** @default false */
+      dpiaApproved: boolean;
+    };
+    CreateTimesheetEntry: {
+      /** Format: uuid */
+      workerId: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      shiftId: string | null;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    ChangeTimesheetEntry: {
+      version: number;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    ApprovedTimesheet: {
+      entry: components["schemas"]["TimesheetEntryItem"];
+      workingTime: {
+        /** Format: uuid */
+        resultId: string;
+        breaches: number;
+        conditionals: number;
+        notes: string[];
+      };
+    };
+    ApproveTimesheetEntry: {
+      version: number;
+    };
+    CorrectTimesheetEntry: {
+      reason: string;
+      kind: components["schemas"]["TimesheetKind"];
+      /** Format: date-time */
+      startedAt: string;
+      /** Format: date-time */
+      endedAt: string;
+      /** @default [] */
+      breaks: {
+        /** Format: date-time */
+        start: string;
+        /** Format: date-time */
+        end: string;
+      }[];
+      travel?: components["schemas"]["TravelKind"];
+      /** @default null */
+      mileageTenths: number | null;
+    };
+    RecordAwakePeriod: {
+      /** Format: date-time */
+      start: string;
+      /** Format: date-time */
+      end: string;
+    };
+    ClockExceptionList: {
+      events: components["schemas"]["ClockEventItem"][];
+      drafts: components["schemas"]["TimesheetEntryItem"][];
+    };
+    OptOutList: {
+      items: components["schemas"]["OptOutItem"][];
+    };
+    OptOutItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      workerId: string;
+      /** Format: date */
+      signedOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      noticeAmount: number | null;
+      /** @enum {string|null} */
+      noticeUnit: "days" | "months" | null;
+      /** Format: date */
+      noticeGivenOn: string | null;
+      /** Format: uuid */
+      recordedBy: string;
+    };
+    RecordOptOut: {
+      /** Format: date */
+      signedOn: string;
+      /**
+       * Format: date
+       * @default null
+       */
+      endsOn: string | null;
+      /** @default null */
+      noticeAmount: number | null;
+      /**
+       * @default null
+       * @enum {string|null}
+       */
+      noticeUnit: "days" | "months" | null;
+      /**
+       * Format: date
+       * @default null
+       */
+      noticeGivenOn: string | null;
+    };
+    WorkingTimeResultList: {
+      items: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        evaluateFrom: string;
+        /** Format: date */
+        evaluateTo: string;
+        breaches: number;
+        conditionals: number;
+        findings: {
+          [key: string]: unknown;
+        }[];
+        trigger: string;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
     };
   };
   responses: never;

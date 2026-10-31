@@ -89,6 +89,9 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `shift`, `timesheet_entry` | rota_and_timesheet |
 | `shift_template`, `shift_pattern`, `rota`, `rota_publication`, `shift_assignment`, `roster_override` ([scheduling.md](scheduling.md) section 14, slice 21) | rota_and_timesheet; never deleted (archived, cancelled or removed with a reason); publications and overrides append-only |
 | `agency`, `agency_worker`, `agency_booking`, `location_induction`, `agency_worker_feedback` ([scheduling.md](scheduling.md) section 15, slice 27) | rota_and_timesheet; agencies archived, bookings cancelled, never deleted; inductions and feedback append-only |
+| `clock_setting`, `clock_event`, `timesheet_entry`, `sleep_in_awake_period` ([scheduling.md](scheduling.md) section 16, slice 30) | rota_and_timesheet, counted from the end of the pay reference period; clock events and awake periods append-only; approved entries corrected by superseding, never changed |
+| `working_time_opt_out` (slice 30) | working_time_opt_out |
+| `working_time_result` (slice 30) | working_time_record |
 | `ledger_entry`, `invoice`, `charge_line`, `funding_arrangement` | financial_record |
 | `compliance_check` for water systems | water_hygiene_record |
 | `audit_event` | audit_event, extended by audit_event.care_record |

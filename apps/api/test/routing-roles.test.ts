@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { builtinRole } from "@harbour/domain";
 import { describe, expect, it } from "vitest";
 import { SAFEGUARDING_CONCERN_ROLE } from "../src/routes/agency";
+import { WORKING_TIME_FINDING_ROLE } from "../src/routes/time-attendance";
 import { REVIEW_TASKS } from "../src/services/care-planning";
 import {
   DEVELOPMENT_REMINDER_PERMISSION,
@@ -13,6 +14,7 @@ import { DISCARD_OTHERS_PERMISSION } from "../src/services/device-holds";
 import { COMPLIANCE_EXPIRY_ROLE, STAFF_FILE_MANAGE } from "../src/services/staff-files";
 import { RECORD_READ_PERMISSION } from "../src/services/staff-views";
 import { OVERDUE_FIRST_RESPONDERS } from "../src/services/tasks";
+import { CLOCK_EXCEPTION_ROLE } from "../src/services/time-attendance";
 
 /**
  * Hazard HZ-073 (ADR-0071 review round 1, C-M3): safety work routed by role must reach someone
@@ -130,5 +132,14 @@ describe("workforce reminders reach a role that can act on them (workforce.md se
 describe("a safeguarding concern about a bank or agency worker reaches a role that can act", () => {
   it("the role told holds safety.incident.report", () => {
     expect(bundle(SAFEGUARDING_CONCERN_ROLE)).toContain("safety.incident.report");
+  });
+});
+
+describe("time and attendance tasks reach a role that can act (scheduling.md section 16)", () => {
+  it.each([
+    [CLOCK_EXCEPTION_ROLE, "scheduling.rota.approve"],
+    [WORKING_TIME_FINDING_ROLE, "scheduling.rota.approve"],
+  ])("%s holds %s", (roleKey, permission) => {
+    expect(bundle(roleKey)).toContain(permission);
   });
 });

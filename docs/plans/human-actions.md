@@ -441,6 +441,24 @@ H-920 to H-929 the lead assigned.
 | H-928 | At upgrade, review existing members flagged `is_agency`: from migration 0104 their access comes only from booked shifts at the booked location, so one without a booking loses access until booked; members holding roles other than agency worker are not changed, but new roles are refused; nothing clears the flag (an audited way to end a registration is still to build). Also move the migration's definer functions to a NOLOGIN owner as ADR-0002 prefers (security review L1) | Each tenant's owner with Thapsus support | ADR-0088; `app.agency_member_role_guard` | Upgrading tenants with agency members | open |
 | H-929 | Rota-derived team scope (ADR-0088): a tenant setting, off by default, not built in this slice; decide its design and review it before turning it on | CSO with Brian | ADR-0088; HZ-011 | Team scope from rotas | open |
 
+## Phase 2: time and attendance (slice 30)
+
+Logged by slice 30 (time and attendance and working-time records, [scheduling.md](../specs/scheduling.md)
+section 16) on 31 October 2026, from the block H-990 to H-999 the lead assigned.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-990 | Approve the employee-monitoring DPIA wording for clock evidence (H-527) before any location turns on `at_location` or `nfc`; built: off by default, and turning it on asks the approver to confirm the DPIA is approved; never a position or track | DPO | `clock_setting`; `PUT /v1/locations/{id}/clock-setting` | Clock evidence in a real tenant | open |
+| H-991 | Decide whether a separate `scheduling.working_time.manage` permission (scheduling.md section 3) should hold opt-outs and the working-time setting; built: `scheduling.rota.approve` records opt-outs | Brian with the DPO | `working_time_opt_out` policies | Opt-outs by HR without rota approval | open |
+| H-992 | Build the working-time setting per location (derogations, agreements, night time, weekly rest basis), exceptions for young workers and confirmed compensatory rest (scheduling.md section 2); until then the check uses the default setting and every finding raises a review task | Brian with an employment adviser (H-529) | `DEFAULT_WORKING_TIME_SETTING`; `working_time_result` | Conditional findings resolved in a real tenant | open |
+| H-993 | Decide the window around a shift in which a clock-in counts for it (built: any time; a clock-in long before the shift is accepted for it) and whether early or late clock-ins are exceptions | Brian with a Registered Manager | `POST /v1/me/clock-events` | Exceptions for early and late clocking | open |
+| H-994 | Decide whether a missed clock-out raises a task at the shift's end plus a grace period (built: no clock-out leaves no draft; the manager enters the time by hand) | Brian with a Registered Manager | rule 4 | Missed clock-out alerts | open |
+| H-995 | Confirm that a late upload whose rule on the day fails is kept and flagged with an urgent task (not refused), and that an online one is refused, for the CSO's HZ-124 rating | CSO | rule 3; `clockInProblems` | HZ-124 rating | open |
+| H-996 | Decide how excluded days (statutory leave, sickness, family leave) reach the working time check once absence is recorded (slice 40); built: none excluded, which can over-state the weekly average | Brian | `storeWorkingTimeResult` | Accurate 48-hour averages | open |
+| H-997 | Decide whether awake periods on a sleep-in are recorded by the worker on the phone (slice 71) or only by a manager (built) | Brian with a Registered Manager | `POST /v1/timesheet-entries/{id}/awake-periods` | Sleep-in pay (slice 36) | open |
+| H-998 | Confirm the privacy notice tells staff about clock events, flags and stored working time results (WORK-011) | DPO | records of processing (slice 30) | Time and attendance in a real tenant | open |
+| H-999 | Decide whether payroll exports (slice 76) use only approved entries not superseded (built: `scheduling.timesheet_approved` on the outbox for each approval) and how corrections after an export reach payroll | Brian | ADR-0097 | Payroll corrections | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

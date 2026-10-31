@@ -739,6 +739,25 @@ fields are Harbour's.
 | `location_induction.items` | Harbour | Lower-case keys (`fire_exits`, `emergency_procedures`, ...), 1 to 40 | The location's own checklist. |
 | `agency_worker_feedback.kind` | Harbour | `positive`, `concern`, `do_not_rebook` | `do_not_rebook` marks the worker not to be booked. |
 
+## Time and attendance (Phase 2, slice 30)
+
+Code lists for [scheduling.md](scheduling.md) section 16. No national standard defines these;
+payroll exports (slice 76) map them to each provider.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `clock_event.kind` | Harbour | `in`, `out`, `break_start`, `break_end` | |
+| `clock_event.device_time`, `recorded_at` | ISO 8601 date-time, UTC | `timestamptz` | The device's time is the time worked; both are kept (HZ-010). |
+| `clock_event.evidence`, `clock_setting.evidence` | Harbour | `none`, `at_location`, `nfc` | Never a position; `at_location` is the phone's word only (H-527). |
+| `clock_event.flags` | Harbour | `late_upload`, `device_clock_ahead`, `outside_access_window`, `no_shift`, `not_eligible`, `no_induction`, and the pairing problems `no_clock_in`, `no_clock_out`, `break_not_ended`, `break_not_started`, `out_of_order` | |
+| `timesheet_entry.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training`, `travel` | |
+| `timesheet_entry.travel` | Harbour (NMW travel time) | `between_assignments`, `home_to_first_assignment`, `last_assignment_to_home`, `commute_to_fixed_workplace` | |
+| `timesheet_entry.mileage_tenths` | Harbour | Whole tenths of a mile | Travel entries only. |
+| `timesheet_entry.breaks` | Harbour | `[{ start, end }]`, ISO 8601 UTC | Inside the entry. |
+| `timesheet_entry.status` | Harbour | `draft`, `approved` | Approved entries never change; a correction supersedes (`supersedes_id`). |
+| `working_time_opt_out.notice_unit` | Harbour (WTR reg 5) | `days`, `months` | |
+| `working_time_result.findings` | Harbour | As `WorkingTimeFindingItem` (rule, citation, outcome, minutes) | With `input_hash`, so a result reproduces. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

@@ -530,6 +530,7 @@ export * from "./search";
 export * from "./staff";
 export * from "./sub-processors";
 export * from "./tasks";
+export * from "./time-attendance";
 
 /**
  * A member asks for their own account to be deleted (MOB-011; master prompt 17.3; App Store

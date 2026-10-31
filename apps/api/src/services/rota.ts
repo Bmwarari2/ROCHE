@@ -162,7 +162,10 @@ async function staffFileChecks(
   };
 }
 
-async function nationOfLocation(tx: Transaction, locationId: string | null): Promise<Nation> {
+export async function nationOfLocation(
+  tx: Transaction,
+  locationId: string | null,
+): Promise<Nation> {
   if (!locationId) return "england";
   const [row] = await withSystemRights(tx, () =>
     tx.select({ nation: location.nation }).from(location).where(eq(location.id, locationId)),

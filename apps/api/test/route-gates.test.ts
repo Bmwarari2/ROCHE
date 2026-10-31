@@ -38,6 +38,8 @@ const UNGATED: Readonly<Record<string, string>> = {
   "POST /v1/sync/device-report":
     "any member reports what their device holds; written in the system's view (HZ-006)",
   "POST /v1/sync/upload": "refuses every operation (no writable synced tables); audits the count",
+  "POST /v1/me/clock-events":
+    "the member's own clock event: scheduling.timesheet.self, or a bank or agency booking checked in the route (ADR-0088); written as the system for that member only",
   "POST /p/evidence/code":
     "a public evidence pack link: no member; runs as the link session (migration 0058), that link alone",
   "POST /p/evidence/verify": "a public evidence pack link: the link session, that link alone",
