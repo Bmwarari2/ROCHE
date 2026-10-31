@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Checkbox, DateTimeInput, RadioGroup, TextField } from "@harbour/ui";
+import { Button, Checkbox, DateTimeInput, RadioGroup, SelectField, TextField } from "@harbour/ui";
 import { ListPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
@@ -22,12 +22,18 @@ const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 export function NewTaskForm({
   selfId,
   returnTo,
+  locations,
+  locationId,
 }: {
   readonly selfId: string;
   readonly returnTo: string;
+  /** Where the task may be placed: the locations in the manager's scope. */
+  readonly locations: readonly { readonly id: string; readonly name: string }[];
+  /** The location chosen in the app bar, offered first. */
+  readonly locationId: string | null;
 }) {
   const router = useRouter();
-  const ids = useFieldIds(["title", "dueAt", "repeat"]);
+  const ids = useFieldIds(["title", "dueAt", "locationId", "repeat"]);
   const [result, setResult] = useState<ActionResult<unknown> | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -83,6 +89,17 @@ export function NewTaskForm({
         error={errorFor(result, "dueAt")}
         errorParts={boxesOf(partsFor(result, "dueAt"))}
       />
+      {locations.length > 0 ? (
+        <SelectField
+          id={ids.locationId}
+          name="locationId"
+          label={t("tasks.new.where")}
+          hint={t("tasks.new.whereHint")}
+          defaultValue={locationId ?? locations[0]?.id ?? ""}
+          options={locations.map((l) => ({ value: l.id, label: l.name }))}
+          error={errorFor(result, "locationId")}
+        />
+      ) : null}
       <RadioGroup<Repeat>
         id={ids.repeat}
         name="repeat"

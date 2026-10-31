@@ -19,6 +19,7 @@ export const TASK_TITLE_MIN = 3;
 export const TASK_TITLE_MAX = 120;
 
 const DAY_MS = 86_400_000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type TaskView = "mine" | "team";
 export type TaskStatusFilter = "open" | "closed";
@@ -236,7 +237,11 @@ export function readNewTask(
   }
   const priority = text(form, "urgent") === "yes" ? "urgent" : "routine";
   const mine = text(form, "assignToMe") === "yes";
-  const assignee = mine ? { assigneeTenantUserId: options.selfId } : {};
+  const locationId = text(form, "locationId");
+  const assignee = {
+    ...(mine ? { assigneeTenantUserId: options.selfId } : {}),
+    ...(UUID.test(locationId) ? { locationId } : {}),
+  };
   if (repeat === "none") {
     if (Date.parse(dueAt) < now.getTime() - 60_000) {
       return {

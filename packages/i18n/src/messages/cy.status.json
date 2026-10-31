@@ -1556,6 +1556,8 @@
     "tasks.new.due",
     "tasks.new.dueSubject",
     "tasks.new.dueInPast",
+    "tasks.new.where",
+    "tasks.new.whereHint",
     "tasks.new.repeat",
     "tasks.new.repeatOption",
     "tasks.new.urgent",

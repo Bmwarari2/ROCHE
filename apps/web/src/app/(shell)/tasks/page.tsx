@@ -72,7 +72,7 @@ function FilterLink({
  * tasks. The API decides what each person sees and may do.
  */
 export default async function TasksPage({ searchParams }: { readonly searchParams: SearchParams }) {
-  const { me } = await getShellContext();
+  const { me, locationId } = await getShellContext();
   const title = t("tasks.title");
   if (isFamilyMember(me)) return <SafetyForbidden title={title} />;
   const query: TasksQuery = tasksQuery(await searchParams);
@@ -153,7 +153,12 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
       </nav>
       {mayManage ? (
         <Card as="section" title={t("tasks.new.heading")} headingLevel={2}>
-          <NewTaskForm selfId={me.tenantUserId} returnTo={here} />
+          <NewTaskForm
+            selfId={me.tenantUserId}
+            returnTo={here}
+            locations={me.locations.map((l) => ({ id: l.id, name: l.name }))}
+            locationId={locationId}
+          />
         </Card>
       ) : null}
       <Card

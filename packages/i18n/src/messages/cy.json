@@ -1555,6 +1555,8 @@
   "tasks.new.due": "When it is due",
   "tasks.new.dueSubject": "The time the task is due",
   "tasks.new.dueInPast": "Choose a time that has not passed yet.",
+  "tasks.new.where": "Where",
+  "tasks.new.whereHint": "The home or service the task belongs to.",
   "tasks.new.repeat": "Does it repeat?",
   "tasks.new.repeatOption": "{repeat, select, daily {Every day at that time} weekly {Every week on that day and time} other {No, just once}}",
   "tasks.new.urgent": "Urgent",
