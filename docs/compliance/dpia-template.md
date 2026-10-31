@@ -89,7 +89,7 @@ From the records of processing (Part B, purposes B1 to B10 that apply): `{{ropa.
 
 Likelihood of harm: remote, possible, probable. Severity of harm: minimal, significant, severe. Overall: low, medium, high.
 
-R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing). Harbour fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
+R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the row; R13 to R19 are the Phase 1 residential processing every tenant has (section 7A lists which risks apply to each kind of processing); R20 to R29 are the Phase 2 processing (section 7B, a first draft; R22, R25 and R28 cover processing still being built, and a tenant records in section 7B.6 what it does not use). A DPIA signed before a standard risk was added is flagged for review. Harbour fills this table from `packages/domain/src/platform/dpia.ts`, and a test (`dpia.test.ts`) fails if an id or its wording differs from this table.
 
 | ID | Risk | Likelihood | Severity | Overall |
 | --- | --- | --- | --- | --- |
@@ -112,6 +112,16 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R17 | A statutory notification to a regulator that is wrong, late or holds more personal data than the form needs | Possible | Significant | Medium |
 | R18 | Consent, capacity or DoLS records wrong or out of date, so a person is restricted or decided for without valid authority | Possible | Severe | High |
 | R19 | Sample data mixed with real records, or a real person's data entered as sample data | Remote | Significant | Low |
+| R20 | Staff vetting and employment records (DBS and criminal offence data, right to work and immigration, health declarations, fit notes) seen beyond HR or kept too long | Possible | Severe | High |
+| R21 | The identity of a whistleblower or the subject of a case disclosed, or a silo reached by a wider role | Possible | Severe | High |
+| R22 | Clock-in location, NFC and lone-worker check-ins used to monitor staff beyond their purpose | Possible | Significant | Medium |
+| R23 | A subject access bundle or disclosure that reveals third parties, misses records or goes beyond its legal basis | Possible | Significant | Medium |
+| R24 | A breach not assessed or reported within 72 hours, or a tenant not told by Thapsus as processor | Possible | Severe | High |
+| R25 | Payroll, vetting, learning and e-signature providers receiving staff or care data, possibly outside the UK | Possible | Significant | Medium |
+| R26 | Imported data inaccurate, excessive, or about people outside the service | Possible | Significant | Medium |
+| R27 | An identity provider account linked to the wrong member, or sign-in without Harbour's second factor | Possible | Severe | High |
+| R28 | A respondent identified from small-group staff survey results | Possible | Significant | Medium |
+| R29 | Applicants' data kept after an unsuccessful application or used beyond recruitment | Possible | Significant | Medium |
 | R... | *Tenant adds local risks* | | | |
 
 ## 7. Measures to reduce risk
@@ -137,6 +147,16 @@ R1 to R8 apply to every tenant; R9 to R12 only with the processing named in the 
 | R17 | Notifications and deadlines worked out from the incident's answers, overdue escalation, submission only by holders of `safety.notification.submit` after a fresh sign-in, raiser cannot close (section 7A) | Name who submits; check each form before it is sent | Reduced | | |
 | R18 | Capacity test in the Act's words, authority checked against the contact's legal authority, best-interests checklist, DoLS expiry reminders, every version kept (section 7A) | Mental Capacity Act policy and training; DoLS applications and reviews on time | Reduced | | |
 | R19 | Invented sample people only, flagged, badged, watermarked, left out of the full export (not yet of statutory notifications: a draft about a sample person is decided not required, H-452), removed as a batch (section 7A) | Remove sample data before go-live | Reduced | | |
+| R20 | Staff file permissions of their own (owner and HR by default), MFA, row-level security, HR-only documents hidden from everyone without `workforce.hr_document.read` and every open audited, no DBS certificate copy kept (section 7B) | Who holds HR access; the appropriate policy document; retention of staff files | Reduced | | |
+| R21 | Speaking up in a silo the owner and managers cannot read, anonymous concerns with no identity stored, audit without the reporter; the safeguarding log for its managers only, carers see protective measures only (section 7B) | Name the Freedom to Speak Up lead; guidance to reporters | Reduced | | |
+| R22 | Planned: location only at the clock-in or check-in itself, scoped like the shift, its own retention (section 7B; not built) | Explain monitoring to staff | Planned | | |
+| R23 | Subject map over every table, third-party names highlighted but decided by a person with a reason, bundle built when issued and never stored, its SHA-256 recorded (section 7B) | Review each record before the bundle is issued | Reduced | | |
+| R24 | ICO clock worked out on every read, decision with reasoning, late reports need reasons, Thapsus notices open the register entry and tell the data protection lead (section 7B) | Name who decides on reporting and who deputises | Reduced | | |
+| R25 | Planned: no adapter on by default; each provider assessed and in the sub-processor register before it receives data (section 7B; not built) | Choose providers knowingly | Planned | | |
+| R26 | Only mapped columns kept, staged rows in quarantine and deleted at commit, discard or expiry, matching never merges, undo of a whole commit, organisation-wide importers only (section 7B) | Check the source export; sign off a sample after committing | Reduced | | |
+| R27 | Links only invited members, DNS-proved domains, Harbour's own second factor still asked for care records and step-up, keys in the managed store only (section 7B) | The identity provider and its contract | Reduced | | |
+| R28 | Planned: results only above a minimum group size, small counts suppressed (section 7B; not built) | Set the smallest group shown | Planned | | |
+| R29 | Unsuccessful applicants kept 6 months (talent pool by consent), interview notes never passed to the staff file, equality monitoring kept apart and counted with small counts suppressed (section 7B) | Applicant privacy notice; the equality questions | Reduced | | |
 
 ## 7A. Phase 1 processing: residential care records
 
@@ -199,10 +219,10 @@ R28 belong to slices not built yet (30, 46 and 71; 76 to 79; 44): they are liste
 the whole set, with the measures each slice is planned to carry, and are assessed again when those
 slices land.
 
-The in-app DPIA does not show this section yet: R20 to R29 join sections 6 and 7 and the prefill in
-`packages/domain/src/platform/dpia.ts` (with its test) in the slice 84 code step, as Phase 1 did for
-R13 to R19. Adding them there must also flag a signed DPIA for review, which `dpiaReviewTriggers`
-does not do for new standard risks today (STATUS, open items from 31 October 2026). The expected
+R20 to R29 are in sections 6 and 7 and in the in-app prefill (`packages/domain/src/platform/dpia.ts`
+and its test), as Phase 1 did for R13 to R19. A DPIA signed before they were added is flagged for
+review (`dpiaReviewTriggers`, `new_standard_risk`); a basis saved before standard risks were
+recorded counts as covering R1 to R8 only, so it is flagged for R13 to R29. The expected
 residual levels below are Harbour's guidance, not the tenant's rating; fields marked *Tenant
 completes* are the provider's own.
 
@@ -375,7 +395,7 @@ batches (26; staged rows at most 7 days, batch and commit records as audit, H-68
 | Item | Value |
 | --- | --- |
 | Slices built since this draft, to add | *Harbour updates the draft* |
-| R20 to R29 in sections 6 and 7 and in the in-app prefill | Slice 84 code step (H-795) |
+| R20 to R29 in sections 6 and 7 and in the in-app prefill | Done (H-795) |
 | DPO review of this section | *DPO completes* (H-790) |
 | Who reviewed section 7B, and when | *Tenant completes* |
 

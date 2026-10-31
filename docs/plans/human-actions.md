@@ -258,7 +258,7 @@ Owners: **Brian** (Thapsus Cargo Ltd), **CSO** (Clinical Safety Officer, to be a
 | H-792 | Decide whether recording location at clock-in and lone-worker check-ins is necessary and proportionate for each service type, and how long it is kept, before slices 30, 46 and 71 are built | DPO lead with Brian | DPIA R22 | Time and attendance and lone working (slices 30, 46, 71) | open |
 | H-793 | Assess each payroll, vetting, learning and e-signature provider (where data goes, what it receives, any transfer outside the UK) before its adapter is switched on | DPO lead | DPIA R25; sub-processor register | Adapters (slices 76 to 79) | open |
 | H-794 | Set the smallest group size for which staff survey results are shown | DPO lead | DPIA R28 | Wellbeing surveys (slice 44) | open |
-| H-795 | Engineering: add R20 to R29 to sections 6 and 7 of the template and to the in-app prefill (`packages/domain/src/platform/dpia.ts` and its test), and make adding a standard risk flag a signed DPIA for review | Engineering | Plan slice 84; `dpiaReviewTriggers` | Phase 2 DPIA in the in-app prefill | open |
+| H-795 | Engineering: add R20 to R29 to sections 6 and 7 of the template and to the in-app prefill (`packages/domain/src/platform/dpia.ts` and its test), and make adding a standard risk flag a signed DPIA for review | Engineering | Plan slice 84; `dpiaReviewTriggers` | Phase 2 DPIA in the in-app prefill | done (docs/dpia-phase-2-draft) |
 
 ## Certification, assurance and insurance
 

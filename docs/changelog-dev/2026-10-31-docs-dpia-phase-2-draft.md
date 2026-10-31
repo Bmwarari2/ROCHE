@@ -1,6 +1,6 @@
-# Phase 2 DPIA: first draft of section 7B (plan slice 84)
+# Phase 2 DPIA: section 7B and risks R20 to R29 in the template and the prefill (plan slice 84)
 
-Branch `docs/dpia-phase-2-draft`. Documentation only.
+Branch `docs/dpia-phase-2-draft`, PR #157.
 
 ## What changed
 
@@ -18,11 +18,23 @@ Branch `docs/dpia-phase-2-draft`. Documentation only.
   as paths, not links, so the link check passes before they merge.
 - Human actions H-790 to H-795.
 
+- The code step (H-795, asked for on the same branch):
+  - R20 to R29 in sections 6 and 7 of the template, and in the in-app prefill (`PHASE_2_RISKS` in
+    `packages/domain/src/platform/dpia.ts`), after the Phase 1 risks, with the template's wording
+    (the test checks every prefilled risk's id and wording against the template).
+  - A signed DPIA is flagged for review when a standard risk is added: `DpiaBasis` records
+    `standardRisks` (base, Phase 1 and Phase 2 ids, never the conditional ones); a new
+    `new_standard_risk` trigger names the risks the signed version never assessed. A basis saved
+    before the field existed counts as covering R1 to R8 only, so a DPIA signed before R13 to R19
+    (the open item from 31 October 2026) or R20 to R29 is flagged. The trigger's wording is in the
+    `dpia.trigger` message (en-GB, and the Welsh catalogue's English placeholder).
+  - R22, R25 and R28 are standard although their processing is still being built; section 7B says
+    so, and a tenant records in 7B.6 what it does not use.
+
 ## What is next
 
-- The slice 84 code step (H-795): R20 to R29 in sections 6 and 7 and in the in-app prefill
-  (`packages/domain/src/platform/dpia.ts` and its test), with a signed DPIA flagged for review when
-  standard risks are added (an open item since 31 October 2026).
+- Every signed DPIA becomes due for review when this merges (by design): tell tenants' data
+  protection leads in the release note.
 - Update section 7B as more Phase 2 slices are built, and replace branch references with merged
   paths.
 
@@ -30,9 +42,14 @@ Branch `docs/dpia-phase-2-draft`. Documentation only.
 
 - H-790 (DPO review of section 7B and the lawful bases), H-791 (subject access requests from people
   named in safeguarding and speaking-up records), H-792 (location at clock-in and check-ins), H-793
-  (each adapter provider), H-794 (smallest survey group), H-795 (engineering: the prefill).
+  (each adapter provider), H-794 (smallest survey group), H-795 (engineering: the prefill; done on
+  this branch).
 
 ## Tests
 
-- `pnpm check:links` passes; `packages/domain/src/platform/dpia.test.ts` (56) still passes, since
-  the template keeps every risk the prefill names.
+- `pnpm check:links`; `pnpm lint`; typecheck of the domain package; `packages/domain/src/platform`
+  (1,335, including `dpia.test.ts` with three new cases for the standard-risk trigger and the
+  prefill of R20 to R29); `packages/i18n` (48); `apps/api/test/dpia.test.ts` and
+  `onboarding.test.ts` (21); the web DPIA components and copy test (23). The DPIA journey
+  (`apps/web/e2e/dpia.spec.ts`) rates every risk in a loop, so the ten extra risks need no change;
+  it was not run here.
