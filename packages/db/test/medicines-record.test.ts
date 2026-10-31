@@ -468,6 +468,26 @@ describe("hazard HZ-121 a completed reconciliation is the record of what was dec
     ).toBe("23514");
   });
 
+  it("lets retention, never the application, mark a completed one deleted, and never undo it", async () => {
+    const owner = db.pool("harbour_owner");
+    const as = (pool: pg.Pool, sql: string) =>
+      inContext(pool, manager, async (c) => {
+        await c.query("SAVEPOINT s");
+        try {
+          await c.query(sql, [REC_ADA]);
+          return null;
+        } catch (error) {
+          await c.query("ROLLBACK TO SAVEPOINT s");
+          return (error as { code?: string }).code ?? "error";
+        }
+      });
+    const mark = "UPDATE medication_reconciliation SET deleted_at = now() WHERE id = $1";
+    const undo = "UPDATE medication_reconciliation SET deleted_at = NULL WHERE id = $1";
+    expect(await as(app(), mark)).toBe("23514");
+    expect(await as(owner, mark)).toBeNull();
+    expect(await as(owner, undo)).toBe("23514");
+  });
+
   it("keeps one open reconciliation per person", async () => {
     const start = () =>
       refused(

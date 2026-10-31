@@ -28,7 +28,7 @@ cycle, and reconciliation applied in one transaction, completing a return's medi
 codes are stored by shape until slice 10 (a test asks for the foreign key once a VMP table exists);
 competence and dm+d facts are ports that fail closed in production until slices 17 and 10. Next for
 medicines: slice 10's reference data and the foreign key (expand step), slice 17's competence port,
-then the screens (slice 52). Open: H-1020, H-1022 to H-1024 (CSO), H-1021 (DPO).
+then the screens (slice 52). Open: H-1020, H-1022 to H-1025 (CSO), H-1021 (DPO).
 
 The owner paused the build on 16/10/2026 until the organisation's usage limits are raised. Nothing
 is half-built on a branch: every pull request was merged or is listed here.

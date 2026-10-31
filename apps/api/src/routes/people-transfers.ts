@@ -784,13 +784,6 @@ export const peopleTransfersRouter = createRouter()
           const check = Object.hasOwn(checks, checkKey) ? checks[checkKey] : undefined;
           if (!check) throw problems.notFound();
           if (check.doneAt) throw problems.invalid("This check has already been recorded.");
-          // The medicines check is done by completing the reconciliation, never ticked by hand,
-          // so a return cannot read as reconciled while the chart is unreconciled (HZ-005).
-          if (checkKey === "medicines_reconciled") {
-            throw problems.invalid(
-              "This check is done by completing the medicines reconciliation for this return.",
-            );
-          }
           // Each check is done only by someone who may complete its task (a clinical check needs
           // care.plan.write, or being its assignee); checking belongings back in stays with
           // whoever records movements (HZ-005, HZ-015, HZ-016).
@@ -803,6 +796,13 @@ export const peopleTransfersRouter = createRouter()
               resourceId: transferId,
               reason: refused,
             });
+          }
+          // The medicines check is done by completing the reconciliation, never ticked by hand,
+          // so a return cannot read as reconciled while the chart is unreconciled (HZ-005).
+          if (checkKey === "medicines_reconciled") {
+            throw problems.invalid(
+              "This check is done by completing the medicines reconciliation for this return.",
+            );
           }
           checks[checkKey] = { ...check, doneBy: access.tenantUserId, doneAt: now.toISOString() };
           const [updated] = await tx

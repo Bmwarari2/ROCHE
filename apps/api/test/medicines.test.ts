@@ -218,6 +218,8 @@ describe("the medicines record", () => {
     ).json()) as { doses: { entryStatus: { words: string; notice: string | null } }[] };
     expect(mar.doses.length).toBeGreaterThan(0);
     for (const d of mar.doses) expect(d.entryStatus.words.length).toBeGreaterThan(0);
+    // Version 2 is not yet checked, so its doses carry that notice in words.
+    expect(mar.doses.some((d) => d.entryStatus.notice !== null)).toBe(true);
   });
 
   it("stops a medicine with its reason and source, and refuses one without a reason", async () => {
@@ -495,7 +497,7 @@ describe("the ports fail closed", () => {
   });
 });
 
-describe("hazard HZ-121 a return from hospital", () => {
+describe("hazards HZ-005 and HZ-121 a return from hospital", () => {
   const CARL = "0194d000-0000-7000-8600-000000000003";
   const TRANSFER = "0194d000-0000-7000-8f00-00000000a001";
 
@@ -551,6 +553,21 @@ describe("hazard HZ-121 a return from hospital", () => {
       { method: "POST", body: { version: transferVersion } },
     );
     expect(byHand.status, await byHand.clone().text()).toBe(422);
+    // Nor through the task list: the task is completed only by its evidence.
+    const t = await asDemo(
+      async (c) =>
+        (
+          await c.query<{ id: string; version: number }>(
+            "SELECT id, version FROM task WHERE source_id = $1 AND kind = $2",
+            [TRANSFER, "people.return_check.medicines_reconciled"],
+          )
+        ).rows[0],
+    );
+    const viaTasks = await send("owner", `/v1/tasks/${t?.id}/transition`, {
+      method: "POST",
+      body: { to: "done", version: t?.version },
+    });
+    expect(viaTasks.status).not.toBe(200);
     const start = await send("manager", `/v1/people/${CARL}/medicine-reconciliations`, {
       method: "POST",
       body: { trigger: "return_from_hospital", eventId: TRANSFER },
@@ -738,6 +755,18 @@ describe("the record holds dm+d's words and one entry per product", () => {
   });
 
   it("hazard HZ-121 keeps the audit of a refused check and a refused completion", async () => {
+    // A refusal made here, then the audit read back for that entry with its person.
+    const t = await send("manager", `/v1/people/${BEN}/medicines`, {
+      method: "POST",
+      body: draft({ product: IBUPROFEN }),
+    });
+    expect(t.status, await t.clone().text()).toBe(201);
+    const id = ((await t.json()) as { id: string }).id;
+    const self = await send("manager", `/v1/medicines/${id}/check`, {
+      method: "POST",
+      body: { outcome: "matches_source", comparedWithSource: true },
+    });
+    expect(self.status).toBe(422);
     const client = await h.db.pool("harbour_owner").connect();
     try {
       await client.query("BEGIN");
@@ -745,18 +774,76 @@ describe("the record holds dm+d's words and one entry per product", () => {
         "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
         [DEMO.tenantId],
       );
-      const { rows } = await client.query<{ action: string }>(
-        `SELECT DISTINCT action FROM audit_event
-          WHERE action IN ('medicines.entry.checked', 'medicines.reconciliation.completed')
-            AND outcome = 'denied'`,
+      const { rows } = await client.query<{ action: string; person: string | null }>(
+        `SELECT action, scope->>'personId' AS person FROM audit_event
+          WHERE outcome = 'denied'
+            AND ((action = 'medicines.entry.checked' AND resource_id = $1)
+              OR action = 'medicines.reconciliation.completed')`,
+        [id],
       );
       await client.query("COMMIT");
-      expect(rows.map((r) => r.action).sort()).toEqual([
-        "medicines.entry.checked",
-        "medicines.reconciliation.completed",
-      ]);
+      expect(rows.find((r) => r.action === "medicines.entry.checked")?.person).toBe(BEN);
+      expect(rows.some((r) => r.action === "medicines.reconciliation.completed")).toBe(true);
     } finally {
       client.release();
     }
+  });
+
+  it("hazard HZ-004 withdraws a later version when a change starts sooner, giving the medicine to the new one", async () => {
+    const CARL = "0194d000-0000-7000-8600-000000000003";
+    const t = await send("manager", `/v1/people/${CARL}/medicines`, {
+      method: "POST",
+      body: draft(),
+    });
+    expect(t.status, await t.clone().text()).toBe(201);
+    const v1 = ((await t.json()) as { id: string }).id;
+    const change = (from: number, expectedVersion: number, withdrawLaterReason: string | null) =>
+      send("manager", `/v1/medicines/${v1}/versions`, {
+        method: "POST",
+        body: {
+          ...draft({ directions: regular(1), startsAt: day(from).toISOString() }),
+          expectedVersion,
+          withdrawLaterReason,
+        },
+      });
+    const v2 = await change(5, 1, null);
+    expect(v2.status, await v2.clone().text()).toBe(201);
+    // Version 2 starts in 5 days; a change from 3 days must say why it withdraws it.
+    expect((await change(3, 2, null)).status).toBe(422);
+    const r = await change(3, 2, "Transcribed from the wrong letter");
+    expect(r.status, await r.clone().text()).toBe(201);
+    const history = (await (await send("carer", `/v1/medicines/${v1}/history`)).json()) as {
+      versions: { version: number; state: string }[];
+    };
+    expect(history.versions.map((v) => [v.version, v.state])).toEqual([
+      [1, "replaced"],
+      [2, "withdrawn"],
+      [3, "not_yet_checked"],
+    ]);
+  });
+
+  it("hazard HZ-001 refuses a source document that is not on this person's record", async () => {
+    const r = await send("manager", `/v1/people/${BEN}/medicines`, {
+      method: "POST",
+      body: draft({
+        product: { vmpId: "90000061000001102", ampId: null, name: "Insulin" },
+        route: { code: "34206005", name: "Subcutaneous" },
+        directions: {
+          kind: "regular",
+          schedule: {
+            pattern: { kind: "every_day" },
+            times: [
+              {
+                time: "08:00",
+                dose: { kind: "amount", quantity: 10, unit: { code: "767525000", name: "unit" } },
+              },
+            ],
+          },
+        },
+        source: { ...SOURCE, documentId: "0194d000-0000-7000-8f00-00000000d001" },
+      }),
+    });
+    expect(r.status).toBe(422);
+    expect(((await r.json()) as { detail: string }).detail).toContain("this person's record");
   });
 });

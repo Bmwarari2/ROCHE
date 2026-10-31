@@ -535,22 +535,26 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
     the next number after the latest, and be not yet checked. The unique (medicine, version) key
     refuses a second change from the same version, so `expectedVersion` holds under concurrency.
   - A replacement moves to a later version only when the version it named has been withdrawn,
-    and never to a later time (v1 replaced by v2; v2 withdrawn as transcribed in error; v3 then
+    to a live version of the same medicine that replaces this row, and never to a later time (v1 replaced by v2; v2 withdrawn as transcribed in error; v3 then
     replaces v1). The API writes a withdrawal before the version that follows it.
   - Every child row is tied to one person by composite keys: a version's source and stop
     documents (`document (tenant, person, id)`), its reconciliation, a line's source, a decision's
     line and the entry a decision made. A document, line or entry from another person's record is
     refused by the database.
   - A completed reconciliation, its sources, lines and decisions never change. Only a non-app
-    role (retention) may mark a completed one deleted; the app may never change `deleted_at`.
+    role (retention) may mark a completed one deleted, once, never undone; the app may never change
+    `deleted_at`.
   - `capture_version` keeps each earlier state of a row in `record_version`.
-- **Concurrency**: every write for a person takes a transaction-scoped advisory lock on that
+- **Concurrency**: every write for a person (including a reconciliation's sources and lines, so
+  nothing arrives while one completes) takes a transaction-scoped advisory lock on that
   person (`medicines:<person id>`) before reading the record, so two requests for the same
-  person are tried one after the other against the latest record. A unique-key clash is a 409;
+  person are tried one after the other against the latest record. Reads (history, the MAR) take
+  no lock. A unique-key clash is a 409;
   a check or key refusal by the database is a 422 `medicine_refused_by_record`.
 - **Names**: the product, route and unit names stored and shown are dm+d's own, looked up by
   code from `DmdFactsPort`, never the request's. A line's product name also comes from dm+d.
-- **Documents**: a source or stop document must be this person's, available and not deleted.
+- **Documents**: a source or stop document must be this person's, available and not deleted,
+  when it is named and again, for every source, when the reconciliation completes.
 - **dm+d** (slice 10 not yet merged): `vmp_id` and `amp_id` are validated identifiers
   (`isDmdId` in the API, the SNOMED CT shape in the database) with no foreign key. A test in
   `packages/db/test/medicines-record.test.ts` fails once a VMP table exists until an expand step
@@ -558,7 +562,8 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
   uses `unavailableDmd`, which knows no product, so nothing is transcribed until slice 10. The
   fixture of four invented products (no AMPs: an AMP is unknown) and `fixedCompetence` are used
   only when `MEDICINES_FIXTURES` is on; it defaults on outside production, and production
-  refuses to start with it on. A product dm+d does not hold is refused as "dm+d does not hold
+  refuses to start with it on. A pilot or staging stack holding real people's records sets it
+  to `off` (H-1022). A product dm+d does not hold is refused as "dm+d does not hold
   this product" or "The dm+d reference data is not loaded yet", also at completion.
 - **Competence** (slice 17 not yet built): `MedicinesCompetencePort`, read on the server for the
   signed-in member at the time of the action. Production uses `unavailableCompetence`, which
@@ -575,15 +580,16 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
   a return is the hospital transfer's `returned_at`. A transfer between homes has no event record
   yet, so it is started as a `transfer` with no event. Completing a return's reconciliation marks
   its `medicines_reconciled` check and task done, with the transfer row locked; that check cannot
-  be ticked by hand on the transfer. A return recorded without a transfer record raises its tasks
+  be ticked by hand on the transfer, and its task is evidence-only on the tasks route. A return recorded without a transfer record raises its tasks
   against the person and has no event to answer, so it is reconciled as a `change` until H-1023
   is decided.
 - **MAR**: each dose carries its entry's status now (`entryStatus`: words, whether it may be
-  given, any notice), so a chart cell never shows a dose without its notice.
+  given, any notice), so a chart cell never shows a dose without its notice. The status is the
+  entry's now, not at each dose's time (H-1025).
 - **Audit and outbox**: `medicines.entry.viewed`, `.transcribed`, `.changed`, `.checked`,
   `.check_found_difference`, `.stopped`, and `medicines.reconciliation.started`, `.viewed`,
   `.source_added`, `.item_added`, `.decided`, `.completed`. A refused check or completion is
   audited as `denied` (with the problem codes) outside the refused transaction, so it is kept. All carry ids and counts, never content. Outbox: `medicines.entry.changed`,
   `medicines.entry.stopped` and `medicines.reconciliation.completed`, with ids only.
-- **Tests**: `packages/db/test/medicines-record.test.ts` (19) and `apps/api/test/medicines.test.ts`
-  (25), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+- **Tests**: `packages/db/test/medicines-record.test.ts` (20) and `apps/api/test/medicines.test.ts`
+  (28), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.

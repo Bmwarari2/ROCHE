@@ -364,13 +364,18 @@ BEGIN
   END IF;
   -- A replacement is set once, except that a change withdrawing a later version (rule 6b) moves
   -- it to the new, earlier replacement: allowed only when the version it pointed at is withdrawn
-  -- (written first, in the same transaction) and the new replacement starts no later.
+  -- (written first, in the same transaction), the new replacement is a version of this medicine
+  -- that replaces this row, and it starts no later.
   IF OLD.replaced_by_id IS NOT NULL
      AND (NEW.replaced_by_id, NEW.replaced_from) IS DISTINCT FROM (OLD.replaced_by_id, OLD.replaced_from)
      AND NOT (NEW.replaced_by_id IS NOT NULL AND NEW.replaced_from <= OLD.replaced_from
               AND EXISTS (SELECT 1 FROM public.medication w
                            WHERE w.tenant_id = OLD.tenant_id AND w.id = OLD.replaced_by_id
-                             AND w.withdrawn_at IS NOT NULL)) THEN
+                             AND w.withdrawn_at IS NOT NULL)
+              AND EXISTS (SELECT 1 FROM public.medication n
+                           WHERE n.tenant_id = OLD.tenant_id AND n.id = NEW.replaced_by_id
+                             AND n.replaces_id = OLD.id AND n.medicine_id = OLD.medicine_id
+                             AND n.withdrawn_at IS NULL)) THEN
     RAISE EXCEPTION 'medication: a replacement is recorded once' USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.withdrawn_at IS NOT NULL
@@ -458,7 +463,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.status = 'completed' THEN
     -- Retention (not the application) may still mark it deleted; nothing else changes.
-    IF current_user <> 'harbour_app'
+    IF current_user <> 'harbour_app' AND OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL
        AND to_jsonb(NEW) - 'deleted_at' = to_jsonb(OLD) - 'deleted_at' THEN
       RETURN NEW;
     END IF;
@@ -489,6 +494,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
   -- Retention (not the application) may mark a completed reconciliation's decision deleted.
   IF TG_OP = 'UPDATE' AND current_user <> 'harbour_app'
+     AND to_jsonb(OLD) ->> 'deleted_at' IS NULL AND to_jsonb(NEW) ->> 'deleted_at' IS NOT NULL
      AND to_jsonb(NEW) - 'deleted_at' = to_jsonb(OLD) - 'deleted_at' THEN
     RETURN NEW;
   END IF;

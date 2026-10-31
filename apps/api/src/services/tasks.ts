@@ -507,7 +507,12 @@ export const OWNER_TASK_KINDS: readonly string[] = ["safety.investigation_action
  * when its member signs the version in force (quality.md section 18.3; HZ-128), so nobody marks it
  * done or skipped without the signature.
  */
-export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = ["quality.policy_read_and_sign"];
+export const EVIDENCE_ONLY_TASK_KINDS: readonly string[] = [
+  "quality.policy_read_and_sign",
+  // A return from hospital's medicines check is done by completing its reconciliation (slice 16;
+  // HZ-005, HZ-121), so a return never reads as reconciled while the chart is not.
+  "people.return_check.medicines_reconciled",
+];
 
 /** Whether a task's assignee completes it whatever they hold (a general task or an owner's). */
 export function anyoneMayBeGiven(row: {

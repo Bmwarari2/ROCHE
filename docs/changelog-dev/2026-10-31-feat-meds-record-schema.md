@@ -44,7 +44,11 @@ Branch `feat/meds-record-schema`, from `main` with #135 (the slice 2 rules). MED
   - `MEDICINES_FIXTURES` turns the fixtures on explicitly (default on outside production);
     production refuses it.
   - Each MAR dose carries its entry's status in words.
-  - Only retention (a non-app role) may mark a completed reconciliation deleted.
+  - Only retention (a non-app role) may mark a completed reconciliation deleted, once.
+  - Re-review: sources and lines take the person lock; documents are re-checked at completion;
+    a moved replacement must name a live version replacing that row; the return task is
+    evidence-only on the tasks route; refusal audits carry the person's id; history reads take
+    no lock; completion's dm+d facts are keyed by VMP and AMP.
 - **Docs**:
   - medicines.md section 12;
   - the hazard log (HZ-001 to HZ-005, HZ-121);
@@ -61,16 +65,20 @@ Branch `feat/meds-record-schema`, from `main` with #135 (the slice 2 rules). MED
   reconciliation for every resident on switch-over).
 - H-1023 (CSO): returns without a transfer record; the return check done only by reconciliation.
 - H-1024 (CSO): when an admission needs reconciling, and escalation while outstanding.
+- H-1025 (CSO): each MAR dose shows its entry's status now.
 
 ## Tests
 
-- `packages/db/test/medicines-record.test.ts` (19): isolation and person scope, write-once
+- `packages/db/test/medicines-record.test.ts` (20): isolation and person scope, write-once
   columns, versions, the withdrawal case, cross-person documents, schedule times, no deletion,
-  frozen reconciliations, dm+d codes (VMP and AMP tripwire).
-- `apps/api/test/medicines.test.ts` (25): transcription, refusals, the second check and
+  frozen reconciliations and retention marking them deleted once, dm+d codes (VMP and AMP
+  tripwire).
+- `apps/api/test/medicines.test.ts` (28): transcription, refusals, the second check and
   competence, changes with stale and concurrent versions, dm+d names, parallel transcriptions,
   the MAR with each dose's status, stops, audit without content, reconciliation end to end
   including a stop and a return from hospital (check refused by hand, task closed), refusal
-  audits kept, the ports failing closed.
+  audits kept with the person's id, a withdrawal through the API, a document not on the
+  person's record, the ports failing closed. `people-lifecycle.test.ts` updated for the
+  medicines check.
 - `apps/api/test/config.test.ts`: `MEDICINES_FIXTURES` refused in production.
 - Database, API and domain suites; Biome and typecheck.

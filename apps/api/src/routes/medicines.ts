@@ -263,13 +263,14 @@ async function requireDocuments(
 }
 
 /** One stored version, by id, within the caller's scope (RLS), with every version of the person. */
-async function loadEntry(tx: Transaction, entryId: string) {
+async function loadEntry(tx: Transaction, entryId: string, opts: { lock?: boolean } = {}) {
   const [row] = await tx
     .select({ personId: medication.personId, medicineId: medication.medicineId })
     .from(medication)
     .where(and(eq(medication.id, entryId), isNull(medication.deletedAt)));
   if (!row) throw problems.notFound();
-  await lockPerson(tx, row.personId);
+  // Writes serialise on the person; a read (history) does not wait behind them.
+  if (opts.lock !== false) await lockPerson(tx, row.personId);
   const all = await personEntries(tx, row.personId);
   const chain = all.filter((s) => s.medicineId === row.medicineId);
   const stored = chain.find((s) => s.entry.id === entryId) as StoredEntry;
@@ -583,7 +584,7 @@ export const medicinesRouter = createRouter()
       const { entryId } = c.req.valid("param");
       const now = new Date();
       const body = await withTenant(c, async (tx) => {
-        const { chain } = await loadEntry(tx, entryId);
+        const { chain } = await loadEntry(tx, entryId, { lock: false });
         await audit(c, tx, access, {
           action: "medicines.entry.viewed",
           resourceType: "medication",
@@ -824,7 +825,10 @@ export const medicinesRouter = createRouter()
               outcome: "denied",
               resourceType: "medication",
               resourceId: entryId,
-              scope: { problems: [...new Set(result.issues.map((i) => i.problem))] },
+              scope: {
+                personId: stored.entry.personId,
+                problems: [...new Set(result.issues.map((i) => i.problem))],
+              },
             });
           }
           await guardConcurrent(() => updateEntry(tx, result.entry));
@@ -1037,6 +1041,8 @@ export const medicinesRouter = createRouter()
       const { id, recId } = c.req.valid("param");
       const body = c.req.valid("json");
       const out = await withTenant(c, async (tx) => {
+        // Serialised with completion, so nothing is added to a reconciliation being completed.
+        await lockPerson(tx, id);
         const { rec } = await loadReconciliation(tx, id, recId);
         requireOpen(rec);
         if (new Date(body.receivedAt).getTime() > Date.now()) {
@@ -1095,6 +1101,8 @@ export const medicinesRouter = createRouter()
       // dm+d's own name for the line's product, never the request's.
       const productName = body.product ? (await factsFor(c, body.product)).name : null;
       const out = await withTenant(c, async (tx) => {
+        // Serialised with completion, so no undecided line arrives while it completes.
+        await lockPerson(tx, id);
         const { rec, sources } = await loadReconciliation(tx, id, recId);
         requireOpen(rec);
         if (!sources.some((s) => s.id === body.sourceId)) throw problems.notFound();
@@ -1275,6 +1283,13 @@ export const medicinesRouter = createRouter()
           const { rec, sources, items, decisions } = loaded;
           requireOpen(rec);
           if (rec.version !== body.expectedVersion) throw problems.conflict();
+          // A source's letter may have been quarantined or removed since it was added; the plan
+          // is never applied on a document the record no longer holds.
+          await requireDocuments(
+            tx,
+            id,
+            sources.map((s) => s.documentId),
+          );
           const all = await personEntries(tx, id);
           const entries = all.map((s) => s.entry);
           const medicineOf = new Map(all.map((s) => [s.entry.id, s.medicineId]));
@@ -1304,10 +1319,13 @@ export const medicinesRouter = createRouter()
             const f = isDmdProduct(p) ? await services.dmd.facts(p) : null;
             // A product dm+d does not hold is refused in those words, not as a route problem.
             if (!f) throw dmdUnknown(services.dmd.loaded);
-            facts.set(p.vmpId, f);
+            facts.set(`${p.vmpId}:${p.ampId ?? ""}`, f);
           }
           const dmdFacts = (p: DmdProductRef) =>
-            facts.get(p.vmpId) ?? { permittedRoutes: [], permittedDoseUnits: [] };
+            facts.get(`${p.vmpId}:${p.ampId ?? ""}`) ?? {
+              permittedRoutes: [],
+              permittedDoseUnits: [],
+            };
           const reconciliation: Reconciliation = {
             id: rec.id,
             personId: id,
@@ -1347,7 +1365,10 @@ export const medicinesRouter = createRouter()
               outcome: "denied",
               resourceType: "medication_reconciliation",
               resourceId: recId,
-              scope: { problems: [...new Set(outcome.issues.map((i) => i.problem))] },
+              scope: {
+                personId: id,
+                problems: [...new Set(outcome.issues.map((i) => i.problem))],
+              },
             });
           }
           const plan = outcome.plan;
