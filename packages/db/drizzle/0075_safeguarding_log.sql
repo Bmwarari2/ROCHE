@@ -102,7 +102,33 @@ CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.safeguarding_concern
 CREATE TRIGGER capture_version AFTER UPDATE ON public.safeguarding_concern
   FOR EACH ROW EXECUTE FUNCTION app.capture_version();--> statement-breakpoint
 
--- No DELETE: a concern is never removed, only closed (retention decides its end).
+-- No DELETE for the application: a concern is closed, never removed (retention decides its end;
+-- only sample data removal, below, deletes, and only for invented people).
 GRANT SELECT, INSERT, UPDATE ON public.safeguarding_concern TO harbour_app;--> statement-breakpoint
 REVOKE DELETE, TRUNCATE ON public.safeguarding_concern FROM harbour_app;
 -- The safeguarding log stays on the server: it is not published to devices.
+--> statement-breakpoint
+
+-- Sample data mode (migration 0069, HZ-072): a concern about a sample person goes with it. The one
+-- list is redefined with the new table before its parents (statutory_notification, task), and
+-- harbour_sample_owner may delete from it, as from every table on the list.
+CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
+  SELECT ARRAY[
+    'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
+    'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',
+    'break_glass_event', 'candour_record', 'care_note', 'care_plan_action', 'care_plan_change',
+    'consent_record', 'document_signature', 'dols_legal_change_review',
+    'entry_device_deletion_flag', 'exit_checklist_item', 'family_portal_user',
+    'feed_item_withdrawal', 'feed_view', 'handover_note', 'incident_person', 'key_issue',
+    'legal_hold', 'letter', 'notification_delivery', 'observation', 'person_assignment',
+    'person_care_profile', 'property_item', 'refused_entry', 'sharing_decision_suspension',
+    'safeguarding_concern', 'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
+    'care_plan_section', 'dols_authorisation', 'exit_record', 'feed_item', 'handover_item',
+    'hospital_transfer', 'notification', 'placement', 'review_record', 'risk_assessment',
+    'sharing_decision', 'task', 'admission_decision', 'best_interests_decision', 'care_plan',
+    'document', 'task_series', 'workflow_instance', 'capacity_assessment', 'contact',
+    'pre_admission_assessment'
+  ]::text[]
+$$;--> statement-breakpoint
+GRANT SELECT, DELETE ON public.safeguarding_concern TO harbour_sample_owner;

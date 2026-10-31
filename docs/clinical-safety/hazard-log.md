@@ -68,6 +68,7 @@
 | [HZ-110](#hz-110-a-server-side-sign-out-clears-a-carers-offline-records-during-a-shift) | A server-side sign-out clears a carer's offline records during a shift | Major / Low / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-351) | Open | None (Phase 1) | Phase 1 |
 | [HZ-111](#hz-111-a-browser-idle-timeout-loses-an-unsaved-care-entry) | A browser idle timeout loses an unsaved care entry | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO decides, H-353) | Open | None (Phase 1) | Phase 1 |
 | [HZ-112](#hz-112-care-records-opened-without-a-second-factor-or-staff-shut-out-of-them-when-the-rule-tightens) | Care records opened without a second factor, or staff shut out of them when the rule tightens | Major / Medium / 3 | Major / Low / 3, then Very low / 2 with the mobile control (engineering proposal; the CSO decides, H-358) | Open | None (Phase 1) | Phase 1 |
+| [HZ-126](#hz-126-a-safeguarding-concern-not-progressed-or-protective-measures-not-visible-to-the-staff-caring-for-the-person) | A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person | Major / Medium / 3 | Major / Very low / 2 (engineering proposal; the CSO rates it, H-595) | Open | None (Phase 2) | Phase 2 |
 
 Thirteen hazards (HZ-002, HZ-003, HZ-005, HZ-008, HZ-013, HZ-014, HZ-023, HZ-027, HZ-040, HZ-061, HZ-071, HZ-073, and HZ-112 until its mobile control is built) have a target residual risk of 3, which the plan allows only when further reduction is impractical. Each entry gives the justification; the CSO must accept or reject it `[CSO decision - human action]`.
 
@@ -2880,6 +2881,48 @@ person receiving care.
 | `apps/api/test/mfa-session-factor.test.ts`: a password-only session cannot enrol TOTP or a passkey or delete the passkey; a session that used its passkey may add one; a session is refused after five wrong codes; `apps/web/src/lib/problems.test.ts` (`factorChangeRedirect`) | Passing (Phase 1) |
 | `apps/mobile/src/sync/session-signals.test.ts`: `classifyForbidden` reads `mfa_verification_required` as a session code; `apps/mobile/src/sync/connector.test.ts`: `hazard HZ-006 treats a 403 mfa_verification_required from the sync token as an ended session`, `hazard HZ-006 ends the session on a 403 mfa_verification_required instead of parking the entry as refused` | Passing |
 | `apps/api/test/step-up-factor.test.ts`: `hazard HZ-112` table over every step-up permission (password-only, factor inside and outside the window, none enrolled), each step-up route over HTTP, an in-session code refreshing step-up, a backup code and the five-code limit under step-up, no factor enrolled, About me links, residents' money at exit and task links over HTTP, and no API or domain source giving step-up a sign-in time; `mfa-session-factor.test.ts`: a first enrolment's code records no factor; `apps/web/src/components/safety/ManageForms.test.tsx` (the step-up notice asks for the passkey or authenticator code) | Passing (Phase 1) |
+
+---
+
+## HZ-126 A safeguarding concern not progressed, or protective measures not visible to the staff caring for the person
+
+| Field | Value |
+| --- | --- |
+| ID | HZ-126 |
+| Status | Open |
+| Clinical owner | `[CSO name - human action]` |
+| Engineering owner | `safety` module (lead engineer) |
+| Source | Phase 2 plan slice 13 (SAFE-006; migration 0075); [safety.md](../specs/safety.md) "Safeguarding log" and Phase 2 rule 1; Care Act 2014 s.42 and the Care and support statutory guidance chapter 14; Making Safeguarding Personal; Safeguarding Vulnerable Groups Act 2006 s.35; related to HZ-013 (statutory notification missed or late) and HZ-073 (work hidden by scope) |
+
+**Description**: a safeguarding concern is raised but nobody refers it to the local authority, or decides with a reason not to, so an adult at risk stays unprotected; a concern is closed without the person's own outcomes or without the DBS referral decision when a member of staff was removed for harm; or the measures agreed to keep the person safe (two staff for personal care, no visits from a named visitor) are recorded where the staff caring for the person cannot see them.
+
+**Causes**: no clock on the referral, or a clock nobody is told about; a concern dropped silently by closing it; the log restricted to managers so carers cannot see what to do; nobody active at the location holding the permission to manage the log; a concern opened from a Phase 1 s.42 draft whose draft is then left open.
+
+**Effects**: continued abuse or neglect of the person; the local authority unable to make a s.42 enquiry; a person who harmed others moving to another care role; CQC enforcement for a failure to protect (Regulation 13).
+
+**Initial risk**: severity Major, likelihood Medium, **risk 3**.
+
+**Controls**
+
+| Type | Control | When |
+| --- | --- | --- |
+| Design | Every concern carries a referral target (`safeguarding.referral_hours` after it was raised, a tenant target; the view says the law says without delay); it stays overdue until it is referred or a reason not to refer is recorded, and never clears by itself (`safeguardingClock`) | Built in Phase 2 slice 13 |
+| Design | The worker tells the holders of `safety.safeguarding.manage` at the location once, urgently, in app and by push, through the tenant's escalation chain (default: the owner role); referring or deciding not to refer acknowledges the alerts; an overdue concern nobody active can manage is audited daily and counted in the operator's unrouted signal (`escalateOverdueSafeguardingReferrals`) | Built in Phase 2 slice 13 |
+| Design | A concern cannot be dropped silently: not referring needs a reason and who decided; closing needs the finding, the Making Safeguarding Personal record and a reason; ending a concern where a member of staff was removed for harm needs the DBS referral decision. The API checks `safeguardingStepProblems` and the database checks the same rules, and there is no DELETE grant | Built in Phase 2 slice 13 (migration 0075) |
+| Design | Anyone who may report an incident about the person may raise a concern (a client id makes a retried request return the same concern) | Built in Phase 2 slice 13 |
+| Design | Staff caring for the person (`care.plan.read`) read the protective measures of every open concern, newest first, without the allegation; an open concern with no measures is counted, and the manager's view warns, so a screen never shows nothing when measures are missing (`protectiveMeasuresFor`) | Built in Phase 2 slice 13 (API); the record header shows them with slice 62 |
+| Design | A concern opened from a Phase 1 s.42 draft shows the draft's status and warns while the concern is referred and the draft is still open, so the two are not confused | Built in Phase 2 slice 13 |
+| Training and user documentation | The user guide for the safeguarding log (slice 62) says the target is Harbour's and the law says without delay; staff raise a concern and tell the person in charge at once, whatever the screen shows. Deployer control: the organisation's safeguarding policy and the local authority's procedures | Phase 2 (slice 62) |
+
+**Target residual risk**: severity Major, likelihood Very low, **risk 2** (an engineering proposal; the CSO rates it, H-595).
+
+**Verification**
+
+| Test | Status |
+| --- | --- |
+| `packages/domain/src/safety/safeguarding.test.ts`: `hazard HZ-126 shows a ... concern at ... as ...` (due, overdue at and after the target, referred, not referred), `hazard HZ-126 shows the protective measures of every open concern, newest first`, `hazard HZ-126 counts an open concern with no measures, so the screen never shows nothing` | Passing |
+| `packages/db/test/safeguarding-log.test.ts`: `hazard HZ-126 a safeguarding concern is never dropped or closed without its records` (code lists in step with the domain; an unknown or empty abuse type, not referring without a reason, referring without the local authority, closing without Making Safeguarding Personal and ending without the DBS decision are refused; every change versioned) and `hazard HZ-011 the safeguarding log is isolated by tenant and scoped as incidents` | Passing |
+| `apps/api/test/safeguarding.test.ts`: `hazard HZ-126 anyone who works with the person can raise a concern, and only managers run the log`, `hazard HZ-126 a concern is never dropped or closed without its records`, `hazard HZ-126 staff caring for the person see the protective measures, never the allegation`, `hazard HZ-126 an overdue referral reaches the notification centre (HZ-013)` | Passing |
 
 ---
 
