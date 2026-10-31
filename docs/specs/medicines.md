@@ -3,9 +3,8 @@
 Master prompt sections 10.2 and 10.3, with 9.2 (return reconciliation), 17.1 (offline eMAR) and
 18 (data model). Phase 2 builds the eMAR ([phase-2.md](../plans/phase-2.md), lane A; ADR-0012
 builds it rather than integrating a vendor). Slice 2 wrote this spec in full for the medicines
-record and reconciliation (MEDS-001) and built its domain rules; the administration, PRN and
-controlled-drug rules (sections 4.2 and 9) are slice 3's, written here as the rows they will
-fill. Status per feature: [feature register](feature-register.md).
+record and reconciliation (MEDS-001) and built its domain rules; slice 3 built the administration,
+PRN, competence and controlled-drug rules (section 4.2; MEDS-002, MEDS-003, MEDS-005, MEDS-013). Status per feature: [feature register](feature-register.md).
 
 ## 1. Purpose and register rows
 
@@ -73,10 +72,17 @@ unless the tenant's own role adds it).
 | Second-check an entry | `medicines.record.manage` | Current medicines competence; not the transcriber; compared with the source (rule 6) | The person |
 | Stop an entry | `medicines.record.manage` | A reason and the source document; now or later (rule 6) | The person |
 | Start, decide and complete a reconciliation | `medicines.record.manage` | Current medicines competence to complete (rules 7 to 12) | The person |
-| Record administrations, PRN, CD entries, stock, overrides | `medicines.emar.administer`, `medicines.cd.administer` (step-up), `medicines.cd.witness`, `medicines.stock.manage`, `medicines.override.approve` | Slice 3 rules | The person or location |
+| Record an administration or its outcome (slice 22) | `medicines.emar.administer`; `medicines.cd.administer` (step-up) for a controlled drug | `checkAdministration` (rule 17): current competence or an override in force (rule 22) | The person |
+| Record and check a dosing record (variable dose) | `medicines.record.manage` | Rule 18: the checker is a second person with current competence | The person |
+| Correct an administration record | `medicines.emar.administer` for the author; `medicines.record.manage` for anyone else | Rule 23: a referenced correction of the latest record, with a reason | The person |
+| Approve a competence override | `medicines.override.approve` | Rule 22: not the member themselves, a reason, at most the table's hours | The member's location |
+| Witness a controlled drugs entry | `medicines.cd.witness` (the witness's own sign-in on the same device; ADR-0084) | Rule 27: not the recorder | The person |
+| Record a CD receipt, disposal, transfer, destruction, correction or stock check (slice 34) | `medicines.cd.administer` (step-up) or `medicines.stock.manage` | Rules 24 to 27 | The person or location |
+| Close a round with doses outstanding (slice 48) | `medicines.emar.administer` | Rule 23: a reason | The location |
 
-Medicines competence (`current`, `expired`, `not_held`) is an input to `recordSecondCheck` and
-`completeReconciliation`. Slice 16 must read it on the server from workforce's competence port
+Medicines competence (`current`, `expired`, `not_held`) is an input to `recordSecondCheck`,
+`completeReconciliation`, `checkDosingRecord` and `checkAdministration` (via `medicinesCompetenceAt`
+on the sign-off date). Slice 16 must read it on the server from workforce's competence port
 (slice 17, ADR-0085), for the signed-in member, at the time of the action; never from the request
 body, the device or a cross-module join. Until the port exists the API uses its contract-tested
 mock, and no route may pass a client-supplied value.
@@ -111,14 +117,12 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    "mcg/hr"); a measured unit is written "2 × 5 ml spoonfuls", so its size is never read as part of
    the number. No thousands separator ("5000 units"). Harbour never converts a dose: a number with
    more than 3 decimal places is refused with "ask the prescriber or pharmacist", never "use a
-   smaller unit" (H-551). **Variable doses (open control, HZ-005):** a variable dose has no link to
-   its dosing record yet. Slice 3 adds the dosing record (the day doses, for example a warfarin
-   schedule after an INR test, with its source) as a record of its own that is second-checked like
-   an entry before any dose is given from it, and slice 16 stores it; until then `marEntryStatus`
-   gives `mayGive: false` for a variable-dose entry, checked or not, under either policy, and its
-   notice says what to do instead: "Ask the prescriber for today's dose and record it as a new MAR
-   entry, stopping this one first" (a test shows that can be done the same day). Slice 2 is not
-   released to a tenant without slice 3's dosing record (H-550).
+   smaller unit" (H-551). **Variable doses** (HZ-005): the day doses come from a dosing record (for
+   example a warfarin schedule after an INR test, with its source), second-checked like an entry,
+   and a dose is given only from a checked one (rule 18, slice 3; slice 16 stores it). Slice 2 had
+   blocked every variable-dose entry until the dosing record existed. With no checked record
+   for the day, the entry's notice tells staff to ask the prescriber for the day's dose and
+   record it on the dosing record for a second person to check.
 3. **Schedules** (HZ-003, HZ-009; `schedule.ts`). A regular entry has prescribed wall-clock times
    (HH:MM, UK time), each with its own dose, on a pattern: every day; every n days (2 is every other
    day) counted from the pattern's `anchorOn`, a day a dose fell or falls due; weekly on named days
@@ -173,7 +177,8 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    start; "Replaced by a newer entry", "Stopped", "Ended" or "Withdrawn before it started" after);
    by default an entry awaiting its check may be given with the notice beside it, and a tenant may
    choose to hold such entries until checked (`UncheckedEntryPolicy`; H-550). A variable-dose entry
-   is never givable in slice 2 (rule 2).
+   says "Variable dose: give only the dose the checked dosing record gives for the day", and a
+   dose without a checked record is refused (rule 18).
 
    The version rules refuse the sequences that are hard to get right rather than handling them
    (H-553); each refusal says what to do instead.
@@ -314,23 +319,145 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
     reconciliation for an event also covers that person's earlier events; one for a change covers
     none.
 
-### 4.2 Administration, PRN and controlled drugs (slice 3, planned)
+### 4.2 Administration, PRN and controlled drugs (slice 3, built)
 
-Section 10.3 requires that the app: refuses to record an administration without a selected person,
-a dose and an outcome; requires a witness for controlled-drug entries where the tenant policy says
-so (default on in residential and nursing homes; a lone worker in home care or supported living
-records "no witness available" with the reason, flagged for manager review); blocks duplicate
-administration within the minimum interval and requires an override reason; shows the last-given
-time for every PRN; locks a MAR row once synced and allows only referenced corrections; keeps
-device clocks honest by recording server-received time and flagging drift over
-`sync.clock_drift_flag_minutes`; and reconciles offline rounds on sync with a conflict review
-screen for the nurse in charge. Section 10.2 adds late and early warnings with time-critical rules,
-and annual competence that blocks administration when expired, with the manager override logged.
-Slice 3 writes these as rules 13 onwards, with ADR-0082 (time-critical and interval rules apply to
-entries a person tags at transcription, second-checked, never by ingredient matching). Rate keys:
-`medicines.paracetamol.min_interval_hours`, `medicines.bisphosphonate.before_food_minutes`,
-`medicines.review_interval_months`, `medicines.fridge_min_celsius`, `medicines.fridge_max_celsius`,
-`medicines.room_max_celsius`, `competence.medicines.refresh_months`.
+Section 10.3: the app refuses to record an administration without a selected person, a dose and an
+outcome; requires a witness for controlled-drug entries where the tenant policy says so; blocks
+duplicate administration within the minimum interval and requires an override reason; shows the
+last-given time for every PRN; locks a MAR row once synced and allows only referenced corrections;
+keeps device clocks honest; and reconciles offline rounds on sync for the nurse in charge (slices
+48 and 70). Section 10.2 adds late and early warnings with time-critical rules, and annual
+competence that blocks administration when expired, with the manager override logged. Rules 13 to
+27 are slice 3's domain rules; [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md)
+sets how time-critical and interval rules meet the medical-device boundary. Rate keys: those in
+`MEDICINES_RATE_KEYS`, each read from the table (a test scans the rules for every two-digit figure).
+
+13. **Tags at transcription** (ADR-0082; `MEDICINE_TAGS`, `suggestedTags`). A MAR entry carries
+    tags a person sets at transcription and the second check confirms: `time_critical`,
+    `paracetamol`, `bisphosphonate`, `psychotropic`. Harbour offers a tag only when the tenant's
+    own list for it holds the product's exact VMP; never by ingredient or name. An entry also
+    carries the minimum interval the prescription or PRN protocol states, and a when-required entry
+    its maximum in 24 hours (the PRN status says when none is recorded). A when-required entry
+    with neither a minimum interval nor a maximum is refused at transcription
+    (`prn_limit_required`): the transcriber asks the prescriber (H-1066; #162 clinical review).
+14. **Dose windows** (HZ-003, HZ-004, HZ-009; `timing.ts`). A scheduled dose's own window opens
+    `medicines.dose_window.early_minutes` before its time and ends
+    `medicines.dose_window.late_minutes` after; an entry tagged time-critical has the narrower
+    `medicines.time_critical.*` (never wider than the regular window). No outcome is recorded
+    before the window opens (`dose_not_due_yet`), so a later dose (this evening's, tomorrow's) is
+    never recorded at the morning round and nothing is filled in ahead; a dose that has already
+    happened (taken by the person, given by family, recorded after it was given, or a correction)
+    is recorded and flagged for review instead (rule 17). Given inside the window before its due time a dose is early,
+    from its due time to the end of the window on time, after it late; early and late need a
+    reason. Windows are elapsed time, so on the days the clocks change they are as long as any
+    other (#162 clinical review; H-1064 asks the CSO for an upper limit on a tenant's figures).
+15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
+    outcome recorded" and stays outstanding until someone records what happened; nothing closes it.
+    Its escalation falls due at the end of its window, so a time-critical dose escalates sooner
+    (slice 48 sends it). Harbour never makes a missed dose due again.
+16. **Minimum intervals** (HZ-004, HZ-009, HZ-010; `intervals.ts`). A dose inside the entry's own
+    prescribed interval (counting every version of the entry), or inside the paracetamol interval of
+    a dose from any entry tagged paracetamol, before or after it, needs an override reason and is
+    flagged; for a dose that has already happened, the reason is what happened. Gaps are elapsed
+    time between drift-corrected instants (`driftCorrectedTime`: the
+    device time plus the offset measured at its last sync; drift beyond
+    `sync.clock_drift_flag_minutes` is flagged), so a clock change neither shortens nor lengthens one.
+17. **Recording a dose** (HZ-001, HZ-003, HZ-004, HZ-005; `checkAdministration`). Refused without a
+    selected person, the medicine and (for a regular medicine) the scheduled dose, and an outcome;
+    for another person's medicine; for a time the entry has no dose; for a dose already recorded (a
+    correction instead); from a version not in force or not givable (rule 6); for a reason code not
+    for the outcome. Outcomes: given, refused, not given (asleep, away from the home, in hospital,
+    nil by mouth, unable to swallow, vomiting, other), not available (out of stock, not delivered,
+    other), taken by the person themselves, given by family as agreed, withheld (the prescriber said
+    to, outside the limits the prescriber set, other); "other" and "withheld" always need words.
+    "Given" needs the amount in the entry's unit: the prescribed amount, within a prescribed range,
+    or the checked dosing record's dose; another amount needs what happened and is flagged as a
+    possible medication error. A dose is not given while an earlier dose of the same entry in the
+    24 hours before it has no outcome (`earlier_dose_outstanding`, naming each by time and date):
+    that one is recorded first. "Taken by the person themselves" and "given by family" record a
+    dose staff did not give: on an entry with a 24-hour maximum they need the amount, which always
+    counts towards it (one in another unit is recorded as given, never converted, and flagged as
+    not counted). A dose that has already happened is a fact, so it is always recorded: such a
+    dose, a dose staff record after giving it (`givenBeforeRecorded`, with why), and every
+    correction (rule 23) are never refused by the window, an earlier dose outstanding, the entry
+    in force, the dosing record or the maximum, nor, for a record made after the event, by the
+    competence of whoever gave it then. They are flagged instead (`ReviewFlag`: before window,
+    earlier dose outstanding, entry not usable, no usable dosing record, amount in another unit,
+    competence not current) and sent to the nurse in charge to review (a `warning` escalation in
+    words); one over the maximum is flagged "over maximum" and escalated `urgent`. The API raises
+    both through the escalation chain, whose recipients and acknowledgement slice 48 sets (H-1062,
+    H-1067). On the round, about to give a dose, every one of those rules refuses it. Flags
+    carried: early, late, interval override, competence override, amount differs, other unit not
+    counted, over maximum, entry not yet checked and the review flags.
+18. **Variable doses** (HZ-005, HZ-116; `dosing-record.ts`). A variable-dose entry's day doses come
+    from a dosing record transcribed from its source (for example the anticoagulant clinic's), for
+    each day and prescribed time, and checked by a second person with current competence who
+    compared it with the source. The newest record covering a day and time decides that dose: it
+    is given only when that record was checked and found to match its source; when the newest is
+    not yet checked, or its check found a difference, the dose is refused
+    (`dosing_record_not_checked`, `dosing_record_differs`) and an older record is never used
+    instead; with none, `no_checked_dosing_record`. An older record still gives a day the newer one
+    does not cover (H-1060 asks whether a newer record should replace older ones from its first
+    date). "Newest" is by the server's time (dosing records are recorded and checked online); two
+    records made at the same instant must all be checked and agree, or the dose is refused
+    (`dosing_records_disagree`).
+19. **When required: maximum and last given** (HZ-004; `prnStatus`, `prnMaximumExceeded`,
+    `prnDosesNotCounted`). A dose that would take the total over the prescribed maximum in any 24
+    hours containing it, before or after it (so a dose entered later than others is counted
+    against those after it too), is refused, with no override on the round: the prescriber decides
+    (a dose already taken is recorded and escalated, rule 17). A dose of the medicine in another
+    unit is never converted and never left out silently: it is named as not counted. The round
+    shows when it was last given, by whom and whether it has synced, the 24-hour total, what
+    remains (the prescriber's maximum less the total, H-1065), and when the interval allows the
+    next, with every notice that applies: no maximum recorded (the prescribed interval applies, with
+    no limit of Harbour's own), the maximum given, the last dose not synced, a dose in another unit
+    not counted. Harbour does not add up paracetamol across products
+    against a daily total; each entry's own maximum applies (H-1063).
+20. **When-required outcomes** (`prnOutcomeDueAt`). The outcome of a when-required dose falls due
+    `medicines.prn.outcome_check_minutes` after it and is listed until recorded.
+21. **Competence** (HZ-119; `competence.ts`). Medicines competence is current until 00:00 UK time on
+    the date `competence.medicines.refresh_months` after the last observed sign-off (the last day of
+    a shorter month); none before a sign-off. The API reads the sign-off from workforce's port
+    (ADR-0085), never from the request.
+22. **Competence gate and override** (HZ-119). Every outcome a member records needs current
+    competence, or, when it has expired, an override in force that someone else recorded with a
+    reason for at most `medicines.competence_override.max_hours`; the API checks the approver holds
+    `medicines.override.approve`. Every overridden record is flagged for the override report
+    (slice 45). A member never signed off is refused outright, whatever override is offered: staff
+    not assessed as competent must not give medicines (NICE SC1 1.18, as the master prompt cites
+    it; H-1061).
+23. **Rounds and the MAR row lock** (HZ-003, HZ-004). A round closes with doses outstanding only
+    with a reason; the outstanding doses, time-critical first, go to the handover and stay
+    outstanding. A record may be amended on its device by its author until it syncs; after that it
+    is locked, and a correction is a new record that refers to the latest record for the same
+    person and dose (a when-required dose: the same entry and MAR day), with a reason, and can
+    never move to another dose. Whoever records the correction (its author, or a holder of
+    `medicines.record.manage`) needs current competence then, or an override of an expired one
+    (H-1068). What the correction says meets every rule of rule 17 as a record made after the
+    event, the member it names being whoever gave the dose then: "refused" corrected to "given" is
+    checked as a dose given then, refused for a missing or unexplained amount, and flagged for
+    review (or escalated urgently over the maximum) where a dose about to be given would be
+    refused, because refusing would leave a false record and a dose given out of the history
+    (#162 second clinical review; H-1067). Only the duplicate check against the record it corrects
+    is left out, and that record is left out of the history (`checkCorrection`).
+24. **Controlled drugs register page** (`controlled-drugs.ts`). One page per person and dm+d VMP
+    (drug, form and strength); entries in time order; movements receipt, administration, disposal,
+    transfer out, destruction and correction. A stock check compares the count with the page and
+    raises an incident for any difference (slice 34; HZ-115 from then); the next is due
+    `medicines.cd.stock_check_interval_days` UK days after the last.
+25. **Running balance** (`cdBalanceAfter`). Every entry stores the balance after it, checked against
+    the previous entry's; it never goes below none; liquids keep 3 decimal places.
+26. **Margin corrections**. A mistake is never edited: a correction entry names the entry it puts
+    right, says why, says whether it puts right the quantity (a signed change to the balance) or
+    another detail such as the time (no change, so a correction of nothing cannot pass for a
+    mistyped 0), and only a correction refers to another entry or says what it corrects.
+27. **Witnesses** (HZ-116; `checkCdEntry`, `defaultCdWitnessPolicy`). Every entry has a second
+    signature from a witness who is not the recorder; a blank witness is refused. Where the tenant's policy is `required` (by
+    default residential, nursing, respite and children's homes) a witness is always needed; where it
+    is `where_available` (by default home care, supported living, live-in, complex care and day
+    services) a lone worker may record why there was none, and the entry is flagged for manager
+    review. Destruction is always witnessed. The witness's own sign-in and the step-up are the API's
+    (ADR-0084, slice 34).
 
 ## 5. API and events (for slice 16)
 
@@ -401,7 +528,8 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   product and a restart from the next day; no dose due before a new entry was recorded, the
   earlier times shown as not due, and the same-day route with its reason and notice (the property
   test checks no dose is due before its entry was recorded); a future stop or replacement still
-  checkable and correctable; variable doses not givable, and the notice's instruction followed),
+  checkable and correctable; a variable-dose entry pointing to the checked dosing
+  record; tags offered only from the tenant's lists, by exact VMP (ADR-0082)),
   `reconciliation.test.ts` (the plan; every entry and line decided; lines that say what they mean,
   with the alendronic acid and warfarin to apixaban cases; a change into another product refused;
   a stop citing its line; a continue shown by a current prescription, or confirmed by a
@@ -413,6 +541,25 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   entry from its end; a start keeping that day's earlier doses due with a reason; the entries to
   reconcile from dates; one entry per product;
   sources; queries; the stale record; completion checks; outstanding reconciliations). Run under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York`.
+- Domain (built, slice 3): `timing.test.ts` (windows from the table, narrower for time-critical,
+  escalation sooner; outstanding never closes itself; before the window, early, on time and late;
+  windows on the days the clocks change; tag notices; the drift-corrected clock),
+  `intervals.test.ts` (the prescribed interval across versions; the paracetamol rule across tagged
+  entries only; elapsed time across the clock changes; the drift-corrected clock; the 24-hour
+  maximum over every 24 hours containing the dose; doses in another unit named, not counted; last
+  given, total, remaining, next and every notice; outcome follow-up), `competence.test.ts` (the
+  sign-off and the anniversary, on the days the clocks change; no override without a sign-off; the
+  gate and the override's rules), `dosing-record.test.ts` (no dose without a checked record; the
+  newest record covering the day decides, never an older one; record problems; the second check),
+  `administration.test.ts` (person, dose and outcome; another person's medicine; not scheduled;
+  already recorded; coded reasons; entries not givable; the amount; variable doses; the window and
+  an earlier dose outstanding, on the days the clocks change too; intervals and the override; the
+  24-hour maximum; doses already taken, or given before they were recorded, counted, flagged for
+  review and escalated; competence and the override; closing a round; the row lock and
+  corrections checked as records made after the event, with the corrector's competence),
+  `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
+  balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
+  service; a blank witness; destruction; stock checks).
 - Database (slice 16): RLS and HZ-011 isolation for each table; the write-once trigger on check,
   stop and replacement; `expected_version` on changes.
 - API (slice 16): `hazard HZ-005 imported medicines are created as not yet checked`; a second check
@@ -494,10 +641,40 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   before midnight on an admission recorded just after it (a 23:30 dose when the entry is recorded
   at 00:30), which the same-day route cannot keep due: is a missed dose there acceptable, or is a
   route needed for the evening before?
+- H-554 (CSO): the dose windows (60 minutes either side, 30 for time-critical), the reason asked
+  for an early or late dose, and when an outstanding dose escalates.
+- H-555 (CSO with a pharmacist): the when-required rules: the rolling 24 hours containing the
+  dose, no override over the maximum, an override reason inside the interval, the outcome check
+  after 60 minutes, and a when-required entry transcribed with no maximum recorded (now only with
+  a minimum interval, H-1066).
+- H-1060 to H-1066 (CSO; #162 clinical review): whether a newer dosing record replaces older ones
+  from its first date (default: the newest record covering the day decides); a member never signed
+  off is never overridable (default built); how a dose taken over the maximum is recorded
+  (default: always recorded with its amount, flagged and escalated urgently; staff never give
+  over it); the paracetamol total across products is not enforced (default: each entry's own
+  maximum and the tagged interval); an upper limit on a tenant's dose windows (default: none
+  beyond the time-critical window never being wider); whether showing "remaining" stays inside
+  the device boundary (default: shown, as arithmetic on the prescriber's figure); and a
+  when-required entry needing a limit at transcription (default: refused without one).
+- H-1067 and H-1068 (CSO; #162 second clinical review): that a correction, or a dose staff record
+  after giving it, is flagged for review and escalated rather than refused by the rules that
+  decide whether a dose may be given (default built), with the escalations' severities and the
+  re-rating of HZ-004, HZ-005 and HZ-119; and whose competence a correction checks (default: the
+  corrector's now, gating; the competence of whoever gave the dose then, flagged).
+- H-556 (CSO with a pharmacist; with H-516): the controlled drugs defaults: the witness policy by
+  service type, destruction always witnessed, corrections as signed balance changes beside the
+  entry, the stock check every 7 days.
+- H-557 (CSO): competence lapsing at 00:00 on the anniversary of the sign-off, the override of at
+  most 12 hours approved by someone else, and the override applying to every outcome, not only
+  "given".
+- H-558 (CSO with a pharmacist): the administration record rules: a different amount allowed with
+  what happened (flagged as a possible medication error), corrections by the author or a holder of
+  `medicines.record.manage`, the dosing record per day and time for variable doses, and tagging
+  combination products by hand (ADR-0082's residual risk).
 - The decisions and defaults for later slices are in [phase-2.md](../plans/phase-2.md) (ADR-0080 to
   ADR-0085) and the human actions H-510 to H-517 in [human-actions.md](../plans/human-actions.md).
 
-## 11. As built (slice 2, domain rules)
+## 11. As built (slices 2 and 3, domain rules)
 
 `packages/domain/src/medicines/`, exported from `@harbour/domain`; pure functions with no I/O. No
 schema, API, web or mobile changes in this slice.
@@ -509,7 +686,13 @@ schema, API, web or mobile changes in this slice.
 | `schedule.ts` | `SchedulePattern`, `RegularSchedule`, `checkSchedule`, `expandSchedule`, `MarDose`, `marCycle`, `marCycleContaining`, `clockChangesIn`, `describeSchedule`, `keepsCountFrom`, `ukDateOf`, `WEEKDAY_NAMES` | Rules 3 to 5 and 6a |
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDosesFrom`, `marEntryDoses`, `marEntryTimesBeforeRecorded`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
 | `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
-| `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | `medicines.ordering_cycle_days` |
+| `timing.ts` | `doseWindow`, `recordedTiming` (`RecordedTiming`), `scheduledDoseState`, `SCHEDULED_DOSE_WORDS`, `escalationAt`, `doseNotices`, `isTimeCritical`, `driftCorrectedTime` | Rules 14 to 16 |
+| `intervals.ts` | `GivenDose`, `entryVersionIds`, `intervalConflicts`, `prnStatus`, `PRN_NOTICES`, `prnMaximumExceeded`, `prnDosesNotCounted`, `prnOutcomeDueAt`, `prnOutcomesOutstanding` | Rules 16, 19, 20 |
+| `competence.ts` | `medicinesCompetenceAt`, `checkCompetenceGate`, `CompetenceOverride` | Rules 21, 22 |
+| `dosing-record.ts` | `checkDosingRecordDraft`, `recordDosingRecord`, `checkDosingRecord`, `variableDoseFor` (`VariableDose`) | Rule 18 |
+| `administration.ts` | `ADMINISTRATION_OUTCOMES`, `OUTCOME_WORDS`, `OUTCOME_REASONS`, `REASON_WORDS`, `DOSE_TAKEN_OUTCOMES`, `DOSE_ALREADY_TAKEN_OUTCOMES`, `REVIEW_FLAG_WORDS`, `checkAdministration` (with `AdministrationEscalation`, `ReviewFlag`), `checkRoundClose`, `marRowLocked`, `checkAmendment`, `checkCorrection` | Rules 17, 23 |
+| `controlled-drugs.ts` | `cdPageKey`, `cdBalanceAfter`, `checkCdEntry`, `defaultCdWitnessPolicy`, `cdPageBalance`, `cdStockCheck`, `cdStockCheckDueAt` | Rules 24 to 27 |
+| `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | Every medicines figure (cycle, windows, intervals, PRN outcome, CD stock check, competence and override) |
 
 ## 12. As built (slice 16, schema and API)
 
@@ -592,4 +775,134 @@ Migration 0111 (`packages/db/src/schema/medicines.ts`), contracts
   audited as `denied` (with the problem codes) outside the refused transaction, so it is kept. All carry ids and counts, never content. Outbox: `medicines.entry.changed`,
   `medicines.entry.stopped` and `medicines.reconciliation.completed`, with ids only.
 - **Tests**: `packages/db/test/medicines-record.test.ts` (20) and `apps/api/test/medicines.test.ts`
-  (28), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+  (27), with the `MEDICINES_FIXTURES` cases in `apps/api/test/config.test.ts`.
+
+## 13. Administrations (slice 22, schema and API)
+
+Migration 0123, schema `packages/db/src/schema/medicines.ts`, contracts
+`packages/contracts/src/medicines.ts`, routes `apps/api/src/routes/medicine-administrations.ts`.
+Slice 3's rules decide every write (`checkAdministration`, `checkCorrection`); the API reads the
+facts they need and stores the outcome. MEDS-002, with HZ-001 to HZ-005, HZ-116 and HZ-119.
+
+### 13.1 The entry fields slice 3 added
+
+Slice 3 added three fields to a MAR entry: its tags (rule 13), the minimum interval, and a
+when-required entry's 24-hour maximum. Migration 0123 adds them to `medication` (`tags`,
+`minimum_interval_minutes`, `prn_max_per_24h`). They are part of what a version says, so the
+write-once trigger keeps them fixed. Entries recorded before 0123 have no tags and no interval or
+maximum; a when-required entry with neither keeps the PRN status notice "no maximum recorded" until
+it is changed (H-1160).
+
+### 13.2 Tables
+
+| Table | Kind | Key columns | Retention class |
+| --- | --- | --- | --- |
+| `medication_administration` | Append-only: no UPDATE or DELETE for the application; a correction is a new row with `supersedes_id` | `id` (the client's UUID, so a resend is idempotent), person, the entry version (`medication_id`), `due_at` (null for a when-required dose), `outcome`, coded `reason_code` and `reason_note`, amount (quantity and unit code), the prescribed dose it was checked against, the dosing record used, the reasons the rules asked for (amount difference, timing, interval override, given before recorded), `given_at` (drift-corrected), the device time and offset, `recorded_by`, `recorded_at` (the server's clock), the competence override used, the flags, `supersedes_id` and the correction reason, the scan evidence (ADR-0081, a hook until barcodes land) and the controlled drugs entry (a hook for slice 34) | `mar_chart` |
+| `medication_administration_witness` | Append-only, at most one per record | the administration, the witness, when, how they signed (`step_up` on the web; `device_factor` from slice 70) | `mar_chart` |
+| `medication_dosing_record` | The record never changes; its second check is set once | person, the entry version, source (kind, reference, document), the doses (date, time, quantity in the entry's unit), recorded by and at, second check (by, at, outcome, difference) | `mar_chart` |
+
+Database rules:
+- Forced RLS by tenant and `person_child_scope` on all three tables. Composite keys tie each row to
+  one person: the entry version, the dosing record, the record a correction supersedes, the
+  witnessed record and every document.
+- One original record per scheduled dose: a unique key on (entry version, `due_at`) where
+  `supersedes_id` is null. One correction per record: a unique key on `supersedes_id`.
+- A correction stays with its record's person, entry and dose (the database checks the person and
+  entry; the API checks the dose by `checkCorrection`).
+- A witness is never the recorder.
+- `recorded_at` is the server's clock (`now()`), never the request's.
+
+### 13.3 Recording a dose
+
+`POST /v1/people/{id}/medicine-administrations`, with `medicines.emar.administer`. The body carries
+the client's id, the entry, the due time or none, the outcome, the reason, the amount, the reasons
+the rules ask for, and, for a record made after the event, `givenBeforeRecorded` with `givenAt` and
+why.
+- **Idempotent**: a resend of the same id with the same content returns the stored record (200);
+  the same id with other content is a 409.
+- **Serialised**: the per-person lock of section 12, so two doses for one person are tried one
+  after the other against the stored history.
+- **The facts**: every version of the person's entries, the doses already recorded, the dosing
+  records, the competence of the signed-in member from the competence port (and any override in
+  force, from the same port), and the rates from the rate table for the person's nation.
+- **The time**: on the round, the dose is recorded at the server's time. A device (slices 68 and 69)
+  sends its own time and its last measured offset, and the record is checked at the drift-corrected
+  time (`driftCorrectedTime`), flagged when drift passes `sync.clock_drift_flag_minutes`.
+- **Given before recorded** (#162): `givenAt` must be before the server's `recordedAt`, with a
+  reason. The member recording it needs current competence now, or an override of an expired one;
+  the competence of whoever gave it then is a fact the rules flag. The record is always flagged
+  `given_before_recorded` and always escalated for review, even when no other flag applies.
+- **Refused** records are audited as `denied` with the problem codes, outside the refused
+  transaction.
+
+### 13.4 Corrections and the row lock
+
+A record is locked once stored on the server (`marRowLocked`): there is no edit route. A
+correction is `POST /v1/medicine-administrations/{id}/corrections` with a reason and what the
+record should say, by its author or a holder of `medicines.record.manage`, checked by
+`checkCorrection` (the latest record for the dose only; the person and dose never move). Reads
+show the corrected record struck through beside its correction.
+
+### 13.5 Witness and second signature
+
+The witness is a second signed-in member (ADR-0084, as phase-2.md records it; the ADR is written
+with slice 34). On the web the witness signs with their own session and a fresh step-up:
+`POST /v1/medicine-administrations/{id}/witness`. The witness needs `medicines.emar.administer`
+and current competence, and is never the recorder. A device witness (`device_factor`) is slice 70.
+Controlled drugs: when the entry's product is a controlled drug, slice 34 writes the register
+entry and links it (`cd_entry_id`); until then the hook is empty and slice 22 records nothing in
+a register.
+
+### 13.6 Escalation through the task engine
+
+- **A record that needs review** (`warning`) or is over the maximum (`urgent`), and every record
+  given before it was recorded, raises a task for the nurse in charge (`clinical_lead`), with the
+  escalation's words and the record as its evidence. Slice 48 adds the notification chain.
+- **An outstanding dose**: the worker job `medicines-outstanding-doses` raises one task per
+  scheduled dose whose escalation time (`escalationAt`, the end of its window) has passed with no
+  outcome, time-critical doses marked urgent, never twice. The task is closed when an outcome is
+  recorded; nothing makes a missed dose due again.
+
+### 13.7 Reads
+
+- `GET /v1/people/{id}/medicine-administrations?from=&to=`: the records with corrections
+  linked.
+- `GET /v1/people/{id}/medicine-round?at=`: the doses due around a time with their state
+  (`scheduledDoseState`), notices, and each when-required entry's status (`prnStatus`).
+
+### 13.8 Sync stream contract (slices 68 and 69)
+
+The round reaches devices through a stream specified here as a contract only. It is not in
+`sync-config.yaml` until slice 68, and a test fails if a medicines table appears there before the
+stream's isolation tests exist.
+- **Stream `location_medicines_round`**: for members holding `medicines.emar.administer` at a
+  location, the live people there.
+  - Their checked or not-yet-checked entry versions in force or starting within the cycle, with
+    their schedule times.
+  - Dosing records covering the next 7 UK days.
+  - Administrations in the last 48 hours (for intervals, the 24-hour maximum and the last given).
+  - The member's own competence reading.
+- **Rules**: the same person scope as the care streams (replication bypasses RLS, so the stream
+  query carries the scope itself); no stopped or withdrawn versions after their end; no documents.
+- **Uploads**: administrations go through `POST /v1/people/{id}/medicine-administrations` with the
+  device time and offset, idempotent by id. A refusal comes back to the device as a conflict for
+  the nurse in charge (slice 70).
+
+### 13.9 Audit and outbox
+
+Audit actions, carrying ids, outcomes, flags and problem codes, never the medicine or the dose:
+- `medicines.administration.recorded`, `.corrected`, `.witnessed`, `.viewed`;
+- `medicines.dosing_record.recorded`, `.checked`.
+
+Outbox events, with ids only: `medicines.administration.recorded` and
+`medicines.administration.corrected`.
+
+### 13.10 Dosing records
+
+A variable dose is given only from a checked dosing record (rule 18).
+- **Recording**: `POST /v1/medicines/{entryId}/dosing-records`, with `medicines.record.manage`,
+  checked by `recordDosingRecord`.
+- **Checking**: `POST /v1/dosing-records/{id}/check`, by a second person with current competence,
+  checked by `checkDosingRecord`.
+- **Reading**: `GET /v1/medicines/{entryId}/dosing-records`.
+- **Database**: the record's content never changes, and the check is set once.

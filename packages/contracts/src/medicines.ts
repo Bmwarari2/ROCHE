@@ -30,15 +30,8 @@ export const Dose = z
   ])
   .meta({ id: "Dose" });
 
-const Weekday = z.enum([
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-]);
+/** The domain's weekday codes, as the schedule rules match them (slice 22 found full names never matched). */
+const Weekday = z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 export const SchedulePattern = z
   .discriminatedUnion("kind", [
     z.object({ kind: z.literal("every_day") }),
@@ -71,7 +64,12 @@ export const MarDirections = z
           .max(24),
       }),
     }),
-    z.object({ kind: z.literal("when_required"), dose: Dose }),
+    z.object({
+      kind: z.literal("when_required"),
+      dose: Dose,
+      /** The prescribed maximum in 24 hours, in the dose's unit (rule 13). */
+      maxQuantityPer24Hours: quantity.nullable().default(null),
+    }),
   ])
   .meta({ id: "MarDirections" });
 
@@ -103,6 +101,13 @@ const DraftFields = {
   startsAt: isoDateTime,
   stopsAt: isoDateTime.nullable().default(null),
   reviewOn: ukDate.nullable().default(null),
+  /** Tags a person sets at transcription (rule 13; ADR-0082). */
+  tags: z
+    .array(z.enum(["time_critical", "paracetamol", "bisphosphonate", "psychotropic"]))
+    .max(4)
+    .default([]),
+  /** The minimum interval the prescription or PRN protocol states, in minutes (rule 13). */
+  minimumIntervalMinutes: z.number().int().min(1).max(10_080).nullable().default(null),
 };
 export const MarEntryDraftInput = z
   .object({ ...DraftFields, source: MarSourceDocument })
@@ -174,6 +179,8 @@ export const MedicineEntry = z
     startsAt: isoDateTime,
     stopsAt: isoDateTime.nullable(),
     reviewOn: ukDate.nullable(),
+    tags: z.array(z.string()),
+    minimumIntervalMinutes: z.number().int().nullable(),
     source: MarSourceDocument,
     transcribed: Actor,
     secondCheck: Actor.extend({

@@ -568,6 +568,13 @@
       "when": 1793480000000,
       "tag": "0111_medicines_record",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1793490000000,
+      "tag": "0123_medicine_administrations",
+      "breakpoints": true
     }
   ]
 }

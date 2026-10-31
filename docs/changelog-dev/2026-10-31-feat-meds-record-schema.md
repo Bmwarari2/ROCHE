@@ -73,7 +73,7 @@ Branch `feat/meds-record-schema`, from `main` with #135 (the slice 2 rules). MED
   columns, versions, the withdrawal case, cross-person documents, schedule times, no deletion,
   frozen reconciliations and retention marking them deleted once, dm+d codes (VMP and AMP
   tripwire).
-- `apps/api/test/medicines.test.ts` (28): transcription, refusals, the second check and
+- `apps/api/test/medicines.test.ts` (27): transcription, refusals, the second check and
   competence, changes with stale and concurrent versions, dm+d names, parallel transcriptions,
   the MAR with each dose's status, stops, audit without content, reconciliation end to end
   including a stop and a return from hospital (check refused by hand, task closed), refusal

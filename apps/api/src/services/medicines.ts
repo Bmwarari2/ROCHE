@@ -94,7 +94,13 @@ export function entryOf(row: MedicationRow, times: readonly ScheduleRow[]): MarE
                 .map((t) => ({ time: t.time, dose: doseOf(t) })),
             },
           }
-        : { kind: "when_required", dose: row.prnDose as Dose },
+        : {
+            kind: "when_required",
+            dose: row.prnDose as Dose,
+            maxQuantityPer24Hours: row.prnMaxPer24h === null ? null : Number(row.prnMaxPer24h),
+          },
+    tags: (row.tags ?? []) as MarEntry["tags"],
+    minimumIntervalMinutes: row.minimumIntervalMinutes,
     indication: row.indication,
     specialInstructions: row.specialInstructions,
     prescriber: row.prescriber,
@@ -232,6 +238,12 @@ export async function insertEntry(
     directions: d.kind,
     ...patternColumns(d.kind === "regular" ? d.schedule : null),
     prnDose: d.kind === "when_required" ? d.dose : null,
+    prnMaxPer24h:
+      d.kind === "when_required" && d.maxQuantityPer24Hours !== null
+        ? String(d.maxQuantityPer24Hours)
+        : null,
+    tags: [...entry.tags],
+    minimumIntervalMinutes: entry.minimumIntervalMinutes,
     indication: entry.indication,
     specialInstructions: entry.specialInstructions,
     prescriber: entry.prescriber,
@@ -315,6 +327,7 @@ export function entryOut(stored: StoredEntry, now: Date): MedicineEntry {
     origin: e.origin,
     product: e.product,
     route: e.route,
+    // Only readonly arrays differ: the weekday codes now match the contract (checked by tsc on input).
     directions: e.directions as MedicineEntry["directions"],
     directionsInWords: directionsInWords(e),
     indication: e.indication,
@@ -323,6 +336,8 @@ export function entryOut(stored: StoredEntry, now: Date): MedicineEntry {
     startsAt: e.startsAt.toISOString(),
     stopsAt: iso(e.stopsAt),
     reviewOn: e.reviewOn,
+    tags: [...e.tags],
+    minimumIntervalMinutes: e.minimumIntervalMinutes,
     source: e.source,
     transcribed: { id: e.transcribedBy, at: e.transcribedAt.toISOString() },
     secondCheck: e.secondCheck

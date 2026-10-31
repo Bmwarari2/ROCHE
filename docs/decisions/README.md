@@ -67,6 +67,7 @@ for an answer.
 | [0087](0087-employment-law-not-yet-in-force.md) | Employment law not yet in force: record, do not calculate | accepted | 2026-10-31 | Phase 2 |
 | [0092](0092-import-wizard.md) | Import wizard: staged rows in quarantine, organisation-wide importers, whole-batch commit and undo | proposed | 2026-10-31 | Phase 2 (slice 26) |
 | [0090](0090-dsar-workbench-and-disclosure-collector.md) | DSAR workbench and the disclosure collector: one collector over the export catalogue, redaction by a person | accepted | 2026-10-31 | Phase 2 |
+| [0082](0082-medicines-rules-at-the-device-boundary.md) | Medicines rules at the medical-device boundary: tags set at transcription and checked, tenant lists as suggestions, no ingredient or allergen matching | proposed | 2026-10-31 | Phase 2 |
 
 ## Open items carried by these ADRs
 

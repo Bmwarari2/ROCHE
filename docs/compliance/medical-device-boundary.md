@@ -124,6 +124,29 @@ runs the slice 2 rules unchanged and adds no calculation, suggestion or ingredie
 MAR route lists the prescribed doses the domain expands; dm+d facts (permitted routes and units)
 come from the reference data, and with none loaded nothing is transcribed rather than guessed.
 
+**Administration, PRN and controlled drugs (Phase 2, slice 3)**: these stay inside the boundary
+(`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md) rules 13 to 27;
+ADR-0082). Harbour compares the amount recorded with the dose on the entry, or on its checked dosing
+record for a variable dose, and asks why when they differ; it never calculates a dose, suggests one
+or says whether one is safe. Time windows, the paracetamol gap and the PRN maximum are the
+prescriber's or the tenant's figures, applied to entries a person tagged; Harbour adds no interval
+of its own and matches no ingredient. A dose over the prescribed 24-hour maximum is refused and the
+prescriber decides; a dose inside an interval needs a person's reason. A dose the person took
+themselves, or their family gave, or that staff record after giving it, or a correction, is
+recorded as a fact; where a dose about to be given would be refused it is flagged and sent to the
+nurse in charge to review, and over the maximum escalated urgently, the organisation's policy
+deciding what follows: Harbour adds no clinical advice (#162 clinical reviews; H-1062, H-1067). With
+no maximum recorded, the notice points to the prescribed interval and the prescriber, never a limit
+of Harbour's own. "Remaining" is the prescriber's maximum less the
+total recorded, arithmetic on a figure a person set (section 3), and says nothing about whether
+another dose is safe; the CSO confirms that reading (H-1065). A dose in another unit is named as
+not counted, never converted. A scheduled dose is not recorded before its window opens, which is
+the tenant's own figure; a variable dose comes from the newest dosing record a person transcribed
+and another checked, never from a calculation. Late doses stay outstanding and are escalated;
+Harbour never makes a missed dose due again (a treatment decision). Competence is a record of an
+observed sign-off, not an assessment. The controlled drugs register checks arithmetic and
+signatures, not the medicine.
+
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
@@ -132,7 +155,8 @@ come from the reference data, and with none loaded nothing is transcribed rather
 
 | Proposed feature | Phase | Question to answer |
 | --- | --- | --- |
-| Matching a recorded allergen to a medicine's dm+d ingredients on the administration screen (HZ-007) | 2 | Is automatic matching a decision-support function? The safe default is to display allergies beside the medicine without automated matching |
+| Matching a recorded allergen to a medicine's dm+d ingredients on the administration screen (HZ-007) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md) (proposed, CSO and a pharmacist to accept, H-514): allergies are displayed beside every medicine with no automated matching; in a reconciliation the completer confirms they compared the sources' allergies with the recorded ones |
+| Applying time-critical and minimum-interval rules (Parkinson's medicines, the paracetamol gap across products, bisphosphonates before food) | 2 | Decided in [ADR-0082](../decisions/0082-medicines-rules-at-the-device-boundary.md): the rules apply to entries a person tags at transcription and a second person checks; Harbour suggests a tag only from the tenant's own list of exact dm+d VMPs, never by ingredient or name; each entry's own interval is the prescription's or PRN protocol's; the figures are the tenant's, from the rate table |
 | Dependency tool converting categories to care hours | 2 | Built as the safe default in slice 12 (section 5, "Dependency tool and required care hours"): the organisation's own scale, labelled as its tool, categories chosen by staff with a reason, hours added up with the method shown, no score or judgement of safe staffing. The CSO confirms the reading and decides whether it needs an ADR of its own (H-710) |
 | Wound photos with a ruler | 1 | Display only; no measurement from the image |
 | AI summaries that include clinical notes | 6 | Draft labelled "generated from records"; scope lock blocks interpretation; covered by the DPIA AI addendum |

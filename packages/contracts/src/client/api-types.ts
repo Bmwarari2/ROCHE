@@ -38233,6 +38233,8 @@ export interface components {
       stopsAt: string | null;
       /** Format: date */
       reviewOn: string | null;
+      tags: string[];
+      minimumIntervalMinutes: number | null;
       source: components["schemas"]["MarSourceDocument"];
       transcribed: {
         /** Format: uuid */
@@ -38309,6 +38311,8 @@ export interface components {
           /** @enum {string} */
           kind: "when_required";
           dose: components["schemas"]["Dose"];
+          /** @default null */
+          maxQuantityPer24Hours: number | null;
         };
     SchedulePattern:
       | {
@@ -38325,15 +38329,7 @@ export interface components {
       | {
           /** @enum {string} */
           kind: "weekly";
-          weekdays: (
-            | "monday"
-            | "tuesday"
-            | "wednesday"
-            | "thursday"
-            | "friday"
-            | "saturday"
-            | "sunday"
-          )[];
+          weekdays: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
           intervalWeeks: number;
           /** Format: date */
           anchorOn: string;
@@ -38456,6 +38452,10 @@ export interface components {
        * @default null
        */
       reviewOn: string | null;
+      /** @default [] */
+      tags: ("time_critical" | "paracetamol" | "bisphosphonate" | "psychotropic")[];
+      /** @default null */
+      minimumIntervalMinutes: number | null;
       source: components["schemas"]["MarSourceDocument"];
       /** @default null */
       reanchorReason: string | null;
@@ -38487,6 +38487,10 @@ export interface components {
        * @default null
        */
       reviewOn: string | null;
+      /** @default [] */
+      tags: ("time_critical" | "paracetamol" | "bisphosphonate" | "psychotropic")[];
+      /** @default null */
+      minimumIntervalMinutes: number | null;
       source: components["schemas"]["MarSourceDocument"];
       expectedVersion: number;
       /** @default null */
@@ -38633,6 +38637,10 @@ export interface components {
        * @default null
        */
       reviewOn: string | null;
+      /** @default [] */
+      tags: ("time_critical" | "paracetamol" | "bisphosphonate" | "psychotropic")[];
+      /** @default null */
+      minimumIntervalMinutes: number | null;
     };
     ItemDecision:
       | {

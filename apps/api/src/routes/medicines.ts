@@ -39,7 +39,6 @@ import {
   formatDose,
   type ItemDecision,
   isDmdProduct,
-  type MarDirections,
   type MarEntry,
   type MarEntryDraft,
   type MarEntryIssue,
@@ -161,13 +160,15 @@ function draftOf(personId: string, body: DraftBody): MarEntryDraft {
     personId,
     product: body.product,
     route: body.route,
-    directions: body.directions as MarDirections,
+    directions: body.directions,
     indication: body.indication,
     specialInstructions: body.specialInstructions,
     prescriber: body.prescriber,
     startsAt: new Date(body.startsAt),
     stopsAt: body.stopsAt ? new Date(body.stopsAt) : null,
     reviewOn: body.reviewOn,
+    tags: body.tags,
+    minimumIntervalMinutes: body.minimumIntervalMinutes,
     source: body.source,
   };
 }
@@ -176,13 +177,15 @@ function reconciliationDraftOf(d: z.infer<typeof ReconciliationDraftShape>): Rec
   return {
     product: d.product,
     route: d.route,
-    directions: d.directions as MarDirections,
+    directions: d.directions,
     indication: d.indication,
     specialInstructions: d.specialInstructions,
     prescriber: d.prescriber,
     startsAt: new Date(d.startsAt),
     stopsAt: d.stopsAt ? new Date(d.stopsAt) : null,
     reviewOn: d.reviewOn,
+    tags: d.tags,
+    minimumIntervalMinutes: d.minimumIntervalMinutes,
   };
 }
 const ReconciliationDraftShape =

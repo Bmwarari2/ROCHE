@@ -80,6 +80,12 @@ export const medication = pgTable(
     dayOfMonth: integer("day_of_month"),
     /** The when-required dose (`Dose`: amount, range or variable, with its dm+d unit). */
     prnDose: jsonb("prn_dose"),
+    /** Tags a person set at transcription (rule 13; slice 22, migration 0123). */
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    /** The minimum interval the prescription or PRN protocol states (rule 13). */
+    minimumIntervalMinutes: integer("minimum_interval_minutes"),
+    /** A when-required entry's maximum in 24 hours, in its dose unit (rule 13). */
+    prnMaxPer24h: numeric("prn_max_per_24h", { precision: 12, scale: 3 }),
     indication: text("indication"),
     specialInstructions: text("special_instructions"),
     prescriber: text("prescriber").notNull(),
@@ -185,6 +191,19 @@ export const medication = pgTable(
     check("medication_product_name", sql`length(btrim(product_name)) > 0`),
     check("medication_route", sql`length(btrim(route_code)) > 0 AND length(btrim(route_name)) > 0`),
     check("medication_directions", sql`directions IN ('regular', 'when_required')`),
+    check(
+      "medication_tags",
+      // Duplicates are refused by the slice 3 rules (a CHECK cannot hold a subquery).
+      sql`tags <@ ARRAY['time_critical', 'paracetamol', 'bisphosphonate', 'psychotropic']::text[]`,
+    ),
+    check(
+      "medication_minimum_interval",
+      sql`minimum_interval_minutes IS NULL OR minimum_interval_minutes > 0`,
+    ),
+    check(
+      "medication_prn_max",
+      sql`prn_max_per_24h IS NULL OR (directions = 'when_required' AND prn_max_per_24h > 0)`,
+    ),
     // A regular entry has a pattern and times (medication_schedule); a when-required one a dose.
     check(
       "medication_pattern",
@@ -533,5 +552,208 @@ export const medicationReconciliationDecision = pgTable(
        OR (item_id IS NOT NULL AND entry_id IS NULL AND kind IN ('start', 'not_started', 'query'))`,
     ),
     check("medication_reconciliation_decision_kind_matches", sql`decision->>'kind' = kind`),
+  ],
+);
+
+/**
+ * A dosing record for a variable dose (rule 18; slice 22): the doses for each day and time, from
+ * its source, checked by a second person. What it says never changes; the check is set once.
+ */
+export const medicationDosingRecord = pgTable(
+  "medication_dosing_record",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    medicationId: uuid("medication_id").notNull(),
+    sourceKind: text("source_kind").notNull(),
+    sourceReference: text("source_reference").notNull(),
+    sourceDocumentId: uuid("source_document_id"),
+    /** `[{ date, time, quantity }]`, in the entry's unit. */
+    doses: jsonb("doses").notNull(),
+    recordedBy: uuid("recorded_by").notNull(),
+    /** The server's clock: "newest" is decided by it (rule 18). */
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    checkBy: uuid("check_by"),
+    checkAt: timestamp("check_at", { withTimezone: true }),
+    checkOutcome: text("check_outcome"),
+    checkDifference: text("check_difference"),
+    ...createdColumns(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").default(sql`app.current_user_id()`),
+  },
+  (t) => [
+    unique("medication_dosing_record_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("medication_dosing_record_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    personRef("medication_dosing_record_person_fk", t),
+    foreignKey({
+      name: "medication_dosing_record_medication_fk",
+      columns: [t.tenantId, t.personId, t.medicationId],
+      foreignColumns: [medication.tenantId, medication.personId, medication.id],
+    }),
+    foreignKey({
+      name: "medication_dosing_record_document_fk",
+      columns: [t.tenantId, t.personId, t.sourceDocumentId],
+      foreignColumns: [document.tenantId, document.personId, document.id],
+    }),
+    memberRef("medication_dosing_record_recorded_by_fk", t.tenantId, t.recordedBy),
+    memberRef("medication_dosing_record_check_by_fk", t.tenantId, t.checkBy),
+    index("medication_dosing_record_entry_idx").on(t.tenantId, t.medicationId),
+    check("medication_dosing_record_source_kind", sql.raw(`source_kind IN (${SOURCE_KINDS})`)),
+    check("medication_dosing_record_source_reference", sql`length(btrim(source_reference)) > 0`),
+    check(
+      "medication_dosing_record_doses",
+      sql`jsonb_typeof(doses) = 'array' AND jsonb_array_length(doses) > 0`,
+    ),
+    check(
+      "medication_dosing_record_check",
+      sql`(check_by IS NULL AND check_at IS NULL AND check_outcome IS NULL AND check_difference IS NULL)
+       OR (check_by IS NOT NULL AND check_at IS NOT NULL AND check_by <> recorded_by
+           AND ((check_outcome = 'matches_source' AND check_difference IS NULL)
+             OR (check_outcome = 'differs_from_source'
+                 AND length(btrim(coalesce(check_difference, ''))) > 0)))`,
+    ),
+  ],
+);
+
+const OUTCOMES =
+  "'given','refused','not_given','not_available','self_administered','given_by_family','withheld'";
+
+/**
+ * One administration record (rules 13 to 23; slice 22): append-only, the client's UUID as its id
+ * so a resend is idempotent. A correction is a new row naming the record it corrects.
+ */
+export const medicationAdministration = pgTable(
+  "medication_administration",
+  {
+    /** The client's UUID (no default): the same id twice is the same record. */
+    id: uuid("id").primaryKey(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    /** The entry version the dose was recorded against. */
+    medicationId: uuid("medication_id").notNull(),
+    /** The scheduled dose; null for a when-required dose. */
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    outcome: text("outcome").notNull(),
+    reasonCode: text("reason_code"),
+    reasonNote: text("reason_note"),
+    quantity: numeric("quantity", { precision: 12, scale: 3 }),
+    unitCode: text("unit_code"),
+    /** The dose the rules checked the amount against (`Dose`), when one was prescribed. */
+    prescribed: jsonb("prescribed"),
+    dosingRecordId: uuid("dosing_record_id"),
+    amountDifferenceReason: text("amount_difference_reason"),
+    timingReason: text("timing_reason"),
+    intervalOverrideReason: text("interval_override_reason"),
+    /** Why a dose already given is recorded only now (#162). */
+    givenBeforeRecordedReason: text("given_before_recorded_reason"),
+    /** When the dose was given or the outcome happened (drift-corrected). */
+    givenAt: timestamp("given_at", { withTimezone: true }).notNull(),
+    /** The device's own clock and its last measured offset, when a device sent it. */
+    deviceAt: timestamp("device_at", { withTimezone: true }),
+    deviceOffsetMs: integer("device_offset_ms"),
+    recordedBy: uuid("recorded_by").notNull(),
+    /** The server's clock when it was stored: the MAR row is locked from then. */
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    /** The competence override used (`CompetenceOverride`), when one was. */
+    competenceOverride: jsonb("competence_override"),
+    flags: text("flags").array().notNull().default(sql`'{}'::text[]`),
+    supersedesId: uuid("supersedes_id"),
+    correctionReason: text("correction_reason"),
+    /** Barcode evidence (ADR-0081): a hook until the barcode slice lands. */
+    scanEvidence: jsonb("scan_evidence"),
+    /** The controlled drugs register entry (slice 34): a hook until then. */
+    cdEntryId: uuid("cd_entry_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("medication_administration_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("medication_administration_tenant_person_id_key").on(t.tenantId, t.personId, t.id),
+    personRef("medication_administration_person_fk", t),
+    foreignKey({
+      name: "medication_administration_medication_fk",
+      columns: [t.tenantId, t.personId, t.medicationId],
+      foreignColumns: [medication.tenantId, medication.personId, medication.id],
+    }),
+    foreignKey({
+      name: "medication_administration_dosing_record_fk",
+      columns: [t.tenantId, t.personId, t.dosingRecordId],
+      foreignColumns: [
+        medicationDosingRecord.tenantId,
+        medicationDosingRecord.personId,
+        medicationDosingRecord.id,
+      ],
+    }),
+    foreignKey({
+      name: "medication_administration_supersedes_fk",
+      columns: [t.tenantId, t.personId, t.supersedesId],
+      foreignColumns: [t.tenantId, t.personId, t.id],
+    }),
+    memberRef("medication_administration_recorded_by_fk", t.tenantId, t.recordedBy),
+    // One original record per scheduled dose; corrections chain from it.
+    uniqueIndex("medication_administration_dose_key")
+      .on(t.tenantId, t.medicationId, t.dueAt)
+      .where(sql`supersedes_id IS NULL AND due_at IS NOT NULL`),
+    // One correction per record: a correction corrects the latest record.
+    uniqueIndex("medication_administration_supersedes_key")
+      .on(t.tenantId, t.supersedesId)
+      .where(sql`supersedes_id IS NOT NULL`),
+    index("medication_administration_person_idx").on(t.tenantId, t.personId, t.givenAt),
+    check("medication_administration_outcome", sql.raw(`outcome IN (${OUTCOMES})`)),
+    check(
+      "medication_administration_amount",
+      sql`(quantity IS NULL AND unit_code IS NULL)
+       OR (quantity > 0 AND length(btrim(coalesce(unit_code, ''))) > 0)`,
+    ),
+    check("medication_administration_given", sql`outcome <> 'given' OR quantity IS NOT NULL`),
+    check(
+      "medication_administration_correction",
+      sql`(supersedes_id IS NULL AND correction_reason IS NULL)
+       OR (supersedes_id IS NOT NULL AND supersedes_id <> id
+           AND length(btrim(coalesce(correction_reason, ''))) > 0)`,
+    ),
+    check(
+      "medication_administration_given_before_recorded",
+      sql`given_before_recorded_reason IS NULL
+       OR (length(btrim(given_before_recorded_reason)) > 0 AND given_at < recorded_at)`,
+    ),
+    check(
+      "medication_administration_flags",
+      sql`flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',
+        'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
+        'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
+        'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
+        'clock_drift']::text[]`,
+    ),
+  ],
+);
+
+/** The witness's second signature on an administration (ADR-0084): never the recorder. */
+export const medicationAdministrationWitness = pgTable(
+  "medication_administration_witness",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    personId: uuid("person_id").notNull(),
+    administrationId: uuid("administration_id").notNull(),
+    witnessId: uuid("witness_id").notNull(),
+    witnessedAt: timestamp("witnessed_at", { withTimezone: true }).notNull().defaultNow(),
+    method: text("method").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("medication_administration_witness_tenant_id_id_key").on(t.tenantId, t.id),
+    unique("medication_administration_witness_once_key").on(t.tenantId, t.administrationId),
+    foreignKey({
+      name: "medication_administration_witness_administration_fk",
+      columns: [t.tenantId, t.personId, t.administrationId],
+      foreignColumns: [
+        medicationAdministration.tenantId,
+        medicationAdministration.personId,
+        medicationAdministration.id,
+      ],
+    }),
+    memberRef("medication_administration_witness_member_fk", t.tenantId, t.witnessId),
+    check("medication_administration_witness_method", sql`method IN ('step_up', 'device_factor')`),
   ],
 );

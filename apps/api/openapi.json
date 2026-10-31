@@ -28991,6 +28991,18 @@
             ],
             "format": "date"
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "minimumIntervalMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "source": {
             "$ref": "#/components/schemas/MarSourceDocument"
           },
@@ -29182,6 +29194,8 @@
           "startsAt",
           "stopsAt",
           "reviewOn",
+          "tags",
+          "minimumIntervalMinutes",
           "source",
           "transcribed",
           "secondCheck",
@@ -29299,6 +29313,15 @@
               },
               "dose": {
                 "$ref": "#/components/schemas/Dose"
+              },
+              "maxQuantityPer24Hours": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0.001,
+                "maximum": 10000000,
+                "default": null
               }
             },
             "required": [
@@ -29363,13 +29386,13 @@
                 "items": {
                   "type": "string",
                   "enum": [
-                    "monday",
-                    "tuesday",
-                    "wednesday",
-                    "thursday",
-                    "friday",
-                    "saturday",
-                    "sunday"
+                    "mon",
+                    "tue",
+                    "wed",
+                    "thu",
+                    "fri",
+                    "sat",
+                    "sun"
                   ]
                 },
                 "minItems": 1,
@@ -29794,6 +29817,29 @@
             "format": "date",
             "default": null
           },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "time_critical",
+                "paracetamol",
+                "bisphosphonate",
+                "psychotropic"
+              ]
+            },
+            "maxItems": 4,
+            "default": []
+          },
+          "minimumIntervalMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10080,
+            "default": null
+          },
           "source": {
             "$ref": "#/components/schemas/MarSourceDocument"
           },
@@ -29897,6 +29943,29 @@
               "null"
             ],
             "format": "date",
+            "default": null
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "time_critical",
+                "paracetamol",
+                "bisphosphonate",
+                "psychotropic"
+              ]
+            },
+            "maxItems": 4,
+            "default": []
+          },
+          "minimumIntervalMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10080,
             "default": null
           },
           "source": {
@@ -30475,6 +30544,29 @@
               "null"
             ],
             "format": "date",
+            "default": null
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "time_critical",
+                "paracetamol",
+                "bisphosphonate",
+                "psychotropic"
+              ]
+            },
+            "maxItems": 4,
+            "default": []
+          },
+          "minimumIntervalMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10080,
             "default": null
           }
         },
