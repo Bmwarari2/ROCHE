@@ -1,4 +1,4 @@
-import { addUkDays } from "../shared/time";
+import { addUkDays, toUkWallClock } from "../shared/time";
 import { type BankHolidays, workingDaysDeadline } from "../shared/working-days";
 import { isPermission, type Permission, requiresStepUp } from "./permissions";
 
@@ -191,4 +191,82 @@ export function slaDueAt<S extends string>(
   if (sla.unit === "hours") return new Date(enteredAt.getTime() + value * 3_600_000);
   if (sla.unit === "working_days") return workingDaysDeadline(enteredAt, value, holidays);
   return addUkDays(enteredAt, value);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Approval lists (PLAT-011): where a record stands against its deadline, and what the reader may do
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * A workflow state's deadline as people read it in a list: `overdue` once the deadline has come,
+ * `due_today` when it falls later on the same UK calendar day, `on_track` when it is on a later
+ * day, and `none` when the state has no deadline. Facts from the clock only: no weighting.
+ */
+export type WorkflowSlaState = "none" | "on_track" | "due_today" | "overdue";
+
+const ukDay = (instant: Date) => {
+  const { year, month, day } = toUkWallClock(instant);
+  return year * 10_000 + month * 100 + day;
+};
+
+export function workflowSlaState(slaDueAt: Date | null, now: Date): WorkflowSlaState {
+  if (!slaDueAt) return "none";
+  if (slaDueAt.getTime() <= now.getTime()) return "overdue";
+  return ukDay(slaDueAt) === ukDay(now) ? "due_today" : "on_track";
+}
+
+/** One step the reader may take now, with what it needs. */
+export interface WorkflowMoveOption<S extends string> {
+  readonly to: S;
+  /** A step someone other than the record's creator must take (separation of duties). */
+  readonly approval: boolean;
+  readonly requiresReason: boolean;
+  readonly requiresStepUp: boolean;
+}
+
+export interface WorkflowActorView<S extends string> {
+  /** The steps open to the reader, in the order the workflow declares them. */
+  readonly moves: readonly WorkflowMoveOption<S>[];
+  /** An approval step is open to the reader: the record is waiting for them. */
+  readonly awaitingYourApproval: boolean;
+  /**
+   * The reader holds an approval step's permission but created the record, so someone else must
+   * take it: the list says so rather than offering it.
+   */
+  readonly raisedByYou: boolean;
+}
+
+export function workflowActorView<S extends string>(
+  definition: WorkflowDefinition<S>,
+  instance: WorkflowInstanceView<S>,
+  actorId: string,
+  permissions: ReadonlySet<string>,
+): WorkflowActorView<S> {
+  if (definition.terminal.includes(instance.state)) {
+    return { moves: [], awaitingYourApproval: false, raisedByYou: false };
+  }
+  const fromHere = definition.transitions.filter((t) => asList(t.from).includes(instance.state));
+  const isCreator = actorId === instance.createdBy;
+  const moves = fromHere
+    .filter((t) => permissions.has(t.permission))
+    .filter((t) => !(t.distinctFromCreator && isCreator))
+    .map((t) => ({
+      to: t.to,
+      approval: t.distinctFromCreator === true,
+      requiresReason: t.requiresReason === true,
+      requiresStepUp: t.requiresStepUp === true || requiresStepUp(t.permission),
+    }));
+  return {
+    moves,
+    awaitingYourApproval: moves.some((m) => m.approval),
+    raisedByYou:
+      isCreator && fromHere.some((t) => t.distinctFromCreator && permissions.has(t.permission)),
+  };
+}
+
+/** Every permission some step of the workflow needs: holding none means no stake in it. */
+export function workflowPermissions<S extends string>(
+  definition: WorkflowDefinition<S>,
+): ReadonlySet<Permission> {
+  return new Set(definition.transitions.map((t) => t.permission));
 }

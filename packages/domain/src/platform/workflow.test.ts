@@ -6,6 +6,10 @@ import {
   slaDueAt,
   type WorkflowDefinition,
   WorkflowDefinitionError,
+  type WorkflowSlaState,
+  workflowActorView,
+  workflowPermissions,
+  workflowSlaState,
 } from "./workflow";
 
 type IncidentState = "open" | "under_review" | "closed";
@@ -200,5 +204,103 @@ describe("workflow definitions are checked when they load", () => {
     ["a zero-hour SLA", { sla: { a: { hours: 0 } } }, "positive"],
   ])("refuses %s", (_label, change, message) => {
     expect(() => defineWorkflow({ ...base, ...change })).toThrow(message);
+  });
+});
+
+describe("workflow service-level state for approval lists (PLAT-011)", () => {
+  // 31/10/2026 is a Saturday in GMT (the clocks went back on 25/10/2026).
+  const now = new Date("2026-10-31T10:00:00Z");
+  it.each<[string, string | null, WorkflowSlaState]>([
+    ["no deadline", null, "none"],
+    ["a deadline already passed", "2026-10-31T09:59:59Z", "overdue"],
+    ["a deadline at this very moment", "2026-10-31T10:00:00Z", "overdue"],
+    ["a deadline later today", "2026-10-31T23:59:59Z", "due_today"],
+    ["a deadline just after midnight UK time", "2026-11-01T00:00:00Z", "on_track"],
+    ["a deadline next week", "2026-11-07T10:00:00Z", "on_track"],
+    ["a deadline yesterday", "2026-10-30T12:00:00Z", "overdue"],
+  ])("%s reads %s", (_label, due, expected) => {
+    expect(workflowSlaState(due ? new Date(due) : null, now)).toBe(expected);
+  });
+
+  it("uses the UK day in summer time, not the UTC day", () => {
+    // 23:30 UTC on 30/06/2026 is 00:30 on 01/07/2026 in London (BST).
+    const summer = new Date("2026-06-30T22:00:00Z"); // 23:00 BST on 30/06
+    expect(workflowSlaState(new Date("2026-06-30T23:30:00Z"), summer)).toBe("on_track");
+    expect(workflowSlaState(new Date("2026-06-30T22:30:00Z"), summer)).toBe("due_today");
+  });
+});
+
+describe("what an actor may do with a workflow instance (PLAT-011 approvals)", () => {
+  it.each<
+    [
+      string,
+      IncidentState,
+      string,
+      ReadonlySet<string>,
+      { moves: string[]; awaitingYourApproval: boolean; raisedByYou: boolean },
+    ]
+  >([
+    [
+      "a manager who did not raise it may approve closing",
+      "under_review",
+      "manager",
+      manager,
+      { moves: ["closed"], awaitingYourApproval: true, raisedByYou: false },
+    ],
+    [
+      "the person who raised it is never offered the approval",
+      "under_review",
+      "reporter",
+      manager,
+      { moves: [], awaitingYourApproval: false, raisedByYou: true },
+    ],
+    [
+      "someone holding both permissions also sees the step back",
+      "under_review",
+      "manager",
+      submitter,
+      { moves: ["closed", "open"], awaitingYourApproval: true, raisedByYou: false },
+    ],
+    [
+      "someone without the approval permission waits on others",
+      "under_review",
+      "reader",
+      new Set(["safety.incident.read"]),
+      { moves: [], awaitingYourApproval: false, raisedByYou: false },
+    ],
+    [
+      "a closed record offers nothing",
+      "closed",
+      "manager",
+      submitter,
+      { moves: [], awaitingYourApproval: false, raisedByYou: false },
+    ],
+  ])("%s", (_label, state, actor, permissions, expected) => {
+    const view = workflowActorView(incident, { state, createdBy: "reporter" }, actor, permissions);
+    expect({
+      moves: view.moves.map((m) => m.to),
+      awaitingYourApproval: view.awaitingYourApproval,
+      raisedByYou: view.raisedByYou,
+    }).toEqual(expected);
+  });
+
+  it("says which step is the approval and what each step needs", () => {
+    const view = workflowActorView(
+      incident,
+      { state: "under_review", createdBy: "reporter" },
+      "manager",
+      submitter,
+    );
+    expect(view.moves).toEqual([
+      { to: "closed", approval: true, requiresReason: true, requiresStepUp: false },
+      { to: "open", approval: false, requiresReason: false, requiresStepUp: true },
+    ]);
+  });
+
+  it("lists every permission any step of the workflow needs", () => {
+    expect([...workflowPermissions(incident)].sort()).toEqual([
+      "safety.incident.manage",
+      "safety.notification.submit",
+    ]);
   });
 });
