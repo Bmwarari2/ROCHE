@@ -106,7 +106,7 @@ function stale(): HttpProblem {
 async function refuse(
   c: Context<AppEnv>,
   access: Awaited<ReturnType<typeof requirePermission>>,
-  code: "accent_contrast" | "invalid",
+  code: "brand_accent_contrast" | "invalid",
   reason: string,
   detail: string,
 ): Promise<never> {
@@ -148,7 +148,7 @@ export const brandingRouter = createRouter()
       tags: ["platform"],
       summary: "Set the display name and accent colour",
       description:
-        "platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.",
+        "platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.",
       security,
       request: { body: { content: { "application/json": { schema: SaveBranding } } } },
       responses: {
@@ -172,7 +172,7 @@ export const brandingRouter = createRouter()
             verdict.problem === "not_a_colour"
               ? ACCENT_REFUSAL.not_a_colour
               : `${ACCENT_REFUSAL[verdict.problem]} Try ${verdict.suggestion}, the nearest colour that works.`;
-          return refuse(c, access, "accent_contrast", `accent_${verdict.problem}`, detail);
+          return refuse(c, access, "brand_accent_contrast", `accent_${verdict.problem}`, detail);
         }
         accent = verdict.accent;
       }

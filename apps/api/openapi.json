@@ -23767,7 +23767,7 @@
           "platform"
         ],
         "summary": "Set the display name and accent colour",
-        "description": "platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.",
+        "description": "platform.tenant.manage. The display name is trimmed (blank uses the registered name; at most 80 characters). The accent must keep white words on it and itself at 4.5:1 on white and on black, and at 3:1 on every other surface of the light and dark themes (`checkAccent`); one that fails is refused with 422 brand_accent_contrast, saying why, and nothing is stored. Send the `version` read (409 when stale). Audited (platform.branding.updated, with the fields changed and the old and new accent), refusals too.",
         "security": [
           {
             "bearerAuth": []

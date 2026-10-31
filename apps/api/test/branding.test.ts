@@ -92,7 +92,7 @@ describe("branding: the display name and accent", () => {
     const response = await save("Lodge Care Homes", accent);
     expect(response.status).toBe(422);
     const problem = await json<ProblemDetails>(response);
-    expect(problem.code).toBe("accent_contrast");
+    expect(problem.code).toBe("brand_accent_contrast");
     expect(problem.detail).toContain(`This colour is ${why}`);
     expect(problem.detail).toMatch(/Try #[0-9a-f]{6}, the nearest colour that works\./);
     const after = await read("owner");
@@ -104,7 +104,7 @@ describe("branding: the display name and accent", () => {
   });
 
   it.each([
-    ["blue", null, "accent_contrast", "six-digit hex code"],
+    ["blue", null, "brand_accent_contrast", "six-digit hex code"],
     [null, "x".repeat(81), "invalid", "80 characters"],
     [null, "Bell\u0007", "invalid", "cannot be shown"],
   ])("refuses accent %j or name %j (%s)", async (accent, name, code, words) => {

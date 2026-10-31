@@ -28,7 +28,7 @@ export const SaveBranding = z
   .object({
     /** Blank or null uses the registered name. At most 80 characters (`checkBrandName`). */
     displayName: z.string().max(400).nullable(),
-    /** Six-digit hex; null uses Harbour's own. Refused with 422 accent_contrast when it fails. */
+    /** Six-digit hex; null uses Harbour's own. Refused with 422 brand_accent_contrast when it fails. */
     accent: z.string().max(20).nullable(),
     expectedVersion: z.number().int(),
   })
