@@ -34,6 +34,7 @@ import {
   incidentTitle,
   notificationKindLabel,
   overdueCount,
+  showsPostFallCard,
 } from "@/lib/incidents";
 import { communicationSummary, personNames, sampleName } from "@/lib/people";
 import { readOrFail } from "@/lib/person-record";
@@ -307,6 +308,30 @@ export default async function IncidentPage({
           />
         </Card>
       )}
+      {showsPostFallCard(incident) ? (
+        <Card as="section" title={t("safety.incident.postFall.title")} headingLevel={2}>
+          <div className="flex max-w-prose flex-col gap-3">
+            <p className="m-0">{t("safety.incident.postFall.intro")}</p>
+            <p className="m-0 flex items-start gap-2 font-semibold">
+              <CircleAlert
+                size={20}
+                strokeWidth={1.5}
+                aria-hidden="true"
+                className="mt-0.5 shrink-0"
+              />
+              {t("safety.incident.postFall.urgentAdvice")}
+            </p>
+            <p className="m-0">
+              <Link href="/tasks">{t("safety.incident.postFall.link")}</Link>
+              {" · "}
+              <Link href="/tasks?status=closed">{t("safety.incident.postFall.finishedLink")}</Link>
+            </p>
+            <p className="m-0 text-body-dense text-text-secondary">
+              {t("safety.incident.postFall.listHint")}
+            </p>
+          </div>
+        </Card>
+      ) : null}
       {incident.restricted ? null : (
         <Card as="section" aria-labelledby="notifications">
           <div className="flex flex-col gap-4">

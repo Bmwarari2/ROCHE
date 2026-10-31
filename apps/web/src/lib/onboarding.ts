@@ -56,3 +56,58 @@ export const STAFF_FILE_OPTIONS = [
   "staff_file.after_leaving",
   "staff_file.to_75th_birthday",
 ] as const;
+
+/** Care and regulatory initialisms written in capitals, as staff know them. */
+const INITIALISMS = new Set([
+  "news2",
+  "must",
+  "iddsi",
+  "dbs",
+  "cqc",
+  "nhs",
+  "dols",
+  "ico",
+  "riddor",
+  "prn",
+  "la",
+  "mar",
+  "cd",
+  "dpia",
+  "ahra",
+  "lgsco",
+  "ukhsa",
+  "spo2",
+  "gp",
+  "dcb0160",
+  "cma",
+]);
+
+const UNITS: Readonly<Record<string, string>> = {
+  working_days: "working days",
+  days: "days",
+  hours: "hours",
+  minutes: "minutes",
+  weeks: "weeks",
+  months: "months",
+  years: "years",
+  ml: "ml",
+};
+
+/**
+ * A rate key or record class in plain words for the checklist and its buttons, never the key itself
+ * ("care_plan.review_interval_months" reads "Care plan review interval (months)"). Until each
+ * setting has a name of its own in the catalogue, this keeps internal names off the screen.
+ */
+export function settingName(key: string): string {
+  const words = key.replace(/\./g, " ").replace(/_/g, " ").trim();
+  const unit = Object.keys(UNITS)
+    .sort((a, b) => b.length - a.length)
+    .find((u) => words.endsWith(` ${u.replace(/_/g, " ")}`));
+  const base = unit ? words.slice(0, -(unit.length + 1)).trim() : words;
+  const cased = base
+    .split(" ")
+    .map((word) => (INITIALISMS.has(word) ? word.toUpperCase() : word))
+    .join(" ");
+  const sentence = cased.charAt(0).toUpperCase() + cased.slice(1);
+  return unit ? `${sentence} (${UNITS[unit]})` : sentence;
+}

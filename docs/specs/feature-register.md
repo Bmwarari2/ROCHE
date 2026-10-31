@@ -9,13 +9,13 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 
 | Module | Prefix | Sections | Rows | todo | partial | done |
 | --- | --- | --- | --- | --- | --- | --- |
-| Platform core | `PLAT` | 9.1 | 23 | 6 | 17 | 0 |
+| Platform core | `PLAT` | 9.1 | 23 | 3 | 20 | 0 |
 | Service-user lifecycle | `PEOP` | 9.2 | 13 | 4 | 9 | 0 |
 | Care planning and delivery | `CARE` | 10.1, 10.4 | 22 | 8 | 14 | 0 |
-| Medicines | `MEDS` | 10.2-10.3 | 14 | 14 | 0 | 0 |
-| Safety and notifications | `SAFE` | 11.1 | 16 | 5 | 11 | 0 |
-| Quality and governance | `QUAL` | 11.2 | 13 | 11 | 2 | 0 |
-| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 13 | 0 | 0 |
+| Medicines | `MEDS` | 10.2-10.3 | 14 | 13 | 1 | 0 |
+| Safety and notifications | `SAFE` | 11.1 | 16 | 0 | 16 | 0 |
+| Quality and governance | `QUAL` | 11.2 | 13 | 4 | 9 | 0 |
+| Workforce | `WORK` | 12.1, 12.2, 12.4 | 13 | 6 | 5 | 2 |
 | Rostering, time and pay | `SCHED` | 12.3 | 12 | 4 | 8 | 0 |
 | Operations | `OPS` | 13 | 28 | 27 | 1 | 0 |
 | Finance | `FIN` | 14 | 21 | 21 | 0 | 0 |
@@ -25,7 +25,7 @@ Every session starts by reading it with `docs/plans/STATUS.md` and picking the n
 | AI Management Copilot | `AI` | 16 | 11 | 11 | 0 | 0 |
 | Mobile apps | `MOB` | 17 | 13 | 7 | 6 | 0 |
 | Expansion (Phase 7) | `EXP` | 19 | 7 | 7 | 0 | 0 |
-| **Total** | | | **233** | **160** | **73** | **0** |
+| **Total** | | | **233** | **136** | **95** | **2** |
 
 | Phase | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -115,7 +115,7 @@ example key safe access under both 9.2 and 13), it has one row that cites both s
 | CARE-020 | CHC checklist and Decision Support Tool evidence with Fast Track flag | 10.1 | 5 | todo | - | - | - | - |
 | CARE-021 | Consent, MCA capacity assessment and best-interests records | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/consent.ts`, `packages/domain/src/care/mca/capacity.ts`, `packages/domain/src/care/mca/best-interests.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts`, `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (consent by decision, capacity assessments, best-interests decisions and consent records; the forms next) | `packages/domain/src/care/mca/consent.test.ts`, `packages/domain/src/care/mca/capacity.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
 | CARE-022 | DoLS register with CQC notification and the June 2026 legal change switch (review of existing authorisations) | 10.4 | 1 | partial | [care](care.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/care/mca/dols.ts`, `apps/api/src/routes/mca.ts`, `apps/api/src/services/mca.ts`, `packages/db/src/schema/mca.ts` (DoLS, the legal-change review and the expiry job), `apps/web/src/app/(shell)/people/[id]/capacity/page.tsx` (the register with its clocks; forms next) | `packages/domain/src/care/mca/dols.test.ts`, `packages/db/test/mca-and-incidents.test.ts`, `apps/api/test/mca.test.ts`, `apps/api/test/care-follow-ups.test.ts` (client ids, HZ-029), `apps/web/src/lib/mca.test.ts`, `apps/web/e2e/capacity.spec.ts` | [Check consent, capacity and DoLS](../user-guides/care-worker/check-consent-capacity-and-dols.md) (reading only: no web forms yet) |
-| MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | todo | - | - | - | - |
+| MEDS-001 | dm+d-coded medicines record and reconciliation (admission, transfer, change, return from hospital) | 9.2, 10.2 | 2 | partial | [medicines](medicines.md#4-rules-that-are-easy-to-get-wrong) | `packages/domain/src/medicines/` (`dmd.ts`, `dose.ts`, `schedule.ts`, `mar-entry.ts`, `reconciliation.ts`, `rates.ts`; domain rules only: the dm+d tables, schema, API and screens are slices 10, 16 and 52) | `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`, `reconciliation.test.ts` | - |
 | MEDS-002 | Offline administration rounds with barcode and person confirmation, time-critical rules and the 10.3 safety rules | 10.2, 10.3 | 2 | todo | - | - | - | - |
 | MEDS-003 | PRN protocols with outcomes and psychotropic PRN report | 10.2 | 2 | todo | - | - | - | - |
 | MEDS-004 | Covert administration records with best-interests evidence | 10.2 | 2 | todo | - | - | - | - |
