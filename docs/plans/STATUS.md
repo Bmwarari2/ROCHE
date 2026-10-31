@@ -38,7 +38,11 @@ screens gate; leave draft PR #50 and `feat/mobile-round-screen` alone.
 
 **Next, in order** (from [phase-1-gate.md](phase-1-gate.md), the gate's gap report):
 
-1. Small gate gaps still open: the axe journey for `/people/[id]/history`.
+1. Small gate gaps: the history journey is done (31/10/2026, `history.spec.ts`). Found while writing
+   it: a record's history page never marks what the latest review changed (the API sends earlier
+   versions only, so the newest earlier version has nothing to compare with), and answers show as
+   raw JSON and statuses as keys (`active`). Fix both in the API and `lib/history.ts`, and extend the
+   journey to assert the "Changed in the next version" marker.
 2. Clinical safety case v0.1 (only v0.0 exists).
 3. Web screens for the API-only Phase 1 rows: people lifecycle (PEOP-001, 003, 005, 007 to 010,
    013); documents, tasks and retention (PLAT-009, 011, 012, with HZ-006's `tasks.spec.ts`); the
