@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tableMedicinesRates } from "../../test/rate-table";
 import { formatUkTime, fromUkWallClock, toUkWallClock, ukOffsetMinutes } from "../shared/time";
 import {
+  closerThanScheduled,
   doseNotices,
   doseWindow,
   driftCorrectedTime,
@@ -73,38 +74,50 @@ describe("hazard HZ-004 a dose is recorded no earlier than its window opens, and
   });
 });
 
-describe("hazard HZ-004 an early dose inside its window needs a reason only when time-critical or too close to the last dose", () => {
-  // The previous dose was due ten hours before this one.
-  const previousDue = new Date(dueAt.getTime() - 10 * 60 * MINUTE);
+describe("hazard HZ-004 an early dose inside its window needs a reason only when time-critical", () => {
   const regular = doseWindow(dueAt, false, rates);
   const critical = doseWindow(dueAt, true, rates);
-  const limit = 10 * 60 - rates.doseEarlyMinutes;
-  it.each<[string, typeof regular, number, number | null, boolean]>([
-    ["regular, early, the last dose on time", regular, -1, -10 * 60, false],
+  it.each<[string, typeof regular, number, boolean]>([
+    ["regular, as its window opens", regular, -rates.doseEarlyMinutes, false],
+    ["regular, a minute early", regular, -1, false],
     [
-      "regular, early, the last dose a minute inside the limit",
-      regular,
-      -1,
-      -1 - (limit - 1),
+      "time-critical, as its narrower window opens",
+      critical,
+      -rates.timeCriticalEarlyMinutes,
       true,
     ],
-    ["regular, early, the last dose exactly at the limit", regular, -1, -1 - limit, false],
-    ["regular, early, no last dose recorded", regular, -rates.doseEarlyMinutes, null, false],
-    ["regular, at its due time, the last dose very close", regular, 0, -60, false],
+    ["time-critical, a minute early", critical, -1, true],
+    ["time-critical, at its due time", critical, 0, false],
     [
-      "regular, before its window (refused elsewhere, not early)",
-      regular,
-      -rates.doseEarlyMinutes - 1,
-      -10 * 60,
+      "time-critical, before its window (refused elsewhere)",
+      critical,
+      -rates.timeCriticalEarlyMinutes - 1,
       false,
     ],
-    ["time-critical, a minute early", critical, -1, -10 * 60, true],
-    ["time-critical, at its due time", critical, 0, -10 * 60, false],
-  ])("%s", (_name, window, minutes, lastMinutes, needs) => {
+  ])("%s", (_name, window, minutes, needs) => {
+    expect(earlyNeedsReason(window, plus(minutes))).toBe(needs);
+  });
+});
+
+describe("hazard HZ-004 any dose closer to the entry's last dose than the schedule allows needs a reason, late or not", () => {
+  // The previous dose was due ten hours before this one; the window's early side is the table's.
+  const previousDue = new Date(dueAt.getTime() - 10 * 60 * MINUTE);
+  const regular = doseWindow(dueAt, false, rates);
+  const limit = 10 * 60 - rates.doseEarlyMinutes;
+  it.each<[string, number, number | null, boolean]>([
+    ["early, the last dose on time", -1, -10 * 60, false],
+    ["early, a minute inside the limit", -1, -1 - (limit - 1), true],
+    ["early, exactly at the limit", -1, -1 - limit, false],
+    ["at its due time, the last dose very close", 0, -60, true],
+    ["at its due time, the last dose on time", 0, -10 * 60, false],
+    ["late, the last dose very close", rates.doseLateMinutes + 30, rates.doseLateMinutes, true],
+    ["late, the last dose on time", rates.doseLateMinutes + 30, -10 * 60, false],
+    ["no last dose recorded", 0, null, false],
+  ])("%s", (_name, minutes, lastMinutes, closer) => {
     const last = lastMinutes === null ? null : plus(lastMinutes);
-    expect(earlyNeedsReason(window, plus(minutes), last, last === null ? null : previousDue)).toBe(
-      needs,
-    );
+    expect(
+      closerThanScheduled(regular, plus(minutes), last, last === null ? null : previousDue),
+    ).toBe(closer);
   });
 });
 

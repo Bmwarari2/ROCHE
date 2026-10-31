@@ -143,6 +143,25 @@ on a client flag and any non-blank reason, with no recording time and no check o
 - Docs: medicines.md rules 14 and 17 and the slice 22 API notes; rates.md early-window rows; hazard
   log HZ-004, HZ-005 and HZ-119; H-1064 and H-1067.
 
+## #162 third clinical review re-check (31/10/2026)
+
+The re-check confirmed the four fixes above and found two more:
+
+- Medium (HZ-004, HZ-119): recording "refused" and then correcting it to "given" got round the
+  route: a held entry or a giver never signed off raised only a warning, the correction carried no
+  reported flag, and nothing checked the time given against when the correction was recorded. A
+  correction whose new outcome records that a dose happened now follows exactly the rules for a
+  dose recorded after it was given: a 20-character reason, a time given strictly before the
+  correction's `recordedAt`, the corrector's competence (judged at `recordedAt`; `correctedBy`
+  no longer carries a time of its own), the named giver checked at the time given and flagged when
+  not the corrector, and always `given_before_recorded`, counted and escalated, urgently when a rule
+  was broken.
+- Low (existing before this PR): a dose at or after its due time had no gap check, so a late 10:30
+  dose followed by the 12:00 dose at 12:00 asked nothing. The gap rule (`closerThanScheduled`) now
+  applies to every dose, early, on time or late, flagged `close_to_last_dose`; `earlyNeedsReason`
+  is now the time-critical early check alone.
+- Docs: medicines.md rules 14 and 23; hazard log HZ-004 and HZ-119; H-1067 and H-1068.
+
 ## What is next
 
 - Slice 10 (dm+d reference data), then slice 16 (the medication tables and API) and slice 22
@@ -177,3 +196,5 @@ on a client flag and any non-blank reason, with no recording time and no check o
   three time zones, 99.69% line coverage (medicines 99.45%).
 - After the third review: 675 medicines tests; the whole domain package 6,181 tests under the
   three time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).
+- After the re-check: 692 medicines tests; the whole domain package 6,198 tests under the three
+  time zones, 99.69% line coverage (medicines 99.47%, `administration.ts` 100%).

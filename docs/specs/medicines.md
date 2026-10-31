@@ -349,11 +349,12 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     happened (taken by the person, given by family, recorded after it was given, or a correction)
     is recorded and flagged for review instead (rule 17). Anywhere inside its window a dose is on
     time; after it, late, with a reason. Given before its due time it asks a reason (and is flagged
-    early) only for an entry tagged time-critical, or when the time since the entry's last dose is
-    shorter than the scheduled gap from the previous dose less the window's early side
-    (`earlyNeedsReason`), so doses at opposite ends of their windows are not brought closer than
-    the schedule allows unnoticed, and no reason is asked for every dose a round gives a little
-    early (#162 third clinical review, against alert fatigue). Windows are elapsed time, so on the
+    early) only for an entry tagged time-critical (`earlyNeedsReason`). Any dose, early, on time or
+    late, asks a reason (and is flagged `close_to_last_dose`) when the time since the entry's last
+    dose is shorter than the scheduled gap from the previous dose less the window's early side
+    (`closerThanScheduled`): a late 10:30 dose followed by the 12:00 dose at 12:00 is asked about,
+    and no reason is asked for every dose a round gives a little early (#162 third clinical review
+    and its re-check, against alert fatigue). Windows are elapsed time, so on the
     days the clocks change they are as long as any other (#162 clinical review; H-1064 asks the
     CSO for an upper limit on a tenant's figures).
 15. **Outstanding and escalation** (HZ-003). With no outcome after its window a dose is "Late: no
@@ -451,12 +452,19 @@ sets how time-critical and interval rules meet the medical-device boundary. Rate
     person and dose (a when-required dose: the same entry and MAR day), with a reason, and can
     never move to another dose. Whoever records the correction (its author, or a holder of
     `medicines.record.manage`) needs current competence then, or an override of an expired one
-    (H-1068). What the correction says meets every rule of rule 17 as a record made after the
-    event, the member it names being whoever gave the dose then: "refused" corrected to "given" is
-    checked as a dose given then, refused for a missing or unexplained amount, and flagged for
-    review (or escalated urgently over the maximum) where a dose about to be given would be
-    refused, because refusing would leave a false record and a dose given out of the history
-    (#162 second clinical review; H-1067). Only the duplicate check against the record it corrects
+    (H-1068), judged at the correction's `recordedAt`, the server's time. What the correction says
+    meets every rule of rule 17 as a record made after the event, the member it names being
+    whoever gave the dose then: "refused" corrected to "given" is checked as a dose given then,
+    refused for a missing or unexplained amount, and flagged for review (or escalated urgently over
+    the maximum) where a dose about to be given would be refused, because refusing would leave a
+    false record and a dose given out of the history (#162 second clinical review; H-1067). A
+    correction whose new outcome records that a dose happened (given, taken by the person, given by
+    family) follows exactly the rules for a dose recorded after it was given (rule 17): a reason
+    of 20 characters or more, a time given strictly before the correction's `recordedAt`, the
+    corrector's competence, the named giver checked at the time given (and flagged when not the
+    corrector), and always the `given_before_recorded` flag, counted and escalated, urgently when a
+    rule was broken; so recording "refused" and correcting it to "given" never gets round that
+    route (#162 third review's re-check). Only the duplicate check against the record it corrects
     is left out, and that record is left out of the history (`checkCorrection`).
 24. **Controlled drugs register page** (`controlled-drugs.ts`). One page per person and dm+d VMP
     (drug, form and strength); entries in time order; movements receipt, administration, disposal,
@@ -577,7 +585,9 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   review and escalated; the route for a dose given before it was recorded (the reason's length, a
   time given before the server's time of recording, the recorder's and the giver's competence,
   every use flagged, counted and escalated, urgently when a rule is broken); competence and the override; closing a round; the row lock and
-  corrections checked as records made after the event, with the corrector's competence),
+  corrections checked as records made after the event, with the corrector's competence, and those
+  to a dose outcome by the rules for a dose recorded after it was given; a dose closer to the last
+  one than the schedule allows asked about, late or not),
   `mar-entry.test.ts` (a when-required entry with a limit), `controlled-drugs.test.ts` (page key;
   balance; corrections, including one of a detail that changes no quantity; witness rules by policy and
   service; a blank witness; destruction; stock checks).
@@ -713,7 +723,7 @@ schema, API, web or mobile changes in this slice.
 | `schedule.ts` | `SchedulePattern`, `RegularSchedule`, `checkSchedule`, `expandSchedule`, `MarDose`, `marCycle`, `marCycleContaining`, `clockChangesIn`, `describeSchedule`, `keepsCountFrom`, `ukDateOf`, `WEEKDAY_NAMES` | Rules 3 to 5 and 6a |
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDosesFrom`, `marEntryDoses`, `marEntryTimesBeforeRecorded`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
 | `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
-| `timing.ts` | `doseWindow`, `recordedTiming` (`RecordedTiming`), `earlyNeedsReason`, `scheduledDoseState`, `SCHEDULED_DOSE_WORDS`, `escalationAt`, `doseNotices`, `isTimeCritical`, `driftCorrectedTime` | Rules 14 to 16 |
+| `timing.ts` | `doseWindow`, `recordedTiming` (`RecordedTiming`), `earlyNeedsReason`, `closerThanScheduled`, `scheduledDoseState`, `SCHEDULED_DOSE_WORDS`, `escalationAt`, `doseNotices`, `isTimeCritical`, `driftCorrectedTime` | Rules 14 to 16 |
 | `intervals.ts` | `GivenDose`, `entryVersionIds`, `intervalConflicts`, `prnStatus`, `PRN_NOTICES`, `prnMaximumExceeded`, `prnDosesNotCounted`, `prnOutcomeDueAt`, `prnOutcomesOutstanding` | Rules 16, 19, 20 |
 | `competence.ts` | `medicinesCompetenceAt`, `checkCompetenceGate`, `CompetenceOverride` | Rules 21, 22 |
 | `dosing-record.ts` | `checkDosingRecordDraft`, `recordDosingRecord`, `checkDosingRecord`, `variableDoseFor` (`VariableDose`) | Rule 18 |
