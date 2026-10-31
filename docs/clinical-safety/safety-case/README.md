@@ -31,3 +31,4 @@ DCB0129 requires the manufacturer to produce a clinical safety case, and a clini
 | Version | Release | Status |
 | --- | --- | --- |
 | [v0.0](safety-case-v0.0-phase0.md) | Phase 0 foundations | Draft, awaiting CSO review |
+| [v0.1](safety-case-v0.1-phase1.md) | Phase 1 residential MVP | Draft, awaiting CSO review and sign-off (H-381) |
