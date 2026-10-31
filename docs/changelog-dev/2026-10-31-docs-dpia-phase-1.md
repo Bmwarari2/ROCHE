@@ -24,11 +24,11 @@ Branch `docs/dpia-phase-1`, PR not yet opened.
 
 ## What is next
 
-- Each tenant's DPO rates and signs the new risks in-app (H-381).
+- Each tenant's DPO rates and signs the new risks in-app (H-382).
 
 ## Human actions logged
 
-- H-381.
+- H-382.
 
 ## Tests
 

@@ -17,7 +17,7 @@ request of about 600 lines) or a gate item (needs its own slice).
 | Every hazard-log entry has a test | Met: 45 of 45 | Small: five verification statuses are stale; one planned test waits for the task screens |
 | Clinical safety case v0.1 drafted | Not met | Gate item: only v0.0 (Phase 0) exists |
 | Every Phase 1 register row `done` (section 19, definition of done) | Not met: 0 of 54 | Gate items: user guides for every row; web screens for 22 rows; 4 rows `todo` |
-| Data-protection documents current | Met (31 October 2026, `docs/dpia-phase-1`) | DPIA template section 7A and risks R13 to R19 added; data-standards rows for the eight tables added; the controller signs off per tenant (H-381) |
+| Data-protection documents current | Met (31 October 2026, `docs/dpia-phase-1`) | DPIA template section 7A and risks R13 to R19 added; data-standards rows for the eight tables added; the controller signs off per tenant (H-382) |
 
 ## 1. Maestro offline journey
 
@@ -204,7 +204,7 @@ follow-up pull request.
     with their code and document paths, expected residual risk and what the controller decides).
     `PHASE_1_RISKS` in `dpia.ts` puts R13 to R19 in every tenant's prefill, and `dpia.test.ts`
     checks their ids and wording against the template. Each tenant's DPO still rates and signs
-    them in-app (H-381); records of processing gained staff notification preferences.
+    them in-app (H-382); records of processing gained staff notification preferences.
 - [sub-processors.md](../compliance/sub-processors.md): last reviewed 11 October 2026, with SES, the
   SMS gateway and push for the family feed added that day. **Current** for Phase 1.
 
@@ -231,5 +231,5 @@ follow-up pull request.
    - candour, medical examiner and investigations (SAFE-007, 008, 010);
    - evidence pack composing and statement of purpose (QUAL-003, QUAL-009).
 5. Branding (PLAT-002) and role dashboards (INSI-001).
-6. The DPIA template's Phase 1 risks and measures (done, `docs/dpia-phase-1`; the controller's sign-off is H-381).
+6. The DPIA template's Phase 1 risks and measures (done, `docs/dpia-phase-1`; the controller's sign-off is H-382).
 7. A second demo tenant with a shared user, for the choose-organisation journey.
