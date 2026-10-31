@@ -2950,6 +2950,7 @@ person receiving care.
 | Design | Training and competence expiry reminders for HR at each document-expiry reminder day, once each, cancelled when the topic or competence is recorded again, none for leavers; workforce reminder tasks visible to holders of their permission | Built in Phase 2 slice 17 |
 | Design | The rota applies the rule when a shift is planned and again on the day (a check that lapses after planning blocks the shift), and shows the blockers on the rota | Slices 21, 27 and 59 |
 | Training and user documentation | Managers are told that an override is for exceptional cover, is reported, and cannot cover a missing right to work | Slice 59 |
+| Follow-up | E-learning completions (slice 43, ADR-0093) become training records as reported by content running in the member's browser; a member could mark their own attempt complete. Training records from e-learning carry the provider "Harbour e-learning: <title>"; competence (ADR-0085) is never satisfied by e-learning. Whether self-reported e-learning may satisfy a roster's training check is open (H-1013) | Open |
 
 **Target residual risk**: `[CSO rating - human action]`.
 

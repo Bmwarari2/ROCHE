@@ -46,3 +46,21 @@ variable "static_path_patterns" {
   type        = list(string)
   default     = ["/_next/static/*", "/static/*", "/favicon.ico"]
 }
+
+variable "frame_options_deny" {
+  description = "Send X-Frame-Options DENY on every response. False only for the e-learning content host, whose runtime page the app frames (ADR-0093); its own Content-Security-Policy frame-ancestors decides who may frame it."
+  type        = bool
+  default     = true
+}
+
+variable "referrer_policy" {
+  description = "Referrer-Policy sent on every response."
+  type        = string
+  default     = "strict-origin-when-cross-origin"
+}
+
+variable "permissions_policy" {
+  description = "Permissions-Policy sent on every response."
+  type        = string
+  default     = "camera=(self), microphone=(self), geolocation=(), payment=()"
+}

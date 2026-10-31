@@ -18,8 +18,9 @@ module "cert_cloudfront" {
     aws = aws.us_east_1
   }
 
-  domain_name     = local.hosts.web
-  route53_zone_id = var.route53_zone_id
+  domain_name               = local.hosts.web
+  subject_alternative_names = [local.hosts.learn]
+  route53_zone_id           = var.route53_zone_id
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -130,6 +131,23 @@ module "cdn" {
   web_acl_arn                = module.waf_cloudfront.arn
 }
 
+# The e-learning content origin (ADR-0093): its own distribution, so the app's runtime page can be
+# framed (no X-Frame-Options; the page's frame-ancestors names the app) and nothing is referred.
+# The web tier answers only `/learn` on this host; caching stays off as for the app.
+module "cdn_learn" {
+  source = "../cloudfront"
+
+  name                       = "${local.name_prefix}-learn"
+  aliases                    = [local.hosts.learn]
+  certificate_arn            = module.cert_cloudfront.certificate_arn
+  origin_domain_name         = module.alb.dns_name
+  origin_verify_header_value = random_password.origin_verify.result
+  web_acl_arn                = module.waf_cloudfront.arn
+  frame_options_deny         = false
+  referrer_policy            = "no-referrer"
+  permissions_policy         = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+}
+
 # ---------------------------------------------------------------------------------------------
 # DNS (only when the hosted zone is managed in this account)
 # ---------------------------------------------------------------------------------------------
@@ -149,6 +167,20 @@ resource "aws_route53_record" "web" {
   alias {
     name                   = module.cdn.domain_name
     zone_id                = module.cdn.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "learn" {
+  for_each = local.manage_dns ? toset(["A", "AAAA"]) : toset([])
+
+  zone_id = var.route53_zone_id
+  name    = local.hosts.learn
+  type    = each.key
+
+  alias {
+    name                   = module.cdn_learn.domain_name
+    zone_id                = module.cdn_learn.hosted_zone_id
     evaluate_target_health = false
   }
 }

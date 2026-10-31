@@ -83,6 +83,8 @@ overrides below); every override is versioned, audited and needs a recorded reas
 | `task` of kind `workforce.compliance_expiry` (staff check expiry reminders) | staff_file, as the compliance item it concerns |
 | `training_record`, `competence` | training_record |
 | `competence_sign_off`, `competence_withdrawal`, `revalidation_evidence` (slice 17) | training_record |
+| `elearning_attempt`, `elearning_statement` (slice 43) | training_record |
+| `elearning_course` and its `document` of category `elearning_package` (slice 43) | organisation_document (organisation material, not personal data) |
 | `supervision_record` (slice 17) | staff_file (tenant's chosen row) |
 | `training_requirement` (slice 17) | tenant configuration, kept while current; each change kept in `record_version` |
 | `task` of kind `workforce.training_expiry` or `workforce.competence_expiry` | training_record, as the record it concerns |

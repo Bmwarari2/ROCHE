@@ -307,6 +307,7 @@ module "svc_web" {
     HOSTNAME                = "0.0.0.0"
     API_BASE_URL            = "https://${local.hosts.api}"
     PUBLIC_WEB_URL          = "https://${local.hosts.web}"
+    ELEARNING_ORIGIN        = "https://${local.hosts.learn}"
     TRUSTED_PROXY_CIDRS     = join(",", local.trusted_proxy_cidrs)
     NEXT_TELEMETRY_DISABLED = "1"
   }
@@ -318,7 +319,7 @@ module "svc_web" {
   load_balancer = {
     listener_arn          = module.alb.https_listener_arn
     security_group_id     = module.alb.security_group_id
-    host_headers          = [local.hosts.web]
+    host_headers          = [local.hosts.web, local.hosts.learn]
     priority              = 30
     health_check_path     = var.web_health_check_path
     required_header_name  = "X-Harbour-Origin-Verify"

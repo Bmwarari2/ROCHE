@@ -33,13 +33,16 @@ resource "aws_cloudfront_response_headers_policy" "this" {
       override = true
     }
 
-    frame_options {
-      frame_option = "DENY"
-      override     = true
+    dynamic "frame_options" {
+      for_each = var.frame_options_deny ? [1] : []
+      content {
+        frame_option = "DENY"
+        override     = true
+      }
     }
 
     referrer_policy {
-      referrer_policy = "strict-origin-when-cross-origin"
+      referrer_policy = var.referrer_policy
       override        = true
     }
   }
@@ -47,7 +50,7 @@ resource "aws_cloudfront_response_headers_policy" "this" {
   custom_headers_config {
     items {
       header   = "Permissions-Policy"
-      value    = "camera=(self), microphone=(self), geolocation=(), payment=()"
+      value    = var.permissions_policy
       override = true
     }
   }

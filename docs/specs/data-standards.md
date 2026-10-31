@@ -684,6 +684,23 @@ names.
 | `revalidation_evidence` | NMC revalidation requirements | Hours and counts (whole numbers); booleans for the reflective discussion, health and character declaration, professional indemnity and confirmation | Against the `nmc.revalidation.*` rates |
 | Outbox `workforce.competence.changed` | Harbour | `memberId`, `competence`, `change` (`signed_off`, `withdrawn`), `validUntil` | For medicines and scheduling (ADR-0085) |
 
+## Workforce: e-learning (Phase 2, slice 43)
+
+Code lists for [workforce.md](workforce.md) section 14 (migration 0112; ADR-0093). SCORM 1.2 and
+2004 (ADL) and xAPI 1.0.3 (ADL) define the data model and statements; Harbour keeps the subset
+below, exported with these names.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `elearning_course.standard` | ADL SCORM, xAPI | `scorm_1_2`, `scorm_2004`, `xapi` | From the manifest's schema version, or `tincan.xml` |
+| `elearning_course.topic`, `tier` | `TRAINING_TOPICS` (rule 5) | As `training_record` | What a completion records |
+| `elearning_course.launch_path`, `launch_query` | IMS content packaging `href` | A relative path inside the package (no `..`, no leading slash), at most 240 characters; query at most 500 | |
+| `elearning_attempt.status` | SCORM `lesson_status`; `completion_status` and `success_status`; xAPI verbs | `in_progress`, `completed`, `passed`, `failed` | Only moves forward |
+| `elearning_attempt.score` | `cmi.core.score.*` (1.2), `cmi.score.scaled` (2004), xAPI `result.score.scaled` | 0 to 1, four decimal places | |
+| `elearning_attempt.location`, `suspend_data` | `cmi.core.lesson_location` / `cmi.location`; `cmi.suspend_data` | At most 1,000 and 64,000 characters | To resume |
+| `elearning_attempt.total_seconds` | `cmi.core.session_time` (HHHH:MM:SS.SS), `cmi.session_time` (ISO 8601 duration) | Whole seconds | Counted when the content finishes |
+| `elearning_statement.statement` | xAPI statement | JSON, at most 16 KB | Kept as sent, once per `statement_id` |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

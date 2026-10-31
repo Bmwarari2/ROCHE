@@ -19,6 +19,8 @@ locals {
     api   = "api.${var.domain_name}"
     sync  = "sync.${var.domain_name}"
     flags = "flags.${var.domain_name}"
+    # The e-learning content origin (ADR-0093): another site, served by the web tier.
+    learn = "learn.${var.domain_name}"
   }
 
   default_sizes = {

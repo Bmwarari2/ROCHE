@@ -91,6 +91,7 @@ output "manual_dns_records" {
     certificate_validation = concat(module.cert_regional.domain_validation_records, module.cert_cloudfront.domain_validation_records)
     aliases = concat(
       [{ name = local.hosts.web, type = "CNAME", value = module.cdn.domain_name }],
+      [{ name = local.hosts.learn, type = "CNAME", value = module.cdn_learn.domain_name }],
       [for h in local.alb_hosts : { name = local.hosts[h], type = "CNAME", value = module.alb.dns_name }],
     )
     email = module.ses.dns_records

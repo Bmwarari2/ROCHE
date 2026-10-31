@@ -437,3 +437,77 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
+
+## 14. E-learning runtime (slice 43, migration 0112; ADR-0093)
+
+Register row WORK-006. SCORM 1.2, SCORM 2004 and xAPI packages run on a separate content origin;
+completions become slice 17 training records. The decision, its threat model and the options are
+in [ADR-0093](../decisions/0093-elearning-runtime.md).
+
+### 14.1 Records
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `elearning_course` | `title`, `topic` and `tier` (what a completion records), `standard`, `document_id` (the `elearning_package` document), `package_sha256`, `launch_path` and `launch_query` (from the manifest), `package_identifier`, `file_count`, `unpacked_bytes`, `status` (`active`, `retired`) | Read by staff and training leads; written by `workforce.training.manage`; mutable with history, never deleted |
+| `elearning_attempt` | `course_id`, `worker_id`, `status` (`in_progress`, `completed`, `passed`, `failed`), `score` (0 to 1), `location`, `suspend_data` (to resume), `total_seconds`, `finished_at`, `training_record_id` | The member's own (started, resumed and saved by them); read by those who read development records; keeps its member and course; only the system links the training record; a completion or pass is never taken back |
+| `elearning_statement` | `attempt_id`, `statement_id` (once per attempt), `verb`, `statement` (as sent, at most 16 KB) | Append-only; the member's own attempt |
+
+### 14.2 Rules (`packages/domain/src/workforce/elearning.ts`, table-driven tests)
+
+1. A package is checked from its central directory before anything is unpacked: entry names
+   (`entryNameProblem`), links, encryption, compression method, file types (`contentTypeOf`),
+   duplicates, counts and sizes, and the unpacked-to-packed ratio (`archiveProblem`,
+   `ARCHIVE_LIMITS`: 5,000 entries, 500 MB, 200 MB an entry, 100 times).
+2. The launch page is the manifest's, resolved under the package (`launchPathOf`): SCORM from the
+   default organisation's first item with a resource (`xml:base` honoured), xAPI from
+   `tincan.xml`. It must be an HTML file the package holds.
+3. Only `CMI_ELEMENTS` are kept, each bounded (`cmiProblem`); the outcome comes from
+   `lesson_status` (1.2) or `success_status` then `completion_status` (2004), with the score
+   scaled 0 to 1 (`attemptOutcome`). xAPI completed, passed and failed verbs settle an xAPI
+   course (`xapiOutcome`).
+4. An attempt's status only moves forward (`nextAttemptStatus`); a completion or pass makes one
+   training record (`completesTraining`); a fail never does.
+5. Session time counts when the content finishes (`sessionSeconds`).
+
+### 14.3 Permissions
+
+| Action | Permission | Database |
+| --- | --- | --- |
+| Add a course from a package, retire one, see every attempt | `workforce.training.manage` | Course insert and update policies; attempts read through `app.reads_development` |
+| See active courses, start or resume one's own attempt, save it | `workforce.self.read` | Own attempts only (`app.reads_own_development`); the member never writes a training record |
+| Read a course's files and send its statements (the content origin) | A launch token for that attempt (no session) | Read and written as the token's member, who must still hold a staff role |
+
+### 14.4 API and web
+
+- `GET`/`POST /v1/workforce/elearning/courses`, `POST .../courses/{id}/retire`,
+  `GET`/`POST .../courses/{id}/attempts`, `PATCH /v1/workforce/elearning/attempts/{id}`;
+  `GET /e/launch/{token}/files/{path}` and `POST /e/launch/{token}/statements` (no session).
+  Audited: course added (or refused, with the problem code) and retired, attempt started and
+  completed, with ids only.
+- Web: `/training/elearning` (courses; add and retire for training leads), the player at
+  `/training/elearning/{id}`, the upload route `/api/elearning/upload` (titles in headers), and the
+  content origin's `/learn/{token}` (runtime page, its script, package files, xAPI statements).
+
+### 14.5 Offline (mobile slice 72)
+
+Not built. The phone would need the stored archive, the allowlisted file list and a local runtime
+page under its own origin, with commits queued like other entries; statements and completions
+would sync on reconnect (H-1018).
+
+### 14.6 Tests
+
+`packages/domain/src/workforce/elearning.test.ts`, `packages/db/test/elearning.test.ts`,
+`apps/api/test/elearning-package.test.ts`, `apps/api/test/elearning.test.ts`,
+`apps/web/src/lib/elearning.test.ts`, `apps/web/src/lib/elearning-runtime.test.ts`,
+`apps/web/e2e/elearning.spec.ts` (a real SCORM package through the runtime to a training record,
+with axe in light and dark).
+
+### 14.7 Known gaps
+
+| Gap | To close |
+| --- | --- |
+| A completion is self-reported by content in the member's browser | Optional confirmation by a training lead per course (H-1013) |
+| xAPI state and activity profile documents are not kept, so xAPI content cannot resume | A small state store per attempt, if courses need it (H-1016) |
+| SCORM interactions, objectives and comments are not kept | Only if a course's reporting needs them (H-1016) |
+| Files are read out of the stored archive on each request (with a small in-memory cache) | Unpack checked files to the document store per package, if load needs it |
+| Offline courses on the phone | Mobile slice 72 (H-1018) |
