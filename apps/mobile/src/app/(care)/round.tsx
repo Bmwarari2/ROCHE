@@ -52,7 +52,8 @@ export default function RoundScreen() {
   const tenantId = useTenantId();
   const moveTask = useMoveTask();
   const now = useMinute();
-  const params = useMemo(() => [tenantId], [tenantId]);
+  // The member first: an entry saved here answers a task for them (answered-tasks.ts).
+  const params = useMemo(() => [me?.tenantUserId ?? "", tenantId], [me?.tenantUserId, tenantId]);
   const { data: rows, isLoading } = useQuery<RoundTaskRow>(ROUND_TASKS_SQL, params);
   const taskRefusal = useTaskRefusal();
   const daysParams = useMemo(() => [OFFLINE_DAYS_META_ID], []);

@@ -653,10 +653,6 @@ export const ALERT_REASON_CODES = [
   "iddsi_unsafe_level",
 ] as const;
 
-/**
- * The trigger code of a care result from its observation's stored flags: an IDDSI alert by its
- * problem, otherwise a NEWS2 threshold; undefined when the flags say neither.
- */
 /** NEWS2 bands as stored on an observation's flags (`news2.band`). */
 const NEWS2_BANDS: ReadonlySet<string> = new Set(["low", "low_medium", "medium", "high"]);
 
@@ -676,6 +672,10 @@ export function alertNews2FromFlags(
     : undefined;
 }
 
+/**
+ * The trigger code of a care result from its observation's stored flags: an IDDSI alert by its
+ * problem, otherwise a NEWS2 threshold; undefined when the flags say neither.
+ */
 export function alertReasonFromFlags(flags: unknown): string | undefined {
   if (typeof flags !== "object" || flags === null) return undefined;
   const f = flags as { iddsiAlert?: unknown; iddsiProblem?: unknown; news2?: unknown };

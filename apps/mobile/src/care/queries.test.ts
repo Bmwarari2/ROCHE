@@ -278,7 +278,7 @@ describe("hazard HZ-006 refused uploads on the device", () => {
 describe("the demo round (demo mode only)", () => {
   it("seeds one task of each state the round words, each markable by the demo member", () => {
     const seeded = new Date("2026-10-11T09:00:00Z");
-    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", DEMO_TENANT_ID]);
     const items = roundItems(rows, seeded);
     expect(items.map((i) => [i.timing, i.action, i.row.from_earlier_plan])).toEqual([
       ["overdue", "mark", 0],
@@ -350,7 +350,7 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
       "Turned.",
       "t-evidence",
     );
-    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", DEMO_TENANT_ID]);
     expect(rows.map((r) => [r.id, r.evidence_waiting, r.from_earlier_plan])).toEqual([
       ["t-bare", 0, 0],
       ["t-due", 0, 1],
@@ -360,7 +360,7 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
       given_name: demoPeople[0]?.given_name,
       person_location_id: DEMO_LOCATION_ID,
     });
-    expect(all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [OTHER]).map((r) => r.id)).toEqual([
+    expect(all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", OTHER]).map((r) => r.id)).toEqual([
       "t-other",
     ]);
     db.prepare("DELETE FROM task").run();
@@ -377,7 +377,7 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
     issue.run("i-1", DEMO_TENANT_ID, ADA, "observation", JSON.stringify({ task_id: "t-refused" }));
     issue.run("i-2", DEMO_TENANT_ID, ADA, "task", JSON.stringify({ task_id: "t-refused" }));
     issue.run("i-3", DEMO_TENANT_ID, ADA, "care_note", "not json");
-    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, [DEMO_TENANT_ID]);
+    const rows = all<RoundTaskRow>(db, queries.ROUND_TASKS_SQL, ["me", DEMO_TENANT_ID]);
     expect(rows.map((r) => [r.id, r.evidence_refused])).toEqual([["t-refused", 1]]);
     db.prepare("DELETE FROM upload_issue WHERE id IN ('i-1', 'i-2', 'i-3')").run();
     db.prepare("DELETE FROM task").run();
@@ -413,20 +413,23 @@ describe("hazard HZ-029 hazard HZ-004 a route's task is used only when this devi
   });
   const find = (taskId: string, personId: string) =>
     all<{ id: string; title: string | null }>(db, queries.ROUND_TASK_FOR_PERSON_SQL, [
+      "me",
       DEMO_TENANT_ID,
       taskId,
       personId,
     ]);
 
   it("finds the task for its own person, with its synced title", () => {
-    expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([{ id: TASK, title: "Reposition" }]);
+    expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([
+      expect.objectContaining({ id: TASK, title: "Reposition", answered_state: "none" }),
+    ]);
   });
 
   it("refuses it for another person, once closed, once marked here, or in another organisation", () => {
     expect(find(TASK, demoPeople[1]?.id ?? "")).toEqual([]);
     expect(find("no-such-task", demoPeople[0]?.id ?? "")).toEqual([]);
     expect(
-      all(db, queries.ROUND_TASK_FOR_PERSON_SQL, [OTHER, TASK, demoPeople[0]?.id ?? ""]),
+      all(db, queries.ROUND_TASK_FOR_PERSON_SQL, ["me", OTHER, TASK, demoPeople[0]?.id ?? ""]),
     ).toEqual([]);
     db.prepare("UPDATE task SET queued_transition = '{}' WHERE id = ?").run(TASK);
     expect(find(TASK, demoPeople[0]?.id ?? "")).toEqual([]);

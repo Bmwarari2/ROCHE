@@ -255,7 +255,7 @@ describe("hazard HZ-018 every urgent alert a summary names is worded for what it
       "Urgent alert raised: NEWS2 score 7, high clinical risk",
     );
     expect(words({ scored: "yes", score: 3, band: "low_medium" })).toBe(
-      "Urgent alert raised: NEWS2 score 3, low-medium clinical risk",
+      "Urgent alert raised: NEWS2 score 3, low-medium clinical risk, because a single parameter scored 3",
     );
     // Compiled before alerts carried the score.
     expect(words({})).toBe(
