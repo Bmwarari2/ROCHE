@@ -4,8 +4,8 @@
  *
  * A 401 always means the session has ended. A 403 is read from its RFC 9457 problem body:
  *
- * - a session code (`not_a_member`, `mfa_enrolment_required`, `step_up_required`): the session
- *   has ended;
+ * - a session code (`not_a_member`, `mfa_enrolment_required`, `mfa_verification_required`,
+ *   `step_up_required`): the session has ended;
  * - any other code the API sends (`missing_permission`, `feature_disabled`, or one this build does
  *   not know): on the sync token, the access Care mode needs has been withdrawn, so the device holds
  *   its unsent work (or wipes when there is none); on a single entry, that entry was refused;
@@ -18,6 +18,9 @@
 export const SESSION_PROBLEM_CODES: ReadonlySet<string> = new Set([
   "not_a_member",
   "mfa_enrolment_required",
+  // A factor is enrolled but this session did not use one (ADR-0072, HZ-112): sign in again with
+  // it, keeping unsent entries under the hold rules, rather than reading it as access withdrawn.
+  "mfa_verification_required",
   "step_up_required",
 ]);
 
