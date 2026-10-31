@@ -45,6 +45,26 @@ const STARTER = {
 } as const;
 
 /**
+ * A second organisation with its own home and one invented resident, and a coordinator who works
+ * for both it and the demo organisation, for the choose-organisation journey (shown only to
+ * someone in more than one organisation) and its isolation check: whichever organisation they
+ * choose, the other's residents never appear. Its own sign-in, so every other demo user keeps one
+ * organisation. Local testing only, with HARBOUR_DEMO_E2E_PASSKEY=1. Invented names, an
+ * example.invalid address and an NHS number in the 999 range.
+ */
+const SHARED = {
+  email: "shared.coordinator@example.invalid",
+  name: "Rowan Shared",
+  /** Their membership in the demo organisation: a care coordinator at Harbour House. */
+  demoMemberId: "0194d000-0000-7000-8000-000000000306",
+  tenantId: "0194f100-0000-7000-8000-000000000001",
+  locationId: "0194f100-0000-7000-8000-000000000101",
+  memberId: "0194f100-0000-7000-8000-000000000301",
+  roleId: "0194f100-0000-7000-8000-000000000401",
+  personId: "0194f100-0000-7000-8600-000000000001",
+} as const;
+
+/**
  * The family portal account for the end-to-end journeys (comms.md section 2.1): the invented
  * relative already on Ada Example's record as her next of kin, linked to that contact with the
  * family representative role alone. A portal session always needs MFA, so it gets the
@@ -192,6 +212,99 @@ async function seedStarterOrganisation(): Promise<string> {
   return authUserId;
 }
 
+/**
+ * The second organisation, its home and resident, and the shared coordinator's sign-in with a
+ * membership in each organisation; rerunnable. MFA follows HARBOUR_DEMO_MFA, as for the demo users.
+ */
+async function seedSharedCoordinator(): Promise<void> {
+  const { email, name } = SHARED;
+  try {
+    await services.auth.api.signUpEmail({ body: { email, password, name } });
+  } catch {
+    // Already there from an earlier run.
+  }
+  const { rows } = await services.authPool.query<{ id: string }>(
+    "UPDATE auth.user SET email_verified = true WHERE email = $1 RETURNING id",
+    [email],
+  );
+  const authUserId = rows[0]?.id;
+  if (!authUserId) throw new Error("Could not create or find the shared coordinator");
+  const mfaRequired = process.env.HARBOUR_DEMO_MFA !== "off";
+  const client = await owner.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [SHARED.tenantId],
+    );
+    await client.query(
+      `INSERT INTO tenant (id, name, legal_name, legal_form, status)
+       VALUES ($1, 'Second Example Care', 'Second Example Care Ltd', 'limited_company', 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [SHARED.tenantId],
+    );
+    await client.query(
+      "INSERT INTO location (id, name) VALUES ($1, 'Second Example House') ON CONFLICT (id) DO NOTHING",
+      [SHARED.locationId],
+    );
+    await client.query(
+      `INSERT INTO person (id, location_id, status, given_name, family_name, date_of_birth,
+                           nhs_number, allergy_status)
+       VALUES ($1, $2, 'active', 'Bea', 'Elsewhere', '1941-05-06', '9990002002',
+               'no_known_allergies')
+       ON CONFLICT (id) DO NOTHING`,
+      [SHARED.personId, SHARED.locationId],
+    );
+    await client.query(
+      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status, mfa_required)
+       VALUES ($1, $2, $3, $4, 'active', $5)
+       ON CONFLICT (id) DO UPDATE SET auth_user_id = EXCLUDED.auth_user_id,
+                                      mfa_required = EXCLUDED.mfa_required`,
+      [SHARED.memberId, authUserId, name, email, mfaRequired],
+    );
+    await client.query(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'second_coordinator', 'Care coordinator', 'tenant', '{people.person.read}')
+       ON CONFLICT (id) DO NOTHING`,
+      [SHARED.roleId],
+    );
+    await client.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, reason)
+       SELECT $1, $2, 'Demo seed'
+        WHERE NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+      [SHARED.memberId, SHARED.roleId],
+    );
+    await client.query("COMMIT");
+
+    // The same person's membership in the demo organisation, at Harbour House only.
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.tenant_id', $1, true), set_config('app.scope', 'tenant', true)",
+      [DEMO.tenantId],
+    );
+    await client.query(
+      `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status, mfa_required)
+       VALUES ($1, $2, $3, $4, 'active', $5)
+       ON CONFLICT (id) DO UPDATE SET auth_user_id = EXCLUDED.auth_user_id,
+                                      mfa_required = EXCLUDED.mfa_required`,
+      [SHARED.demoMemberId, authUserId, name, email, mfaRequired],
+    );
+    await client.query(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, reason)
+       SELECT $1, id, $2, 'Demo seed' FROM role WHERE key = 'care_coordinator'
+         AND NOT EXISTS (SELECT 1 FROM role_assignment WHERE tenant_user_id = $1)`,
+      [SHARED.demoMemberId, DEMO.locationId],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  console.log("Second Example Care and its shared coordinator are in place (local testing only)");
+}
+
 /** The family member's sign-in, verified email, portal-only membership and link; rerunnable. */
 async function seedFamilyMember(): Promise<string> {
   const { email, name } = FAMILY_MEMBER;
@@ -292,6 +405,7 @@ try {
   if (process.env.HARBOUR_DEMO_E2E_PASSKEY === "1") {
     passkeyHolders.push(["family", await seedFamilyMember()]);
     passkeyHolders.push(["starter", await seedStarterOrganisation()]);
+    await seedSharedCoordinator();
   }
   for (const [key, authUserId] of passkeyHolders) {
     const passkey = e2ePasskey(key);

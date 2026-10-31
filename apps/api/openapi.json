@@ -1186,12 +1186,22 @@
             "items": {
               "$ref": "#/components/schemas/RecordVersion"
             }
+          },
+          "latestChanged": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "table",
           "recordId",
-          "versions"
+          "versions",
+          "latestChanged"
         ],
         "description": "Human-readable history of a mutable record"
       },

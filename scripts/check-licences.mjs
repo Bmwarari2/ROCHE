@@ -34,6 +34,10 @@ const EXCEPTIONS = new Map([
     "spawndamnit",
     "MIT per its repository LICENCE file; the published package omits the field (dev tool of Changesets)",
   ],
+  [
+    "parse-cache-control",
+    "BSD-3-Clause per its LICENSE file; the package field says only BSD (dev tool: Lighthouse CI)",
+  ],
 ]);
 
 function allowed(expression) {
