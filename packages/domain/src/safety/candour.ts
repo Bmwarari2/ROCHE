@@ -168,6 +168,59 @@ export function candourStepProblems(to: CandourState, record: CandourRecordView)
   return problems;
 }
 
+/** The shortest reason for a threshold decision that differs from Harbour's finding (HZ-091). */
+export const CANDOUR_REASON_MIN = 20;
+
+/** What Harbour found about the duty of candour on the answers recorded, before any decision. */
+export type CandourFinding = "notifiable" | "notNotifiable" | "waiting";
+
+/**
+ * Harbour's finding from a classification made before any threshold decision: a candour output
+ * (it may be notifiable), waiting for answers, or excluded (not notifiable). Null otherwise. Once
+ * a decision is recorded the classifier follows it, so the finding is read only before one.
+ */
+export function candourFindingOf(
+  result: {
+    readonly outputs: readonly { readonly kind: string }[];
+    readonly pending: readonly { readonly kind: string }[];
+    readonly exclusions: readonly { readonly kind: string }[];
+  } | null,
+): CandourFinding | null {
+  if (!result) return null;
+  if (result.outputs.some((o) => o.kind === "candour")) return "notifiable";
+  if (result.pending.some((p) => p.kind === "candour")) return "waiting";
+  if (result.exclusions.some((e) => e.kind === "candour")) return "notNotifiable";
+  return null;
+}
+
+/**
+ * Whether a threshold decision needs a confirmation and a reason (#120 review M4, round 2 M3): it
+ * changes a decision already recorded, or it differs from Harbour's finding.
+ */
+export function candourDecisionNeedsReason(
+  notifiable: boolean,
+  finding: CandourFinding | null,
+  previous: boolean | null,
+): boolean {
+  if (previous !== null) return previous !== notifiable;
+  return (finding === "notifiable" && !notifiable) || (finding === "notNotifiable" && notifiable);
+}
+
+/** What a decision that needs a reason still lacks: the reason, and the confirmation. */
+export function candourReasonProblems(
+  reason: string | null | undefined,
+  confirmed: boolean | null | undefined,
+): string[] {
+  const problems: string[] = [];
+  if ((reason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
+    problems.push(
+      `Say why in at least ${CANDOUR_REASON_MIN} characters: the decision differs from Harbour's finding or changes the one recorded.`,
+    );
+  }
+  if (confirmed !== true) problems.push("Confirm the decision.");
+  return problems;
+}
+
 export interface CandourClocks {
   /** "As soon as reasonably practicable": shown as due from the moment the clock starts. */
   readonly verbalDueAt: Date;

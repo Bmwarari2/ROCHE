@@ -104,7 +104,10 @@ export interface CandourCloseFacts {
    * a candour notification not marked not required and not flagged no longer indicated.
    */
   readonly indicated: boolean;
-  /** The candour record's threshold decision, or null when none is recorded. */
+  /**
+   * The candour record's threshold decision, or null when none is recorded. Kept for the record:
+   * a decision covers only the person it names, so it never clears anyone else (#120 round 2, M1).
+   */
   readonly notifiable: boolean | null;
   /** The candour record's relevant person, or null. */
   readonly personId: string | null;
@@ -133,30 +136,29 @@ export interface CandourCloseBlock {
   /** The candour record is not finished. */
   readonly open: boolean;
   /**
-   * People we support the duty applies to who have no finished candour record of their own:
-   * one record covers one relevant person, so with two or more people affected every one but a
-   * finished record's person is still to be told (review H1; one record per person to follow).
+   * People affected who have no finished candour record of their own, once a record exists. One
+   * record covers one relevant person, the one it names, whatever it decided ("not notifiable"
+   * included): everyone else affected is still to be told, whether one person was affected or
+   * several (#120 review H1, round 2 M1 and M2; one record per person to follow).
    */
   readonly stillToTell: readonly string[];
 }
 
 /**
- * Whether the duty of candour lets an incident close (HZ-013). It applies once Harbour found it
- * may (`indicated`) or the threshold decision says notifiable, unless the record was finished as
- * not notifiable. It then needs a finished record, for every person affected.
+ * Whether the duty of candour lets an incident close (HZ-013). With no record, it waits where
+ * Harbour found the duty may apply (`indicated`). Once a record exists it must be finished, and
+ * it covers only the person it names, so every other person affected is still to be told.
  */
 export function candourCloseBlock(
   candourState: string | null,
   candour: CandourCloseFacts,
 ): CandourCloseBlock {
   const finished = candourState !== null && CANDOUR_FINISHED_STATES.includes(candourState);
-  const applies =
-    candourState !== "not_notifiable" && (candour.indicated || candour.notifiable === true);
   return {
-    noRecord: applies && candourState === null,
+    noRecord: candour.indicated && candourState === null,
     open: candourState !== null && !finished,
     stillToTell:
-      applies && candour.people.length > 1
+      candourState !== null
         ? candour.people.filter((p) => !(finished && p === candour.personId))
         : [],
   };
@@ -188,7 +190,7 @@ export function incidentCloseProblems(view: IncidentCloseView): string[] {
   }
   if (candour.stillToTell.length > 0) {
     problems.push(
-      "The duty of candour applies to more than one person: one candour record covers one person, so each must be told before closing.",
+      "Someone affected has no finished duty of candour record of their own: one candour record covers only the person it names, so each person affected must be told before closing.",
     );
   }
   return problems;

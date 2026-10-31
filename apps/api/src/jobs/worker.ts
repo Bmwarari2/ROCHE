@@ -19,6 +19,7 @@ import {
   materialiseTaskSeries,
   outboxHandlers,
   processDeliveries,
+  raiseCandourBlocked,
   raiseCareReviews,
   raiseReviews,
   relayOutbox,
@@ -69,6 +70,7 @@ const QUEUES = {
   dolsExpiry: "dols-expiry-reminders",
   statutoryNotifications: "statutory-notification-escalations",
   outbreaks: "outbreak-detection",
+  candourBlocked: "candour-blocked-incidents",
   peopleReviews: "people-reviews",
   breakGlassReport: "break-glass-weekly-report",
   planTasks: "care-plan-rounds",
@@ -122,6 +124,9 @@ await work(QUEUES.statutoryNotifications, async () => {
 });
 await work(QUEUES.outbreaks, async () => {
   await detectOutbreaks(deps);
+});
+await work(QUEUES.candourBlocked, async () => {
+  await raiseCandourBlocked(deps);
 });
 await work(QUEUES.peopleReviews, async () => {
   await raiseReviews(deps);
@@ -183,6 +188,7 @@ await boss.schedule(QUEUES.statutoryNotifications, "* * * * *");
 // classification that runs whenever an infection incident is recorded.
 await boss.schedule(QUEUES.dolsExpiry, "13 * * * *");
 await boss.schedule(QUEUES.outbreaks, "19 * * * *");
+await boss.schedule(QUEUES.candourBlocked, "41 * * * *");
 // Hourly: people reviews fall due by the day; each raises one task, once.
 await boss.schedule(QUEUES.peopleReviews, "29 * * * *");
 // Daily in the small hours: the week before is reported once it has ended (Monday), and a missed

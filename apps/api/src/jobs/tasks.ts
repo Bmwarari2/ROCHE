@@ -43,6 +43,7 @@ import {
   detectLocationOutbreaks,
   escalateOverdueNotifications,
   NOTIFICATION_UNROUTED_ACTION,
+  raiseCandourBlockedTasks,
 } from "../services/safety";
 import { escalateOverdueStatements } from "../services/statement-of-purpose";
 import { tellAboutNotice } from "../services/sub-processors";
@@ -471,6 +472,22 @@ export async function escalateStatutoryNotifications(
   );
   if (escalated > 0) deps.logger.info({ escalated }, "overdue statutory notifications escalated");
   return escalated;
+}
+
+/**
+ * Incidents the duty of candour has held open for longer than the organisation's period
+ * (`candour.close_blocked_days`): one urgent task each for the Registered Manager, escalated by the
+ * task engine (#120 review round 2, M4; HZ-013).
+ */
+export async function raiseCandourBlocked(deps: TaskDeps, now = new Date()): Promise<number> {
+  const raised = await eachTenant(deps, "candour-blocked", (tx, tenantId) =>
+    raiseCandourBlockedTasks(tx, tenantId, now, () =>
+      // Opaque ids only: which tenant has no figure for the period.
+      deps.logger.warn({ tenantId }, "candour blocked tasks not raised: no rate-table figure"),
+    ),
+  );
+  if (raised > 0) deps.logger.info({ raised }, "incidents held open by the duty of candour");
+  return raised;
 }
 
 /** Outbreak detection across each location's infection cases (safety.md rule 7). */

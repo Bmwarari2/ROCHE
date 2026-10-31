@@ -26,6 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   detectOutbreaks,
   escalateStatutoryNotifications,
+  raiseCandourBlocked,
   reportUnroutedDaily,
   runEscalations,
   type TaskDeps,
@@ -962,7 +963,7 @@ describe("duty of candour and investigations", () => {
     });
     await finishWithoutContact(incident.id, resident(4));
     expect(await closeDetail(incident.id)).toContain(
-      "The duty of candour applies to more than one person",
+      "Someone affected has no finished duty of candour record of their own",
     );
   });
 
@@ -1045,6 +1046,184 @@ describe("duty of candour and investigations", () => {
       version,
     });
     expect(saved.status).toBe(200);
+  });
+
+  const harmed = (people: readonly Record<string, unknown>[], occurredAt = ago(30 * MIN)) =>
+    created("manager", {
+      type: "medication",
+      occurredAt,
+      people,
+      answers: [
+        { key: "candour.unintended_or_unexpected", value: "yes" },
+        { key: "harm.body_structure_changed", value: "yes" },
+      ],
+    });
+  const reason = "The GP reviewed it and found no lasting harm.";
+
+  it("hazard HZ-013 a not-notifiable decision covers only the person it names (round 2 M1)", async () => {
+    const incident = await harmed([affected(4), affected(5)]);
+    let view = await json<CandourView>(
+      await candour(incident.id, {
+        personId: resident(4),
+        threshold: { notifiable: false, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+        thresholdReason: reason,
+        thresholdConfirmed: true,
+        version: 0,
+      }),
+    );
+    view = await json<CandourView>(
+      await candour(
+        incident.id,
+        { to: "not_notifiable", reason, confirmed: true, version: view.record?.version },
+        "POST",
+      ),
+    );
+    expect(view.record?.state).toBe("not_notifiable");
+    expect(await closeDetail(incident.id)).toContain(
+      "Someone affected has no finished duty of candour record of their own",
+    );
+  });
+
+  it("hazard HZ-013 the relevant person is one of the people affected (round 2 M2)", async () => {
+    const incident = await harmed([
+      affected(4),
+      { kind: "service_user", role: "involved", personId: resident(5) },
+    ]);
+    const other = await candour(incident.id, {
+      personId: resident(5),
+      threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+      version: 0,
+    });
+    expect(other.status).toBe(422);
+    expect((await json<{ detail: string }>(other)).detail).toBe(
+      "The relevant person must be one of the people affected.",
+    );
+    // With nobody named, the record does not move on.
+    const unnamed = await json<CandourView>(
+      await candour(incident.id, {
+        threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+        version: 0,
+      }),
+    );
+    const step = await candour(
+      incident.id,
+      { to: "verbal_due", version: unnamed.record?.version },
+      "POST",
+    );
+    expect(step.status).toBe(422);
+    expect((await json<{ detail: string }>(step)).detail).toBe(
+      "Choose who it happened to, from the people affected, before moving the record on.",
+    );
+  });
+
+  it("hazard HZ-091 a decision against Harbour's finding, or a changed one, needs a reason and a tick in the API (round 2 M3)", async () => {
+    const incident = await harmed([affected(4)]);
+    const decision = (notifiable: boolean) => ({
+      notifiable,
+      decidedAt: new Date().toISOString(),
+      decidedBy: "A GP",
+    });
+    const bare = await candour(incident.id, {
+      personId: resident(4),
+      threshold: decision(false),
+      thresholdReason: "No harm.",
+      version: 0,
+    });
+    expect(bare.status).toBe(422);
+    expect((await json<{ detail: string }>(bare)).detail).toBe(
+      "Say why in at least 20 characters: the decision differs from Harbour's finding or changes the one recorded. Confirm the decision.",
+    );
+    // Agreeing with Harbour needs no reason.
+    const agreed = await json<CandourView>(
+      await candour(incident.id, {
+        personId: resident(4),
+        threshold: decision(true),
+        version: 0,
+      }),
+    );
+    // Changing a recorded decision does, and the reason is audited.
+    const changed = await candour(incident.id, {
+      threshold: decision(false),
+      version: agreed.record?.version,
+    });
+    expect(changed.status).toBe(422);
+    const done = await candour(incident.id, {
+      threshold: decision(false),
+      thresholdReason: reason,
+      thresholdConfirmed: true,
+      version: agreed.record?.version,
+    });
+    expect(done.status).toBe(200);
+    const audited = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ reason: string | null }>(
+        "SELECT reason FROM audit_event WHERE action = 'safety.candour.update' AND resource_id = $1 ORDER BY seq DESC LIMIT 1",
+        [agreed.record?.id],
+      );
+      return rows[0]?.reason;
+    });
+    expect(audited).toBe(reason);
+    // "Not notifiable" after Harbour drafted a candour notification needs the same.
+    const saved = await json<CandourView>(done);
+    const short = await candour(
+      incident.id,
+      { to: "not_notifiable", reason: "No harm.", confirmed: true, version: saved.record?.version },
+      "POST",
+    );
+    expect(short.status).toBe(422);
+  });
+
+  it("hazard HZ-013 refuses to drop someone affected from candour without a reason, and audits it (round 2 M4)", async () => {
+    const incident = await harmed([affected(4)]);
+    await candour(incident.id, {
+      personId: resident(4),
+      threshold: { notifiable: true, decidedAt: new Date().toISOString(), decidedBy: "A GP" },
+      version: 0,
+    });
+    const current = await json<IncidentDetail>(await as("manager", `/v1/incidents/${incident.id}`));
+    const row = current.people.find((p) => p.personId === resident(4));
+    const change = {
+      id: row?.id,
+      kind: "service_user",
+      role: "involved",
+      personId: resident(4),
+      died: false,
+      bodyMapMarkIds: [],
+    };
+    const refused = await as("manager", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: { people: [change], version: current.version },
+    });
+    expect(refused.status).toBe(422);
+    const kept = await as("manager", `/v1/incidents/${incident.id}`, {
+      method: "PUT",
+      body: { people: [change], candourReason: reason, version: current.version },
+    });
+    expect(kept.status).toBe(200);
+    const audited = await asDemoTenant(async (c) => {
+      const { rows } = await c.query<{ resource_id: string; reason: string | null }>(
+        "SELECT resource_id, reason FROM audit_event WHERE action = 'safety.incident.candour_person_dropped' AND resource_id = $1 ORDER BY seq DESC LIMIT 1",
+        [resident(4)],
+      );
+      return rows[0];
+    });
+    expect(audited).toEqual({ resource_id: resident(4), reason });
+  });
+
+  it("hazard HZ-013 an incident the duty of candour holds open too long gets a task for the Registered Manager (round 2 M4)", async () => {
+    const incident = await harmed([affected(6)], ago(30 * 24 * HOUR));
+    const tasks = () =>
+      asDemoTenant(async (c) => {
+        const { rows } = await c.query<{ status: string; assignee_role_key: string | null }>(
+          "SELECT status, assignee_role_key FROM task WHERE kind = 'safety.candour_close_blocked' AND source_id = $1",
+          [incident.id],
+        );
+        return rows;
+      });
+    expect(await raiseCandourBlocked(deps)).toBeGreaterThanOrEqual(1);
+    expect(await tasks()).toEqual([{ status: "open", assignee_role_key: "registered_manager" }]);
+    // Raised once, however often the job runs.
+    await raiseCandourBlocked(deps);
+    expect(await tasks()).toHaveLength(1);
   });
 
   it("hazard HZ-091 gives a reopened action a new task (review L1)", async () => {

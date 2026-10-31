@@ -18,11 +18,14 @@ import {
   task,
 } from "@harbour/db";
 import {
+  addUkDays,
+  type CandourCloseFacts,
   type ClassifierAnswer,
   type ClassifierAnswerValue,
   type ClassifierQuestionKey,
   type ClassifierResult,
   type ClassifierTaskKind,
+  candourCloseBlock,
   classifierAnswerProblem,
   classifyIncident,
   DOLS_NATIONS,
@@ -39,6 +42,7 @@ import {
   type IncidentType,
   type InfectionCase,
   NOTIFICATION_KINDS,
+  type NotificationStatus,
   nextEscalationAt,
   type OutbreakAssessment,
   type OutbreakSignal,
@@ -57,7 +61,7 @@ import {
   ukIsoDate,
   type YesNoUnsure,
 } from "@harbour/domain";
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { publish } from "../outbox";
 import { accessRowsOf } from "./access-rows";
 import { bankHolidays, rateNumber, rateRows } from "./rates";
@@ -1295,4 +1299,180 @@ export async function detectLocationOutbreaks(
 /** Whether a DoLS nation string is one Schedule A1 covers. */
 export function isDolsNation(nation: string): nation is DolsNation {
   return (DOLS_NATIONS as readonly string[]).includes(nation);
+}
+
+// ------------------------------------------------------------------------------------------------
+// The duty of candour and closing (HZ-013; #120 review)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * The people we support affected by an incident (role affected, not removed): the people the duty
+ * of candour applies to, and the only people a candour record may name (#120 round 2, M2).
+ */
+export async function affectedServiceUsers(tx: Transaction, incidentId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ personId: incidentPerson.personId })
+    .from(incidentPerson)
+    .where(
+      and(
+        eq(incidentPerson.incidentId, incidentId),
+        eq(incidentPerson.kind, "service_user"),
+        eq(incidentPerson.role, "affected"),
+        isNull(incidentPerson.deletedAt),
+      ),
+    );
+  return [...new Set(rows.flatMap((p) => (p.personId ? [p.personId] : [])))];
+}
+
+/**
+ * Everything closing an incident checks (`incidentCloseProblems`), read with tenant-wide scope so
+ * notifications and people the closer cannot see still count: the notifications, the candour
+ * record's stage, and the duty of candour facts.
+ */
+export async function incidentCloseView(
+  tx: Transaction,
+  row: Pick<typeof incident.$inferSelect, "id" | "classifierResult">,
+): Promise<{
+  readonly notifications: readonly { kind: string; status: NotificationStatus }[];
+  readonly candourState: string | null;
+  readonly candour: CandourCloseFacts;
+}> {
+  return withTenantWideScope(tx, async () => {
+    const notifications = await tx
+      .select({
+        kind: statutoryNotification.kind,
+        status: statutoryNotification.status,
+        noLongerIndicated: statutoryNotification.noLongerIndicated,
+      })
+      .from(statutoryNotification)
+      .where(
+        and(eq(statutoryNotification.incidentId, row.id), isNull(statutoryNotification.deletedAt)),
+      );
+    const [record] = await tx
+      .select({
+        state: candourRecord.state,
+        notifiable: candourRecord.thresholdNotifiable,
+        personId: candourRecord.personId,
+      })
+      .from(candourRecord)
+      .where(eq(candourRecord.incidentId, row.id));
+    const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
+    return {
+      notifications: notifications.map((n) => ({
+        kind: n.kind,
+        status: n.status as NotificationStatus,
+      })),
+      candourState: record?.state ?? null,
+      candour: {
+        indicated:
+          (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
+          notifications.some(
+            (n) => n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
+          ),
+        notifiable: record?.notifiable ?? null,
+        personId: record?.personId ?? null,
+        people: await affectedServiceUsers(tx, row.id),
+      },
+    };
+  });
+}
+
+/** The task that says an incident is held open by the duty of candour (#120 round 2, M4). */
+export const CANDOUR_BLOCKED_TASK_KIND = "safety.candour_close_blocked";
+/** How long an incident may wait on the duty of candour before the task is raised (rates.md). */
+export const CANDOUR_BLOCKED_RATE_KEY = "candour.close_blocked_days";
+const CANDOUR_BLOCKED_SOURCE = "incident_candour";
+
+/** Marks the stuck-candour task of an incident done: it closed, or nothing holds it any more. */
+export async function finishCandourBlockedTasks(
+  tx: Transaction,
+  incidentId: string,
+  now: Date,
+): Promise<void> {
+  await tx
+    .update(task)
+    .set({
+      status: "done",
+      completedAt: now,
+      statusReason: "The duty of candour no longer holds it",
+    })
+    .where(
+      and(
+        eq(task.kind, CANDOUR_BLOCKED_TASK_KIND),
+        eq(task.sourceType, CANDOUR_BLOCKED_SOURCE),
+        eq(task.sourceId, incidentId),
+        inArray(task.status, ["open", "in_progress"]),
+      ),
+    );
+}
+
+/**
+ * An incident that cannot close because of the duty of candour (no record where Harbour found it
+ * may apply, the record open, or someone affected not told) for longer than the organisation's
+ * period (`candour.close_blocked_days`, rate table) gets one urgent task for its Registered
+ * Manager, which the task engine escalates when overdue (#120 round 2, M4). The task is marked done
+ * once nothing holds the incident. Returns the tasks raised; with no figure in the rate table it
+ * raises none and says so (`missingRate`).
+ */
+export async function raiseCandourBlockedTasks(
+  tx: Transaction,
+  tenantId: string,
+  now: Date,
+  missingRate: () => void = () => {},
+): Promise<number> {
+  let days: number;
+  try {
+    days = await rateNumber(tx, tenantId, CANDOUR_BLOCKED_RATE_KEY);
+  } catch {
+    missingRate();
+    return 0;
+  }
+  return withTenantWideScope(tx, async () => {
+    const waiting = await tx
+      .select()
+      .from(incident)
+      .where(
+        and(
+          isNull(incident.deletedAt),
+          ne(incident.status, "closed"),
+          lt(incident.occurredAt, addUkDays(now, -days)),
+        ),
+      );
+    let raised = 0;
+    for (const row of waiting) {
+      const view = await incidentCloseView(tx, row);
+      const block = candourCloseBlock(view.candourState, view.candour);
+      if (!block.noRecord && !block.open && block.stillToTell.length === 0) {
+        await finishCandourBlockedTasks(tx, row.id, now);
+        continue;
+      }
+      const [open] = await tx
+        .select({ id: task.id })
+        .from(task)
+        .where(
+          and(
+            eq(task.kind, CANDOUR_BLOCKED_TASK_KIND),
+            eq(task.sourceType, CANDOUR_BLOCKED_SOURCE),
+            eq(task.sourceId, row.id),
+            inArray(task.status, ["open", "in_progress"]),
+            isNull(task.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (open) continue;
+      await tx.insert(task).values({
+        kind: CANDOUR_BLOCKED_TASK_KIND,
+        title: "Finish the duty of candour so the incident can close",
+        requiredPermission: "safety.incident.manage",
+        locationId: row.locationId,
+        sourceType: CANDOUR_BLOCKED_SOURCE,
+        sourceId: row.id,
+        assigneeRoleKey: "registered_manager",
+        dueAt: now,
+        priority: "urgent",
+      });
+      raised++;
+    }
+    return raised;
+  });
 }

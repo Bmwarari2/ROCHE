@@ -32,22 +32,26 @@ import {
   task,
 } from "@harbour/db";
 import {
+  CANDOUR_FINISHED_STATES,
+  CANDOUR_REASON_MIN,
   CANDOUR_WORKFLOW,
   type CandourRecordView,
   type CandourState,
   type ClassifierQuestionKey,
   candourClocks,
+  candourDecisionNeedsReason,
+  candourFindingOf,
+  candourReasonProblems,
   candourStepProblems,
   classifierAnswerProblem,
   INCIDENT_WORKFLOW,
   type IncidentNation,
   incidentCloseProblems,
-  type NotificationStatus,
   ukDayBounds,
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
 import {
@@ -63,7 +67,10 @@ import { careRates, entryTimes, personContext } from "../services/care";
 import { CLOCK_DRIFT_RATE_KEY, loadPerson, requireWrite } from "../services/people";
 import { bankHolidays, rateNumber } from "../services/rates";
 import {
+  affectedServiceUsers,
   classifyAndStore,
+  finishCandourBlockedTasks,
+  incidentCloseView,
   safetyRates,
   toClassifierAnswers,
   withTenantWideScope,
@@ -215,6 +222,42 @@ function requireMfaForPeople(access: TenantAccess, people: number) {
   if (people > 0 && !access.mfaSatisfied) throw mfaRefusal(access);
 }
 
+/**
+ * The people we support who were affected and would no longer be after these changes (removed, or
+ * their role or kind changed), once the candour record holds a threshold decision; none before.
+ */
+async function candourDropped(
+  tx: Transaction,
+  incidentId: string,
+  people: readonly (typeof incidentPerson.$inferSelect)[],
+  changes: readonly IncidentPersonInput[],
+): Promise<string[]> {
+  const [decided] = await tx
+    .select({ id: candourRecord.id })
+    .from(candourRecord)
+    .where(
+      and(eq(candourRecord.incidentId, incidentId), isNotNull(candourRecord.thresholdDecidedAt)),
+    );
+  if (!decided) return [];
+  const affected = (p: {
+    readonly kind: string;
+    readonly role: string;
+    readonly personId: string | null | undefined;
+  }) => (p.kind === "service_user" && p.role === "affected" && p.personId ? [p.personId] : []);
+  const before = new Set(people.flatMap(affected));
+  const after = new Set([
+    ...people.flatMap((p) => {
+      const change = changes.find((x) => x.id === p.id);
+      if (change?.removed) return [];
+      return affected(change ? { ...change, personId: change.personId ?? null } : p);
+    }),
+    ...changes
+      .filter((p) => !p.id && !p.removed)
+      .flatMap((p) => affected({ ...p, personId: p.personId ?? null })),
+  ]);
+  return [...before].filter((personId) => !after.has(personId));
+}
+
 async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: string) {
   const access = c.get("access");
   const found = await readIncident(tx, incidentId);
@@ -226,9 +269,42 @@ async function loadForChange(c: Context<AppEnv>, tx: Transaction, incidentId: st
   return found;
 }
 
-/** The candour record's times say when something was done, so none may be later than now. */
-function candourTimeProblems(body: UpdateCandour, now: Date) {
+/** The incident's last classification, for Harbour's candour finding before any decision. */
+function storedResult(row: { readonly classifierResult: unknown }) {
+  const stored = row.classifierResult as {
+    outputs?: { kind: string }[];
+    pending?: { kind: string }[];
+    exclusions?: { kind: string }[];
+  } | null;
+  return stored
+    ? {
+        outputs: stored.outputs ?? [],
+        pending: stored.pending ?? [],
+        exclusions: stored.exclusions ?? [],
+      }
+    : null;
+}
+
+/**
+ * The candour record's times say when something was done: none may be later than now, and
+ * telling, sending and attempts none earlier than the incident (#120 review L5, round 2).
+ */
+function candourTimeProblems(body: UpdateCandour, now: Date, occurredAt: Date) {
   const future = (iso: string | null | undefined) => Boolean(iso && new Date(iso) > now);
+  const early = (iso: string | null | undefined) => Boolean(iso && new Date(iso) < occurredAt);
+  if (early(body.verbal?.at)) {
+    throw problems.invalid("The time they were told cannot be before the incident happened.");
+  }
+  if (early(body.written?.sentAt)) {
+    throw problems.invalid(
+      "The time the written notification was sent cannot be before the incident happened.",
+    );
+  }
+  if ((body.contactAttempts ?? []).some((a) => early(a.at))) {
+    throw problems.invalid(
+      "The time of an attempt to contact them cannot be before the incident happened.",
+    );
+  }
   if (future(body.verbal?.at)) {
     throw problems.invalid("The time they were told cannot be in the future.");
   }
@@ -592,7 +668,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Add to or correct an incident (the classifier runs again)",
       description:
-        "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope.",
+        "The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. Once a candour threshold decision is recorded, a change that takes someone affected out of the candour check (removed, or no longer affected) needs candourReason of at least 20 characters, audited with the person (#120 round 2).",
       security,
       request: {
         params: IncidentParam,
@@ -626,6 +702,15 @@ export const incidentsRouter = createRouter()
           }
           const removed = new Set(changes.filter((p) => p.removed && p.id).map((p) => p.id));
           const kept = people.filter((p) => !removed.has(p.id));
+          // Once a duty of candour decision is recorded, someone affected leaves the candour
+          // check (removed, or no longer "affected") only with a reason, audited with the person
+          // (#120 round 2, M4): otherwise a change of role would let the incident close untold.
+          const dropped = await candourDropped(tx, id, people, changes);
+          if (dropped.length > 0 && (body.candourReason?.trim().length ?? 0) < CANDOUR_REASON_MIN) {
+            throw problems.invalid(
+              `Someone affected would leave the duty of candour check: say why in at least ${CANDOUR_REASON_MIN} characters.`,
+            );
+          }
           const personIds = [
             ...new Set([
               ...kept.flatMap((p) => {
@@ -700,6 +785,15 @@ export const incidentsRouter = createRouter()
             resourceId: id,
             scope: { peopleChanged: changes.length },
           });
+          for (const personId of dropped) {
+            await audit(c, tx, access, {
+              action: "safety.incident.candour_person_dropped",
+              resourceType: "person",
+              resourceId: personId,
+              ...(body.candourReason ? { reason: body.candourReason } : {}),
+              scope: { incidentId: id },
+            });
+          }
           return incidentDetail(tx, id, now);
         }),
       );
@@ -764,7 +858,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Close an incident (someone other than the person who raised it)",
       description:
-        "Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or more than one person we support was affected by a notifiable incident (one candour record covers one person) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
+        "Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).",
       security,
       request: {
         params: IncidentParam,
@@ -785,64 +879,10 @@ export const incidentsRouter = createRouter()
       const detail = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         if (row.version !== body.version) throw problems.conflict();
-        // Every notification and the candour record count, including ones about people the
-        // closer cannot see.
-        const blockers = await withTenantWideScope(tx, async () => {
-          const notifications = await tx
-            .select({
-              kind: statutoryNotification.kind,
-              status: statutoryNotification.status,
-              noLongerIndicated: statutoryNotification.noLongerIndicated,
-            })
-            .from(statutoryNotification)
-            .where(
-              and(
-                eq(statutoryNotification.incidentId, id),
-                isNull(statutoryNotification.deletedAt),
-              ),
-            );
-          const [candour] = await tx
-            .select({
-              state: candourRecord.state,
-              notifiable: candourRecord.thresholdNotifiable,
-              personId: candourRecord.personId,
-            })
-            .from(candourRecord)
-            .where(eq(candourRecord.incidentId, id));
-          // The duty of candour applies to the people we support affected by the incident; one
-          // candour record covers one of them (HZ-013, review H1 and H2).
-          const affected = await tx
-            .select({ personId: incidentPerson.personId })
-            .from(incidentPerson)
-            .where(
-              and(
-                eq(incidentPerson.incidentId, id),
-                eq(incidentPerson.kind, "service_user"),
-                eq(incidentPerson.role, "affected"),
-                isNull(incidentPerson.deletedAt),
-              ),
-            );
-          const stored = row.classifierResult as { outputs?: { kind: string }[] } | null;
-          return incidentCloseProblems({
-            notifications: notifications.map((n) => ({
-              kind: n.kind,
-              status: n.status as NotificationStatus,
-            })),
-            openQuestions: row.openQuestions,
-            candourState: candour?.state ?? null,
-            candour: {
-              indicated:
-                (stored?.outputs ?? []).some((o) => o.kind === "candour") ||
-                notifications.some(
-                  (n) =>
-                    n.kind === "candour" && n.status !== "not_required" && !n.noLongerIndicated,
-                ),
-              notifiable: candour?.notifiable ?? null,
-              personId: candour?.personId ?? null,
-              people: [...new Set(affected.flatMap((p) => (p.personId ? [p.personId] : [])))],
-            },
-          });
-        });
+        // Every notification, the candour record and everyone affected count, including people
+        // and notifications the closer cannot see.
+        const view = await incidentCloseView(tx, row);
+        const blockers = incidentCloseProblems({ ...view, openQuestions: row.openQuestions });
         if (blockers.length > 0) throw problems.invalid(blockers.join(" "));
         await moveOrRefuse(
           c,
@@ -864,6 +904,7 @@ export const incidentsRouter = createRouter()
           .where(and(eq(incident.id, id), eq(incident.version, body.version)))
           .returning();
         if (!updated) throw problems.conflict();
+        await finishCandourBlockedTasks(tx, id, now);
         await audit(c, tx, access, {
           action: "safety.incident.close",
           resourceType: "incident",
@@ -1046,7 +1087,7 @@ export const incidentsRouter = createRouter()
       tags: ["safety"],
       summary: "Record the candour threshold decision, notifications, enquiries and correspondence",
       description:
-        "Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision).",
+        "Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Harbour's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.",
       security,
       request: {
         params: IncidentParam,
@@ -1066,8 +1107,10 @@ export const incidentsRouter = createRouter()
       const now = new Date();
       const view = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
-        if (body.personId && !row.personIds.includes(body.personId)) {
-          throw problems.invalid("The relevant person must be on the incident.");
+        // The relevant person is one of the people affected (#120 round 2, M2).
+        const affected = await withTenantWideScope(tx, () => affectedServiceUsers(tx, id));
+        if (body.personId && !affected.includes(body.personId)) {
+          throw problems.invalid("The relevant person must be one of the people affected.");
         }
         if (body.threshold && new Date(body.threshold.decidedAt) > now) {
           throw problems.invalid("The decision cannot be dated in the future.");
@@ -1075,7 +1118,7 @@ export const incidentsRouter = createRouter()
         if (body.threshold && new Date(body.threshold.decidedAt) < row.occurredAt) {
           throw problems.invalid("The decision cannot be dated before the incident happened.");
         }
-        candourTimeProblems(body, now);
+        candourTimeProblems(body, now, row.occurredAt);
         let [record] = await tx
           .select()
           .from(candourRecord)
@@ -1092,6 +1135,25 @@ export const incidentsRouter = createRouter()
             { subjectType: "candour_record", subjectId: record.id, personId: null },
             now,
           );
+        }
+        // A finished record keeps the person it names: changing it would leave someone untold
+        // while the record reads as done (#120 round 2).
+        if (
+          body.personId !== undefined &&
+          body.personId !== record.personId &&
+          CANDOUR_FINISHED_STATES.includes(record.state)
+        ) {
+          throw problems.invalid("The relevant person cannot change once the record is finished.");
+        }
+        // A decision that differs from Harbour's finding, or changes a recorded one, is
+        // confirmed with a reason of at least 20 characters, as on the web (#120 round 2, M3).
+        if (body.threshold) {
+          const previous = record.thresholdDecidedAt ? record.thresholdNotifiable : null;
+          const finding = previous === null ? candourFindingOf(storedResult(row)) : null;
+          if (candourDecisionNeedsReason(body.threshold.notifiable, finding, previous)) {
+            const missing = candourReasonProblems(body.thresholdReason, body.thresholdConfirmed);
+            if (missing.length > 0) throw problems.invalid(missing.join(" "));
+          }
         }
         // A document cited must be on the relevant person's record, as the reader sees it.
         await checkCandourDocuments(
@@ -1145,6 +1207,7 @@ export const incidentsRouter = createRouter()
           action: "safety.candour.update",
           resourceType: "candour_record",
           resourceId: saved.id,
+          ...(body.threshold && body.thresholdReason ? { reason: body.thresholdReason } : {}),
           scope: { incidentId: id },
         });
         return {
@@ -1166,6 +1229,8 @@ export const incidentsRouter = createRouter()
       path: "/v1/incidents/{id}/candour/step",
       tags: ["safety"],
       summary: "Take the next candour step (candourStepProblems says what each step needs)",
+      description:
+        "Refused while the record names nobody affected. Not notifiable after Harbour drafted a candour notification needs confirmed and a reason of at least 20 characters.",
       security,
       request: {
         params: IncidentParam,
@@ -1193,6 +1258,34 @@ export const incidentsRouter = createRouter()
         if (record.version !== body.version) throw problems.conflict();
         const needs = candourStepProblems(body.to as CandourState, candourView(record));
         if (needs.length > 0) throw problems.invalid(needs.join(" "));
+        // The record moves on only for one of the people affected (#120 round 2, M2).
+        const affected = await withTenantWideScope(tx, () => affectedServiceUsers(tx, id));
+        if (affected.length > 0 && (!record.personId || !affected.includes(record.personId))) {
+          throw problems.invalid(
+            "Choose who it happened to, from the people affected, before moving the record on.",
+          );
+        }
+        // "Not notifiable" after Harbour drafted a candour notification is confirmed with a
+        // reason of at least 20 characters (#120 round 2, M3), as on the web.
+        if (body.to === "not_notifiable") {
+          const [drafted] = await withTenantWideScope(tx, () =>
+            tx
+              .select({ id: statutoryNotification.id })
+              .from(statutoryNotification)
+              .where(
+                and(
+                  eq(statutoryNotification.incidentId, id),
+                  eq(statutoryNotification.kind, "candour"),
+                  isNull(statutoryNotification.deletedAt),
+                ),
+              )
+              .limit(1),
+          );
+          if (drafted) {
+            const missing = candourReasonProblems(body.reason, body.confirmed);
+            if (missing.length > 0) throw problems.invalid(missing.join(" "));
+          }
+        }
         await moveOrRefuse(
           c,
           tx,

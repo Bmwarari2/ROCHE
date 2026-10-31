@@ -11796,7 +11796,7 @@ export interface paths {
     };
     /**
      * Add to or correct an incident (the classifier runs again)
-     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope.
+     * @description The person who raised it, or a holder of safety.incident.manage, may change an open incident whose people are all in their scope. Once a candour threshold decision is recorded, a change that takes someone affected out of the candour check (removed, or no longer affected) needs candourReason of at least 20 characters, audited with the person (#120 round 2).
      */
     put: {
       parameters: {
@@ -11974,7 +11974,7 @@ export interface paths {
     put?: never;
     /**
      * Close an incident (someone other than the person who raised it)
-     * @description Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or more than one person we support was affected by a notifiable incident (one candour record covers one person) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
+     * @description Refused while a notification is a draft or ready, a classifier question is open, the duty of candour may apply and no candour record has finished, the candour record is open, or someone affected has no finished candour record of their own (one record covers only the person it names, whatever it decides) (incidentCloseProblems); and refused to the person who raised it (separation of duties, safety.md rule 11).
      */
     post: {
       parameters: {
@@ -12260,7 +12260,7 @@ export interface paths {
     };
     /**
      * Record the candour threshold decision, notifications, enquiries and correspondence
-     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision).
+     * @description Version 0 starts the record. The threshold decision wins over the classifier's answers, so recording it classifies the incident again (ADR-0021 written target from the decision). The relevant person must be one of the people affected and cannot change once the record is finished. A decision that differs from Harbour's finding, or changes a recorded one, needs thresholdConfirmed and a thresholdReason of at least 20 characters (audited). Times cannot be later than now; telling, sending and attempts cannot be earlier than the incident.
      */
     put: {
       parameters: {
@@ -12349,7 +12349,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Take the next candour step (candourStepProblems says what each step needs) */
+    /**
+     * Take the next candour step (candourStepProblems says what each step needs)
+     * @description Refused while the record names nobody affected. Not notifiable after Harbour drafted a candour notification needs confirmed and a reason of at least 20 characters.
+     */
     post: {
       parameters: {
         query?: never;
@@ -25199,6 +25202,7 @@ export interface components {
       contactNotes?: string | null;
       familyInformed?: components["schemas"]["FamilyInformed"];
       people?: components["schemas"]["IncidentPersonInput"][];
+      candourReason?: string;
       version: number;
     };
     ReviewIncident: {
@@ -25311,11 +25315,14 @@ export interface components {
       enquiryResultsSharedAt?: string | null;
       correspondenceDocumentIds?: string[];
       outcome?: string | null;
+      thresholdReason?: string;
+      thresholdConfirmed?: boolean;
       version: number;
     };
     CandourStep: {
       to: components["schemas"]["CandourState"];
       reason?: string;
+      confirmed?: boolean;
       version: number;
     };
     InvestigationView: {

@@ -127,6 +127,7 @@ literals, and tests assert against the table, not a literal (section 7, section 
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | wales | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | riddor.over_7_day.threshold_days | 7 | days | 2013-10-01 | - | scotland | https://www.hse.gov.uk/riddor/when-do-i-report.htm (over-seven-day incapacitation) | verified |
 | candour.written_notification.working_days | 10 | working_days | 2000-01-01 | - | england | Tenant-configurable target, ADR-0021; regulation 20 requires "as soon as reasonably practicable"; section 21 open item | to-verify |
+| candour.close_blocked_days | 14 | days | 2000-01-01 | - | england | Harbour default (#120 review round 2, M4): an incident the duty of candour holds open (no candour record where Harbour found it may apply, the record open, or someone affected not told) for longer than this many days after it happened gets an urgent task for its Registered Manager, which the task engine escalates; tenant default | to-verify |
 | candour.prolonged_harm_days | 28 | days | 2000-01-01 | - | england | https://www.legislation.gov.uk/uksi/2014/2936/regulation/20 (reg 20(7) "prolonged pain" and "prolonged psychological harm", and reg 20(9)(a)(ii): a continuous period of at least 28 days); master prompt 11.1 | verified |
 | cqc.reg18.prolonged_harm_days | 28 | days | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(5)(g): prolonged pain or psychological harm, and an impairment that is not temporary, mean a continuous period of at least 28 days) | verified |
 | cqc.reg18.interruption_hours | 24 | hours | 2010-04-01 | - | england | https://www.legislation.gov.uk/uksi/2009/3112/regulation/18 (reg 18(2)(g)(ii) and (iv): utilities, fire alarms or safety devices out for longer than a continuous period of 24 hours) | verified |
@@ -286,6 +287,9 @@ literals, and tests assert against the table, not a literal (section 7, section 
 - `homecare.minimum_price.hourly` (34.42): stated in section 14.4 but flagged in section 21 as reported
   second-hand. The Homecare Association publishes it; it is not a gov.uk figure. Confirm against the
   Homecare Association 2026/27 publication. It is context for unit economics, not a statutory rate.
+- `candour.close_blocked_days` (14): no statutory figure. How long an incident may stay open on the
+  duty of candour before its Registered Manager is given an urgent task (safety.md section 5, part 5,
+  review round 2; HZ-013). A tenant default for the CSO to confirm (H-480).
 - `candour.written_notification.working_days` (10): regulation 20 says "as soon as reasonably
   practicable" and sets no number of days. 10 working days is a tenant-configurable target (ADR-0021),
   never presented as a statutory deadline. Brian to confirm the value to encode (Appendix open question).
