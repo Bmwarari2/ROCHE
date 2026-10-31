@@ -4,10 +4,12 @@
  * has `medicines.dose_window.*`, and an entry a person tagged time-critical at transcription has
  * the narrower `medicines.time_critical.*` (never wider than the regular window). A scheduled dose
  * is recorded no earlier than its own window opens (HZ-004 review: a later dose, this evening's or
- * tomorrow's, can no longer be recorded at the morning round); inside its window before its due
- * time it is early, from its due time to the end of its window on time, and after that late. A
- * dose with no outcome after its window is late and stays outstanding until someone records what
- * happened; nothing closes it. Times are compared as elapsed UTC instants, on the drift-corrected
+ * tomorrow's, can no longer be recorded at the morning round); anywhere inside its window it is on
+ * time, and after it late. Given before its due time it asks a reason only for an entry tagged
+ * time-critical (`earlyNeedsReason`); and any dose, early, on time or late, asks one when it comes
+ * closer to the entry's last dose than the schedule allows (`closerThanScheduled`; #162 third
+ * clinical review and its re-check, against alert fatigue). A dose with no outcome after its window is
+ * late and stays outstanding until someone records what happened; nothing closes it. Times are compared as elapsed UTC instants, on the drift-corrected
  * clock, so a window on the night the clocks change is as long as on any other night.
  */
 
@@ -28,7 +30,7 @@ export function isTimeCritical(entry: Pick<MarEntry, "tags">): boolean {
 
 export interface DoseWindow {
   readonly dueAt: Date;
-  /** The dose cannot be recorded before this; from it until the due time it is early. */
+  /** The dose cannot be recorded before this. */
   readonly opensAt: Date;
   /** With no outcome after this, the dose is late, outstanding and escalated. */
   readonly lateAfter: Date;
@@ -54,18 +56,44 @@ export function doseWindow(dueAt: Date, timeCritical: boolean, rates: WindowRate
   };
 }
 
-export type RecordedTiming = "before_window" | "early" | "on_time" | "late";
+export type RecordedTiming = "before_window" | "on_time" | "late";
 
 /**
  * Where a dose recorded at `at` falls against its window: before the window opens (refused, unless
- * the person already took it), inside the window before its due time (early, with a reason), from
- * its due time to the end of the window (on time), or after (late, with a reason).
+ * it has already happened), anywhere inside the window (on time), or after (late, with a reason).
  */
 export function recordedTiming(window: DoseWindow, at: Date): RecordedTiming {
   if (at.getTime() < window.opensAt.getTime()) return "before_window";
-  if (at.getTime() < window.dueAt.getTime()) return "early";
   if (at.getTime() > window.lateAfter.getTime()) return "late";
   return "on_time";
+}
+
+/**
+ * Whether a dose given inside its window but before its due time needs a reason because it is
+ * early: only for an entry tagged time-critical, whose timing is the point of the tag. Any other
+ * dose inside its window is on time.
+ */
+export function earlyNeedsReason(window: DoseWindow, at: Date): boolean {
+  const t = at.getTime();
+  return window.timeCritical && t >= window.opensAt.getTime() && t < window.dueAt.getTime();
+}
+
+/**
+ * Whether a dose given at `at`, early, on time or late, comes closer to the entry's last dose
+ * (`lastGivenAt`) than the scheduled gap from the previous dose (`previousDueAt`) less the window's
+ * own early side, so two doses brought together (a late 10:30 dose, then the 12:00 one at 12:00)
+ * are never given without a reason. False when there is no last dose or previous due time.
+ */
+export function closerThanScheduled(
+  window: DoseWindow,
+  at: Date,
+  lastGivenAt: Date | null,
+  previousDueAt: Date | null,
+): boolean {
+  if (lastGivenAt === null || previousDueAt === null) return false;
+  const earlySide = window.dueAt.getTime() - window.opensAt.getTime();
+  const scheduledGap = window.dueAt.getTime() - previousDueAt.getTime();
+  return at.getTime() - lastGivenAt.getTime() < scheduledGap - earlySide;
 }
 
 export type ScheduledDoseState = "not_yet_due" | "due" | "late" | "recorded";

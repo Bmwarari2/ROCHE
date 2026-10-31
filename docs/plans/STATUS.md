@@ -139,7 +139,11 @@ gate; [phase-2.md](phase-2.md), "When it starts"):
   person or family, recorded after it was given, or a correction) is recorded and flagged for
   review, never refused; the corrector's competence gates a correction; same-instant dosing records
   must agree; the earlier-dose check looks back 24 hours; a CD correction says what it puts right;
-  H-1067 and H-1068.
+  H-1067 and H-1068. The third review's too: a dose recorded after it was given needs a 20-character
+  reason, a time given before the server's time of recording and a competent recorder, and every
+  use is flagged, counted and escalated; an early dose inside its window asks why only when
+  time-critical or too close to the last dose. Its re-check's too: a correction to a dose outcome
+  follows the same rules, and the gap check applies to every dose, late or not.
   Next in lane A: slice 10 (dm+d reference data).
 
 **Pushed, pull request not yet opened** (stacked; open when the base merges):
