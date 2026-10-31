@@ -502,7 +502,10 @@ in words; after a save the page opens again with focus on its heading and says w
 - **Across pull requests**: `incidentManageView(incident, viewer, candourRecord)` now requires the
   candour record (`null` for none, `"unread"` when the read failed), so a page that leaves it out
   fails to type-check rather than offering close while someone is still to be told. #130's approvals
-  page calls it with two arguments: whichever of #120 and #130 merges second passes the record.
+  list (`GET /v1/workflows`, merged first) builds its forms from the API's `incident.closeBlocked`,
+  which now comes from the close route's own reading and rules (`incidentCloseView`,
+  `incidentCloseProblems`, the duty of candour included), so the list never offers a close the API
+  would refuse.
 
 Gaps logged, no API change: the API does not assemble the medical examiner pack or record which
 sections were sent (`missingPackSections` is unused), and the web has no medicines or diagnoses

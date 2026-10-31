@@ -98,3 +98,6 @@ Branch `feat/web-incident-follow-up`, PR #120.
   HZ-091 round 1 rows corrected (the reason was web-only) and round 2 controls and tests added.
   H-480 gains the CSO questions (g) to (k). Tests: domain `workflows.test.ts`, five API tests,
   two web review tests, the refusal mappings, and the two-people journey asserting the name.
+  After merging main: the approvals list's `closeBlocked` (#130) comes from the close route's own
+  check, the duty of candour included (`apps/api/test/workflows.test.ts`), and the candour and
+  investigation forms post (#133's `forms.test.ts`).
