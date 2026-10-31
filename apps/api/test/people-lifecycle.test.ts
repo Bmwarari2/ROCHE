@@ -3878,24 +3878,31 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     });
     expect(await reportBreakGlass(deps)).toBeGreaterThanOrEqual(2);
     expect(await reportBreakGlass(deps)).toBe(0);
-    // Searches are reported weekly too: each home's report lists those that showed its people,
-    // and every report lists a search that showed no one at any home.
+    // Searches are reported weekly too: each home's report lists those that showed its people;
+    // a search that showed no one at any home is in each report's tenant-level section, never in
+    // a home's own searches (review round 1).
     const stored = await asDemoTenant((c) =>
       c.query<{
         location: string;
         searches: { total: number; byUser: { tenantUserId: string }[] };
+        unplaced: { total: number; byUser: { tenantUserId: string }[] };
       }>(
-        `SELECT location_id AS location, summary->'searches' AS searches
+        `SELECT location_id AS location, summary->'searches' AS searches,
+                summary->'unplacedSearches' AS unplaced
          FROM break_glass_weekly_report WHERE week_start = $1`,
         [week.start],
       ),
     );
     const searchesAt = new Map(stored.rows.map((r) => [r.location, r.searches]));
-    expect(searchesAt.get(LODGE.locationId)?.total).toBe(2);
-    expect(searchesAt.get(DEMO.locationId)?.total).toBe(1);
+    expect(searchesAt.get(LODGE.locationId)?.total).toBe(1);
+    expect(searchesAt.get(DEMO.locationId)?.total).toBe(0);
     expect(searchesAt.get(LODGE.locationId)?.byUser.map((u) => u.tenantUserId)).toEqual([
       DEMO.users.owner.id,
     ]);
+    for (const row of stored.rows) {
+      expect(row.unplaced.total).toBe(1);
+      expect(row.unplaced.byUser.map((u) => u.tenantUserId)).toEqual([DEMO.users.owner.id]);
+    }
     const alerts = await asDemoTenant((c) =>
       c.query<{ recipient: string; title: string; body: string }>(
         `SELECT recipient_tenant_user_id AS recipient, title, body FROM notification
@@ -3920,12 +3927,36 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     expect(report?.summary).toMatchObject({ totalEvents: 3, distinctUsers: 1 });
     expect(JSON.stringify(report?.summary)).toContain("repeated_use");
     expect(JSON.stringify(report?.summary)).not.toContain("Covering");
+    // The staff it counts are named for attribution (display name and job title only), so a
+    // reader who cannot list the members still sees who used break-glass.
+    // The manager's openings only: the owner's search that showed no one at any home is in the
+    // tenant-level section, which a location's manager neither reads nor is told the names of.
+    expect(report?.staff.map((s) => s.id)).toEqual([DEMO.users.manager.id]);
+    expect(report?.summary).not.toHaveProperty("unplacedSearches");
+    expect(Object.keys(report?.staff[0] ?? {}).sort()).toEqual(["displayName", "id", "jobTitle"]);
+    expect(JSON.stringify(report?.staff)).not.toContain("@");
     const quality = await json<BreakGlassWeeklyReportList>(
       await as("quality", "/v1/break-glass/weekly-report"),
     );
     expect(quality.items.map((r) => r.locationId).sort()).toEqual(
       [DEMO.locationId, LODGE.locationId].sort(),
     );
+    // Across the organisation, the tenant-level section and its searcher's name are there.
+    const demoForQuality = quality.items.find((r) => r.locationId === DEMO.locationId);
+    expect(demoForQuality?.summary).toHaveProperty("unplacedSearches.total", 1);
+    expect(demoForQuality?.staff.map((s) => s.id)).toContain(DEMO.users.owner.id);
+    // The view is audited with the ids of the reports shown (review round 1).
+    const viewed = await asDemoTenant((c) =>
+      c.query<{ scope: { reportIds: string[]; organisationWide: boolean } }>(
+        `SELECT scope FROM audit_event WHERE action = 'platform.break_glass_report.view'
+         ORDER BY chain_position DESC LIMIT 1`,
+      ),
+    );
+    expect([...(viewed.rows[0]?.scope.reportIds ?? [])].sort()).toEqual(
+      quality.items.map((r) => r.id).sort(),
+    );
+    // And whether the organisation-wide section was shown (security re-review I-3).
+    expect(viewed.rows[0]?.scope.organisationWide).toBe(true);
     expect((await as("carer", "/v1/break-glass/weekly-report")).status).toBe(403);
   });
 
@@ -3936,6 +3967,132 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     const path = `/v1/break-glass/weekly-report/${list.items[0]?.id}/review`;
     const body = { actionsTaken: "Reviewed my own access." };
     const own = await as("manager", path, { method: "POST", body });
+    expect(own.status).toBe(403);
+    expect(await code(own)).toBe("separation_of_duties");
+  });
+
+  /** A report stored for an earlier week with the summary given, for the review rules. */
+  async function storedReport(weekStart: string, summary: Record<string, unknown>) {
+    const start = new Date(weekStart);
+    const rows = await asDemoTenant((c) =>
+      c.query<{ id: string }>(
+        `INSERT INTO break_glass_weekly_report (tenant_id, location_id, week_start, week_end,
+           repeat_threshold, summary)
+         VALUES (app.current_tenant_id(), $1, $2, $3, 3, $4) RETURNING id`,
+        [
+          DEMO.locationId,
+          start,
+          new Date(start.getTime() + 7 * 24 * HOUR),
+          JSON.stringify(summary),
+        ],
+      ),
+    );
+    return `/v1/break-glass/weekly-report/${rows.rows[0]?.id}/review`;
+  }
+  const quiet = {
+    totalEvents: 0,
+    byUser: [],
+    byPerson: [],
+    byReason: [],
+    flagged: [],
+    searches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
+    unplacedSearches: { total: 0, distinctUsers: 0, byUser: [], byReason: [] },
+  };
+  const body = { actionsTaken: "Reviewed the week." };
+
+  it.each([
+    [
+      "flagged only for repeated searching",
+      "2026-01-05T00:00:00Z",
+      {
+        searches: {
+          total: 3,
+          distinctUsers: 1,
+          byUser: [{ tenantUserId: DEMO.users.owner.id, searches: 3, flags: ["repeated_use"] }],
+          byReason: [],
+        },
+      },
+    ],
+    [
+      "counted below the threshold",
+      "2026-01-12T00:00:00Z",
+      {
+        totalEvents: 1,
+        byUser: [
+          {
+            tenantUserId: DEMO.users.owner.id,
+            events: 1,
+            people: 1,
+            unreviewed: 1,
+            flags: [],
+            eventIds: [],
+          },
+        ],
+      },
+    ],
+    [
+      "counted only in the searches that showed no one at any location",
+      "2026-01-19T00:00:00Z",
+      {
+        unplacedSearches: {
+          total: 1,
+          distinctUsers: 1,
+          byUser: [{ tenantUserId: DEMO.users.owner.id, searches: 1, flags: [] }],
+          byReason: [],
+        },
+      },
+    ],
+  ])(
+    "refuses a review by someone the report counts: %s (review round 1)",
+    async (_, week, extra) => {
+      const path = await storedReport(week, { ...quiet, ...extra });
+      const own = await as("owner", path, { method: "POST", body });
+      expect(own.status).toBe(403);
+      expect(await code(own)).toBe("separation_of_duties");
+      // Someone it does not count may.
+      expect((await as("quality", path, { method: "POST", body })).status).toBe(201);
+    },
+  );
+
+  it("names a report's searchers to a location's reader only when it keeps the searches that showed no one apart (security re-review L-1)", async () => {
+    // A report stored before the organisation-wide section: its searches may include some that
+    // showed no one at any location, so a location's manager is not told who searched.
+    const { unplacedSearches: _none, ...oldShape } = quiet;
+    const path = await storedReport("2026-01-26T00:00:00Z", {
+      ...oldShape,
+      totalEvents: 1,
+      byUser: [
+        {
+          tenantUserId: DEMO.users.nurse.id,
+          events: 1,
+          people: 1,
+          unreviewed: 1,
+          flags: [],
+          eventIds: [],
+        },
+      ],
+      searches: {
+        total: 1,
+        distinctUsers: 1,
+        byUser: [{ tenantUserId: DEMO.users.owner.id, searches: 1, flags: [], eventIds: [] }],
+        byReason: [],
+      },
+    });
+    const read = async (user: "manager" | "quality") =>
+      (
+        await json<BreakGlassWeeklyReportList>(
+          await as(user, "/v1/break-glass/weekly-report?week=2026-01-28"),
+        )
+      ).items.find((r) => r.locationId === DEMO.locationId && r.supersedesId === null);
+    const manager = await read("manager");
+    expect(manager?.staff.map((s) => s.id)).toEqual([DEMO.users.nurse.id]);
+    // Across the organisation, everyone it counts is named.
+    const quality = await read("quality");
+    expect(quality?.staff.map((s) => s.id).sort()).toEqual(
+      [DEMO.users.nurse.id, DEMO.users.owner.id].sort(),
+    );
+    // Separation of duties still counts the searcher.
+    const own = await as("owner", path, { method: "POST", body });
     expect(own.status).toBe(403);
     expect(await code(own)).toBe("separation_of_duties");
   });
@@ -3961,6 +4118,8 @@ describe("PLAT-006 the weekly break-glass report (HZ-011)", () => {
     const body = { actionsTaken: "Spoke to the manager; scope widened to cover the unit." };
     const first = await as("quality", path, { method: "POST", body });
     expect(first.status).toBe(201);
+    const reviewed = (await first.json()) as BreakGlassWeeklyReportList["items"][number];
+    expect(reviewed.staff.map((s) => s.id)).toContain(LODGE.qualityLeadId);
     expect((await as("quality", path, { method: "POST", body })).status).toBe(409);
   });
 

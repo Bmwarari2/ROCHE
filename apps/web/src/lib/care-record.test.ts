@@ -37,7 +37,7 @@ const t = createTranslator("en-GB");
 const PERSON = "0194d000-0000-7000-8600-000000000001";
 
 describe("record tabs", () => {
-  it("lists the fourteen sections in order, the overview first and history last", () => {
+  it("lists the sixteen sections in order, the overview first and history last", () => {
     expect(RECORD_TABS.map((d) => d.tab)).toEqual([
       "overview",
       "care-plan",
@@ -49,6 +49,8 @@ describe("record tabs", () => {
       "advance-care",
       "capacity",
       "activities",
+      "reviews",
+      "hospital",
       "letters",
       "family-updates",
       "leaving",
@@ -84,6 +86,10 @@ describe("record tabs", () => {
     expect(
       visibleTabs(PERSON, ["people.person.read", "comms.feed.publish"]).map((v) => v.tab),
     ).toEqual(["overview", "family-updates", "leaving", "history"]);
+    // The hospital tab only for those who send people to hospital (people.movement.record).
+    expect(
+      visibleTabs(PERSON, ["people.person.read", "people.movement.record"]).map((v) => v.tab),
+    ).toEqual(["overview", "hospital", "leaving", "history"]);
   });
 
   it("checks permissions by name", () => {

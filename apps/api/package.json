@@ -19,7 +19,8 @@
     "start:worker": "node dist/worker.js",
     "seed:users": "tsx --env-file-if-exists=../../.env scripts/seed-users.ts",
     "exports:run": "tsx --env-file-if-exists=../../.env scripts/run-exports.ts",
-    "outbox:run": "tsx --env-file-if-exists=../../.env scripts/run-outbox.ts"
+    "outbox:run": "tsx --env-file-if-exists=../../.env scripts/run-outbox.ts",
+    "break-glass-report:run": "tsx --env-file-if-exists=../../.env scripts/run-break-glass-report.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1149.0",

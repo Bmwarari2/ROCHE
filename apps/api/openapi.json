@@ -5888,6 +5888,12 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffName"
+            }
           }
         },
         "required": [
@@ -5901,7 +5907,8 @@
           "reviewedBy",
           "reviewedAt",
           "actionsTaken",
-          "supersedesId"
+          "supersedesId",
+          "staff"
         ]
       },
       "ReviewBreakGlassReport": {

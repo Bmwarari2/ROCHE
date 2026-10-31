@@ -396,7 +396,9 @@ break-glass report daily for the UK week before (so a missed Monday catches up),
 alerting the Registered Manager and holders of the quality lead role as data protection lead
 (H-80); the report list is filtered by the reader's locations in the API as well as by row-level
 security, and `POST /v1/break-glass/weekly-report/{reportId}/review` records the review once, never
-by someone the report flags and only for a location in the reviewer's access. Care events for a
+by anyone the report counts (an opening, a search at the location or one in its organisation-wide
+section, flagged or not; review round 1 of the report screen) and only for a location in the
+reviewer's access. Care events for a
 person who has left, died or gone to hospital follow rule 3 in the care routes (care.md rule 12):
 an event timed up to `sync.clock_drift_flag_minutes` after the change is accepted and flagged; a
 later one is refused with `care_event_after_exit`, audited, and one urgent review task goes to the
@@ -411,6 +413,60 @@ lead and team leader) and `safety.incident.read` (every role the slice 7 built-i
 it) in migration 0022, as a new role version; migration 0024 writes one audit event per role copy
 0022 changed, as the system, in the tenant's hash chain.
 Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecycle.test.ts`.
+
+### 6a. Web screens: reviews and the hospital transfer pack (PEOP-008, PEOP-009)
+
+Built on the slice 8 routes; no new API. Written before the code (section 20 rule 3).
+
+**Screens**
+
+| Screen | Address | Shows | Writes |
+| --- | --- | --- | --- |
+| Reviews tab of the record | `/people/{id}/reviews` | Each review due (care plan, review on change, local authority, family involvement, trial) with its date, state as icon plus word (upcoming, due, overdue, paused while in hospital) and the rate-table keys the date comes from; family involvement status; changes waiting for review; review records, newest first, a corrected one struck through and marked "Corrected" | Record a review (kind, date held, who took part by role, how the family was involved, the council's reference, outcome); record a change in need, which brings the care plan review forward once (HZ-008) |
+| Reviews due (manager's tracker) | `/people/reviews` | Reviews due and overdue at the chosen location (every location the viewer works at when none is chosen), soonest first, each naming the person and linking to their reviews tab; the date and state as icon plus word | None |
+| Hospital tab of the record | `/people/{id}/hospital` | While the person is not in hospital: the pack as it would be made now (identity, each safety-critical section included or "Not recorded", what needs checking) and the one form that sends them; while in hospital: the pack as sent with "Print the transfer pack (PDF)", the hand-over, and recording the return; after a return: the return checks; earlier transfers with their PDFs | Send to hospital with the pack (hospital, when they left, reason, items to send); record the hand-over (with the named acknowledgement and reason when the pack is incomplete: HZ-023); record the return; record each return check |
+| Transfer pack PDF | `/people/{id}/hospital/{transferId}/pdf` | The API's PDF, streamed as a download, never stored; `private, no-store` | None |
+
+**Rules for the screens**
+
+1. One click from the record: the hospital tab opens on the pack as it would be made now and the
+   send form below it; the hospital's name is the only thing that must be typed ("Now" is the
+   default time). Sending makes the pack and the PDF link appears at the top of the tab with focus.
+2. The pack names the right person (HZ-001): the identity block shows the pack's own name, date of
+   birth and NHS number (from `pack.identity`, not the header), under the point-of-care header that
+   the frame reads again on every tab. If the pack's person id differs from the record's, the pack
+   is not shown and the screen says so.
+3. Missing is never blank (HZ-023): every safety-critical section not recorded reads "Not recorded"
+   with a warning icon, listed first; "what needs checking" lists the API's attention items. The
+   screen never interprets content: what each section holds is in the PDF.
+4. The hand-over of a pack missing a safety-critical section, or with an item to acknowledge, asks
+   for the acknowledgement reason (at least the domain's minimum length) before anything is sent,
+   and says it is recorded with the user's name.
+5. A preview the API refuses (not receiving care, identity incomplete, wrong person) shows the
+   API's words and no send form.
+6. Overdue states use the overdue chip with an icon and the word; paused says why.
+
+**Permission matrix**
+
+| Action | Permission (API) | Web shows it when |
+| --- | --- | --- |
+| Read reviews tab and tracker | `care.plan.read` or `people.person.read` | Tab: `care.plan.read`; tracker link on the people list: `care.plan.read` |
+| Record a review or a change | `care.plan.write` | `writeAccess(person, …, "care.plan.write")` (reaching the person, ADR-0071) |
+| Hospital tab, preview, send, PDF, hand-over, return | `people.movement.record` | Tab: `people.movement.record`; forms: `writeAccess(…, "people.movement.record")` |
+| Return checks | The check's task permission or its assignee (rule 10) | Shown to holders of `people.movement.record` or `care.plan.write`; the API decides each |
+
+**Tests (written first)**
+
+- Unit: `apps/web/src/lib/reviews.test.ts` (state chips with icon and word, ordering, the
+  participant lines); `apps/web/src/lib/transfer-pack.test.ts` (`hazard HZ-023` missing sections
+  first and never blank; `hazard HZ-001` a pack for another person is not shown; the hand-over needs
+  an acknowledgement exactly when the API's rule does; the open transfer).
+- Journeys: `apps/web/e2e/reviews.spec.ts` (`hazard HZ-008`: record a change, see the review on
+  change due, record the care plan review covering it; the tracker lists the person; axe light and
+  dark); `apps/web/e2e/transfer-pack.spec.ts` (`hazards HZ-001 and HZ-023`: the pack names the
+  person, missing sections read "Not recorded", send in one form, the PDF downloads as a PDF, the
+  hand-over refuses without an acknowledgement and records with one, the return raises the checks;
+  axe light and dark).
 
 ### Web: leaving the service (PEOP-010)
 

@@ -22,6 +22,8 @@ export type RecordTab =
   | "advance-care"
   | "capacity"
   | "activities"
+  | "reviews"
+  | "hospital"
   | "letters"
   | "family-updates"
   | "leaving"
@@ -34,6 +36,7 @@ interface TabDefinition {
     | "care.plan.read"
     | "care.note.read"
     | "people.person.read"
+    | "people.movement.record"
     | "comms.letter.manage"
     | "comms.feed.publish";
 }
@@ -50,6 +53,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "advance-care", needs: "care.plan.read" },
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
+  { tab: "reviews", needs: "care.plan.read" },
+  { tab: "hospital", needs: "people.movement.record" },
   { tab: "letters", needs: "comms.letter.manage" },
   { tab: "family-updates", needs: "comms.feed.publish" },
   { tab: "leaving", needs: "people.person.read" },
