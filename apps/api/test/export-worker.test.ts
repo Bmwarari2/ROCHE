@@ -79,8 +79,18 @@ describe("table-driven: which rows a legal hold keeps in the export (rule 11)", 
 describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
   let id = "";
   let files = new Map<string, Buffer>();
+  let breachId = "";
 
   it("builds a queued export into a complete archive, and tells the requester by ids only", async () => {
+    // A breach register entry, which the free full export must include (#156 follow-up).
+    const breach = await h.request("/v1/data-protection/breaches", {
+      method: "POST",
+      body: { summary: "A letter went to the wrong address.", awareAt: new Date().toISOString() },
+      token: h.tokens.quality,
+      tenant: DEMO.tenantId,
+    });
+    expect(breach.status).toBe(201);
+    breachId = ((await breach.json()) as { id: string }).id;
     const asked = await h.request("/v1/exports", {
       method: "POST",
       body: {},
@@ -116,6 +126,10 @@ describe("hazard HZ-070 hazard HZ-071 building the full export", () => {
     const archive = new Uint8Array(await download.arrayBuffer());
     expect(archive.length).toBe(Number(row?.bytes));
     files = unzip(archive);
+  });
+
+  it("includes the breach register (the export reads it in the organisation's context)", () => {
+    expect(files.get("tables/dp_breach.csv")?.toString()).toContain(breachId);
   });
 
   it("writes a complete manifest, the schema and one summary row per person", () => {
