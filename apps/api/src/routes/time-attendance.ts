@@ -60,6 +60,7 @@ import { publish } from "../outbox";
 import { currentBookedShiftEnd } from "../services/agency-window";
 import { rateNumber } from "../services/rates";
 import type { ShiftRow } from "../services/rota";
+import { staffNames } from "../services/staff";
 import { withSystemRights } from "../services/system-rights";
 import {
   bookedShift,
@@ -177,12 +178,17 @@ async function entryItems(
           .select()
           .from(sleepInAwakePeriod)
           .where(inArray(sleepInAwakePeriod.timesheetEntryId, ids));
+  const names = await staffNames(
+    tx,
+    rows.map((r) => r.workerId),
+  );
   return rows.map((r) => {
     const fact = timesheetFact(r);
     return {
       id: r.id,
       version: r.version,
       workerId: r.workerId,
+      workerName: names(r.workerId)?.displayName ?? null,
       locationId: r.locationId,
       shiftId: r.shiftId,
       kind: fact.kind,

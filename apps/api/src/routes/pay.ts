@@ -65,6 +65,7 @@ import {
   ruleSetInForce,
 } from "../services/pay";
 import { payrollExportNotConfigured } from "../services/payroll-export";
+import { type StaffLookup, staffNames } from "../services/staff";
 import { withSystemRights } from "../services/system-rights";
 import {
   conflictResponse,
@@ -245,12 +246,13 @@ const ruleSetValues = (b: z.infer<typeof CreatePayRuleSet>) => {
   };
 };
 
-function lineItem(l: LineRow): z.infer<typeof PayRunLineItem> {
+function lineItem(l: LineRow, names: StaffLookup = () => null): z.infer<typeof PayRunLineItem> {
   return {
     id: l.id,
     runId: l.runId,
     calculation: l.calculation,
     memberId: l.memberId,
+    memberName: names(l.memberId)?.displayName ?? null,
     paidMinutes: l.paidMinutes,
     nmwMinutes: l.nmwMinutes,
     basicPence: l.basicPence,
@@ -278,12 +280,14 @@ function lineItem(l: LineRow): z.infer<typeof PayRunLineItem> {
 
 function exceptionItem(
   e: typeof payRunException.$inferSelect,
+  names: StaffLookup = () => null,
 ): z.infer<typeof PayRunExceptionItem> {
   return {
     id: e.id,
     version: e.version,
     calculation: e.calculation,
     memberId: e.memberId,
+    memberName: names(e.memberId)?.displayName ?? null,
     kind: e.kind as PayExceptionKind,
     ref: e.ref,
     message: PAY_EXCEPTION_MESSAGES[e.kind as PayExceptionKind],
@@ -349,10 +353,14 @@ async function runDetail(tx: Transaction, r: RunRow): Promise<z.infer<typeof Pay
     .from(payRunException)
     .where(and(eq(payRunException.runId, r.id), eq(payRunException.calculation, r.calculation)))
     .orderBy(payRunException.memberId, payRunException.kind);
+  // Pay is organisation-wide: the names of everyone on the run, read with the system's rights.
+  const names = await withSystemRights(tx, () =>
+    staffNames(tx, [...lines.map((l) => l.memberId), ...exceptions.map((e) => e.memberId)]),
+  );
   return {
     run: await runItem(tx, r),
-    lines: lines.map(lineItem),
-    exceptions: exceptions.map(exceptionItem),
+    lines: lines.map((l) => lineItem(l, names)),
+    exceptions: exceptions.map((e) => exceptionItem(e, names)),
   };
 }
 

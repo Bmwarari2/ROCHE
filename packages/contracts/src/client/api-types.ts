@@ -58286,6 +58286,7 @@ export interface components {
       version: number;
       /** Format: uuid */
       workerId: string;
+      workerName: string | null;
       /** Format: uuid */
       locationId: string;
       /** Format: uuid */
@@ -58908,6 +58909,7 @@ export interface components {
       calculation: number;
       /** Format: uuid */
       memberId: string;
+      memberName: string | null;
       paidMinutes: number;
       nmwMinutes: number;
       basicPence: number;
@@ -58939,6 +58941,7 @@ export interface components {
       calculation: number;
       /** Format: uuid */
       memberId: string;
+      memberName: string | null;
       kind: components["schemas"]["PayExceptionKind"];
       /** Format: uuid */
       ref: string | null;

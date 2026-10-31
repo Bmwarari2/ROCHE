@@ -684,6 +684,23 @@ Logged by slice 67 (PLAT-014 web wizard) on 31 October 2026.
 | H-898 | Agree the import file limits shown to people (5,000 rows, the 12 MiB upload) with the design partner, and whether a larger home needs more | Brian with the design partner | `IMPORT_LIMITS`; `IMPORT_UPLOAD_MAX_BYTES` | None (default applied) | open |
 | H-899 | Confirm that the SSO settings screens (the other half of slice 67) wait for the SSO API, and schedule them | Brian | phase-2.md slice 67 | SSO settings screens | open |
 
+## Phase 2: web screens for time, absence and pay (slice 60)
+
+Logged by slice 60 (SCHED-003 to 007, SCHED-010 web screens) on 31 October 2026.
+
+| ID | Action | Owner | Source | Blocks | Status |
+| --- | --- | --- | --- | --- | --- |
+| H-1180 | Try the clock, timesheet approval, absence and pay screens with the design partner's managers and payroll lead, and record what they needed | Brian with the design partner | `apps/web/src/app/(shell)/{my-time,timesheets,absences,pay}` | None | open |
+| H-1181 | Review with the CSO the working time page's words: results are advice for planning, never a block, and a breach is checked with the member of staff (HZ-010, HZ-011) | CSO | `payTime.workingTime.*` in en-GB.json | Clinical safety case delta | open |
+| H-1182 | Review with the CSO the absence page's cover-needed state (an icon and "N shifts need cover", sorted to the top after requests) as the screen control for HZ-123 | CSO | `coverChip` in `apps/web/src/lib/pay-time.ts` | Clinical safety case delta | open |
+| H-1183 | Confirm with the DPO that pay run lines and exceptions showing each member's name to pay managers and approvers, and timesheet approval showing names to rota approvers at the home, needs no DPIA change | DPO | `memberName` on `PayRunLineItem` and `PayRunExceptionItem`; `workerName` on `TimesheetEntryItem` | None (default applied) | open |
+| H-1184 | Decide whether clocking in should let the worker choose among overlapping shifts (today each shift from yesterday to tomorrow has its own buttons and the API decides the rule on the day) | Brian with the design partner | `/my-time`; scheduling.md section 16 | None (default applied) | open |
+| H-1185 | Decide whether the rule set form should take enhancements, night hours, overtime and extra bank holidays on screen (today it takes the name, date, role rates, sleep-in and mileage; the rest default and can be set through the API) | Brian with the payroll lead | `RuleSetForm`; `CreatePayRuleSet` | None (default applied) | open |
+| H-1186 | Write the owner guide sections for pay runs (calculate, clear or override exceptions with a reason, lock, correct) and the manager guide for timesheets and absences | Brian | scheduling.md sections 16 to 18 | Pilot training | open |
+| H-1187 | Translate the time, absence and pay strings into Welsh (listed as untranslated in cy.status.json) | Welsh translator | `payTime.*`, `shell.nav.{myTime,myPay,timesheets,absences,pay}` in cy.json | Welsh launch | open |
+| H-1188 | Run the pay and time journeys on a phone-width screen (slice 74) and with a screen reader, and record the result | Accessibility lead | `apps/web/e2e/pay-time.spec.ts` | Slice 74 | open |
+| H-1189 | Confirm the pay screens ask for a recent second sign-in step for every pay route (organisation-wide, Owner and Finance only) and that payroll staff have passkeys before the pilot | Brian with the design partner | `scheduling.pay.manage`, `scheduling.pay.approve` (sensitive) | Pay pilot | open |
+
 ## Per tenant at onboarding
 
 Sign the DPA and the DPIA (with the AI addendum if AI is enabled), complete the DCB0160 deployment

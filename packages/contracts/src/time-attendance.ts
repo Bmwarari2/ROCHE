@@ -91,6 +91,8 @@ export const TimesheetEntryItem = z
     id: uuid,
     version,
     workerId: uuid,
+    /** The worker's name, for those who may read the entry. */
+    workerName: z.string().nullable(),
     locationId: uuid,
     shiftId: uuid.nullable(),
     kind: TimesheetKind,
