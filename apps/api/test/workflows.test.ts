@@ -5,10 +5,14 @@ import type {
   WorkflowInstanceItem,
   WorkflowInstanceList,
 } from "@harbour/contracts";
+import { createDatabase, createPool } from "@harbour/db";
 import { DEMO } from "@harbour/db/seed";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MOBILE_APP_ORIGIN } from "../src/auth/token-exposure";
+import { eachTenant } from "../src/jobs/tasks";
+import { createLogger } from "../src/logger";
+import { backfillWorkflowDeadlines } from "../src/services/safety";
 import {
   createHarness,
   type Harness,
@@ -37,7 +41,13 @@ let raised: IncidentDetail;
  */
 const DEE = "0194d000-0000-7000-8000-0000000003b1";
 const NED = "0194d000-0000-7000-8000-0000000003b2";
-const extra: Record<"dee" | "ned", string> = { dee: "", ned: "" };
+/**
+ * Dina Submitter (#130 review round 2, M1) submits notifications at Harbour House only; under an
+ * acting-up grant at the Lodge, since ended, she raised a police incident there.
+ */
+const DINA = "0194d000-0000-7000-8000-0000000003b3";
+const SUBMITTER_ROLE = "0194d000-0000-7000-8000-0000000005b3";
+const extra: Record<"dee" | "ned" | "dina", string> = { dee: "", ned: "", dina: "" };
 const DAY = 86_400_000;
 
 const MIN = 60_000;
@@ -348,6 +358,200 @@ describe("PLAT-011 open workflows and approvals", () => {
     ]);
     const all = (await list("owner", "all")).items;
     expect(all[0]).toMatchObject({ subjectId: draft?.id, slaState: "on_record" });
+
+    // The backfill fills it from the notification's own clock, and running it again changes nothing.
+    const appPool = createPool(h.db.url("harbour_app"));
+    try {
+      const deps = {
+        workerPool: h.db.pool("harbour_worker"),
+        appDb: createDatabase(appPool),
+        logger: createLogger("silent"),
+      };
+      expect(await eachTenant(deps, "test", backfillWorkflowDeadlines)).toBeGreaterThanOrEqual(1);
+      expect(await eachTenant(deps, "test", backfillWorkflowDeadlines)).toBe(0);
+    } finally {
+      await appPool.end();
+    }
+    const filled = (await list("owner", "all")).items.find((i) => i.subjectId === draft?.id);
+    expect(filled?.slaDueAt).toBe(new Date(notification.dueAt).toISOString());
+  });
+
+  it("hazard HZ-013 never lets the raiser of an incident at another home submit or decline its notification", async () => {
+    extra.dina = await member(DINA, "Dina Submitter", "dina.submitter@example.invalid");
+    await asOwner(
+      `INSERT INTO role (id, key, name, scope_kind, permissions)
+       VALUES ($1, 'test_submitter', 'Notification submitter', 'location',
+               '{safety.notification.submit,safety.incident.read,safety.incident.report}')`,
+      [SUBMITTER_ROLE],
+    );
+    await asOwner(
+      "INSERT INTO role_assignment (tenant_user_id, role_id, location_id) VALUES ($1, $2, $3)",
+      [DINA, SUBMITTER_ROLE, DEMO.locationId],
+    );
+    const [grant] = await asOwner(
+      `INSERT INTO access_grant
+         (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+       VALUES ($1, '{safety.incident.report,safety.incident.read,safety.incident.manage}', $2, $3, $4,
+               'Acting up at Harbour Lodge', $5)
+       RETURNING id`,
+      [
+        DINA,
+        LODGE.locationId,
+        new Date(Date.now() - DAY),
+        new Date(Date.now() + DAY),
+        DEMO.users.owner.id,
+      ],
+    );
+    const raisedThere = await h.request("/v1/incidents", {
+      token: extra.dina,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: {
+        locationId: LODGE.locationId,
+        type: "environmental",
+        occurredAt: ago(30 * MIN),
+        description: "Someone tried the Lodge back door at night.",
+        people: [],
+        answers: [{ key: "police.involved", value: "yes" }],
+      },
+    });
+    expect(raisedThere.status, await raisedThere.clone().text()).toBe(201);
+    const lodgeIncident = await json<IncidentDetail>(raisedThere);
+    const police = lodgeIncident.classifier?.notifications.find(
+      (n) => n.kind === "cqc_reg18_police",
+    );
+    expect(police, "a police notification draft about nobody").toBeDefined();
+    // The grant ends; she still holds notification submission, at Harbour House only.
+    await asOwner("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant?.id]);
+
+    const listed = await listAs(extra.dina, "all");
+    expect(listed.items.some((i) => i.subjectId === police?.id)).toBe(false);
+    const detail = await json<{ version: number }>(
+      await as("owner", `/v1/notifications/statutory/${police?.id}`),
+    );
+    const notRequired = await h.request(`/v1/notifications/statutory/${police?.id}/not-required`, {
+      token: extra.dina,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { reason: "Not a notifiable event here.", version: detail.version },
+    });
+    expect(notRequired.status, await notRequired.clone().text()).toBe(403);
+    const submit = await h.request(`/v1/notifications/statutory/${police?.id}/submit`, {
+      token: extra.dina,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: {
+        submittedAt: ago(MIN),
+        externalReference: "CQC-EXAMPLE-1",
+        version: detail.version,
+      },
+    });
+    expect(submit.status, await submit.clone().text()).toBe(403);
+  });
+
+  it("hazard HZ-091 never lets a manager move an incident they raised at another home", async () => {
+    // Dee manages incidents at Harbour House; under a grant at the Lodge, since ended, she raised
+    // an incident about nobody there.
+    const [grant] = await asOwner(
+      `INSERT INTO access_grant
+         (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+       VALUES ($1, '{safety.incident.report,safety.incident.read,safety.incident.manage}', $2, $3,
+               $4, 'Acting up at Harbour Lodge', $5)
+       RETURNING id`,
+      [
+        DEE,
+        LODGE.locationId,
+        new Date(Date.now() - DAY),
+        new Date(Date.now() + DAY),
+        DEMO.users.owner.id,
+      ],
+    );
+    const raisedThere = await h.request("/v1/incidents", {
+      token: extra.dee,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: {
+        locationId: LODGE.locationId,
+        type: "environmental",
+        occurredAt: ago(30 * MIN),
+        description: "A Lodge radiator leaked.",
+        people: [],
+      },
+    });
+    expect(raisedThere.status, await raisedThere.clone().text()).toBe(201);
+    const lodgeIncident = await json<IncidentDetail>(raisedThere);
+    await asOwner("UPDATE access_grant SET revoked_at = now() WHERE id = $1", [grant?.id]);
+    expect(forIncident((await listAs(extra.dee, "all")).items, lodgeIncident.id)).toBeUndefined();
+    const review = await h.request(`/v1/incidents/${lodgeIncident.id}/review`, {
+      token: extra.dee,
+      tenant: DEMO.tenantId,
+      method: "POST",
+      body: { to: "under_review", version: lodgeIncident.version },
+    });
+    expect(review.status, await review.clone().text()).toBe(403);
+  });
+
+  it("hazard HZ-013 writes the candour clocks onto the workflow on the record and each step", async () => {
+    const decidedAt = new Date(Date.now() - 2 * 60 * MIN);
+    const raisedCandour = await json<IncidentDetail>(
+      await as("manager", "/v1/incidents", {
+        method: "POST",
+        body: {
+          locationId: DEMO.locationId,
+          type: "medication",
+          occurredAt: ago(3 * 60 * MIN),
+          description: "A dose was given an hour late.",
+          people: [
+            {
+              kind: "service_user",
+              role: "affected",
+              personId: "0194d000-0000-7000-8600-000000000004",
+            },
+          ],
+          answers: [],
+        },
+      }),
+    );
+    const put = await as("manager", `/v1/incidents/${raisedCandour.id}/candour`, {
+      method: "PUT",
+      body: {
+        personId: "0194d000-0000-7000-8600-000000000004",
+        threshold: {
+          notifiable: true,
+          decidedAt: decidedAt.toISOString(),
+          decidedBy: "Dr Example, GP",
+        },
+        version: 0,
+      },
+    });
+    expect(put.status, await put.clone().text()).toBe(200);
+    const record = (await json<{ record: { id: string; version: number } }>(put)).record;
+    const deadline = async () =>
+      (
+        await asOwner("SELECT sla_due_at, state FROM workflow_instance WHERE subject_id = $1", [
+          record.id,
+        ])
+      )[0] as { sla_due_at: Date | null; state: string };
+    // Telling the person is due from the threshold decision.
+    expect((await deadline()).sla_due_at?.toISOString()).toBe(decidedAt.toISOString());
+    const step = await as("manager", `/v1/incidents/${raisedCandour.id}/candour/step`, {
+      method: "POST",
+      body: { to: "verbal_due", version: record.version },
+    });
+    expect(step.status, await step.clone().text()).toBe(200);
+    expect(await deadline()).toMatchObject({ state: "verbal_due" });
+    expect((await deadline()).sla_due_at?.toISOString()).toBe(decidedAt.toISOString());
+    const listed = (await list("owner", "all")).items.find((i) => i.subjectId === record.id);
+    expect(listed).toMatchObject({ slaState: "overdue", slaDueAt: decidedAt.toISOString() });
+
+    // Enquiries open carry no deadline: "none", not the warning, and not listed first.
+    await asOwner(
+      "UPDATE workflow_instance SET state = 'enquiries_open', sla_due_at = NULL WHERE subject_id = $1",
+      [record.id],
+    );
+    const all = (await list("owner", "all")).items;
+    expect(all.find((i) => i.subjectId === record.id)?.slaState).toBe("none");
+    expect(all[0]?.subjectId).not.toBe(record.id);
   });
 
   it("never shows another organisation's workflows", async () => {

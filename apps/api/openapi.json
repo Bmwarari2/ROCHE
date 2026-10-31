@@ -6927,6 +6927,28 @@
               "type": "string"
             }
           },
+          "incident": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "version": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string"
+              },
+              "closeBlocked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "version",
+              "status",
+              "closeBlocked"
+            ]
+          },
           "moves": {
             "type": "array",
             "items": {
@@ -6955,6 +6977,7 @@
           "slaState",
           "createdBy",
           "permissions",
+          "incident",
           "moves",
           "awaitingYourApproval",
           "raisedByYou"
@@ -30903,7 +30926,7 @@
           "platform"
         ],
         "summary": "Open workflows in your scope, with their deadline state and the steps open to you",
-        "description": "For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope sees the record (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.",
+        "description": "For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope shows the record and reaches its home (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records in a state whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.",
         "security": [
           {
             "bearerAuth": []

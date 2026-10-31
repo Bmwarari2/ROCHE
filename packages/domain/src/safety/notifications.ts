@@ -240,7 +240,7 @@ export const STATUTORY_NOTIFICATION_WORKFLOW = defineWorkflow<NotificationStatus
   key: "safety.statutory_notification",
   version: 1,
   // The notification's own due time (HZ-013), written by the safety module.
-  deadlineOnRecord: true,
+  deadlineOnRecord: { states: ["draft", "ready"] },
   states: ["draft", "ready", "submitted", "not_required"],
   initial: "draft",
   terminal: ["submitted", "not_required"],

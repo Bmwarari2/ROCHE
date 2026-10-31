@@ -6209,7 +6209,7 @@ export interface paths {
     };
     /**
      * Open workflows in your scope, with their deadline state and the steps open to you
-     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope sees the record (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.
+     * @description For the approvals screen (PLAT-011). view=approvals (the default) lists records waiting for your approval and ones you raised that wait for someone else's; view=all lists every open workflow you have a part in. Each listed permission counts only where its own scope shows the record and reaches its home (ADR-0071). Steps are taken on each record's own route, which checks its rules and separation of duties again. Records in a state whose deadline is kept on the record but not yet carried here come first, then soonest deadline first.
      */
     get: {
       parameters: {
@@ -22646,6 +22646,11 @@ export interface components {
       slaState: components["schemas"]["WorkflowSlaState"];
       createdBy: components["schemas"]["StaffName"];
       permissions: string[];
+      incident: {
+        version: number;
+        status: string;
+        closeBlocked: boolean;
+      } | null;
       moves: components["schemas"]["WorkflowMoveOption"][];
       awaitingYourApproval: boolean;
       raisedByYou: boolean;

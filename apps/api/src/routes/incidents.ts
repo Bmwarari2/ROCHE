@@ -36,7 +36,6 @@ import {
   type CandourState,
   type ClassifierQuestionKey,
   candourClocks,
-  candourStateDeadline,
   candourStepProblems,
   classifierAnswerProblem,
   INCIDENT_WORKFLOW,
@@ -65,10 +64,11 @@ import { bankHolidays, rateNumber } from "../services/rates";
 import {
   classifyAndStore,
   safetyRates,
+  syncCandourDeadline,
   toClassifierAnswers,
   withTenantWideScope,
 } from "../services/safety";
-import { setWorkflowDeadline, startWorkflow } from "../services/workflow";
+import { startWorkflow } from "../services/workflow";
 import { iso, range, SENT_AT_HEADER, withLateEntryReview } from "./care-shared";
 import {
   conflictResponse,
@@ -86,6 +86,7 @@ import {
   managesIncident,
   mayChange,
   readIncident,
+  requireManagesIncident,
 } from "./safety-shared";
 import { moveOrRefuse } from "./workflow-shared";
 
@@ -246,28 +247,6 @@ function candourView(row: CandourRow): CandourRecordView {
     enquiryResultsSharedAt: row.enquiryResultsSharedAt,
     correspondenceDocumentIds: row.correspondenceDocumentIds,
   };
-}
-
-/**
- * Writes the deadline of the candour record's state onto its workflow, so the approvals list shows
- * it (HZ-013): the safety module's own clocks, never worked out elsewhere.
- */
-async function syncCandourDeadline(
-  tx: Transaction,
-  tenantId: string,
-  row: CandourRow,
-  occurredAt: Date,
-  nation: IncidentNation,
-): Promise<void> {
-  const rates = await safetyRates(tx, tenantId, ukIsoDate(occurredAt));
-  const decidedAt = row.thresholdNotifiable === true ? (row.thresholdDecidedAt ?? null) : null;
-  const clocks = candourClocks(occurredAt, decidedAt, rates, await bankHolidays(tx, nation));
-  await setWorkflowDeadline(
-    tx,
-    CANDOUR_WORKFLOW,
-    { subjectType: "candour_record", subjectId: row.id },
-    candourStateDeadline(row.state as CandourState, clocks),
-  );
 }
 
 async function candourItem(
@@ -698,6 +677,9 @@ export const incidentsRouter = createRouter()
       const detail = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         if (row.version !== body.version) throw problems.conflict();
+        // Managing it where it is: raising it, or holding the permission at another home, is not
+        // enough (#130 review round 2, M1).
+        await requireManagesIncident(c, tx, access, id);
         await moveOrRefuse(
           c,
           tx,
@@ -751,6 +733,7 @@ export const incidentsRouter = createRouter()
       const detail = await withTenant(c, async (tx) => {
         const { row } = await loadForChange(c, tx, id);
         if (row.version !== body.version) throw problems.conflict();
+        await requireManagesIncident(c, tx, access, id);
         // Every notification and the candour record count, including ones about people the
         // closer cannot see.
         const blockers = await withTenantWideScope(tx, async () => {

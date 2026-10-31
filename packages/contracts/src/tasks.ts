@@ -294,6 +294,14 @@ export const WorkflowInstanceItem = z
      * the record (ADR-0071), and managing an incident needs it seen whole. The steps follow these.
      */
     permissions: z.array(z.string()),
+    /**
+     * For an incident whose closing the reader manages: its version (for the forms) and whether a
+     * notification still a draft or ready, or an open question, holds closing back (HZ-013; the
+     * close route checks again). Null otherwise.
+     */
+    incident: z
+      .object({ version: z.number().int(), status: z.string(), closeBlocked: z.boolean() })
+      .nullable(),
     /** The steps open to the reader now. Each is taken on the record's own page or route. */
     moves: z.array(WorkflowMoveOption),
     awaitingYourApproval: z.boolean(),

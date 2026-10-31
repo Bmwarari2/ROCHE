@@ -314,23 +314,50 @@ describe("deadlines kept on the record (HZ-013)", () => {
     states: ["open", "under_review", "closed"],
     initial: "open",
     terminal: ["closed"],
-    transitions: [{ from: "open", to: "closed", permission: "safety.incident.manage" }],
-    deadlineOnRecord: true,
+    transitions: [
+      { from: "open", to: "under_review", permission: "safety.incident.manage" },
+      { from: ["open", "under_review"], to: "closed", permission: "safety.incident.manage" },
+    ],
+    deadlineOnRecord: { states: ["open"] },
   });
   const now = new Date("2026-10-31T10:00:00Z");
 
-  it.each<[string, WorkflowDefinition<IncidentState>, string | null, WorkflowSlaState]>([
-    ["a record deadline not yet written warns", onRecord, null, "on_record"],
-    ["a record deadline written reads as any other", onRecord, "2026-10-31T09:00:00Z", "overdue"],
-    ["a workflow without one has no deadline", incident, null, "none"],
-  ])("%s", (_label, definition, due, expected) => {
-    expect(workflowSlaStateFor(definition, due ? new Date(due) : null, now)).toBe(expected);
+  it.each<
+    [string, WorkflowDefinition<IncidentState>, IncidentState, string | null, WorkflowSlaState]
+  >([
+    ["a record deadline not yet written warns", onRecord, "open", null, "on_record"],
+    [
+      "a record deadline written reads as any other",
+      onRecord,
+      "open",
+      "2026-10-31T09:00:00Z",
+      "overdue",
+    ],
+    [
+      "a state that carries no deadline has none, not a warning",
+      onRecord,
+      "under_review",
+      null,
+      "none",
+    ],
+    ["a workflow without one has no deadline", incident, "open", null, "none"],
+  ])("%s", (_label, definition, state, due, expected) => {
+    expect(workflowSlaStateFor(definition, state, due ? new Date(due) : null, now)).toBe(expected);
   });
 
-  it("refuses a workflow with both a record deadline and an SLA", () => {
-    expect(() => defineWorkflow({ ...onRecord, sla: { open: { hours: 1 } } })).toThrow(
+  it.each<[string, Partial<WorkflowDefinition<IncidentState>>, string]>([
+    [
+      "both a record deadline and an SLA",
+      { sla: { open: { hours: 1 } } },
       "cannot also have an SLA",
-    );
+    ],
+    [
+      "a record deadline on a finished state",
+      { deadlineOnRecord: { states: ["closed"] } },
+      "needs an open state",
+    ],
+  ])("refuses %s", (_label, change, message) => {
+    expect(() => defineWorkflow({ ...onRecord, ...change })).toThrow(message);
   });
 
   it("lists the states an approval step leaves from", () => {

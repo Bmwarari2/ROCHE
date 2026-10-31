@@ -32,8 +32,9 @@ export type CandourState =
 export const CANDOUR_WORKFLOW = defineWorkflow<CandourState>({
   key: "safety.candour",
   version: 1,
-  // The candour clocks (`candourStateDeadline`), written by the safety module.
-  deadlineOnRecord: true,
+  // The candour clocks (`candourStateDeadline`), written by the safety module; enquiries open
+  // carry none.
+  deadlineOnRecord: { states: ["threshold_assessment", "verbal_due", "written_due"] },
   states: [
     "threshold_assessment",
     "not_notifiable",
