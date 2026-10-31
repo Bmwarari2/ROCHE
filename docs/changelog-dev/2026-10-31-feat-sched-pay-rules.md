@@ -23,7 +23,7 @@ SCHED-010 (domain rules only; no database, API or screens; no migration).
 - Rate table: NMW age bands and the apprentice rule (verified at gov.uk); statutory family pay
   rates and weeks; AWR break limits; auto-enrolment thresholds per weekly and monthly period and age
   bands; the Bradford window (tenant default). `GBP_per_month` added to the units.
-- Human actions H-580 to H-583 (lane C); the register rows' paths.
+- Human actions H-582 to H-585 (lane C); the register rows' paths.
 
 ## Clinical safety and data protection
 
@@ -37,7 +37,7 @@ SCHED-010 (domain rules only; no database, API or screens; no migration).
 
 ## Human actions logged
 
-- H-580 to H-583.
+- H-582 to H-585.
 
 ## Tests
 
