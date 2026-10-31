@@ -57,5 +57,7 @@ Branch `feat/web-incident-follow-up`.
   `incident-trends.test.ts`, and additions to `incident-review.test.ts` and `refusals.test.ts`;
   web suite 998 passing.
 - API: `incidents.test.ts` (42, one new).
-- Journeys: `candour.spec.ts` (2), `investigation.spec.ts` (3), `after-death.spec.ts` (2), axe in
-  light and dark on every state; the existing incident journeys (16) still pass.
+- Journeys: `candour.spec.ts` (2), `investigation.spec.ts` (3, the trend view also at 320 px),
+  `after-death.spec.ts` (2), axe in light and dark on every state; the existing incident journeys
+  still pass. `incidents.spec.ts`'s reflow journey now skips the new trends link when it opens the
+  first incident on the list.

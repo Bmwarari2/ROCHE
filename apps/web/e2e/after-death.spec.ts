@@ -50,6 +50,8 @@ const region = (page: Page, name: string) => page.getByRole("region", { name, ex
 test("hazard HZ-013 after a death the manager sees the medical examiner pack and is asked to check LeDeR", async ({
   page,
 }) => {
+  // Two pages, each checked with axe in both themes.
+  test.setTimeout(120_000);
   await signIn(page, "manager@example.invalid");
   const incident = await death(page.request, "Found on the floor of the lounge, not breathing");
   await page.goto(`/incidents/${incident.id}`);
@@ -88,6 +90,7 @@ test("hazard HZ-013 after a death the manager sees the medical examiner pack and
   await after
     .getByRole("link", { name: "Open the notification: medical examiner information pack" })
     .click();
+  await page.waitForURL(/\/notifications\/statutory\/[0-9a-f-]{36}$/);
   const pack = region(page, "Medical examiner information pack");
   await expect(pack.getByText("Circumstances of the death", { exact: true })).toBeVisible();
   await expect(pack.getByRole("link", { name: "Where to find it: the incident" })).toHaveAttribute(

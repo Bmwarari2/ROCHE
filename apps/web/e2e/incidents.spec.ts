@@ -364,7 +364,10 @@ test("the incident screens reflow at 320 px", async ({ page, context }) => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
   expect(await overflow(), "the list scrolls sideways").toBeLessThanOrEqual(0);
-  await page.locator('a[href^="/incidents/"]:not([href="/incidents/new"])').first().click();
+  await page
+    .locator('a[href^="/incidents/"]:not([href="/incidents/new"]):not([href="/incidents/trends"])')
+    .first()
+    .click();
   await page.waitForURL(/\/incidents\/[0-9a-f-]{36}$/);
   await page.locator('[data-collapsed="true"]').waitFor();
   await settleAnimations(page);
