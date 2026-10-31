@@ -42,6 +42,7 @@ import {
   UPLOAD_BACKOFF,
 } from "./backoff";
 import { isCareEntryTable, toCareUpload } from "./care-upload";
+import { type HandoverShifts, handoverShiftsFromToken } from "./handover-shifts";
 import {
   isRoundWritableTable,
   type RoundMove,
@@ -302,6 +303,11 @@ export interface HarbourConnectorOptions {
    * C2-M3), so the person screen offers recording only where the server would take it.
    */
   readonly onWriteScope?: (scope: WriteScope | null) => void;
+  /**
+   * Called with each nation's shift pattern from each new sync token (ADR-0074), so the handover
+   * screen can say offline which handover the phone should hold; null when the token has none.
+   */
+  readonly onHandoverShifts?: (shifts: HandoverShifts | null) => void;
   readonly backoff?: BackoffPolicy;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly random?: () => number;
@@ -438,6 +444,7 @@ export class HarbourConnector implements PowerSyncBackendConnector {
     }
     const credentials = parseSyncCredentials(await response.json());
     this.options.onWriteScope?.(writeScopeFromToken(credentials.token));
+    this.options.onHandoverShifts?.(handoverShiftsFromToken(credentials.token));
     return credentials;
   }
 

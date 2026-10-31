@@ -104,6 +104,7 @@ import {
   requested,
   senderFor,
 } from "../sync/discards";
+import { writeCachedHandoverShifts } from "../sync/handover-shifts";
 import {
   HELD_FAIL_SAFE_DAYS,
   heldDeadline,
@@ -693,6 +694,10 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           },
           // Where the phone may record, from each token (review round 2, C2-M3).
           onWriteScope: setWriteScope,
+          // Each nation's shift pattern, kept for the handover screen offline (ADR-0074).
+          onHandoverShifts: (shifts) => {
+            if (shifts) void writeCachedHandoverShifts(opened, shifts).catch(() => undefined);
+          },
         });
         connectorRef.current = connector;
         connectSync(opened, connector).catch(() => undefined);
