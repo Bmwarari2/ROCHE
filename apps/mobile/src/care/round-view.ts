@@ -61,7 +61,7 @@ export type RoundChip =
     };
 
 export interface RoundFlag {
-  readonly key: "urgent" | "communication";
+  readonly key: "urgent" | "communication" | "overdue";
   readonly icon: "triangle-alert" | "message-square-text";
   readonly tone: "warning" | "info";
   readonly label: string;
@@ -205,6 +205,19 @@ export function roundItem(row: RoundTaskRow, now: Date): RoundItem {
     notices.push(t("mobile.round.evidenceRefused"));
   }
   if (action === "evidence" && !row.person_id) notices.push(t("mobile.round.evidenceOnWeb"));
+  // A waiting or sent chip replaces the status chip: keep "Overdue" (or "Overdue: escalated") in
+  // sight beside it (#123 check, low).
+  if (chip.kind === "flag" && timing === "overdue") {
+    flags.push({
+      key: "overdue",
+      icon: "triangle-alert",
+      tone: "warning",
+      label:
+        (row.escalation_level ?? 0) > 0
+          ? t("mobile.round.overdueEscalated")
+          : t("mobile.round.overdue"),
+    });
+  }
   return {
     id: row.id,
     title,

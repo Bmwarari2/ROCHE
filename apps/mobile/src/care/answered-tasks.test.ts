@@ -2,7 +2,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { DISCARD_NOTE_PREFIX, KEPT_META_IDS } from "../app-state/held-work";
 import { DEMO_TENANT_ID, demoPeople } from "../demo/demo-data";
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
-import { answeredMetaId, rememberAnsweredStatements } from "./answered-tasks";
+import {
+  answeredMetaId,
+  FORGET_ANSWER_FOR_ENTRY_SQL,
+  rememberAnsweredStatements,
+} from "./answered-tasks";
 import * as queries from "./queries";
 import { type RoundTaskRow, roundItem } from "./round-view";
 
@@ -89,6 +93,23 @@ describe("hazard HZ-029 a round task is answered by one entry from this device (
     expect(refused.action).toBe("evidence");
     expect(refused.notices[0]).toMatch(/^An entry for this task was not accepted by Harbour/);
     save("e-2");
+    expect(state()).toBe("answered");
+  });
+
+  it("is not answered once its refused entry is removed to be recorded again (#123 check, M1)", () => {
+    // e-2 is answered (above); Harbour refuses it, which moves it from its table to needs
+    // attention, and the carer removes it from there.
+    db.prepare("DELETE FROM observation WHERE id = 'e-2'").run();
+    db.prepare(
+      "INSERT INTO upload_issue (id, tenant_id, person_id, record_table, payload) VALUES ('e-2', ?, ?, 'observation', '{}')",
+    ).run(DEMO_TENANT_ID, ADA);
+    expect(state()).toBe("refused");
+    // As removeRefused does, in one transaction.
+    db.prepare(queries.DELETE_UPLOAD_ISSUE_SQL).run(DEMO_TENANT_ID, "e-2");
+    db.prepare(FORGET_ANSWER_FOR_ENTRY_SQL).run("e-2");
+    expect(state()).toBe("none");
+    expect(round().action).toBe("evidence");
+    save("e-3");
     expect(state()).toBe("answered");
   });
 

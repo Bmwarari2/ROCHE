@@ -129,3 +129,11 @@ whether it was from an earlier plan). Finished on 31/10/2026:
   matches the handover's words; NEWS2 low-medium says "because a single parameter scored 3"; the
   trigger-code doc comment is back on its function.
 
+## PR #123 check at c6a85f2b
+
+- M1 edge cases: removing a refused entry forgets the answer it gave, in the same transaction
+  (`FORGET_ANSWER_FOR_ENTRY_SQL`), so the task can be recorded again; putting held entries back
+  rebuilds their owner's answers, which the hold had cleared. Tests for both.
+- Low: when a waiting or sent chip takes the status chip's place, "Overdue" or "Overdue: escalated"
+  stays in sight as its own flag.
+
