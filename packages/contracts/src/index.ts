@@ -522,6 +522,7 @@ export * from "./people";
 export * from "./person-summary";
 export * from "./quality";
 export * from "./records";
+export * from "./rota";
 export * from "./safety";
 export * from "./scheduling";
 export * from "./search";

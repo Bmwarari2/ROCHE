@@ -67,6 +67,7 @@ import {
   ratesRouter,
 } from "./routes/platform";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
+import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
 import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
@@ -339,6 +340,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", operatorSubProcessorsRouter);
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
+  app.route("/", rotaRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

@@ -705,6 +705,23 @@ category so a receiving system can read it.
 | `dependency_assessment.reason`, `decided_by` | Harbour | Plain text, 1 to 2,000 characters; a tenant user id | Who decided is recorded apart from who recorded it (`created_by`). |
 | `placement.dependency_category` | Harbour (Phase 1, free text from the admission form) | Text, at most 20 characters | Kept as recorded; not read by the required care hours. Whether to retire it is H-716. |
 
+## Rota builder (Phase 2, slice 21)
+
+Code lists for [scheduling.md](scheduling.md) section 14. No national standard defines a care
+home rota; the fields below are Harbour's.
+
+| Harbour field | Standard mapping | Code list or format | Notes |
+| --- | --- | --- | --- |
+| `shift_template.start_minute`, `end_minute` | Harbour | Minutes after midnight, UK local time, 0 to 1439 | An end at or before the start is the next day; shown as 24-hour times. |
+| `shift.kind`, `shift_template.kind` | Harbour (Working Time Regulations period kinds) | `work`, `sleep_in`, `on_call_at_workplace`, `on_call_away`, `training` (`SHIFT_KINDS`) | Only `work` counts as care minutes on the staffing comparison. |
+| `shift.starts_at`, `ends_at` | ISO 8601 date-time, UTC | `timestamptz` | A shift starts on one of its rota's UK dates. |
+| `shift.required_competences` | Harbour | `COMPETENCES` (workforce.md section 2b) | Applied by the rostering rule. |
+| `shift.required_skills` | Harbour | `STAFFING_SKILLS` | Describe the position; not a blocker (H-836). |
+| `shift_pattern.entries` | Harbour | `[{ day, templateId, count }]`; `day` from 0 within `cycle_days` | |
+| `roster_override.blocker_keys` | Harbour | `dbs`, `dbs_supervised_only`, `registration`, `competence:<competence>`; never `right_to_work` | No DBS detail is stored. |
+| `rota_publication.staffing` | Harbour | `[{ date, periodKey, status }]`; status `below`, `incomplete`, `met_with_warnings`, `met`, `no_scale` | What the publisher was shown. |
+| `rota_publication.notice_minutes` | Harbour | Whole minutes, 0 or more | From publication to the first shift it published. |
+
 ## Platform operational tables (not part of the MODS export)
 
 These tables support running the service and are exported in the full tenant export (section 5.1) but

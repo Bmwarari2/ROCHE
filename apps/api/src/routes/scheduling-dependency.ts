@@ -14,7 +14,6 @@ import {
   StaffingRequirementList,
 } from "@harbour/contracts";
 import {
-  admissionDecision,
   dependencyAssessment,
   dependencyScale,
   dependencyScaleVersion,
@@ -32,23 +31,17 @@ import {
   DEPENDENCY_TOOL_NOTICE,
   type DependencyAssessmentKind,
   type DependencyProblem,
-  type DependencyRecord,
   type DependencyScaleDefinition,
   type DependencyScaleState,
   dependencyInForce,
-  LIVE_PERSON_STATUSES,
   type PeriodMinutes,
-  type PresenceFacts,
-  presenceOn,
   SCALE_APPROVAL_MESSAGES,
-  type ScaleVersionRecord,
   type StaffingRequirement,
   scaleForLocation,
-  staffingRequirement,
   ukIsoDate,
 } from "@harbour/domain";
 import { createRoute, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max } from "drizzle-orm";
 import type { Context } from "hono";
 import { AuditedRefusal, withAuditedRefusal, writeAudit } from "../http/audit";
 import {
@@ -60,6 +53,13 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import {
+  domainRecord,
+  domainVersion,
+  liveScales,
+  locationRequirement,
+  recordsOf,
+} from "../services/staffing-requirement";
 import {
   conflictResponse,
   createRouter,
@@ -98,7 +98,6 @@ const A = {
 
 type ScaleRow = typeof dependencyScale.$inferSelect;
 type VersionRow = typeof dependencyScaleVersion.$inferSelect;
-type RecordRow = typeof dependencyAssessment.$inferSelect;
 
 const stateConflict = (detail: string) => new HttpProblem(409, "invalid_state", detail);
 
@@ -148,33 +147,6 @@ async function change<T>(
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
-
-const domainVersion = (row: VersionRow): ScaleVersionRecord => ({
-  id: row.id,
-  scaleId: row.scaleId,
-  versionNumber: row.versionNumber,
-  state: row.state as DependencyScaleState,
-  definition: row.definition as DependencyScaleDefinition,
-  authorId: row.authorId,
-  contributorIds: row.contributorIds,
-  approvedBy: row.approvedBy,
-  approvedAt: row.approvedAt,
-});
-
-const domainRecord = (row: RecordRow): DependencyRecord => ({
-  id: row.id,
-  personId: row.personId,
-  scaleId: row.scaleId,
-  scaleVersionId: row.scaleVersionId,
-  categoryKey: row.categoryKey,
-  oneToOne: row.oneToOne as PeriodMinutes[],
-  kind: row.kind as DependencyAssessmentKind,
-  effectiveFrom: row.effectiveFrom,
-  supersedesId: row.supersedesId,
-  decidedBy: row.decidedBy,
-  reason: row.reason,
-  recordedAt: row.recordedAt,
-});
 
 function versionItem(row: VersionRow): z.infer<typeof DependencyScaleVersionItem> {
   const definition = row.definition as DependencyScaleDefinition;
@@ -285,19 +257,6 @@ async function draftFor(
 const sameVersion = (versionId: string, expectVersion: number) =>
   and(eq(dependencyScaleVersion.id, versionId), eq(dependencyScaleVersion.version, expectVersion));
 
-/** The organisation's scales still in use, with each one's versions. */
-async function liveScales(tx: Transaction): Promise<ScaleRow[]> {
-  return tx.select().from(dependencyScale).where(isNull(dependencyScale.deletedAt));
-}
-
-async function recordsOf(tx: Transaction, personIds: readonly string[]): Promise<RecordRow[]> {
-  if (personIds.length === 0) return [];
-  return tx
-    .select()
-    .from(dependencyAssessment)
-    .where(inArray(dependencyAssessment.personId, [...personIds]));
-}
-
 /** A person's records as the API returns them, newest first, with the one in force at `now`. */
 async function personRecords(
   tx: Transaction,
@@ -343,34 +302,6 @@ async function personRecords(
     })
     .sort((x, y) => (x.recordedAt < y.recordedAt ? 1 : x.recordedAt > y.recordedAt ? -1 : 0));
   return { items, currentId: currentDependency(records)?.id ?? null };
-}
-
-/**
- * The planned admission date of each person being admitted, from the admission decision in force
- * (the one no later decision supersedes) when it says needs can be met; absent when none.
- */
-async function plannedAdmissions(
-  tx: Transaction,
-  personIds: readonly string[],
-): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  if (personIds.length === 0) return out;
-  const decisions = await tx
-    .select({
-      id: admissionDecision.id,
-      personId: admissionDecision.personId,
-      canMeetNeeds: admissionDecision.canMeetNeeds,
-      plannedAdmissionOn: admissionDecision.plannedAdmissionOn,
-      supersedesId: admissionDecision.supersedesId,
-    })
-    .from(admissionDecision)
-    .where(inArray(admissionDecision.personId, [...personIds]));
-  const superseded = new Set(decisions.map((d) => d.supersedesId).filter(Boolean));
-  for (const d of decisions) {
-    if (superseded.has(d.id) || d.canMeetNeeds === "no" || !d.plannedAdmissionOn) continue;
-    out.set(d.personId, d.plannedAdmissionOn);
-  }
-  return out;
 }
 
 const DEPENDENCY_CONFLICTS: readonly DependencyProblem[] = ["not_current", "initial_exists"];
@@ -1125,67 +1056,19 @@ export const schedulingDependencyRouter = createRouter()
           .from(location)
           .where(eq(location.id, id));
         if (!place) return null;
-        const scale = scaleForLocation(await liveScales(tx), id);
-        const versions = scale
-          ? await tx
-              .select()
-              .from(dependencyScaleVersion)
-              .where(eq(dependencyScaleVersion.scaleId, scale.id))
-          : [];
-        // Everyone living at the location or being admitted to it; where each is on the date
-        // asked comes from their status, when it began, and a planned admission (rule 9).
-        const people = await tx
-          .select({
-            id: person.id,
-            status: person.status,
-            statusChangedAt: person.statusChangedAt,
-          })
-          .from(person)
-          .where(
-            and(
-              eq(person.locationId, id),
-              inArray(person.status, [...LIVE_PERSON_STATUSES, "pre_admission"]),
-              isNull(person.deletedAt),
-            ),
-          );
-        const planned = await plannedAdmissions(
+        const { results, people, scaleId } = await locationRequirement(
           tx,
-          people.filter((p) => p.status === "pre_admission").map((p) => p.id),
+          id,
+          query.date,
+          query.period ?? null,
+          asAt,
         );
-        const records = (
-          await recordsOf(
-            tx,
-            people.map((p) => p.id),
-          )
-        ).map(domainRecord);
-        const today = ukIsoDate(asAt);
-        const results = staffingRequirement({
-          locationId: id,
-          date: query.date,
-          periodKey: query.period ?? null,
-          scale: scale
-            ? { scaleId: scale.id, name: scale.name, versions: versions.map(domainVersion) }
-            : null,
-          people: people.map((p) => ({
-            personId: p.id,
-            presence: presenceOn(
-              {
-                status: p.status as PresenceFacts["status"],
-                statusSince: p.status === "pre_admission" ? null : ukIsoDate(p.statusChangedAt),
-                plannedAdmissionOn: planned.get(p.id) ?? null,
-              },
-              query.date,
-              today,
-            ),
-            records: records.filter((r) => r.personId === p.id),
-          })),
-        });
         if (results.length === 0) return "unknown_period" as const;
         await audit(c, tx, access, {
           action: A.requirement,
           resourceType: "location",
           resourceId: id,
-          scopeExtra: { date: query.date, people: people.length, scaleId: scale?.id ?? null },
+          scopeExtra: { date: query.date, people, scaleId },
         });
         return results.map(requirementItem);
       });

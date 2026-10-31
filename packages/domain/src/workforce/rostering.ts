@@ -1,10 +1,11 @@
 import type { CompetenceGate } from "./competence";
+import type { CompetenceDecision } from "./competence-port";
 import type { DbsClearance } from "./dbs";
 import { mayWork, type RightToWorkStatus } from "./right-to-work";
 
 /**
  * The rule that a worker without a required check cannot be rostered (workforce.md rule 10;
- * section 12; HZ-124 when the schema slice adds it). On the shift's UK date: DBS clear (or cleared
+ * section 12; HZ-124). On the shift's UK date: DBS clear (or cleared
  * for supervised work and the shift is supervised), a right to work, a current registration where
  * the role needs one, and every competence the shift needs. Otherwise each blocker is listed; a
  * manager may override with a justification, which is logged and reported, except a missing right
@@ -24,7 +25,11 @@ export interface RosterInput {
   /** Null when the role needs no registration; otherwise whether it is current on the day. */
   readonly registrationCurrent: boolean | null;
   /** The competences the shift needs, each with the gate's answer for this worker on the day. */
-  readonly competences: readonly { readonly competence: string; readonly gate: CompetenceGate }[];
+  readonly competences: readonly {
+    readonly competence: string;
+    /** The competence port's answer (ADR-0085), or the older gate's. */
+    readonly gate: CompetenceDecision | CompetenceGate;
+  }[];
   readonly shiftSupervised: boolean;
 }
 

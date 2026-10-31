@@ -48,6 +48,8 @@ const APPEND_ONLY_TABLES = [
   "sub_processor_response",
   "competence_sign_off",
   "competence_withdrawal",
+  "rota_publication",
+  "roster_override",
   "dependency_assessment",
 ];
 /** Audit and history rows may be written before a tenant is chosen. */

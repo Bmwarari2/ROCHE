@@ -24122,6 +24122,1450 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/locations/{id}/shift-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Shift templates at a location */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Live templates */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftTemplateList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Make a shift template
+     * @description Times are UK wall-clock minutes after midnight (24-hour); an end at or before the start is the next day. Needs scheduling.rota.manage at the location.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The template */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateShiftTemplate"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shift-templates/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Archive a shift template
+     * @description Shifts already made from it stay as they are.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ArchiveRotaItem"];
+        };
+      };
+      responses: {
+        /** @description Archived */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftTemplateItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/shift-patterns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Shift patterns at a location */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Live patterns */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftPatternList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Make a shift pattern
+     * @description A cycle of the location's live templates by day (day 0 is the first day the pattern is applied from).
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The pattern */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateShiftPattern"];
+        };
+      };
+      responses: {
+        /** @description Made */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftPatternItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shift-patterns/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive a shift pattern */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ArchiveRotaItem"];
+        };
+      };
+      responses: {
+        /** @description Archived */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ShiftPatternItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/rotas": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Rotas at a location, newest first */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Rotas */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Start a rota
+     * @description A draft rota for a run of UK dates (at most 42); rotas at a location never overlap.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The dates */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateRota"];
+        };
+      };
+      responses: {
+        /** @description Started */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rotas/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** A rota with its shifts and who is on them */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The rota */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rotas/{id}/apply-pattern": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a pattern's shifts to a rota
+     * @description Makes open shifts from the pattern's live templates on every date of the rota; the cycle runs from the pattern's first use at the location so the next rota carries on.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The pattern and the rota's version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ApplyPattern"];
+        };
+      };
+      responses: {
+        /** @description The rota */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rotas/{id}/shifts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a shift to a rota
+     * @description From a live template at the location, or with its own times and needs. It starts open; a change after publishing is recorded for notice.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The shift */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AddShift"];
+        };
+      };
+      responses: {
+        /** @description The rota */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shifts/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a shift
+     * @description With a reason; whoever was on it comes off it. Recorded for notice once published.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with a reason */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelShift"];
+        };
+      };
+      responses: {
+        /** @description The rota */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shifts/{id}/eligibility": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Whether a member may work a shift
+     * @description The rostering rule on the shift's UK date: DBS, right to work, a current registration where the role needs one and each competence the shift needs (from the competence port). Gives the blockers in words, never a DBS detail; audited with ids only.
+     */
+    get: {
+      parameters: {
+        query: {
+          workerId: string;
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The answer */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["EligibilityItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shifts/{id}/assignment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Put a member on a shift
+     * @description Applies the rostering rule (HZ-124). A blocked member is refused (422 not_eligible) unless an override with a justification is sent by a holder of scheduling.rota.approve at the location, never for themselves and never for a missing right to work. Returns the member's working time with the shift, as advice.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Who, against the shift's version */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["AssignShift"];
+        };
+      };
+      responses: {
+        /** @description Assigned */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AssignmentResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/shift-assignments/{id}/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Take a member off a shift
+     * @description With a reason; the shift becomes open. Recorded for notice once published.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version, with a reason */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RemoveAssignment"];
+        };
+      };
+      responses: {
+        /** @description The rota */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rotas/{id}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The check before publishing
+     * @description For each date and shift period: the rota against your organisation's own dependency scale, with the method, the source, the notice and every warning ('met, but' whenever a warning stands); each member's working time as advice; and each assignment's eligibility again. Needs scheduling.rota.manage and care.plan.read across the whole location. A care-record view, audited.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The check */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaCheck"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/rotas/{id}/publish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Publish a rota
+     * @description Sends back the digest of the check the publisher was shown: a check that has changed since is refused (409 check_changed) so the new one is seen first. A warning on the check needs acknowledgeWarnings; the comparison and working time never block. An assignment the rostering rule blocks with no override covering it is refused (422 ineligible_assignments). Records the notice given.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description Against version and digest */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["PublishRota"];
+        };
+      };
+      responses: {
+        /** @description Published */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RotaItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/me/shifts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * My published shifts
+     * @description The member's own shifts on published rotas, between two UK dates.
+     */
+    get: {
+      parameters: {
+        query: {
+          from: string;
+          to: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Shifts */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MyShiftList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -31586,6 +33030,339 @@ export interface components {
         personIds: string[];
       }[];
       method: string[];
+    };
+    ShiftTemplateList: {
+      items: components["schemas"]["ShiftTemplateItem"][];
+    };
+    ShiftTemplateItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      locationId: string;
+      name: string;
+      kind: components["schemas"]["ShiftKind"];
+      startMinute: number;
+      endMinute: number;
+      breakMinutes: number;
+      requiredCompetences: string[];
+      requiredSkills: components["schemas"]["StaffingSkill"][];
+      supervised: boolean;
+    };
+    /** @enum {string} */
+    ShiftKind: "work" | "sleep_in" | "on_call_at_workplace" | "on_call_away" | "training";
+    CreateShiftTemplate: {
+      name: string;
+      kind: components["schemas"]["ShiftKind"];
+      startMinute: number;
+      endMinute: number;
+      breakMinutes: number;
+      /** @default [] */
+      requiredCompetences: components["schemas"]["Competence"][];
+      /** @default [] */
+      requiredSkills: components["schemas"]["StaffingSkill"][];
+      /** @default false */
+      supervised: boolean;
+    };
+    ArchiveRotaItem: {
+      version: number;
+      reason?: string;
+    };
+    ShiftPatternList: {
+      items: components["schemas"]["ShiftPatternItem"][];
+    };
+    ShiftPatternItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      locationId: string;
+      name: string;
+      cycleDays: number;
+      entries: components["schemas"]["PatternEntry"][];
+    };
+    PatternEntry: {
+      day: number;
+      /** Format: uuid */
+      templateId: string;
+      count: number;
+    };
+    CreateShiftPattern: {
+      name: string;
+      cycleDays: number;
+      entries: components["schemas"]["PatternEntry"][];
+    };
+    RotaList: {
+      items: components["schemas"]["RotaSummary"][];
+    };
+    RotaSummary: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      /** @enum {string} */
+      state: "draft" | "published";
+      /** Format: date-time */
+      publishedAt: string | null;
+    };
+    RotaItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      locationId: string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      /** @enum {string} */
+      state: "draft" | "published";
+      /** Format: date-time */
+      publishedAt: string | null;
+      shifts: components["schemas"]["ShiftItem"][];
+      publications: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date-time */
+        publishedAt: string;
+        /** Format: uuid */
+        publishedBy: string;
+        noticeMinutes: number | null;
+        shiftCount: number;
+        openShiftCount: number;
+      }[];
+    };
+    ShiftItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      /** Format: uuid */
+      rotaId: string;
+      /** Format: uuid */
+      templateId: string | null;
+      label: string;
+      kind: components["schemas"]["ShiftKind"];
+      /** Format: date */
+      date: string;
+      /** Format: date-time */
+      startsAt: string;
+      /** Format: date-time */
+      endsAt: string;
+      breakMinutes: number;
+      requiredCompetences: string[];
+      requiredSkills: components["schemas"]["StaffingSkill"][];
+      supervised: boolean;
+      /** Format: date-time */
+      publishedAt: string | null;
+      /** Format: date-time */
+      changedAfterPublishAt: string | null;
+      assignment: components["schemas"]["AssignmentItem"];
+    };
+    AssignmentItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      worker: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+        jobTitle: string | null;
+      };
+      /** Format: date-time */
+      publishedAt: string | null;
+      overridden: string[];
+    } | null;
+    CreateRota: {
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+    };
+    /** @description `version` is the rota's */
+    ApplyPattern: {
+      /** Format: uuid */
+      patternId: string;
+      version: number;
+    };
+    AddShift:
+      | {
+          /** Format: date */
+          date: string;
+          /** Format: uuid */
+          templateId: string;
+          label?: string;
+        }
+      | {
+          /** Format: date */
+          date: string;
+          label: string;
+          kind: components["schemas"]["ShiftKind"];
+          startMinute: number;
+          endMinute: number;
+          breakMinutes: number;
+          /** @default [] */
+          requiredCompetences: components["schemas"]["Competence"][];
+          /** @default [] */
+          requiredSkills: components["schemas"]["StaffingSkill"][];
+          /** @default false */
+          supervised: boolean;
+        };
+    CancelShift: {
+      version: number;
+      reason: string;
+    };
+    EligibilityItem: {
+      /** Format: uuid */
+      workerId: string;
+      /** Format: uuid */
+      shiftId: string;
+      /** Format: date */
+      date: string;
+      allowed: boolean;
+      blockers: components["schemas"]["RosterBlockerItem"][];
+      overridable: boolean;
+    };
+    RosterBlockerItem: {
+      key: string;
+      /** @enum {string} */
+      kind: "dbs" | "dbs_supervised_only" | "right_to_work" | "registration" | "competence";
+      competence: string | null;
+      message: string;
+    };
+    AssignmentResult: {
+      shift: components["schemas"]["ShiftItem"];
+      eligibility: components["schemas"]["EligibilityItem"];
+      workingTime: components["schemas"]["WorkerWorkingTime"];
+    };
+    WorkerWorkingTime: {
+      /** Format: uuid */
+      workerId: string;
+      /** @enum {string} */
+      status: "checked" | "cannot_check";
+      findings: components["schemas"]["WorkingTimeFindingItem"][];
+      notes: string[];
+    };
+    WorkingTimeFindingItem: {
+      rule: string;
+      citation: string;
+      /** @enum {string} */
+      outcome: "breach" | "conditional";
+      conditions: string[];
+      /** Format: date-time */
+      from: string;
+      /** Format: date-time */
+      to: string;
+      limitMinutes: number;
+      actualMinutes: number;
+      compensatoryRestMinutes: number;
+      shiftIds: string[];
+    };
+    AssignShift: {
+      /** Format: uuid */
+      workerId: string;
+      version: number;
+      override?: {
+        justification: string;
+      };
+    };
+    RemoveAssignment: {
+      version: number;
+      reason: string;
+    };
+    RotaCheck: {
+      /** Format: uuid */
+      rotaId: string;
+      rotaVersion: number;
+      digest: string;
+      staffing: components["schemas"]["StaffingComparisonItem"][];
+      workingTime: components["schemas"]["WorkerWorkingTime"][];
+      eligibility: {
+        /** Format: uuid */
+        workerId: string;
+        /** Format: uuid */
+        shiftId: string;
+        /** Format: date */
+        date: string;
+        allowed: boolean;
+        blockers: components["schemas"]["RosterBlockerItem"][];
+        overridable: boolean;
+        /** Format: uuid */
+        assignmentId: string;
+        covered: boolean;
+      }[];
+      openShiftIds: string[];
+      hasWarnings: boolean;
+      blockedAssignmentIds: string[];
+      /** Format: date-time */
+      firstShiftStart: string | null;
+      noticeMinutes: number | null;
+      /** Format: date-time */
+      asAt: string;
+    };
+    StaffingComparisonItem: {
+      /** Format: date */
+      date: string;
+      periodKey: string | null;
+      periodLabel: string | null;
+      /** Format: date-time */
+      start: string | null;
+      /** Format: date-time */
+      end: string | null;
+      /** @enum {string} */
+      status: "below" | "incomplete" | "met_with_warnings" | "met" | "no_scale";
+      word: string;
+      requiredMinutes: number | null;
+      /** @enum {string|null} */
+      figure: "exact" | "at_least" | "none" | null;
+      providedMinutes: number;
+      shortMinutes: number | null;
+      skills: {
+        skill: components["schemas"]["StaffingSkill"];
+        label: string;
+        minimumStaff: number;
+        rostered: number;
+        short: number;
+      }[];
+      openShiftIds: string[];
+      source: {
+        /** Format: uuid */
+        scaleId: string;
+        scaleName: string;
+        versionNumber: number;
+        /** Format: date-time */
+        approvedAt: string | null;
+      } | null;
+      notice: string;
+      warnings: string[];
+      method: string[];
+    };
+    PublishRota: {
+      version: number;
+      digest: string;
+      /** @default false */
+      acknowledgeWarnings: boolean;
+    };
+    MyShiftList: {
+      items: {
+        /** Format: uuid */
+        shiftId: string;
+        /** Format: uuid */
+        locationId: string;
+        label: string;
+        kind: components["schemas"]["ShiftKind"];
+        /** Format: date-time */
+        startsAt: string;
+        /** Format: date-time */
+        endsAt: string;
+        breakMinutes: number;
+        /** Format: date-time */
+        changedAfterPublishAt: string | null;
+      }[];
     };
   };
   responses: never;

@@ -16,6 +16,7 @@ export * from "./people-lifecycle";
 export * from "./platform";
 export * from "./quality";
 export * from "./records";
+export * from "./rota";
 export * from "./safety";
 export * from "./sample-data";
 export * from "./sub-processors";
