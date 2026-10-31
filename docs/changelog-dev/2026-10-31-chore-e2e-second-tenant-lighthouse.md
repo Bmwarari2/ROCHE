@@ -21,10 +21,13 @@ Branch `chore/e2e-second-tenant-lighthouse`.
 - Licence gate: `parse-cache-control` (a Lighthouse dependency) declares only "BSD" but carries the
   BSD-3-Clause text. It is recorded as an exception in ADR-0024 and the script.
 - Runbook: the e2e organisations and accounts, and how to run Lighthouse CI.
+- Gate report and register: both items are marked done in `docs/plans/phase-1-gate.md`, with the
+  journey in its route table. The journey is listed against PLAT-001 in the feature register.
 
 ## What is next
 
-- The lead updates `docs/plans/phase-1-gate.md` and STATUS for both gate items.
+- The lead updates STATUS. The person's history tab still has no journey on `main`, so the WCAG
+  item stays "every route but one".
 - `@lhci/cli` brings in dev-only advisories (`tmp`, `extract-zip`, `basic-ftp`). They are outside
   the `pnpm audit --prod` gate, which this branch leaves as it was on main.
 
@@ -39,6 +42,9 @@ Branch `chore/e2e-second-tenant-lighthouse`.
   `handover.spec.ts` (a focus check timed out on the dev server); the test that did not run is
   the handover test that follows it. On a freshly seeded database with a production build, both
   handover tests pass.
+- After merging `main` (next 16.4.1): web unit tests 912 of 912, the choose-organisation and smoke
+  journeys 6 of 6, `pnpm audit --prod --audit-level high` passes, licences pass, and Lighthouse
+  gives the same scores.
 - Lighthouse locally (Playwright's Chromium, production build): every page scored 1.00 for
   performance and 1.00 for accessibility. Median first contentful paint was 215 to 225 ms, largest
   contentful paint 564 to 701 ms, blocking time 0 to 2 ms and layout shift at most 0.002.

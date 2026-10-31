@@ -13,7 +13,7 @@ request of about 600 lines) or a gate item (needs its own slice).
 | --- | --- | --- |
 | Maestro offline journey (iOS and Android) | Not met: paused | Mobile is paused by the owner; the journey is written but not run in CI |
 | Inspector pack export renders | Met | Done 31/10/2026: `apps/api/test/evidence-pack-pdf.test.ts` renders the PDF on its own, beside the API test |
-| WCAG scans clean | Met for every web route but two | Small: the person's history tab; gate item: choose-organisation needs a second demo tenant |
+| WCAG scans clean | Met for every web route but one | Small: the person's history tab (not on `main` at 31/10/2026). Choose-organisation done 31/10/2026: a second demo organisation and a journey with axe in both themes; Lighthouse CI added to `ci.yml` |
 | Every hazard-log entry has a test | Met: 45 of 45 | Stale statuses done 31/10/2026; one planned test waits for the task screens |
 | Clinical safety case v0.1 drafted | Drafted, awaiting CSO sign-off | [v0.1](../clinical-safety/safety-case/safety-case-v0.1-phase1.md) drafted on 31 October 2026; the CSO's review and signature are a human action (H-381) |
 | Every Phase 1 register row `done` (section 19, definition of done) | Not met: 0 of 54 | Gate items: user guides for every row; web screens for 22 rows; 4 rows `todo` |
@@ -68,15 +68,22 @@ specs calls `expectAccessible`, which fails on any serious or critical axe resul
 | `/updates` | `family-feed` |
 | `/settings/security`, `/settings/team` and a member, `/settings/export`, `/settings/onboarding`, `/settings/data-protection` | `security`, `team`, `export`, `onboarding`, `dpia` |
 | `/sign-in`, `/invitation` | `smoke`, `security`, `invitation` |
+| `/choose-organisation` | `choose-organisation` |
 
 Storybook: `packages/ui/src/test/stories.a11y.test.tsx` runs axe on every story in the unit test
 job, and `build-storybook` runs in CI.
 
 - **Gap (small)**: `/people/[id]/history` (the history tab: earlier versions of the person's
   details and the way into each record's history) has no journey. Follow-up pull request.
-- **Gate item**: `/choose-organisation` is shown only to someone in more than one organisation, and
-  the demo seed has one. A journey needs a second demo tenant with a shared user in the e2e seed.
-- Not part of this gate, but a section 7 quality gate: Lighthouse CI is not in `ci.yml`.
+- **Done 31/10/2026** (was a gate item): `/choose-organisation` is shown only to someone in more
+  than one organisation. The e2e seed now has Second Example Care and a coordinator who works for it
+  and the demo organisation. `choose-organisation.spec.ts` checks the page with axe in the light and
+  dark themes. It also proves that after choosing either organisation, the other's residents never
+  appear.
+- **Done 31/10/2026** (a section 7 quality gate, not part of this one): Lighthouse CI runs in the
+  e2e-web job (`apps/web/lighthouserc.cjs`, `scripts/lighthouse-ci.sh`). It asserts first paint
+  under 1.5 s and an accessibility score of at least 0.95 on two signed-out and four signed-in
+  pages. All six scored 1.00 for performance and accessibility locally.
 
 ## 4. Every hazard-log entry has a test
 
