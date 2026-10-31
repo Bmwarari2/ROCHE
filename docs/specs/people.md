@@ -416,10 +416,19 @@ Tests: `packages/db/test/people-lifecycle.test.ts`, `apps/api/test/people-lifecy
 
 Added with the web screens (`apps/api/src/routes/people-enquiries.ts`): `POST /v1/people` records an
 enquiry, a new person record at `enquiry` with names and a date of birth only, at a location where
-the caller holds `people.enquiry.manage` (anywhere else is not found, HZ-011); the time it came in
-may be earlier than now, never later, and becomes when the status began, so the assessment and an
-admission can be entered later than they happened. A request sent again with its id returns the
-first copy, audited as a view (HZ-029). The NHS number and other details are not taken here: the
+the caller holds `people.enquiry.manage` (anywhere else is not found, audited, HZ-011). The date of
+birth runs from 1900-01-01 to today (UK); the time it came in may be earlier than now, never later,
+before 1900 or before the birth, and becomes when the status began, so the assessment and an
+admission can be entered later than they happened; a value Postgres cannot hold is refused (422).
+The answer is the record's id, location, status, status time and version, never the person's
+details: the permission (held by the administrator role) reads no care record and asks for no
+second factor. A request sent again with its id is answered as the first (`replayed`, audited
+as `people.person.enquiry.replay`) only when the stored record is the caller's own enquiry, still
+at `enquiry`, with the same location, names, date of birth and, when sent, time it came in (HZ-029);
+the same id with other details is refused with 409 `id_reused_with_different_details`, nothing
+changed (the form then starts a new id and asks for the list to be checked, HZ-001); any other
+record's id, seen or not, is refused alike (422). Refusals are audited as denied with opaque ids
+(`outside_scope`, `location_not_found`, `id_in_use`, `id_reused_with_different_details`). The NHS number and other details are not taken here: the
 demographics edit (PEOP-001) records them. The enquiry pipeline itself (sources, stages,
 follow-ups) stays PEOP-004. `GET /v1/locations/{id}/services` lists a location's services (no
 personal data) for the assessment and the admission. Tests: `apps/api/test/people-enquiries.test.ts`.

@@ -43,6 +43,28 @@ Branch `feat/web-admission`.
 
 ## Tests
 
-- `apps/api/test/people-enquiries.test.ts` (8); `apps/web/src/lib/admission.test.ts`;
+- `apps/api/test/people-enquiries.test.ts` (20 after the security review); `apps/web/src/lib/admission.test.ts`;
   `apps/web/e2e/pre-admission.spec.ts` (3) and `apps/web/e2e/admission.spec.ts` (3), axe in the
   light and dark themes on every state.
+
+## Review rounds
+
+- Security review round 1 (PR #118), `POST /v1/people`:
+  - H1: a request sent again with an id no longer answers with a person summary. It is answered
+    as the first (`replayed`, audited `people.person.enquiry.replay`) only for the caller's own
+    enquiry, still at `enquiry`, with the same location, names, date of birth and time it came in;
+    any other record's id, seen or not, is refused alike (422) and audited as denied with the id
+    only. Every answer is `EnquiryRecorded` (id, location, status, status time, version).
+  - M1: the same id with other details is refused with 409 `id_reused_with_different_details`,
+    nothing changed; the web form then starts a new id and asks for the list to be checked
+    (HZ-001).
+  - M2: the date of birth runs from 1900-01-01 to today (UK), the time it came in from 1900 and
+    not before the birth (contract refinements), and a value Postgres cannot hold (class 22) is
+    refused with 422. `app.ts` `onError` now logs the error's kind, its code and the stack's
+    frames only (`loggableError` in `logger.ts`), never the message or the stack line repeating
+    it, which for a failed query holds its values; a log-capture test proves no name or date
+    reaches the log (and fails with the old logging).
+  - L1: refusals are audited as denied with opaque ids (`outside_scope`, `location_not_found`,
+    `id_in_use`, `id_reused_with_different_details`).
+- Main merged (#105, #109, #112, #117 and others): the record keeps the reviews and hospital tabs
+  beside the three tabs here; People offers the reviews tracker beside enquiries.
