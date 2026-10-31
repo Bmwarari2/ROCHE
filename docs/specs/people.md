@@ -396,7 +396,9 @@ break-glass report daily for the UK week before (so a missed Monday catches up),
 alerting the Registered Manager and holders of the quality lead role as data protection lead
 (H-80); the report list is filtered by the reader's locations in the API as well as by row-level
 security, and `POST /v1/break-glass/weekly-report/{reportId}/review` records the review once, never
-by someone the report flags and only for a location in the reviewer's access. Care events for a
+by anyone the report counts (an opening, a search at the location or one in its organisation-wide
+section, flagged or not; review round 1 of the report screen) and only for a location in the
+reviewer's access. Care events for a
 person who has left, died or gone to hospital follow rule 3 in the care routes (care.md rule 12):
 an event timed up to `sync.clock_drift_flag_minutes` after the change is accepted and flagged; a
 later one is refused with `care_event_after_exit`, audited, and one urgent review task goes to the
