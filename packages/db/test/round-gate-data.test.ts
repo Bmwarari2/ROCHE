@@ -205,10 +205,46 @@ describe("hazard HZ-024 a round says it is from an earlier plan on the task itse
     expect(
       (await asManager((c) => flags(c, [rounds.open]))).get(rounds.open)?.from_earlier_plan,
     ).toBe(false);
+    const before = (await asManager((c) => flags(c, [rounds.open]))).get(rounds.open)?.version;
     await rerunBackfill();
+    const after = (await asManager((c) => flags(c, [rounds.open]))).get(rounds.open);
+    expect(after?.from_earlier_plan).toBe(true);
+    // Setting the flag on an existing row is not a change to the task: no version bump, so a
+    // phone's queued move made against it is not refused as stale (#50 review round 1, low).
+    expect(after?.version).toBe(before);
+  });
+
+  it("keeps the notice on a write made with no organisation in the session (#50 review round 1, low)", async () => {
+    const rounds = await asManager((c) => seriesWithRounds(c, NEXT_ACTION));
+    await asManager((c) =>
+      c.query("UPDATE task_series SET active = false WHERE id = $1", [rounds.seriesId]),
+    );
     expect(
       (await asManager((c) => flags(c, [rounds.open]))).get(rounds.open)?.from_earlier_plan,
     ).toBe(true);
+    // The owner, as a maintenance migration would (history off, no app.tenant_id; the history
+    // trigger refuses any other write without an organisation): the flag comes from the row's
+    // own organisation, never reset to false.
+    const client = await owner().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("ALTER TABLE task NO FORCE ROW LEVEL SECURITY");
+      await client.query("ALTER TABLE task DISABLE TRIGGER capture_version");
+      await client.query("UPDATE task SET title = title WHERE id = $1", [rounds.open]);
+      await client.query("ALTER TABLE task ENABLE TRIGGER capture_version");
+      await client.query("ALTER TABLE task FORCE ROW LEVEL SECURITY");
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+    expect(
+      (await asManager((c) => flags(c, [rounds.open]))).get(rounds.open)?.from_earlier_plan,
+    ).toBe(true);
+    // And the session's organisation is left as it was: none.
+    const setting = await owner().query<{ tenant: string | null }>(
+      "SELECT nullif(current_setting('app.tenant_id', true), '') AS tenant",
+    );
+    expect(setting.rows[0]?.tenant ?? null).toBeNull();
   });
 });
 
