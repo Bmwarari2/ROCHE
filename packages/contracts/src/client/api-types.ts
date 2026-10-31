@@ -16974,7 +16974,7 @@ export interface paths {
     put?: never;
     /**
      * Record a supervision, appraisal or spot check
-     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. Optional `notes` (topics, actions agreed, next date, a note; never health detail) are read only by the supervisor, the supervisee and holders of workforce.hr_document.read (H-692). Audited, never the notes.
+     * @description workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.
      */
     post: {
       parameters: {
@@ -32590,17 +32590,9 @@ export interface components {
       /** Format: date */
       heldOn: string;
       heldBy: components["schemas"]["StaffName"];
-      notes: components["schemas"]["SupervisionNotes"];
     };
     /** @enum {string} */
     SupervisionKind: "supervision" | "appraisal" | "spot_check";
-    SupervisionNotes: {
-      topics: string[];
-      actionsAgreed: string | null;
-      /** Format: date */
-      nextDueOn: string | null;
-      note: string | null;
-    } | null;
     NextMeetingItem: {
       /** @enum {string} */
       kind: "supervision" | "appraisal";
@@ -32665,7 +32657,6 @@ export interface components {
       kind: components["schemas"]["SupervisionKind"];
       /** Format: date */
       heldOn: string;
-      notes?: components["schemas"]["SupervisionNotes"];
     };
     PutRevalidationEvidence: {
       expectedVersion?: number;

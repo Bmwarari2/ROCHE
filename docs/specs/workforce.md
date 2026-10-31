@@ -208,12 +208,8 @@ whatever the clock change.
 7. **Supervision and appraisal** (`supervision.ts`). `supervision.per_year` supervisions and
    `appraisal.per_year` appraisals a year: the next is due one interval (12 months divided by the
    number) after the last, or after the start date when none has been held; overdue from the day
-   after. Spot checks are recorded but do not count as supervisions. A supervision or appraisal
-   may carry a short structured note (`supervision_note`: topics discussed, actions agreed, the
-   next date, an optional note), read only by the supervisor who held it, the supervisee and
-   holders of `workforce.hr_document.read`, not by other staff file or supervision managers. Any
-   health detail goes into an HR-only document, never the note. Notes follow the staff file
-   retention and evidence Regulation 18(2)(a) (H-692, recommended answer applied 31/10/2026).
+   after. Spot checks are recorded but do not count as supervisions. What a supervision covered
+   (H-692) is recorded by slice 57 (`supervision_note`, migration 0114, ADR-0114).
 8. **Qualifications and NMC revalidation** (`registration.ts`). A registered nurse's registration
    must be current on the day worked; revalidation is due every `nmc.revalidation.cycle_years` years
    on the renewal date the NMC gives; the planner counts `nmc.revalidation.practice_hours` practice

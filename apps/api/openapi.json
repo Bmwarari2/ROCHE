@@ -20991,17 +20991,13 @@
           },
           "heldBy": {
             "$ref": "#/components/schemas/StaffName"
-          },
-          "notes": {
-            "$ref": "#/components/schemas/SupervisionNotes"
           }
         },
         "required": [
           "id",
           "kind",
           "heldOn",
-          "heldBy",
-          "notes"
+          "heldBy"
         ]
       },
       "SupervisionKind": {
@@ -21010,50 +21006,6 @@
           "supervision",
           "appraisal",
           "spot_check"
-        ]
-      },
-      "SupervisionNotes": {
-        "type": [
-          "object",
-          "null"
-        ],
-        "properties": {
-          "topics": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            },
-            "maxItems": 20
-          },
-          "actionsAgreed": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 2000
-          },
-          "nextDueOn": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date"
-          },
-          "note": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "maxLength": 4000
-          }
-        },
-        "required": [
-          "topics",
-          "actionsAgreed",
-          "nextDueOn",
-          "note"
         ]
       },
       "NextMeetingItem": {
@@ -21347,9 +21299,6 @@
           "heldOn": {
             "type": "string",
             "format": "date"
-          },
-          "notes": {
-            "$ref": "#/components/schemas/SupervisionNotes"
           }
         },
         "required": [
@@ -49992,7 +49941,7 @@
           "workforce"
         ],
         "summary": "Record a supervision, appraisal or spot check",
-        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. Optional `notes` (topics, actions agreed, next date, a note; never health detail) are read only by the supervisor, the supervisee and holders of workforce.hr_document.read (H-692). Audited, never the notes.",
+        "description": "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.",
         "security": [
           {
             "bearerAuth": []

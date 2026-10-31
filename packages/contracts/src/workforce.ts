@@ -428,22 +428,8 @@ export const SupervisionKind = z
   .enum(["supervision", "appraisal", "spot_check"])
   .meta({ id: "SupervisionKind" });
 
-/**
- * What a supervision or appraisal covered (H-692): read only by the supervisor who held it, the
- * supervisee and holders of workforce.hr_document.read. Never health detail: that goes in an
- * HR-only document.
- */
-export const SupervisionNotes = z
-  .object({
-    topics: z.array(z.string().trim().min(1).max(120)).max(20),
-    actionsAgreed: z.string().trim().max(2000).nullable(),
-    nextDueOn: isoDate.nullable(),
-    note: z.string().trim().max(4000).nullable(),
-  })
-  .meta({ id: "SupervisionNotes" });
-
 export const CreateSupervisionRecord = z
-  .object({ kind: SupervisionKind, heldOn: isoDate, notes: SupervisionNotes.optional() })
+  .object({ kind: SupervisionKind, heldOn: isoDate })
   .meta({ id: "CreateSupervisionRecord" });
 export type CreateSupervisionRecord = z.infer<typeof CreateSupervisionRecord>;
 
@@ -453,8 +439,6 @@ export const SupervisionRecordItem = z
     kind: SupervisionKind,
     heldOn: isoDate,
     heldBy: StaffName.nullable(),
-    /** Null when there are none, or the reader is not the supervisor, the supervisee or HR. */
-    notes: SupervisionNotes.nullable(),
   })
   .meta({ id: "SupervisionRecordItem" });
 

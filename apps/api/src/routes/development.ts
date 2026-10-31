@@ -16,7 +16,6 @@ import {
   competenceSignOff,
   competenceWithdrawal,
   revalidationEvidence,
-  supervisionNote,
   supervisionRecord,
   type Transaction,
   trainingRecord,
@@ -553,7 +552,7 @@ export const developmentRouter = createRouter()
       tags: ["workforce"],
       summary: "Record a supervision, appraisal or spot check",
       description:
-        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. Optional `notes` (topics, actions agreed, next date, a note; never health detail) are read only by the supervisor, the supervisee and holders of workforce.hr_document.read (H-692). Audited, never the notes.",
+        "workforce.supervision.manage, held by the caller, never for oneself, on a date no later than today. No notes are kept here (slice 57 records them). Audited.",
       security,
       request: {
         params: MemberParam,
@@ -577,22 +576,11 @@ export const developmentRouter = createRouter()
             heldBy: access.tenantUserId,
           })
           .returning({ id: supervisionRecord.id });
-        if (row && body.notes) {
-          await tx.insert(supervisionNote).values({
-            supervisionId: row.id,
-            workerId: memberId,
-            heldBy: access.tenantUserId,
-            topics: body.notes.topics,
-            actionsAgreed: body.notes.actionsAgreed,
-            nextDueOn: body.notes.nextDueOn,
-            note: body.notes.note,
-          });
-        }
         await audit(c, tx, access, {
           action: A.supervised,
           resourceType: "supervision_record",
           resourceId: row?.id ?? memberId,
-          scopeExtra: { memberId, kind: body.kind, notes: body.notes !== undefined },
+          scopeExtra: { memberId, kind: body.kind },
         });
       });
       return c.json(await recordFor(c, access, memberId), 200);

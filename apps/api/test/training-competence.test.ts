@@ -439,42 +439,6 @@ describe("hazard HZ-124 reminders end with a renewal, and readers come from the 
   });
 });
 
-describe("H-692 supervision notes are for the supervisor, the supervisee and HR only", () => {
-  it("keeps the notes with the supervision and shows them only to those three", async () => {
-    // The owner holds the appraisal; the Registered Manager also manages supervisions but did not
-    // hold it and holds no workforce.hr_document.read (roles.ts), so sees it without its notes.
-    const held = await as("owner", `${dev(CARER)}/supervisions`, {
-      method: "POST",
-      body: {
-        kind: "appraisal",
-        heldOn: today(),
-        notes: {
-          topics: ["Moving and handling refresher", "Night shift pattern"],
-          actionsAgreed: "Book the refresher course before December",
-          nextDueOn: daysFromToday(180),
-          note: "Keen to mentor new starters",
-        },
-      },
-    });
-    expect(held.status).toBe(200);
-    type WithNotes = { supervisions: { kind: string; notes: { topics: string[] } | null }[] };
-    const appraisalOf = (body: WithNotes) => body.supervisions.find((s) => s.kind === "appraisal");
-    expect(appraisalOf((await held.json()) as WithNotes)?.notes?.topics).toEqual([
-      "Moving and handling refresher",
-      "Night shift pattern",
-    ]);
-    const own = (await (await as("carer", "/v1/me/development")).json()) as WithNotes;
-    expect(appraisalOf(own)?.notes?.topics).toHaveLength(2);
-    const other = (await (await as("manager", `${dev(CARER)}/development`)).json()) as WithNotes;
-    expect(appraisalOf(other)).toBeDefined();
-    expect(appraisalOf(other)?.notes).toBeNull();
-    const [audit] = await sql<{ scope: unknown }>(
-      "SELECT scope FROM audit_event WHERE action = 'workforce.supervision.recorded' ORDER BY seq DESC LIMIT 1",
-    );
-    expect(JSON.stringify(audit)).not.toMatch(/mentor|refresher/);
-  });
-});
-
 describe("H-693 a nurse enters their own revalidation; HR reviews; only a confirmer confirms", () => {
   const cycle = daysFromToday(400);
   const counts = {

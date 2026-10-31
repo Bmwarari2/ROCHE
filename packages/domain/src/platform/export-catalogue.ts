@@ -4801,7 +4801,7 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
   "public.supervision_record": {
     context: "workforce",
     description:
-      "Supervisions, appraisals and spot checks held (workforce.md section 2b); what each covered is in supervision_note (H-692).",
+      "Supervisions, appraisals and spot checks held (workforce.md section 2b); no notes.",
     treatment: "tenant_rows",
     retention: "staff_file",
     personal: true,
@@ -4825,26 +4825,6 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: "exported",
-    },
-  },
-  "public.supervision_note": {
-    context: "workforce",
-    description:
-      "What a supervision or appraisal covered: topics, actions agreed, the next date and an optional note (H-692; read only by the supervisor, the supervisee and HR).",
-    treatment: "tenant_rows",
-    retention: "staff_file",
-    personal: true,
-    columns: {
-      id: "exported",
-      tenant_id: "exported",
-      supervision_id: { description: "The supervision it records (supervision_record.id)." },
-      worker_id: { description: "The supervisee (tenant_user.id)." },
-      held_by: { description: "The supervisor who held it (tenant_user.id)." },
-      topics: { description: "The topics discussed, as short phrases." },
-      actions_agreed: { description: "The actions agreed, in the supervisor's words." },
-      next_due_on: { description: "The UK date of the next one, if agreed." },
-      note: { description: "An optional note; never health detail (that goes in an HR document)." },
-      created_at: "exported",
     },
   },
   "public.revalidation_evidence": {

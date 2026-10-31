@@ -26,10 +26,8 @@ are forward-only in migration 0107, which is not on main.
   - HR reviews it (`POST .../revalidation/review`), and the counts are then fixed.
   - The confirmer records the confirmation in their own name and is never the nurse
     (`POST .../revalidation/confirmation`). The database refuses anything else.
-- **H-692**:
-  - Supervision notes (`supervision_note`: topics, actions agreed, next date, optional note) are
-    read only by the supervisor, the supervisee and HR, and are append-only.
-  - Health detail goes into an HR document instead.
+- **H-692**: supervision notes are slice 57's (`supervision_note`, migration 0114, on
+  `feat/web-training-competence`), not built here, so the two branches do not collide.
 - **H-970**:
   - Statutory leave is never declined. Carer's leave and unpaid parental leave may only be
     postponed (new state `postponed`, with a reason). The database refuses otherwise

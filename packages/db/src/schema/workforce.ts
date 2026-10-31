@@ -309,43 +309,6 @@ export const supervisionRecord = pgTable(
   ],
 );
 
-/**
- * What a supervision or appraisal covered (H-692, recommended answer applied 31/10/2026): a short
- * structured record (topics, actions agreed, next date) with an optional note, read only by the
- * supervisor who held it, the supervisee and holders of `workforce.hr_document.read`. Any health
- * detail goes into an HR-only document, not here. Append-only; follows the staff file retention.
- */
-export const supervisionNote = pgTable(
-  "supervision_note",
-  {
-    id: id(),
-    tenantId: tenantId(),
-    supervisionId: uuid("supervision_id").notNull(),
-    workerId: uuid("worker_id").notNull(),
-    heldBy: uuid("held_by").notNull().default(sql`app.current_user_id()`),
-    topics: text("topics").array().notNull().default(sql`'{}'`),
-    actionsAgreed: text("actions_agreed"),
-    nextDueOn: date("next_due_on"),
-    note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique("supervision_note_supervision_key").on(t.tenantId, t.supervisionId),
-    foreignKey({
-      name: "supervision_note_supervision_fk",
-      columns: [t.tenantId, t.supervisionId],
-      foreignColumns: [supervisionRecord.tenantId, supervisionRecord.id],
-    }),
-    workerRef("supervision_note_worker_fk", t, t.workerId),
-    workerRef("supervision_note_held_by_fk", t, t.heldBy),
-    check(
-      "supervision_note_sizes",
-      sql`cardinality(topics) <= 20 AND (actions_agreed IS NULL OR char_length(actions_agreed) <= 2000)
-        AND (note IS NULL OR char_length(note) <= 4000)`,
-    ),
-  ],
-);
-
 export const revalidationEvidence = pgTable(
   "revalidation_evidence",
   {

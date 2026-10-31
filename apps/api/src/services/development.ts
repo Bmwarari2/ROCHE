@@ -7,7 +7,6 @@ import {
   role,
   roleAssignment,
   staffProfile,
-  supervisionNote,
   supervisionRecord,
   type Transaction,
   task,
@@ -170,20 +169,6 @@ export async function developmentRecord(
     .from(supervisionRecord)
     .where(and(eq(supervisionRecord.workerId, memberId), isNull(supervisionRecord.deletedAt)))
     .orderBy(desc(supervisionRecord.heldOn));
-  // H-692: notes in the reader's own view only (the supervisor who held it, the supervisee, HR).
-  const notes =
-    supervisions.length === 0
-      ? []
-      : await tx
-          .select()
-          .from(supervisionNote)
-          .where(
-            inArray(
-              supervisionNote.supervisionId,
-              supervisions.map((s) => s.id),
-            ),
-          );
-  const notesOf = new Map(notes.map((n) => [n.supervisionId, n]));
   const [evidence] = await tx
     .select()
     .from(revalidationEvidence)
@@ -301,17 +286,6 @@ export async function developmentRecord(
       kind: s.kind as "supervision" | "appraisal" | "spot_check",
       heldOn: s.heldOn,
       heldBy: names(s.heldBy),
-      notes: (() => {
-        const n = notesOf.get(s.id);
-        return n
-          ? {
-              topics: [...n.topics],
-              actionsAgreed: n.actionsAgreed,
-              nextDueOn: n.nextDueOn,
-              note: n.note,
-            }
-          : null;
-      })(),
     })),
     nextSupervision: next("supervision", rates.supervisionsPerYear),
     nextAppraisal: next("appraisal", rates.appraisalsPerYear),
