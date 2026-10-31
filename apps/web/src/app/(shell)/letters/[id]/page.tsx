@@ -12,7 +12,13 @@ import { failWith, getShellContext, tenantApi } from "@/lib/api";
 import { isUuid } from "@/lib/context-cookies";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { templateActions, templateName, templatesNavShown, versionChip } from "@/lib/letters";
+import {
+  mergeFieldNames,
+  templateActions,
+  templateName,
+  templatesNavShown,
+  versionChip,
+} from "@/lib/letters";
 import { firstParam } from "@/lib/record-metadata";
 
 type Params = Promise<{ id: string }>;
@@ -46,7 +52,9 @@ function VersionText({ version }: { readonly version: LetterTemplateVersionItem 
       </pre>
       {version.personalDataFields.length > 0 ? (
         <p className="m-0 text-body-dense">
-          {t("comms.templates.personalFields", { fields: version.personalDataFields.join(", ") })}
+          {t("comms.templates.personalFields", {
+            fields: mergeFieldNames(version.personalDataFields),
+          })}
         </p>
       ) : null}
     </div>

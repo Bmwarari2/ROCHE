@@ -15,7 +15,9 @@ export async function withoutSessionTokens(
   request: Request,
   response: Response,
 ): Promise<Response> {
-  if (request.headers.get("origin") === MOBILE_APP_ORIGIN) return response;
+  // Other sessions' tokens are never anyone's to see, not even the mobile app's (#33 re-check H2).
+  const listing = new URL(request.url).pathname.endsWith("/list-sessions");
+  if (request.headers.get("origin") === MOBILE_APP_ORIGIN && !listing) return response;
   const headers = new Headers(response.headers);
   headers.delete("set-auth-token");
   const init = { status: response.status, statusText: response.statusText, headers };

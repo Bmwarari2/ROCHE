@@ -5,6 +5,9 @@ For the quality and compliance lead, and the person named as data protection lea
 ## Your guides
 
 - [How to prepare and sign the DPIA](prepare-and-sign-the-dpia.md)
+- [How to handle a data rights request](handle-a-data-rights-request.md)
+- [How to record and handle a data breach](record-a-data-breach.md)
+- [How to handle a data protection complaint](handle-a-data-protection-complaint.md)
 
 ## Everyone
 

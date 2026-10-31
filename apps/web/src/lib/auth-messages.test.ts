@@ -15,6 +15,7 @@ const KEYS: Record<keyof AuthMessages, MessageKey> = {
   passkeyUnsupported: "auth.errors.passkeyUnsupported",
   passkeyNotAdded: "auth.errors.passkeyNotAdded",
   codeMismatch: "auth.errors.codeMismatch",
+  backupCodeMismatch: "auth.errors.backupCodeMismatch",
   passwordMismatch: "auth.errors.passwordMismatch",
 };
 

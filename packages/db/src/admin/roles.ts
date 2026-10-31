@@ -25,7 +25,10 @@ export type LoginRole = (typeof LOGIN_ROLES)[number];
  * `harbour_family_reader` (whether a family session may see a feed update, `app.family_can_see`;
  * migration 0061), `harbour_notice_resolver` (Thapsus reading and resolving objections to
  * sub-processor notices; migration 0067), `harbour_sample_owner` (counting sample and real people
- * and removing a sample batch; migration 0069).
+ * and removing a sample batch; migration 0069), `harbour_import_owner` (deleting an import's
+ * staged rows when its batch closes, and undoing a committed import; migration 0088),
+ * `harbour_silo_owner` (raising a named speak-up concern with its reporter, appointing the Freedom
+ * to Speak Up lead, the silo guards and the audit chain check; migration 0086, ADR-0089).
  */
 export const NOLOGIN_ROLES = [
   "harbour_membership_reader",
@@ -34,6 +37,8 @@ export const NOLOGIN_ROLES = [
   "harbour_family_reader",
   "harbour_notice_resolver",
   "harbour_sample_owner",
+  "harbour_import_owner",
+  "harbour_silo_owner",
 ] as const;
 
 export type RolePasswords = Record<LoginRole, string>;
@@ -81,6 +86,8 @@ export async function bootstrapRoles(client: Client, passwords: RolePasswords): 
   await client.query("GRANT harbour_family_reader TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_notice_resolver TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   await client.query("GRANT harbour_sample_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_import_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
+  await client.query("GRANT harbour_silo_owner TO harbour_owner WITH INHERIT FALSE, SET TRUE");
   // PowerSync needs logical replication. RDS does not allow the REPLICATION attribute and uses
   // the rds_replication role instead.
   try {

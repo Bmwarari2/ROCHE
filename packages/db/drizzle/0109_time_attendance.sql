@@ -213,7 +213,8 @@ CREATE POLICY clock_event_insert ON public.clock_event AS RESTRICTIVE FOR INSERT
 -- the system from the clock, or by a rota builder for someone else; changed by a rota builder or
 -- approver, never by the worker.
 CREATE POLICY timesheet_read ON public.timesheet_entry AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (worker_id = app.current_user_id() OR app.reads_time_records(location_id));
+  USING (app.is_system() OR worker_id = app.current_user_id()
+    OR app.reads_time_records(location_id));
 --> statement-breakpoint
 CREATE POLICY timesheet_insert ON public.timesheet_entry AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (app.is_system() OR (app.reads_time_records(location_id)
@@ -329,7 +330,8 @@ GRANT EXECUTE ON FUNCTION app.reads_worker_time(uuid) TO harbour_app, harbour_ow
 -- Opt-outs: the member's own, or approvers of their time; recorded by such an approver in their
 -- own name, never by the worker.
 CREATE POLICY opt_out_read ON public.working_time_opt_out AS RESTRICTIVE FOR SELECT TO harbour_app
-  USING (worker_id = app.current_user_id() OR app.reads_worker_time(worker_id));
+  USING (app.is_system() OR worker_id = app.current_user_id()
+    OR app.reads_worker_time(worker_id));
 --> statement-breakpoint
 CREATE POLICY opt_out_insert ON public.working_time_opt_out AS RESTRICTIVE FOR INSERT TO harbour_app
   WITH CHECK (app.reads_worker_time(worker_id)
@@ -385,7 +387,8 @@ REVOKE UPDATE, DELETE, TRUNCATE ON public.clock_event, public.sleep_in_awake_per
 -- Earlier versions follow the tables' own read rules.
 CREATE POLICY record_version_time ON public.record_version AS RESTRICTIVE FOR SELECT
   TO harbour_app
-  USING (table_name NOT IN ('clock_setting', 'timesheet_entry', 'working_time_opt_out')
+  USING (app.is_system()
+    OR table_name NOT IN ('clock_setting', 'timesheet_entry', 'working_time_opt_out')
     OR (table_name = 'clock_setting' AND app.reads_rota((data->>'location_id')::uuid))
     OR (table_name = 'timesheet_entry' AND ((data->>'worker_id')::uuid = app.current_user_id()
       OR app.reads_time_records((data->>'location_id')::uuid)))

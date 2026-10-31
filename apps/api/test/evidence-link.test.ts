@@ -72,7 +72,13 @@ async function releasedPack(): Promise<{ packId: string; linkId: string; token: 
   const added = await as("manager", `/v1/evidence-packs/${pack.id}/items`, {
     method: "POST",
     body: {
-      items: [{ recordType: "care_note", recordId: note?.id, qualityStatementIds: ["safe.1"] }],
+      items: [
+        {
+          recordType: "care_note",
+          recordId: note?.id,
+          qualityStatementIds: ["safe.learning_culture"],
+        },
+      ],
       version: pack.version,
     },
   });
@@ -398,12 +404,20 @@ describe("hazard HZ-050 the printed pack", () => {
       method: "POST",
       body: {
         items: [
-          { recordType: "observation", recordId: fixed?.id, qualityStatementIds: ["safe.2"] },
-          { recordType: "observation", recordId: paper?.id, qualityStatementIds: ["safe.2"] },
+          {
+            recordType: "observation",
+            recordId: fixed?.id,
+            qualityStatementIds: ["safe.safeguarding"],
+          },
+          {
+            recordType: "observation",
+            recordId: paper?.id,
+            qualityStatementIds: ["safe.safeguarding"],
+          },
           ...notes.map((id) => ({
             recordType: "care_note",
             recordId: id,
-            qualityStatementIds: ["safe.1"],
+            qualityStatementIds: ["safe.learning_culture"],
           })),
         ],
         version: pack.version,

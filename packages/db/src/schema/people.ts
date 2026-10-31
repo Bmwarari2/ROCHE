@@ -17,6 +17,7 @@ import {
 import { sqlList } from "./_codes";
 import { id, mutableColumns, searchVector, tenantId } from "./_columns";
 import { allergyStatus, contactRole, personStatus, placementType } from "./enums";
+import { importBatch } from "./imports";
 import { admissionDecision } from "./people-lifecycle";
 import { document, location, service, tenant, tenantUser } from "./platform";
 import { sampleBatch } from "./sample-data";
@@ -146,10 +147,24 @@ export const person = pgTable(
     /** Sample data mode (rule 29; HZ-072): an invented person loaded with a sample batch. */
     isSample: boolean("is_sample").notNull().default(false),
     sampleBatchId: uuid("sample_batch_id"),
+    /**
+     * The import batch that created the person (platform.md rules 23 and 24; migration 0088): set
+     * only as the batch commits and never changed, so an undo removes exactly the people its batch
+     * created (#150 security review M1). Null for everyone added any other way.
+     */
+    importBatchId: uuid("import_batch_id"),
     ...mutableColumns(),
   },
   (t) => [
     unique("person_tenant_id_id_key").on(t.tenantId, t.id),
+    foreignKey({
+      name: "person_import_batch_fk",
+      columns: [t.tenantId, t.importBatchId],
+      foreignColumns: [importBatch.tenantId, importBatch.id],
+    }),
+    index("person_import_batch_idx")
+      .on(t.tenantId, t.importBatchId)
+      .where(sql`import_batch_id IS NOT NULL`),
     unique("person_tenant_nhs_number_key").on(t.tenantId, t.nhsNumber),
     foreignKey({
       name: "person_sample_batch_fk",
