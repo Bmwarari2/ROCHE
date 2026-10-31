@@ -278,6 +278,9 @@ describe("hazard HZ-005 a new or changed MAR entry stays not yet checked until a
       notice: null,
     });
     expect(marEntryStatus(replaced, at(5, 11), "give_with_notice").notice).toBe(
+      `${MAR_ENTRY_NOTICES.changeTomorrow} Replaced from 06/11/2026 00:00.`,
+    );
+    expect(marEntryStatus(replaced, at(4, 11), "give_with_notice").notice).toBe(
       "Replaced from 06/11/2026 00:00.",
     );
   });
@@ -708,7 +711,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
     });
   });
 
-  it("hazard HZ-003 for any sequence of changes, stops, restarts and corrections: one version may be given, nothing after a stop, and each day's doses as its schedule says", () => {
+  it("hazard HZ-003 for any sequence of changes, stops, restarts and corrections: one version may be given, nothing after a stop or a course end, and each day's doses as its schedule says", () => {
     let seed = 20261031;
     const random = () => {
       seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -717,6 +720,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
     const pick = <T>(options: readonly T[]): T =>
       options[Math.floor(random() * options.length)] as T;
     const HOUR = 3_600_000;
+    const DAY = 24 * HOUR;
     const choices = [daily("08:00"), daily("20:00"), daily("08:00", "18:00"), prn];
     for (let run = 0; run < 40; run++) {
       let versions: MarEntry[] = [entry()];
@@ -731,6 +735,15 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
         const takesEffect = random() < 0.5 ? anyHour : ukEndOfDay(ukDateOf(anyHour));
         const id = `v-${run}-${step}`;
         const withdrawLaterReason = random() < 0.5 ? "Replaced by the newer instruction" : null;
+        const endChoice = random();
+        const stopsAt =
+          endChoice < 0.3
+            ? ukEndOfDay(ukDateOf(new Date(takesEffect.getTime() + Math.floor(random() * 8) * DAY)))
+            : endChoice < 0.6
+              ? (versionInForceAt(versions, takesEffect)?.stopsAt ?? null)
+              : null;
+        const ends = (start: Date) =>
+          stopsAt && stopsAt.getTime() > start.getTime() ? stopsAt : null;
         const action = random();
         if (action < 0.4) {
           const current = versionInForceAt(versions, when);
@@ -745,7 +758,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
           }
           const result = changeMarEntry(
             versions,
-            draft({ directions: pick(choices), startsAt: takesEffect }),
+            draft({ directions: pick(choices), startsAt: takesEffect, stopsAt: ends(takesEffect) }),
             TABLET_FACTS,
             { ...meta(when), id, withdrawLaterReason },
           );
@@ -770,7 +783,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
           }
         } else if (action < 0.85) {
           const result = transcribeMarEntry(
-            draft({ directions: pick(choices), startsAt: takesEffect }),
+            draft({ directions: pick(choices), startsAt: takesEffect, stopsAt: ends(takesEffect) }),
             TABLET_FACTS,
             { ...newMeta, id, at: when, earlierEntries: versions },
           );
@@ -799,12 +812,18 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
             t >= stop.effectiveAt.getTime() &&
             (recordedAtStep.get(entryOf(v).id) ?? -1) < stop.step,
         );
+      // Every course end any version of an entry recorded, withdrawn versions included.
+      const courseEnds = versions
+        .filter((v) => v.stopsAt !== null)
+        .map((v) => ({ entry: entryOf(v).id, end: v.stopsAt as Date }));
+      const afterCourseEnd = (v: MarEntry, t: number) =>
+        courseEnds.some((c) => c.entry === entryOf(v).id && t >= c.end.getTime());
 
       // At every instant a version starts or ends, and either side: at most one version may be
       // given, the one in force, and never one that started before a stop recorded by then.
       const instants = new Set<number>();
       for (const v of versions) {
-        for (const edge of [v.startsAt, marEntryEnd(v)]) {
+        for (const edge of [v.startsAt, marEntryEnd(v), v.stopsAt]) {
           if (!edge) continue;
           for (const shift of [-HOUR, -1, 0, 1, HOUR]) instants.add(edge.getTime() + shift);
         }
@@ -819,6 +838,10 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
         ).toBe(true);
         expect(
           ids.some((v) => afterStop(v, t)),
+          label(when),
+        ).toBe(false);
+        expect(
+          ids.some((v) => afterCourseEnd(v, t)),
           label(when),
         ).toBe(false);
       }
@@ -836,6 +859,7 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
         for (const { v, dose } of doses) {
           expect(versionInForceAt(versions, dose.dueAt)?.id, label(dose.dueAt)).toBe(v.id);
           expect(afterStop(v, dose.dueAt.getTime()), label(dose.dueAt)).toBe(false);
+          expect(afterCourseEnd(v, dose.dueAt.getTime()), label(dose.dueAt)).toBe(false);
         }
         if (!live.some((v) => inside(v.startsAt) || inside(marEntryEnd(v)))) {
           const whole = versionInForceAt(versions, from);
@@ -855,8 +879,17 @@ describe("hazard HZ-004 exactly one version of a medicine is in force at any ins
         for (const v of live) {
           if (v.replacedFrom && inside(v.replacedFrom)) {
             const next = live.find((n) => n.id === v.replacedById);
-            expect(marEntryDoses(v, { from, to }), label(v.replacedFrom)).toEqual([]);
-            if (next) expect(marEntryDoses(next, { from, to }), label(next.startsAt)).toEqual([]);
+            const thatDay = [
+              ...marEntryDoses(v, { from, to }),
+              ...(next ? marEntryDoses(next, { from, to }) : []),
+            ];
+            if (v.secondCheck?.outcome === "differs_from_source") {
+              // A correction takes effect at once, with that day's notice when the day has doses.
+              if (thatDay.length > 0)
+                expect(next?.correctedPartWayThrough, label(v.replacedFrom)).toBe(
+                  ukDateOf(v.replacedFrom),
+                );
+            } else expect(thatDay, label(v.replacedFrom)).toEqual([]);
           }
           if (v.replacesId === null && inside(v.startsAt)) {
             const earlier = live
@@ -1120,6 +1153,129 @@ describe("hazard HZ-003 hazard HZ-004 a change takes effect from 00:00 on a day 
   );
 });
 
+describe("hazard HZ-004 hazard HZ-005 a change keeps the course end", () => {
+  const course = () => checked(entry({ stopsAt: midnight(10) }));
+
+  it.each<[string, Date | null, MarEntryProblem | null]>([
+    ["drops it", null, "course_end_kept"],
+    ["extends it", midnight(12), "course_end_kept"],
+    ["keeps it", midnight(10), null],
+    ["ends it sooner", midnight(9), null],
+  ])(
+    "refuses a change that %s, and accepts one that keeps it or ends sooner",
+    (_n, end, problem) => {
+      const result = changeMarEntry(
+        [course()],
+        draft({ startsAt: midnight(6), stopsAt: end }),
+        TABLET_FACTS,
+        meta(at(5, 10)),
+      );
+      if (problem) {
+        expect(result).toMatchObject({
+          ok: false,
+          issues: [
+            {
+              problem,
+              message:
+                "This course ends 10/11/2026 00:00. A change keeps that end: give it, or an earlier one, as the new version's end. To continue past it, record a new entry from then.",
+            },
+          ],
+        });
+        return;
+      }
+      if (!result.ok) throw new Error(result.issues.map((i) => i.message).join(" "));
+      const versions = [result.replaced, result.next];
+      expect(givable(versions, at(15, 8))).toEqual([]);
+      expect(datesOf(versions, 10, 15)).toEqual([]);
+    },
+  );
+
+  it("keeps the course end of a later version it withdraws", () => {
+    let versions: MarEntry[] = [checked()];
+    versions = changed(
+      versions,
+      draft({ startsAt: midnight(11), stopsAt: midnight(14) }),
+      meta(at(4, 10)),
+    );
+    const m = {
+      ...meta(at(5, 10)),
+      id: "entry-3",
+      withdrawLaterReason: "The GP's letter replaces it",
+    };
+    expect(
+      changeMarEntry(versions, draft({ startsAt: midnight(6) }), TABLET_FACTS, m),
+    ).toMatchObject({ ok: false, issues: [{ problem: "course_end_kept" }] });
+    versions = changed(versions, draft({ startsAt: midnight(6), stopsAt: midnight(14) }), m);
+    expect(givable(versions, at(15, 8))).toEqual([]);
+  });
+});
+
+describe("hazard HZ-003 hazard HZ-005 a correction after a check found a difference takes effect at once (rule 6c)", () => {
+  const differs = (when: Date) => {
+    const result = recordSecondCheck(entry(), {
+      ...goodCheck,
+      at: when,
+      outcome: "differs_from_source",
+      difference: "The letter says 1 tablet",
+    });
+    if (!result.ok) throw new Error("check refused");
+    return result.entry;
+  };
+
+  it("corrects at 10:30 for the rest of the day, so the 18:00 dose is not dropped, with that day's notice", () => {
+    const corrected = changed(
+      [differs(at(5, 10))],
+      draft({ startsAt: at(5, 10, 30) }),
+      meta(at(5, 10, 30)),
+    );
+    const v2 = corrected.find((v) => v.id === "entry-2") as MarEntry;
+    expect(v2.correctedPartWayThrough).toBe("2026-11-05");
+    expect(datesOf(corrected, 5, 5)).toEqual(["2026-11-05", "2026-11-05"]);
+    expect(
+      corrected
+        .flatMap((v) => marEntryDoses(v, day(5)))
+        .map((d) => [d.time, formatUkTime(d.dueAt)]),
+    ).toEqual([
+      ["08:00", "08:00"],
+      ["18:00", "18:00"],
+    ]);
+    expect(marEntryStatus(v2, at(5, 18), "give_with_notice")).toEqual({
+      words: "Not yet checked",
+      mayGive: true,
+      notice: `${MAR_ENTRY_NOTICES.notYetChecked} ${MAR_ENTRY_NOTICES.correctedToday}`,
+    });
+    expect(marEntryStatus(v2, at(6, 8), "give_with_notice").notice).toBe(
+      MAR_ENTRY_NOTICES.notYetChecked,
+    );
+    expect(MAR_ENTRY_NOTICES.differenceFound).toContain("it can take effect at once");
+  });
+
+  it("still refuses a change of an entry whose check matched, part-way through a dose day", () => {
+    expect(
+      changeMarEntry(
+        [checked()],
+        draft({ startsAt: at(5, 10, 30) }),
+        TABLET_FACTS,
+        meta(at(5, 10, 30)),
+      ),
+    ).toMatchObject({ ok: false, issues: [{ problem: "change_from_tomorrow" }] });
+  });
+});
+
+describe("hazard HZ-005 a version replaced from tomorrow tells staff to check today's remaining doses", () => {
+  it("after a return from hospital at 14:00 with a dose change, the 18:00 dose says a change starts tomorrow", () => {
+    const halved = draft({ directions: daily("08:00", "18:00"), startsAt: midnight(6) });
+    const versions = changed([checked()], halved, { ...meta(at(5, 14)), origin: "reconciliation" });
+    const old = versions.find((v) => v.id === "entry-1") as MarEntry;
+    expect(marEntryStatus(old, at(5, 18), "give_with_notice")).toEqual({
+      words: "Checked",
+      mayGive: true,
+      notice:
+        "A change starts tomorrow: check today's remaining doses with the nurse in charge. Replaced from 06/11/2026 00:00.",
+    });
+  });
+});
+
 describe("hazard HZ-004 one entry of a dm+d product is in force for a person at a time", () => {
   const first = checked();
   const restartMeta = (when: Date, earlierEntries: MarEntry[]) => ({
@@ -1307,7 +1463,7 @@ describe("hazard HZ-004 only the version in force may be given", () => {
     const today = at(4, 12);
     expect(marEntryStatus(replaced, today, "give_with_notice")).toMatchObject({
       mayGive: true,
-      notice: "Replaced from 05/11/2026 00:00.",
+      notice: `${MAR_ENTRY_NOTICES.changeTomorrow} Replaced from 05/11/2026 00:00.`,
     });
     expect(marEntryStatus(change.next, today, "give_with_notice")).toEqual({
       words: "Not started yet",

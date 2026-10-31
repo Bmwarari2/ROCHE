@@ -39,9 +39,10 @@ Branch `feat/meds-domain-administration`, stacked on #135 (`feat/meds-domain-rec
 - Hazard log: HZ-116 (two-person checks) and HZ-119 (expired competence) added; HZ-003, HZ-004,
   HZ-009 and HZ-010 planned domain tests passing; HZ-005's open dosing-record control built.
 - Register: MEDS-002, MEDS-003, MEDS-005 and MEDS-013 `partial`. STATUS updated.
-- Merged #135's third clinical review and `main`. Slice 3 now sits on the stricter record rules
+- Merged #135's third and fourth clinical reviews and `main`. Slice 3 now sits on the stricter record rules
   (changes from 00:00 on a day with doses, later versions withdrawn only with a reason, a change
-  keeping the product, one entry per product), and its tag test changes from 00:00. A variable-dose
+  keeping the product and its course end, one entry per product, a correction taking effect at
+  once with that day's notice), and its tag test changes from 00:00. A variable-dose
   entry's notice now also says what to do with no checked record for the day: ask the prescriber
   and record the dose on the dosing record for a second person to check. The medicines
   competence result type is `MedicinesCompetenceGate`, because workforce's slice 4 exports a
@@ -66,8 +67,8 @@ Branch `feat/meds-domain-administration`, stacked on #135 (`feat/meds-domain-rec
 ## Tests
 
 - `timing.test.ts`, `intervals.test.ts`, `competence.test.ts`, `dosing-record.test.ts`,
-  `administration.test.ts`, `controlled-drugs.test.ts`, with the slice 2 files: 486 medicines
+  `administration.test.ts`, `controlled-drugs.test.ts`, with the slice 2 files: 500 medicines
   tests, passing under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York`. Whole domain
-  package after the merges: 5,365 tests, 99.70% line coverage under each of the three time
+  package after the merges: 5,379 tests, 99.71% line coverage under each of the three time
   zones (`pnpm --filter @harbour/domain test:coverage`). `pnpm lint`, the domain typecheck and the
   markdown link check run clean.

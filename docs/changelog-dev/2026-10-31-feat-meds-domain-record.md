@@ -136,12 +136,33 @@ Branch `feat/meds-domain-record`.
     H-550 question; HZ-121 in the test name; the hazard log no longer says a change never doubles
     or drops a dose.
   - Merged `origin/main`, keeping both sides in STATUS, the human actions and the hazard log.
+- Fourth clinical review (1 High, 4 Medium; the reviewer's fuzzer found no doubled dose, no two
+  givable versions and nothing given after a stop in 9,000 sequences, and finds none after these
+  fixes):
+  - H1: a change keeps the course end (`stopsAt`), its own or a withdrawn version's: the same end
+    or an earlier one, never none or a later one (`course_end_kept`). The property test now
+    generates course ends and checks nothing is given after one.
+  - M1: a correction (a change of a version whose check found a difference) takes effect at once,
+    for the rest of the day, so the evening dose is not dropped; that day it carries "Corrected
+    part-way through today: check today's doses with the nurse in charge before giving the rest."
+    The "Do not give" notice says the correction can take effect at once.
+  - M2: a version replaced from 00:00 tomorrow tells staff, for the rest of today, "A change starts
+    tomorrow: check today's remaining doses with the nurse in charge." The stricter option: a
+    same-day change still waits until 00:00 (H-553).
+  - M3: a reconciliation's change and stop decisions take `withdrawLaterReason`, tried at
+    completion and carried into the plan.
+  - M4: a continue of a medicine with a later version or stop scheduled is refused until the
+    person says why it still stands (`scheduledStillStands`) or changes or stops it;
+    `entriesToReconcile` lists the entries to decide on from dates over every version, never by
+    state, and the `currentEntries` comment now says so.
+  - H-550 and H-553 carry the new defaults as questions.
 
 ## Tests
 
 - `packages/domain/src/medicines/dose.test.ts`, `schedule.test.ts`, `mar-entry.test.ts`,
-  `reconciliation.test.ts`: 324 tests after the third review, passing under `TZ=UTC`,
-  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.33% of lines. Whole domain
-  package after merging `main`: 5,203 tests, 99.69% line coverage under each of the three time
-  zones (`pnpm --filter @harbour/domain test:coverage`).
+  `reconciliation.test.ts`: 338 tests after the fourth review, passing under `TZ=UTC`,
+  `TZ=Europe/London` and `TZ=America/New_York`; medicines coverage 99.37% of lines. Whole domain
+  package: 5,217 tests, 99.70% line coverage under each of the three time zones
+  (`pnpm --filter @harbour/domain test:coverage`). The reviewer's probes and fuzzer (seeds 7, 11
+  and 23, 9,000 sequences) run clean.
 - `pnpm lint`, the domain typecheck and the markdown link check run clean.
