@@ -1,4 +1,4 @@
-import { Card, PageHeader, StatusChip } from "@harbour/ui";
+import { ButtonLink, Card, PageHeader, StatusChip } from "@harbour/ui";
 import { CircleAlert, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -160,6 +160,19 @@ export default async function IncidentPage({
       </nav>
       <PageHeader eyebrow={location?.name ?? t("safety.incident.locationHidden")} title={title} />
       {recorded === "1" ? <RecordedArrival /> : null}
+      {incident.type === "missing_person" && can(me.permissions, "safety.incident.report")
+        ? incident.people
+            .filter((p) => p.kind === "service_user" && p.personId)
+            .map((p) => (
+              <p key={p.id} className="m-0">
+                <ButtonLink href={`/missing/new?incident=${incident.id}&person=${p.personId}`}>
+                  {p.personId && names.get(p.personId)
+                    ? t("missing.fromIncidentNamed", { name: names.get(p.personId) ?? "" })
+                    : t("missing.fromIncident")}
+                </ButtonLink>
+              </p>
+            ))
+        : null}
       {shownDone && recorded !== "1" ? (
         <RecordedArrival message={t("safety.manage.done", { done: shownDone })} param="done" />
       ) : null}

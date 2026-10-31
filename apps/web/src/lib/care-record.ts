@@ -25,6 +25,7 @@ export type RecordTab =
   | "capacity"
   | "activities"
   | "reviews"
+  | "herbert"
   | "hospital"
   | "pre-admission"
   | "admission"
@@ -41,6 +42,7 @@ interface TabDefinition {
   readonly needs:
     | "care.plan.read"
     | "care.note.read"
+    | "safety.incident.read"
     | "people.person.read"
     | "people.movement.record"
     | "comms.letter.manage"
@@ -66,6 +68,8 @@ export const RECORD_TABS: readonly TabDefinition[] = [
   { tab: "capacity", needs: "care.plan.read" },
   { tab: "activities", needs: "care.note.read" },
   { tab: "reviews", needs: "care.plan.read" },
+  // The Herbert Protocol profile handed to the police if the person goes missing (SAFE-015).
+  { tab: "herbert", needs: "safety.incident.read" },
   { tab: "hospital", needs: "people.movement.record" },
   // Admission and belongings (people.md rules 4 to 7; PEOP-005, PEOP-007).
   { tab: "pre-admission", needs: "people.person.read" },

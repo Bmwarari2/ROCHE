@@ -77,6 +77,18 @@ export default async function ShellLayout({ children }: { readonly children: Rea
         round: roundShown(me.permissions) ? t("shell.nav.round") : undefined,
         handover: handoverShown(me.permissions) ? t("shell.nav.handover") : undefined,
         incidents: incidentsNavLabel(me.permissions, t),
+        outbreaks: me.permissions.includes("safety.outbreak.manage")
+          ? t("shell.nav.outbreaks")
+          : undefined,
+        deaths: me.permissions.includes("safety.incident.read") ? t("shell.nav.deaths") : undefined,
+        missing: me.permissions.includes("safety.incident.read")
+          ? t("shell.nav.missing")
+          : undefined,
+        disclosures:
+          me.permissions.includes("safety.incident.manage") ||
+          me.permissions.includes("safety.disclosure.approve")
+            ? t("shell.nav.disclosures")
+            : undefined,
         approvals: approvalsShown(me.permissions) ? t("shell.nav.approvals") : undefined,
         downtime: downtimeNavShown(me.permissions) ? t("shell.nav.downtime") : undefined,
         updates: familyUpdatesShown(me.permissions) ? t("shell.nav.updates") : undefined,
