@@ -27629,6 +27629,1011 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/absences": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Absences and leave a member may see
+     * @description scheduling.timesheet.self (one's own), scheduling.rota.manage or .approve (those at the homes they reach; row-level security decides). Filter by home, member and dates; newest first, up to 500. Fit note coverage only for holders of workforce.hr_document.read.
+     */
+    get: {
+      parameters: {
+        query?: {
+          locationId?: string;
+          memberId?: string;
+          from?: string;
+          to?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Absences */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Ask for one's own leave, or record a sickness or leave for a member
+     * @description Without memberId (or one's own): scheduling.timesheet.self, at a home where the member holds a role; leave kinds only (state requested). With another member: scheduling.rota.manage at the home (state recorded), which raises a cover need on each of the member's rostered shifts it touches (HZ-123). Audited (scheduling.absence.requested or .recorded) with the kind and dates.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewAbsence"];
+        };
+      };
+      responses: {
+        /** @description Stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * One absence; with its fit notes and return to work for HR
+     * @description As the list. Fit notes, the return to work record and the Bradford exclusion reason only for holders of workforce.hr_document.read. Audited (scheduling.absence.viewed) for a sickness.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceDetail"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Approve or decline a leave request
+     * @description scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline needs a reason. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["DecideAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel an absence
+     * @description The member cancels their own request before it is decided (scheduling.timesheet.self); a rota manager or approver at the home cancels an approved or recorded absence with a reason. Its open cover needs are resolved (absence_ended). Audited (scheduling.absence.cancelled), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CancelAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/end": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record a sickness's last day
+     * @description scheduling.rota.manage at the home, for an open sickness (approved or recorded). Cover needs on shifts after the last day are resolved. Audited (scheduling.absence.ended) with the date.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["EndAbsence"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/bradford-exclusion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Leave a sickness out of the Bradford factor, or put it back
+     * @description workforce.hr_document.read and scheduling.rota.manage at the home: a reason (pregnancy-related, disability-related) leaves it out; null puts it back. Audited (scheduling.absence.bradford_excluded), never the reason.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["ExcludeFromBradford"];
+        };
+      };
+      responses: {
+        /** @description The absence */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AbsenceItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/fit-notes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a fit note to a sickness (the body is the file)
+     * @description workforce.hr_document.read at the home, never for one's own absence. The document is checked by its contents, scanned and kept as an HR-only staff document with retention sickness_absence; the dates, fitness and ticked adjustments are stored beside it, never the condition. Audited (workforce.fit_note.added) with ids and dates only.
+     */
+    post: {
+      parameters: {
+        query: {
+          issuedOn: string;
+          coversFrom: string;
+          coversTo: string;
+          fitness: "not_fit" | "may_be_fit";
+          phasedReturn?: "true" | "false";
+          amendedDuties?: "true" | "false";
+          alteredHours?: "true" | "false";
+          workplaceAdaptations?: "true" | "false";
+        };
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "image/jpeg": string;
+          "image/png": string;
+          "image/webp": string;
+          "application/pdf": string;
+          "application/octet-stream": string;
+        };
+      };
+      responses: {
+        /** @description Stored */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FitNoteItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The file is too large */
+        413: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": {
+              code: string;
+            };
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/fit-notes/{fitNoteId}/content": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open a fit note (audited)
+     * @description workforce.hr_document.read at the home, never one's own (as every HR-only document). Every open is audited as workforce.fit_note.viewed.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+          fitNoteId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The fit note */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "image/jpeg": string;
+            "image/png": string;
+            "image/webp": string;
+            "application/pdf": string;
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/return-to-work": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record the return to work conversation after a sickness
+     * @description workforce.hr_document.read at the home, by someone other than the member, once the sickness has ended; one per absence (409 return_to_work_recorded). Audited (workforce.return_to_work.recorded) with ids and whether fit, never the notes.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["NewReturnToWork"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReturnToWorkItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/members/{id}/bradford": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * A member's Bradford factor, with its working
+     * @description workforce.hr_document.read reaching a home where the member has an absence (or across the organisation). Over absence.bradford.window_weeks (the rate table) from the member's sickness days, not cancelled and not left out; days the member was not rostered between two absences join them into one spell. Shown with its working and a notice; never compared with a trigger and never acted on (H-583). Audited (workforce.bradford.viewed) with the member id.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The working */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BradfordResult"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/absences/{id}/ssp": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * The SSP working for a sickness, for payroll
+     * @description workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["SspQuery"];
+        };
+      };
+      responses: {
+        /** @description The working */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["SspResultItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -35245,6 +36250,7 @@ export interface components {
       /** Format: date-time */
       publishedAt: string | null;
       overridden: string[];
+      coverNeeded: boolean;
     } | null;
     CreateRota: {
       /** Format: date */
@@ -35375,6 +36381,7 @@ export interface components {
       }[];
       openShiftIds: string[];
       inductionsDue: string[];
+      coverNeededAssignmentIds: string[];
       hasWarnings: boolean;
       periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
@@ -35916,6 +36923,213 @@ export interface components {
         /** Format: date-time */
         createdAt: string;
       }[];
+    };
+    AbsenceList: {
+      items: components["schemas"]["AbsenceItem"][];
+      truncated: boolean;
+    };
+    AbsenceItem: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+      };
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      state: components["schemas"]["AbsenceState"];
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      decisionReason: string | null;
+      /** Format: date-time */
+      selfCertifiedAt: string | null;
+      bradfordExcluded: boolean;
+      coverNeeded: number;
+      fitNoteUncoveredDays: string[] | null;
+    };
+    /** @enum {string} */
+    AbsenceKind:
+      | "annual_leave"
+      | "sickness"
+      | "compassionate"
+      | "carers_leave"
+      | "parental_leave"
+      | "maternity"
+      | "paternity"
+      | "adoption"
+      | "unpaid"
+      | "other";
+    /** @enum {string} */
+    AbsenceState: "requested" | "approved" | "declined" | "cancelled" | "recorded";
+    NewAbsence: {
+      /** Format: uuid */
+      memberId?: string;
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      /** @default false */
+      selfCertified: boolean;
+    };
+    AbsenceDetail: {
+      /** Format: uuid */
+      id: string;
+      version: number;
+      member: {
+        /** Format: uuid */
+        id: string;
+        displayName: string;
+      };
+      /** Format: uuid */
+      locationId: string;
+      kind: components["schemas"]["AbsenceKind"];
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string | null;
+      state: components["schemas"]["AbsenceState"];
+      /** Format: uuid */
+      decidedBy: string | null;
+      /** Format: date-time */
+      decidedAt: string | null;
+      decisionReason: string | null;
+      /** Format: date-time */
+      selfCertifiedAt: string | null;
+      bradfordExcluded: boolean;
+      coverNeeded: number;
+      fitNoteUncoveredDays: string[] | null;
+      fitNotes: components["schemas"]["FitNoteItem"][] | null;
+      returnToWork: components["schemas"]["ReturnToWorkItem"];
+      bradfordExcludedReason: string | null;
+    };
+    FitNoteItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      absenceId: string;
+      /** Format: uuid */
+      documentId: string;
+      /** Format: date */
+      issuedOn: string;
+      /** Format: date */
+      coversFrom: string;
+      /** Format: date */
+      coversTo: string;
+      /** @enum {string} */
+      fitness: "not_fit" | "may_be_fit";
+      phasedReturn: boolean;
+      amendedDuties: boolean;
+      alteredHours: boolean;
+      workplaceAdaptations: boolean;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ReturnToWorkItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      absenceId: string;
+      /** Format: date */
+      heldOn: string;
+      /** Format: uuid */
+      heldBy: string;
+      fitForUsualDuties: boolean;
+      phasedReturn: boolean;
+      amendedDuties: boolean;
+      alteredHours: boolean;
+      workplaceAdaptations: boolean;
+      notes: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    } | null;
+    DecideAbsence: {
+      version: number;
+      /** @enum {string} */
+      decision: "approve" | "decline";
+      reason?: string;
+    };
+    CancelAbsence: {
+      version: number;
+      reason?: string;
+    };
+    EndAbsence: {
+      version: number;
+      /** Format: date */
+      endsOn: string;
+    };
+    /** @description A reason leaves it out; null puts it back */
+    ExcludeFromBradford: {
+      version: number;
+      reason: string | null;
+    };
+    NewReturnToWork: {
+      /** Format: date */
+      heldOn: string;
+      fitForUsualDuties: boolean;
+      /** @default false */
+      phasedReturn: boolean;
+      /** @default false */
+      amendedDuties: boolean;
+      /** @default false */
+      alteredHours: boolean;
+      /** @default false */
+      workplaceAdaptations: boolean;
+      notes?: string;
+    };
+    BradfordResult: {
+      /** Format: uuid */
+      memberId: string;
+      spells: number;
+      days: number;
+      score: number;
+      /** Format: date */
+      windowStart: string;
+      /** Format: date */
+      windowEnd: string;
+      windowWeeks: number;
+      excludedAbsences: number;
+      working: string[];
+      notice: string;
+    };
+    SspResultItem: {
+      /** Format: uuid */
+      absenceId: string;
+      applies: boolean;
+      /** @enum {string|null} */
+      reason: "no_rate_for_nation" | "not_a_period_of_incapacity" | null;
+      periodOfIncapacity: {
+        /** Format: date */
+        startsOn: string;
+        /** Format: date */
+        endsOn: string;
+        linkedAbsences: number;
+      } | null;
+      weeklyPence: number | null;
+      daysPaid: number | null;
+      payPence: number | null;
+      daysLeft: number | null;
+      working: {
+        step: string;
+        pence: number | null;
+      }[];
+      inputHash: string | null;
+      notice: string;
+    };
+    SspQuery: {
+      averageWeeklyEarningsPence: number;
+      qualifyingWeekdays: number[];
     };
   };
   responses: never;

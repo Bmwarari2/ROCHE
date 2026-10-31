@@ -1,6 +1,6 @@
 {
   "id": "611544da-4540-46f7-959f-c836de48c30b",
-  "prevId": "679d4891-e5e5-42ee-9750-323964bf9c14",
+  "prevId": "c58c0536-f459-4aab-a843-2cae8e4327da",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -902,6 +902,922 @@
         "location_induction_items": {
           "name": "location_induction_items",
           "value": "cardinality(items) BETWEEN 1 AND 40"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.absence": {
+      "name": "absence",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_on": {
+          "name": "starts_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_on": {
+          "name": "ends_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decided_by": {
+          "name": "decided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision_reason": {
+          "name": "decision_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "self_certified_at": {
+          "name": "self_certified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bradford_excluded_reason": {
+          "name": "bradford_excluded_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "absence_member_idx": {
+          "name": "absence_member_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "absence_location_idx": {
+          "name": "absence_location_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "location_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "absence_member_fk": {
+          "name": "absence_member_fk",
+          "tableFrom": "absence",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "absence_decided_by_fk": {
+          "name": "absence_decided_by_fk",
+          "tableFrom": "absence",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "decided_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "absence_location_fk": {
+          "name": "absence_location_fk",
+          "tableFrom": "absence",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "absence_tenant_id_id_key": {
+          "name": "absence_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "absence_kind": {
+          "name": "absence_kind",
+          "value": "kind IN ('annual_leave', 'sickness', 'compassionate', 'carers_leave', 'parental_leave', 'maternity', 'paternity', 'adoption', 'unpaid', 'other')"
+        },
+        "absence_state": {
+          "name": "absence_state",
+          "value": "state IN ('requested', 'approved', 'declined', 'cancelled', 'recorded')"
+        },
+        "absence_dates": {
+          "name": "absence_dates",
+          "value": "(ends_on IS NULL OR ends_on >= starts_on) AND (ends_on IS NOT NULL OR kind = 'sickness')"
+        },
+        "absence_decision": {
+          "name": "absence_decision",
+          "value": "(state NOT IN ('approved', 'declined') OR (decided_by IS NOT NULL AND decided_at IS NOT NULL))\n        AND (state NOT IN ('requested', 'recorded') OR (decided_by IS NULL AND decided_at IS NULL))"
+        },
+        "absence_decider_is_member": {
+          "name": "absence_decider_is_member",
+          "value": "decided_by IS DISTINCT FROM member_id"
+        },
+        "absence_reason": {
+          "name": "absence_reason",
+          "value": "(state <> 'declined' OR decision_reason IS NOT NULL)\n        AND (decision_reason IS NULL OR char_length(btrim(decision_reason)) BETWEEN 3 AND 500)\n        AND (bradford_excluded_reason IS NULL OR (kind = 'sickness' AND char_length(btrim(bradford_excluded_reason)) BETWEEN 3 AND 500))"
+        },
+        "absence_self_certified": {
+          "name": "absence_self_certified",
+          "value": "self_certified_at IS NULL OR kind = 'sickness'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fit_note": {
+      "name": "fit_note",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "absence_id": {
+          "name": "absence_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_on": {
+          "name": "issued_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "covers_from": {
+          "name": "covers_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "covers_to": {
+          "name": "covers_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fitness": {
+          "name": "fitness",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phased_return": {
+          "name": "phased_return",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "amended_duties": {
+          "name": "amended_duties",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "altered_hours": {
+          "name": "altered_hours",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "workplace_adaptations": {
+          "name": "workplace_adaptations",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "fit_note_document_key": {
+          "name": "fit_note_document_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fit_note_absence_idx": {
+          "name": "fit_note_absence_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "absence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fit_note_absence_fk": {
+          "name": "fit_note_absence_fk",
+          "tableFrom": "fit_note",
+          "tableTo": "absence",
+          "columnsFrom": [
+            "tenant_id",
+            "absence_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_note_document_fk": {
+          "name": "fit_note_document_fk",
+          "tableFrom": "fit_note",
+          "tableTo": "document",
+          "columnsFrom": [
+            "tenant_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fit_note_location_fk": {
+          "name": "fit_note_location_fk",
+          "tableFrom": "fit_note",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fit_note_tenant_id_id_key": {
+          "name": "fit_note_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fit_note_fitness": {
+          "name": "fit_note_fitness",
+          "value": "fitness IN ('not_fit', 'may_be_fit')"
+        },
+        "fit_note_dates": {
+          "name": "fit_note_dates",
+          "value": "covers_to >= covers_from AND issued_on <= covers_to"
+        },
+        "fit_note_adjustments": {
+          "name": "fit_note_adjustments",
+          "value": "fitness = 'may_be_fit' OR NOT (phased_return OR amended_duties OR altered_hours OR workplace_adaptations)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.return_to_work": {
+      "name": "return_to_work",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "absence_id": {
+          "name": "absence_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_on": {
+          "name": "held_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_by": {
+          "name": "held_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fit_for_usual_duties": {
+          "name": "fit_for_usual_duties",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phased_return": {
+          "name": "phased_return",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "amended_duties": {
+          "name": "amended_duties",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "altered_hours": {
+          "name": "altered_hours",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "workplace_adaptations": {
+          "name": "workplace_adaptations",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "return_to_work_absence_key": {
+          "name": "return_to_work_absence_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "absence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "return_to_work_absence_fk": {
+          "name": "return_to_work_absence_fk",
+          "tableFrom": "return_to_work",
+          "tableTo": "absence",
+          "columnsFrom": [
+            "tenant_id",
+            "absence_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "return_to_work_member_fk": {
+          "name": "return_to_work_member_fk",
+          "tableFrom": "return_to_work",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "return_to_work_held_by_fk": {
+          "name": "return_to_work_held_by_fk",
+          "tableFrom": "return_to_work",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "held_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "return_to_work_location_fk": {
+          "name": "return_to_work_location_fk",
+          "tableFrom": "return_to_work",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "return_to_work_tenant_id_id_key": {
+          "name": "return_to_work_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "return_to_work_holder": {
+          "name": "return_to_work_holder",
+          "value": "held_by IS DISTINCT FROM member_id"
+        },
+        "return_to_work_notes": {
+          "name": "return_to_work_notes",
+          "value": "notes IS NULL OR char_length(btrim(notes)) BETWEEN 1 AND 4000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.shift_cover_need": {
+      "name": "shift_cover_need",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "absence_id": {
+          "name": "absence_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raised_at": {
+          "name": "raised_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolution": {
+          "name": "resolution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "shift_cover_need_open_key": {
+          "name": "shift_cover_need_open_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "assignment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "absence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "resolved_at IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "shift_cover_need_shift_idx": {
+          "name": "shift_cover_need_shift_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "shift_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "shift_cover_need_shift_fk": {
+          "name": "shift_cover_need_shift_fk",
+          "tableFrom": "shift_cover_need",
+          "tableTo": "shift",
+          "columnsFrom": [
+            "tenant_id",
+            "shift_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_cover_need_assignment_fk": {
+          "name": "shift_cover_need_assignment_fk",
+          "tableFrom": "shift_cover_need",
+          "tableTo": "shift_assignment",
+          "columnsFrom": [
+            "tenant_id",
+            "assignment_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_cover_need_absence_fk": {
+          "name": "shift_cover_need_absence_fk",
+          "tableFrom": "shift_cover_need",
+          "tableTo": "absence",
+          "columnsFrom": [
+            "tenant_id",
+            "absence_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "shift_cover_need_location_fk": {
+          "name": "shift_cover_need_location_fk",
+          "tableFrom": "shift_cover_need",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shift_cover_need_tenant_id_id_key": {
+          "name": "shift_cover_need_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "shift_cover_need_resolution": {
+          "name": "shift_cover_need_resolution",
+          "value": "(resolved_at IS NULL) = (resolution IS NULL)\n        AND (resolution IS NULL OR resolution IN ('assignment_removed', 'absence_ended'))"
         }
       },
       "isRLSEnabled": false
