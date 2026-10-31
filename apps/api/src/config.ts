@@ -84,6 +84,8 @@ const Env = z.object({
   /** Evidence pack link requests (codes, verification, opens) per minute per API instance. */
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(20),
   EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK: z.coerce.number().int().positive().default(10),
+  /** Public speak-up requests (raise, read, reply) per minute per client address, per instance. */
+  SPEAK_UP_REQUESTS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(10),
   /** How long a verified link session lasts in the browser (never past the link's own expiry). */
   EVIDENCE_LINK_SESSION_MINUTES: z.coerce.number().int().positive().max(240).default(60),
   /** Where document bytes live: local disk (development and tests) or S3 (AWS). */

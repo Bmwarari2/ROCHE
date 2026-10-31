@@ -68,6 +68,7 @@ import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { speakUpRouter } from "./routes/speak-up";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
@@ -143,6 +144,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       address: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       link: new MemoryThrottle(config.EVIDENCE_LINK_REQUESTS_PER_MINUTE_PER_LINK, 60_000),
     },
+    speakUpThrottle: new MemoryThrottle(config.SPEAK_UP_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
     invitationThrottles: {
       address: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_ADDRESS, 60_000),
       token: new MemoryThrottle(config.INVITATION_REQUESTS_PER_MINUTE_PER_TOKEN, 60_000),
@@ -244,6 +246,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
   app.route("/", complaintsRouter);
+  app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
