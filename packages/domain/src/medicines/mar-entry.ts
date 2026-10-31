@@ -12,8 +12,10 @@
  * in place, so the history of what the MAR said, and who checked it, is kept.
  *
  * The version rules refuse the sequences that are hard to get right rather than handling them
- * (H-553): a change part-way through a day with doses, a change or stop while a later version is
- * scheduled (unless it withdraws that version, with the reason), and a change into another product.
+ * (H-553): a change part-way through a day with doses (except a correction after a check found a
+ * difference), a change or stop while a later version is scheduled (unless it withdraws that
+ * version, with the reason), a change that drops or extends the course end, and a change into
+ * another product.
  *
  * Whether a not-yet-checked entry may be given before its check is the tenant policy the CSO
  * confirms (H-550); the default shows the dose with the notice and lets it be given, because a
@@ -111,6 +113,7 @@ export type MarEntryProblem =
   | "not_one_medicine"
   | "later_version_scheduled"
   | "change_from_tomorrow"
+  | "course_end_kept"
   | "restart_from_tomorrow"
   | "count_reanchored"
   | "entry_ended"
@@ -239,6 +242,12 @@ export interface MarEntry extends MarEntryDraft {
   readonly reanchor: { readonly by: string; readonly at: Date; readonly reason: string } | null;
   /** Set when a later change or stop withdrew this version before it started: it is never in force. */
   readonly withdrawn: { readonly by: string; readonly at: Date; readonly reason: string } | null;
+  /**
+   * The UK date (YYYY-MM-DD) when this version corrected one whose check found a difference,
+   * taking effect part-way through a day with doses: that day it carries a notice to check the
+   * day's doses (rule 6c).
+   */
+  readonly correctedPartWayThrough: string | null;
 }
 
 export type MarEntryResult =
@@ -288,6 +297,7 @@ function newEntry(draft: MarEntryDraft, meta: TranscriptionMeta): MarEntry {
     replacedFrom: null,
     reanchor: null,
     withdrawn: null,
+    correctedPartWayThrough: null,
   };
 }
 
@@ -532,10 +542,14 @@ export interface ChangeMeta extends TranscriptionMeta {
  * instant exactly one version is in force (rule 6b): the version in force when the change takes
  * effect ends then. A change while a later version is scheduled is refused unless it
  * withdraws that version, with the reason (H-553). A stop still to come, on the version in force or
- * on a version withdrawn, carries over to the new version: a change never cancels a stop. The day
- * count carries over from the last dose due (rule 6a), and a change part-way through a day on
+ * on a version withdrawn, carries over to the new version: a change never cancels a stop. So does
+ * the course end (`stopsAt`): the new version gives the same end or an earlier one, never none or
+ * a later one (`course_end_kept`); a course that continues past its end is a new entry from then.
+ * The day count carries over from the last dose due (rule 6a). A change part-way through a day on
  * which either version has a regular dose is refused: it takes effect from 00:00 the next day, so
- * no dose that day is given twice or dropped (rule 6c). Corrections are changes.
+ * no dose that day is given twice or dropped (rule 6c). The exception is a correction, a change
+ * of a version whose check found a difference: it fixes a transcription error, so it takes effect
+ * at once for the rest of the day, and carries a notice that day to check the day's doses.
  */
 export function changeMarEntry(
   versions: readonly MarEntry[],
@@ -579,6 +593,20 @@ export function changeMarEntry(
   const count = countRule(versions, draft, meta);
   if ("issue" in count) return { ok: false, issues: [count.issue] };
 
+  const courseEnd = [current, ...later]
+    .map((v) => v.stopsAt)
+    .filter((end): end is Date => end !== null && end.getTime() > takesEffect.getTime())
+    .reduce<Date | null>((a, b) => (a === null || b.getTime() < a.getTime() ? b : a), null);
+  if (
+    courseEnd !== null &&
+    (draft.stopsAt === null || draft.stopsAt.getTime() > courseEnd.getTime())
+  ) {
+    return fail(
+      "course_end_kept",
+      `This course ends ${formatUkDateTime(courseEnd)}. A change keeps that end: give it, or an earlier one, as the new version's end. To continue past it, record a new entry from then.`,
+    );
+  }
+
   const latest = versions.reduce((a, b) => (b.version > a.version ? b : a));
   const carriedStop = [current, ...later]
     .map((v) => v.stop)
@@ -597,23 +625,28 @@ export function changeMarEntry(
     stop: carriedStop,
   };
 
-  // Rule 6c: part-way through a day, only when neither version has a regular dose that day.
+  // Rule 6c: part-way through a day, only when neither version has a regular dose that day, or
+  // as a correction of a version whose check found a difference, with that day's notice.
   const day = ukDateOf(takesEffect);
   const dayStart = ukStartOfDay(day);
+  let correctedPartWayThrough: string | null = null;
   if (takesEffect.getTime() !== dayStart.getTime()) {
     const dayEnd = ukEndOfDay(day);
     const before = dosesIn(live(versions), { from: dayStart, to: dayEnd });
     const after = dosesIn([next], { from: takesEffect, to: dayEnd });
     if (before.length > 0 || after.length > 0) {
-      return fail(
-        "change_from_tomorrow",
-        "This medicine has a dose on the day the change takes effect. Start the change from 00:00 the next day, so no dose that day is given twice or dropped.",
-      );
+      if (current.secondCheck?.outcome !== "differs_from_source") {
+        return fail(
+          "change_from_tomorrow",
+          "This medicine has a dose on the day the change takes effect. Start the change from 00:00 the next day, so no dose that day is given twice or dropped.",
+        );
+      }
+      correctedPartWayThrough = day;
     }
   }
   return {
     ok: true,
-    next,
+    next: { ...next, correctedPartWayThrough },
     replaced: { ...current, state: "replaced", replacedById: next.id, replacedFrom: takesEffect },
     withdrawn: withdraw(later, meta.by, meta.at, meta.withdrawLaterReason),
   };
@@ -703,7 +736,11 @@ export const MAR_ENTRY_NOTICES = {
   holdUntilChecked:
     "Not yet checked: do not give until a second person competent in medicines has checked it against the source document. Tell the nurse in charge.",
   differenceFound:
-    "Do not give: the check found a difference from the source document. Tell the nurse in charge, who records a corrected entry.",
+    "Do not give: the check found a difference from the source document. Tell the nurse in charge, who records the corrected version; it can take effect at once.",
+  changeTomorrow:
+    "A change starts tomorrow: check today's remaining doses with the nurse in charge.",
+  correctedToday:
+    "Corrected part-way through today: check today's doses with the nurse in charge before giving the rest.",
   variableDose:
     "Do not give from this entry: its dose comes from the dosing record, which is not built yet. Ask the prescriber for today's dose and record it as a new MAR entry, stopping this one first.",
 } as const;
@@ -756,7 +793,18 @@ export function marEntryStatus(
       : entry.stop && entry.stop.effectiveAt.getTime() === end?.getTime()
         ? `Stops from ${formatUkDateTime(end)}.`
         : null;
-  const join = (notice: string | null) => [notice, ending].filter(Boolean).join(" ") || null;
+  const today = ukDateOf(now);
+  const replacedTomorrow =
+    entry.replacedFrom !== null &&
+    entry.replacedFrom.getTime() === end?.getTime() &&
+    entry.replacedFrom.getTime() === ukEndOfDay(today).getTime();
+  const dayNotice = replacedTomorrow
+    ? MAR_ENTRY_NOTICES.changeTomorrow
+    : entry.correctedPartWayThrough === today
+      ? MAR_ENTRY_NOTICES.correctedToday
+      : null;
+  const join = (notice: string | null) =>
+    [notice, dayNotice, ending].filter(Boolean).join(" ") || null;
   let status: MarEntryStatus;
   if (entry.secondCheck === null) {
     status =

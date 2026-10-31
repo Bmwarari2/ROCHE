@@ -192,10 +192,15 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    later stop is recorded is refused unless it says why the earlier stop replaces it. A stop still
    to come, on the version in force or on a version the change withdraws, carries over to the new
    version (the earliest, when there are two), so a change never cancels a stop: a course that
-   continues past its stop is a new entry from the stop. So at no instant are two versions
-   givable, and nothing is given after a recorded stop from an entry recorded before it. A
-   property test runs random sequences of changes, stops, restarts and corrections (regular and
-   when required) and checks every boundary, every dose and every day.
+   continues past its stop is a new entry from the stop. The course end (`stopsAt`, from the
+   prescription) is kept the same way: the new version gives the same end, or an earlier one,
+   never none or a later one (`course_end_kept`, naming the end); a course that continues past its
+   end is a new entry from then (H-553). So at no instant are two versions givable, and nothing is
+   given after a recorded stop or a course end from an entry recorded before it. A property test
+   runs random sequences of changes, stops, restarts and corrections (regular and when required,
+   with and without course ends) and checks every boundary, every dose and every day; the
+   reviewer's fuzzer (9,000 sequences) finds no doubled dose, no two givable versions and nothing
+   given after a stop.
 
    **Rule 6c: no change part-way through a day with doses** (HZ-003, HZ-004). A change that takes
    effect part-way through a UK day is refused when either version has a regular dose that day
@@ -208,10 +213,23 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    the entry that stopped is refused (`restart_from_tomorrow`); stopped before that day's first
    dose, it may start the same day. On the days the clocks change, a change from 00:00 gives the
    new schedule's doses for the day (rule 4).
+
+   Two cases keep that day's doses in sight instead (H-553). A **correction**, a change of a
+   version whose check found a difference, fixes a transcription error rather than changing the
+   prescription, so it takes effect at once, for the rest of the day (`correctedPartWayThrough`):
+   that day it carries "Corrected part-way through today: check today's doses with the nurse in
+   charge before giving the rest." And a version **replaced from 00:00 tomorrow** (a change made
+   today, such as after a return from hospital at 14:00) carries, for the rest of today, "A change
+   starts tomorrow: check today's remaining doses with the nurse in charge." The stricter option
+   was chosen: no ordinary change takes effect part-way through a day, even from a reconciliation.
 7. **Every medicine on the MAR is decided, on a line that says so** (HZ-121; `reconciliation.ts`).
    Each source line is recorded as written with its dm+d product and what it says: start,
-   continue, change, stop or unclear (`says`). A reconciliation lists the entries in force when it
-   began; each needs exactly one decision a person made: continue, change, stop or query. A
+   continue, change, stop or unclear (`says`). A reconciliation lists the entries to decide on
+   when it began (`entriesToReconcile` over every version of the person's entries: for each
+   medicine, the version in force or, when none is, the first scheduled to start; worked out from
+   dates, never by state, because a version whose stop or replacement is still to come is already
+   `stopped` or `replaced`: the API must not filter by state); each needs exactly one decision a
+   person made: continue, change, stop or query. A
    decision is supported only by a line that says that thing about the same dm+d product (a VMP,
    by identity): a line that says something else, or names another product, never supports it,
    whatever the note (`line_does_not_support`). Harbour never infers a stop because a source leaves
@@ -224,8 +242,13 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
    the letter's line; otherwise a prescription, the pharmacy's MAR, a discharge or transfer letter,
    the GP record, a clinic letter or the prescriber's written instruction); one supported only by
    labels, the previous setting's MAR or what the person or family say, or by no line, needs a note
-   and who confirmed it (the prescriber or a clinician, how and when: `confirmedWith`). An unclear
-   line blocks completion until it is asked about and recorded again (`line_unclear`).
+   and who confirmed it (the prescriber or a clinician, how and when: `confirmedWith`). A continue
+   of a medicine with a later version or a stop scheduled before the reconciliation is refused
+   (`continue_with_later_scheduled`, naming it) until the person checks it against the sources:
+   they change or stop the medicine, or say why it still stands (`scheduledStillStands`). A change
+   or stop while a later version or stop is scheduled gives the reason it withdraws or replaces it
+   (`withdrawLaterReason`, rule 6b), carried into the plan. An unclear line blocks completion until
+   it is asked about and recorded again (`line_unclear`).
 8. **Every medicine in the sources is decided** (HZ-121). Each source line is linked to one entry
    decision, or started (a new entry, from a current document's line that says start, continue or
    change, about the draft's own product), or not started with a reason, or queried; a line used
@@ -259,9 +282,10 @@ and compares no ingredients ([medical-device boundary](../compliance/medical-dev
     allergen, ADR-0082 default), the person (or someone who speaks for them) was not involved and
     no reason is given, an entry belongs to someone else, or the medicines record changed since the
     reconciliation began. The result is the plan the API applies in one transaction: continued
-    entries, stops with their source (`stopMarEntry`), changes (`changeMarEntry`, with the re-anchor
-    reason) and starts (`transcribeMarEntry`, with the person's earlier entries) made Not yet
-    checked with origin `reconciliation`, so a second person checks each.
+    entries, stops with their source from when it completes (`stopMarEntry`), changes
+    (`changeMarEntry`, with the re-anchor reason), each with the reason it withdraws a later
+    version or stop, and starts (`transcribeMarEntry`, with the person's earlier entries) made Not
+    yet checked with origin `reconciliation`, so a second person checks each.
 12. **Not yet reconciled** (HZ-121; `outstandingReconciliations`). Every admission, transfer and
     return from hospital without a completed reconciliation is listed for the person, oldest first,
     with "Medicines not yet reconciled since the return from hospital on 03/11/2026 14:30." A
@@ -344,18 +368,23 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   unchecked policy; a change keeps the product, brand changes allowed; exactly one version in
   force: a later version withdrawn only with a reason, a stop carried over (the v1, v2 with a stop,
   correction case), a change refused with nothing in force, and a property test over random
-  sequences of changes, stops, restarts and corrections, regular and when required, checking every
-  boundary, that nothing is given after a recorded stop, and every day's doses against the
-  schedule; the count kept from the last dose due across changes, through every day and back,
-  across a stop and restart, and a weekday move needing a reason; no change part-way through a
-  day with doses, including regular to when required and back, and on the days the clocks change;
-  one entry per product and a restart from the next day; a future stop or replacement still
-  checkable and correctable; variable doses not givable, and the notice's instruction followed),
+  sequences of changes, stops, restarts and corrections, regular and when required, with and
+  without course ends, checking every boundary, that nothing is given after a recorded stop or a
+  course end, and every day's doses against the schedule; a change keeping the course end, its
+  own or a withdrawn version's; the count kept from the last dose due across changes, through
+  every day and back, across a stop and restart, and a weekday move needing a reason; no change
+  part-way through a day with doses, including regular to when required and back, and on the days
+  the clocks change; a correction after a failed check at once, with that day's notice; the
+  version replaced from tomorrow telling staff to check today's remaining doses; one entry per
+  product and a restart from the next day; a future stop or replacement still checkable and
+  correctable; variable doses not givable, and the notice's instruction followed),
   `reconciliation.test.ts` (the plan; every entry and line decided; lines that say what they mean,
   with the alendronic acid and warfarin to apixaban cases; a change into another product refused;
   a stop citing its line; a continue shown by a current prescription, or confirmed by a
   clinician; a June GP record not current; a change's, a stop's and a restart's MAR rules tried at
-  completion, including a medicine stopped before the reconciliation; one entry per product;
+  completion, including a medicine stopped before the reconciliation, and the reason a stop or
+  change gives to withdraw what was scheduled; a continue refused while a change or stop is
+  scheduled, until it is said to stand; the entries to reconcile from dates; one entry per product;
   sources; queries; the stale record; completion checks; outstanding reconciliations). Run under `TZ=UTC`, `TZ=Europe/London` and `TZ=America/New_York`.
 - Database (slice 16): RLS and HZ-011 isolation for each table; the write-once trigger on check,
   stop and replacement; `expected_version` on changes.
@@ -378,7 +407,10 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   slice 2 is not released to a tenant without slice 3's dosing record; until then a variable-dose
   entry is never givable and its notice tells staff to ask the prescriber for the day's dose and
   record it as a new entry, stopping the variable one first (confirm that interim instruction, or
-  that the gate holds).
+  that the gate holds). After a check finds a difference, the correction takes effect at once, for
+  the rest of the day, with a notice that day to check the day's doses (default; #135 fourth
+  review): confirm, and whether the corrected entry's earlier dose that day needs more than a
+  notice.
 - H-551 (pharmacist): the dose-writing rules in rule 2, the 3 decimal places, "0.5 tablets",
   "2 × 5 ml spoonfuls" and "12 micrograms/hour", and whether a quantity below 1 where dm+d gives a
   smaller unit (0.5 g, 500 mg) should be refused rather than transcribed as written; "ml" as dm+d
@@ -405,7 +437,13 @@ in a DSAR bundle). No new sub-processor. Slice 2 stores nothing.
   always carrying over (a course extended past its stop is a new entry); no change when nothing is
   in force; one entry per product, so a regular and a when-required entry of the same VMP (for
   example lorazepam at night and when required) cannot both be on the MAR: is a combined entry, or
-  an exception, needed?
+  an exception, needed? From the #135 fourth review: a change keeps the course end (no change may
+  drop or extend it, even when the new prescription gives a later end: the course continues as a
+  new entry from its end); a same-day change, such as after a return from hospital at 14:00,
+  still takes effect from 00:00 the next day, and the old version tells staff "A change starts
+  tomorrow: check today's remaining doses with the nurse in charge" (the stricter option, rather
+  than a same-day change with an answer about that day's doses): is a notice enough, or should
+  today's remaining doses of the old version be held?
 - The decisions and defaults for later slices are in [phase-2.md](../plans/phase-2.md) (ADR-0080 to
   ADR-0085) and the human actions H-510 to H-517 in [human-actions.md](../plans/human-actions.md).
 
@@ -420,5 +458,5 @@ schema, API, web or mobile changes in this slice.
 | `dose.ts` | `Dose`, `DoseUnit`, `parseDoseQuantity`, `isDoseQuantity`, `formatDoseQuantity`, `doseUnitName`, `formatDose`, `checkDose` | Rule 2 |
 | `schedule.ts` | `SchedulePattern`, `RegularSchedule`, `checkSchedule`, `expandSchedule`, `MarDose`, `marCycle`, `marCycleContaining`, `clockChangesIn`, `describeSchedule`, `keepsCountFrom`, `ukDateOf`, `WEEKDAY_NAMES` | Rules 3 to 5 and 6a |
 | `mar-entry.ts` | `MarEntryDraft`, `MarEntry`, `checkMarEntryDraft`, `transcribeMarEntry`, `recordSecondCheck`, `changeMarEntry` and `stopMarEntry` (on every version), `versionInForceAt`, `lastDueDose`, `marEntryEnd`, `marEntryDoses`, `marEntryStatus`, `MAR_ENTRY_NOTICES`, `MAR_SOURCE_KINDS` | Rules 6, 6a to 6c |
-| `reconciliation.ts` | `completeReconciliation`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
+| `reconciliation.ts` | `completeReconciliation`, `entriesToReconcile`, `linkDifference`, `outstandingReconciliations`, `RECONCILIATION_TRIGGER_WORDS`, `LINE_SAYS_WORDS` | Rules 7 to 12 |
 | `rates.ts` | `MEDICINES_RATE_KEYS`, `resolveMedicinesRates` | `medicines.ordering_cycle_days` |

@@ -39,6 +39,7 @@ import {
   type MedicinesCompetence,
   stopMarEntry,
   transcribeMarEntry,
+  versionInForceAt,
 } from "./mar-entry";
 
 export type ReconciliationTrigger = "admission" | "transfer" | "return_from_hospital" | "change";
@@ -106,7 +107,7 @@ export interface ReconciliationItem {
   readonly says: LineSays;
 }
 
-/** A MAR entry in force, as the reconciliation sees it. */
+/** A MAR entry to decide on, as the reconciliation sees it (`entriesToReconcile`). */
 export interface ReconciledEntry {
   readonly entryId: string;
   readonly version: number;
@@ -126,6 +127,11 @@ export type EntryDecision =
       readonly note: string | null;
       /** Who confirmed it continues (the prescriber or a clinician), how and when, when no linked line shows it. */
       readonly confirmedWith: string | null;
+      /**
+       * Why a change or stop scheduled before this reconciliation still stands against the
+       * sources; without it, continuing a medicine with one scheduled is refused.
+       */
+      readonly scheduledStillStands?: string | null;
     }
   | {
       readonly kind: "change";
@@ -135,6 +141,8 @@ export type EntryDecision =
       readonly draft: ReconciliationDraft;
       /** Why the new pattern starts a new day count, when it does (rule 6a). */
       readonly reanchorReason?: string | null;
+      /** Why a version scheduled to start later is withdrawn by this change (rule 6b). */
+      readonly withdrawLaterReason?: string | null;
     }
   | {
       readonly kind: "stop";
@@ -142,6 +150,8 @@ export type EntryDecision =
       /** The lines that say the medicine stops: never absence. */
       readonly itemIds: readonly string[];
       readonly reason: string;
+      /** Why a version scheduled to start later is withdrawn, or a later stop replaced (rule 6b). */
+      readonly withdrawLaterReason?: string | null;
     }
   | { readonly kind: "query"; readonly entryId: string; readonly question: string };
 
@@ -162,7 +172,7 @@ export interface Reconciliation {
   readonly trigger: ReconciliationTrigger;
   /** When the admission, transfer or return happened, or the change was known. */
   readonly triggeredAt: Date;
-  /** The MAR entries in force when it began, with their versions. */
+  /** The MAR entries to decide on when it began (`entriesToReconcile` then), with their versions. */
   readonly entriesAtStart: readonly { readonly entryId: string; readonly version: number }[];
   readonly sources: readonly ReconciliationSource[];
   readonly items: readonly ReconciliationItem[];
@@ -170,7 +180,11 @@ export interface Reconciliation {
 
 export interface ReconciliationCompletion {
   readonly reconciliation: Reconciliation;
-  /** The person's MAR entries in force now (not stopped or replaced). */
+  /**
+   * The person's MAR entries to decide on now, from `entriesToReconcile` over every version of
+   * their entries: worked out from dates, never by state (a version whose stop or replacement is
+   * still to come is `stopped` or `replaced` already, but still in force).
+   */
   readonly currentEntries: readonly ReconciledEntry[];
   /** Every version of an entry's medicine, to try each change and stop against. */
   readonly entryVersions: (entryId: string) => readonly MarEntry[];
@@ -214,6 +228,7 @@ export type ReconciliationProblem =
   | "continue_not_in_sources"
   | "continue_not_shown_current"
   | "continue_with_difference"
+  | "continue_with_later_scheduled"
   | "change_needs_source_item"
   | "change_different_product"
   | "change_not_shown_current"
@@ -246,11 +261,14 @@ export interface ReconciliationPlan {
     readonly entryId: string;
     readonly draft: MarEntryDraft;
     readonly reanchorReason: string | null;
+    readonly withdrawLaterReason: string | null;
   }[];
+  /** Stops from when the reconciliation completes, through `stopMarEntry`. */
   readonly stops: readonly {
     readonly entryId: string;
     readonly reason: string;
     readonly source: MarSourceDocument;
+    readonly withdrawLaterReason: string | null;
   }[];
   /** New entries, made "Not yet checked" with origin `reconciliation` through `transcribeMarEntry`. */
   readonly starts: readonly {
@@ -269,6 +287,51 @@ export type ReconciliationOutcome =
 
 function blank(value: string | null | undefined): boolean {
   return value === null || value === undefined || value.trim() === "";
+}
+
+const reasonOrNull = (value: string | null | undefined): string | null =>
+  blank(value) ? null : (value as string).trim();
+
+/**
+ * The MAR entries a reconciliation decides on, from every version of the person's entries: for
+ * each medicine (dm+d VMP), the version in force at `at` or, when none is, the first scheduled to
+ * start after it. Worked out from dates, never from `state`, because a version whose stop or
+ * replacement is still to come is already `stopped` or `replaced` but still in force: the API
+ * builds `entriesAtStart` and `currentEntries` with this and never filters versions by state.
+ */
+export function entriesToReconcile(
+  versions: readonly MarEntry[],
+  at: Date,
+): readonly ReconciledEntry[] {
+  const byMedicine = new Map<string, MarEntry[]>();
+  for (const v of versions) {
+    const key = `${v.personId}|${v.product.vmpId}`;
+    byMedicine.set(key, [...(byMedicine.get(key) ?? []), v]);
+  }
+  const chosen: MarEntry[] = [];
+  for (const medicine of byMedicine.values()) {
+    const scheduled = medicine
+      .filter((v) => v.withdrawn === null && v.startsAt.getTime() > at.getTime())
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+    const v = versionInForceAt(medicine, at) ?? scheduled[0];
+    if (v) chosen.push(v);
+  }
+  return chosen.map((v) => ({
+    entryId: v.id,
+    version: v.version,
+    personId: v.personId,
+    product: v.product,
+  }));
+}
+
+/** What is scheduled for a medicine after an instant: a later version, or a stop still to come. */
+function scheduledAfter(versions: readonly MarEntry[], at: Date): string | null {
+  const later = versions
+    .filter((v) => v.withdrawn === null && v.startsAt.getTime() > at.getTime())
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0];
+  if (later) return `Version ${later.version} starts ${formatUkDateTime(later.startsAt)}`;
+  const stop = versionInForceAt(versions, at)?.stop;
+  return stop ? `A stop is recorded from ${formatUkDateTime(stop.effectiveAt)}` : null;
 }
 
 /** How a source line differs from the MAR entry it is linked to, by dm+d identity only. */
@@ -485,7 +548,16 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
           message:
             "A linked line names another brand of this medicine. Say why the MAR entry continues unchanged, or record a change.",
         });
-      } else plan.continued.push(entryId);
+      } else {
+        const scheduled = scheduledAfter(input.entryVersions(entryId), input.completedAt);
+        if (scheduled && blank(decision.scheduledStillStands)) {
+          add({
+            problem: "continue_with_later_scheduled",
+            entryId,
+            message: `${scheduled}, recorded before this reconciliation. Check it against the sources: change or stop the medicine, or say why it still stands.`,
+          });
+        } else plan.continued.push(entryId);
+      }
     } else if (decision.kind === "change") {
       const product = decision.draft.product;
       const against = linked.find((i) => i.says !== "change" || otherProduct(i, product));
@@ -518,15 +590,14 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         });
       } else {
         const draft = draftFor(decision.draft, sources.get(supporting.sourceId), { entryId });
-        const reanchorReason = blank(decision.reanchorReason)
-          ? null
-          : (decision.reanchorReason as string);
+        const reanchorReason = reasonOrNull(decision.reanchorReason);
+        const withdrawLaterReason = reasonOrNull(decision.withdrawLaterReason);
         if (draft) {
           const tried = changeMarEntry(
             input.entryVersions(entryId),
             draft,
             input.dmdFacts(draft.product),
-            { ...dryRun, id: `planned-${entryId}`, reanchorReason },
+            { ...dryRun, id: `planned-${entryId}`, reanchorReason, withdrawLaterReason },
           );
           if (!tried.ok) {
             add({
@@ -535,7 +606,7 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
               draftIssues: tried.issues,
               message: tried.issues.map((i) => i.message).join(" "),
             });
-          } else plan.changes.push({ entryId, draft, reanchorReason });
+          } else plan.changes.push({ entryId, draft, reanchorReason, withdrawLaterReason });
         }
       }
     } else {
@@ -574,13 +645,18 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
         const source = asMarSource(
           sources.get(supporting.sourceId) as ReconciliationSource,
         ) as MarSourceDocument;
-        const tried = stopMarEntry(input.entryVersions(entryId), {
-          by: input.completer.id,
-          at: input.completedAt,
-          effectiveAt: input.completedAt,
-          reason: decision.reason,
-          source,
-        });
+        const withdrawLaterReason = reasonOrNull(decision.withdrawLaterReason);
+        const tried = stopMarEntry(
+          input.entryVersions(entryId),
+          {
+            by: input.completer.id,
+            at: input.completedAt,
+            effectiveAt: input.completedAt,
+            reason: decision.reason,
+            source,
+          },
+          { withdrawLaterReason },
+        );
         if (!tried.ok) {
           add({
             problem: "stop_refused",
@@ -588,7 +664,7 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
             draftIssues: tried.issues,
             message: tried.issues.map((i) => i.message).join(" "),
           });
-        } else plan.stops.push({ entryId, reason: decision.reason, source });
+        } else plan.stops.push({ entryId, reason: decision.reason, source, withdrawLaterReason });
       }
     }
   }
@@ -633,9 +709,7 @@ export function completeReconciliation(input: ReconciliationCompletion): Reconci
       });
     } else {
       const draft = draftFor(decision.draft, sources.get(item.sourceId), { itemId });
-      const reanchorReason = blank(decision.reanchorReason)
-        ? null
-        : (decision.reanchorReason as string);
+      const reanchorReason = reasonOrNull(decision.reanchorReason);
       if (draft) {
         const tried = transcribeMarEntry(draft, input.dmdFacts(draft.product), {
           ...dryRun,
