@@ -40,6 +40,7 @@ import {
 } from "@harbour/domain";
 import type { z } from "@hono/zod-openapi";
 import { and, eq, gt, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { assignmentsAway } from "./absence";
 import { competencePort } from "./competence-port";
 import { rateRows } from "./rates";
 import { profileFacts, storedItem, workforceRates } from "./staff-files";
@@ -380,10 +381,21 @@ export async function rotaShifts(tx: Transaction, rotaId: string) {
     overridden.set(o.assignmentId, [...(overridden.get(o.assignmentId) ?? []), ...o.keys]);
   }
   shifts.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || (a.id < b.id ? -1 : 1));
+  // HZ-123: an assignment whose member is away on the shift needs cover (section 15 rule 7).
+  const away = await assignmentsAway(
+    tx,
+    assignments.flatMap((a) => {
+      const s = shifts.find((x) => x.id === a.shiftId);
+      return s
+        ? [{ assignmentId: a.id, workerId: a.workerId, startsAt: s.startsAt, endsAt: s.endsAt }]
+        : [];
+    }),
+  );
   return {
     shifts,
     assignmentOf: (shiftId: string) => assignments.find((a) => a.shiftId === shiftId) ?? null,
     overriddenOf: (assignmentId: string) => [...new Set(overridden.get(assignmentId) ?? [])].sort(),
+    coverNeededOf: (assignmentId: string) => away.has(assignmentId),
   };
 }
 
@@ -402,7 +414,7 @@ export async function rotaCheck(
   rotaRow: RotaRow,
   now: Date = new Date(),
 ): Promise<z.infer<typeof RotaCheck>> {
-  const { shifts, assignmentOf, overriddenOf } = await rotaShifts(tx, rotaRow.id);
+  const { shifts, assignmentOf, overriddenOf, coverNeededOf } = await rotaShifts(tx, rotaRow.id);
   const rotaShiftIds = new Set(shifts.map((s) => s.id));
 
   // Eligibility again for every assignment (HZ-124: a check can lapse after assigning).
@@ -465,7 +477,35 @@ export async function rotaCheck(
       a: neighbourAssignments.find((x) => x.shiftId === s.id) ?? null,
     })),
   ];
+  // Neighbours' members away on their shift need cover too.
+  const neighbourAway = await assignmentsAway(
+    tx,
+    neighbourAssignments.flatMap((a) => {
+      const n = neighbours.find((x) => x.id === a.shiftId);
+      return n
+        ? [{ assignmentId: a.id, workerId: a.workerId, startsAt: n.startsAt, endsAt: n.endsAt }]
+        : [];
+    }),
+  );
+  const coverNeeded = (a: { readonly id: string }) =>
+    coverNeededOf(a.id) || neighbourAway.has(a.id);
+  const coverShiftIds = new Set<string>();
   for (const { s, a } of all) {
+    // A member away on the shift is not on the floor: the shift counts as open (HZ-123).
+    if (a && coverNeeded(a)) {
+      coverShiftIds.add(s.id);
+      rostered.push({
+        id: s.id,
+        kind: s.kind as ShiftKind,
+        start: s.startsAt,
+        end: s.endsAt,
+        breakMinutes: s.breakMinutes,
+        countsAsCare: s.countsAsCare,
+        workerId: null,
+        workerSkills: [],
+      });
+      continue;
+    }
     rostered.push({
       id: s.id,
       kind: s.kind as ShiftKind,
@@ -501,9 +541,15 @@ export async function rotaCheck(
       const comparison = compareStaffing(requirement, provided);
       // The rota's own warnings on the period: never a plain "met" while one stands (M1).
       const own: string[] = [];
-      if (provided.openShiftIds.length > 0) {
+      const coverHere = provided.openShiftIds.filter((id) => coverShiftIds.has(id)).length;
+      if (coverHere > 0) {
         own.push(
-          `${provided.openShiftIds.length} care shift(s) in this period have nobody on them and are not counted.`,
+          `${coverHere} shift(s) in this period need cover: the member rostered is absent, so they are not counted.`,
+        );
+      }
+      if (provided.openShiftIds.length - coverHere > 0) {
+        own.push(
+          `${provided.openShiftIds.length - coverHere} care shift(s) in this period have nobody on them and are not counted.`,
         );
       }
       const overriddenHere = provided.shiftIds.filter((id) => overriddenShiftIds.has(id)).length;
@@ -551,6 +597,10 @@ export async function rotaCheck(
   for (const w of workers) workingTime.push(await workingTimeFor(tx, w, rotaRow, rotaShiftIds));
 
   const openShiftIds = shifts.filter((s) => !assignmentOf(s.id)).map((s) => s.id);
+  const coverNeededAssignmentIds = shifts.flatMap((s) => {
+    const a = assignmentOf(s.id);
+    return a && coverNeededOf(a.id) ? [a.id] : [];
+  });
   const blockedAssignmentIds = eligibility.filter((e) => !e.covered).map((e) => e.assignmentId);
   const periodsToAcknowledge = staffing
     .filter((p) => p.status === "below" || p.status === "incomplete" || p.status === "no_scale")
@@ -559,6 +609,7 @@ export async function rotaCheck(
     staffing.some((s) => s.status !== "met") ||
     workingTime.some((w) => w.status === "cannot_check" || w.findings.length > 0) ||
     openShiftIds.length > 0 ||
+    coverNeededAssignmentIds.length > 0 ||
     eligibility.some((e) => !e.allowed);
   const digest = createHash("sha256")
     .update(
@@ -578,6 +629,7 @@ export async function rotaCheck(
           s.warnings,
         ]),
         periodsToAcknowledge,
+        coverNeededAssignmentIds,
         workingTime,
       }),
     )
@@ -591,6 +643,7 @@ export async function rotaCheck(
     workingTime,
     eligibility,
     openShiftIds,
+    coverNeededAssignmentIds,
     hasWarnings,
     periodsToAcknowledge,
     blockedAssignmentIds,

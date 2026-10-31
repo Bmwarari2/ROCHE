@@ -111,6 +111,7 @@ export * from "./safety/questions";
 export * from "./safety/rates";
 export * from "./safety/safeguarding";
 export * from "./safety/whistleblowing";
+export * from "./scheduling/absence";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
 export * from "./scheduling/dependency";

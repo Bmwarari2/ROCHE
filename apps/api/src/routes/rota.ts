@@ -61,6 +61,7 @@ import {
 } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { publish } from "../outbox";
+import { memberAwayFor, resolveCoverNeeds } from "../services/absence";
 import {
   type AssignmentRow,
   blockerItems,
@@ -199,7 +200,7 @@ function rotaSummary(r: RotaRow, changedSincePublished = false) {
 }
 
 async function rotaItem(tx: Transaction, r: RotaRow): Promise<z.infer<typeof RotaItem>> {
-  const { shifts, assignmentOf, overriddenOf } = await rotaShifts(tx, r.id);
+  const { shifts, assignmentOf, overriddenOf, coverNeededOf } = await rotaShifts(tx, r.id);
   const names = await staffNames(
     tx,
     shifts.map((s) => assignmentOf(s.id)?.workerId),
@@ -211,7 +212,7 @@ async function rotaItem(tx: Transaction, r: RotaRow): Promise<z.infer<typeof Rot
     .orderBy(desc(rotaPublication.publishedAt));
   return {
     ...rotaSummary(r, (await rotasChangedSince(tx, [r])).has(r.id)),
-    shifts: shifts.map((s) => shiftItem(s, assignmentOf(s.id), overriddenOf, names)),
+    shifts: shifts.map((s) => shiftItem(s, assignmentOf(s.id), overriddenOf, names, coverNeededOf)),
     publications: publications.map((p) => ({
       id: p.id,
       publishedAt: p.publishedAt.toISOString(),
@@ -228,6 +229,7 @@ function shiftItem(
   a: AssignmentRow | null,
   overriddenOf: (assignmentId: string) => string[],
   names: Awaited<ReturnType<typeof staffNames>>,
+  coverNeededOf: (assignmentId: string) => boolean = () => false,
 ) {
   return {
     id: s.id,
@@ -257,6 +259,7 @@ function shiftItem(
           },
           publishedAt: iso(a.publishedAt),
           overridden: overriddenOf(a.id),
+          coverNeeded: coverNeededOf(a.id),
         }
       : null,
   };
@@ -1137,6 +1140,24 @@ export const rotaRouter = createRouter()
           if (!s || !locked) return null;
           if (s.version !== body.version) throw stale();
           if (!(await worksAt(tx, body.workerId, s.locationId))) return null;
+          // HZ-124: never onto a shift on a day the member is away (section 15 rule 8).
+          if (await memberAwayFor(tx, body.workerId, s)) {
+            await audit(c, tx, access, {
+              action: A.assigned,
+              outcome: "denied",
+              resourceType: "shift",
+              resourceId: id,
+              reason: "member_absent",
+              scopeExtra: { workerId: body.workerId },
+            });
+            return {
+              refused: new HttpProblem(
+                409,
+                "member_absent",
+                "This member is away on the day of this shift (approved leave or a recorded absence). Choose someone else.",
+              ),
+            };
+          }
           const now = new Date();
           const decision = await shiftEligibility(
             tx,
@@ -1227,12 +1248,15 @@ export const rotaRouter = createRouter()
             scopeExtra: { shiftId: s.id, workerId: body.workerId },
           });
           const row = locked;
-          const { shifts, assignmentOf, overriddenOf } = await rotaShifts(tx, row.id);
+          const { shifts, assignmentOf, overriddenOf, coverNeededOf } = await rotaShifts(
+            tx,
+            row.id,
+          );
           const names = await staffNames(tx, [body.workerId]);
           const current = shifts.find((x) => x.id === s.id) ?? s;
           return {
             item: {
-              shift: shiftItem(current, assignmentOf(s.id), overriddenOf, names),
+              shift: shiftItem(current, assignmentOf(s.id), overriddenOf, names, coverNeededOf),
               eligibility: {
                 workerId: body.workerId,
                 shiftId: s.id,
@@ -1299,6 +1323,8 @@ export const rotaRouter = createRouter()
             .where(and(eq(shiftAssignment.id, id), eq(shiftAssignment.version, body.version)))
             .returning();
           if (!done) throw stale();
+          // A cover need on it is met by taking the member off: someone else can be put on.
+          await resolveCoverNeeds(tx, { assignmentId: id }, "assignment_removed");
           const s = await loadShift(tx, a.shiftId);
           if (s && locked) await markChanged(tx, s, locked, now);
           await audit(c, tx, access, {

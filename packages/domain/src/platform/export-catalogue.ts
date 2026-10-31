@@ -55,6 +55,7 @@ export type ExportRetention =
   | "staff_file"
   | "training_record"
   | "rota_and_timesheet"
+  | "sickness_absence"
   | "tenant_configuration"
   | "as_subject"
   | "by_category"
@@ -3284,6 +3285,113 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       updated_by: "exported",
       version: "exported",
       deleted_at: { description: "When they were taken off the shift." },
+    },
+  },
+  "public.absence": {
+    context: "scheduling",
+    description:
+      "Absences and leave (scheduling.md section 15; SCHED-010): leave asked for and decided, and sickness or leave recorded. Never a diagnosis.",
+    treatment: "tenant_rows",
+    retention: "sickness_absence",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      member_id: { description: "The member of staff absent (tenant_user.id)." },
+      location_id: { description: "The home whose rota it touches (location.id)." },
+      kind: {
+        description:
+          "annual_leave, sickness, compassionate, carers_leave, parental_leave, maternity, paternity, adoption, unpaid or other.",
+      },
+      starts_on: { description: "The first UK date." },
+      ends_on: { description: "The last UK date; empty while a sickness is open." },
+      state: { description: "requested, approved, declined, cancelled or recorded." },
+      decided_by: { description: "Who approved or declined it (tenant_user.id)." },
+      decided_at: { description: "When it was approved or declined (UTC)." },
+      decision_reason: { description: "Why it was declined or cancelled, in words." },
+      self_certified_at: {
+        description: "When the member's own statement for a sickness's first days was taken (UTC).",
+      },
+      bradford_excluded_reason: {
+        description: "Why a manager left the sickness out of the Bradford factor.",
+      },
+      created_at: "exported",
+      created_by: "exported",
+      updated_at: "exported",
+      updated_by: "exported",
+      version: "exported",
+      deleted_at: "exported",
+    },
+  },
+  "public.fit_note": {
+    context: "scheduling",
+    description:
+      "Fit notes for sicknesses (append-only): the HR-only document, its dates and the ticked adjustments. Health data; never the condition.",
+    treatment: "tenant_rows",
+    retention: "sickness_absence",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      absence_id: { description: "The sickness (absence.id)." },
+      location_id: { description: "The home (location.id)." },
+      document_id: { description: "The fit note's document (document.id)." },
+      issued_on: { description: "The UK date the note was issued." },
+      covers_from: { description: "The first UK date it covers." },
+      covers_to: { description: "The last UK date it covers." },
+      fitness: { description: "not_fit or may_be_fit." },
+      phased_return: { description: "Whether a phased return was ticked." },
+      amended_duties: { description: "Whether amended duties were ticked." },
+      altered_hours: { description: "Whether altered hours were ticked." },
+      workplace_adaptations: { description: "Whether workplace adaptations were ticked." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.return_to_work": {
+    context: "scheduling",
+    description:
+      "Return to work records after a sickness (append-only, one per absence). Health data.",
+    treatment: "tenant_rows",
+    retention: "sickness_absence",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      absence_id: { description: "The sickness (absence.id)." },
+      location_id: { description: "The home (location.id)." },
+      member_id: { description: "The member of staff (tenant_user.id)." },
+      held_on: { description: "The UK date it was held." },
+      held_by: { description: "Who held it (tenant_user.id)." },
+      fit_for_usual_duties: { description: "Whether the member is fit for their usual duties." },
+      phased_return: { description: "Whether a phased return was agreed." },
+      amended_duties: { description: "Whether amended duties were agreed." },
+      altered_hours: { description: "Whether altered hours were agreed." },
+      workplace_adaptations: { description: "Whether workplace adaptations were agreed." },
+      notes: { description: "The conversation, in the holder's words." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
+  "public.shift_cover_need": {
+    context: "scheduling",
+    description:
+      "Rostered shifts an absence left needing cover (HZ-123): raised once, resolved once.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      shift_id: { description: "The shift (shift.id)." },
+      assignment_id: { description: "The assignment that needs cover (shift_assignment.id)." },
+      absence_id: { description: "The absence that raised it (absence.id)." },
+      location_id: { description: "The shift's home (location.id)." },
+      raised_at: { description: "When the absence raised it (UTC)." },
+      resolved_at: { description: "When it was resolved (UTC)." },
+      resolution: { description: "assignment_removed or absence_ended." },
+      created_at: "exported",
+      created_by: "exported",
     },
   },
   "public.roster_override": {

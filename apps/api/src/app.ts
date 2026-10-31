@@ -17,6 +17,7 @@ import { MockEmail, MockPush, MockSms } from "./integrations/adapters";
 import { createDocumentServices } from "./integrations/documents";
 import { createAdapterResolver } from "./integrations/registry";
 import { idleErrorLogger, type Logger, loggableError } from "./logger";
+import { absencesRouter } from "./routes/absences";
 import { brandingRouter, LOGO_MAX_BYTES } from "./routes/branding";
 import { breakGlassReportRouter } from "./routes/break-glass-report";
 import { breakGlassSearchRouter } from "./routes/break-glass-search";
@@ -341,6 +342,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", peopleDetailsRouter);
   app.route("/", schedulingDependencyRouter);
   app.route("/", rotaRouter);
+  app.route("/", absencesRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

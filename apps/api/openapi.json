@@ -28149,6 +28149,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "coverNeeded": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -28156,7 +28159,8 @@
           "version",
           "worker",
           "publishedAt",
-          "overridden"
+          "overridden",
+          "coverNeeded"
         ]
       },
       "CreateRota": {
@@ -28626,6 +28630,13 @@
               "format": "uuid"
             }
           },
+          "coverNeededAssignmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           "hasWarnings": {
             "type": "boolean"
           },
@@ -28668,6 +28679,7 @@
           "workingTime",
           "eligibility",
           "openShiftIds",
+          "coverNeededAssignmentIds",
           "hasWarnings",
           "periodsToAcknowledge",
           "blockedAssignmentIds",
@@ -28940,6 +28952,742 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "AbsenceList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceItem"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "AbsenceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "member": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AbsenceState"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selfCertifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "bradfordExcluded": {
+            "type": "boolean"
+          },
+          "coverNeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fitNoteUncoveredDays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn",
+          "state",
+          "decidedBy",
+          "decidedAt",
+          "decisionReason",
+          "selfCertifiedAt",
+          "bradfordExcluded",
+          "coverNeeded",
+          "fitNoteUncoveredDays"
+        ]
+      },
+      "AbsenceKind": {
+        "type": "string",
+        "enum": [
+          "annual_leave",
+          "sickness",
+          "compassionate",
+          "carers_leave",
+          "parental_leave",
+          "maternity",
+          "paternity",
+          "adoption",
+          "unpaid",
+          "other"
+        ]
+      },
+      "AbsenceState": {
+        "type": "string",
+        "enum": [
+          "requested",
+          "approved",
+          "declined",
+          "cancelled",
+          "recorded"
+        ]
+      },
+      "NewAbsence": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "selfCertified": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn"
+        ]
+      },
+      "AbsenceDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "member": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "displayName"
+            ]
+          },
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AbsenceKind"
+          },
+          "startsOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "endsOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AbsenceState"
+          },
+          "decidedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decisionReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selfCertifiedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "bradfordExcluded": {
+            "type": "boolean"
+          },
+          "coverNeeded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fitNoteUncoveredDays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          "fitNotes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FitNoteItem"
+            }
+          },
+          "returnToWork": {
+            "$ref": "#/components/schemas/ReturnToWorkItem"
+          },
+          "bradfordExcludedReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "member",
+          "locationId",
+          "kind",
+          "startsOn",
+          "endsOn",
+          "state",
+          "decidedBy",
+          "decidedAt",
+          "decisionReason",
+          "selfCertifiedAt",
+          "bradfordExcluded",
+          "coverNeeded",
+          "fitNoteUncoveredDays",
+          "fitNotes",
+          "returnToWork",
+          "bradfordExcludedReason"
+        ]
+      },
+      "FitNoteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "documentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "coversFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "coversTo": {
+            "type": "string",
+            "format": "date"
+          },
+          "fitness": {
+            "type": "string",
+            "enum": [
+              "not_fit",
+              "may_be_fit"
+            ]
+          },
+          "phasedReturn": {
+            "type": "boolean"
+          },
+          "amendedDuties": {
+            "type": "boolean"
+          },
+          "alteredHours": {
+            "type": "boolean"
+          },
+          "workplaceAdaptations": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "absenceId",
+          "documentId",
+          "issuedOn",
+          "coversFrom",
+          "coversTo",
+          "fitness",
+          "phasedReturn",
+          "amendedDuties",
+          "alteredHours",
+          "workplaceAdaptations",
+          "createdAt"
+        ]
+      },
+      "ReturnToWorkItem": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "heldBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fitForUsualDuties": {
+            "type": "boolean"
+          },
+          "phasedReturn": {
+            "type": "boolean"
+          },
+          "amendedDuties": {
+            "type": "boolean"
+          },
+          "alteredHours": {
+            "type": "boolean"
+          },
+          "workplaceAdaptations": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "absenceId",
+          "heldOn",
+          "heldBy",
+          "fitForUsualDuties",
+          "phasedReturn",
+          "amendedDuties",
+          "alteredHours",
+          "workplaceAdaptations",
+          "notes",
+          "createdAt"
+        ]
+      },
+      "DecideAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "decline"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "decision"
+        ]
+      },
+      "CancelAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "EndAbsence": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "endsOn": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "version",
+          "endsOn"
+        ]
+      },
+      "ExcludeFromBradford": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "reason"
+        ],
+        "description": "A reason leaves it out; null puts it back"
+      },
+      "NewReturnToWork": {
+        "type": "object",
+        "properties": {
+          "heldOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "fitForUsualDuties": {
+            "type": "boolean"
+          },
+          "phasedReturn": {
+            "type": "boolean",
+            "default": false
+          },
+          "amendedDuties": {
+            "type": "boolean",
+            "default": false
+          },
+          "alteredHours": {
+            "type": "boolean",
+            "default": false
+          },
+          "workplaceAdaptations": {
+            "type": "boolean",
+            "default": false
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "heldOn",
+          "fitForUsualDuties"
+        ]
+      },
+      "BradfordResult": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spells": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "windowStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "windowWeeks": {
+            "type": "integer"
+          },
+          "excludedAbsences": {
+            "type": "integer"
+          },
+          "working": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "spells",
+          "days",
+          "score",
+          "windowStart",
+          "windowEnd",
+          "windowWeeks",
+          "excludedAbsences",
+          "working",
+          "notice"
+        ]
+      },
+      "SspResultItem": {
+        "type": "object",
+        "properties": {
+          "absenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "applies": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_rate_for_nation",
+              "not_a_period_of_incapacity",
+              null
+            ]
+          },
+          "periodOfIncapacity": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "startsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "endsOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "linkedAbsences": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "startsOn",
+              "endsOn",
+              "linkedAbsences"
+            ]
+          },
+          "weeklyPence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daysPaid": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "payPence": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daysLeft": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "working": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "pence": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "step",
+                "pence"
+              ]
+            }
+          },
+          "inputHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notice": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "absenceId",
+          "applies",
+          "reason",
+          "periodOfIncapacity",
+          "weeklyPence",
+          "daysPaid",
+          "payPence",
+          "daysLeft",
+          "working",
+          "inputHash",
+          "notice"
         ]
       }
     },
@@ -58475,6 +59223,1268 @@
           },
           "403": {
             "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Absences and leave a member may see",
+        "description": "scheduling.timesheet.self (one's own), scheduling.rota.manage or .approve (those at the homes they reach; row-level security decides). Filter by home, member and dates; newest first, up to 500. Fit note coverage only for holders of workforce.hr_document.read.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "locationId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "memberId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Absences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Ask for one's own leave, or record a sickness or leave for a member",
+        "description": "Without memberId (or one's own): scheduling.timesheet.self, at a home where the member holds a role; leave kinds only (state requested). With another member: scheduling.rota.manage at the home (state recorded), which raises a cover need on each of the member's rostered shifts it touches (HZ-123). Audited (scheduling.absence.requested or .recorded) with the kind and dates.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "One absence; with its fit notes and return to work for HR",
+        "description": "As the list. Fit notes, the return to work record and the Bradford exclusion reason only for holders of workforce.hr_document.read. Audited (scheduling.absence.viewed) for a sickness.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/decision": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Approve or decline a leave request",
+        "description": "scheduling.rota.approve at the home, never the member themselves (422 absence_decider_is_member; the database refuses it too). A decline needs a reason. Approving raises a cover need on each of the member's rostered shifts the leave touches (HZ-123). Audited (scheduling.absence.approved or .declined), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/cancel": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Cancel an absence",
+        "description": "The member cancels their own request before it is decided (scheduling.timesheet.self); a rota manager or approver at the home cancels an approved or recorded absence with a reason. Its open cover needs are resolved (absence_ended). Audited (scheduling.absence.cancelled), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/end": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Record a sickness's last day",
+        "description": "scheduling.rota.manage at the home, for an open sickness (approved or recorded). Cover needs on shifts after the last day are resolved. Audited (scheduling.absence.ended) with the date.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndAbsence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/bradford-exclusion": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Leave a sickness out of the Bradford factor, or put it back",
+        "description": "workforce.hr_document.read and scheduling.rota.manage at the home: a reason (pregnancy-related, disability-related) leaves it out; null puts it back. Audited (scheduling.absence.bradford_excluded), never the reason.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeFromBradford"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The absence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/fit-notes": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Add a fit note to a sickness (the body is the file)",
+        "description": "workforce.hr_document.read at the home, never for one's own absence. The document is checked by its contents, scanned and kept as an HR-only staff document with retention sickness_absence; the dates, fitness and ticked adjustments are stored beside it, never the condition. Audited (workforce.fit_note.added) with ids and dates only.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "issuedOn",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "coversFrom",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "required": true,
+            "name": "coversTo",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "not_fit",
+                "may_be_fit"
+              ]
+            },
+            "required": true,
+            "name": "fitness",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "phasedReturn",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "amendedDuties",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "alteredHours",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "workplaceAdaptations",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/pdf": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitNoteItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/fit-notes/{fitNoteId}/content": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Open a fit note (audited)",
+        "description": "workforce.hr_document.read at the home, never one's own (as every HR-only document). Every open is audited as workforce.fit_note.viewed.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "fitNoteId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The fit note",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/return-to-work": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "Record the return to work conversation after a sickness",
+        "description": "workforce.hr_document.read at the home, by someone other than the member, once the sickness has ended; one per absence (409 return_to_work_recorded). Audited (workforce.return_to_work.recorded) with ids and whether fit, never the notes.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewReturnToWork"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnToWorkItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Changed by someone else since you loaded it; reload and try again",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{id}/bradford": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "A member's Bradford factor, with its working",
+        "description": "workforce.hr_document.read reaching a home where the member has an absence (or across the organisation). Over absence.bradford.window_weeks (the rate table) from the member's sickness days, not cancelled and not left out; days the member was not rostered between two absences join them into one spell. Shown with its working and a notice; never compared with a trigger and never acted on (H-583). Audited (workforce.bradford.viewed) with the member id.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The working",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BradfordResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/absences/{id}/ssp": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "summary": "The SSP working for a sickness, for payroll",
+        "description": "workforce.hr_document.read at the home. From the member's sicknesses: the period of incapacity this one belongs to (ssp.piw_min_days, linked within ssp.piw_link_weeks), the qualifying days already paid in it, and the slice 6 rule (ssp.weekly, ssp.earnings_percentage, ssp.waiting_days, ssp.max_weeks) with the earnings and qualifying days given. Advice only: nothing is paid or stored. Audited (scheduling.ssp.calculated) with the absence id, never the earnings.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "required": false,
+            "name": "averageWeeklyEarningsPence",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-7](,[1-7]){0,6}$"
+            },
+            "required": true,
+            "name": "qualifyingWeekdays",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The working",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SspResultItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a member, missing permission, MFA not set up or step-up needed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or outside your access",
             "content": {
               "application/problem+json": {
                 "schema": {

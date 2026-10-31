@@ -828,3 +828,107 @@ Audit events (opaque ids only, never a blocker's detail, a justification or a fi
   `packages/contracts/src/rota.ts`.
 - Not in this slice: swaps with approval and open-shift offers (H-838), the clock-in check on the
   day (slice 27), the screens (slice 59), offline swap requests (slice 71).
+
+## 15. Absence and leave (slice 40; SCHED-010)
+
+Master prompt section 12.3 (absence and leave: requests and approvals, the Bradford factor,
+return to work, fit notes, SSP) with the slice 6 pay rules (section 4b rules 4 and 8). Hazards
+HZ-123 (an absence must never silently empty a shift the staffing comparison counts) and HZ-124
+(nobody is put on a shift on a day they are absent). Statutory family leave is recorded as a
+kind of leave here; its pay (SMP and the other family payments) and the screens follow. Human
+actions H-970 to H-979.
+
+### Schema (migration 0107)
+
+| Table | Kind | Columns | Retention class |
+| --- | --- | --- | --- |
+| `absence` | mutable, `expected_version` | `member_id` (the `tenant_user` absent), `location_id` (the home whose rota it touches), `kind` (`ABSENCE_KINDS`), `starts_on`, `ends_on` (null while a sickness is open), `state` (`requested`, `approved`, `declined`, `cancelled`, `recorded`), `decided_by`, `decided_at`, `decision_reason`, `self_certified_at`, `ended_at`; never a diagnosis | `sickness_absence` for sickness, else `rota_and_timesheet` |
+| `fit_note` | append-only | `absence_id`, `document_id` (an HR-only staff document, retention `sickness_absence`), `issued_on`, `covers_from`, `covers_to`, `fitness` (`not_fit`, `may_be_fit`), the four ticked adjustments (`phased_return`, `amended_duties`, `altered_hours`, `workplace_adaptations`); never the condition written on the note | `sickness_absence` |
+| `return_to_work` | append-only | `absence_id`, `member_id`, `held_on`, `held_by`, `fit_for_usual_duties`, `adjustments_agreed` (the same four), `notes` (the conversation, special category); one per absence | `sickness_absence` |
+| `shift_cover_need` | append-only, then resolved once | `shift_id`, `assignment_id`, `absence_id`, `location_id`, `raised_at`, `resolved_at`, `resolution` (`assignment_removed`, `absence_ended`) | `rota_and_timesheet` |
+
+Row-level security: an absence is read by its member (their own, through any role with
+`scheduling.timesheet.self`), by holders of `scheduling.rota.manage` or `.approve` at its location,
+and by the system context for the export; written by its member (a request, a cancellation of
+their own request) or a rota manager there. A fit note and a return to work record are health
+data: read and written only by holders of `workforce.hr_document.read` at the location (and read by
+the member themselves), never by a rota manager without it. Guards: an absence keeps its member,
+location and kind; a decision is made by a holder of `scheduling.rota.approve` there, never the
+member (`absence_decider_is_member`); `requested` moves to `approved`, `declined` or `cancelled`,
+`recorded` (a sickness, or leave a manager records) to `cancelled`, nothing back. A cover need is
+raised only by the decision or recording that caused it, in the same transaction.
+
+### Rules
+
+1. **Requests and approvals.** A member asks for leave for themselves at a home where they hold a
+   role (`requested`); a holder of `scheduling.rota.approve` there approves or declines it, never
+   their own, a decline with a reason. A rota manager records a sickness or leave for a member
+   (`recorded`). The member cancels their own request before it is decided; a manager cancels an
+   approved or recorded absence with a reason.
+2. **Kinds** (`ABSENCE_KINDS`): `annual_leave`, `sickness`, `compassionate`, `carers_leave`,
+   `parental_leave`, `maternity`, `paternity`, `adoption`, `unpaid`, `other`. Only `sickness` takes
+   self-certification, fit notes, return to work, SSP and the Bradford factor; only the leave kinds
+   are requested.
+3. **Self-certification and fit notes.** A sickness of up to `ssp.self_certification_days`
+   calendar days is covered by the member's own statement (`self_certified_at`); a longer one needs
+   a fit note for the days after (`fitNoteNeeded`): the absence says which days are not covered.
+   A fit note is an uploaded document (HR-only, retention `sickness_absence`) with its dates,
+   whether the member is not fit or may be fit, and which adjustments are ticked; the condition is
+   never typed into Harbour and never in an audit event or a log.
+4. **Return to work.** One record per sickness after it ends, by a holder of
+   `workforce.hr_document.read`: when, who held it, whether the member is fit for their usual
+   duties and which adjustments were agreed, and notes. Audited with ids only.
+5. **Bradford factor** (section 4b rule 8, `bradfordFactor`). Over `absence.bradford.window_weeks`
+   (the rate table), from the member's sickness days (recorded or approved, not cancelled), with
+   the spells, the days, the score, the window and the working shown. It is never compared with a
+   trigger, never raises a task and never changes anything (H-583); absences that must not count
+   against a member (pregnancy-related, disability-related) are left out by the manager in words
+   (`excluded` with a reason), never by a rule.
+6. **SSP** (section 4b rule 4, `sickPay`). A period of incapacity for work is at least
+   `ssp.piw_min_days` consecutive calendar days of sickness; periods no more than
+   `ssp.piw_link_weeks` weeks apart link, so their paid days count towards the limit
+   (`periodsOfIncapacity`). The HR user gives the average weekly earnings from payroll and the
+   member's qualifying days; Harbour returns the working from the slice 6 rule. Nothing is paid or
+   stored by Harbour; the result is advice for payroll with its input hash. No figure is a literal.
+7. **Cover** (HZ-123). When an absence is approved or recorded, every live assignment of the
+   member on a shift that overlaps the absence's days at any location gets a cover need in the same
+   transaction. The rota keeps the assignment (it never silently empties), shows it as needing
+   cover, and the check counts it as open with a warning naming the cover needs; publishing then
+   needs the period acknowledged as for any shortfall. A cover need resolves when the assignment is
+   removed (someone else can then be put on) or the absence is cancelled or declined.
+8. **No rostering onto an absence** (HZ-124). Putting a member on a shift on a day they have an
+   approved or recorded absence is refused (`member_absent`).
+
+### Permissions
+
+| Action | Permission |
+| --- | --- |
+| Ask for own leave; read and cancel own absences | `scheduling.timesheet.self` |
+| Record a sickness or leave for a member; read absences at a home | `scheduling.rota.manage` there |
+| Approve or decline leave (never own) | `scheduling.rota.approve` there |
+| Add and open fit notes; record return to work; the Bradford factor; SSP working | `workforce.hr_document.read` there |
+
+### API, audit and outbox
+
+`/v1/absences` (list by home or member, ask, record), `/v1/absences/{id}` (read),
+`/{id}/decision`, `/{id}/cancel`, `/{id}/end` (a sickness's last day), `/{id}/fit-notes` (upload
+the document as the body, with the dates in the query), `/{id}/fit-notes/{fitNoteId}/content`,
+`/{id}/return-to-work`, `/v1/members/{id}/bradford`, `/{id}/ssp`. Audit:
+`scheduling.absence.requested`, `.recorded`, `.approved`, `.declined`, `.cancelled`, `.ended`;
+`workforce.fit_note.added`, `.viewed`; `workforce.return_to_work.recorded`;
+`workforce.bradford.viewed`; `scheduling.ssp.calculated`; ids, kinds, dates and counts only, never
+a reason, a note or anything from a fit note. Outbox: `scheduling.cover_needed` (shift, absence).
+
+### Test list
+
+- Domain: `packages/domain/src/scheduling/absence.test.ts` (table-driven: decisions never by the
+  member; state moves; days of an absence; fit note needed after the self-certification days, the
+  days uncovered; periods of incapacity at the minimum length and linked within the link weeks;
+  SSP days already paid across linked periods; which assignments need cover; the Bradford inputs).
+- Database: `packages/db/test/absence.test.ts` (cross-tenant denial on all four tables; a member
+  sees only their own; a rota manager reads but never a fit note or return to work; decisions only
+  by an approver, never the member; state moves; fit notes and return to work append-only).
+- API: `apps/api/test/absence.test.ts` (ask and approve with cover needs raised; decline and cancel
+  resolving them; recording a sickness; fit note upload and open audited; return to work; the
+  Bradford factor with its working; SSP working; assigning onto an absence refused; the rota check
+  counting a cover need as open with a warning).

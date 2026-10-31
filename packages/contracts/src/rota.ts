@@ -122,6 +122,11 @@ export const AssignmentItem = z
     publishedAt: isoDateTime.nullable(),
     /** The blockers a manager's override covered, as `blockerKey`s; empty when none. */
     overridden: z.array(z.string()),
+    /**
+     * HZ-123: the member is away (an approved or recorded absence) on the shift, so it needs
+     * cover and the staffing comparison does not count them. Never says why.
+     */
+    coverNeeded: z.boolean(),
   })
   .meta({ id: "AssignmentItem" });
 
@@ -330,6 +335,8 @@ export const RotaCheck = z
       }),
     ),
     openShiftIds: z.array(uuid),
+    /** HZ-123: assignments whose member is away on the shift: counted as open, with a warning. */
+    coverNeededAssignmentIds: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**
