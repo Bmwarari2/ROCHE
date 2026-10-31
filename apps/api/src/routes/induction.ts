@@ -54,6 +54,8 @@ import {
   refusalOf,
   requireAnyPermission,
   requirePermission,
+  stepUpFresh,
+  stepUpRefusal,
   type TenantAccess,
   withTenant,
 } from "../http/context";
@@ -566,7 +568,9 @@ export const inductionRouter = createRouter()
           .where(
             and(eq(staffProfile.tenantUserId, access.tenantUserId), isNull(staffProfile.deletedAt)),
           );
-        return profile ? inductionOf(tx, access, profile) : null;
+        if (!profile) return null;
+        await auditFile(c, tx, access, A.viewed, profile.id);
+        return inductionOf(tx, access, profile);
       });
       if (!detail) throw problems.notFound();
       return c.json(detail, 200);
@@ -750,7 +754,7 @@ export const inductionRouter = createRouter()
           outcome: body.outcome,
           notes: body.notes,
         });
-        await auditFile(c, tx, access, A.review, id, { outcome: body.outcome });
+        await auditFile(c, tx, access, A.review, id);
       });
       return c.json(detail, 200);
     },
@@ -812,7 +816,7 @@ export const inductionRouter = createRouter()
           .where(and(eq(inductionPlan.id, plan.id), eq(inductionPlan.version, plan.version)))
           .returning();
         if (!updated) throw refused(problems.conflict(), A.probation, id, "version_conflict");
-        await auditFile(c, tx, access, A.probation, id, { outcome: body.outcome });
+        await auditFile(c, tx, access, A.probation, id);
       });
       return c.json(detail, 200);
     },
@@ -987,7 +991,7 @@ export const inductionRouter = createRouter()
           .update(staffProfile)
           .set({ leftOn: body.leavingOn })
           .where(eq(staffProfile.id, id));
-        await auditFile(c, tx, access, A.leaving, id, { reason: body.reason });
+        await auditFile(c, tx, access, A.leaving, id);
       });
       return c.json(detail, 201);
     },
@@ -1101,13 +1105,16 @@ export const inductionRouter = createRouter()
       tags: ["workforce"],
       summary: "End a leaver's access now",
       description:
-        "workforce.staff_file.manage, never one's own: marks the member as left, ends their roles and revokes their grants at once (a dismissal, for example), instead of waiting for the day after the leaving date. Once only. Audited.",
+        "workforce.staff_file.manage with step-up, never one's own: marks the member as left, ends their roles and revokes their grants at once (a dismissal, for example), instead of waiting for the day after the leaving date. A member who manages users, roles or grants, or holds a silo role, needs platform.user.manage too, and the last member who manages users keeps their access. Once only. Audited.",
       security,
       request: { params: FileParam },
       responses: leavingResponses,
     }),
     async (c) => {
       const { id } = c.req.valid("param");
+      // Ending someone's access at once is a step-up action (security review of slice 29).
+      const stepUp = c.get("access");
+      if (!stepUpFresh(stepUp)) throw stepUpRefusal(stepUp);
       const detail = await leavingChange(c, A.accessEnded, id, async (tx, _profile, access) => {
         const ended = await tx.execute<{ ended: boolean }>(
           sql`SELECT app.end_leaver_access(${id}::uuid) AS ended`,

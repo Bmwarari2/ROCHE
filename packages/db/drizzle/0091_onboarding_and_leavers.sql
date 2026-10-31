@@ -167,12 +167,18 @@ CREATE INDEX "shadow_shift_profile_idx" ON "shadow_shift" USING btree ("tenant_i
 -- holders of workforce.staff_file.manage, never on their own file. Care Certificate progress is
 -- also read and written by holders of workforce.competence.observe (assessors), never their own.
 
--- The member a staff profile is about, whoever asks (a definer: an assessor cannot read staff
--- profiles, yet must not assess themselves). Answers only for the session's organisation.
+-- The member a staff profile is about (a definer: an assessor cannot read staff profiles, yet
+-- must not assess themselves). Answers only for the session's organisation, and only to the
+-- system, holders of the staff file or assessor permissions, or the member themselves; null to
+-- anyone else (security review of slice 29, finding 5).
 CREATE OR REPLACE FUNCTION app.staff_profile_worker(p_profile_id uuid) RETURNS uuid
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
   SELECT p.tenant_user_id FROM public.staff_profile p
    WHERE p.tenant_id = app.current_tenant_id() AND p.id = p_profile_id
+     AND (app.is_system() OR p.tenant_user_id = app.current_user_id()
+       OR app.holds_staff_permission('workforce.staff_file.read')
+       OR app.holds_staff_permission('workforce.staff_file.manage')
+       OR app.holds_staff_permission('workforce.competence.observe'))
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION app.staff_profile_worker(uuid) FROM PUBLIC;
@@ -307,6 +313,13 @@ $$;
 CREATE OR REPLACE FUNCTION app.induction_plan_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.probation_outcome IS NOT NULL AND app.current_user_id() IS NOT NULL THEN
+      RAISE EXCEPTION 'An induction plan starts with probation undecided'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF NEW.staff_profile_id IS DISTINCT FROM OLD.staff_profile_id THEN
     RAISE EXCEPTION 'An induction plan keeps its staff profile'
       USING ERRCODE = 'integrity_constraint_violation';
@@ -329,7 +342,7 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-CREATE TRIGGER induction_plan_guard BEFORE UPDATE ON public.induction_plan
+CREATE TRIGGER induction_plan_guard BEFORE INSERT OR UPDATE ON public.induction_plan
   FOR EACH ROW EXECUTE FUNCTION app.induction_plan_guard();
 --> statement-breakpoint
 -- The Care Certificate (rule 20): knowledge assessed and observed each in the assessor's own
@@ -373,11 +386,28 @@ CREATE TRIGGER care_certificate_guard BEFORE INSERT OR UPDATE ON public.care_cer
 CREATE OR REPLACE FUNCTION app.leaver_record_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF app.current_user_id() IS NOT NULL
+       AND (NEW.access_removed_at IS NOT NULL OR NEW.access_removed_by IS NOT NULL
+            OR NEW.exit_interview <> 'not_offered' OR NEW.exit_interview_on IS NOT NULL
+            OR NEW.exit_interview_summary IS NOT NULL) THEN
+      RAISE EXCEPTION 'A leaving is recorded with access and the exit interview still to come'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF (NEW.staff_profile_id, NEW.leaving_on, NEW.reason, NEW.deleted_at)
      IS DISTINCT FROM (OLD.staff_profile_id, OLD.leaving_on, OLD.reason, OLD.deleted_at)
      AND app.current_user_id() IS NOT NULL THEN
     RAISE EXCEPTION 'A leaving keeps its member, date and reason'
       USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  -- Access is marked ended only by app.end_leaver_access (running as its owner), which ends it.
+  IF (NEW.access_removed_at, NEW.access_removed_by)
+       IS DISTINCT FROM (OLD.access_removed_at, OLD.access_removed_by)
+     AND current_user <> 'harbour_owner' THEN
+    RAISE EXCEPTION 'Access is ended through app.end_leaver_access'
+      USING ERRCODE = 'check_violation';
   END IF;
   IF OLD.access_removed_at IS NOT NULL
      AND (NEW.access_removed_at, NEW.access_removed_by)
@@ -401,13 +431,20 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-CREATE TRIGGER leaver_record_guard BEFORE UPDATE ON public.leaver_record
+CREATE TRIGGER leaver_record_guard BEFORE INSERT OR UPDATE ON public.leaver_record
   FOR EACH ROW EXECUTE FUNCTION app.leaver_record_guard();
 --> statement-breakpoint
 -- References (rule 22): answered once, in the sender's own name.
 CREATE OR REPLACE FUNCTION app.reference_request_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF app.current_user_id() IS NOT NULL AND NEW.state <> 'requested' THEN
+      RAISE EXCEPTION 'A reference request starts as requested'
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
   IF (NEW.staff_profile_id, NEW.requested_on, NEW.requester, NEW.kind)
      IS DISTINCT FROM (OLD.staff_profile_id, OLD.requested_on, OLD.requester, OLD.kind)
      OR (OLD.state <> 'requested' AND NEW.state IS DISTINCT FROM OLD.state)
@@ -425,7 +462,7 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
-CREATE TRIGGER reference_request_guard BEFORE UPDATE ON public.reference_request
+CREATE TRIGGER reference_request_guard BEFORE INSERT OR UPDATE ON public.reference_request
   FOR EACH ROW EXECUTE FUNCTION app.reference_request_guard();
 --> statement-breakpoint
 -- Read-and-sign at induction (rule 19): for one staff profile, how many published policies the
@@ -451,13 +488,14 @@ BEGIN
       SELECT r.key AS k FROM public.role_assignment ra
         JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
        WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id = v_worker
-         AND ra.deleted_at IS NULL AND r.deleted_at IS NULL
+         AND ra.deleted_at IS NULL AND r.deleted_at IS NULL AND r.archived_at IS NULL
          AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())
       UNION
       SELECT r.based_on_key FROM public.role_assignment ra
         JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
        WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id = v_worker
-         AND ra.deleted_at IS NULL AND r.deleted_at IS NULL AND r.based_on_key IS NOT NULL
+         AND ra.deleted_at IS NULL AND r.deleted_at IS NULL AND r.archived_at IS NULL
+         AND r.based_on_key IS NOT NULL
          AND ra.valid_from <= now() AND (ra.valid_to IS NULL OR ra.valid_to > now())),
     needed AS (
       SELECT v.id, v.policy_id, v.version_number, v.change FROM public.policy_version v
@@ -511,6 +549,32 @@ BEGIN
   END IF;
   IF v_leaver.access_removed_at IS NOT NULL THEN
     RETURN false;
+  END IF;
+  -- Someone who manages users, roles or grants, or holds a silo role, has their access ended by a
+  -- holder of user management, never by the staff file alone (security review of slice 29,
+  -- finding 1); and the organisation always keeps a member who manages users.
+  IF EXISTS (
+       SELECT 1 FROM public.role_assignment ra
+         JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
+        WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id = v_worker
+          AND ra.deleted_at IS NULL AND (ra.valid_to IS NULL OR ra.valid_to > now())
+          AND r.permissions && ARRAY['platform.user.manage', 'platform.role.manage',
+                                     'platform.grant.manage', 'workforce.casework.manage']::text[]) THEN
+    IF NOT app.is_system() AND NOT app.holds_role_permission_somewhere('platform.user.manage') THEN
+      RAISE EXCEPTION 'Ending this member''s access needs platform.user.manage'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF NOT EXISTS (
+         SELECT 1 FROM public.role_assignment ra
+           JOIN public.role r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id
+           JOIN public.tenant_user u ON u.tenant_id = ra.tenant_id AND u.id = ra.tenant_user_id
+          WHERE ra.tenant_id = app.current_tenant_id() AND ra.tenant_user_id <> v_worker
+            AND u.status = 'active' AND u.deleted_at IS NULL
+            AND ra.deleted_at IS NULL AND (ra.valid_to IS NULL OR ra.valid_to > now())
+            AND 'platform.user.manage' = ANY (r.permissions)) THEN
+      RAISE EXCEPTION 'The organisation''s last member who manages users keeps their access'
+        USING ERRCODE = 'check_violation';
+    END IF;
   END IF;
   UPDATE public.tenant_user SET status = 'left'
    WHERE tenant_id = app.current_tenant_id() AND id = v_worker AND status <> 'left';

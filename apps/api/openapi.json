@@ -52535,7 +52535,7 @@
           "workforce"
         ],
         "summary": "End a leaver's access now",
-        "description": "workforce.staff_file.manage, never one's own: marks the member as left, ends their roles and revokes their grants at once (a dismissal, for example), instead of waiting for the day after the leaving date. Once only. Audited.",
+        "description": "workforce.staff_file.manage with step-up, never one's own: marks the member as left, ends their roles and revokes their grants at once (a dismissal, for example), instead of waiting for the day after the leaving date. A member who manages users, roles or grants, or holds a silo role, needs platform.user.manage too, and the last member who manages users keeps their access. Once only. Audited.",
         "security": [
           {
             "bearerAuth": []

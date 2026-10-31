@@ -399,7 +399,12 @@ whatever the clock change.
     leaving date is on or after the start, recorded once, by someone other than the leaver. Access
     ends at the end of the leaving day: the hourly sweep ends it from the UK day after
     (`app.end_leaver_access`: the member is marked as left, so they hold nothing; their roles end
-    now and their grants are revoked; their open invitations end), or a manager ends it at once.
+    now and their grants are revoked; their open invitations end), or a manager ends it at once
+    (with step-up). A member who manages users, roles or grants, or holds a silo role, has their
+    access ended only by a holder of `platform.user.manage` (or the sweep), and the organisation's
+    last active member who manages users keeps theirs; the sweep ends each leaver on its own, so
+    one it cannot end is audited and never holds the others back. Access is marked ended only by
+    the function that ends it.
     The exit interview moves from not offered to offered, then declined or held (with its date and
     a summary the leaver may see). A reference request names the organisation asking; it is sent
     once, in the sender's own name, or declined with a reason. Leaving items are overdue from the

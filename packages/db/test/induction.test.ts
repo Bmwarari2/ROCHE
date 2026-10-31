@@ -312,6 +312,87 @@ describe("probation and read-and-sign (rules 19 and 21)", () => {
   });
 });
 
+describe("the review's guards (security review of slice 29)", () => {
+  it("starts every record undecided, whoever inserts it", async () => {
+    await expect(
+      asHr((c) =>
+        c.query(
+          `INSERT INTO reference_request (staff_profile_id, requested_on, requester, kind, state, sent_on, sent_by)
+           VALUES ($1, '2026-12-02', 'Example Agency Ltd', 'factual', 'sent', '2026-12-02', $2)`,
+          [PROFILE, a.northManager],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("tells the profile's member only to the file's readers, assessors and the member", async () => {
+    const worker = (c: pg.PoolClient) =>
+      c.query<{ id: string | null }>("SELECT app.staff_profile_worker($1) AS id", [PROFILE]);
+    expect((await asAssessor(worker)).rows[0]?.id).toBe(a.carer);
+    expect((await asWorker(worker)).rows[0]?.id).toBe(a.carer);
+    await asOwnerRole(TENANT_A, (c) =>
+      c.query(
+        `INSERT INTO tenant_user (id, auth_user_id, display_name, email, status)
+         VALUES ('0199f400-0000-7000-8000-000000000304', 'auth-nobody', 'No Body', 'no.body@example.invalid', 'active')`,
+      ),
+    );
+    const stranger = await inContext(
+      app(),
+      ctx(TENANT_A, "0199f400-0000-7000-8000-000000000304", "none"),
+      worker,
+    );
+    expect(stranger.rows[0]?.id).toBeNull();
+  });
+
+  it("never lets the staff file alone end the access of someone who manages users", async () => {
+    // The North manager also manages users: HR's staff file permission alone cannot end it.
+    await asOwnerRole(TENANT_A, async (c) => {
+      await c.query(
+        `INSERT INTO role (id, key, name, scope_kind, permissions)
+         VALUES ('0199f400-0000-7000-8000-000000000504', 'admin', 'Admin', 'tenant', '{platform.user.manage}')`,
+      );
+      await c.query(
+        `INSERT INTO role_assignment (tenant_user_id, role_id) VALUES ($1, '0199f400-0000-7000-8000-000000000504')`,
+        [a.northManager],
+      );
+      await c.query(
+        `INSERT INTO staff_profile (id, tenant_user_id, job_title, starts_on)
+         VALUES ('0199f400-0000-7000-8000-000000000003', $1, 'Manager', '2020-01-06')`,
+        [a.northManager],
+      );
+    });
+    await asHr((c) =>
+      c.query(
+        `INSERT INTO leaver_record (staff_profile_id, leaving_on, reason)
+         VALUES ('0199f400-0000-7000-8000-000000000003', '2027-03-31', 'resignation')`,
+      ),
+    );
+    await expect(
+      asHr((c) => c.query("SELECT app.end_leaver_access('0199f400-0000-7000-8000-000000000003')")),
+    ).rejects.toMatchObject({ code: "42501" });
+    // Nor mark it ended without ending it.
+    await expect(
+      asHr((c) =>
+        c.query(
+          `UPDATE leaver_record SET access_removed_at = now() WHERE staff_profile_id = '0199f400-0000-7000-8000-000000000003'`,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("never records a leaving with access already ended", async () => {
+    await expect(
+      asHr((c) =>
+        c.query(
+          `INSERT INTO leaver_record (staff_profile_id, leaving_on, reason, access_removed_at)
+           VALUES ($1, '2027-03-31', 'resignation', now())`,
+          [PROFILE],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+});
+
 describe("leaving (rule 22)", () => {
   it("ends access once, only by HR or the system, never the leaver", async () => {
     await asHr((c) =>
@@ -342,7 +423,7 @@ describe("leaving (rule 22)", () => {
           PROFILE,
         ]),
       ),
-    ).rejects.toMatchObject({ code: "23000" });
+    ).rejects.toMatchObject({ code: "23514" });
   });
 
   it("moves the exit interview only forward, and answers a reference once in the sender's name", async () => {

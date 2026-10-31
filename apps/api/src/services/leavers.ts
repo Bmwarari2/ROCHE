@@ -27,18 +27,39 @@ export async function endLeaversAccess(
   let ended = 0;
   for (const leaver of due) {
     if (!accessRemovalDue(leaver.leavingOn, today)) continue;
-    const result = await tx.execute<{ ended: boolean }>(
-      sql`SELECT app.end_leaver_access(${leaver.staffProfileId}::uuid) AS ended`,
-    );
-    if (!result.rows[0]?.ended) continue;
-    ended += 1;
-    await tx.insert(auditEvent).values({
-      tenantId,
-      action: "workforce.leaving.access_ended",
-      resourceType: "staff_profile",
-      resourceId: leaver.staffProfileId,
-      scope: { by: "sweep" },
-    });
+    try {
+      // One leaver at a time, in a savepoint: one that cannot be ended (the organisation's last
+      // user manager, say) never holds the others back (security review of slice 29, finding 3).
+      const done = await tx.transaction(async (sp) => {
+        const result = await sp.execute<{ ended: boolean }>(
+          sql`SELECT app.end_leaver_access(${leaver.staffProfileId}::uuid) AS ended`,
+        );
+        if (!result.rows[0]?.ended) return false;
+        await sp.insert(auditEvent).values({
+          tenantId,
+          action: "workforce.leaving.access_ended",
+          resourceType: "staff_profile",
+          resourceId: leaver.staffProfileId,
+          scope: { by: "sweep" },
+        });
+        return true;
+      });
+      if (done) ended += 1;
+    } catch (error) {
+      const code =
+        (error as { code?: string; cause?: { code?: string } }).code ??
+        (error as { cause?: { code?: string } }).cause?.code ??
+        "unknown";
+      await tx.insert(auditEvent).values({
+        tenantId,
+        action: "workforce.leaving.access_ended",
+        outcome: "denied",
+        resourceType: "staff_profile",
+        resourceId: leaver.staffProfileId,
+        reason: `sweep_${code}`,
+        scope: { by: "sweep" },
+      });
+    }
   }
   return ended;
 }

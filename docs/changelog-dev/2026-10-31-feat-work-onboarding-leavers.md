@@ -49,5 +49,16 @@ Branch `feat/work-onboarding-leavers`, stacked on `feat/work-casework` (slice 39
 ## Tests
 
 - `packages/domain/src/workforce/induction.test.ts` (60, table-driven), `packages/db/test/induction.test.ts`
-  (16), `apps/api/test/induction.test.ts` (10). Also re-run: RLS coverage, definer ACLs, the
+  (20), `apps/api/test/induction.test.ts` (10). Also re-run: RLS coverage, definer ACLs, the
   migration journal, isolation, seed, route gates.
+
+## Review rounds
+
+- Self-review (security reviewer agent):
+  - Ending access with the staff file alone never reaches a member who manages users, roles or grants, or holds a silo role; ending it at once needs step-up. The organisation's last user manager keeps theirs, and access is marked ended only by the function that ends it.
+  - The sweep ends each leaver in its own savepoint and audits a refusal.
+  - The guards check inserts too: records start undecided, and nothing is entered in another's name.
+  - The profile's member is told only to file readers, assessors and the member.
+  - Archived roles no longer count for read-and-sign.
+  - The worker's own view is audited, and the leaving reason and probation outcomes left out of audit events.
+
