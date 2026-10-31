@@ -38,7 +38,7 @@ import {
   requireVersion,
   requireWrite,
 } from "../services/people";
-import { isStaffAt } from "../services/role-holders";
+import { mayWitnessAt } from "../services/role-holders";
 import {
   conflictResponse,
   createRouter,
@@ -85,10 +85,12 @@ function refuse(issues: readonly PropertyProblem[]): never {
 }
 
 /**
- * A named witness must be a second member of staff at the person's home: active, with a staff
- * role in force there, never a family portal account (`isStaffAt`). The record is an attestation
- * the witness does not sign in to give, so a direct call could otherwise name a relative with
- * portal access, a suspended account or staff at another home (security review, 31 October 2026).
+ * A named witness must be a second member of staff at the person's home who may manage property
+ * there themselves: active, holding `people.property.manage` through a staff role in force at
+ * that home, never a family portal account (`mayWitnessAt`). The record is an attestation the
+ * witness does not sign in to give, so a direct call could otherwise name a relative with portal
+ * access, a suspended account, staff at another home, or a visiting professional or inspector
+ * (security reviews, 31 October 2026 and of #134, M3).
  */
 async function requireWitness(
   tx: Transaction,
@@ -96,9 +98,11 @@ async function requireWitness(
   locationId: string,
 ): Promise<void> {
   if (!witnessedBy) return;
-  if (await isStaffAt(tx, witnessedBy, locationId, new Date())) return;
+  if (await mayWitnessAt(tx, witnessedBy, "people.property.manage", locationId, new Date())) {
+    return;
+  }
   throw problems.invalid(
-    "The witness must be a member of staff who works at this person's home and whose account is active.",
+    "The witness must be a member of staff at this person's home who can manage residents' property, with an active account.",
   );
 }
 

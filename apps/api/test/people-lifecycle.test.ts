@@ -739,7 +739,7 @@ describe("people.md rule 7: property and keys", () => {
     expect(await detail(response)).toContain(words);
   });
 
-  describe("a witness must be working staff at the person's home (security review, 31 October 2026)", () => {
+  describe("a witness must be staff at the person's home who may manage property (security reviews, 31 October 2026 and #134 M3)", () => {
     const SUSPENDED = uid("300", 0xe1);
     const INVITED = uid("300", 0xe2);
     const ELSEWHERE = uid("300", 0xe3);
@@ -747,7 +747,24 @@ describe("people.md rule 7: property and keys", () => {
     const PORTAL = uid("300", 0xe5);
     const STAFF_AND_PORTAL = uid("300", 0xe6);
     const COLLEAGUE = uid("300", 0xe7);
+    const CARE_WORKER = uid("300", 0xe8);
+    const VISITING_GP = uid("300", 0xe9);
+    const INSPECTOR = uid("300", 0xea);
+    const STAFF_WITH_PORTAL_ROLE = uid("300", 0xeb);
     const NOT_A_MEMBER = uid("300", 0xef);
+    const MEMBERS = [
+      SUSPENDED,
+      INVITED,
+      ELSEWHERE,
+      ENDED,
+      PORTAL,
+      STAFF_AND_PORTAL,
+      COLLEAGUE,
+      CARE_WORKER,
+      VISITING_GP,
+      INSPECTOR,
+      STAFF_WITH_PORTAL_ROLE,
+    ];
 
     beforeAll(async () => {
       await asDemoTenant(async (c) => {
@@ -759,25 +776,40 @@ describe("people.md rule 7: property and keys", () => {
              ($4, 'Ed Ended', 'ed@example.invalid', 'active'),
              ($5, 'Fay Portal', 'fay@example.invalid', 'active'),
              ($6, 'Pat Both', 'pat@example.invalid', 'active'),
-             ($7, 'Col League', 'col@example.invalid', 'active')`,
-          [SUSPENDED, INVITED, ELSEWHERE, ENDED, PORTAL, STAFF_AND_PORTAL, COLLEAGUE],
+             ($7, 'Col League', 'col@example.invalid', 'active'),
+             ($8, 'Cara Worker', 'cara@example.invalid', 'active'),
+             ($9, 'Dr Gil Visiting', 'gil@example.invalid', 'active'),
+             ($10, 'Ines Inspector', 'ines@example.invalid', 'active'),
+             ($11, 'Tess Twohats', 'tess@example.invalid', 'active')`,
+          MEMBERS,
         );
-        const careWorkerAt = (member: string, location: string, validTo: string | null = null) =>
+        /** A role at a location (or none), from 30 days ago, ending when given. */
+        const roleAt = (
+          member: string,
+          key: string,
+          location: string | null,
+          validTo: string | null = null,
+        ) =>
           c.query(
             `INSERT INTO role_assignment (tenant_user_id, role_id, location_id, valid_from, valid_to)
-             SELECT $1, id, $2, now() - interval '30 days', $3::timestamptz FROM role WHERE key = 'care_worker'`,
-            [member, location, validTo],
+             SELECT $1, id, $2, now() - interval '30 days', $3::timestamptz FROM role WHERE key = $4`,
+            [member, location, validTo, key],
           );
-        await careWorkerAt(SUSPENDED, DEMO.locationId);
-        await careWorkerAt(INVITED, DEMO.locationId);
-        await careWorkerAt(ELSEWHERE, LODGE.locationId);
-        await careWorkerAt(ENDED, DEMO.locationId, ago(DAY));
-        await careWorkerAt(STAFF_AND_PORTAL, DEMO.locationId);
-        await careWorkerAt(COLLEAGUE, DEMO.locationId);
-        await c.query(
-          "INSERT INTO role_assignment (tenant_user_id, role_id) SELECT $1, id FROM role WHERE key = 'family_representative'",
-          [PORTAL],
-        );
+        const nextWeek = new Date(Date.now() + 7 * DAY).toISOString();
+        // A team leader holds people.property.manage at their home; each refusal below has one
+        // reason only.
+        await roleAt(SUSPENDED, "team_leader", DEMO.locationId);
+        await roleAt(INVITED, "team_leader", DEMO.locationId);
+        await roleAt(ELSEWHERE, "team_leader", LODGE.locationId);
+        await roleAt(ENDED, "team_leader", DEMO.locationId, ago(DAY));
+        await roleAt(STAFF_AND_PORTAL, "team_leader", DEMO.locationId);
+        await roleAt(COLLEAGUE, "team_leader", DEMO.locationId);
+        await roleAt(CARE_WORKER, "care_worker", DEMO.locationId);
+        await roleAt(VISITING_GP, "external_professional", DEMO.locationId, nextWeek);
+        await roleAt(INSPECTOR, "inspector", null, nextWeek);
+        await roleAt(STAFF_WITH_PORTAL_ROLE, "team_leader", DEMO.locationId);
+        await roleAt(STAFF_WITH_PORTAL_ROLE, "family_representative", null);
+        await roleAt(PORTAL, "family_representative", null);
         const [contact] = (
           await c.query<{ id: string }>("SELECT id FROM contact WHERE person_id = $1 LIMIT 1", [
             resident(1),
@@ -794,16 +826,15 @@ describe("people.md rule 7: property and keys", () => {
 
     // The accounts hold nothing afterwards, so no later test routes work to them.
     afterAll(async () => {
-      const members = [SUSPENDED, INVITED, ELSEWHERE, ENDED, PORTAL, STAFF_AND_PORTAL, COLLEAGUE];
       await asDemoTenant(async (c) => {
         await c.query(
           "UPDATE role_assignment SET deleted_at = now() WHERE tenant_user_id = ANY($1::uuid[])",
-          [members],
+          [MEMBERS],
         );
         await c.query(
           `UPDATE family_portal_user SET revoked_at = now(), revoked_by = $2,
              revoked_reason = 'Test accounts removed' WHERE tenant_user_id = ANY($1::uuid[])`,
-          [members, DEMO.users.manager.id],
+          [MEMBERS, DEMO.users.manager.id],
         );
       });
     });
@@ -821,11 +852,16 @@ describe("people.md rule 7: property and keys", () => {
         },
       });
 
-    const WORDS = "member of staff who works at this person's home and whose account is active";
+    const WORDS =
+      "member of staff at this person's home who can manage residents' property, with an active account";
 
     it.each([
       ["a family portal account", PORTAL],
       ["a staff account with an open family portal link", STAFF_AND_PORTAL],
+      ["a staff account that also holds a family portal role", STAFF_WITH_PORTAL_ROLE],
+      ["a care worker there, who may not manage property", CARE_WORKER],
+      ["a visiting professional there", VISITING_GP],
+      ["an inspector", INSPECTOR],
       ["a suspended member of staff", SUSPENDED],
       ["an invited member who has not signed in", INVITED],
       ["staff at another home", ELSEWHERE],
