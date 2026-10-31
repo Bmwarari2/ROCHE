@@ -406,3 +406,68 @@ The per-address throttle uses one shared bucket when no client address is known,
 the address from the trusted hop, and the cookie is `__Host-harbour_evidence_session` (path `/`),
 its content encrypted with AES-256-GCM and signed, so the recipient's address is not readable in
 it.
+
+## 16. Web screens (QUAL-003 and QUAL-009, `feat/web-evidence-sop`)
+
+Spec, permission matrix and test list written before the code (section 20 rule 3). The web holds
+nothing of its own: every rule is the API's (sections 13 to 15), and the screens say in words what
+it decides. Online only (section 6).
+
+### Screens
+
+| Route | Shows | Who sees it |
+| --- | --- | --- |
+| `/quality/evidence-packs` | Every pack the API lists, newest first: recipient and organisation, purpose, dates, state as an icon and a word, composed and released times | `quality.evidence_pack.compose` or `.release` |
+| `/quality/evidence-packs/new` | Compose: recipient (name, organisation, work email), purpose, from and to dates (dd/mm/yyyy, inclusive), locations (ticked from the composer's own), the people in scope (ticked, never "everyone"), staff names (roles only, the default, or names), the key questions asked for (every one, or those ticked) | `quality.evidence_pack.compose` |
+| `/quality/evidence-packs/[id]` | "What will be shared" first: the recipient and their address, purpose, dates, locations, the people in scope by name, staff names, the watermark printed on every page, and the counts of records shown, fields withheld and fields redacted. Then every record in the pack with each field's outcome (shown, redacted by hand, withheld) as an icon and a word with the reason in words, and the value the pack shows; the records left out and why (internal only, never sent); the links with their expiry in words; and the actions below | `quality.evidence_pack.compose` or `.release` |
+| `/quality/statement-of-purpose` | The CQC notification clock for an approved revision (due, overdue, sent, sent late) as an icon and a word with the due date; the draft (Schedule 3 gaps, warnings, what changed against the current version with the registration prompts, the editor, approve and discard); the current version; every version | `quality.statement_of_purpose.write` or `.approve` or `safety.notification.submit` |
+| `/quality/statement-of-purpose/[id]` | One version: its content, state, who approved it and when, its CQC notification and what it changed against the version it superseded | As above |
+
+The sidebar shows "Evidence packs" and "Statement of purpose" to the same holders.
+
+### Evidence pack actions
+
+| Action | Permission (API) | The screen |
+| --- | --- | --- |
+| Compose | `quality.evidence_pack.compose` | Checks the form first (every field, dates real and in order, at least one location and one person) and lists every problem at once; the API checks again |
+| Add records | compose, draft | Choose a person in scope; their care notes, observations and incidents in the pack's dates are listed (read in the composer's own scope, so audited as care-record views by the API); tick records and the key questions each is evidence for |
+| Redact free text by hand | compose, draft | For each withheld free-text field: the original from the composer's own view of the record where the web can read it, to edit; "Save the redacted copy". A copy that still names someone is refused in the API's words (rule 4). Says that redacting makes you a contributor, so someone else must release |
+| Release | `quality.evidence_pack.release`, step-up, not a contributor | Shown only to a non-contributor; a contributor is told why they cannot. How long the link works (days, up to the maximum read from the rate table; the default preselected), the expiry in words before sending, and a box to tick: "I have read every record and redaction in this pack". The link appears once, in the page only (never in a URL, never stored by the web), with the recipient's address and "the code goes to them separately by email" |
+| New link | release, step-up, not a contributor, released pack with a live latest link | As release; the old link stops working at once, and the screen says so |
+| Revoke | compose, released | A reason; the link stops at once and the bundle is deleted |
+| Discard | compose, draft | A reason; the bundle is deleted |
+
+Quality statement ids stay opaque until QUAL-001 (section 1). Until the framework model arrives
+the web offers the five CQC key questions as the ids (`safe`, `effective`, `caring`,
+`responsive`, `well-led`), which the API's id pattern accepts; QUAL-001 replaces the list with the
+quality statements and maps these to their key question.
+
+The link the screen shows is `PUBLIC_WEB_URL/evidence#<token>`: the token in a fragment never
+reaches a server in a URL, a log or a Referer (as invitations do). The public page that takes the
+token from the fragment and calls `/p/evidence/code`, `/verify` and `/bundle` is a separate item.
+
+### Statement of purpose actions
+
+| Action | Permission (API) | The screen |
+| --- | --- | --- |
+| Load the baseline | `quality.statement_of_purpose.write`, no versions yet | The editor, empty, titled "The statement CQC already holds" |
+| Start a revision | write, no draft | One button; the draft starts from the current version |
+| Edit a draft | write | Every Schedule 3 item: aims and objectives; kinds of service (one per line) and the needs met; the provider's and each registered manager's full name, business address, telephone and email; the address for notices, consent to email service and that email; legal status (and detail for "other"); each location's name, address and CQC location id. Managers and locations can be added and removed; each keeps its id, so the change summary and registration prompts follow them. Saving says that an editor cannot approve |
+| Approve | `quality.statement_of_purpose.approve`, not the author or an editor | Shown only when the draft is complete; says that approval starts the 28-day clock (the figure from the API's due date, never a literal) and shows the registration prompts first |
+| Discard | write | A reason |
+| Record that it was sent to CQC | `safety.notification.submit`, step-up | When (just now or earlier, never in the future) and the CQC reference or how it was sent; late shows as late |
+
+### Tests
+
+- Unit (`apps/web/src/lib/evidence-packs.test.ts`, `statement-of-purpose.test.ts`): the compose
+  form reader (every problem at once; dates; no "everyone"); the field outcome chips; the link
+  state and expiry in words (live, ending today, expired, revoked, locked, replaced); who may
+  release (contributors told why); the expiry choices never past the maximum; the shareable link
+  keeps the token in the fragment; the statement form reader (lists one per line, managers and
+  locations keep their ids, empty email as null); the notification chip and due words.
+- Journeys with axe in light and dark themes: `apps/web/e2e/evidence-pack.spec.ts` (HZ-050: the
+  manager composes, adds a care note, redacts its text by hand and cannot release; the owner,
+  stepped up, sees what will be shared, releases, sees the link once with its expiry in words,
+  and the manager revokes it) and `apps/web/e2e/statement-of-purpose.spec.ts` (HZ-080: the manager
+  drafts and cannot approve; the owner approves; the due clock shows; the owner, stepped up,
+  records the notification).
