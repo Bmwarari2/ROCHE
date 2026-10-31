@@ -93,7 +93,7 @@ export function UploadDocumentForm() {
           {pending ? t("documents.upload.sending") : t("documents.upload.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success="" fieldIds={ids} />
+      {result && !result.ok ? <FormFeedback result={result} success="" fieldIds={ids} /> : null}
     </form>
   );
 }
@@ -132,7 +132,7 @@ export function NewVersionForm({ id }: { readonly id: string }) {
           {pending ? t("documents.upload.sending") : t("documents.version.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success="" fieldIds={ids} />
+      {result && !result.ok ? <FormFeedback result={result} success="" fieldIds={ids} /> : null}
     </form>
   );
 }
@@ -184,7 +184,7 @@ export function SignDocumentForm({ id, sha256 }: { readonly id: string; readonly
           {pending ? t("common.saving") : t("documents.sign.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success="" fieldIds={ids} />
+      {result && !result.ok ? <FormFeedback result={result} success="" fieldIds={ids} /> : null}
     </form>
   );
 }

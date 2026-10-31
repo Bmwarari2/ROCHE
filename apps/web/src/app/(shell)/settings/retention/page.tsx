@@ -2,6 +2,7 @@ import { Card, EmptyState, PageHeader, StatusChip } from "@harbour/ui";
 import { FileCheck2, Lock, LockOpen, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import { DestroyForm, PlaceHoldForm, ReleaseHoldForm } from "@/components/retention/RetentionForms";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyForbidden } from "@/components/safety/SafetyChip";
 import { failWith, getShellContext, tenantApi } from "@/lib/api";
@@ -50,6 +51,7 @@ export default async function RetentionPage({
   const { inForce, released } = splitHolds(holds.data.items);
   const peopleList = people?.data?.items ?? [];
   const names = new Map(peopleList.map((p) => [p.id, personNames(p).full]));
+  const byId = new Map(peopleList.map((p) => [p.id, p]));
   const personOptions = peopleList.map((p) => ({
     id: p.id,
     label: t("retention.hold.personOption", {
@@ -69,6 +71,10 @@ export default async function RetentionPage({
           type: hold.subjectType ?? "",
           id: hold.subjectId ?? "",
         });
+  const needs = (hold: (typeof inForce)[number]) => {
+    const person = hold.personId ? byId.get(hold.personId) : undefined;
+    return person ? <PersonNeeds person={person} /> : null;
+  };
 
   const arrival =
     done === "destroyed"
@@ -97,6 +103,7 @@ export default async function RetentionPage({
             {inForce.map((hold) => (
               <li key={hold.id} className="flex flex-col gap-2 border-b border-border pb-3">
                 <h3 className="m-0 text-body font-semibold">{about(hold)}</h3>
+                {needs(hold)}
                 <p className="m-0 flex flex-wrap items-center gap-2">
                   <StatusChip status="info" label={t("retention.holds.inForce")} icon={Lock} />
                   <span className="text-body-dense">

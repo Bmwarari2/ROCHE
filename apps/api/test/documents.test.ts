@@ -289,6 +289,12 @@ describe("legal holds and destruction (section 5.1)", () => {
       await json<RetentionCandidateList>(await as("owner", "/v1/retention/candidates"))
     ).items.find((i) => i.documentId === doc.id);
     expect(listed).toMatchObject({ title: "Old letter", createdAt: doc.createdAt });
+    const audited = await asDemoTenant((c) =>
+      c.query(
+        "SELECT count(*)::int AS n FROM audit_event WHERE action = 'platform.retention_candidate.list'",
+      ),
+    );
+    expect(audited.rows[0].n).toBeGreaterThan(0);
 
     const hold = await json<LegalHoldItem>(
       await as("owner", "/v1/legal-holds", {

@@ -28,15 +28,15 @@ const due = (day: string, month: string, year: string, hour: string, minute: str
 
 describe("task lists (PLAT-011)", () => {
   it("reads the list from the address, falling back to my open tasks", () => {
-    expect(tasksQuery({})).toEqual({ view: "mine", status: "open", range: "day", reviews: false });
+    expect(tasksQuery({})).toEqual({ view: "team", status: "open", range: "day", reviews: false });
     expect(tasksQuery({ view: "team", status: "closed", range: "week", reviews: "yes" })).toEqual({
       view: "team",
       status: "closed",
       range: "week",
       reviews: true,
     });
-    expect(tasksQuery({ view: ["team", "mine"], status: "nonsense" })).toMatchObject({
-      view: "team",
+    expect(tasksQuery({ view: ["mine", "team"], status: "nonsense" })).toMatchObject({
+      view: "mine",
       status: "open",
     });
   });
@@ -44,7 +44,7 @@ describe("task lists (PLAT-011)", () => {
   it("writes the address with only what differs from the defaults", () => {
     const q = tasksQuery({});
     expect(tasksHref(q)).toBe("/tasks");
-    expect(tasksHref(q, { view: "team", reviews: true })).toBe("/tasks?view=team&reviews=yes");
+    expect(tasksHref(q, { view: "mine", reviews: true })).toBe("/tasks?view=mine&reviews=yes");
     expect(tasksHref(tasksQuery({ range: "week" }), { status: "closed" })).toBe(
       "/tasks?status=closed&range=week",
     );
@@ -211,5 +211,95 @@ describe("the new task form", () => {
       ok: true,
       reason: "Out at hospital",
     });
+  });
+});
+
+describe("hazard HZ-009 due times across the clock changes (UK time)", () => {
+  const BEFORE_SPRING = new Date("2026-03-20T12:00:00Z");
+  const BEFORE_AUTUMN = new Date("2026-10-20T12:00:00Z");
+  it.each([
+    [
+      "the hour before the clocks go forward",
+      BEFORE_SPRING,
+      due("29", "03", "2026", "00", "30"),
+      "2026-03-29T00:30:00.000Z",
+    ],
+    [
+      "the hour after the clocks go forward",
+      BEFORE_SPRING,
+      due("29", "03", "2026", "02", "30"),
+      "2026-03-29T01:30:00.000Z",
+    ],
+    [
+      "the morning after the clocks go back",
+      BEFORE_AUTUMN,
+      due("25", "10", "2026", "09", "00"),
+      "2026-10-25T09:00:00.000Z",
+    ],
+    [
+      "the day before the clocks go back",
+      BEFORE_AUTUMN,
+      due("24", "10", "2026", "09", "00"),
+      "2026-10-24T08:00:00.000Z",
+    ],
+  ])("reads %s as UK time", (_name, now, fields, instant) => {
+    expect(
+      readNewTask(form({ title: "Clock check", ...fields }), t, { now, selfId: SELF }),
+    ).toMatchObject({
+      ok: true,
+      body: { dueAt: instant },
+    });
+  });
+
+  it("refuses a time that does not exist when the clocks go forward", () => {
+    const read = readNewTask(
+      form({ title: "Clock check", ...due("29", "03", "2026", "01", "30") }),
+      t,
+      {
+        now: BEFORE_SPRING,
+        selfId: SELF,
+      },
+    );
+    expect(read).toMatchObject({ ok: false, errors: { dueAt: expect.stringContaining("01:30") } });
+  });
+
+  it("asks which time is meant in the hour the clocks go back", () => {
+    const read = readNewTask(
+      form({ title: "Clock check", ...due("25", "10", "2026", "01", "30") }),
+      t,
+      {
+        now: BEFORE_AUTUMN,
+        selfId: SELF,
+      },
+    );
+    expect(read).toMatchObject({ ok: false, parts: { dueAt: ["fold"] } });
+    const first = readNewTask(
+      form({ title: "Clock check", ...due("25", "10", "2026", "01", "30"), "dueAt-fold": "first" }),
+      t,
+      { now: BEFORE_AUTUMN, selfId: SELF },
+    );
+    expect(first).toMatchObject({ ok: true, body: { dueAt: "2026-10-25T00:30:00.000Z" } });
+  });
+
+  it("hazard HZ-003 schedules a daily task across the change at the same UK wall-clock time", () => {
+    const read = readNewTask(
+      form({ title: "Night check", ...due("24", "10", "2026", "02", "00"), repeat: "daily" }),
+      t,
+      { now: BEFORE_AUTUMN, selfId: SELF },
+    );
+    expect(read).toMatchObject({
+      ok: true,
+      kind: "series",
+      body: { startsOn: "2026-10-24", recurrence: { freq: "daily", times: ["02:00"] } },
+    });
+  });
+
+  it("hazard HZ-003 refuses a repeating task that would start in the past", () => {
+    const read = readNewTask(
+      form({ title: "Late series", ...due("30", "11", "2026", "08", "00"), repeat: "daily" }),
+      t,
+      { now: NOW, selfId: SELF },
+    );
+    expect(read.ok).toBe(false);
   });
 });

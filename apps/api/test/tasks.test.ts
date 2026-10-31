@@ -111,6 +111,27 @@ describe("one-off tasks", () => {
     expect(await json<TaskItem>(done)).toMatchObject({ status: "done", timeState: "closed" });
   });
 
+  it("hazards HZ-003 and HZ-008 lists an open task due long before the window when asked for earlier ones", async () => {
+    const old = await createTask({
+      title: "Overdue from last week",
+      locationId: DEMO.locationId,
+      dueAt: new Date(Date.now() + HOUR).toISOString(),
+    });
+    await asDemoTenant((c) =>
+      c.query("UPDATE task SET due_at = now() - interval '20 days' WHERE id = $1", [old.id]),
+    );
+    const windowOnly = await json<TaskList>(await as("manager", "/v1/tasks?view=all"));
+    expect(windowOnly.items.map((t) => t.id)).not.toContain(old.id);
+    const withEarlier = await json<TaskList>(await as("manager", "/v1/tasks?view=all&earlier=yes"));
+    expect(withEarlier.items.find((t) => t.id === old.id)?.timeState).toMatch(/overdue|escalated/);
+    expect(withEarlier.truncated).toBe(false);
+    // Earlier ones are only for open tasks: finished lists keep their window.
+    const closed = await json<TaskList>(
+      await as("manager", "/v1/tasks?view=all&status=closed&earlier=yes"),
+    );
+    expect(closed.items.map((t) => t.id)).not.toContain(old.id);
+  });
+
   it("hides tasks about people outside the carer's scope (hazard HZ-011)", async () => {
     const other = await createTask({
       title: "Weigh before lunch",

@@ -22,6 +22,7 @@ import { characterCount, t } from "@/lib/i18n";
 import { type ActionResult, errorFor, fieldErrors } from "@/lib/outcome";
 import {
   destroyOutcome,
+  HOLD_RECORD_TYPES,
   RETENTION_PAGE,
   RETENTION_REASON_MAX,
   readDestroy,
@@ -131,12 +132,16 @@ export function PlaceHoldForm({
         />
       ) : (
         <>
-          <TextField
+          <SelectField
             id={ids.subjectType}
             name="subjectType"
             label={t("retention.hold.type")}
             hint={t("retention.hold.typeHint")}
-            autoComplete="off"
+            defaultValue="document"
+            options={HOLD_RECORD_TYPES.map((type) => ({
+              value: type,
+              label: t("retention.recordType", { type }),
+            }))}
             error={errorFor(result, "subjectType")}
           />
           <TextField
@@ -254,6 +259,7 @@ export function DestroyForm({
     <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <fieldset
         id={ids.documentId}
+        tabIndex={-1}
         className="m-0 flex flex-col gap-2 border-0 p-0"
         aria-describedby={listError ? `${ids.documentId}-error` : undefined}
       >
@@ -285,6 +291,7 @@ export function DestroyForm({
         id={ids.irreversible}
         name="irreversible"
         value="yes"
+        required
         label={t("retention.destroy.irreversible")}
         error={errorFor(result, "irreversible")}
       />

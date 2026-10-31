@@ -40,7 +40,8 @@ const one = (value: string | string[] | undefined) => (Array.isArray(value) ? va
 /** The list the address asks for; anything it does not know falls back to "my open tasks". */
 export function tasksQuery(query: Query): TasksQuery {
   return {
-    view: one(query.view) === "team" ? "team" : "mine",
+    // Team tasks first: reviews raised by the engine go to a role, not a person (HZ-006).
+    view: one(query.view) === "mine" ? "mine" : "team",
     status: one(query.status) === "closed" ? "closed" : "open",
     range: one(query.range) === "week" ? "week" : "day",
     reviews: one(query.reviews) === "yes",
@@ -51,7 +52,7 @@ export function tasksQuery(query: Query): TasksQuery {
 export function tasksHref(current: TasksQuery, change: Partial<TasksQuery> = {}): string {
   const next = { ...current, ...change };
   const params = new URLSearchParams();
-  if (next.view === "team") params.set("view", "team");
+  if (next.view === "mine") params.set("view", "mine");
   if (next.status === "closed") params.set("status", "closed");
   if (next.range === "week") params.set("range", "week");
   if (next.reviews) params.set("reviews", "yes");
@@ -242,14 +243,14 @@ export function readNewTask(
     ...(mine ? { assigneeTenantUserId: options.selfId } : {}),
     ...(UUID.test(locationId) ? { locationId } : {}),
   };
+  if (Date.parse(dueAt) < now.getTime() - 60_000) {
+    return {
+      ok: false,
+      errors: { dueAt: t("tasks.new.dueInPast") },
+      parts: { dueAt: ["day", "month", "year", "hour", "minute"] },
+    };
+  }
   if (repeat === "none") {
-    if (Date.parse(dueAt) < now.getTime() - 60_000) {
-      return {
-        ok: false,
-        errors: { dueAt: t("tasks.new.dueInPast") },
-        parts: { dueAt: ["day", "month", "year", "hour", "minute"] },
-      };
-    }
     return { ok: true, kind: "once", body: { title, dueAt, priority, ...assignee } };
   }
   const wall = ukWall(dueAt);

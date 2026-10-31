@@ -729,9 +729,16 @@ export const documentsRouter = createRouter()
       responses: { 200: jsonBody(RetentionCandidateList, "Candidates"), ...errorResponses },
     }),
     async (c) => {
-      await requirePermission(c, RETENTION_PERMISSION);
+      const access = await requirePermission(c, RETENTION_PERMISSION);
       const items = await withTenant(c, async (tx) => {
-        const due = await eligibleDocuments(tx, c.get("access").tenantId, new Date());
+        const due = await eligibleDocuments(tx, access.tenantId, new Date());
+        // Titles of documents about people are shown: the list is audited like any record view.
+        await auditInTx(tx, access, {
+          action: "platform.retention_candidate.list",
+          resourceType: "document",
+          scope: { count: due.length },
+          requestId: c.get("requestId"),
+        });
         return due.map((d) => ({
           documentId: d.row.id,
           category: d.row.category as DocumentCategoryKey,

@@ -531,13 +531,17 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 - API: `GET /v1/tasks` (views: all or mine; by person, location, status, window), `POST /v1/tasks`,
   `POST /v1/tasks/{id}/transition`, `POST /v1/tasks/{id}/assign`, `POST /v1/task-series`,
   `POST /v1/task-series/{id}/end`. Every list and change is audited.
-- Web (`/tasks`, Phase 1 slice 9): "My tasks" (`view=mine`) and "Team tasks" (`view=all`, every
-  task the session's scope reaches) as two tabs, each by status (open or finished) and window
-  (yesterday to tomorrow, or the last and next 7 days). Each task shows its title, the person it is
+- `GET /v1/tasks?earlier=yes` with open tasks also returns every open task due before `from`,
+  however old; the list says `truncated` when more than 1,000 tasks matched.
+- Web (`/tasks`, Phase 1 slice 9): "Team tasks" (`view=all`, every task the session's scope
+  reaches; shown first, because reviews go to a role rather than a person) and "My tasks"
+  (`view=mine`) as two tabs, each by status (open or finished) and window (yesterday to tomorrow,
+  or the last and next 7 days); open lists always include older open tasks (HZ-003, HZ-008), and
+  say when they were read and when the list is incomplete. Each task shows its title, the person it is
   about by name (linked to their record, when the viewer may open people's records), the location,
   who it is assigned to, when it is due (dd/mm/yyyy, 24-hour, UK time) and where it stands as an
   icon and a word (upcoming, due, overdue, escalated, done, skipped, cancelled), with "Urgent" and
-  "Review" flags in words. A review task (one raised by the engine: a stale write, a late entry, an
+  "Review" flags in words, and the person's communication needs. A review task (one raised by the engine: a stale write, a late entry, an
   entry that did not complete its round; kind ending `_review`) shows its details with
   `TaskDetails` (missed rounds in UK time, medicines first; entries by kind, time and outcome) and
   late evidence, a catch-up or a restored round with `TaskEvidenceBadge` (HZ-003, HZ-004, HZ-006).
@@ -591,7 +595,8 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   everyone in the organisation (organisation documents); upload and new version,
   `platform.document.manage`; sign, anyone who may read it (the API decides). Tests:
   `apps/web/src/lib/documents.test.ts`, `apps/web/e2e/documents.spec.ts` (upload, sign, a new
-  version refuses a signature for the old one; axe in light and dark).
+  version starts unsigned and the earlier one is no longer offered for signing; axe in light and
+  dark).
 
 ## Retention and legal hold (PLAT-012)
 

@@ -5690,6 +5690,7 @@ export interface paths {
           personId?: string;
           locationId?: string;
           status?: "open" | "closed" | "any";
+          earlier?: "yes" | "no";
           from?: string;
           to?: string;
         };
@@ -22197,6 +22198,7 @@ export interface components {
     };
     TaskList: {
       items: components["schemas"]["TaskItem"][];
+      truncated?: boolean;
     };
     TaskItem: {
       /** Format: uuid */

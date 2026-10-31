@@ -6087,6 +6087,9 @@
             "items": {
               "$ref": "#/components/schemas/TaskItem"
             }
+          },
+          "truncated": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -30101,6 +30104,19 @@
             },
             "required": false,
             "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "default": "no"
+            },
+            "required": false,
+            "name": "earlier",
             "in": "query"
           },
           {

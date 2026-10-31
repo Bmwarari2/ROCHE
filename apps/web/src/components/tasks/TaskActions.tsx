@@ -36,7 +36,9 @@ function useTaskSend(returnTo: string) {
         router.replace(arrivalHref(returnTo, done), { scroll: false });
         router.refresh();
       } else if (outcome.code === "version_conflict") {
-        // Someone else changed the task: show it as it is now, with the words saying so.
+        // Someone else changed the task: close any dialog and show it as it is now, with the words
+        // saying so, so nothing is sent again without the person seeing the change.
+        after?.();
         router.refresh();
       }
     });
@@ -57,6 +59,7 @@ function ReasonSheet({
   const [open, setOpen] = useState(false);
   const { result, pending, send, setResult } = useTaskSend(returnTo);
   const reasonId = useId();
+  const conflict = result && !result.ok && result.code === "version_conflict";
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const read = readTaskReason(new FormData(event.currentTarget), t, purpose);
@@ -69,47 +72,51 @@ function ReasonSheet({
   };
   const error = errorFor(result, "reason");
   return (
-    <Sheet
-      open={open}
-      onOpenChange={setOpen}
-      trigger={
-        <Button
-          variant="secondary"
-          icon={to === "skipped" ? <CircleMinus {...icon} /> : <Ban {...icon} />}
-        >
-          {t("tasks.action.open", { purpose })}
-        </Button>
-      }
-      title={t("tasks.reason.title", { purpose, task: task.title })}
-      closeLabel={t("common.close")}
-    >
-      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-        <TextArea
-          id={reasonId}
-          name="reason"
-          label={t("tasks.reason.label", { purpose })}
-          hint={t("tasks.reason.hint")}
-          rows={3}
-          required
-          maxLength={TASK_REASON_MAX}
-          formatCount={(remaining) => characterCount(remaining)}
-          {...(error ? { error } : {})}
-        />
-        <div className="flex flex-wrap justify-end gap-2">
-          <SheetClose asChild>
-            <Button variant="secondary">{t("tasks.reason.keep")}</Button>
-          </SheetClose>
+    <>
+      {conflict && !open ? <ManageFeedback result={result} path={returnTo} /> : null}
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
           <Button
-            type="submit"
-            variant={to === "cancelled" ? "destructive" : "primary"}
-            disabled={pending}
+            variant="secondary"
+            icon={to === "skipped" ? <CircleMinus {...icon} /> : <Ban {...icon} />}
+            aria-describedby={`task-${task.id}`}
           >
-            {pending ? t("common.saving") : t("tasks.reason.submit", { purpose })}
+            {t("tasks.action.open", { purpose })}
           </Button>
-        </div>
-        <ManageFeedback result={result} path={returnTo} fieldIds={{ reason: reasonId }} />
-      </form>
-    </Sheet>
+        }
+        title={t("tasks.reason.title", { purpose, task: task.title })}
+        closeLabel={t("common.close")}
+      >
+        <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <TextArea
+            id={reasonId}
+            name="reason"
+            label={t("tasks.reason.label", { purpose })}
+            hint={t("tasks.reason.hint")}
+            rows={3}
+            required
+            maxLength={TASK_REASON_MAX}
+            formatCount={(remaining) => characterCount(remaining)}
+            {...(error ? { error } : {})}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <SheetClose asChild>
+              <Button variant="secondary">{t("tasks.reason.keep")}</Button>
+            </SheetClose>
+            <Button
+              type="submit"
+              variant={to === "cancelled" ? "destructive" : "primary"}
+              disabled={pending}
+            >
+              {pending ? t("common.saving") : t("tasks.reason.submit", { purpose })}
+            </Button>
+          </div>
+          <ManageFeedback result={result} path={returnTo} fieldIds={{ reason: reasonId }} />
+        </form>
+      </Sheet>
+    </>
   );
 }
 
@@ -152,6 +159,7 @@ export function TaskActions({
             icon={<Play {...icon} />}
             disabled={pending}
             onClick={() => move("in_progress", "started")}
+            aria-describedby={`task-${task.id}`}
           >
             {t("tasks.action.start")}
           </Button>
@@ -161,6 +169,7 @@ export function TaskActions({
             icon={<CircleCheck {...icon} />}
             disabled={pending}
             onClick={() => move("done", "done")}
+            aria-describedby={`task-${task.id}`}
           >
             {t("tasks.action.done")}
           </Button>
@@ -173,6 +182,7 @@ export function TaskActions({
             icon={<UserCheck {...icon} />}
             disabled={pending}
             onClick={() => assign(selfId, "assigned")}
+            aria-describedby={`task-${task.id}`}
           >
             {t("tasks.action.take")}
           </Button>
@@ -183,6 +193,7 @@ export function TaskActions({
             icon={<UserMinus {...icon} />}
             disabled={pending}
             onClick={() => assign(null, "unassigned")}
+            aria-describedby={`task-${task.id}`}
           >
             {t("tasks.action.unassign")}
           </Button>

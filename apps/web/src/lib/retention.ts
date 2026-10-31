@@ -21,6 +21,12 @@ export const DESTROY_MAX = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SUBJECT_TYPE = /^[a-z_]{1,60}$/;
 
+/**
+ * The kinds of record a hold on one record names, as the destruction engine checks them: today it
+ * destroys documents only, so a hold on one record is a hold on a document.
+ */
+export const HOLD_RECORD_TYPES = ["document"] as const;
+
 export function retentionShown(permissions: readonly string[]): boolean {
   return permissions.includes(RETENTION_PERMISSION);
 }
@@ -82,7 +88,11 @@ export function readPlaceHold(form: FormLike, t: Translator): PlaceHoldRead {
   }
   const subjectType = text(form, "subjectType");
   const subjectId = text(form, "subjectId").toLowerCase();
-  if (!SUBJECT_TYPE.test(subjectType)) errors.subjectType = t("retention.hold.typeRequired");
+  if (
+    !SUBJECT_TYPE.test(subjectType) ||
+    !(HOLD_RECORD_TYPES as readonly string[]).includes(subjectType)
+  )
+    errors.subjectType = t("retention.hold.typeRequired");
   if (!UUID.test(subjectId)) errors.subjectId = t("retention.hold.idRequired");
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, body: { subjectType, subjectId, reason } };

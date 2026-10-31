@@ -129,7 +129,13 @@ export const TaskItem = z
   .meta({ id: "TaskItem" });
 export type TaskItem = z.infer<typeof TaskItem>;
 
-export const TaskList = z.object({ items: z.array(TaskItem) }).meta({ id: "TaskList" });
+export const TaskList = z
+  .object({
+    items: z.array(TaskItem),
+    /** True when more tasks matched than the list returns: narrow it, and say so on screen. */
+    truncated: z.boolean().optional(),
+  })
+  .meta({ id: "TaskList" });
 export type TaskList = z.infer<typeof TaskList>;
 
 export const CreateTask = z

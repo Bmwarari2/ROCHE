@@ -66,6 +66,8 @@ const PERSON_TASK_PERMISSION = "care.note.write";
 /** The scope tasks are listed and found in (`SCOPE_WITHOUT_PERMISSION`, ADR-0071). */
 const TASK_READ_SCOPE = "people.person.read";
 const DAY_MS = 86_400_000;
+/** The most tasks one list returns; `truncated` says when there were more. */
+const TASK_LIST_LIMIT = 1000;
 
 /** Why someone may not be given a task. */
 const ASSIGNEE_REFUSED =
@@ -165,6 +167,11 @@ export const tasksRouter = createRouter()
           personId: z.uuid().optional(),
           locationId: z.uuid().optional(),
           status: z.enum(["open", "closed", "any"]).default("open"),
+          /**
+           * With open tasks: also every open task due before `from`, however old, so a missed
+           * round or a review left open never drops off the list (HZ-003, HZ-008).
+           */
+          earlier: z.enum(["yes", "no"]).default("no"),
           from: z.iso.datetime({ offset: true }).optional(),
           to: z.iso.datetime({ offset: true }).optional(),
         }),
@@ -187,7 +194,7 @@ export const tasksRouter = createRouter()
           .where(
             and(
               isNull(task.deletedAt),
-              gte(task.dueAt, from),
+              q.status === "open" && q.earlier === "yes" ? undefined : gte(task.dueAt, from),
               lt(task.dueAt, to),
               q.status === "open"
                 ? inArray(task.status, ["open", "in_progress"])
@@ -202,7 +209,9 @@ export const tasksRouter = createRouter()
             ),
           )
           .orderBy(asc(task.dueAt))
-          .limit(1000);
+          .limit(TASK_LIST_LIMIT + 1);
+        const truncated = rows.length > TASK_LIST_LIMIT;
+        if (truncated) rows.length = TASK_LIST_LIMIT;
         const minutes = await escalationMinutes(tx, access.tenantId);
         await auditInTx(tx, access, {
           action: "platform.task.list",
@@ -215,9 +224,9 @@ export const tasksRouter = createRouter()
           requestId: c.get("requestId"),
         });
         const staff = await taskStaff(tx, rows);
-        return rows.map((r) => toTaskItem(r, now, minutes, staff));
+        return { items: rows.map((r) => toTaskItem(r, now, minutes, staff)), truncated };
       });
-      return c.json({ items }, 200);
+      return c.json(items, 200);
     },
   )
   .openapi(

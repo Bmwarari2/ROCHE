@@ -47,11 +47,11 @@ async function send(
 }
 
 /** The file as the request body, with its own content type; openapi-fetch sends it untouched. */
-async function fileBody(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+function fileBody(file: File) {
   return {
-    // The generated client types a binary body as a string; the bytes are sent as they are.
-    body: bytes as unknown as string,
+    // The generated client types a binary body as a string; the file is sent as it is, as a Blob,
+    // so its own length goes with it.
+    body: file as unknown as string,
     bodySerializer: (b: unknown) => b as BodyInit,
     headers: { "content-type": file.type || "application/pdf" },
   };
@@ -61,7 +61,7 @@ export async function uploadDocument(form: FormData): Promise<ActionResult<{ id:
   const read = readUpload(form, t, { needsTitle: true });
   if (!read.ok) return fieldErrors(read.errors);
   const file = form.get("file") as File;
-  const body = await fileBody(file);
+  const body = fileBody(file);
   return send(
     (api) =>
       api.POST("/v1/documents", {
@@ -85,7 +85,7 @@ export async function uploadVersion(
   if (!isUuid(id)) return refused(t("errors.notFound"), "not_found");
   const read = readUpload(form, t, { needsTitle: false });
   if (!read.ok) return fieldErrors(read.errors);
-  const body = await fileBody(form.get("file") as File);
+  const body = fileBody(form.get("file") as File);
   return send(
     (api) => api.POST("/v1/documents/{id}/versions", { params: { path: { id } }, ...body }),
     [DOCUMENTS_PAGE, documentPage(id)],

@@ -108,12 +108,12 @@ test("hazards HZ-004 and HZ-006 a review task shows the entries to review, and a
   const review = open.items.find(
     (t) =>
       t.kind === "care.entry_review" &&
-      (t.details?.entries ?? []).some((e) => e.clientId === reviewedEntry || e.entryId),
+      (t.details?.entries ?? []).some((e) => e.entryId === reviewedEntry),
   );
   expect(review, "a review task lists the entry").toBeDefined();
   if (!review) return;
 
-  await page.goto("/tasks?view=team&reviews=yes");
+  await page.goto("/tasks?reviews=yes");
   await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
   const reviewItem = main(page).locator(`li[data-task-id="${review.id}"]`);
   await expect(reviewItem).toBeVisible();
@@ -142,7 +142,8 @@ test("the manager creates a task, starts it and marks it done", async ({ page })
     .getByRole("link", { name: "Tasks" })
     .click();
   await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "My tasks" })).toHaveAttribute(
+  // Team tasks first: reviews go to a role, not a person (HZ-006).
+  await expect(page.getByRole("link", { name: "Team tasks" })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -208,7 +209,7 @@ test("a task not done needs a reason, and the reason is shown", async ({ page })
   expect(made.id).toBeTruthy();
   await page.goto("/tasks?view=team");
   const item = task(page, title);
-  await item.getByRole("button", { name: "Not done" }).click();
+  await item.getByRole("button", { name: "Record as not done" }).click();
   const sheet = page.getByRole("dialog", { name: `Not done: ${title}` });
   await sheet.getByRole("button", { name: "Record as not done" }).click();
   await expect(

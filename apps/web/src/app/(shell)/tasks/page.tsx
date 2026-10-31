@@ -1,9 +1,11 @@
+import type { PersonSummary } from "@harbour/contracts";
 import { ButtonLink, Card, EmptyState, PageHeader, StatusChip, TabNav } from "@harbour/ui";
 import { Flag, ListChecks, SearchCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TaskEvidenceBadge } from "@/components/care/LifecycleBadges";
 import { TaskDetails } from "@/components/care/TaskDetails";
+import { PersonNeeds } from "@/components/safety/PersonNeeds";
 import { RecordedArrival } from "@/components/safety/RecordedArrival";
 import { SafetyChip, SafetyForbidden } from "@/components/safety/SafetyChip";
 import { NewTaskForm } from "@/components/tasks/NewTaskForm";
@@ -85,6 +87,8 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
       query: {
         view: query.view === "mine" ? "mine" : "all",
         status: query.status,
+        // Open tasks due before the window stay listed, however old (HZ-003, HZ-008).
+        ...(query.status === "open" ? { earlier: "yes" as const } : {}),
         from,
         to,
       },
@@ -95,11 +99,12 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
   const items = query.reviews ? onlyReviews(all) : all;
 
   // People's names, when the viewer may open their records; otherwise the task says "a person".
-  const names = new Map<string, string>();
+  const people = new Map<string, PersonSummary>();
   if (me.permissions.includes("people.person.read") && items.some((i) => i.personId)) {
-    const people = await api.GET("/v1/people", {}).catch(() => null);
-    for (const p of people?.data?.items ?? []) names.set(p.id, personNames(p).full);
+    const listedPeople = await api.GET("/v1/people", {}).catch(() => null);
+    for (const p of listedPeople?.data?.items ?? []) people.set(p.id, p);
   }
+  const readAt = formatDateTime(new Date().toISOString()) ?? "";
   const locations = new Map(me.locations.map((l) => [l.id, l.name]));
   const mayManage = me.permissions.includes(TASK_MANAGE);
   const done = firstParam(raw.done);
@@ -146,9 +151,9 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
           <FilterLink href={tasksHref(query, { range: "week" })} current={query.range === "week"}>
             {t("tasks.filter.week")}
           </FilterLink>
-          <FilterLink href={tasksHref(query, { reviews: !query.reviews })} current={query.reviews}>
-            {t("tasks.filter.reviews")}
-          </FilterLink>
+          <ButtonLink href={tasksHref(query, { reviews: !query.reviews })} variant="secondary">
+            {t("tasks.filter.reviews", { on: query.reviews ? "yes" : "no" })}
+          </ButtonLink>
         </div>
       </nav>
       {mayManage ? (
@@ -167,8 +172,14 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
         headingLevel={2}
       >
         <p className="m-0 mb-3 text-body-dense" aria-live="polite">
-          {t("tasks.list.count", { count: items.length })}
+          {t("tasks.list.count", { count: items.length })}{" "}
+          {t("tasks.list.readAt", { dateTime: readAt })}
         </p>
+        {listed.data.truncated ? (
+          <p role="note" className="m-0 mb-3 font-semibold">
+            {t("tasks.list.truncated")}
+          </p>
+        ) : null}
         {items.length === 0 ? (
           <EmptyState
             headingLevel={3}
@@ -179,14 +190,16 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
           <ul className="m-0 flex list-none flex-col gap-4 p-0">
             {items.map((task) => {
               const review = isReviewTask(task);
-              const personName = task.personId ? names.get(task.personId) : undefined;
+              const person = task.personId ? people.get(task.personId) : undefined;
               return (
                 <li
                   key={task.id}
                   data-task-id={task.id}
                   className="flex flex-col gap-2 border-b border-border pb-4"
                 >
-                  <h3 className="m-0 text-body font-semibold">{task.title}</h3>
+                  <h3 id={`task-${task.id}`} className="m-0 text-body font-semibold">
+                    {task.title}
+                  </h3>
                   <p className="m-0 flex flex-wrap items-center gap-2">
                     <SafetyChip chip={taskChip(task, t)} />
                     {task.priority === "urgent" ? (
@@ -202,8 +215,13 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
                       <>
                         <dt className="font-semibold">{t("tasks.item.about")}</dt>
                         <dd className="m-0">
-                          {personName ? (
-                            <Link href={`/people/${task.personId}`}>{personName}</Link>
+                          {person ? (
+                            <div className="flex flex-col gap-1">
+                              <Link href={`/people/${task.personId}`}>
+                                {personNames(person).full}
+                              </Link>
+                              <PersonNeeds person={person} />
+                            </div>
                           ) : (
                             t("tasks.item.aPerson")
                           )}

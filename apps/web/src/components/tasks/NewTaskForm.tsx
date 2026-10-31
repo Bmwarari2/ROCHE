@@ -117,7 +117,7 @@ export function NewTaskForm({
           {pending ? t("common.saving") : t("tasks.new.submit")}
         </Button>
       </div>
-      <FormFeedback result={result} success="" fieldIds={ids} />
+      {result && !result.ok ? <FormFeedback result={result} success="" fieldIds={ids} /> : null}
     </form>
   );
 }

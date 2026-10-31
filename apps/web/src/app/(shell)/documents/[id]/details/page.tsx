@@ -25,7 +25,14 @@ import { firstParam } from "@/lib/record-metadata";
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export const metadata: Metadata = { title: t("documents.details.title") };
+/** The page is named after the document, so each one's tab and history entry differ (WCAG 2.4.2). */
+export async function generateMetadata({ params }: { readonly params: Params }): Promise<Metadata> {
+  const { id } = await params;
+  if (!isUuid(id)) return { title: t("documents.details.title") };
+  const api = await tenantApi();
+  const found = await api.GET("/v1/documents/{id}", { params: { path: { id } } }).catch(() => null);
+  return { title: found?.data?.title ?? t("documents.details.title") };
+}
 
 const icon = { size: 18, strokeWidth: 1.5, "aria-hidden": true } as const;
 const DONE = new Set(["uploaded", "version", "signed"]);
