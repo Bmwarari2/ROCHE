@@ -51,7 +51,10 @@ option where revocation and recipient binding hold on every request and every op
    account may instead sign in, with MFA, as that recipient (`quality.evidence.read`, a
    care-record permission held by the inspector role alone).
 3. **Session.** A correct code sets an HttpOnly, Secure, SameSite=Strict cookie for that link
-   alone, holding the link and the verified address. The verification lives in that session and
+   alone, holding the link and the verified address. It is a browser-session cookie (no
+   Max-Age; amended on #113's security review): it goes when the browser closes, and the expiry
+   sealed inside it (never past the link's) is checked on every request. The recipient can end it
+   sooner with "Finish and remove access from this browser", which clears it. The verification lives in that session and
    never on the link row, so verifying in one browser opens nothing in another, and a forwarded
    link still needs its own code.
 4. **Expiry.** `evidence_pack.link_expiry_days.default` days unless the sender chooses, never more

@@ -38,6 +38,7 @@ crash.log
 # test output
 playwright-report/
 test-results/
+.lighthouseci/
 blob-report/
 
 # editors and OS

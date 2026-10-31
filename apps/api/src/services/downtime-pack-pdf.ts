@@ -141,10 +141,24 @@ function sectionContent(key: string, page: Json<DowntimePersonPage>): string[] {
   }
 }
 
+/** The printed name, with "Sample" beside an invented sample person's (HZ-072); older packs lack it. */
+function printedName(page: Json<DowntimePersonPage>): string {
+  return page.sample === true ? `${page.displayName} (Sample)` : page.displayName;
+}
+
 function personLines(page: Json<DowntimePersonPage>): PdfLine[] {
-  const owner = `${page.displayName}, ${page.dateOfBirth ? `born ${ukDate(page.dateOfBirth)}` : "date of birth not recorded"}, ${NHS(page.nhsNumber)}`;
+  const name = printedName(page);
+  const owner = `${name}, ${page.dateOfBirth ? `born ${ukDate(page.dateOfBirth)}` : "date of birth not recorded"}, ${NHS(page.nhsNumber)}`;
   const lines: PdfLine[] = [
-    { text: page.displayName, bold: true, size: 13, pageBreakBefore: true, owner },
+    { text: name, bold: true, size: 13, pageBreakBefore: true, owner },
+    ...(page.sample === true
+      ? [
+          {
+            text: "Sample: an invented person for practice. Not a real person or a real record.",
+            bold: true,
+          },
+        ]
+      : []),
     {
       text: [
         page.roomLabel ? `Room ${page.roomLabel}` : "No room recorded",
@@ -177,7 +191,7 @@ export function renderDowntimePackPdf(
   content: StoredContent,
   header: readonly string[],
 ): Uint8Array {
-  const names = new Map(content.pages.map((p) => [p.personId, p.displayName]));
+  const names = new Map(content.pages.map((p) => [p.personId, printedName(p)]));
   const front: PdfLine[] = [
     { text: `Downtime pack: ${content.locationName}`, bold: true, size: 14 },
     {

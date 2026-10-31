@@ -125,6 +125,11 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       config.TRANSFER_PACK_REQUESTS_PER_MINUTE,
       60_000,
     ),
+    accountDeletionLimiter: new RateLimiter(
+      "account_deletion",
+      config.ACCOUNT_DELETION_REQUESTS_PER_DAY,
+      24 * 3_600_000,
+    ),
     handoverCompileLimiter: new RateLimiter(
       "handover_compile",
       config.HANDOVER_COMPILE_REQUESTS_PER_MINUTE,
