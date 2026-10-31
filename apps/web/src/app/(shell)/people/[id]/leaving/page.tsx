@@ -386,7 +386,10 @@ async function LeavingTab({
             ),
           }
         : !exit.status.readyToClose
-          ? { next: "close", keys: exit.status.outstanding }
+          ? {
+              next: "close",
+              keys: [...new Set([...exit.status.outstanding, ...exit.status.outstandingReturns])],
+            }
           : null
       : null;
 
