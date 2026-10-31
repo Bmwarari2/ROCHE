@@ -593,7 +593,79 @@ export interface paths {
       };
     };
     put?: never;
-    post?: never;
+    /**
+     * Record an enquiry: a new person record at enquiry (people.md rule 1)
+     * @description people.enquiry.manage at the location the enquiry is about. Names and a date of birth only; the assessment starts with POST /v1/people/{id}/status (to pre_admission). The time it came in may be earlier than now, never later. A request sent again with the same id returns the first copy, audited as a view of it.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["CreateEnquiry"];
+        };
+      };
+      responses: {
+        /** @description Recorded (or the earlier copy of a request sent again) */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["PersonSummary"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -2280,6 +2352,83 @@ export interface paths {
         };
       };
     };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/locations/{id}/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The services run at a location, for an assessment or an admission
+     * @description Organisation configuration, no personal data. For holders of people.enquiry.manage, people.admission.manage or people.person.read who work at the location; anywhere else reads as not found.
+     */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Services, by name */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ServiceList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -21268,6 +21417,32 @@ export interface components {
     UpdateWelcomeChecklistTemplate: {
       items: components["schemas"]["WelcomeChecklistDefinitionItem"][];
       version: number;
+    };
+    /** @description A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record. */
+    CreateEnquiry: {
+      /** Format: uuid */
+      id?: string;
+      /** Format: uuid */
+      locationId: string;
+      givenName: string;
+      familyName: string;
+      preferredName?: string;
+      /** Format: date */
+      dateOfBirth: string;
+      /** Format: date-time */
+      receivedAt?: string;
+    };
+    ServiceList: {
+      items: components["schemas"]["ServiceItem"][];
+    };
+    ServiceItem: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      locationId: string;
+      name: string;
+      serviceType: string;
+      status: string;
     };
     PropertyList: {
       items: components["schemas"]["PropertyItemOut"][];

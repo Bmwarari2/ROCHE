@@ -130,6 +130,44 @@ export const UpdateCommunicationNeeds = z
 export type UpdateCommunicationNeeds = z.infer<typeof UpdateCommunicationNeeds>;
 
 // ------------------------------------------------------------------------------------------------
+// Enquiries and the services they are about (rule 1; the start of PEOP-004)
+// ------------------------------------------------------------------------------------------------
+
+export const CreateEnquiry = z
+  .object({
+    /** Device-generated UUIDv7; a request sent again with the same id returns the first copy. */
+    id: uuid.optional(),
+    /** The home the enquiry is about: one at a location the caller manages enquiries for. */
+    locationId: uuid,
+    givenName: text(100).min(1),
+    familyName: text(100).min(1),
+    preferredName: text(100).optional(),
+    dateOfBirth: isoDate,
+    /** When the enquiry came in; now when left out. Never in the future. */
+    receivedAt: isoDateTime.optional(),
+  })
+  .meta({
+    id: "CreateEnquiry",
+    description:
+      "A new person record at `enquiry`, before the pre-admission assessment starts. The NHS number and other details follow on the record.",
+  });
+export type CreateEnquiry = z.infer<typeof CreateEnquiry>;
+
+export const ServiceItem = z
+  .object({
+    id: uuid,
+    locationId: uuid,
+    name: z.string(),
+    serviceType: z.string(),
+    status: z.string(),
+  })
+  .meta({ id: "ServiceItem" });
+export type ServiceItem = z.infer<typeof ServiceItem>;
+
+export const ServiceList = z.object({ items: z.array(ServiceItem) }).meta({ id: "ServiceList" });
+export type ServiceList = z.infer<typeof ServiceList>;
+
+// ------------------------------------------------------------------------------------------------
 // Pre-admission and the decision to admit (rules 4 and 5)
 // ------------------------------------------------------------------------------------------------
 
