@@ -9,6 +9,12 @@ import {
 import { all, openLocalDatabase, type SqliteDatabase } from "../test-support/local-db";
 import { insertStatement } from "./entries";
 import { recentEntries } from "./entry-view";
+import {
+  expectedHandover,
+  type HandoverItemViewRow,
+  type HandoverRow,
+  handoverItems,
+} from "./handover-view";
 import { checkNote } from "./notes";
 import { resuscitationFlag } from "./person-summary";
 import * as queries from "./queries";
@@ -401,6 +407,60 @@ describe("the round on this device (screens gate items (b) and (f))", () => {
       all<{ count: number }>(db, queries.TASK_EVIDENCE_SQL, [DEMO_TENANT_ID, "t-x"])[0]?.count,
     ).toBe(0);
     db.prepare("DELETE FROM care_note WHERE id = 'n-x'").run();
+  });
+});
+
+describe("hazard HZ-018 the handover on this device", () => {
+  it("lists the demo handover's items in order with each person, and the reader's own acknowledgement", () => {
+    const handovers = all<HandoverRow>(db, queries.HANDOVERS_SQL, [DEMO_TENANT_ID]);
+    expect(handovers).toHaveLength(1);
+    const id = handovers[0]?.id ?? "";
+    const items = all<HandoverItemViewRow>(db, queries.HANDOVER_ITEMS_SQL, [DEMO_TENANT_ID, id]);
+    expect(items.map((i) => [i.kind, i.given_name])).toEqual([
+      ["fall", demoPeople[0]?.given_name],
+      ["unfinished_task", demoPeople[2]?.given_name],
+    ]);
+    expect(handoverItems(items, null).map((i) => i.words)).toEqual([
+      "Fall, written in a care note",
+      "Not done yet: Evening personal care",
+    ]);
+    // With no shift pattern (the demo has no token) the phone cannot tell which handover to expect.
+    const locations = all<{ id: string; nation: string | null }>(
+      db,
+      queries.HANDOVER_LOCATIONS_SQL,
+      [DEMO_TENANT_ID],
+    );
+    expect(
+      expectedHandover({
+        now: new Date("2026-10-11T09:00:00Z"),
+        nation: locations[0]?.nation ?? null,
+        shifts: null,
+        handovers,
+      }).kind,
+    ).toBe("unknown");
+    const ack = db.prepare(
+      "INSERT INTO handover_acknowledgement (id, tenant_id, handover_id, tenant_user_id, item_keys, acknowledged_at, seen_token) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+    ack.run("a-server", DEMO_TENANT_ID, id, "me", "[]", "2026-10-11T09:30:00Z", null);
+    ack.run("a-device", DEMO_TENANT_ID, id, "me", "[]", "2026-10-11T09:00:00Z", "token");
+    ack.run("a-other", DEMO_TENANT_ID, id, "someone-else", "[]", "2026-10-11T10:00:00Z", null);
+    // One made here and waiting to upload comes first, whatever its time; never someone else's.
+    expect(
+      all<{ seen_token: string | null }>(db, queries.MY_ACKNOWLEDGEMENT_SQL, [
+        DEMO_TENANT_ID,
+        id,
+        "me",
+      ]),
+    ).toEqual([expect.objectContaining({ seen_token: "token" })]);
+    db.prepare("DELETE FROM handover_acknowledgement WHERE id = 'a-device'").run();
+    expect(
+      all<{ acknowledged_at: string }>(db, queries.MY_ACKNOWLEDGEMENT_SQL, [
+        DEMO_TENANT_ID,
+        id,
+        "me",
+      ]),
+    ).toEqual([expect.objectContaining({ acknowledged_at: "2026-10-11T09:30:00Z" })]);
+    db.prepare("DELETE FROM handover_acknowledgement").run();
   });
 });
 

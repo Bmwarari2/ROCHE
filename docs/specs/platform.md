@@ -571,6 +571,12 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
 
 - `audit_event`: append-only (no UPDATE or DELETE for the app; triggers refuse anyone else),
   SHA-256 hash chain per tenant maintained by a trigger, `app.verify_audit_chain()` for checking.
+- `request_id`: always a UUID the API makes for the request, never anything the caller sent, so
+  no caller text (personal data included) enters the hash chain and no caller can reuse another
+  request's id there; the response's `x-request-id` gives it. A caller's `x-request-id` is kept
+  only in the API's log, in one `caller request id` line beside the API's id, and only when it is a
+  canonical lower-case UUID (`apps/api/src/http/request-id.ts`); the web passes on only such an id
+  (`apps/web/src/lib/request-id.ts`) (security reviews, 31 October 2026 and of #134, M4).
 - Written for: person list, view and history; break-glass; refusals (missing permission, step-up,
   not a member); notification acknowledgement; sync token issue and uploads; integration settings
   and quarantine decisions; operator requests and tenant decisions.
@@ -787,9 +793,34 @@ As built, the accept page (`apps/web/src/app/(auth)/invitation`, the route handl
   (owner, quality lead); RLS enforces the same.
 - `GET /v1/retention/candidates`: documents past their class's period (care-record documents
   count from discharge or death; people still receiving care are never eligible) with no hold.
-- `POST /v1/retention/destroy`: re-checks each id, deletes every stored version, keeps a tombstone
-  row without the title, and writes an append-only `destruction_certificate` per record class
-  (ids, rule, reason, method). Held, current or unknown ids are returned as skipped.
+  Audited as `platform.retention_candidate.list` with the listed ids; `GET /v1/legal-holds` is
+  audited by count (`platform.legal_hold.list`).
+- `POST /v1/retention/destroy`: re-checks each id, keeps a tombstone row without the title, writes
+  an append-only `destruction_certificate` per record class (ids, rule, reason, method), then
+  deletes every stored version. Held, current or unknown ids are returned as skipped.
+  - What a hold covers (`isDocumentUnderLegalHold`): a document is held when any version of it
+    (its whole chain through `previous_version_id`) is flagged `legal_hold`, is held itself, is
+    about a held person, or belongs to a held record (its `subject_type` and `subject_id`); a
+    hold on any version holds them all (security review of #134, M1). A chain that cannot be
+    read back to its first version (`previous_version_id` has no foreign key) counts as held, and
+    the document view's `legalHold` uses the same judgement (`documentHeld`; L3 and L4).
+  - Holds: placing a hold and destroying both take the organisation's retention lock (a
+    transaction-scoped advisory lock), and the destruction locks the documents `FOR UPDATE` and
+    reads the holds after both locks, so under READ COMMITTED a hold committed before it decides
+    is always seen and a hold placed meanwhile waits for it to commit (security review, 31
+    October 2026).
+  - Order: the tombstones, the certificate, the audit event and one `platform.document.destroyed`
+    outbox event per document commit together, before any bytes are touched; the bytes are
+    deleted after the commit, so a failed transaction never leaves bytes gone without a
+    certificate. The worker deletes them again from the outbox event (idempotent, only for a
+    document recorded as destroyed, the key made from the tenant and document ids, never read
+    from the row) until the storage accepts it, backing off up to an hour. On S3 a deletion counts
+    only when the batch delete reports no per-object error and a fresh listing finds no version
+    left (`StorageDeleteFailed` otherwise; review of #134, M2 and L6).
+  - A failed deletion is detected by the worker's `worker.job.failed` line (queue
+    `document-destruction`, opaque tenant and outbox event ids), which the operator's alarm watches
+    (H-171; [on-call runbook](../runbooks/on-call.md)), and stays visible as an unpublished
+    `platform.document.destroyed` outbox event with its attempts and error kind.
 - `GET /v1/destruction-certificates` (`platform.retention.manage`, step-up): every certificate,
   newest first (audited as `platform.destruction_certificate.list`). Candidates also carry when the
   document was stored, and its title where the caller may read that category of document (a

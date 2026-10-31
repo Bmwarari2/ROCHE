@@ -4,7 +4,7 @@ Master prompt section 12.3, with section 10.1 (the dependency tool) and 18 (data
 builds rotas, time and attendance and the pay rules engine for care homes
 ([phase-2.md](../plans/phase-2.md), lane C); domiciliary visits and ECM arrive in Phase 4. Payroll
 is integrated, not built (section 12). Slice 5 wrote this specification and the Working Time rules
-(SCHED-003); slice 6 adds the pay rules to section 4, and the schema slices (12, 21, 27, 30, 36,
+(SCHED-003); slice 6 added the pay rules (section 4b), and the schema slices (12, 21, 27, 30, 36,
 40, 44, 46) confirm their tables against section 2. Status per feature:
 [feature register](feature-register.md).
 
@@ -218,19 +218,102 @@ supervision, protection for health and safety, or a recorded reason.
     starts, travel without its journey, a sleep-in without its details, a break outside its
     period, an invalid agreed night time or reference period) is refused, never guessed.
 
-### Pay (slice 6 writes these rules in full)
+### 4b. Pay rules (slice 6: SCHED-005, 006, 007, 009, 010)
 
-- NMW checks per pay reference period, including travel time (rule 11), sleep-in awake time
-  (rule 10) and uniform deductions (`nmw.*`).
-- Holiday accrual for irregular-hours workers with optional rolled-up holiday pay itemised
-  (`holiday.accrual_percentage.irregular_hours`).
-- SSP from day one at the lower of the earnings percentage or the statutory rate (`ssp.*`).
-- Guaranteed-hours and short-notice cancellation payment tracking, ready for 2027 (ADR-0087).
-- AWR 12-week clock (`awr.qualifying_weeks`); auto-enrolment flags (`auto_enrolment.*`).
-- Every pay calculation shows its working and is reproducible from stored inputs; rotas and
-  timesheets are kept 6 years and working-time records 2 years (section 12 rules).
-- A worker without the required DBS result, right to work or competence cannot be rostered to a
-  shift that needs it (section 12 rules; [workforce.md](workforce.md)).
+Pure functions in `packages/domain/src/scheduling/pay/` (ADR-0086). Money is whole pence; every
+result carries its working (one line per step, in words) and a canonical input string the API
+hashes, so a calculation reproduces exactly. Every figure comes from the rate table through
+`resolvePayRates`, and the no-literal test in `rates.test.ts` covers this folder too. Statutory
+figures ignore tenant rows (a lower minimum wage cannot be configured); only tenant defaults, the
+Bradford window today, take a tenant's own figure. Which hours count is section 4's rule:
+`nmwMinutesIn` (rules 10 and 11) gives the minutes the minimum wage check takes. The figures were
+checked on gov.uk, legislation.gov.uk and The Pensions Regulator on 31 October 2026.
+
+1. **Pay rule set** (`pay-rules.ts`). A tenant's versioned set: hourly rates by role, enhancements
+   (a percentage or a flat amount an hour, by kind: night, weekend, bank holiday, overtime), the
+   sleep-in flat allowance, mileage in pence a mile, on-call flat amount per period. Gross pay for
+   timesheet entries applies each in a fixed order and shows each line, with the sleep-in, on-call
+   and mileage amounts kept apart. Several enhancements on the same hours do not stack unless the
+   set says so; the highest applies. Amounts are rounded down to the penny per line.
+2. **NMW per pay reference period** (`nmw.ts`). The rate and the band are those in force on the
+   first day of the period (an April increase or a birthday applies from the next period that
+   starts after it); the band is decided by age on that day (`nmw.age.*`); the apprentice rate
+   applies to an apprentice under `nmw.apprentice.age_limit`, or older and within
+   `nmw.apprentice.first_year_months` of starting. Pay that counts (`nmwPayFromGross`): basic
+   pay and the sleep-in allowance, less overtime and shift premiums above the basic rate, less
+   deductions for the employer's own use (a uniform the worker pays for); mileage (an expense)
+   and an on-call allowance for time at home never count. Accommodation: free accommodation adds
+   `nmw.accommodation_offset.daily` for each day; a charge up to the offset changes nothing; a
+   charge above it takes the excess off. Hours that count: `nmwMinutesIn` over the period (visits,
+   travel between them, a sleep-in's awake times when sleep is expected with suitable facilities,
+   otherwise the whole sleep-in; never home to the first visit, time asleep or rest breaks). What
+   the hours must earn at the band's rate (`nmw.hourly.*`) is rounded up; the shortfall is shown
+   in pence.
+3. **Holiday for irregular-hours and part-year workers** (`holiday.ts`; Working Time Regulations
+   1998 regs 15B and 16A). From leave years starting on or after 1 April 2024: on the last day of
+   each pay period, accrual of `holiday.accrual_percentage.irregular_hours` of the hours worked in
+   it; or, if the tenant chooses rolled-up holiday pay, that percentage of the remuneration for the
+   period (every payment that counts towards a week's pay, so regular enhancements but not
+   mileage), shown as its own line on the payslip and never folded into the hourly rate. The
+   holiday ledger (slice 36) applies the rest of reg 15B: no more than 28 days' accrual in a leave
+   year, and the accrued total rounded to the nearest hour (half an hour or more up); and reg 15C
+   and 16A(4) to (6) during sick or statutory leave (the average over the previous 52 weeks).
+   Applies only where the rate table has a row for the nation (no Northern Ireland row yet).
+4. **SSP** (`ssp.ts`; Social Security Contributions and Benefits Act 1992 ss 152 to 157 as amended
+   by the Employment Rights Act 2025 from 6 April 2026, S.I. 2026/373). Payable from the first day
+   of a period of incapacity for work, which is now one day or more; no waiting days
+   (`ssp.waiting_days`) and no lower earnings limit. The weekly rate is the lower of
+   `ssp.earnings_percentage` of normal weekly earnings and `ssp.weekly`; a day's SSP is the weekly
+   rate divided by the qualifying days in the week, a week beginning on Sunday (s 157(3)).
+   Entitlement ends when the payments reach `ssp.max_weeks` times the weekly rate (s 155(4)), which
+   for a steady pattern is that many weeks of qualifying days. Spells no more than 8 weeks apart
+   are one period of incapacity: the caller passes the days already paid in it. The payment is the
+   exact amount rounded up to the next penny once (SSP (General) Regulations 1982 reg 11). A day on
+   which the employee worked at all is not a sick day. Only where the rate table has the nation's
+   rows (no Northern Ireland row: its law has not changed; H-529).
+5. **Statutory family pay** (`family-pay.ts`). Maternity and adoption: the first
+   `smp.higher_rate_weeks` weeks at `family_pay.earnings_percentage` of average weekly earnings,
+   then the lower of that and the standard rate, for at most `smp.total_weeks` weeks; paternity,
+   shared parental and parental bereavement pay at the lower of the two. Maternity pay's standard
+   rate is `smp.standard_weekly` (from 5 April 2026); the others use `family_pay.standard_weekly`
+   (from 6 April 2026), as gov.uk gives the two dates. Each week's payment is rounded up to the
+   next penny, as each kind's regulations say. Eligibility (service, earnings) is recorded by HR,
+   not decided here.
+6. **AWR** (`awr.ts`; Agency Workers Regulations 2010 reg 7). An agency worker qualifies for equal
+   basic terms after `awr.qualifying_weeks` continuous calendar weeks in the same role with the same
+   hirer; a week counts if any work was done in it. A break keeps the weeks before it only if the
+   break as a whole is covered: any break of up to `awr.break_reset_weeks` weeks; or a break wholly
+   for sickness or injury of up to `awr.sickness_pause_max_weeks` weeks; or wholly for protected
+   leave (pregnancy, maternity, adoption, paternity), other leave, the hirer's shutdown or
+   industrial action, or a mix of those. Otherwise, or in a substantively different role, the clock
+   resets: a sickness break longer than its limit resets it, and so does a long break that is only
+   partly for a covered reason. Pregnancy, maternity, adoption and paternity leave within the
+   assignment's original or likely length counts as weeks worked (reg 7(6)). Jury service (up to
+   28 weeks) is not modelled yet: record it as a covered break until slice 27 adds it.
+7. **Auto-enrolment flags** (`auto-enrolment.ts`; Pensions Act 2008 ss 1 and 3). For a pay
+   reference period of a week or a month: eligible jobholder (aged
+   `auto_enrolment.eligible_min_age` and under state pension age, earnings over the period's
+   earnings trigger), non-eligible jobholder (aged `auto_enrolment.min_age` to
+   `auto_enrolment.max_age` and earnings over the lower level of qualifying earnings, or eligible by
+   earnings but outside the age band), entitled worker (below the lower level). The per-period
+   thresholds are The Pensions Regulator's table. State pension age is an input (it depends on date
+   of birth); the flag never enrols anyone by itself.
+8. **Bradford factor** (`bradford.ts`). Spells of absence (consecutive days merged, and days apart
+   only by days the worker was not due to work) times days, squared spells: S x S x D, over the
+   last `absence.bradford.window_weeks` weeks (a tenant default). The caller leaves out absences
+   that must not count against a worker: pregnancy-related sickness, and absence a reasonable
+   adjustment discounts (Equality Act 2010; slice 40 records why). The score is shown with its
+   working and never triggers an action by itself (no solely automated decision, section 5.1).
+9. **Not in force** (ADR-0087). Guaranteed hours, short-notice cancellation payments and shift notice
+   (Employment Rights Act 2025): Harbour records hours, offers, notice and cancellations, but
+   calculates no entitlement until the regulations commence and the rate table has their rows.
+
+Also from section 12: rotas and timesheets are kept 6 years and working-time records 2 years; a
+worker without the required DBS result, right to work or competence cannot be rostered to a shift
+that needs it ([workforce.md](workforce.md); slice 21).
+
+Tests: `packages/domain/src/scheduling/pay/*.test.ts`, table-driven against the rate table (the
+gate's NMW, holiday and SSP rule tables).
 
 ## 5. API, audit events and outbox events
 
@@ -304,13 +387,25 @@ processing. Retention: `rota_and_timesheet` (6 years), `working_time_record` (2 
   - `working-time.test.ts`: a week checked end to end, in order with citations; the same week in a
     care home as conditions with the compensatory rest owed; dates outside the range; refusals; no
     derogation reaches the 48-hour average or a young worker limit.
+- Domain (built, slice 6), table-driven against the rate table, in
+  `packages/domain/src/scheduling/pay/`: `rates.test.ts` (every figure, money in pence, Northern
+  Ireland without holiday accrual or SSP, figures either side of 1 April 2026, statutory figures
+  never taken from a tenant row), `pay-rules.test.ts`, `nmw.test.ts` (bands, apprentices,
+  29 February, premiums, uniform deductions, free and charged accommodation, rounding),
+  `holiday.test.ts`, `ssp.test.ts` (day one, the lower of the two, rounding up, the entitlement
+  limit), `family-pay.test.ts` (both standard rates and their dates, rounding up),
+  `awr.test.ts` (pauses, resets, sickness over its limit, mixed breaks, deemed working),
+  `auto-enrolment.test.ts`, `bradford.test.ts`, `money.test.ts`, and `hours-to-pay.test.ts`, which
+  feeds section 4's hours (`nmwMinutesIn`: a sleep-in, travel, another employer, a pay reference
+  period boundary) into the minimum wage check. The scheduling `rates.test.ts` fails if a figure
+  appears as a literal in the pay folder (the gate's test).
 - Database (slice 30): RLS and isolation for every table in section 2; append-only grants for
   clock events, awake periods, exceptions, results and compensatory rest.
 - API (slices 21, 30): rota warnings before publishing; results stored with input hash and rate
   rows and reproduced exactly; audit events.
 - Web (slice 60): working time alerts with the regulation and conditions in words (status by icon
   and word), Playwright and axe.
-- The Phase 2 gate needs the NMW, holiday and SSP rule tables to pass (slice 6).
+- The Phase 2 gate's NMW, holiday and SSP rule tables pass (slice 6; extended in slice 36).
 
 ## 10. Open questions
 
@@ -320,6 +415,11 @@ processing. Retention: `rota_and_timesheet` (6 years), `working_time_record` (2 
   workers (rule 9); sleep-ins and home-to-first-visit travel as working time (rules 10, 11); the
   night average's C (rule 8); notice counting (rule 3).
 - Each tenant records its working-time arrangements before relying on the checks (H-581).
+- Pay: the Bradford window is a tenant default (H-583); the remaining pay readings, SSP when the
+  qualifying days change from week to week, which protected-leave weeks the AWR clock deems worked,
+  and the minimum wage treatment of the sleep-in and on-call allowances, are for the adviser
+  (H-585, with H-529). The family pay rates (H-582) and the auto-enrolment thresholds (H-584) were
+  verified on 31 October 2026.
 - The pay decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0013, ADR-0086 to
   ADR-0088, ADR-0097) and the human actions in [human-actions.md](../plans/human-actions.md) (H-518,
   H-519, H-527, H-529, H-539, H-547).
@@ -338,7 +438,8 @@ functions, `nightMinutes` and `youngWorkerUntil`; the rule-group functions in `r
   `NightTime`, `WorkingTimeWorker`, `WorkingTimeSetting`, `WorkingTimeFinding` (rule, citation,
   outcome, conditions, basis, from, to, limit, actual, compensatory rest, period ids),
   `ADULT_DEROGATIONS`, `WORKING_TIME_CITATIONS`.
-- `classification.ts`: `classifyWorkingTime`, `workingMinutes`, `nmwMinutes` (for slice 6).
+- `classification.ts`: `classifyWorkingTime`, `workingMinutes`, `nmwMinutes`, and
+  `nmwMinutesIn(periods, payReferencePeriod)`, the minutes the pay rules' `nmwCheck` takes.
 - `agreements.ts`: `optOutLastDay`, `optOutInForce`, `checkOptOutAgreement`, `checkNightTime`,
   `nightTimeFor`, `weeklyAverageReferenceWeeks`, `nightAverageReferenceWeeks`.
 - `weekly-average.ts`, `rest.ts`, `night.ts`, `young-workers.ts`: one file per rule group.
@@ -354,3 +455,15 @@ Rate rows added: `wtr.reference_period_weeks.special_case`, `wtr.reference_perio
 `wtr.young_worker.until_age_years`, `wtr.young_worker.restricted_*` (4 rows) and
 `wtr.young_worker.weekly_rest_reduced_min_hours`, all verified on legislation.gov.uk on 31 October
 2026.
+
+## 12. As built (slice 6, pay rules)
+
+`packages/domain/src/scheduling/pay/`, exported from `@harbour/domain` (ADR-0086, ADR-0087):
+`resolvePayRates` and `toPence` (`rates.ts`); `percentOf`, `roundUpPence`, `canonicalInput` and
+`formatPounds` (`money.ts`); `grossPay` (`pay-rules.ts`); `nmwBand`, `nmwCheck`, `nmwPayFromGross`
+and `ageOn` (`nmw.ts`); `irregularHoursHoliday` (`holiday.ts`); `sickPay` (`ssp.ts`); `familyPay`
+(`family-pay.ts`); `awrClock` (`awr.ts`); `autoEnrolmentCategory` and `qualifyingEarningsPence`
+(`auto-enrolment.ts`); `bradfordFactor` (`bradford.ts`). Rate rows: `nmw.age.*`,
+`nmw.apprentice.*`, `smp.*`, `family_pay.*`, `awr.break_reset_weeks`,
+`awr.sickness_pause_max_weeks`, the per-period `auto_enrolment.*` thresholds and age bands, and
+`absence.bradford.window_weeks` (tenant default, to verify).

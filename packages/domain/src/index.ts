@@ -96,13 +96,21 @@ export * from "./quality/rates";
 export * from "./quality/statement-of-purpose";
 export * from "./safety/candour";
 export * from "./safety/classifier";
+export * from "./safety/complaints";
+export * from "./safety/deaths";
+export * from "./safety/disclosure";
 export * from "./safety/incident";
 export * from "./safety/medical-examiner";
+export * from "./safety/medication-error";
+export * from "./safety/missing-person";
 export * from "./safety/notifications";
 export * from "./safety/outbreak";
+export * from "./safety/phase2-rates";
 export * from "./safety/post-fall";
 export * from "./safety/questions";
 export * from "./safety/rates";
+export * from "./safety/safeguarding";
+export * from "./safety/whistleblowing";
 export * from "./scheduling/agreements";
 export * from "./scheduling/classification";
 // The rule-group functions take periods prepared inside the module; callers use checkWorkingTime.
@@ -111,6 +119,7 @@ export {
   type NightWorkerAssessment,
   nightMinutes,
 } from "./scheduling/night";
+export * from "./scheduling/pay";
 export * from "./scheduling/rates";
 export * from "./scheduling/weekly-average";
 export * from "./scheduling/working-time";
