@@ -55,13 +55,33 @@ Security, accessibility and clinical safety reviews.
 - `docs/specs/care.md`: the route's permissions, removed records and `latestChanged`.
 - Seven new strings in `en-GB.json`, copied into `cy.json` and listed as untranslated.
 
+## Review round 2
+
+Security re-review: OK to merge, with these fixed on the branch.
+
+- `GET /v1/people/{id}/history` read a removed person's versions: row-level security
+  (`app.person_in_scope`) and retention do not hide a soft-deleted person. It now applies the same
+  rule as a care record's history: 404 unless the reader may use `platform.audit.read` and it
+  reaches the person without break-glass.
+- That rule is one check (`mayReadRemoved` in `apps/api/src/services/record-history.ts`): the
+  permission usable now (MFA and step-up met, `refusalOf`), and its own scope, break-glass off,
+  reaching the person; it replaces the call that worked out every permission reaching the person.
+- When the record or person was removed and the reader may see it, the audit event's scope carries
+  `removed: true`, nothing of the content.
+- `apps/api/test/record-history-access.test.ts`: a member whose care plan permission reaches a
+  resident at Harbour House but whose audit permission reaches only Harbour Lodge gets 404 for the
+  House resident's removed record and removed person, and 200 for the Lodge's; a member without
+  the audit permission who opened the Lodge resident by break-glass gets 404 for both; the demo
+  Registered Manager reads the House ones only.
+- `docs/specs/care.md`: a care plan and a DoLS authorisation are never removed on their own, so a
+  section, an action or a legal-change review is checked by its own row; a route that ever removes
+  a parent must remove its children or extend the check.
+
 ## Found, not fixed here
 
 - Likelihood and severity show as numbers, not the scale's labels (`LIKELIHOOD_LABELS`,
   `SEVERITY_LABELS`).
 - Consent and DoLS outcomes, a consent's capacity status and other coded fields show as stored.
-- `GET /v1/people/{id}/history` does not check the person's `deleted_at` (a removed person is
-  handled by retention and RLS, not reviewed here).
 
 ## What is next
 
@@ -74,7 +94,9 @@ Security, accessibility and clinical safety reviews.
 ## Tests
 
 - `pnpm exec vitest run src/lib/history.test.ts` in `apps/web` (13 passing).
-- `pnpm exec vitest run test/record-history.test.ts test/care-follow-ups.test.ts test/api.test.ts
-  test/care-planning.test.ts test/mca.test.ts test/people-lifecycle.test.ts` in `apps/api`
-  (357 passing), run locally on Postgres 16 (the stack is 17).
+- `pnpm exec vitest run test/record-history.test.ts test/record-history-access.test.ts
+  test/care-follow-ups.test.ts test/api.test.ts test/care-planning.test.ts test/mca.test.ts
+  test/people-lifecycle.test.ts` in `apps/api` (360 passing), and `test/scope-per-permission.test.ts
+  test/route-gates.test.ts test/break-glass-search.test.ts` (46 passing), run locally on Postgres
+  16 (the stack is 17).
 - `history.spec.ts` passes locally against the dev servers, with axe in both themes.

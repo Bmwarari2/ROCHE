@@ -34,7 +34,7 @@ import { publish } from "../outbox";
 import { BREAK_GLASS_ALERT_UNROUTED_ACTION } from "../services/break-glass-report";
 import { resuscitationFor } from "../services/care-planning";
 import { contentHeaders, readDocumentContent } from "../services/documents";
-import { latestChanged } from "../services/record-history";
+import { latestChanged, mayReadRemoved } from "../services/record-history";
 import { roleHolders } from "../services/role-holders";
 import { staffNames } from "../services/staff";
 import { createRouter, errorResponses, jsonBody, notFoundResponse, security } from "./openapi";
@@ -288,10 +288,19 @@ export const peopleRouter = createRouter()
         // The row as stored, in the shape the version trigger keeps (to_jsonb of the row), only to
         // work out what the latest change altered; it is never sent.
         const [visible] = await tx
-          .select({ id: person.id, data: sql<Record<string, unknown>>`to_jsonb(${person})` })
+          .select({
+            id: person.id,
+            deletedAt: person.deletedAt,
+            data: sql<Record<string, unknown>>`to_jsonb(${person})`,
+          })
           .from(person)
           .where(eq(person.id, id));
         if (!visible) return null;
+        // A removed person is gone from every ordinary read (row-level security and retention do
+        // not hide one); their history stays for whoever may read the audit log and record history
+        // for them (security review round 2).
+        const removed = visible.deletedAt !== null;
+        if (removed && !(await mayReadRemoved(tx, access, id))) return null;
         const versions = await tx
           .select()
           .from(recordVersion)
@@ -302,6 +311,8 @@ export const peopleRouter = createRouter()
           resourceType: "person",
           resourceId: id,
           requestId: c.get("requestId"),
+          // Says the person had been removed when the history was read, nothing of its content.
+          ...(removed ? { scopeExtra: { removed: true } } : {}),
         });
         const staff = await staffNames(
           tx,

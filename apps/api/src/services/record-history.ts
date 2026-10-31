@@ -4,6 +4,31 @@
  * through its own route, under that route's permission (security review round 1, data minimisation).
  */
 
+import { person, type Transaction } from "@harbour/db";
+import { scopeFor } from "@harbour/domain";
+import { eq } from "drizzle-orm";
+import { inScopeOf, refusalOf, type TenantAccess } from "../http/context";
+
+/**
+ * Whether the reader may see a removed (soft-deleted) record's history: they may use
+ * `platform.audit.read` ("Read the audit log and record history") now, MFA and any step-up met, and
+ * their roles and grants for it reach the person, never by break-glass (security review rounds 1
+ * and 2). Every ordinary read of a removed record finds nothing.
+ */
+export async function mayReadRemoved(
+  tx: Transaction,
+  access: TenantAccess,
+  personId: string,
+): Promise<boolean> {
+  if (refusalOf(access, "platform.audit.read") !== null) return false;
+  const scope = scopeFor(access.effective, "platform.audit.read");
+  if (scope.scope === "none") return false;
+  return inScopeOf(tx, { ...scope, includesBreakGlass: false }, async () => {
+    const [row] = await tx.select({ id: person.id }).from(person).where(eq(person.id, personId));
+    return row !== undefined;
+  });
+}
+
 /** Two stored (jsonb) values are the same, whatever the order of an object's keys. */
 export function sameStored(a: unknown, b: unknown): boolean {
   if (a === b) return true;

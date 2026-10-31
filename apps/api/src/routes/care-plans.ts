@@ -58,13 +58,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { auditInTx } from "../http/audit";
-import {
-  type AppEnv,
-  permissionsReaching,
-  requirePermission,
-  type TenantAccess,
-  withTenant,
-} from "../http/context";
+import { type AppEnv, requirePermission, type TenantAccess, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { publish } from "../outbox";
 import { completeOpenTasks, personContext } from "../services/care";
@@ -75,7 +69,7 @@ import {
   REVIEW_TASKS,
 } from "../services/care-planning";
 import { syncPlanTaskSeries } from "../services/plan-tasks";
-import { latestChanged } from "../services/record-history";
+import { latestChanged, mayReadRemoved } from "../services/record-history";
 import { type StaffLookup, staffNames } from "../services/staff";
 import {
   iso,
@@ -1384,13 +1378,11 @@ export const carePlansRouter = createRouter()
           .where(eq(source.id, recordId));
         if (!record || record.personId !== personId) throw problems.notFound();
         // A removed record is gone from every ordinary read; its history stays for whoever may
-        // read the audit log and record history for this person.
-        if (record.deletedAt !== null) {
-          const reaching = await permissionsReaching(tx, access, personId, {
-            withoutBreakGlass: true,
-          });
-          if (!reaching.has("platform.audit.read")) throw problems.notFound();
-        }
+        // read the audit log and record history for this person. A care plan and a DoLS
+        // authorisation are never removed alone (docs/specs/care.md), so a section, an action or a
+        // legal-change review is checked by its own row.
+        const removed = record.deletedAt !== null;
+        if (removed && !(await mayReadRemoved(tx, access, personId))) throw problems.notFound();
         const rows = await tx
           .select()
           .from(recordVersion)
@@ -1400,6 +1392,8 @@ export const carePlansRouter = createRouter()
           action: "care.history.view",
           resourceType: table,
           resourceId: recordId,
+          // Says the record had been removed when it was read, nothing of its content.
+          ...(removed ? { scopeExtra: { removed: true } } : {}),
         });
         const staff = await staffNames(
           tx,
