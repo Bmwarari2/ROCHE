@@ -99,6 +99,25 @@ Approved phrases say what happened, never how the person is. Notifications carry
 generic line and a link only. Nothing interprets, scores or predicts
 ([comms.md](../specs/comms.md) rules 7 to 13).
 
+**Medicines record and reconciliation (Phase 2, slice 2)**: these stay inside the boundary and add
+no score or recommendation (`packages/domain/src/medicines/`; [medicines.md](../specs/medicines.md)
+rules 1 to 12). A dose is transcribed exactly as prescribed, as a number and a unit dm+d permits for
+the product; Harbour checks how it is written (a zero before the point, no trailing zero, micrograms,
+nanograms and units in full) and never calculates, converts or range-checks it. Schedules are the
+prescribed wall-clock times expanded over the MAR cycle; Harbour suggests no time and no gap, and
+when a clock change brings two prescribed times together it keeps both doses and flags them for
+the nurse in charge rather than choosing. In a reconciliation a person decides every medicine on
+the MAR and every line in the sources; Harbour never infers a stop from a medicine missing from a
+letter, never pairs a line with an entry itself, and shows a difference on a link the person made by
+dm+d identity only (another VMP, another brand of the same VMP, or not coded), never by comparing
+ingredients; a medicine started while an entry for the same VMP continues is flagged as a possible
+duplicate by that identity alone, and another product with the same ingredient is never flagged
+(#135 review). Which sources can show that a medicine continues is a record-keeping rule about the
+document (the discharge letter, a prescription or the GP record), not a judgement about the
+medicine. Allergies in the sources are compared with the recorded allergies by the person, who
+confirms it; Harbour matches no allergen (the section 6 grey area, decided in ADR-0082 with slice 3).
+The time-critical and minimum-interval rules (ADR-0082) are slice 3's and are not in this slice.
+
 **Dependency tool and required care hours (Phase 2, slice 12)**: these stay inside the boundary and add no score. The dependency scale is the organisation's own tool ([scheduling.md](../specs/scheduling.md) section 13): the organisation writes its shift periods, its categories with care minutes per period, its skill-mix minimums and its review interval, and a second member approves each version. A member of staff chooses each person's category from that scale and records why and who decided; Harbour never proposes, derives or checks a category from care records, observations or assessments. The required care hours for a shift are the organisation's own figures added up for the people living at the location (`staffingRequirement` in `packages/domain/src/scheduling/dependency.ts`), with the method shown step by step, the scale's name, version and approval as the source, and the notice "These hours come from your organisation's own dependency scale. Harbour adds up the figures your organisation set; it does not assess anyone's needs or judge safe staffing." The comparison with the rota (`compareStaffing`, shown by slices 21 and 59) says only whether the rota's hours and skills reach the organisation's figures, in its own words; it carries no score, risk level, prediction or recommendation, and never blocks a rota. A test asserts the result has no score or risk field (HZ-123). The scale is not a validated tool and is never labelled as one. The CSO confirms this reading (H-710).
 
 **Regulatory opinion needed** `[human action]`: MHRA guidance indicates that software performing calculations that inform clinical decisions can be a medical device. Thapsus's position is that reproducing a published paper tool exactly, with every sub-score and the banding visible so the user can verify it, and leaving the response to the provider's own policy, is a record-keeping aid. This position should be confirmed by regulatory advice before the Phase 1 tools are used by a live tenant.
