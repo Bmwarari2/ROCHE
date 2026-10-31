@@ -87,6 +87,10 @@ export function problemMessage(error: unknown, t: Translator): Problem {
     }
     case "feature_disabled":
       return { code, message: detail || t("care.errors.featureDisabled") };
+    // A finished duty of candour record's decision changed without reopening it first (#120
+    // review round 3, H1): the page offers reopening it with a reason.
+    case "candour_finished":
+      return { code, message: t("care.refusal.candourFinished") };
     case "version_conflict":
       return { code, message: t("care.errors.conflict") };
     // A save sent again with its id kept, after the first reached Harbour, but with other details

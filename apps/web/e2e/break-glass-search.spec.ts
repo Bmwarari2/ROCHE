@@ -20,7 +20,7 @@ async function fill(page: Page, reason: string) {
   const d = dialog(page);
   await d.getByLabel("Full name or NHS number").fill("Una Example");
   await d.getByLabel("Why you need to find them").selectOption({ label: "Emergency care" });
-  await d.getByLabel("Reason", { exact: true }).fill(reason);
+  await d.getByLabel("Explain in your own words").fill(reason);
 }
 
 test("hazard HZ-011 hazard HZ-001 a manager finds a resident of another home with break-glass, identity only", async ({

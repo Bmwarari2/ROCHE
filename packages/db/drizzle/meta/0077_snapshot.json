@@ -1,6 +1,6 @@
 {
-  "id": "d8d66ece-6f12-4fb0-ba52-ba6797f3a719",
-  "prevId": "bd761bd6-72ae-4291-9ce9-a8e908bdcb3d",
+  "id": "146c210b-7289-463d-a4ed-82f87b109a1a",
+  "prevId": "6e56589c-daad-4a53-930e-e53b50f3d766",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7390,6 +7390,10 @@
         "dsar_case_bundle": {
           "name": "dsar_case_bundle",
           "value": "(bundle_sha256 IS NULL) = (bundle_issued_at IS NULL)\n        AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)\n        AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')"
+        },
+        "dsar_case_bundle_key": {
+          "name": "dsar_case_bundle_key",
+          "value": "bundle_storage_key IS NULL OR bundle_storage_key ~ ('^dsar/tenants/' || tenant_id::text || '/' || id::text || '/[0-9a-f-]{36}[.]json$')"
         },
         "dsar_case_identity_first": {
           "name": "dsar_case_identity_first",
@@ -27593,6 +27597,421 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.compliance_item": {
+      "name": "compliance_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "staff_profile_id": {
+          "name": "staff_profile_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "detail": {
+          "name": "detail",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_on": {
+          "name": "verified_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_by": {
+          "name": "verified_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "risk_assessment_signed_on": {
+          "name": "risk_assessment_signed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "risk_assessment_signed_by": {
+          "name": "risk_assessment_signed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_on": {
+          "name": "expires_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recheck_due_on": {
+          "name": "recheck_due_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "compliance_item_reminder_idx": {
+          "name": "compliance_item_reminder_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recheck_due_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "compliance_item_profile_fk": {
+          "name": "compliance_item_profile_fk",
+          "tableFrom": "compliance_item",
+          "tableTo": "staff_profile",
+          "columnsFrom": [
+            "tenant_id",
+            "staff_profile_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "compliance_item_verified_by_fk": {
+          "name": "compliance_item_verified_by_fk",
+          "tableFrom": "compliance_item",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "verified_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "compliance_item_risk_assessment_signed_by_fk": {
+          "name": "compliance_item_risk_assessment_signed_by_fk",
+          "tableFrom": "compliance_item",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "risk_assessment_signed_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "compliance_item_tenant_id_id_key": {
+          "name": "compliance_item_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "compliance_item_kind_key": {
+          "name": "compliance_item_kind_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "staff_profile_id",
+            "kind"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "compliance_item_kind": {
+          "name": "compliance_item_kind",
+          "value": "kind IN ('identity_with_photo', 'dbs_certificate', 'conduct_in_care_work', 'references', 'relevant_qualifications', 'employment_history', 'health_fitness', 'right_to_work', 'professional_registration')"
+        },
+        "compliance_item_detail": {
+          "name": "compliance_item_detail",
+          "value": "jsonb_typeof(detail) = 'object' AND detail->>'kind' = kind"
+        },
+        "compliance_item_verified": {
+          "name": "compliance_item_verified",
+          "value": "(verified_on IS NULL) = (verified_by IS NULL)"
+        },
+        "compliance_item_risk_assessment": {
+          "name": "compliance_item_risk_assessment",
+          "value": "(risk_assessment_signed_on IS NULL) = (risk_assessment_signed_by IS NULL)\n        AND (risk_assessment_signed_on IS NULL OR kind = 'dbs_certificate')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.staff_profile": {
+      "name": "staff_profile",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "tenant_user_id": {
+          "name": "tenant_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "job_title": {
+          "name": "job_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pathway_category": {
+          "name": "pathway_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registration_body": {
+          "name": "registration_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_care_work": {
+          "name": "previous_care_work",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "starts_on": {
+          "name": "starts_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "left_on": {
+          "name": "left_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "staff_profile_tenant_user_fk": {
+          "name": "staff_profile_tenant_user_fk",
+          "tableFrom": "staff_profile",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "tenant_user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "staff_profile_location_fk": {
+          "name": "staff_profile_location_fk",
+          "tableFrom": "staff_profile",
+          "tableTo": "location",
+          "columnsFrom": [
+            "tenant_id",
+            "location_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "staff_profile_tenant_id_id_key": {
+          "name": "staff_profile_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        },
+        "staff_profile_member_key": {
+          "name": "staff_profile_member_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "tenant_user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "staff_profile_registration_body": {
+          "name": "staff_profile_registration_body",
+          "value": "registration_body IS NULL OR registration_body IN ('nmc', 'hcpc', 'swe', 'gmc')"
+        },
+        "staff_profile_job_title": {
+          "name": "staff_profile_job_title",
+          "value": "length(btrim(job_title)) BETWEEN 2 AND 120"
+        },
+        "staff_profile_left_after_start": {
+          "name": "staff_profile_left_after_start",
+          "value": "left_on IS NULL OR starts_on IS NULL OR left_on >= starts_on"
+        }
+      },
       "isRLSEnabled": false
     }
   },

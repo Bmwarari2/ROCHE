@@ -127,6 +127,56 @@ export async function moveWorkflow<S extends string>(
 }
 
 /**
+ * Takes a finished instance back to an unfinished state of its definition, with the reason kept on
+ * the append-only transition (#120 review round 3, H1). Not a transition of the definition: the
+ * module decides when a finished record may be reopened and checks the reason first. Refused when
+ * the instance is not finished or the state is not one of the definition's unfinished states.
+ */
+export async function reopenWorkflow<S extends string>(
+  tx: Transaction,
+  definition: WorkflowDefinition<S>,
+  subject: WorkflowSubject,
+  to: S,
+  reason: string,
+  now = new Date(),
+  /** For a workflow whose deadline is kept on the record: the record's deadline again. */
+  recordDeadline: Date | null = null,
+) {
+  if (!definition.states.includes(to) || definition.terminal.includes(to)) {
+    throw new WorkflowMoveRefused("no_such_transition", "That is not a state to reopen to.");
+  }
+  const [instance] = await tx
+    .select()
+    .from(workflowInstance)
+    .where(
+      and(
+        eq(workflowInstance.subjectType, subject.subjectType),
+        eq(workflowInstance.subjectId, subject.subjectId),
+        eq(workflowInstance.definitionKey, definition.key),
+      ),
+    )
+    .for("update");
+  if (!instance || !definition.terminal.includes(instance.state as S)) {
+    throw new WorkflowMoveRefused("no_such_transition", "This record is not finished.");
+  }
+  const [updated] = await tx
+    .update(workflowInstance)
+    .set({ state: to, enteredStateAt: now, slaDueAt: recordDeadline })
+    .where(eq(workflowInstance.id, instance.id))
+    .returning();
+  await tx.insert(workflowTransition).values({
+    instanceId: instance.id,
+    personId: instance.personId,
+    fromState: instance.state,
+    toState: to,
+    reason,
+    stepUp: false,
+    occurredAt: now,
+  });
+  return updated ?? instance;
+}
+
+/**
  * Writes the record's deadline onto its workflow instance, for a workflow whose deadline is kept
  * on the record (`deadlineOnRecord`): the module calls this whenever it starts or changes that
  * clock, in its own transaction, so the approvals list reads it without joining the module's

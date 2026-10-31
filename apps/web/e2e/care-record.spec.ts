@@ -547,7 +547,9 @@ test("keyboard only: move between tabs and record a body map mark with the area 
   await expect(markType).toHaveValue("rash");
   await tabTo(page, form.getByRole("button", { name: "Save mark" }));
   await page.keyboard.press("Enter");
-  const saved = form.getByText("Mark saved", { exact: true });
+  const saved = form.getByText("Mark saved. Any follow-up tasks will appear on the task list.", {
+    exact: true,
+  });
   await expect(saved).toBeVisible();
   await expect(saved).toBeFocused();
   await expectAccessible(page, "body map by keyboard");

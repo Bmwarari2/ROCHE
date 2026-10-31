@@ -61,6 +61,7 @@ CREATE TABLE "dsar_case" (
 	CONSTRAINT "dsar_case_bundle" CHECK ((bundle_sha256 IS NULL) = (bundle_issued_at IS NULL)
         AND (bundle_sha256 IS NULL) = (bundle_storage_key IS NULL)
         AND (bundle_sha256 IS NULL OR bundle_sha256 ~ '^[0-9a-f]{64}$')),
+	CONSTRAINT "dsar_case_bundle_key" CHECK (bundle_storage_key IS NULL OR bundle_storage_key ~ ('^dsar/tenants/' || tenant_id::text || '/' || id::text || '/[0-9a-f-]{36}[.]json$')),
 	CONSTRAINT "dsar_case_identity_first" CHECK (NOT identity_required OR identity_verified_on IS NOT NULL
         OR (bundle_sha256 IS NULL AND (outcome IS NULL OR outcome IN ('refused', 'withdrawn'))))
 );
@@ -193,3 +194,11 @@ CREATE TRIGGER touch_mutable BEFORE UPDATE ON public.dsar_item
 --> statement-breakpoint
 CREATE TRIGGER capture_version AFTER UPDATE ON public.dsar_item
   FOR EACH ROW EXECUTE FUNCTION app.capture_version();
+--> statement-breakpoint
+-- The versioning trigger keeps earlier versions of cases and items in record_version, which members
+-- otherwise read for history: those copies follow the DSAR rule too (#149 re-check L2).
+CREATE POLICY record_version_dsar ON public.record_version AS RESTRICTIVE FOR SELECT
+  TO harbour_app, harbour_owner
+  USING (table_name NOT IN ('dsar_case', 'dsar_item')
+    OR app.holds_role_permission_at('quality.dsar.manage', NULL)
+    OR (app.current_user_id() IS NULL AND app.current_scope() = 'tenant'));

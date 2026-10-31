@@ -8,11 +8,13 @@ import {
   checkComplaintClosure,
   complaintClock,
   DATA_RIGHTS_RATE_KEYS,
+  DSAR_NOT_SEARCHED,
   type DsarInput,
   dsarClock,
   resolveDataRightsRates,
   resolveOptionalRate,
 } from "./data-rights";
+import { EXPORT_TABLES } from "./export-catalogue";
 import type { RateRow } from "./rates";
 
 /**
@@ -478,5 +480,16 @@ describe("resolveDataRightsRates", () => {
     expect(
       resolveOptionalRate(rows, "dp_complaint.acknowledge_days", "england", "2026-07-01", null),
     ).toBe(30);
+  });
+});
+
+describe("subject access collection: what it does not search (ADR-0089)", () => {
+  it("lists every personal table of the speak-up silo as not searched, in words", () => {
+    const silo = Object.entries(EXPORT_TABLES)
+      .filter(([name, t]) => name.startsWith("public.speak_up_") && t.personal)
+      .map(([name]) => name)
+      .sort();
+    expect(DSAR_NOT_SEARCHED.flatMap((e) => e.tables).sort()).toEqual(silo);
+    for (const entry of DSAR_NOT_SEARCHED) expect(entry.reason).toMatch(/^Not searched: /);
   });
 });

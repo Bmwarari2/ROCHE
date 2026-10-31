@@ -423,7 +423,13 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
       "current_scope() = 'tenant'",
       "ARRAY['tenant'",
       "current_user_id() IS NULL",
+      // app.is_system() is `current_user_id() IS NULL AND current_scope() = 'tenant'`: the
+      // organisation's own context the collector reads in (`asOrganisation`), so a policy with it
+      // as an alternative hides nothing from the search (staff_profile and HR documents, 0073).
+      "is_system()",
       "handover_whole",
+      // No member and the whole organisation: exactly the collector's read (migration 0057).
+      "is_system()",
       // Outside the family portal, these read through person_visible, which passes for any person
       // the organisation-wide read can see.
       "person_visible(",
@@ -445,5 +451,50 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
     expect(memberDependent.filter((t) => searched.has(t))).toEqual(
       Object.keys(DSAR_MEMBER_SCOPED_TABLES).sort(),
     );
+  });
+});
+
+describe("#149 re-check: the bundle's key, and earlier versions of cases", () => {
+  it("L3: a bundle key must belong to this case of this organisation", async () => {
+    const id = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await expect(
+      asLead((c) =>
+        c.query(
+          `UPDATE dsar_case SET identity_required = false, bundle_sha256 = repeat('a', 64),
+             bundle_issued_at = now(), bundle_storage_key = $2 WHERE id = $1`,
+          [id, `dsar/tenants/${TENANT_B}/${id}/0199e000-0000-7000-8000-000000000001.json`],
+        ),
+      ),
+    ).rejects.toThrow(/dsar_case_bundle_key/);
+    await expect(
+      asLead((c) =>
+        c.query(
+          `UPDATE dsar_case SET identity_required = false, bundle_sha256 = repeat('a', 64),
+             bundle_issued_at = now(), bundle_storage_key = $3 WHERE id = $1 AND tenant_id = $2`,
+          [
+            id,
+            TENANT_A,
+            `dsar/tenants/${TENANT_A}/${id}/0199e000-0000-7000-8000-000000000001.json`,
+          ],
+        ),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("L2: earlier versions of a case are hidden from members without the organisation-wide role", async () => {
+    const id = (await asLead((c) => newCase(c))).rows[0]?.id as string;
+    await asLead((c) => c.query("UPDATE dsar_case SET channel = 'phone' WHERE id = $1", [id]));
+    const lead = await asLead((c) =>
+      c.query("SELECT 1 FROM record_version WHERE table_name = 'dsar_case' AND record_id = $1", [
+        id,
+      ]),
+    );
+    expect(lead.rows.length).toBeGreaterThan(0);
+    const carer = await asCarer((c) =>
+      c.query("SELECT 1 FROM record_version WHERE table_name = 'dsar_case' AND record_id = $1", [
+        id,
+      ]),
+    );
+    expect(carer.rows).toEqual([]);
   });
 });

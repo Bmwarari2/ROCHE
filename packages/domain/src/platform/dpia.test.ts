@@ -107,7 +107,7 @@ describe("DPIA prefill", () => {
       cqcProviderId: "1-000000001",
     });
     expect(draft.sections.find((s) => s.key === "purposes")?.prefilled).toEqual({
-      purposes: ["B1", "B2", "B3", "B4", "B5", "B6", "B7"],
+      purposes: ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B16"],
     });
     expect(draft.missingConfig).toEqual([]);
     expect(draft.risks.map((r) => r.id)).toEqual([

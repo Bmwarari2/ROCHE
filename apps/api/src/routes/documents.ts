@@ -25,6 +25,7 @@ import {
   checkSignature,
   type DocumentCategoryKey,
   documentStorageKey,
+  type GeneralDocumentCategory,
   narrowestScope,
   type Permission,
   type RetentionRule,
@@ -58,6 +59,7 @@ import {
   storeDocument,
   toDocumentItems,
 } from "../services/documents";
+import { policyDocumentUse } from "../services/policies";
 import {
   conflictResponse,
   createRouter,
@@ -73,7 +75,7 @@ import {
  * about a person need the person's permissions and follow their scope.
  */
 
-const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
+const UPLOAD_PERMISSION: Record<GeneralDocumentCategory, Permission> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   care_attachment: "care.note.write",
@@ -85,7 +87,7 @@ const UPLOAD_PERMISSION: Record<DocumentCategoryKey, Permission> = {
 
 const RETENTION_PERMISSION: Permission = "platform.retention.manage";
 const binary = z.string().meta({ format: "binary" });
-const fileBody = {
+export const fileBody = {
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -95,7 +97,7 @@ const fileBody = {
   },
   required: true,
 } as const;
-const fileResponse = (description: string) => ({
+export const fileResponse = (description: string) => ({
   content: {
     "image/jpeg": { schema: binary },
     "image/png": { schema: binary },
@@ -117,7 +119,7 @@ const RECORD_READ: Permission = "people.person.read";
  * is about no one and is read by any member of the organisation, as before: staff must be able to
  * open the escalation and other policies they follow (HZ-014).
  */
-export const DOCUMENT_READ_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+export const DOCUMENT_READ_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.read",
   feed_photo: "people.person.read",
   person_document: "people.person.read",
@@ -144,7 +146,7 @@ const ORGANISATION_SUBJECT_TYPES: ReadonlySet<string> = new Set([
  * signature is a write, so it needs the category's update permission where it reaches the person,
  * never only a read permission (which a break-glass record can open).
  */
-const SIGN_PERMISSION: Record<DocumentCategoryKey, Permission | null> = {
+const SIGN_PERMISSION: Record<GeneralDocumentCategory, Permission | null> = {
   person_photo: "people.person.update",
   feed_photo: "comms.feed.publish",
   person_document: "people.person.update",
@@ -190,7 +192,8 @@ async function requireRead(
 ): Promise<TenantAccess> {
   if (organisationDocument(row)) return c.get("access");
   if (!servable(row)) throw problems.notFound();
-  const permission = DOCUMENT_READ_PERMISSION[row.category as DocumentCategoryKey] ?? RECORD_READ;
+  const permission =
+    DOCUMENT_READ_PERMISSION[row.category as GeneralDocumentCategory] ?? RECORD_READ;
   const access = await requirePermission(c, RECORD_READ);
   return permission === RECORD_READ ? access : requirePermission(c, permission);
 }
@@ -205,8 +208,14 @@ async function documentForRead(c: Context<AppEnv>, id: string) {
   useScopeOf(c, RECORD_READ);
   const found = await withTenant(c, (tx) => findDocument(tx, id));
   if (!found) throw problems.notFound();
-  // A document about no one is served only as an organisation's document (review round 2).
-  if (organisationDocument(found)) return found;
+  // A document about no one is served only as an organisation's document (review round 2), and a
+  // policy's PDF only while its version is in force (HZ-128): a draft's, a superseded or a
+  // retired version's is opened through the policy library, which says so.
+  if (organisationDocument(found)) {
+    const use = await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]));
+    if (use.get(found.id) === "not_in_force") throw problems.notFound();
+    return found;
+  }
   if (!servable(found)) throw problems.notFound();
   await requireRead(c, found);
   const row = await withTenant(c, (tx) => findDocument(tx, id));
@@ -245,6 +254,10 @@ export const documentsRouter = createRouter()
     }),
     async (c) => {
       const q = c.req.valid("query");
+      // HR-only staff documents go only through the staff file (workforce.md section 5).
+      if (q.category === "staff_hr_document") {
+        throw problems.invalid("Add HR-only staff documents from the worker's staff file.");
+      }
       const access = await requirePermission(c, UPLOAD_PERMISSION[q.category]);
       // The logo is set with the branding route, which also puts it in the shell (PLAT-002).
       if (q.category === "organisation_logo") {
@@ -367,9 +380,17 @@ export const documentsRouter = createRouter()
           ]);
           perCategory.push(...(await inScopeOf(tx, scope, () => query(category).limit(500))));
         }
-        const rows = personId
+        const listed = personId
           ? perCategory.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 500)
           : await query(q.category).limit(500);
+        // HZ-128: a policy PDF not in force is listed only by the policy library.
+        const use = personId
+          ? new Map<string, string>()
+          : await policyDocumentUse(
+              tx,
+              listed.map((d) => d.id),
+            );
+        const rows = listed.filter((d) => use.get(d.id) !== "not_in_force");
         await auditInTx(tx, access, {
           action: "platform.document.list",
           resourceType: "document",
@@ -453,9 +474,15 @@ export const documentsRouter = createRouter()
       const found = await withTenant(c, (tx) => findDocument(tx, id));
       // A document of a person's category that names no person is not found (review round 3).
       if (!found || found.status === "destroyed" || !servable(found)) throw problems.notFound();
+      // A policy's PDF changes only by a new policy version (HZ-128).
+      if ((await withTenant(c, (tx) => policyDocumentUse(tx, [found.id]))).size > 0) {
+        throw problems.conflict(
+          "This file is a policy's content. Change it as a new policy version.",
+        );
+      }
       const access = await requirePermission(
         c,
-        UPLOAD_PERMISSION[found.category as DocumentCategoryKey],
+        UPLOAD_PERMISSION[found.category as GeneralDocumentCategory],
       );
       const previous = await withTenant(c, (tx) => findDocument(tx, id));
       if (!previous || previous.status === "destroyed" || !servable(previous)) {
@@ -517,7 +544,7 @@ export const documentsRouter = createRouter()
       // Signing a document about a person is a write: its category's update permission must reach
       // the person, found again in that narrowed scope; a break-glass record never opens it
       // (review round 2, S2-M1). An organisation's document is signed by any member, as before.
-      const sign = SIGN_PERMISSION[read.category as DocumentCategoryKey] ?? null;
+      const sign = SIGN_PERMISSION[read.category as GeneralDocumentCategory] ?? null;
       let row = read;
       if (read.personId !== null) {
         if (sign === null) throw problems.notFound();
@@ -760,7 +787,8 @@ export const documentsRouter = createRouter()
         // A title is shown only where the caller may read that category of document (a person's
         // record needs its own read permissions); otherwise the page says the category alone.
         const mayRead = (category: string) => {
-          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          // HR-only staff documents have no entry here, so they read as undefined: never titled.
+          const permission = DOCUMENT_READ_PERMISSION[category as GeneralDocumentCategory];
           if (permission === null) return true;
           if (permission === undefined) return false;
           return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;

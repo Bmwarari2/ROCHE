@@ -33,6 +33,8 @@ export interface DsarSubjectMap {
   readonly staff: readonly DsarSubjectColumn[];
   /** Tables with personal data and no column naming a subject: listed in the case, never skipped silently. */
   readonly notSearched: readonly string[];
+  /** Every exported tenant table with personal data, to say per kind of subject what was not searched. */
+  readonly personalTables: readonly string[];
 }
 
 /**
@@ -58,9 +60,11 @@ export function dsarSubjectMap(
   const contact: DsarSubjectColumn[] = [];
   const staff: DsarSubjectColumn[] = [];
   const notSearched: string[] = [];
+  const personalTables: string[] = [];
   for (const [key, def] of Object.entries(tables)) {
     if (def.treatment !== "tenant_rows" || !def.personal) continue;
     const table = key.replace(/^[a-z_]+\./, "");
+    personalTables.push(table);
     let found = false;
     for (const [column, spec] of Object.entries(def.columns)) {
       if (isSecret(spec)) continue;
@@ -84,6 +88,7 @@ export function dsarSubjectMap(
     contact: contact.sort(byTableThenColumn),
     staff: staff.sort(byTableThenColumn),
     notSearched: notSearched.sort(),
+    personalTables: personalTables.sort(),
   };
 }
 
@@ -300,12 +305,14 @@ export function checkNewDsarCase(input: NewDsarCaseInput): NewDsarCaseCheck {
 
 const UUID_SHAPED = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Where an issued bundle is kept: organisation, case and bundle ids only (#149 M3). */
+/** Where an issued bundle is kept: organisation, case and bundle ids only (#149 M3, re-check M1). */
 export function dsarBundleStorageKey(tenantId: string, caseId: string, bundleId: string): string {
   if (![tenantId, caseId, bundleId].every((id) => UUID_SHAPED.test(id))) {
     throw new RangeError("DSAR bundle keys are built from UUIDs only.");
   }
-  return `tenants/${tenantId.toLowerCase()}/dsar/${caseId.toLowerCase()}/${bundleId.toLowerCase()}.json`;
+  // Its own top-level prefix: the exports bucket expires only `tenants/` (exports) after 30 days,
+  // while a bundle is kept with its case (#149 re-check M1).
+  return `dsar/tenants/${tenantId.toLowerCase()}/${caseId.toLowerCase()}/${bundleId.toLowerCase()}.json`;
 }
 
 export type DsarNotSearchedReason = "no_subject_column" | "member_scoped";
@@ -329,7 +336,7 @@ export const DSAR_MEMBER_SCOPED_TABLES: Readonly<Record<string, string>> = {};
 
 const NOT_SEARCHED_GUIDANCE: Record<DsarNotSearchedReason, string> = {
   no_subject_column:
-    "No column in this table names the subject. Search it by hand, following the records collected.",
+    "No column in this table names this kind of subject. Search it by hand, following the records collected.",
   member_scoped:
     "Who can read this table depends on the member reading it, so the search may have missed rows. Search it by hand.",
 };
@@ -340,9 +347,13 @@ export function dsarNotSearched(
   kind: DsarSubjectKind,
   memberScoped: Readonly<Record<string, string>> = DSAR_MEMBER_SCOPED_TABLES,
 ): DsarNotSearched[] {
-  const scoped = [...new Set(map[kind].map((e) => e.table))].filter((t) => t in memberScoped);
+  // Worked out for this kind of subject (#149 re-check M2): every table with personal data that
+  // has no column naming this kind is listed, not only tables that name no subject at all.
+  const searched = new Set(map[kind].map((e) => e.table));
+  const unsearched = map.personalTables.filter((t) => !searched.has(t));
+  const scoped = [...searched].filter((t) => t in memberScoped);
   return [
-    ...map.notSearched.map((table) => ({ table, reason: "no_subject_column" as const })),
+    ...unsearched.map((table) => ({ table, reason: "no_subject_column" as const })),
     ...scoped.map((table) => ({ table, reason: "member_scoped" as const })),
   ]
     .sort((a, b) => a.table.localeCompare(b.table))

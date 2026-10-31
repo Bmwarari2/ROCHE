@@ -756,6 +756,111 @@ question id (as the screens send) or a statement id; an unknown id is refused wi
   evidence pack taking statement and key question ids and refusing others.
 - The evidence pack's API tests use statement ids from version 1.
 
+## 18. Policy library and read-and-sign (slice 25: QUAL-008; migration 0087)
+
+Stores and serves the slice 8 policy rules (section 17.3, rules 25 to 28) in lane E. Screens are
+slice 65. Vendor PDF and structured import, the change log as its own screen, and the starter
+templates (CCTV with the camera and signage register, social media, photography and image consent,
+AI use) are left for slice 65 (section 18.7); a version's content may already be a PDF the
+organisation uploaded.
+
+### 18.1 Schema
+
+Forced row-level security on every table (ADR-0002); all three in the organisation's own data.
+
+| Table | Kind | Columns | Rules |
+| --- | --- | --- | --- |
+| `policy` | mutable, versioned | `policy_key` (`^[a-z][a-z0-9_]{1,63}$`, unique), `title`, `require_second_reviewer` (the tenant's choice for this policy), `retired_at`, `retired_reason` | One row per policy; never deleted |
+| `policy_version` | mutable while a draft, then fixed except its state | `policy_id`, `version_number` (1, 2, 3), `state` (`draft`, `published`, `superseded`, `retired`), `change` (`minor`, `major`; the first version is `major`), `change_summary` (what changed, the change log), `body` (plain text or Markdown, up to 100,000 characters) and or `document_id` (an organisation document, PDF), `roles` (the role keys whose holders must read and sign it), `review_due_on`, `author_id`, `published_by`, `published_on` (UK date), `published_at`, `superseded_at`, `retired_reason` | One draft and at most one published version per policy (unique indexes). Publishing (by the database's guard, in the publisher's own name, by a holder of `quality.policy.manage`, never the author where the policy needs a second reviewer, with a review date after the publication date) supersedes the version before it in the same transaction. Only the state changes after publication |
+| `policy_signature` | append-only | `policy_version_id`, `signer_id`, `signed_at` | One per version and member; in the signer's own name; only on the version in force (published); never changed or deleted |
+
+Retention: `organisation_document` for `policy` and `policy_version` (kept while current, then as
+the organisation's policy, with each version); `policy_signature` is a staff training and
+compliance record, `training_record` (10 years from signing). Reminder tasks follow the record they
+concern.
+
+### 18.2 Permissions
+
+No new permission. `quality.policy.manage` writes, publishes, retires and reads drafts and everyone's
+read-and-sign status (section 17.2). Every member of the organisation reads published, superseded
+and retired versions (staff must be able to open the policies they follow, as organisation
+documents) and signs the version in force; a member sees their own signatures, holders of
+`quality.policy.manage` see all. The database enforces the same (`app.holds_permission_anywhere`).
+
+### 18.3 Rules (as built)
+
+- Required signers (`readAndSignStatus`, rule 26): every member on staff holding, now, a role whose
+  key (or the built-in key it is based on) is in the version's `roles`, from the later of the
+  publication date and the start of that role assignment; a member whose assignments have all ended
+  has left. A `minor` version keeps the signatures on the one it superseded; a `major` one does not.
+- A signature is only on the version in force: signing a draft, a superseded or a retired version
+  is refused, by the API and the database (HZ-128).
+- A superseded or retired version is always served with its state and, for a superseded one, the
+  version that replaced it, so a printed or linked copy says it is not current (HZ-128). The list of
+  policies shows only the version in force.
+- Reminders (rule 27, with the slice 25 reviews): the `policy-reminders` job (hourly) raises a task
+  assigned to each outstanding member (kind `quality.policy_read_and_sign`, the generic title "Read
+  and sign a policy", source the version) on the first run after they become due, then when
+  `policy.read_and_sign.reminder_days` UK days have passed since their last reminder, cancelling
+  the previous one. A reminder is due at the next reminder, so it does not go overdue and escalate;
+  only signing completes it (`EVIDENCE_ONLY_TASK_KINDS`: no task transition closes it); a newer
+  version or retirement cancels it.
+- Review (rule 28): when a version in force is `due_soon` or `overdue` against its review date, one
+  task each (kind `quality.policy_review`, "Review a policy") for the author, else the publisher,
+  else another holder of `quality.policy.manage`, each only while they hold it, once per state;
+  a newer version or retirement ends them.
+- Roles: a version naming a role key the organisation does not have (by a role's key or the
+  built-in key it is based on) is not published.
+- PDFs: a policy's PDF is an organisation document with no subject. The general document routes list
+  and serve it only while its version is in force, and never take a new file version of it;
+  `GET /v1/policies/{id}/versions/{versionId}/document` serves any version's PDF the caller may read,
+  with `x-harbour-policy-state` and, for a superseded one, `x-harbour-policy-in-force`.
+- A policy whose only version is a draft, and the history of drafts, are read only by holders of
+  `quality.policy.manage`.
+
+### 18.4 API
+
+Every change takes `expectedVersion` where it changes a row (409 when stale) and is audited with
+opaque ids only.
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/policies` | any member | Each policy with its version in force (number, change, review status), and whether the caller must sign it and has |
+| `POST /v1/policies` | `quality.policy.manage` | A policy with its first draft |
+| `GET /v1/policies/{id}` | any member | The policy and its versions with the change log; drafts only for holders of manage |
+| `POST /v1/policies/{id}/versions` | `quality.policy.manage` | A new draft (minor or major), from the version in force unless content is given |
+| `PATCH /v1/policies/{id}/versions/{versionId}` | `quality.policy.manage` | Change a draft |
+| `POST /v1/policies/{id}/versions/{versionId}/publish` | `quality.policy.manage` | `checkPolicyPublication`, then publish and supersede the last |
+| `POST /v1/policies/{id}/retire` | `quality.policy.manage` | Retire the policy with a reason (its version in force becomes `retired`) |
+| `POST /v1/policies/{id}/versions/{versionId}/signatures` | any member | Read and sign the version in force |
+| `GET /v1/policies/{id}/versions/{versionId}/read-and-sign` | `quality.policy.manage` | Who must sign, who has and who is outstanding since when (`readAndSignStatus`) |
+| `GET /v1/policies/{id}/versions/{versionId}/document` | any member (drafts: manage) | The version's PDF, with its state in the response headers |
+| `GET /v1/me/policies` | any member | The versions in force the caller must sign and has not |
+
+Audit actions: `quality.policy.created`, `.drafted`, `.edited`, `.published`, `.retired`,
+`.signed`, `.status_viewed`; outbox `quality.policy.published` (policy, version, change).
+
+### 18.5 Clinical safety
+
+HZ-128 (staff follow a superseded policy or procedure) is added to the hazard log by this slice,
+with the controls above and a `hazard HZ-128 ...` test for each.
+
+### 18.6 Tests
+
+- `packages/db/test/policies.test.ts`: another organisation's rows never seen; drafts only for
+  holders of manage; one draft and one published version per policy; publishing supersedes, in the
+  publisher's own name, never the author with a second reviewer; a version fixed once published;
+  signatures only on the version in force, in one's own name, never changed.
+- `apps/api/test/policies.test.ts`: each route's permission and audit; publication checks; minor and
+  major changes against signatures; superseded versions served as such; reminders and review tasks
+  once each, completed by signing and cancelled by a new version.
+
+### 18.7 Left for later
+
+Vendor PDF and structured import (a PDF can already be a version's document), the starter
+templates as drafts, and the change log screen (slice 65); acknowledgement of a policy by people
+outside the staff (not planned).
+
 ## 19. Audit programme and mock inspections (slice 19: QUAL-004; migration 0081)
 
 Schema and API for rules 8 to 15 (section 17). Spec, schema, permission matrix and test list
@@ -825,3 +930,107 @@ out a rating from a score (rule 15).
   default due date and the owner's task; the schedule counting it; a completed audit tagged as
   evidence; mock inspections refused once a later framework version is in force while past audits
   keep theirs; every change and refusal audited.
+
+## 20. Web screens: framework, evidence library and audits (slice 64; QUAL-001, QUAL-002, QUAL-004)
+
+Screens for sections 18 and 19, on the API as it stands (no API change; the contracts export a
+few more inferred types). Branch `feat/web-quality-framework-audits`.
+
+### 20.1 Screens
+
+| Path | Who | Shows and does |
+| --- | --- | --- |
+| `/quality/framework` | Anyone who works with quality evidence (section 18.2) | Framework versions, the one in force marked with an icon and a word |
+| `/quality/framework/[id]` | As above; the mapping for `quality.evidence.manage` | Key questions and statements with the source; the organisation's mapping (local title, owner role, evidence categories per statement) saved as the next version, earlier versions kept |
+| `/quality/framework/[id]/evidence-coverage` | `quality.evidence.manage` | Records per statement in the framework's order; a gap said as "No evidence" with an icon, never sorted away; a summary of how many statements have none |
+| `/quality/framework/[id]/statements/[statementId]` | `quality.evidence.manage` | The records tagged against the statement, removed tags kept with who and why; remove a tag with a reason |
+| `/quality/evidence/tag?recordType&recordId` | `quality.evidence.manage` | A record's tags (removable with a reason) and tagging it against statements of the version in force; reached from an incident (not restricted) and from a completed audit |
+| `/quality/audits` | `quality.audit.manage` | Schedules with the next due date (overdue said with the date), audits in progress, mock inspections and completed audits with their scores |
+| `/quality/audits/templates` | `quality.audit.manage` | The organisation's templates, active or retired; add one from a starter |
+| `/quality/audits/templates/[id]` | `quality.audit.manage` | Questions with weights, the statements each evidences and whether a shortfall needs an action; its schedules; schedule at a location; retire (final, confirmed) |
+| `/quality/audits/new` | `quality.audit.manage` | Start an audit or mock inspection: template, location, date (today or earlier); a mock inspection the API refuses off the framework in force is said in its words |
+| `/quality/audits/[id]` | `quality.audit.manage` at the location | Score with its method, the self-rating with its CQC words, findings by statement, actions with owners and due dates; while in progress the answers form, then completion with an action per shortfall (owner: the auditor, or a member where the reader may list members; due date optional, the tenant default otherwise) and the self-rating as a person's choice; once completed, "Tag as evidence" |
+
+The side bar gains "Framework and evidence" and "Audits". Every browser-handled form posts
+(`method="post"`); every problem is said at its field and in a summary linked to it; arrivals
+focus the page heading and say what was done.
+
+### 20.2 Tests
+
+- `apps/web/src/lib/quality-programme.test.ts`: who sees what; version and coverage statuses;
+  reading the mapping, tag, answers and completion forms; actions only where a required
+  question fell short; the self-rating choices; scores in words.
+- `apps/web/e2e/quality-programme.spec.ts` (Playwright, axe in light and dark on every state):
+  mapping a statement and reading coverage and a statement's evidence; an audit from a starter
+  through scheduling, answers, refused and then accepted completion, and tagging; a mock
+  inspection.
+
+## 18. Data security evidence (slice 32: QUAL-012)
+
+Schema, API and renewal tasks for rules 29 to 31 (section 17.3); the screens are slice 65.
+Migration 0094 (lane E; renumbered at merge). Stacked on slice 20 (the breach register and data
+protection complaints, platform.md rules 18 to 27), which it links to.
+
+### 18.1 Tables
+
+All have `tenant_id`, forced RLS, the tenant policy and restrictive policies binding `harbour_app`
+and `harbour_owner`; the application never deletes.
+
+| Table | Kind | What it holds |
+| --- | --- | --- |
+| `dspt_assertion` | mutable aggregate (`version`) | One DSPT assertion the organisation tracks for a financial year (`2025/26`): its reference as the toolkit numbers it (`1.1.1`), title, status (`not_started`, `in_progress`, `met`, `not_met`, `not_applicable`), notes and an owner |
+| `dspt_evidence` | append-only | Evidence linked to an assertion: an organisation document (never a person's), and later its unlinking, each with who and when; the current evidence is each document's latest event |
+| `dspt_submission` | mutable aggregate | The organisation's DSPT submission for a financial year (one per year): the day submitted, the outcome (`standards_met`, `approaching_standards`, `standards_not_met`) and the toolkit's reference |
+| `security_certificate` | mutable aggregate | A Cyber Essentials, Cyber Essentials Plus or ICO registration record: reference (certificate number or ICO registration number), issued on, the expiry the certificate states (if any), the issuing body and a copy (an organisation document) |
+
+### 18.2 Rules
+
+32. Everything needs `quality.dsar.manage` held across the whole organisation, as the breach
+    register (platform.md rule 18): a manager who holds it for one home only is refused by the API
+    and sees nothing through row-level security (`app.holds_role_permission_at(..., NULL)`). The
+    system (no member, the organisation's view) reads all four tables, for the renewal job and the
+    organisation's full export; it never writes them.
+33. The overview (`GET /v1/data-security`) works out, on every read from the rate table, the DSPT
+    status for the year in question (`dsptStatus`, rule 30), each certificate kind's status
+    (`certificateStatus`, rule 31; `missing` when there is no record, never assumed current), the
+    current year's assertions by status with those `met` but holding no evidence counted apart,
+    and links to the breach register and complaints (open breaches, those past the ICO clock, open
+    complaints). The DSAR register joins when slice 15 lands.
+34. An assertion is unique per organisation, year and reference. Marking it `met` needs at least one
+    piece of evidence linked; `not_met` and `not_applicable` need notes. Evidence, and a
+    certificate's copy, must be an available organisation document: category
+    `organisation_document`, no person, not removed, attached to nothing or only to an organisation
+    record (`app.is_organisation_document`, checked by the API and again in the RLS policies);
+    linking one already linked, or unlinking one not linked, is refused.
+35. A DSPT submission is one per year, for a year whose deadline is not more than a year away,
+    submitted on a day not in the future; it may be corrected (history kept). A certificate is
+    issued on a day not in the future; a stated expiry is after issue. A later record of the same
+    kind supersedes the earlier one for its status (the newest by issue date counts).
+36. Renewal tasks (hourly worker, once each): when the DSPT year is `due_soon` or `overdue` and not
+    submitted, one task `quality.dspt_submission` due on the deadline; when the newest certificate of
+    a kind is `due_soon` or `expired`, one task `quality.certificate_renewal` due on its expiry. Each
+    goes to the owner role with `quality.dsar.manage` required, carries ids only and a generic
+    title, falls due at 23:59 UK time on the day, and is raised once per kind, source and due time
+    (two certificates expiring the same day each get one). A sweep that fails for any reason but a
+    missing rate fails the organisation's job, so the failed-job alarm sees it; it runs beside the
+    DoLS reminders so one failing never skips the other.
+37. Audit: every read and change writes `audit_event` with ids and codes only (never notes, titles
+    or references).
+
+### 18.3 Permission matrix
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the overview, assertions, evidence, submissions and certificates; record and change them | `quality.dsar.manage`, organisation-wide | RLS checks it again |
+| Link evidence | also the document is the organisation's and available | API and composite key |
+
+Retention: interim `audit_event` (8 years from creation) until the DPO sets periods (H-810).
+
+### 18.4 Tests
+
+- `packages/db/test/data-security-evidence.test.ts`: isolation across organisations, a manager for
+  one home sees nothing, append-only evidence, check constraints, one submission per year.
+- `apps/api/test/data-security-evidence.test.ts`: permissions, the overview's statuses from the rate
+  table (missing, current, due soon, expired, DSPT due and submitted), assertion rules (met needs
+  evidence, notes for not met), evidence refusals (a person's document, unknown, already linked),
+  stale versions, audit without text, and the renewal tasks raised once.

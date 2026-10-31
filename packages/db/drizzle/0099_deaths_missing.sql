@@ -316,13 +316,14 @@ $$;
 --> statement-breakpoint
 
 -- Sample data (migration 0069): records about a removed sample person go with them, children
--- before parents. The list is migration 0069's with slice 37's tables first.
+-- before parents. The list is migration 0069's with slice 37's tables first, and keeps every table
+-- an earlier migration added (0074 dependency_assessment, 0075 safeguarding_concern, 0093
+-- outbreak_case): the function is redefined whole, so the highest migration holds the full list.
 CREATE OR REPLACE FUNCTION app.sample_removal_tables() RETURNS text[]
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
   SELECT ARRAY[
-    -- 'outbreak_case' carried over from migration 0093, which this redefinition follows.
-    'outbreak_case',
     'death_step', 'missing_event', 'death_record', 'missing_episode', 'herbert_profile',
+    'outbreak_case', 'dependency_assessment',
     'about_me', 'about_me_share_link', 'activity_record', 'admission_condition',
     'advance_care_record', 'allergy', 'assessment', 'bed_occupancy', 'body_map_mark',
     'break_glass_event', 'candour_record', 'care_note', 'care_plan_action', 'care_plan_change',
@@ -331,7 +332,7 @@ LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
     'feed_item_withdrawal', 'feed_view', 'handover_note', 'incident_person', 'key_issue',
     'legal_hold', 'letter', 'notification_delivery', 'observation', 'person_assignment',
     'person_care_profile', 'property_item', 'refused_entry', 'sharing_decision_suspension',
-    'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
+    'safeguarding_concern', 'statutory_notification', 'visit_log', 'welcome_checklist_item', 'workflow_transition',
     'care_plan_section', 'dols_authorisation', 'exit_record', 'feed_item', 'handover_item',
     'hospital_transfer', 'notification', 'placement', 'review_record', 'risk_assessment',
     'sharing_decision', 'task', 'admission_decision', 'best_interests_decision', 'care_plan',
@@ -342,3 +343,7 @@ $$;
 --> statement-breakpoint
 GRANT SELECT, DELETE ON public.death_step, public.missing_event, public.death_record,
   public.missing_episode, public.herbert_profile TO harbour_sample_owner;
+--> statement-breakpoint
+-- Already granted by 0074, 0075 and 0093; repeated so this list and its grants read together.
+GRANT SELECT, DELETE ON public.dependency_assessment, public.safeguarding_concern,
+  public.outbreak_case TO harbour_sample_owner;

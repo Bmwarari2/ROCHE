@@ -16,6 +16,7 @@ import {
   DsarRectificationInput,
   DsarRespondInput,
   NewDsarCase,
+  ProblemDetails,
 } from "@harbour/contracts";
 import { dsarCase, dsarItem, type Transaction } from "@harbour/db";
 import {
@@ -1069,6 +1070,10 @@ export const dsarRouter = createRouter()
         200: jsonBody(DsarBundle, "The bundle as sent"),
         ...errorResponses,
         ...notFoundResponse,
+        410: {
+          content: { "application/problem+json": { schema: ProblemDetails } },
+          description: "Issued, but the stored copy is no longer kept",
+        },
       },
     }),
     async (c) => {
@@ -1081,7 +1086,15 @@ export const dsarRouter = createRouter()
         return r;
       });
       const bytes = await c.get("services").exportStorage.get(row.bundleStorageKey as string);
-      if (!bytes) throw problems.notFound();
+      if (!bytes) {
+        // Recorded as issued, but the stored copy is gone: say so, never a bare 404.
+        throw new HttpProblem(
+          410,
+          "dsar_bundle_not_kept",
+          "The bundle was issued, but its stored copy is no longer kept.",
+          "The case keeps its SHA-256 and the record of what was decided. Tell the data protection lead.",
+        );
+      }
       c.header("cache-control", "private, no-store");
       return c.json(JSON.parse(new TextDecoder().decode(bytes)) as z.infer<typeof DsarBundle>, 200);
     },

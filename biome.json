@@ -6,8 +6,8 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": true,
     "maxSize": 4194304,
+    "ignoreUnknown": true,
     "includes": [
       "**",
       "!**/node_modules",

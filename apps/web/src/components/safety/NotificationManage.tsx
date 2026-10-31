@@ -29,6 +29,15 @@ interface Target {
   readonly incidentId: string | null;
   readonly version: number;
   readonly status: string;
+  readonly kind?: string;
+}
+
+/**
+ * A duty of candour notification goes to the person, not a regulator (review H2): its evidence is
+ * the written notification's copy on the candour record, or null when there is none yet.
+ */
+export interface CandourEvidence {
+  readonly documentId: string | null;
 }
 
 const pathOf = (id: string) => `/notifications/statutory/${id}`;
@@ -129,23 +138,49 @@ const SUBMIT_FIELDS = ["submittedAt", "externalReference"] as const;
  * Record that a ready notification was submitted on the regulator's own portal
  * (`safety.notification.submit`, step-up): when, chosen every time, and the regulator's reference.
  */
-function SubmitForm({ target }: { readonly target: Target }) {
+function SubmitForm({
+  target,
+  candour,
+}: {
+  readonly target: Target;
+  /** For a duty of candour notification: its evidence, never a regulator's reference. */
+  readonly candour?: CandourEvidence;
+}) {
   const ids = useFieldIds(SUBMIT_FIELDS);
   const path = pathOf(target.id);
   const { result, pending, send, fail } = useManageSend(path);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const read = readSubmitForm(new FormData(event.currentTarget), new Date(), t);
+    const read = readSubmitForm(new FormData(event.currentTarget), new Date(), t, {
+      reference: !candour,
+    });
     if (!read.ok) return fail(read.errors, read.parts);
     send("submitted", () =>
       submitNotification(target.id, target.incidentId, {
         submittedAt: read.submittedAt,
-        externalReference: read.externalReference,
+        externalReference: candour ? "" : read.externalReference,
+        evidenceDocumentId: candour?.documentId ?? null,
         version: target.version,
       }),
     );
   };
+  // Without the written notification's copy there is nothing to record it with yet.
+  if (candour && !candour.documentId) {
+    return (
+      <Notice
+        icon={<Info size={20} strokeWidth={1.5} aria-hidden="true" />}
+        title={t("safety.manage.submit.title")}
+      >
+        <p className="m-0">{t("safety.manage.submit.candourFirst")}</p>
+        {target.incidentId ? (
+          <a href={`/incidents/${target.incidentId}#candour`} className="underline">
+            {t("safety.manage.submit.candourLink")}
+          </a>
+        ) : null}
+      </Notice>
+    );
+  }
 
   const referenceError = errorFor(result, "externalReference");
   const whenError = errorFor(result, "submittedAt");
@@ -164,7 +199,7 @@ function SubmitForm({ target }: { readonly target: Target }) {
             {t("safety.manage.submit.title")}
           </h3>
           <p className="m-0 max-w-prose text-body-dense text-text-secondary">
-            {t("safety.manage.submit.intro")}
+            {candour ? t("safety.manage.submit.candourIntro") : t("safety.manage.submit.intro")}
           </p>
         </div>
         <WhenField
@@ -185,16 +220,18 @@ function SubmitForm({ target }: { readonly target: Target }) {
             },
           }}
         />
-        <TextField
-          id={ids.externalReference}
-          name="externalReference"
-          label={t("safety.manage.submit.reference")}
-          hint={t("safety.manage.submit.referenceHint")}
-          required
-          maxLength={REFERENCE_MAX}
-          autoComplete="off"
-          {...(referenceError ? { error: referenceError } : {})}
-        />
+        {candour ? null : (
+          <TextField
+            id={ids.externalReference}
+            name="externalReference"
+            label={t("safety.manage.submit.reference")}
+            hint={t("safety.manage.submit.referenceHint")}
+            required
+            maxLength={REFERENCE_MAX}
+            autoComplete="off"
+            {...(referenceError ? { error: referenceError } : {})}
+          />
+        )}
         <div>
           <Button type="submit" disabled={pending}>
             {pending ? t("common.saving") : t("safety.manage.submit.submit")}
@@ -218,6 +255,7 @@ export function NotificationManage({
   view,
   fields,
   content,
+  candour,
 }: {
   readonly target: Target;
   /**
@@ -228,11 +266,13 @@ export function NotificationManage({
   readonly view: NotificationManageView;
   readonly fields: readonly ContentField[];
   readonly content: Readonly<Record<string, string>>;
+  /** For a duty of candour notification, its evidence from the candour record. */
+  readonly candour?: CandourEvidence;
 }) {
   return (
     <div className="flex flex-col gap-8">
       {view.prepare ? <PrepareForm target={target} fields={fields} content={content} /> : null}
-      {view.submit ? <SubmitForm target={target} /> : null}
+      {view.submit ? <SubmitForm target={target} {...(candour ? { candour } : {})} /> : null}
       {/* Someone who may submit, on a draft: the workflow submits only a ready notification. */}
       {!view.submit && view.notRequired ? (
         <Notice

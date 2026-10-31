@@ -77,6 +77,28 @@ export const TaskDetails = z
      * it are not all listed, so the reviewer checks the record (HZ-003).
      */
     missedTasksNotListedBefore: isoDate.optional(),
+    /**
+     * A staff check's expiry reminder (workforce.md section 5): the staff file and item kind, the
+     * date counted down to and the reminder's offset in days. Never the member's name.
+     */
+    staffProfileId: uuid.optional(),
+    complianceItemKind: z.string().optional(),
+    reminderDueOn: isoDate.optional(),
+    reminderDays: z.number().int().optional(),
+    /** A policy read-and-sign or review task (quality.md section 18): the policy, the review state. */
+    policyId: uuid.optional(),
+    reviewStatus: z.string().optional(),
+    remindedOn: isoDate.optional(),
+    /**
+     * On an import's allergy status check (`people.allergy_status_check`, HZ-007): what the
+     * previous system said, as a code. The person's status was imported as unknown ("not
+     * recorded") until this is checked and recorded on their record.
+     */
+    importedAllergyStatus: z.enum(["no_known_allergies", "has_allergies"]).optional(),
+    /** A training or competence expiry reminder (slice 17): the member, and the topic or competence. */
+    memberId: uuid.optional(),
+    trainingTopic: z.string().optional(),
+    competence: z.string().optional(),
   })
   .meta({ id: "TaskDetails" });
 export type TaskDetails = z.infer<typeof TaskDetails>;

@@ -342,7 +342,7 @@ describe("the issued bundle's storage key", () => {
   const c = "0194d000-0000-7000-8000-000000000002";
   const b = "0194d000-0000-7000-8000-000000000003";
   it("holds ids only, and refuses anything else", () => {
-    expect(dsarBundleStorageKey(t, c, b)).toBe(`tenants/${t}/dsar/${c}/${b}.json`);
+    expect(dsarBundleStorageKey(t, c, b)).toBe(`dsar/tenants/${t}/${c}/${b}.json`);
     expect(() => dsarBundleStorageKey(t, "../x", b)).toThrow(RangeError);
   });
 });
@@ -353,18 +353,35 @@ describe("tables not searched are named with a reason, never a silent gap", () =
     "public.dpia_like": table({ id: "exported", signed_by: "exported" }),
     "public.incident_answer": table({ id: "exported", incident_id: "exported" }),
   });
-  it("lists tables with no subject column, and member-scoped tables the subject is in", () => {
+  it("lists, for each kind of subject, the tables that name no such subject, and member-scoped ones", () => {
     const staff = dsarNotSearched(map, "staff", { dpia_like: "Needs platform.dpia.read" });
     expect(staff.map((e) => [e.table, e.reason])).toEqual([
       ["dpia_like", "member_scoped"],
       ["incident_answer", "no_subject_column"],
     ]);
     expect(staff.every((e) => e.guidance.length > 20)).toBe(true);
-    // A member-scoped table not searched for this kind of subject is not listed.
-    expect(dsarNotSearched(map, "person", { dpia_like: "x" }).map((e) => e.table)).toEqual([
-      "incident_answer",
+    // For a person, the staff-only table is listed as not searched (#149 re-check M2).
+    expect(
+      dsarNotSearched(map, "person", { dpia_like: "x" }).map((e) => [e.table, e.reason]),
+    ).toEqual([
+      ["dpia_like", "no_subject_column"],
+      ["incident_answer", "no_subject_column"],
     ]);
   });
+
+  it.each(["person", "contact", "staff"] as const)(
+    "accounts for every catalogued personal table for a %s: searched or listed",
+    (kind) => {
+      const real = dsarSubjectMap(EXPORT_TABLES);
+      const searched = new Set(real[kind].map((e) => e.table));
+      const listed = new Set(dsarNotSearched(real, kind).map((e) => e.table));
+      for (const [key, def] of Object.entries(EXPORT_TABLES)) {
+        if (def.treatment !== "tenant_rows" || !def.personal) continue;
+        const name = key.replace(/^public\./, "");
+        expect(searched.has(name) || listed.has(name), `${kind}: ${name}`).toBe(true);
+      }
+    },
+  );
   it("gives a stored table back its reason", () => {
     expect(dsarNotSearchedOf("dpia_like", { dpia_like: "x" }).reason).toBe("member_scoped");
     expect(dsarNotSearchedOf("incident_answer").reason).toBe("no_subject_column");

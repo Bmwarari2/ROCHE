@@ -226,3 +226,10 @@ export const AuditRecordDetail = AuditRecordSummary.extend({
   completedAt: isoDateTime.nullable(),
 }).meta({ id: "AuditRecordDetail" });
 export type AuditRecordDetail = z.infer<typeof AuditRecordDetail>;
+
+export type AuditStarter = z.infer<typeof AuditStarter>;
+export type AuditScheduleItem = z.infer<typeof AuditScheduleItem>;
+export type AuditRecordSummary = z.infer<typeof AuditRecordSummary>;
+export type AuditActionItem = z.infer<typeof AuditActionItem>;
+export type AuditAnswerValue = z.infer<typeof AuditAnswerValue>;
+export type AuditKind = z.infer<typeof AuditKind>;

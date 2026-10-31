@@ -13,12 +13,15 @@ import {
   Archive,
   Bell,
   Biohazard,
+  BookCheck,
   ClipboardCheck,
   ClipboardList,
   CloudOff,
   FileLock,
   FileOutput,
+  FileSearch,
   FileText,
+  FileUp,
   Flower2,
   FolderLock,
   House,
@@ -27,6 +30,8 @@ import {
   Lock,
   LogOut,
   Mail,
+  Megaphone,
+  MessageSquare,
   Newspaper,
   Palette,
   ScrollText,
@@ -75,6 +80,12 @@ export interface ShellFrameLabels {
   readonly missing?: string | undefined;
   /** Shown only to holders of safety.incident.manage or safety.disclosure.approve (SAFE-016). */
   readonly disclosures?: string | undefined;
+  /** Shown only to holders of safety.safeguarding.manage (SAFE-006). */
+  readonly safeguarding?: string | undefined;
+  /** Shown only to holders of safety.complaint.manage (SAFE-011). */
+  readonly complaints?: string | undefined;
+  /** Shown to every member of staff (SAFE-012), never in a family member's portal session. */
+  readonly speakUp?: string | undefined;
   /** Shown only to people who take a step in a listed workflow (PLAT-011 approvals). */
   readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
@@ -89,6 +100,10 @@ export interface ShellFrameLabels {
   readonly evidencePacks?: string | undefined;
   /** Shown only to those who write, approve or send the statement of purpose (QUAL-009). */
   readonly statementOfPurpose?: string | undefined;
+  /** Shown only to those who work with quality evidence (QUAL-001, QUAL-002). */
+  readonly framework?: string | undefined;
+  /** Shown only to holders of quality.audit.manage (QUAL-004). */
+  readonly audits?: string | undefined;
   /** Shown only to people who invite and manage staff (platform.user.manage). */
   readonly team?: string | undefined;
   /** Shown to staff (not family portal sessions): their tasks and the team's (PLAT-011). */
@@ -99,7 +114,9 @@ export interface ShellFrameLabels {
   readonly retention?: string | undefined;
   /** Shown only to people who may export the organisation's data (platform.export.create). */
   readonly dataExport?: string | undefined;
+  readonly dataImport?: string | undefined;
   readonly dataProtection?: string | undefined;
+  readonly dataRights?: string | undefined;
   /** The branding settings (PLAT-002), for platform.tenant.manage. */
   readonly branding?: string | undefined;
   /** Shown only to people who read the weekly break-glass report (platform.audit.read). */
@@ -144,6 +161,9 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/deaths")) return "deaths";
   if (pathname.startsWith("/missing")) return "missing";
   if (pathname.startsWith("/disclosures")) return "disclosures";
+  if (pathname.startsWith("/safeguarding")) return "safeguarding";
+  if (pathname.startsWith("/complaints")) return "complaints";
+  if (pathname.startsWith("/speak-up")) return "speak-up";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
   if (pathname.startsWith("/approvals")) return "approvals";
@@ -154,8 +174,10 @@ function currentSection(pathname: string): string {
   if (pathname.startsWith("/updates")) return "updates";
   if (pathname.startsWith("/settings/team")) return "team";
   if (pathname.startsWith("/settings/export")) return "export";
+  if (pathname.startsWith("/settings/import")) return "import";
   if (pathname.startsWith("/settings/retention")) return "retention";
   if (pathname.startsWith("/settings/data-protection")) return "data-protection";
+  if (pathname.startsWith("/data-rights")) return "data-rights";
   if (pathname.startsWith("/settings/onboarding")) return "onboarding";
   if (pathname.startsWith("/settings/branding")) return "branding";
   if (pathname.startsWith("/break-glass")) return "break-glass";
@@ -297,6 +319,36 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.safeguarding
+      ? [
+          {
+            id: "safeguarding",
+            label: labels.safeguarding,
+            href: "/safeguarding",
+            icon: <ShieldAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.complaints
+      ? [
+          {
+            id: "complaints",
+            label: labels.complaints,
+            href: "/complaints",
+            icon: <MessageSquare {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.speakUp
+      ? [
+          {
+            id: "speak-up",
+            label: labels.speakUp,
+            href: "/speak-up",
+            icon: <Megaphone {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.approvals
       ? [
           {
@@ -356,6 +408,26 @@ export function ShellFrame({
           },
         ]
       : []),
+    ...(labels.framework
+      ? [
+          {
+            id: "framework",
+            label: labels.framework,
+            href: "/quality/framework",
+            icon: <BookCheck {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.audits
+      ? [
+          {
+            id: "audits",
+            label: labels.audits,
+            href: "/quality/audits",
+            icon: <ClipboardCheck {...icon} />,
+          },
+        ]
+      : []),
     ...(labels.team
       ? [
           {
@@ -373,6 +445,16 @@ export function ShellFrame({
             label: labels.dataExport,
             href: "/settings/export",
             icon: <Archive {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataImport
+      ? [
+          {
+            id: "import",
+            label: labels.dataImport,
+            href: "/settings/import",
+            icon: <FileUp {...icon} />,
           },
         ]
       : []),
@@ -403,6 +485,16 @@ export function ShellFrame({
             label: labels.dataProtection,
             href: "/settings/data-protection",
             icon: <FileLock {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.dataRights
+      ? [
+          {
+            id: "data-rights",
+            label: labels.dataRights,
+            href: "/data-rights",
+            icon: <FileSearch {...icon} />,
           },
         ]
       : []),

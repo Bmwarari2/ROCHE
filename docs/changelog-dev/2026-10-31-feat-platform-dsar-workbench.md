@@ -56,6 +56,17 @@ Branch `feat/platform-dsar-workbench`. PLAT-022 and WORK-011 (partial); [ADR-009
 - The organisation's own system context reads DSAR cases and items, so the free full export
   includes them (export test); it writes none.
 
+## Final re-check (#149)
+
+- M1: bundles under `dsar/tenants/<tenant>/<case>/<bundle>.json`; the exports bucket's 30-day
+  expiry is limited to `tenants/` (Terraform `current_version_expiration_prefix`), so a bundle is
+  kept with its case; a missing stored copy answers 410 `dsar_bundle_not_kept`.
+- M2: "not searched" worked out per kind of subject; a test proves every catalogued personal table
+  is searched or listed for a person, a contact and a member of staff.
+- L1: `record_version.data` shows only the columns its table's export would. L2: a restrictive
+  policy hides earlier versions of cases and items from members without the organisation-wide
+  role. L3: a check ties the bundle key to the organisation and case.
+
 ## Tests
 
 - `packages/domain/src/platform/dsar.test.ts` (37).

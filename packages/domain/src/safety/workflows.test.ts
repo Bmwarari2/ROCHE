@@ -6,14 +6,25 @@ import { checkWorkflowTransition, type WorkflowTransitionRequest } from "../plat
 import { citationText } from "../shared/citation";
 import { workingDaysDeadline } from "../shared/working-days";
 import {
+  CANDOUR_REASON_MIN,
+  CANDOUR_REOPEN_TO,
   CANDOUR_WORKFLOW,
   type CandourRecordView,
   type CandourState,
   candourClocks,
+  candourDecisionNeedsReason,
+  candourFindingOf,
+  candourReasonProblems,
+  candourReopenProblems,
   candourStateDeadline,
   candourStepProblems,
 } from "./candour";
-import { INCIDENT_WORKFLOW, incidentCloseProblems } from "./incident";
+import {
+  CANDOUR_FINISHED_STATES,
+  candourCloseBlock,
+  INCIDENT_WORKFLOW,
+  incidentCloseProblems,
+} from "./incident";
 import { MEDICAL_EXAMINER_PACK_SECTIONS, missingPackSections } from "./medical-examiner";
 import {
   NOTIFICATION_KINDS,
@@ -91,6 +102,10 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
     ).toBe(true);
   });
 
+  const NONE = { indicated: false, notifiable: null, personId: null, people: [] };
+  const ADA = "person-ada";
+  const BEN = "person-ben";
+
   it.each<[string, Parameters<typeof incidentCloseProblems>[0], number]>([
     [
       "everything done",
@@ -101,6 +116,7 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
         ],
         openQuestions: [],
         candourState: "closed",
+        candour: { indicated: true, notifiable: true, personId: ADA, people: [ADA] },
       },
       0,
     ],
@@ -110,37 +126,255 @@ describe("hazard HZ-013 incident workflow: the person who raised it cannot close
         notifications: [{ kind: "cqc_reg18_abuse", status: "draft" }],
         openQuestions: [],
         candourState: null,
+        candour: NONE,
       },
       1,
     ],
     [
-      "a notification ready but not submitted",
+      "a candour notification ready but no candour record",
       {
         notifications: [{ kind: "candour", status: "ready" }],
         openQuestions: [],
         candourState: null,
+        candour: { ...NONE, indicated: true, people: [ADA] },
+      },
+      2,
+    ],
+    [
+      "questions still open",
+      {
+        notifications: [],
+        openQuestions: ["police.involved"],
+        candourState: null,
+        candour: NONE,
       },
       1,
     ],
     [
-      "questions still open",
-      { notifications: [], openQuestions: ["police.involved"], candourState: null },
-      1,
-    ],
-    [
       "the candour record still open",
-      { notifications: [], openQuestions: [], candourState: "written_due" },
+      { notifications: [], openQuestions: [], candourState: "written_due", candour: NONE },
       1,
     ],
     [
-      "candour not notifiable",
-      { notifications: [], openQuestions: [], candourState: "not_notifiable" },
+      "candour not notifiable for the only person affected",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: "not_notifiable",
+        candour: { indicated: false, notifiable: false, personId: ADA, people: [ADA] },
+      },
       0,
+    ],
+    [
+      "one not-notifiable decision naming one of two people harmed (round 2 M1)",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: "not_notifiable",
+        candour: { indicated: false, notifiable: false, personId: ADA, people: [ADA, BEN] },
+      },
+      1,
+    ],
+    [
+      "a record finished for someone not affected (round 2 M2)",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: "no_contact",
+        candour: { indicated: true, notifiable: true, personId: "person-cal", people: [ADA] },
+      },
+      1,
+    ],
+    [
+      "candour indicated with no record, the candour notification submitted",
+      {
+        notifications: [{ kind: "candour", status: "submitted" }],
+        openQuestions: [],
+        candourState: null,
+        candour: { ...NONE, indicated: true, people: [ADA] },
+      },
+      1,
+    ],
+    [
+      "candour decided notifiable and finished for the only person affected",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: "no_contact",
+        candour: { indicated: false, notifiable: true, personId: ADA, people: [ADA] },
+      },
+      0,
+    ],
+    [
+      "candour finished for one of two people affected",
+      {
+        notifications: [],
+        openQuestions: [],
+        candourState: "closed",
+        candour: { indicated: true, notifiable: true, personId: ADA, people: [ADA, BEN] },
+      },
+      1,
     ],
   ])(
     "hazard HZ-013 a decision cannot close without evidence or a not-notifiable reason: %s",
     (_name, view, count) => {
       expect(incidentCloseProblems(view)).toHaveLength(count);
+    },
+  );
+
+  it.each<[string, string | null, Parameters<typeof candourCloseBlock>[1], object]>([
+    ["nothing indicated, no record", null, NONE, { noRecord: false, open: false, stillToTell: [] }],
+    [
+      "indicated, no record",
+      null,
+      { ...NONE, indicated: true, people: [ADA] },
+      { noRecord: true, open: false, stillToTell: [] },
+    ],
+    [
+      "indicated for two, no record",
+      null,
+      { ...NONE, indicated: true, people: [ADA, BEN] },
+      { noRecord: true, open: false, stillToTell: [] },
+    ],
+    [
+      "decided notifiable for two, still open",
+      "verbal_due",
+      { indicated: false, notifiable: true, personId: ADA, people: [ADA, BEN] },
+      { noRecord: false, open: true, stillToTell: [ADA, BEN] },
+    ],
+    [
+      "finished for one of two",
+      "closed",
+      { indicated: true, notifiable: true, personId: ADA, people: [ADA, BEN] },
+      { noRecord: false, open: false, stillToTell: [BEN] },
+    ],
+    [
+      "finished with no relevant person named, for two",
+      "closed",
+      { indicated: true, notifiable: true, personId: null, people: [ADA, BEN] },
+      { noRecord: false, open: false, stillToTell: [ADA, BEN] },
+    ],
+    [
+      "decided not notifiable but not yet finished",
+      "threshold_assessment",
+      { indicated: false, notifiable: false, personId: ADA, people: [ADA, BEN] },
+      { noRecord: false, open: true, stillToTell: [ADA, BEN] },
+    ],
+    [
+      "finished as not notifiable for one of two: it covers only the person it names (M1)",
+      "not_notifiable",
+      { indicated: false, notifiable: false, personId: ADA, people: [ADA, BEN] },
+      { noRecord: false, open: false, stillToTell: [BEN] },
+    ],
+    [
+      "finished as not notifiable for the only person affected",
+      "not_notifiable",
+      { indicated: false, notifiable: false, personId: ADA, people: [ADA] },
+      { noRecord: false, open: false, stillToTell: [] },
+    ],
+    [
+      "finished for someone not affected, the person affected untold (M2)",
+      "closed",
+      { indicated: true, notifiable: true, personId: "person-cal", people: [ADA] },
+      { noRecord: false, open: false, stillToTell: [ADA] },
+    ],
+    [
+      "finished with no relevant person, one person affected (M2)",
+      "no_contact",
+      { indicated: true, notifiable: true, personId: null, people: [ADA] },
+      { noRecord: false, open: false, stillToTell: [ADA] },
+    ],
+  ])(
+    "hazard HZ-013 the duty of candour lets an incident close only when it is done: %s",
+    (_n, state, facts, block) => {
+      expect(candourCloseBlock(state, facts)).toEqual(block);
+    },
+  );
+
+  it.each<[string, Parameters<typeof candourFindingOf>[0], ReturnType<typeof candourFindingOf>]>([
+    ["no classification", null, null],
+    [
+      "a candour output",
+      { outputs: [{ kind: "candour" }], pending: [], exclusions: [] },
+      "notifiable",
+    ],
+    [
+      "waiting for answers",
+      { outputs: [], pending: [{ kind: "candour" }], exclusions: [] },
+      "waiting",
+    ],
+    ["excluded", { outputs: [], pending: [], exclusions: [{ kind: "candour" }] }, "notNotifiable"],
+    [
+      "nothing about candour",
+      { outputs: [{ kind: "riddor_death" }], pending: [], exclusions: [] },
+      null,
+    ],
+  ])("hazard HZ-091 reads Harbour's candour finding: %s", (_n, result, finding) => {
+    expect(candourFindingOf(result)).toBe(finding);
+  });
+
+  it.each<[boolean, ReturnType<typeof candourFindingOf>, boolean | null, boolean]>([
+    [false, "notifiable", null, true],
+    [true, "notifiable", null, false],
+    [true, "notNotifiable", null, true],
+    [false, "notNotifiable", null, false],
+    [false, "waiting", null, false],
+    [true, null, null, false],
+    [true, "notifiable", true, false],
+    [false, "notifiable", true, true],
+    [true, null, false, true],
+  ])(
+    "hazard HZ-091 a decision of notifiable %s against finding %s (recorded %s) needs a reason: %s",
+    (notifiable, finding, previous, needs) => {
+      expect(candourDecisionNeedsReason(notifiable, finding, previous)).toBe(needs);
+    },
+  );
+
+  it("hazard HZ-091 a decision that needs a reason takes one of 20 characters and a confirmation", () => {
+    expect(candourReasonProblems(null, false)).toHaveLength(2);
+    expect(candourReasonProblems("x".repeat(CANDOUR_REASON_MIN - 1), true)).toHaveLength(1);
+    expect(candourReasonProblems(`  ${"x".repeat(CANDOUR_REASON_MIN - 1)}  `, true)).toHaveLength(
+      1,
+    );
+    expect(candourReasonProblems("x".repeat(CANDOUR_REASON_MIN), false)).toEqual([
+      "Confirm the decision.",
+    ]);
+    expect(candourReasonProblems("x".repeat(CANDOUR_REASON_MIN), true)).toEqual([]);
+  });
+
+  it.each<[CandourState, CandourState | null]>([
+    ["not_notifiable", "threshold_assessment"],
+    ["no_contact", "verbal_due"],
+    ["closed", null],
+    ["threshold_assessment", null],
+    ["verbal_due", null],
+    ["written_due", null],
+    ["enquiries_open", null],
+  ])(
+    "hazard HZ-013 a finished record at %s reopens to %s, only with a reason (round 3 H1)",
+    (state, to) => {
+      expect(CANDOUR_REOPEN_TO[state] ?? null).toBe(to);
+      const enough = "x".repeat(CANDOUR_REASON_MIN);
+      expect(candourReopenProblems(state, enough)).toHaveLength(to ? 0 : 1);
+      expect(candourReopenProblems(state, "x".repeat(CANDOUR_REASON_MIN - 1))).toHaveLength(
+        to ? 1 : 2,
+      );
+      expect(
+        candourReopenProblems(state, `  ${"x".repeat(CANDOUR_REASON_MIN - 1)}  `),
+      ).toHaveLength(to ? 1 : 2);
+      // Reopening leaves the record unfinished, so closing waits for it again.
+      if (to) {
+        expect(CANDOUR_FINISHED_STATES).toContain(state);
+        expect(CANDOUR_FINISHED_STATES).not.toContain(to);
+        expect(
+          candourCloseBlock(to, {
+            indicated: true,
+            notifiable: false,
+            personId: "a",
+            people: ["a"],
+          }).open,
+        ).toBe(true);
+      }
     },
   );
 });

@@ -39,7 +39,7 @@ const PART_BYTES = 8 * 1024 * 1024;
  * (`disclosurePackStorageKey`, SAFE-016).
  */
 const KEY_PATTERN =
-  /^tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip|dsar\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json|disclosures\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
+  /^(tenants\/[0-9a-f-]{36}\/(documents\/[0-9a-f-]{36}|exports\/[0-9a-f-]{36}\/export\.zip|disclosures\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)|dsar\/tenants\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.json)$/;
 
 function assertKey(key: string): void {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
