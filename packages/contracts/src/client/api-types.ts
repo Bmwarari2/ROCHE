@@ -26172,6 +26172,155 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/agency-workers/{id}/awr-records": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** An agency worker's AWR records */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description The records, oldest first */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrRecordList"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /**
+     * Record a reason, a role change or a withdrawal on the AWR clock
+     * @description H-924: a coded reason for days without a booking (AWR reg 7(8)), a substantively different role with the date the worker was told in writing (reg 7(3)), or the withdrawal of an earlier record. Append-only; never by the worker.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      /** @description The record */
+      requestBody?: {
+        content: {
+          "application/json": components["schemas"]["RecordAwrRecord"];
+        };
+      };
+      responses: {
+        /** @description Recorded */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AwrRecordItem"];
+          };
+        };
+        /** @description Not signed in */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not a member, missing permission, MFA not set up or step-up needed */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Not found or outside your access */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Changed by someone else since you loaded it; reload and try again */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description The request did not validate */
+        422: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/agency-workers/{id}/awr": {
     parameters: {
       query?: never;
@@ -26181,7 +26330,7 @@ export interface paths {
     };
     /**
      * An agency worker's AWR clock
-     * @description Agency Workers Regulations 2010 reg 7, from the worker's confirmed bookings with this organisation at every location: the weeks counted and the week equal basic terms apply from. Weeks with no booking between bookings have no recorded reason and are treated as uncovered (H-924).
+     * @description Agency Workers Regulations 2010 reg 7 (Great Britain), from the worker's confirmed bookings with this organisation at every location and the recorded reasons for weeks without one and role changes (H-924): the weeks counted and the week equal basic terms apply from.
      */
     get: {
       parameters: {
@@ -31287,6 +31436,12 @@ export interface components {
       pending: string[];
       staff: components["schemas"]["StaffName"][];
       unacknowledged: boolean | null;
+      agencyWithoutPeople: {
+        /** Format: uuid */
+        memberId: string;
+        /** Format: uuid */
+        shiftId: string;
+      }[];
       items: components["schemas"]["HandoverItem"][];
       notes: components["schemas"]["HandoverNoteItem"][];
       acknowledgements: components["schemas"]["HandoverAcknowledgementItem"][];
@@ -33794,6 +33949,8 @@ export interface components {
       };
       /** Format: date-time */
       deviceSentAt?: string;
+      /** Format: date-time */
+      recordedAt?: string;
     };
     SyncDiscardResult: {
       /** Format: uuid */
@@ -35375,6 +35532,7 @@ export interface components {
       }[];
       openShiftIds: string[];
       inductionsDue: string[];
+      peopleUnassigned: string[];
       hasWarnings: boolean;
       periodsToAcknowledge: string[];
       blockedAssignmentIds: string[];
@@ -35575,6 +35733,67 @@ export interface components {
       version: number;
       reason: string;
     };
+    AwrRecordList: {
+      items: components["schemas"]["AwrRecordItem"][];
+    };
+    AwrRecordItem: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      kind: "break_reason" | "role_change" | "withdrawal";
+      /** Format: date */
+      fromOn: string | null;
+      /** Format: date */
+      toOn: string | null;
+      reason: components["schemas"]["AwrBreakReasonCode"];
+      /** Format: date */
+      notifiedOn: string | null;
+      /** Format: uuid */
+      withdrawsId: string | null;
+      withdrawn: boolean;
+      note: string | null;
+      /** Format: uuid */
+      createdBy: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    /** @enum {string|null} */
+    AwrBreakReasonCode:
+      | "sickness"
+      | "jury_service"
+      | "protected_leave"
+      | "annual_leave"
+      | "shutdown"
+      | "industrial_action"
+      | null;
+    RecordAwrRecord:
+      | {
+          /** @enum {string} */
+          kind: "break_reason";
+          /** Format: date */
+          fromOn: string;
+          /** Format: date */
+          toOn: string;
+          reason: components["schemas"]["AwrBreakReasonCode"];
+          /** @default null */
+          note: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "role_change";
+          /** Format: date */
+          notifiedOn: string;
+          /** @default null */
+          note: string | null;
+        }
+      | {
+          /** @enum {string} */
+          kind: "withdrawal";
+          /** Format: uuid */
+          withdrawsId: string;
+          /** @default null */
+          note: string | null;
+        };
     AwrClockItem: {
       /** Format: uuid */
       workerId: string;
@@ -35583,6 +35802,8 @@ export interface components {
       /** Format: date */
       qualifiedFromWeek: string | null;
       weeksWithoutReason: number;
+      /** @enum {string} */
+      jurisdiction: "great_britain";
       resets: {
         /** Format: date */
         week: string;

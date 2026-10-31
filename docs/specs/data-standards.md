@@ -738,6 +738,9 @@ fields are Harbour's.
 | `agency_booking.status` | Harbour | `confirmed`, `cancelled` | A cancelled booking stays cancelled. |
 | `location_induction.items` | Harbour | Lower-case keys (`fire_exits`, `emergency_procedures`, ...), 1 to 40 | The location's own checklist. |
 | `agency_worker_feedback.kind` | Harbour | `positive`, `concern`, `do_not_rebook` | `do_not_rebook` marks the worker not to be booked. |
+| `agency_awr_record.kind` | Harbour | `break_reason`, `role_change`, `withdrawal` | Append-only; a withdrawal names the record it withdraws, once. |
+| `agency_awr_record.reason` | Agency Workers Regulations 2010 reg 7(8) | `sickness`, `jury_service`, `protected_leave`, `annual_leave`, `shutdown`, `industrial_action` | Covers a break week only when it spans every day of it. |
+| `agency_awr_record.from_on`, `to_on`, `notified_on` | ISO 8601 date | `YYYY-MM-DD`, UK dates | `notified_on` is when the worker was told of a new role in writing (reg 7(3)). |
 
 ## Time and attendance (Phase 2, slice 30)
 

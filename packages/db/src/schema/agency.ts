@@ -29,6 +29,16 @@ import { shift, shiftAssignment } from "./rota";
 export const AGENCY_WORKER_KINDS = ["agency", "bank"] as const;
 export const AGENCY_BOOKING_STATUSES = ["confirmed", "cancelled"] as const;
 export const AGENCY_FEEDBACK_KINDS = ["positive", "concern", "do_not_rebook"] as const;
+/** Why an agency worker had no booking (AWR reg 7(8)), or a new role (reg 7(3)); H-924. */
+export const AWR_RECORD_KINDS = ["break_reason", "role_change", "withdrawal"] as const;
+export const AWR_BREAK_REASON_CODES = [
+  "sickness",
+  "jury_service",
+  "protected_leave",
+  "annual_leave",
+  "shutdown",
+  "industrial_action",
+] as const;
 
 const staffRef = (name: string, t: { tenantId: AnyPgColumn }, column: AnyPgColumn) =>
   foreignKey({
@@ -220,5 +230,54 @@ export const agencyWorkerFeedback = pgTable(
     locationRef("agency_worker_feedback_location_fk", t),
     check("agency_worker_feedback_kind", sql`kind IN (${sqlList(AGENCY_FEEDBACK_KINDS)})`),
     check("agency_worker_feedback_notes", sql`char_length(btrim(notes)) BETWEEN 1 AND 2000`),
+  ],
+);
+
+/**
+ * The AWR clock's records for an agency worker (append-only; H-924 recommended answer): a reason
+ * for days without a booking, a substantively different role with the date the worker was told in
+ * writing, or the withdrawal of an earlier record. Recorded by a rota builder, never the worker.
+ */
+export const agencyAwrRecord = pgTable(
+  "agency_awr_record",
+  {
+    id: id(),
+    tenantId: tenantId(),
+    workerId: uuid("worker_id").notNull(),
+    kind: text("kind").notNull(),
+    fromOn: date("from_on"),
+    toOn: date("to_on"),
+    reason: text("reason"),
+    notifiedOn: date("notified_on"),
+    withdrawsId: uuid("withdraws_id"),
+    note: text("note"),
+    ...createdColumns(),
+  },
+  (t) => [
+    unique("agency_awr_record_tenant_id_id_key").on(t.tenantId, t.id),
+    staffRef("agency_awr_record_worker_fk", t, t.workerId),
+    foreignKey({
+      name: "agency_awr_record_withdraws_fk",
+      columns: [t.tenantId, t.withdrawsId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
+    uniqueIndex("agency_awr_record_one_withdrawal_key")
+      .on(t.tenantId, t.withdrawsId)
+      .where(sql`withdraws_id IS NOT NULL`),
+    index("agency_awr_record_worker_idx").on(t.tenantId, t.workerId),
+    check("agency_awr_record_kind", sql`kind IN (${sqlList(AWR_RECORD_KINDS)})`),
+    check(
+      "agency_awr_record_shape",
+      sql`(kind = 'break_reason' AND from_on IS NOT NULL AND to_on IS NOT NULL AND to_on >= from_on
+          AND reason IN (${sqlList(AWR_BREAK_REASON_CODES)}) AND notified_on IS NULL AND withdraws_id IS NULL)
+        OR (kind = 'role_change' AND notified_on IS NOT NULL AND from_on IS NULL AND to_on IS NULL
+          AND reason IS NULL AND withdraws_id IS NULL)
+        OR (kind = 'withdrawal' AND withdraws_id IS NOT NULL AND from_on IS NULL AND to_on IS NULL
+          AND reason IS NULL AND notified_on IS NULL)`,
+    ),
+    check(
+      "agency_awr_record_note",
+      sql`note IS NULL OR char_length(btrim(note)) BETWEEN 1 AND 500`,
+    ),
   ],
 );

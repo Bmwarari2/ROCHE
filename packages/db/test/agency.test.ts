@@ -472,3 +472,65 @@ describe("bookings, inductions and feedback", () => {
     ).rejects.toThrow(/row-level security/);
   });
 });
+
+describe("AWR records: break reasons, role changes and withdrawals (H-924)", () => {
+  const record = (c: pg.PoolClient, sql: string, params: unknown[]) => c.query(sql, params);
+  it("records a reason in the recorder's name, never for themselves, and withdraws it once", async () => {
+    const [made] = (
+      await asNorth((c) =>
+        record(
+          c,
+          `INSERT INTO agency_awr_record (worker_id, kind, from_on, to_on, reason)
+           VALUES ($1, 'break_reason', '2026-11-09', '2026-11-22', 'sickness') RETURNING id`,
+          [ASH],
+        ),
+      )
+    ).rows as { id: string }[];
+    await expect(
+      asNorth((c) =>
+        record(
+          c,
+          `INSERT INTO agency_awr_record (worker_id, kind, notified_on) VALUES ($1, 'role_change', '2026-11-09')`,
+          [a.northManager],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asNorth((c) =>
+        record(
+          c,
+          `INSERT INTO agency_awr_record (worker_id, kind, from_on, reason)
+           VALUES ($1, 'break_reason', '2026-11-09', 'sickness')`,
+          [ASH],
+        ),
+      ),
+    ).rejects.toThrow(/agency_awr_record_shape/);
+    await asNorth((c) =>
+      record(
+        c,
+        "INSERT INTO agency_awr_record (worker_id, kind, withdraws_id) VALUES ($1, 'withdrawal', $2)",
+        [ASH, made?.id],
+      ),
+    );
+    await expect(
+      asNorth((c) =>
+        record(
+          c,
+          "INSERT INTO agency_awr_record (worker_id, kind, withdraws_id) VALUES ($1, 'withdrawal', $2)",
+          [ASH, made?.id],
+        ),
+      ),
+    ).rejects.toThrow(/one_withdrawal/);
+    await expect(
+      asNorth((c) => c.query("UPDATE agency_awr_record SET note = 'Changed'")),
+    ).rejects.toThrow();
+  });
+
+  it("hazard HZ-011 shows the worker their own records, a rota reader none, another organisation none", async () => {
+    expect(await asAsh((c) => count(c, "SELECT count(*) AS n FROM agency_awr_record"))).toBe(2);
+    expect(await asReader((c) => count(c, "SELECT count(*) AS n FROM agency_awr_record"))).toBe(0);
+    expect(
+      await asOtherTenant((c) => count(c, "SELECT count(*) AS n FROM agency_awr_record")),
+    ).toBe(0);
+  });
+});

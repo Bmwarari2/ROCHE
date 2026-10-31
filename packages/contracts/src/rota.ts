@@ -332,6 +332,11 @@ export const RotaCheck = z
     openShiftIds: z.array(uuid),
     /** Assignments of bank or agency workers with no induction recorded at the location. */
     inductionsDue: z.array(uuid),
+    /**
+     * Assignments of booked bank or agency workers on a shift running now with nobody assigned to
+     * them (H-927; HZ-073): assign people so they can see allergies and care plans.
+     */
+    peopleUnassigned: z.array(uuid),
     /** True when any comparison is not `met` or any working time finding stands. */
     hasWarnings: z.boolean(),
     /**

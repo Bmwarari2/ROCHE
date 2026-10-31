@@ -124,6 +124,192 @@
       },
       "isRLSEnabled": false
     },
+    "public.agency_awr_record": {
+      "name": "agency_awr_record",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "app.uuid_v7()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "app.current_tenant_id()"
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_on": {
+          "name": "from_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_on": {
+          "name": "to_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notified_on": {
+          "name": "notified_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "withdraws_id": {
+          "name": "withdraws_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "app.current_user_id()"
+        }
+      },
+      "indexes": {
+        "agency_awr_record_one_withdrawal_key": {
+          "name": "agency_awr_record_one_withdrawal_key",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "withdraws_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "withdraws_id IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agency_awr_record_worker_idx": {
+          "name": "agency_awr_record_worker_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "worker_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agency_awr_record_worker_fk": {
+          "name": "agency_awr_record_worker_fk",
+          "tableFrom": "agency_awr_record",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "worker_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "agency_awr_record_withdraws_fk": {
+          "name": "agency_awr_record_withdraws_fk",
+          "tableFrom": "agency_awr_record",
+          "tableTo": "agency_awr_record",
+          "columnsFrom": [
+            "tenant_id",
+            "withdraws_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "agency_awr_record_tenant_id_id_key": {
+          "name": "agency_awr_record_tenant_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "agency_awr_record_kind": {
+          "name": "agency_awr_record_kind",
+          "value": "kind IN ('break_reason', 'role_change', 'withdrawal')"
+        },
+        "agency_awr_record_shape": {
+          "name": "agency_awr_record_shape",
+          "value": "(kind = 'break_reason' AND from_on IS NOT NULL AND to_on IS NOT NULL AND to_on >= from_on\n          AND reason IN ('sickness', 'jury_service', 'protected_leave', 'annual_leave', 'shutdown', 'industrial_action') AND notified_on IS NULL AND withdraws_id IS NULL)\n        OR (kind = 'role_change' AND notified_on IS NOT NULL AND from_on IS NULL AND to_on IS NULL\n          AND reason IS NULL AND withdraws_id IS NULL)\n        OR (kind = 'withdrawal' AND withdraws_id IS NOT NULL AND from_on IS NULL AND to_on IS NULL\n          AND reason IS NULL AND notified_on IS NULL)"
+        },
+        "agency_awr_record_note": {
+          "name": "agency_awr_record_note",
+          "value": "note IS NULL OR char_length(btrim(note)) BETWEEN 1 AND 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.agency_booking": {
       "name": "agency_booking",
       "schema": "",

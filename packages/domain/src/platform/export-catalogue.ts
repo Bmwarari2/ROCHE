@@ -3208,6 +3208,28 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       created_by: { description: "Who inducted them (tenant_user.id)." },
     },
   },
+  "public.agency_awr_record": {
+    context: "scheduling",
+    description:
+      "An agency worker's AWR clock records (append-only): reasons for days without a booking, a new role notified in writing, withdrawals.",
+    treatment: "tenant_rows",
+    retention: "rota_and_timesheet",
+    personal: true,
+    columns: {
+      id: "exported",
+      tenant_id: "exported",
+      worker_id: { description: "The agency worker (tenant_user.id)." },
+      kind: { description: "A break reason, a role change or a withdrawal." },
+      from_on: { description: "The first day the reason covers (UK date)." },
+      to_on: { description: "The last day the reason covers (UK date)." },
+      reason: { description: "Why there was no booking, as AWR regulation 7(8) names it." },
+      notified_on: { description: "When the worker was told in writing of a new role (UK date)." },
+      withdraws_id: { description: "The record this withdraws (agency_awr_record.id)." },
+      note: { description: "A short note in words." },
+      created_at: "exported",
+      created_by: "exported",
+    },
+  },
   "public.agency_worker_feedback": {
     context: "scheduling",
     description: "Feedback on a bank or agency worker after a booking (append-only).",

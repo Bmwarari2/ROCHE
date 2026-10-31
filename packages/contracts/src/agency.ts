@@ -156,6 +156,54 @@ export const CancelBooking = z
   .object({ version, reason: z.string().trim().min(1).max(500) })
   .meta({ id: "CancelBooking" });
 
+export const AwrBreakReasonCode = z
+  .enum([
+    "sickness",
+    "jury_service",
+    "protected_leave",
+    "annual_leave",
+    "shutdown",
+    "industrial_action",
+  ])
+  .meta({ id: "AwrBreakReasonCode" });
+
+const awrNote = z.string().trim().min(1).max(500).nullable().default(null);
+
+/** A reason for days without a booking, a new role notified in writing, or a withdrawal (H-924). */
+export const RecordAwrRecord = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("break_reason"),
+      fromOn: isoDate,
+      toOn: isoDate,
+      reason: AwrBreakReasonCode,
+      note: awrNote,
+    }),
+    z.object({ kind: z.literal("role_change"), notifiedOn: isoDate, note: awrNote }),
+    z.object({ kind: z.literal("withdrawal"), withdrawsId: uuid, note: awrNote }),
+  ])
+  .meta({ id: "RecordAwrRecord" });
+
+export const AwrRecordItem = z
+  .object({
+    id: uuid,
+    kind: z.enum(["break_reason", "role_change", "withdrawal"]),
+    fromOn: isoDate.nullable(),
+    toOn: isoDate.nullable(),
+    reason: AwrBreakReasonCode.nullable(),
+    notifiedOn: isoDate.nullable(),
+    withdrawsId: uuid.nullable(),
+    withdrawn: z.boolean(),
+    note: z.string().nullable(),
+    createdBy: uuid.nullable(),
+    createdAt: z.iso.datetime({ offset: true }),
+  })
+  .meta({ id: "AwrRecordItem" });
+
+export const AwrRecordList = z
+  .object({ items: z.array(AwrRecordItem) })
+  .meta({ id: "AwrRecordList" });
+
 export const AwrClockItem = z
   .object({
     workerId: uuid,
@@ -163,8 +211,10 @@ export const AwrClockItem = z
     qualifyingWeeksNeeded: z.number().int(),
     /** The week equal basic terms apply from; null until qualified. */
     qualifiedFromWeek: isoDate.nullable(),
-    /** Weeks with no booking between bookings: Harbour does not yet record why (H-924). */
+    /** Weeks with no booking and no recorded reason: uncovered breaks (H-924). */
     weeksWithoutReason: z.number().int(),
+    /** The rules applied: Great Britain's (AWR 2010) until a Northern Ireland pack loads. */
+    jurisdiction: z.literal("great_britain"),
     resets: z.array(z.object({ week: isoDate, reason: z.enum(["break", "new_role"]) })),
     method: z.array(z.string()),
   })

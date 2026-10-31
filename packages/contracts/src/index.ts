@@ -179,6 +179,12 @@ export const SyncOperation = z
     data: z.record(z.string(), z.unknown()).optional(),
     /** Device clock when the batch was sent, for drift detection (HZ-010). */
     deviceSentAt: isoDateTime.optional(),
+    /**
+     * Device clock when the entry was recorded: a bank or agency worker's entry is accepted only
+     * if recorded inside a booked window, and after it closes only for the upload grace period
+     * (H-921).
+     */
+    recordedAt: isoDateTime.optional(),
   })
   .meta({ id: "SyncOperation" });
 

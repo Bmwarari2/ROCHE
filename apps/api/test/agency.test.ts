@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DEMO } from "@harbour/db/seed";
 import { ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -277,6 +278,91 @@ describe("hazard HZ-124 booking applies the rostering rule", () => {
     expect(clock.qualifyingWeeks).toBe(1);
     expect(clock.qualifyingWeeksNeeded).toBeGreaterThan(1);
     expect(clock.method.join(" ")).toMatch(/regulation 7/);
+  });
+
+  it("hazard HZ-073 warns on the rota and the handover while a booked agency worker on shift has nobody assigned", async () => {
+    const check = await as("manager", `/v1/rotas/${rotaId}/check`);
+    expect(check.status).toBe(200);
+    const body = (await check.json()) as { peopleUnassigned: string[]; hasWarnings: boolean };
+    expect(body.peopleUnassigned).toHaveLength(1);
+    expect(body.hasWarnings).toBe(true);
+    const compiled = await as("manager", `/v1/locations/${LOC}/handovers`, {
+      method: "POST",
+      body: {},
+    });
+    expect([200, 201]).toContain(compiled.status);
+    const handover = (await compiled.json()) as { agencyWithoutPeople: { memberId: string }[] };
+    expect(handover.agencyWithoutPeople.map((x) => x.memberId)).toEqual([ash]);
+    const [person] = await sql<{ id: string }>(
+      "SELECT id FROM person WHERE location_id = $1 LIMIT 1",
+      [LOC],
+    );
+    await sql("INSERT INTO person_assignment (tenant_user_id, person_id) VALUES ($1, $2)", [
+      ash,
+      person?.id,
+    ]);
+    const after = (await (await as("manager", `/v1/rotas/${rotaId}/check`)).json()) as {
+      peopleUnassigned: string[];
+    };
+    expect(after.peopleUnassigned).toEqual([]);
+  });
+
+  it("hazard HZ-006 accepts an agency worker's offline entry from a booked window, refuses one from outside", async () => {
+    const upload = (recordedAt: string) =>
+      h.request("/v1/sync/upload", {
+        method: "POST",
+        token: h.tokens.agency,
+        tenant: DEMO.tenantId,
+        body: {
+          operations: [{ op: "PUT", table: "care_note", id: randomUUID(), recordedAt }],
+        },
+      });
+    const inside = await upload(new Date(Date.now() - 30 * 60_000).toISOString());
+    expect(inside.status).toBe(200);
+    // Past the booking check; refused only because no table is writable from a device yet.
+    expect(((await inside.json()) as { rejected: { code: string }[] }).rejected[0]?.code).toBe(
+      "table_not_writable",
+    );
+    const outside = await upload(new Date(Date.now() - 30 * 3_600_000).toISOString());
+    expect(((await outside.json()) as { rejected: { code: string }[] }).rejected[0]?.code).toBe(
+      "outside_booking",
+    );
+  });
+
+  it("records reasons and a role change on the AWR clock, in Great Britain's rules (H-924)", async () => {
+    const reason = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "break_reason", fromOn: inDays(1), toOn: inDays(14), reason: "jury_service" },
+    });
+    expect(reason.status).toBe(201);
+    const made = (await reason.json()) as { id: string };
+    const role = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "role_change", notifiedOn: today() },
+    });
+    expect(role.status).toBe(201);
+    const withdraw = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "withdrawal", withdrawsId: made.id },
+    });
+    expect(withdraw.status).toBe(201);
+    const again = await as("manager", `/v1/agency-workers/${workerId}/awr-records`, {
+      method: "POST",
+      body: { kind: "withdrawal", withdrawsId: made.id },
+    });
+    expect(again.status).toBe(409);
+    const list = (await (
+      await as("manager", `/v1/agency-workers/${workerId}/awr-records`)
+    ).json()) as {
+      items: { id: string; withdrawn: boolean }[];
+    };
+    expect(list.items.find((i) => i.id === made.id)?.withdrawn).toBe(true);
+    const clock = (await (await as("manager", `/v1/agency-workers/${workerId}/awr`)).json()) as {
+      jurisdiction: string;
+      method: string[];
+    };
+    expect(clock.jurisdiction).toBe("great_britain");
+    expect(clock.method.join(" ")).toMatch(/Great Britain/);
   });
 
   it("totals the cost per agency at the location", async () => {

@@ -10,16 +10,20 @@ import {
   AgencyWorkerList,
   ArchiveAgency,
   AwrClockItem,
+  AwrRecordItem,
+  AwrRecordList,
   BookShift,
   CancelBooking,
   CreateAgency,
   InductionItem,
   RecordAgencyFeedback,
+  RecordAwrRecord,
   RecordInduction,
   RegisterAgencyWorker,
 } from "@harbour/contracts";
 import {
   agency,
+  agencyAwrRecord,
   agencyBooking,
   agencyWorker,
   agencyWorkerFeedback,
@@ -94,6 +98,7 @@ const A = {
   induction: "scheduling.induction.recorded",
   feedback: "scheduling.agency_feedback.recorded",
   awr: "scheduling.awr.viewed",
+  awrRecorded: "scheduling.awr.recorded",
 } as const;
 
 const IdParam = z.object({ id: z.uuid() });
@@ -254,6 +259,51 @@ async function recheckBookings(
     cancelled++;
   }
   return cancelled;
+}
+
+type AwrReason =
+  | "sickness"
+  | "jury_service"
+  | "protected_leave"
+  | "annual_leave"
+  | "shutdown"
+  | "industrial_action";
+type AwrRecordRow = typeof agencyAwrRecord.$inferSelect;
+
+/** A worker's AWR records, read with the system's rights (only the clock or the list leaves). */
+async function awrRecordsOf(tx: Transaction, memberId: string): Promise<AwrRecordRow[]> {
+  return withSystemRights(tx, () =>
+    tx
+      .select()
+      .from(agencyAwrRecord)
+      .where(eq(agencyAwrRecord.workerId, memberId))
+      .orderBy(asc(agencyAwrRecord.createdAt), asc(agencyAwrRecord.id)),
+  );
+}
+
+/** Records still in force: not withdrawn, and not withdrawals themselves. */
+function activeAwrRecords(rows: readonly AwrRecordRow[]): AwrRecordRow[] {
+  const withdrawn = new Set(rows.flatMap((r) => (r.withdrawsId ? [r.withdrawsId] : [])));
+  return rows.filter((r) => r.kind !== "withdrawal" && !withdrawn.has(r.id));
+}
+
+function awrRecordItem(
+  r: AwrRecordRow,
+  withdrawn: ReadonlySet<string>,
+): z.infer<typeof AwrRecordItem> {
+  return {
+    id: r.id,
+    kind: r.kind as z.infer<typeof AwrRecordItem>["kind"],
+    fromOn: r.fromOn,
+    toOn: r.toOn,
+    reason: r.reason as AwrReason | null,
+    notifiedOn: r.notifiedOn,
+    withdrawsId: r.withdrawsId,
+    withdrawn: withdrawn.has(r.id),
+    note: r.note,
+    createdBy: r.createdBy,
+    createdAt: r.createdAt.toISOString(),
+  };
 }
 
 export const agencyRouter = createRouter()
@@ -752,11 +802,113 @@ export const agencyRouter = createRouter()
   .openapi(
     createRoute({
       method: "get",
+      path: "/v1/agency-workers/{id}/awr-records",
+      tags: ["scheduling"],
+      summary: "An agency worker's AWR records",
+      security,
+      request: { params: IdParam },
+      responses: {
+        200: jsonBody(AwrRecordList, "The records, oldest first"),
+        ...errorResponses,
+        ...notFoundResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "scheduling.rota.manage");
+      const { id } = c.req.valid("param");
+      const items = await withTenant(c, async (tx) => {
+        const w = await loadWorker(tx, id);
+        if (!w || w.kind !== "agency") return null;
+        const rows = await awrRecordsOf(tx, w.tenantUserId);
+        const withdrawn = new Set(rows.flatMap((r) => (r.withdrawsId ? [r.withdrawsId] : [])));
+        await audit(c, tx, access, {
+          action: A.awr,
+          resourceType: "agency_worker",
+          resourceId: id,
+        });
+        return rows.map((r) => awrRecordItem(r, withdrawn));
+      });
+      if (!items) throw problems.notFound();
+      return c.json({ items }, 200);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "post",
+      path: "/v1/agency-workers/{id}/awr-records",
+      tags: ["scheduling"],
+      summary: "Record a reason, a role change or a withdrawal on the AWR clock",
+      description:
+        "H-924: a coded reason for days without a booking (AWR reg 7(8)), a substantively different role with the date the worker was told in writing (reg 7(3)), or the withdrawal of an earlier record. Append-only; never by the worker.",
+      security,
+      request: { params: IdParam, body: jsonBody(RecordAwrRecord, "The record") },
+      responses: {
+        201: jsonBody(AwrRecordItem, "Recorded"),
+        ...errorResponses,
+        ...notFoundResponse,
+        ...conflictResponse,
+      },
+    }),
+    async (c) => {
+      const access = await requirePermission(c, "scheduling.rota.manage");
+      const { id } = c.req.valid("param");
+      const body = c.req.valid("json");
+      if (body.kind === "break_reason" && body.toOn < body.fromOn) {
+        throw problems.invalid("The last day must not be before the first.");
+      }
+      const made = await withTenant(c, async (tx) => {
+        const w = await loadWorker(tx, id);
+        if (!w || w.kind !== "agency") return null;
+        if (w.tenantUserId === access.tenantUserId) {
+          throw new HttpProblem(
+            403,
+            "separation_of_duties",
+            "Someone else must record this for you.",
+          );
+        }
+        if (body.kind === "withdrawal") {
+          const rows = await awrRecordsOf(tx, w.tenantUserId);
+          const target = rows.find((r) => r.id === body.withdrawsId);
+          if (!target || target.kind === "withdrawal") throw problems.notFound();
+          if (rows.some((r) => r.withdrawsId === body.withdrawsId)) {
+            throw new HttpProblem(409, "already_withdrawn", "That record is already withdrawn.");
+          }
+        }
+        const [row] = await tx
+          .insert(agencyAwrRecord)
+          .values({
+            workerId: w.tenantUserId,
+            kind: body.kind,
+            fromOn: body.kind === "break_reason" ? body.fromOn : null,
+            toOn: body.kind === "break_reason" ? body.toOn : null,
+            reason: body.kind === "break_reason" ? body.reason : null,
+            notifiedOn: body.kind === "role_change" ? body.notifiedOn : null,
+            withdrawsId: body.kind === "withdrawal" ? body.withdrawsId : null,
+            note: body.note,
+            createdBy: access.tenantUserId,
+          })
+          .returning();
+        if (!row) throw new Error("AWR record not stored");
+        await audit(c, tx, access, {
+          action: A.awrRecorded,
+          resourceType: "agency_worker",
+          resourceId: id,
+          scopeExtra: { recordId: row.id, kind: body.kind },
+        });
+        return awrRecordItem(row, new Set());
+      });
+      if (!made) throw problems.notFound();
+      return c.json(made, 201);
+    },
+  )
+  .openapi(
+    createRoute({
+      method: "get",
       path: "/v1/agency-workers/{id}/awr",
       tags: ["scheduling"],
       summary: "An agency worker's AWR clock",
       description:
-        "Agency Workers Regulations 2010 reg 7, from the worker's confirmed bookings with this organisation at every location: the weeks counted and the week equal basic terms apply from. Weeks with no booking between bookings have no recorded reason and are treated as uncovered (H-924).",
+        "Agency Workers Regulations 2010 reg 7 (Great Britain), from the worker's confirmed bookings with this organisation at every location and the recorded reasons for weeks without one and role changes (H-924): the weeks counted and the week equal basic terms apply from.",
       security,
       request: { params: IdParam },
       responses: {
@@ -797,9 +949,16 @@ export const agencyRouter = createRouter()
           today,
           access.tenantId,
         );
+        const records = activeAwrRecords(await awrRecordsOf(tx, w.tenantUserId));
         const weeks = awrWeeksFromShifts(
           starts.map((r) => r.startsAt),
           today,
+          records.flatMap((r) =>
+            r.kind === "break_reason"
+              ? [{ from: r.fromOn as string, to: r.toOn as string, reason: r.reason as AwrReason }]
+              : [],
+          ),
+          records.flatMap((r) => (r.kind === "role_change" ? [r.notifiedOn as string] : [])),
         );
         const clock = awrClock(weeks, rates);
         await audit(c, tx, access, {
@@ -812,11 +971,14 @@ export const agencyRouter = createRouter()
           qualifyingWeeks: clock.qualifyingWeeks,
           qualifyingWeeksNeeded: rates.awrQualifyingWeeks,
           qualifiedFromWeek: clock.qualifiedFromWeek,
-          weeksWithoutReason: weeks.filter((x) => x.kind === "break").length,
+          weeksWithoutReason: weeks.filter((x) => x.kind === "break" && x.reason === "none").length,
+          jurisdiction: "great_britain" as const,
           resets: clock.resets.map((r) => ({ ...r })),
           method: [
             "Weeks run for seven days from the day of the first booked shift (regulation 7(4)); a week with a shift that has started counts as worked. Future bookings do not count.",
-            "Weeks with no booking between bookings are breaks with no reason recorded, so the clock treats them as uncovered; record the reason where one applies.",
+            "A week with no booking is a break: covered when recorded reasons span every day of it (sickness and jury service pause the clock up to their limits; leave, the hirer's shutdown and industrial action pause it; pregnancy and maternity breaks count as worked), otherwise uncovered, and an uncovered break longer than the reset limit restarts the clock (regulation 7(8)).",
+            "A substantively different role, from the week the worker was told in writing, restarts the clock (regulation 7(3)).",
+            "Great Britain's rules (Agency Workers Regulations 2010); Northern Ireland's apply once its nation pack loads.",
             `Equal basic terms apply after ${rates.awrQualifyingWeeks} qualifying weeks (Agency Workers Regulations 2010, regulation 7).`,
           ],
         };

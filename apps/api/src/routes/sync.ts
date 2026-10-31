@@ -35,7 +35,7 @@ import { mfaRefusal, requirePermission, withTenant } from "../http/context";
 import { problems } from "../http/problem";
 import { PerUserQuota } from "../http/quota";
 import { accessRowsOfMember, workLocationIds } from "../services/access-rows";
-import { agencyWindowEnd } from "../services/agency-window";
+import { agencyUploadCheck, agencyWindowEnd } from "../services/agency-window";
 import {
   closeDeviceHoldOnDeletion,
   DISCARD_ACTIONS,
@@ -379,21 +379,54 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           (op) =>
             op.deviceSentAt !== undefined && hasClockDrift(new Date(op.deviceSentAt), receivedAt),
         );
-        const rejected = operations
-          .filter((op) => !WRITABLE_TABLES.has(op.table))
-          .map((op) => ({
-            id: op.id,
-            code: "table_not_writable",
-            message: "This kind of record cannot be changed from a device yet.",
-          }));
-        await withTenant(c, (tx) =>
-          auditInTx(tx, access, {
+        const rejected: { id: string; code: string; message: string }[] = [];
+        let lateAfterAccess = 0;
+        await withTenant(c, async (tx) => {
+          // H-921: a bank or agency worker's entries only from inside a booked window; after it
+          // closes, still accepted, flagged late, for the upload grace period (HZ-006).
+          const check = await agencyUploadCheck(
+            tx,
+            access.tenantId,
+            access.tenantUserId,
+            receivedAt,
+          );
+          for (const op of operations) {
+            if (check) {
+              const at = op.recordedAt ?? op.deviceSentAt;
+              const decision = check(at ? new Date(at) : null);
+              if (!decision.accept) {
+                rejected.push({
+                  id: op.id,
+                  code: decision.reason,
+                  message:
+                    decision.reason === "outside_booking"
+                      ? "This was recorded outside any shift you were booked for."
+                      : "This was recorded on a booked shift, but the time to upload it has passed. Tell the person in charge.",
+                });
+                continue;
+              }
+              if (decision.late) lateAfterAccess++;
+            }
+            if (!WRITABLE_TABLES.has(op.table)) {
+              rejected.push({
+                id: op.id,
+                code: "table_not_writable",
+                message: "This kind of record cannot be changed from a device yet.",
+              });
+            }
+          }
+          await auditInTx(tx, access, {
             action: "sync.upload",
             outcome: rejected.length > 0 ? "denied" : "success",
-            scope: { operations: operations.length, rejected: rejected.length, clockDrift: drift },
+            scope: {
+              operations: operations.length,
+              rejected: rejected.length,
+              clockDrift: drift,
+              lateAfterAccess,
+            },
             requestId: c.get("requestId"),
-          }),
-        );
+          });
+        });
         return c.json({ applied: operations.length - rejected.length, rejected }, 200);
       },
     )
