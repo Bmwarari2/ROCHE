@@ -23,12 +23,19 @@ import {
   auditEvent,
   deviceBinding,
   deviceSession,
+  featureFlag,
   roleAssignment,
   type Transaction,
   tenantUser,
   withRequestContext,
 } from "@harbour/db";
-import { type Permission, PORTAL_ONLY_PERMISSIONS, scopeFor } from "@harbour/domain";
+import {
+  CARE_MODE_FLAG,
+  evaluateFlag,
+  type Permission,
+  PORTAL_ONLY_PERMISSIONS,
+  scopeFor,
+} from "@harbour/domain";
 import { isValidWindowDays, OFFLINE_WINDOW_RATE_KEY } from "@harbour/sync/streams";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { auditInTx, writeAudit } from "../http/audit";
@@ -340,6 +347,34 @@ export async function refuseRevokedDevice(
     requestId,
   });
   throw problems.deviceRevoked();
+}
+
+/**
+ * Refuses a phone's sync token or upload with 403 `feature_disabled` while the organisation has not
+ * switched Care mode on (`care.mobile_care_mode`, off by default; H-381): the mobile exclusion from
+ * the clinical safety case is a control, not an instruction. The flag is organisation-wide (a
+ * location row does not switch it on). The phone reads the refusal as access withdrawn: it stops
+ * syncing and holds any unsent entries under the hold rules, never deleting them, and a manager's
+ * hand-over of held entries is not refused here.
+ */
+export async function refuseCareModeOff(
+  services: Pick<Services, "db">,
+  access: TenantAccess,
+): Promise<void> {
+  const rows = await inSystemView(services.db, access, (tx) =>
+    tx
+      .select({
+        flagKey: featureFlag.flagKey,
+        locationId: featureFlag.locationId,
+        enabled: featureFlag.enabled,
+      })
+      .from(featureFlag)
+      .where(and(eq(featureFlag.flagKey, CARE_MODE_FLAG), isNull(featureFlag.deletedAt))),
+  );
+  if (evaluateFlag(CARE_MODE_FLAG, rows, null)) return;
+  throw problems.featureDisabled(
+    "Care mode on the phone is switched off for your organisation until a clinical safety case covers the app. Ask your manager.",
+  );
 }
 
 /**

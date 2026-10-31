@@ -227,9 +227,15 @@ export async function seedReferenceData(
 
 /**
  * Feature flags switched on for the demo tenant only. Waterlow and Braden stay off by default for
- * real tenants until their licence terms are confirmed (human action H-25, care.md section 10).
+ * real tenants until their licence terms are confirmed (human action H-25, care.md section 10);
+ * Care mode on the phone stays off for real tenants until a clinical safety case covers the app
+ * (H-381), and is on for the demo tenant, which holds invented data only.
  */
-export const DEMO_FLAGS_ON = ["care.tool.waterlow", "care.tool.braden"] as const;
+export const DEMO_FLAGS_ON = [
+  "care.tool.waterlow",
+  "care.tool.braden",
+  "care.mobile_care_mode",
+] as const;
 
 async function seedDemoFlags(client: pg.PoolClient): Promise<void> {
   for (const flagKey of DEMO_FLAGS_ON) {

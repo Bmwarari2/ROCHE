@@ -23,7 +23,7 @@ import { HttpProblem, problems } from "../http/problem";
 import { BackEntryForReview, entryOutages } from "../services/back-entry";
 import { applyTaskLink, type PlannedTaskLink, planTaskLink } from "../services/care";
 import { deletionFlags, type FlaggedEntryTable } from "../services/device-holds";
-import { refuseRevokedDevice } from "../services/devices";
+import { refuseCareModeOff, refuseRevokedDevice } from "../services/devices";
 import {
   type HandedOverAdmission,
   type HeldHandover,
@@ -292,6 +292,8 @@ export async function entryWriteAccess(
   const handover = await heldHandoverOf(c, access);
   if (!handover) {
     await refuseRevokedDevice(c.get("services"), access, `care.${kind}`, c.get("requestId"));
+    // A phone's upload while Care mode is off for the organisation (H-381).
+    if (access.deviceId) await refuseCareModeOff(c.get("services"), access);
   }
   return {
     access,

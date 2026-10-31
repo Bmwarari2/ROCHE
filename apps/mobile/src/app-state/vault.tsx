@@ -612,6 +612,9 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
         randomBytes: (length) => Crypto.getRandomBytes(length),
         options: keyOptions,
         preferredProtection: preferredKeyProtection(),
+        // Until the key can be bound to the passcode, a live organisation's Care mode enrols only
+        // devices with strong biometrics (H-125).
+        allowNewPasscodeKey: appEnv.demoMode,
       });
       if (key.protection === "passcode") {
         // The keystore read did not prompt, so ask for the passcode explicitly.

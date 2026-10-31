@@ -12,6 +12,7 @@ import {
   loadOrCreateDatabaseKey,
   type SecretStore,
   type SecretStoreOptions,
+  StrongBiometricsRequiredError,
   sqlcipherRawKey,
 } from "./db-key";
 
@@ -64,6 +65,64 @@ describe("key helpers", () => {
     expect(databaseFilename("0123456789abcdef")).toBe("harbour-0123456789abcdef.db");
     expect(databaseFilename("0123456789abcdef", true)).toBe("harbour-demo-0123456789abcdef.db");
     expect(() => databaseFilename("../../etc")).toThrow();
+  });
+});
+
+describe("MASVS-STORAGE Care mode on a live organisation enrols only devices with strong biometrics (H-125)", () => {
+  it("refuses to make a passcode-only key on a live organisation, writing nothing", async () => {
+    const { store, items } = memoryStore();
+    await expect(
+      loadOrCreateDatabaseKey({
+        store,
+        randomBytes,
+        options,
+        preferredProtection: "passcode",
+        allowNewPasscodeKey: false,
+      }),
+    ).rejects.toBeInstanceOf(StrongBiometricsRequiredError);
+    expect(items.size).toBe(0);
+    await expect(
+      loadOrCreateDatabaseKey({
+        store,
+        randomBytes,
+        options,
+        preferredProtection: "passcode",
+        allowNewPasscodeKey: false,
+      }),
+    ).rejects.toThrow(/Face ID or a fingerprint/);
+  });
+
+  it.each([
+    ["with strong biometrics", "biometric" as const, false],
+    ["in the demonstration build", "passcode" as const, true],
+  ])("makes the key %s", async (_label, preferredProtection, allowNewPasscodeKey) => {
+    const { store } = memoryStore();
+    const result = await loadOrCreateDatabaseKey({
+      store,
+      randomBytes,
+      options,
+      preferredProtection,
+      allowNewPasscodeKey,
+    });
+    expect(result.created).toBe(true);
+  });
+
+  it("keeps opening a passcode-only key made before the rule, so nothing on the phone is lost", async () => {
+    const { store } = memoryStore();
+    const first = await loadOrCreateDatabaseKey({
+      store,
+      randomBytes,
+      options,
+      preferredProtection: "passcode",
+    });
+    const again = await loadOrCreateDatabaseKey({
+      store,
+      randomBytes,
+      options,
+      preferredProtection: "passcode",
+      allowNewPasscodeKey: false,
+    });
+    expect(again).toMatchObject({ created: false, key: first.key });
   });
 });
 

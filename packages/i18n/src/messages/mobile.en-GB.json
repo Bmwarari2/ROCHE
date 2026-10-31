@@ -250,6 +250,8 @@
   "mobile.held.titleUnknown": "Sign in again to send your unsent entries",
   "mobile.held.body": "Your session ended before these entries reached Harbour. Only these entries are kept on this device, encrypted, with nothing else from the care record. Nothing is sent until the member of staff who wrote them signs in again, and nothing is deleted unless they or a manager sign in here to delete it.",
   "mobile.held.otherUser": "Entries from another member of staff are waiting. They need to sign in to send them.",
+  "mobile.signIn.careModeOff": "Care mode on the phone is switched off for your organisation until a clinical safety case covers the app. Ask your manager.",
+  "mobile.unlock.strongBiometricsRequired": "Care mode needs a device with Face ID or a fingerprint set up (strong biometrics), so the records on it are locked to you. Set one up in Settings, or use a device that has one.",
   "mobile.held.discard": "{count, plural, one {Sign out and delete # unsent entry} other {Sign out and delete # unsent entries}}",
   "mobile.held.discardTitle": "{count, plural, one {Delete # unsent entry?} other {Delete # unsent entries?}}",
   "mobile.held.discardTitleUnknown": "Delete the unsent entries?",

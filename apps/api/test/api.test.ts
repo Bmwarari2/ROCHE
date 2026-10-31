@@ -681,6 +681,47 @@ describe("offline sync", () => {
     }
   });
 
+  it("hazard HZ-006 refuses the phone's token while the organisation has not switched Care mode on (H-381)", async () => {
+    const token = () =>
+      h.request("/v1/sync/token", { token: h.tokens.rae, tenant: OTHER.tenantId, method: "POST" });
+    expect((await token()).status).toBe(200);
+    await asTenant(
+      OTHER.tenantId,
+      "UPDATE feature_flag SET enabled = false WHERE flag_key = 'care.mobile_care_mode'",
+    );
+    try {
+      const refused = await token();
+      expect(refused.status).toBe(403);
+      // A code the phone reads as access withdrawn: it stops and holds unsent entries.
+      expect(await refused.json()).toMatchObject({ code: "feature_disabled" });
+      const upload = await h.request("/v1/sync/upload", {
+        token: h.tokens.rae,
+        tenant: OTHER.tenantId,
+        method: "POST",
+        body: { operations: [] },
+      });
+      expect(upload.status).toBe(403);
+      expect(await upload.json()).toMatchObject({ code: "feature_disabled" });
+      // A location row does not switch it on: the flag is organisation-wide.
+      await asTenant(
+        OTHER.tenantId,
+        "INSERT INTO feature_flag (flag_key, location_id, enabled) VALUES ('care.mobile_care_mode', $1, true)",
+        [OTHER.locationId],
+      );
+      expect((await token()).status).toBe(403);
+    } finally {
+      await asTenant(
+        OTHER.tenantId,
+        "DELETE FROM feature_flag WHERE flag_key = 'care.mobile_care_mode' AND location_id IS NOT NULL",
+      );
+      await asTenant(
+        OTHER.tenantId,
+        "UPDATE feature_flag SET enabled = true WHERE flag_key = 'care.mobile_care_mode'",
+      );
+    }
+    expect((await token()).status).toBe(200);
+  });
+
   it("hazard HZ-028 issues the fail-safe window when the tenant's rate is out of range (L3)", async () => {
     await asTenant(
       OTHER.tenantId,

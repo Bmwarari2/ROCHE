@@ -42,7 +42,12 @@ import {
   flagEntriesAlreadyUploaded,
   recordDeviceHold,
 } from "../services/device-holds";
-import { bindDevice, inSystemView, refuseRevokedDevice } from "../services/devices";
+import {
+  bindDevice,
+  inSystemView,
+  refuseCareModeOff,
+  refuseRevokedDevice,
+} from "../services/devices";
 import { rateNumber } from "../services/rates";
 import { withTenantWideScope } from "../services/safety";
 import type { SyncTokenSigner } from "../sync/token";
@@ -216,7 +221,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table, with `lead`, how many minutes before a shift ends the phone shows its own handover first (`handover.preview_lead_minutes`, left out when unreadable); a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes. While the organisation has not switched Care mode on (`care.mobile_care_mode`, off by default, H-381) the token is refused with 403 feature_disabled.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -225,6 +230,8 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         const { config } = c.get("services");
         // A revoked device never gets another token (care.md section 6, Device integrity part 2).
         await refuseRevokedDevice(c.get("services"), access, "sync.token", c.get("requestId"));
+        // No token while Care mode is off for the organisation (H-381).
+        await refuseCareModeOff(c.get("services"), access);
         const claims = await withTenant(c, async (tx) => {
           const locations = await tx
             .select({ id: location.id, nation: location.nation })
@@ -377,6 +384,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
       async (c) => {
         const access = c.get("access");
         await refuseRevokedDevice(c.get("services"), access, "sync.upload", c.get("requestId"));
+        await refuseCareModeOff(c.get("services"), access);
         const { operations } = c.req.valid("json");
         const receivedAt = new Date();
         const drift = operations.some(

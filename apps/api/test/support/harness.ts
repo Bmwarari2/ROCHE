@@ -180,6 +180,9 @@ export async function createHarness(env: Record<string, string> = {}): Promise<H
        SELECT $1, id, $2 FROM role WHERE key = 'registered_manager'`,
       [OTHER.managerId, OTHER.locationId],
     ],
+    // Care mode on the phone is switched on here as for the demo tenant (H-381), so the suites
+    // reach the phone's routes; the refusal while it is off has its own test.
+    ["INSERT INTO feature_flag (flag_key, enabled) VALUES ('care.mobile_care_mode', true)"],
   );
 
   const config = loadConfig({

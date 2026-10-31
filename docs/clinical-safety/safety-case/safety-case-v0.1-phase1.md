@@ -109,12 +109,17 @@ section 6); the table says what is built.
 
   This report makes **no claim that the mobile app is safe to use for care**. Until a later report
   covers it, deployers use the web app only.
-- **The exclusion is an instruction, not a control.** Nothing in the product stops a tenant using
-  Care mode: no flag in `packages/domain/src/platform/feature-flags.ts` turns it off, and the sync
-  and upload routes (`apps/api/src/sync`) check no flag. `.github/workflows/mobile.yml` (the
-  `eas-build` job) builds production binaries for both stores and submits them to internal testing on
-  any `v*-rc*` tag when an `EXPO_TOKEN` secret is set. This is an open risk and a decision for the
-  CSO (sections 12 and 13).
+- **The exclusion is a control, not an instruction** (recommended answer to H-381, applied
+  31/10/2026 for review at the testing phase). The organisation-wide flag `care.mobile_care_mode`
+  (`packages/domain/src/platform/feature-flags.ts`) is off by default: while it is off the phone
+  refuses Care mode sign-in (`apps/mobile/src/app-state/care-mode-gate.ts`; a phone holding unsent
+  entries still admits a sign-in so they can be handed over or their deletion recorded), and the API
+  refuses the sync token, the batch upload and a phone's entry uploads with 403 `feature_disabled`
+  (`refuseCareModeOff` in `apps/api/src/services/devices.ts`), which the phone reads as access
+  withdrawn, holding unsent entries under the hold rules. Only the demo tenant (invented data) has it
+  on. The `eas-build` job in `.github/workflows/mobile.yml` builds no store binary unless the
+  repository variable `MOBILE_SAFETY_CASE_COVERS_APP` is `true`, which the owner sets only once a
+  signed safety case covers the app.
 - Home care, supported living, the family app mode, nation packs and every Phase 2 to 7 module.
 - The optional AI module: not built and off by default.
 - The deploying provider's devices, networks, training and local practice (the tenant's DCB0160
@@ -643,9 +648,9 @@ opinion and tool licences), H-04 (the first AWS account), and the per-tenant onb
 
 **Outstanding risks and known defects with clinical relevance**:
 
-- **Mobile exclusion not enforced** (section 2.4): nothing stops Care mode being used, and store
-  binaries are built and submitted to internal testing on a release-candidate tag when an Expo token
-  is set. Mobile work resumed on 31 October 2026, which makes accidental use more likely.
+- **Mobile exclusion enforced** (section 2.4; H-381, applied 31/10/2026): Care mode is off for every
+  organisation until it switches the flag on, and no store build runs while the exclusion stands. A
+  tenant switching the flag on before a safety case covers the app is the remaining deployer risk.
 - **HZ-071 at level 4** blocks a production release (section 11).
 - **Web screens are missing** for 22 Phase 1 rows whose rules are API-only (people lifecycle,
   documents, tasks and retention, candour, medical examiner, investigations, evidence pack composing,
@@ -677,9 +682,9 @@ The CSO's decisions on this report, in the order they unblock each other:
    - the escalation policy lookup order (H-163);
    - the CSO's check of each tool against its source, and the NEWS2 vectors (H-129);
    - with Brian, the regulatory opinion and licences, including MUST, which is on by default (H-25).
-5. **Mobile exclusion**: whether an instruction is enough, or a control is needed before go-live (for
-   example a tenant setting that refuses Care mode sign-in, and no release-candidate tag while the
-   Expo token is set) (section 2.4).
+5. **Mobile exclusion**: a control is needed, as recommended for H-381 and now built (section 2.4):
+   the tenant setting refusing Care mode sign-in, sync and upload, off by default, and no store
+   build while the exclusion stands. The review at the testing phase confirms it.
 6. **Clinical defaults and states**: the post-fall observation defaults (H-66); a renewed DoLS
    authorisation reading as expired (H-251); and a triage of the 106 open non-mobile actions in
    section 12 into must-close-before-go-live and may-follow.

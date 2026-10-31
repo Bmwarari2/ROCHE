@@ -178,12 +178,19 @@ jobs:
     environment: store-release
     steps:
       - uses: actions/checkout@v5
-      - name: Skip without Expo credentials
+      # The mobile exclusion from the clinical safety case needs a control, not an instruction
+      # (H-381): no store build while it stands. The owner sets the repository variable
+      # MOBILE_SAFETY_CASE_COVERS_APP to true only once a signed safety case covers the app.
+      - name: Skip without Expo credentials, or while the safety case excludes the app
         id: creds
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          SAFETY_CASE_COVERS_APP: ${{ vars.MOBILE_SAFETY_CASE_COVERS_APP }}
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
+          if [ "${SAFETY_CASE_COVERS_APP:-}" != "true" ]; then
+            echo "::warning::No store build: the clinical safety case excludes the app (H-381; MOBILE_SAFETY_CASE_COVERS_APP is not true)."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          elif [ -z "$EXPO_TOKEN" ]; then
             echo "EXPO_TOKEN is not set; see docs/plans/human-actions.md (Expo account)."
             echo "available=false" >> "$GITHUB_OUTPUT"
           else
