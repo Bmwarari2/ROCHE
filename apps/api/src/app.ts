@@ -68,12 +68,19 @@ import { roundsRouter } from "./routes/rounds";
 import { sampleDataRouter } from "./routes/sample-data";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { ssoRouter } from "./routes/sso";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
 import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { workflowsRouter } from "./routes/workflows";
+import {
+  createOidcDiscovery,
+  createSsoHooks,
+  createSsoKeyStore,
+  createTxtLookup,
+} from "./services/sso";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
@@ -112,6 +119,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     idleErrorLogger(logger, "operator"),
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+  const ssoKeys = createSsoKeyStore(config);
   const services: Services = {
     config,
     logger,
@@ -119,7 +127,10 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     appPool,
     authPool,
     operatorPool,
-    auth: createAuth(config, authPool),
+    auth: createAuth(config, authPool, createSsoHooks({ appPool, keys: ssoKeys, logger })),
+    ssoKeys,
+    txtLookup: createTxtLookup(config),
+    oidcDiscovery: createOidcDiscovery(config),
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
@@ -228,6 +239,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membershipsRouter);
   app.route("/", meRouter);
   app.route("/", searchRouter);
+  app.route("/", ssoRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);

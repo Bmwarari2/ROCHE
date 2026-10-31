@@ -17,6 +17,7 @@ const PRODUCTION = {
   S3_EXPORTS_BUCKET: "harbour-dev-exports",
   MALWARE_SCANNER: "clamd",
   SAFETY_CASE_VERSION: "v0.0",
+  SSO_KEY_STORE: "aws",
 } as const;
 
 describe("loadConfig", () => {
@@ -50,6 +51,8 @@ describe("loadConfig", () => {
       { AUTH_SIGN_IN_PER_MINUTE: "11" },
       "AUTH_SIGN_IN_PER_MINUTE",
     ],
+    ["single sign-on keys outside the managed store", { SSO_KEY_STORE: "memory" }, "SSO_KEY_STORE"],
+    ["mocked single sign-on lookups", { SSO_LOOKUPS: "mock" }, "SSO_KEY_STORE"],
     [
       "a Flagsmith key with no address",
       { FLAGSMITH_ENVIRONMENT_KEY: "ser.x" },

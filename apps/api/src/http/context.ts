@@ -47,6 +47,7 @@ import type { ChannelAdapter } from "../integrations/registry";
 import type { Logger } from "../logger";
 import { accessRowsOfMember } from "../services/access-rows";
 import { bindSession, sessionOnRevokedDevice } from "../services/devices";
+import type { OidcDiscovery, SsoKeyStore, TxtLookup } from "../services/sso";
 import { writeAudit } from "./audit";
 import { HttpProblem, problems } from "./problem";
 import type { RateLimiter } from "./rate-limit";
@@ -68,6 +69,12 @@ export interface Services {
   readonly authPool: pg.Pool;
   readonly operatorPool: pg.Pool;
   readonly auth: Auth;
+  /** Single sign-on private keys by store name (managed store in AWS; ADR-0091). */
+  readonly ssoKeys: SsoKeyStore;
+  /** DNS TXT records, for domain proofs (rule 19). */
+  readonly txtLookup: TxtLookup;
+  /** OpenID discovery when a connection is saved (ADR-0091). */
+  readonly oidcDiscovery: OidcDiscovery;
   /** Feature flags through OpenFeature (catalogue, the organisation's rows, optional Flagsmith). */
   readonly flags: FlagService;
   readonly storage: DocumentStoragePort;

@@ -93,6 +93,19 @@ const Env = z.object({
   /** The full export's archives (PLAT-015): the exports bucket in AWS (SSE-KMS, lifecycle expiry). */
   LOCAL_EXPORTS_DIR: z.string().default(".data/exports"),
   S3_EXPORTS_BUCKET: z.string().optional(),
+  /**
+   * Where single sign-on private keys live (ADR-0091): AWS Secrets Manager in AWS, or keys given
+   * in SSO_TEST_KEYS (a JSON map of store name to PEM) for development and tests. Production
+   * refuses anything but `aws`; no key is ever stored in the database.
+   */
+  SSO_KEY_STORE: z.enum(["aws", "memory"]).default("memory"),
+  SSO_TEST_KEYS: z.string().default("{}"),
+  /**
+   * DNS proofs and OpenID discovery: the network, or in tests SSO_MOCK_TXT (JSON map of record
+   * name to values, or a path to such a file, read on each lookup) and endpoints from the issuer.
+   */
+  SSO_LOOKUPS: z.enum(["system", "mock"]).default("system"),
+  SSO_MOCK_TXT: z.string().default("{}"),
   /** Malware scanning of uploads: ClamAV (AWS), the EICAR-aware mock (tests), or none (quarantine all). */
   MALWARE_SCANNER: z.enum(["clamd", "mock", "none"]).default("mock"),
   CLAMD_HOST: z.string().default("127.0.0.1"),
@@ -164,6 +177,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("DOCUMENT_STORAGE must be s3 with S3_DOCUMENTS_BUCKET set in production");
     }
     if (!parsed.S3_EXPORTS_BUCKET) throw new Error("S3_EXPORTS_BUCKET must be set in production");
+    if (parsed.SSO_KEY_STORE !== "aws" || parsed.SSO_LOOKUPS !== "system") {
+      throw new Error("SSO_KEY_STORE must be aws and SSO_LOOKUPS system in production");
+    }
     if (parsed.AUTH_SIGN_IN_PER_MINUTE > 10) {
       throw new Error("AUTH_SIGN_IN_PER_MINUTE cannot be above 10 in production");
     }

@@ -115,6 +115,23 @@ export const authPasskey = authSchema.table(
 );
 
 /** The schema object the Better Auth drizzle adapter expects, keyed by Better Auth model name. */
+/**
+ * Better Auth SSO plugin providers (PLAT-005; ADR-0091; migration 0095): a projection of the
+ * organisation's `sso_connection` that only the API writes; Better Auth's own provider routes are
+ * switched off. `oidc_config` is JSON with no secret (`private_key_jwt`; the key is read from the
+ * managed store at sign-in).
+ */
+export const authSsoProvider = authSchema.table("sso_provider", {
+  id: text("id").primaryKey(),
+  issuer: text("issuer").notNull(),
+  oidcConfig: text("oidc_config"),
+  samlConfig: text("saml_config"),
+  userId: text("user_id").references(() => authUser.id, { onDelete: "cascade" }),
+  providerId: text("provider_id").notNull().unique(),
+  organizationId: text("organization_id"),
+  domain: text("domain").notNull(),
+});
+
 export const betterAuthSchema = {
   user: authUser,
   session: authSession,
@@ -122,4 +139,5 @@ export const betterAuthSchema = {
   verification: authVerification,
   twoFactor: authTwoFactor,
   passkey: authPasskey,
+  ssoProvider: authSsoProvider,
 };

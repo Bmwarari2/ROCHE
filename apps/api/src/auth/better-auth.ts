@@ -1,4 +1,5 @@
 import { passkey } from "@better-auth/passkey";
+import { sso } from "@better-auth/sso";
 import { betterAuthSchema } from "@harbour/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -7,6 +8,7 @@ import { bearer, twoFactor } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type pg from "pg";
 import type { Config } from "../config";
+import { type SsoHooks, ssoTrustedOrigins } from "../services/sso";
 import { passwordProblem } from "./password-policy";
 import {
   clearCodeAttempts,
@@ -29,7 +31,21 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60;
  * bearer tokens for the mobile app. Runs on its own database role (harbour_auth) that can reach
  * only the auth schema. SMS is deliberately not offered as a second factor (section 5.3).
  */
-export function createAuth(config: Config, authPool: pg.Pool) {
+/**
+ * The SSO plugin's own provider routes: switched off, so only the API's `/v1/sso` routes (holders
+ * of platform.tenant.manage, with step-up) configure single sign-on (ADR-0091, rule 22).
+ */
+export const SSO_DISABLED_PATHS: readonly string[] = [
+  "/sso/register",
+  "/sso/update-provider",
+  "/sso/delete-provider",
+  "/sso/providers",
+  "/sso/get-provider",
+  "/sso/request-domain-verification",
+  "/sso/verify-domain",
+];
+
+export function createAuth(config: Config, authPool: pg.Pool, ssoHooks?: SsoHooks) {
   const db = drizzle(authPool);
   const passkeyOrigin = config.webOrigins[0] ?? config.BETTER_AUTH_URL;
   // The session a request carries, resolved as the API does (cookie or bearer token). A user
@@ -54,7 +70,26 @@ export function createAuth(config: Config, authPool: pg.Pool) {
     secret: config.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, { provider: "pg", schema: betterAuthSchema }),
     // The mobile app's deep-link scheme is an origin for Better Auth's CSRF checks.
-    trustedOrigins: [...config.webOrigins, MOBILE_APP_ORIGIN],
+    // Identity providers' origins join only on the SSO sign-in and callback paths (ADR-0091).
+    trustedOrigins: async (request) => [
+      ...config.webOrigins,
+      MOBILE_APP_ORIGIN,
+      ...(await ssoTrustedOrigins(authPool, request)),
+    ],
+    disabledPaths: [...SSO_DISABLED_PATHS],
+    // An invited member signing in with SSO for the first time gets a sign-in, which is then
+    // linked to their membership (rule 20). The account's provider id names the organisation.
+    databaseHooks: {
+      account: {
+        create: {
+          after: async (account) => {
+            if (ssoHooks && account.providerId.startsWith("harbour-")) {
+              await ssoHooks.linkInvitedMember(account.providerId, account.userId);
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       // NCSC: at least 12 characters, a deny-list, no forced expiry; throttling, not lockout.
@@ -167,6 +202,24 @@ export function createAuth(config: Config, authPool: pg.Pool) {
       twoFactor({ issuer: "Harbour" }),
       passkey({ rpID: config.PASSKEY_RP_ID, rpName: "Harbour", origin: passkeyOrigin }),
       bearer(),
+      // OpenID Connect per organisation (ADR-0091). Keys come from the managed store at sign-in;
+      // the callback runs the SSO policy (rules 15, 16, 20). Without hooks (scripts), no
+      // provider resolves and every SSO sign-in is refused.
+      sso({
+        trustEmailVerified: false,
+        resolvePrivateKey: async ({ providerId }) =>
+          (await ssoHooks?.resolvePrivateKey({ providerId })) ?? {},
+        resolveUser: async (input) =>
+          ssoHooks
+            ? ssoHooks.resolveUser({
+                providerId: input.providerId,
+                providerUser: {
+                  email: input.providerUser.email,
+                  emailVerified: input.providerUser.emailVerified,
+                },
+              })
+            : { action: "reject", code: "sso_off" },
+      }),
     ],
   });
   resolver.session = (headers) =>

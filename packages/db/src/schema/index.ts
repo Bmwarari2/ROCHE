@@ -17,6 +17,7 @@ export * from "./quality";
 export * from "./records";
 export * from "./safety";
 export * from "./sample-data";
+export * from "./sso";
 export * from "./sub-processors";
 export * from "./sync";
 export * from "./work";

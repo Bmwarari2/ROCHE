@@ -44,6 +44,9 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // Single sign-on (migration 0095): the callback's facts and the invited member's link.
+  "app.sso_sign_in_facts(text, text)": ["harbour_app"],
+  "app.link_sso_member(text, text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

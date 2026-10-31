@@ -946,6 +946,70 @@ Act 2025; ICO guidance on time limits):
   domain, different email, not invited, family member, operator, role not allowed, allowed;
   second factor still required for care records and step-up).
 
+## Phase 2: single sign-on (PLAT-005)
+
+Phase 2 slice 33 ([phase-2.md](../plans/phase-2.md), [ADR-0091](../decisions/0091-single-sign-on.md)):
+per-organisation OpenID Connect sign-in on the Better Auth SSO plugin, built on the slice 9 rules
+15 to 17 (`sso.ts`). Screens are slice 67; this slice is schema, rules and API. SAML 2.0 follows
+when a design partner needs it (H-753). Code: `packages/db/src/schema/sso.ts`, migration 0095,
+`packages/domain/src/platform/sso.ts`, `apps/api/src/routes/sso.ts`, `apps/api/src/services/sso.ts`,
+`apps/api/src/auth/better-auth.ts`.
+
+**Data.** `sso_connection` (one per organisation, mutable, versioned): the provider id Harbour
+derives from the organisation (`harbour-<tenant id>`), the issuer and its discovery URL (https), the
+client id, the name of the private key in the managed secret store and its key id, the roles
+allowed to use SSO, and whether it is switched on. `sso_domain` (mutable, versioned): an email
+domain the organisation claims, the SHA-256 of the DNS TXT token that proves it, when and by whom it
+was verified, and when it was removed. Better Auth's own `auth.sso_provider` row is a projection of
+the connection that only the API writes. Retention: tenant configuration, kept while current, each
+change in `record_version` and the audit trail.
+
+**Rules that are easy to get wrong**
+
+18. No client secret or private key is ever stored in the database, returned by the API or logged.
+    The client authenticates to the provider with `private_key_jwt`; the key lives in the managed
+    secret store under the name the connection holds and is read only at sign-in
+    (`resolvePrivateKey`). Client-secret authentication is refused. Saving a connection checks the
+    key exists in the store without reading it into the response.
+19. A domain counts only once verified by a DNS TXT record `_harbour-verification.<domain>` holding
+    `harbour-verification=<token>`; the token is shown once and stored only as a hash. Public email
+    domains and malformed names are refused (`checkSsoDomain`); a domain verified by one
+    organisation cannot be verified by another.
+20. Linking: the SSO callback runs `ssoSignInDecision` (rules 15 and 16) for the organisation the
+    provider belongs to. An active member with a Harbour sign-in is linked to it; an invited member
+    with none gets a sign-in created and is linked by `app.link_sso_member`, which accepts any open
+    invitation and is audited. Anyone else is refused with the rule's words; nothing is created for
+    them.
+21. Rule 17 holds through the existing session factor (ADR-0072): an SSO session has no Harbour
+    factor recorded, so care records and step-up ask for the passkey or authenticator code on that
+    session (HZ-112). A provider's MFA claim is never read.
+22. Only holders of `platform.tenant.manage` read or change the configuration; every change needs a
+    fresh step-up and is audited (no key names, tokens or domains in the audit scope, only ids and
+    what changed). Better Auth's own provider-management routes are switched off.
+
+**Permission matrix**
+
+| Action | Permission | Notes |
+| --- | --- | --- |
+| Read the SSO configuration and domains | `platform.tenant.manage` | |
+| Save the connection, switch it on or off, add, verify or remove a domain | `platform.tenant.manage` | Step-up |
+| Sign in with SSO | - | Invited or active members only (rules 15, 16, 20) |
+
+**Tests (written before the code)**
+
+- `packages/domain/src/platform/sso.test.ts`: `PLAT-005 SSO connection checks` (https issuer and
+  discovery URL, key name shape, client-secret refused, roles known); `PLAT-005 domain checks`
+  (malformed, public email, verified elsewhere); `PLAT-005 DNS proof` (record name and value, token
+  match, stray records); provider id round trip.
+- `packages/db/test/sso.test.ts`: cross-tenant denial for both tables, only `platform.tenant.manage`,
+  no DELETE, one connection per organisation, a domain verified by only one organisation,
+  `app.link_sso_member` links only an invited member at a verified domain.
+- `apps/api/test/sso.test.ts`: configuration saved with step-up and audited without secrets; a key
+  missing from the store refused; domain added, proved by a mocked DNS answer, refused without it;
+  sign-in started with PKCE and the client id; the resolver links an active member, links and
+  activates an invited one, refuses a stranger, a family member and a role not allowed; an SSO
+  session is refused care records until a Harbour factor is used (HZ-112).
+
 ## Permission matrix
 
 Generated: [permissions.md](permissions.md).

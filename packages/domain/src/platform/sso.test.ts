@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { type SsoSignIn, ssoSessionMayUse, ssoSignInDecision } from "./sso";
+import {
+  checkSsoConnection,
+  checkSsoDomain,
+  type SsoSignIn,
+  ssoDomainProved,
+  ssoDomainRecord,
+  ssoProviderId,
+  ssoSessionMayUse,
+  ssoSignInDecision,
+  tenantOfSsoProvider,
+} from "./sso";
 
 /**
  * Single sign-on policy (platform.md, Phase 2 rules 15 to 17; PLAT-005; ADR-0091 in slice 33).
@@ -137,5 +147,90 @@ describe("PLAT-005 an SSO session still needs Harbour's own second factor", () =
         { careRecords: true, stepUp: true },
       ),
     ).toEqual({ ok: true });
+  });
+});
+
+describe("PLAT-005 SSO connection checks (rule 18)", () => {
+  const ok = {
+    issuer: "https://login.example.invalid/tenant",
+    discoveryUrl: "https://login.example.invalid/tenant/.well-known/openid-configuration",
+    clientId: "harbour-client",
+    privateKeyRef: "harbour/sso/acme-care",
+    tokenEndpointAuthentication: "private_key_jwt" as const,
+    allowedRoleKeys: ["care_worker"],
+  };
+  const known = ["care_worker", "registered_manager"];
+  it.each([
+    ["a valid connection", {}, null],
+    ["an http issuer", { issuer: "http://login.example.invalid" }, "issuer_not_https"],
+    ["a malformed issuer", { issuer: "not a url" }, "issuer_not_https"],
+    [
+      "an http discovery URL",
+      { discoveryUrl: "http://login.example.invalid/x" },
+      "discovery_not_https",
+    ],
+    ["a blank client id", { clientId: "  " }, "client_id_required"],
+    [
+      "a key name that is not a store name",
+      { privateKeyRef: "-----BEGIN PRIVATE KEY-----" },
+      "key_ref_invalid",
+    ],
+    [
+      "a client secret",
+      { tokenEndpointAuthentication: "client_secret_basic" },
+      "client_secret_not_allowed",
+    ],
+    ["an unknown role", { allowedRoleKeys: ["nobody"] }, "unknown_role"],
+    ["no roles", { allowedRoleKeys: [] }, "roles_required"],
+  ] as const)("%s", (_name, change, problem) => {
+    const result = checkSsoConnection({ ...ok, ...change }, known);
+    if (problem === null) expect(result).toEqual({ ok: true });
+    else expect(result).toMatchObject({ ok: false, problem });
+  });
+});
+
+describe("PLAT-005 domain checks (rule 19)", () => {
+  it.each([
+    ["care.example.invalid", null],
+    ["Care.Example.Invalid", null],
+    ["gmail.com", "public_email_domain"],
+    ["outlook.com", "public_email_domain"],
+    ["nodot", "malformed_domain"],
+    ["-bad.example.invalid", "malformed_domain"],
+    ["has space.example.invalid", "malformed_domain"],
+    ["a@b.example.invalid", "malformed_domain"],
+  ] as const)("%s", (domain, problem) => {
+    const result = checkSsoDomain(domain);
+    if (problem === null) expect(result).toEqual({ ok: true, domain: domain.toLowerCase() });
+    else expect(result).toMatchObject({ ok: false, problem });
+  });
+});
+
+describe("PLAT-005 DNS proof (rule 19)", () => {
+  it("names the record and value to publish", () => {
+    expect(ssoDomainRecord("care.example.invalid", "abc123")).toEqual({
+      name: "_harbour-verification.care.example.invalid",
+      value: "harbour-verification=abc123",
+    });
+  });
+  it.each([
+    [["harbour-verification=abc123"], true],
+    [["v=spf1 -all", "harbour-verification=abc123"], true],
+    [[" harbour-verification=abc123 "], true],
+    [["harbour-verification=abc124"], false],
+    [["harbour-verification=ABC123"], false],
+    [[], false],
+  ] as const)("records %j prove it: %s", (records, proved) => {
+    expect(ssoDomainProved(records, "abc123")).toBe(proved);
+  });
+});
+
+describe("the provider id names its organisation", () => {
+  const tenant = "0194d000-0000-7000-8000-000000000001";
+  it("round trips, and refuses anything else", () => {
+    expect(ssoProviderId(tenant)).toBe(`harbour-${tenant}`);
+    expect(tenantOfSsoProvider(ssoProviderId(tenant))).toBe(tenant);
+    expect(tenantOfSsoProvider("harbour-not-a-uuid")).toBeNull();
+    expect(tenantOfSsoProvider("google")).toBeNull();
   });
 });
