@@ -51,7 +51,8 @@ export default defineConfig({
         "smoke.spec.ts",
         "care-record.spec.ts",
         "round.spec.ts",
-        "handover.spec.ts",
+        // Not handover.spec.ts: it acknowledges the shift's handover, which the desktop project
+        // has already done against the same database; responsive.spec.ts covers its screens.
         "incidents.spec.ts",
         "tasks.spec.ts",
         "documents.spec.ts",

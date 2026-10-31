@@ -150,7 +150,7 @@ export default async function TasksPage({ searchParams }: { readonly searchParam
           ) : null}
           <TaskEvidenceBadge task={task} />
         </p>
-        <dl className="m-0 grid grid-cols-1 gap-x-4 gap-y-1 text-body-dense sm:grid-cols-[max-content_1fr]">
+        <dl className="m-0 grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 text-body-dense sm:grid-cols-[max-content_minmax(0,1fr)]">
           {task.personId ? (
             <>
               <dt className="font-semibold">{t("tasks.item.about")}</dt>

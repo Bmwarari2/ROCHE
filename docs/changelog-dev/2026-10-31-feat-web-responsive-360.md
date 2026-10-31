@@ -8,8 +8,10 @@ Branch `feat/web-responsive-360`. Phase 2 plan slice 74, MOB-013 (the web half).
 
 - **New Playwright project `mobile-360`**, at 360 × 740 with touch, runs:
   - the smoke journeys;
-  - a sample journey from each module: care record, round, handover, incidents, tasks, documents,
-    search and team;
+  - a sample journey from each module: care record, round, incidents, tasks, documents, search and
+    team. The handover journey is left out because it acknowledges the shift's handover, which the
+    desktop project has already done against the same database; its two screens are in the screen
+    checks;
   - the new `apps/web/e2e/responsive.spec.ts`.
 - **What `responsive.spec.ts` checks**, across 37 screens from every module as the manager and the
   owner:

@@ -396,7 +396,7 @@ export default async function IncidentPage({
                   <span className="font-semibold">{incidentPersonLine(person, names, t)}</span>
                   {record ? (
                     // Labelled in every state, so "Not recorded" says what is missing (AIS).
-                    <dl className="m-0 flex flex-wrap items-start gap-x-2 gap-y-1">
+                    <dl className="m-0 flex max-w-full flex-wrap items-start gap-x-2 gap-y-1 [&>dd]:min-w-0 [&>dd]:max-w-full">
                       <dt className="text-body-dense font-semibold">
                         {t("people.header.communicationNeeds")}
                       </dt>
