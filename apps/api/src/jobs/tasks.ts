@@ -1,6 +1,7 @@
 import {
   auditEvent,
   type Database,
+  document,
   escalationChain,
   notification,
   notificationDelivery,
@@ -12,6 +13,7 @@ import {
 import {
   type DocumentStoragePort,
   deliveryOutcome,
+  documentStorageKey,
   dueEscalationSteps,
   type EscalationStep,
   EXPORT_ARCHIVE_FILE,
@@ -68,7 +70,12 @@ export interface TaskDeps {
   readonly logger: Logger;
   /** The full export's archives (the exports bucket); absent in jobs that never touch them. */
   readonly exportStorage?: DocumentStoragePort;
+  /** The documents bucket, for the bytes of documents destroyed past retention. */
+  readonly storage?: DocumentStoragePort;
 }
+
+/** The queue named in `worker.job.failed` when a destroyed document's bytes could not be deleted. */
+export const DOCUMENT_DESTRUCTION_QUEUE = "document-destruction";
 
 /** An outbox handler receives a published event; handlers must be idempotent (at-least-once). */
 export type OutboxHandler = (event: {
@@ -668,9 +675,43 @@ export function outboxHandlers(deps: TaskDeps): Map<string, OutboxHandler> {
       `${exportStoragePrefix(event.tenantId, exportId)}${EXPORT_ARCHIVE_FILE}`,
     );
   };
+  // A document destroyed past retention (PLAT-012): its tombstone and certificate are committed
+  // first, and the API tries the bytes at once; this deletes them again (idempotent, every
+  // version) until the storage accepts it, only for a document recorded as destroyed. A failure
+  // writes `worker.job.failed` (queue `document-destruction`, opaque ids), which the operator's
+  // alarm watches, and throws, so the relay backs off and tries again (security review, 31
+  // October 2026).
+  const deleteDestroyedDocument: OutboxHandler = async (event) => {
+    try {
+      if (!deps.storage) throw new Error("The worker has no document storage.");
+      const [row] = await inTenant(event.tenantId, (tx) =>
+        tx
+          .select({ status: document.status })
+          .from(document)
+          .where(eq(document.id, event.aggregateId)),
+      );
+      if (row?.status !== "destroyed") return;
+      // The key is made from the event's ids as uploads make it, never read from the row, so a
+      // changed storage_key cannot point the deletion at another object (review of #134, L6).
+      await deps.storage.destroy(documentStorageKey(event.tenantId, event.aggregateId));
+    } catch (error) {
+      deps.logger.error(
+        {
+          event: WORKER_JOB_FAILED_EVENT,
+          queue: DOCUMENT_DESTRUCTION_QUEUE,
+          tenantId: event.tenantId,
+          outboxEventId: event.id,
+          code: errorCode(error) ?? (error instanceof Error ? error.name : "unknown"),
+        },
+        WORKER_JOB_FAILED_EVENT,
+      );
+      throw error;
+    }
+  };
   const handlers = new Map<string, OutboxHandler>([
     ["platform.export.downloaded", deleteArchive],
     ["platform.export.revoked", deleteArchive],
+    ["platform.document.destroyed", deleteDestroyedDocument],
     [
       "people.person.died",
       async (event) => {

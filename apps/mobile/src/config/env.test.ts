@@ -51,4 +51,24 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ EXPO_PUBLIC_API_URL: "not a url" }, dev)).toThrow(/valid URL/);
     expect(() => parseEnv({ EXPO_PUBLIC_API_URL: "ftp://example.invalid" }, dev)).toThrow(/https/);
   });
+
+  it("allows http to the phone's own loopback in an end-to-end build, and nowhere else", () => {
+    const e2e = (url: string) => ({ EXPO_PUBLIC_API_URL: url, EXPO_PUBLIC_E2E_LOOPBACK: "1" });
+    expect(parseEnv(e2e("http://localhost:4000"), release).apiUrl).toBe("http://localhost:4000");
+    expect(parseEnv(e2e("http://127.0.0.1:4000"), release).apiUrl).toBe("http://127.0.0.1:4000");
+    // The emulator's alias for the host is a network address on a real phone: refused.
+    for (const url of [
+      "http://10.0.2.2:4000",
+      "http://harbour.local",
+      "http://api.example.invalid",
+    ]) {
+      expect(() => parseEnv(e2e(url), release)).toThrow(/must use https/);
+    }
+    expect(() =>
+      parseEnv(
+        { EXPO_PUBLIC_API_URL: "http://localhost:4000", EXPO_PUBLIC_E2E_LOOPBACK: "0" },
+        release,
+      ),
+    ).toThrow(/must use https/);
+  });
 });
