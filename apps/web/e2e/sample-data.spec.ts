@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { expectAccessible, signIn, signInWithDemoPasskey } from "./support";
+import { addDemoPasskey, expectAccessible, signIn, signInWithDemoPasskey } from "./support";
 
 /**
  * Sample data mode on the web (PLAT-018; platform-completions.md rules 29 to 32; HZ-072), in the
@@ -106,10 +106,23 @@ test("removal asks again, is refused without a fresh step-up, and then removes e
   await dialog(page).getByRole("button", { name: "Remove sample data" }).click();
   await expect(dialog(page).getByText(/before you remove sample data\./)).toBeVisible();
   await expectAccessible(page, "remove sample data, step-up needed");
-  await dialog(page).getByRole("button", { name: "Keep it" }).click();
+  // Confirming comes back to the sample data section, not the top of the page.
+  const again = dialog(page).getByRole("link", { name: "Sign in again" });
+  expect(
+    new URL((await again.getAttribute("href")) ?? "", "http://x").searchParams.get("next"),
+  ).toBe(`${PAGE}#sample-data`);
+  await again.click();
+  await page.waitForURL((url) => url.pathname === "/sign-in");
+  await addDemoPasskey(page, "starter");
+  await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+  await page.waitForURL((url) => url.pathname === PAGE && url.hash === "#sample-data");
+  await expect(card(page)).toBeInViewport();
   await expect(banner(page)).toBeVisible();
 
-  await removeWithStepUp(page);
+  // Now stepped up: removal goes through.
+  await card(page).getByRole("button", { name: "Remove sample data" }).click();
+  await dialog(page).getByRole("button", { name: "Remove sample data" }).click();
+  await expect(main(page).getByText("Sample data removed.")).toBeVisible();
   await expect(banner(page)).toHaveCount(0);
   await expect(card(page).getByText("No sample data is loaded.")).toBeVisible();
   await expect(item(page, "Sample data is removed")).toContainText("Done");

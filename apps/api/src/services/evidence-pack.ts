@@ -66,9 +66,11 @@ const MAX_LABEL = 80;
 const words = (code: string) => code.replaceAll("_", " ");
 const yesNo = (value: boolean) => (value ? "Yes" : "No");
 
-interface PersonNames {
+export interface PersonNames {
   readonly id: string;
   readonly display: string;
+  /** An invented sample person (HZ-072): the pack names them with "(Sample)". */
+  readonly sample: boolean;
   readonly names: readonly string[];
   readonly room: string | null;
   readonly nhsNumber: string | null;
@@ -86,12 +88,14 @@ async function peopleNamed(tx: Transaction, ids: readonly string[]): Promise<Per
       room: person.roomLabel,
       nhs: person.nhsNumber,
       dob: person.dateOfBirth,
+      sample: person.isSample,
     })
     .from(person)
     .where(inArray(person.id, [...ids]));
   return rows.map((r) => ({
     id: r.id,
     display: `${r.preferred ?? r.given} ${r.family}`,
+    sample: r.sample,
     names: [`${r.given} ${r.family}`, r.given, r.family, ...(r.preferred ? [r.preferred] : [])],
     room: r.room,
     nhsNumber: r.nhs,
@@ -122,11 +126,15 @@ const field = (
   redacted: null,
 });
 
-/** The person's own fields: their name and room (care content) and identifiers (withheld). */
-function personFields(p: PersonNames): EvidenceField[] {
+/**
+ * The person's own fields: their name and room (care content) and identifiers (withheld). An
+ * invented sample person is named with "(Sample)", so practice data in a pack is never taken for a
+ * real person (HZ-072); the names used to find and redact them are unchanged.
+ */
+export function personFields(p: PersonNames): EvidenceField[] {
   const about = { aboutPersonId: p.id };
   return [
-    field("person_name", "Person", p.display, about),
+    field("person_name", "Person", p.sample ? `${p.display} (Sample)` : p.display, about),
     ...(p.room ? [field("room", "Room", p.room, about)] : []),
     ...(p.nhsNumber ? [field("nhs_number", "NHS number", p.nhsNumber, about)] : []),
     ...(p.dateOfBirth ? [field("date_of_birth", "Date of birth", p.dateOfBirth, about)] : []),
@@ -632,6 +640,7 @@ export async function packDetail(tx: Transaction, row: EvidencePackRow) {
       failedCodeAttempts: k.failedCodeAttempts,
       locked: k.failedCodeAttempts >= EVIDENCE_LINK_MAX_CODE_ATTEMPTS,
       lastOpenedAt: iso(k.lastOpenedAt),
+      version: k.version,
     })),
     bundleDeleted: bundle.exists && bundle.content === null,
   };

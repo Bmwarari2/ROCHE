@@ -149,6 +149,8 @@ export const LetterPreview = z
       preferredName: z.string().nullable(),
       roomLabel: z.string().nullable(),
       photoUrl: z.string().nullable(),
+      /** An invented sample person (HZ-072): the check before sending says so. */
+      sample: z.boolean(),
     }),
     channel: TemplateChannel,
     subject: z.string().nullable(),

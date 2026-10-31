@@ -160,6 +160,8 @@ export const EvidencePackLinkItem = z
     failedCodeAttempts: z.number().int(),
     locked: z.boolean(),
     lastOpenedAt: isoDateTime.nullable(),
+    /** The link's own version, which a new link is issued against (409 when stale). */
+    version: z.number().int(),
   })
   .meta({ id: "EvidencePackLinkItem" });
 
@@ -181,6 +183,7 @@ export const EvidencePackSummary = z
     version: z.number().int(),
   })
   .meta({ id: "EvidencePackSummary" });
+export type EvidencePackSummary = z.infer<typeof EvidencePackSummary>;
 
 export const EvidencePackList = z
   .object({ items: z.array(EvidencePackSummary) })
@@ -338,3 +341,4 @@ export const StatementOfPurposeChanges = z
     registrationPrompts: z.array(z.object({ kind: z.string(), message: z.string() })),
   })
   .meta({ id: "StatementOfPurposeChanges" });
+export type StatementOfPurposeChanges = z.infer<typeof StatementOfPurposeChanges>;

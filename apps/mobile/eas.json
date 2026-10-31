@@ -49,6 +49,7 @@
       "extends": "base",
       "distribution": "store",
       "channel": "production",
+      "ios": { "image": "latest" },
       "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.harbour.example.invalid"
