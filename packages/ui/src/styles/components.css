@@ -226,6 +226,23 @@
     text-decoration: none;
   }
 
+  /* The organisation's white-label logo (PLAT-002): 24 px high, never wider than 120 px. */
+  .hb-appbar__logo {
+    display: block;
+    height: 24px;
+    width: auto;
+    max-width: 120px;
+    margin-inline-end: 8px;
+    object-fit: contain;
+  }
+
+  /* On phones the logo gives way, so the switchers and account menu keep their room. */
+  @media (max-width: 734px) {
+    .hb-appbar__logo {
+      display: none;
+    }
+  }
+
   .hb-appbar__switchers {
     display: flex;
     align-items: center;
@@ -663,6 +680,9 @@
     font-weight: var(--type-title-weight);
     line-height: var(--type-title-line-height);
     letter-spacing: var(--type-title-tracking);
+    /* A long word ("Environmental incident") wraps at 320 px rather than scroll (WCAG 1.4.10);
+       no hyphenation, so names are never split with a hyphen. */
+    overflow-wrap: anywhere;
   }
 
   .hb-page-header__description {

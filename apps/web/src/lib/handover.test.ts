@@ -29,6 +29,7 @@ const item = (over: Partial<HandoverItem>): HandoverItem => ({
   lateAddition: false,
   addedAt: "2026-10-16T09:05:00Z",
   seen: false,
+  summary: null,
   ...over,
 });
 

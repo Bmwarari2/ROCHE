@@ -259,7 +259,7 @@ export function EvidenceOpen() {
       ) : view.kind === "code" ? (
         <Message icon={<Mail {...icon} />} title={t("evidenceLink.code.title")}>
           <p className="m-0">{t("evidenceLink.code.body", { sent: String(view.sent) })}</p>
-          <form className="flex flex-col gap-4" onSubmit={openPack} noValidate>
+          <form method="post" className="flex flex-col gap-4" onSubmit={openPack} noValidate>
             <TextField
               id="evidence-code"
               name="code"

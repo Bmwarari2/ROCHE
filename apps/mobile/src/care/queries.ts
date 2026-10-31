@@ -1,3 +1,4 @@
+import { answeredStateSql } from "./answered-tasks";
 /**
  * Local SQLite queries for Care mode. They run against the PowerSync views on the device, so they
  * work with no network once synced. Every query is scoped to the signed-in tenant as a client-side
@@ -253,8 +254,63 @@ export const DELETE_UPLOAD_ISSUE_SQL =
   "DELETE FROM upload_issue WHERE (tenant_id = ? OR tenant_id IS NULL) AND id = ?";
 
 /**
+ * The round on this device: every open task synced here (in the tenant), with its person's names
+ * and home, and how many entries saved here answer it and wait to upload (`task_id`, device
+ * only), so the round says "evidence recorded, waiting to upload" and never offers it again
+ * (screens gate item (f); HZ-029), and how many entries for it Harbour refused (in "needs
+ * attention", HZ-006), so the round ties a refusal to its task. A task put back by a session's end as a bare row has no title or
+ * due time and sorts first; the screen names it from its move.
+ */
+export const ROUND_TASKS_SQL = `SELECT t.id, t.tenant_id, t.person_id, t.location_id, t.title,
+  t.status, t.due_at, t.window_start, t.window_end, t.priority, t.evidence_required,
+  t.required_permission, t.assignee_tenant_user_id, t.version, t.queued_transition,
+  t.from_earlier_plan, t.kind, t.series_id, t.escalation_level,
+  p.preferred_name, p.given_name, p.family_name, p.communication_needs,
+  p.location_id AS person_location_id,
+  (SELECT COUNT(*) FROM care_note e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
+    + (SELECT COUNT(*) FROM observation e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
+    + (SELECT COUNT(*) FROM body_map_mark e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
+    + (SELECT COUNT(*) FROM activity_record e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id)
+    + (SELECT COUNT(*) FROM visit_log e WHERE e.tenant_id = t.tenant_id AND e.task_id = t.id) AS evidence_waiting,
+  (SELECT COUNT(*) FROM upload_issue i
+    WHERE (i.tenant_id = t.tenant_id OR i.tenant_id IS NULL) AND i.record_table <> 'task'
+      AND CASE WHEN json_valid(i.payload) THEN json_extract(i.payload, '$.task_id') END = t.id)
+    AS evidence_refused,
+  ${answeredStateSql("t.id")} AS answered_state
+FROM task t
+LEFT JOIN person p ON p.id = t.person_id AND p.tenant_id = t.tenant_id
+WHERE t.tenant_id = ? AND (t.status IN ('open', 'in_progress') OR t.queued_transition IS NOT NULL)
+ORDER BY t.due_at, t.id`;
+
+/**
  * Entries still held after the owner signed in again: neither back in the upload queue nor moved to
  * "needs attention" (clinical review M2). Counted with refused entries on the banner and Today, so
  * the device never reads "Up to date" while any exist.
  */
 export const HELD_COUNT_SQL = "SELECT COUNT(*) AS count FROM held_entry";
+
+/**
+ * Entries saved on this device that answer a task and wait to upload, so the record stops tagging
+ * further entries with the task once one is saved (HZ-029; clinical review of the round screen M1).
+ */
+export const TASK_EVIDENCE_SQL = `SELECT
+  (SELECT COUNT(*) FROM care_note WHERE tenant_id = ?1 AND task_id = ?2)
+  + (SELECT COUNT(*) FROM observation WHERE tenant_id = ?1 AND task_id = ?2)
+  + (SELECT COUNT(*) FROM body_map_mark WHERE tenant_id = ?1 AND task_id = ?2)
+  + (SELECT COUNT(*) FROM activity_record WHERE tenant_id = ?1 AND task_id = ?2)
+  + (SELECT COUNT(*) FROM visit_log WHERE tenant_id = ?1 AND task_id = ?2) AS count`;
+
+/**
+ * A task a new entry may answer: one synced to this device, in the tenant, about this person, still
+ * open and not already marked here. A task id from a screen's route is used only when this finds
+ * it, so a link cannot tag an entry to another person's round or a closed one, and the title shown
+ * is the synced one, never words from the route (#123 security review, M2; HZ-029, HZ-004).
+ */
+export const ROUND_TASK_FOR_PERSON_SQL = `SELECT id, title, kind, evidence_required,
+  ${answeredStateSql("task.id")} AS answered_state
+FROM task
+WHERE tenant_id = ? AND id = ? AND person_id = ?
+  AND status IN ('open', 'in_progress') AND queued_transition IS NULL`;
+
+/** One bookkeeping value kept on the device (`sync_meta`), by its id. */
+export const META_VALUE_SQL = "SELECT value FROM sync_meta WHERE id = ?";
