@@ -1069,9 +1069,11 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       minimum_interval_minutes: {
         description: "The minimum interval the prescription states, in minutes (rule 13).",
+        unit: "minutes",
       },
       prn_max_per_24h: {
         description: "A when-required entry's prescribed maximum in 24 hours, in its dose unit.",
+        unit: "the dose's own dm+d unit",
       },
       id: "exported",
       tenant_id: "exported",
@@ -1419,7 +1421,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       },
       reason_code: { description: "The coded reason for the outcome, when it takes one." },
       reason_note: { description: "The reason in words, when one was needed." },
-      quantity: { description: "The amount given or taken, in the unit below." },
+      quantity: {
+        description: "The amount given or taken, in the unit below.",
+        unit: "the dm+d unit in unit_code",
+      },
       unit_code: { description: "The dm+d unit code of the amount." },
       prescribed: { description: "The prescribed dose the amount was checked against, as JSON." },
       dosing_record_id: {
@@ -1440,6 +1445,10 @@ export const EXPORT_TABLES: Readonly<Record<string, ExportTableDefinition>> = {
       device_at: { description: "The device's own clock when it sent the record, when one did." },
       device_offset_ms: {
         description: "The device's offset from Harbour's clock at its last sync.",
+        unit: "milliseconds",
+      },
+      administered_by: {
+        description: "Who gave the dose or saw the outcome (tenant_user.id).",
       },
       recorded_by: { description: "Who recorded it (tenant_user.id)." },
       recorded_at: { description: "When Harbour stored it (instant, UTC); the record locks then." },

@@ -60,6 +60,8 @@ export const RecordAdministration = z
     deviceOffsetMs: z.number().int().min(-86_400_000).max(86_400_000).nullable().default(null),
     /** A dose already given, recorded now, with why (#162). */
     givenBeforeRecorded: z.object({ reason }).nullable().default(null),
+    /** Who gave it, when someone else records it after it was given; the recorder otherwise. */
+    givenBy: uuid.nullable().default(null),
   })
   .meta({ id: "RecordAdministration" });
 
@@ -72,6 +74,8 @@ export const CorrectAdministration = z
     correctionReason: reason,
     /** When the dose was given or the outcome happened, as corrected. */
     givenAt: isoDateTime,
+    /** Who gave it, when the correction names someone other than the record did. */
+    givenBy: uuid.nullable().default(null),
   })
   .meta({ id: "CorrectAdministration" });
 
@@ -92,6 +96,7 @@ export const AdministrationOut = z
     prescribed: Dose.nullable(),
     dosingRecordId: uuid.nullable(),
     givenAt: isoDateTime,
+    administeredBy: uuid,
     recorded: Actor,
     flags: z.array(z.string()),
     /** The flags in words, for the record and the review (never colour alone). */

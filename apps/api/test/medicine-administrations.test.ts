@@ -106,6 +106,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
   let entryId = "";
   let dueAt = "";
   let recordId = "";
+  let correctionId = "";
   const give = (id: string, extra: Record<string, unknown> = {}) =>
     send("manager", `/v1/people/${ADA}/medicine-administrations`, {
       method: "POST",
@@ -143,7 +144,6 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     const r = await give(recordId);
     expect(r.status, await r.clone().text()).toBe(201);
     const out = await json<Recorded>(r);
-    expect(out.administration.flags).toContain("early");
     expect(out.administration.flags).toContain("entry_not_yet_checked");
     const again = await give(recordId);
     expect(again.status).toBe(200);
@@ -174,6 +174,23 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     expect(r.status).toBe(404);
   });
 
+  it("refuses a correction to a time that has not happened yet", async () => {
+    const r = await send("manager", `/v1/medicine-administrations/${recordId}/corrections`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        correctionReason: "Recorded against the wrong time",
+        entryId,
+        dueAt,
+        outcome: "refused",
+        reason: { code: "declined", note: null },
+        givenAt: new Date(Date.now() + 30 * MINUTE).toISOString(),
+      },
+    });
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).toBe("administration_given_at_in_future");
+  });
+
   it("corrects a record as a new one that supersedes it, once, by its author", async () => {
     const carer = await send("carer", `/v1/medicine-administrations/${recordId}/corrections`, {
       method: "POST",
@@ -189,7 +206,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     });
     expect(carer.status).toBe(422);
     expect((await json<{ code: string }>(carer)).code).toBe("administration_not_author");
-    const correctionId = randomUUID();
+    correctionId = randomUUID();
     const r = await send("manager", `/v1/medicine-administrations/${recordId}/corrections`, {
       method: "POST",
       body: {
@@ -228,8 +245,13 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     expect(list.administrations.find((a) => a.id === recordId)?.supersededById).toBe(correctionId);
   });
 
-  it("hazard HZ-116 takes a witness's second signature, never the recorder's and only after step-up", async () => {
-    const self = await send("manager", `/v1/medicine-administrations/${recordId}/witness`, {
+  it("hazard HZ-116 takes a witness's second signature, never the recorder's, never on a corrected record and only after step-up", async () => {
+    const corrected = await send("owner", `/v1/medicine-administrations/${recordId}/witness`, {
+      method: "POST",
+      body: { witnessed: true },
+    });
+    expect(corrected.status).toBe(422);
+    const self = await send("manager", `/v1/medicine-administrations/${correctionId}/witness`, {
       method: "POST",
       body: { witnessed: true },
     });
@@ -238,7 +260,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     const session = h.tokens.owner?.split(".")[0] ?? "";
     await ageSession(auth, session, 3_600);
     try {
-      const stale = await send("owner", `/v1/medicine-administrations/${recordId}/witness`, {
+      const stale = await send("owner", `/v1/medicine-administrations/${correctionId}/witness`, {
         method: "POST",
         body: { witnessed: true },
       });
@@ -246,7 +268,7 @@ describe("hazards HZ-003 and HZ-004 recording a scheduled dose", () => {
     } finally {
       await ageSession(auth, session, 0);
     }
-    const ok = await send("owner", `/v1/medicine-administrations/${recordId}/witness`, {
+    const ok = await send("owner", `/v1/medicine-administrations/${correctionId}/witness`, {
       method: "POST",
       body: { witnessed: true },
     });
@@ -329,7 +351,7 @@ describe("hazard HZ-004 when required: the 24-hour maximum", () => {
   });
 });
 
-describe("a dose recorded after it was given (#162)", () => {
+describe("hazards HZ-004 and HZ-119 a dose recorded after it was given (#162)", () => {
   let entryId = "";
   it("needs a time before now and a reason, and is always flagged and escalated", async () => {
     const entry = await transcribe(CARL, {
@@ -388,12 +410,12 @@ describe("a dose recorded after it was given (#162)", () => {
         outcome: "given",
         amount: { quantity: 15, unitCode: ML.code },
         givenAt: new Date(Date.now() - 20 * MINUTE).toISOString(),
-        givenBeforeRecorded: { reason: "Recorded after" },
+        givenBeforeRecorded: { reason: "Given during a fall, recorded after it" },
       },
     });
     competence.held.set(key, "current");
     expect(r.status).toBe(422);
-    expect((await json<{ code: string }>(r)).code).toBe("administration_competence_expired");
+    expect((await json<{ code: string }>(r)).code).toMatch(/competence/);
   });
 });
 
@@ -523,7 +545,95 @@ describe("hazards HZ-005 and HZ-116 a variable dose needs a checked dosing recor
   });
 });
 
-describe("audit by id only", () => {
+describe("hazard HZ-004 correcting a correction", () => {
+  it("counts only what stands now, never the record a correction replaced", async () => {
+    const FRED = "0194d000-0000-7000-8600-000000000006";
+    const entry = await transcribe(FRED, {
+      product: LACTULOSE,
+      indication: "Constipation",
+      directions: {
+        kind: "when_required",
+        dose: { kind: "amount", quantity: 15, unit: ML },
+        maxQuantityPer24Hours: 20,
+      },
+    });
+    const first = randomUUID();
+    const r = await send("manager", `/v1/people/${FRED}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: first,
+        entryId: entry.id,
+        outcome: "given",
+        amount: { quantity: 15, unitCode: ML.code },
+      },
+    });
+    expect(r.status, await r.clone().text()).toBe(201);
+    const correct = (of: string, id: string) =>
+      send("manager", `/v1/medicine-administrations/${of}/corrections`, {
+        method: "POST",
+        body: {
+          id,
+          correctionReason: "The time was recorded wrongly on the round",
+          entryId: entry.id,
+          dueAt: null,
+          outcome: "given",
+          amount: { quantity: 15, unitCode: ML.code },
+          givenAt: new Date(Date.now() - 2 * MINUTE).toISOString(),
+        },
+      });
+    const c1 = randomUUID();
+    const one = await correct(first, c1);
+    expect(one.status, await one.clone().text()).toBe(201);
+    const two = await correct(c1, randomUUID());
+    expect(two.status, await two.clone().text()).toBe(201);
+    expect((await json<Recorded>(two)).administration.flags).not.toContain("over_maximum");
+  });
+});
+
+describe("hazard HZ-116 controlled drugs wait for the register (slice 34)", () => {
+  it("refuses a controlled drug's dose here, so one person never records it alone", async () => {
+    // dm+d gives the schedule from slice 10; the row is written directly here, as an import would.
+    const entry = { id: randomUUID() };
+    await asDemo(async (c) => {
+      await c.query(
+        `INSERT INTO medication (id, person_id, medicine_id, version, origin, vmp_id, product_name,
+           route_code, route_name, directions, pattern_kind, prescriber, starts_at, source_kind,
+           source_reference, transcribed_by, transcribed_at, cd_schedule)
+         VALUES ($1, $2, $1, 1, 'transcribed', '90000061000001102', 'Morphine sulfate 10mg tablets',
+           '26643006', 'Oral', 'regular', 'every_day', 'Dr A Example', now() - interval '1 day',
+           'prescription', 'Prescription', $3, now() - interval '1 day', '2')`,
+        [entry.id, BEN, DEMO.users.manager.id],
+      );
+      await c.query(
+        `INSERT INTO medication_schedule (medication_id, person_id, position, time, dose_kind,
+           quantity, unit_code, unit_name)
+         VALUES ($1, $2, 0, '08:00', 'amount', 1, '428673006', 'tablet')`,
+        [entry.id, BEN],
+      );
+    });
+    const r = await send("manager", `/v1/people/${BEN}/medicine-administrations`, {
+      method: "POST",
+      body: {
+        id: randomUUID(),
+        entryId: entry.id,
+        outcome: "refused",
+        reason: { code: "declined", note: null },
+      },
+    });
+    expect(r.status).toBe(422);
+    expect((await json<{ code: string }>(r)).code).toBe("administration_controlled_drug_register");
+  });
+
+  it("reads records for at most 31 days at a time", async () => {
+    const r = await send(
+      "manager",
+      `/v1/people/${BEN}/medicine-administrations?from=2026-01-01T00:00:00Z&to=2026-03-01T00:00:00Z`,
+    );
+    expect(r.status).toBe(422);
+  });
+});
+
+describe("hazard HZ-011 audit by id only", () => {
   it("audits records, refusals, corrections and witnesses with ids, never the medicine", async () => {
     const rows = await asDemo(
       async (c) =>

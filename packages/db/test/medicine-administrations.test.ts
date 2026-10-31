@@ -293,7 +293,7 @@ describe("hazard HZ-004 one record per dose, and a record never changes", () => 
 });
 
 describe("hazard HZ-116 a second signature is a second person", () => {
-  it("refuses the recorder as the witness, and takes another member once", async () => {
+  it("refuses the recorder or the giver as the witness, and takes another member once", async () => {
     const witness = (member: string) =>
       refused(
         manager,
@@ -303,6 +303,25 @@ describe("hazard HZ-116 a second signature is a second person", () => {
         [a.personBen, BEN_DOSE, member],
       );
     expect(await witness(a.manager)).toBe("23514");
+    // Nor the member who gave it, when someone else recorded it.
+    const given = "0193a000-0000-7000-8000-00000000f603";
+    await inContext(app(), manager, async (c) => {
+      await c.query(
+        `INSERT INTO medication_administration (id, person_id, medication_id, outcome, reason_code,
+           given_at, recorded_by, administered_by)
+         VALUES ($1, $2, $3, 'refused', 'declined', now(), $4, $5)`,
+        [given, a.personBen, BEN_ENTRY, a.manager, a.northManager],
+      );
+    });
+    expect(
+      await refused(
+        manager,
+        `INSERT INTO medication_administration_witness (person_id, administration_id, witness_id,
+           method)
+         VALUES ($1, $2, $3, 'step_up')`,
+        [a.personBen, given, a.northManager],
+      ),
+    ).toBe("23514");
     expect(await witness(a.carer)).toBeNull();
     expect(await witness(a.northManager)).toBe("23505");
   });

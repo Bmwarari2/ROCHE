@@ -18,6 +18,7 @@ CREATE TABLE "medication_administration" (
 	"given_at" timestamp with time zone NOT NULL,
 	"device_at" timestamp with time zone,
 	"device_offset_ms" integer,
+	"administered_by" uuid NOT NULL,
 	"recorded_by" uuid NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"competence_override" jsonb,
@@ -42,7 +43,7 @@ CREATE TABLE "medication_administration" (
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
         'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
-        'clock_drift']::text[])
+        'given_by_someone_else', 'close_to_last_dose', 'clock_drift']::text[])
 );
 --> statement-breakpoint
 CREATE TABLE "medication_administration_witness" (
@@ -98,6 +99,7 @@ ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administratio
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_dosing_record_fk" FOREIGN KEY ("tenant_id","person_id","dosing_record_id") REFERENCES "public"."medication_dosing_record"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_supersedes_fk" FOREIGN KEY ("tenant_id","person_id","supersedes_id") REFERENCES "public"."medication_administration"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_recorded_by_fk" FOREIGN KEY ("tenant_id","recorded_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "medication_administration" ADD CONSTRAINT "medication_administration_administered_by_fk" FOREIGN KEY ("tenant_id","administered_by") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_witness" ADD CONSTRAINT "medication_administration_witness_administration_fk" FOREIGN KEY ("tenant_id","person_id","administration_id") REFERENCES "public"."medication_administration"("tenant_id","person_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_administration_witness" ADD CONSTRAINT "medication_administration_witness_member_fk" FOREIGN KEY ("tenant_id","witness_id") REFERENCES "public"."tenant_user"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "medication_dosing_record" ADD CONSTRAINT "medication_dosing_record_person_fk" FOREIGN KEY ("tenant_id","person_id") REFERENCES "public"."person"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -110,6 +112,7 @@ CREATE UNIQUE INDEX "medication_administration_supersedes_key" ON "medication_ad
 CREATE INDEX "medication_administration_person_idx" ON "medication_administration" USING btree ("tenant_id","person_id","given_at");--> statement-breakpoint
 CREATE INDEX "medication_dosing_record_entry_idx" ON "medication_dosing_record" USING btree ("tenant_id","medication_id");--> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_tags" CHECK (tags <@ ARRAY['time_critical', 'paracetamol', 'bisphosphonate', 'psychotropic']::text[]);--> statement-breakpoint
+ALTER TABLE "medication" ADD CONSTRAINT "medication_weekdays" CHECK (weekdays IS NULL OR weekdays <@ ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']::text[]);--> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_minimum_interval" CHECK (minimum_interval_minutes IS NULL OR minimum_interval_minutes > 0);--> statement-breakpoint
 ALTER TABLE "medication" ADD CONSTRAINT "medication_prn_max" CHECK (prn_max_per_24h IS NULL OR (directions = 'when_required' AND prn_max_per_24h > 0));--> statement-breakpoint
 -- Administrations security (ADR-0002 patterns; medicines.md section 13; slice 22). Runs as
@@ -198,6 +201,8 @@ LANGUAGE plpgsql AS $$
 DECLARE original public.medication_administration;
 BEGIN
   NEW.recorded_at := now();
+  -- Who gave it: the recorder, unless the record names someone else (recorded after giving).
+  NEW.administered_by := COALESCE(NEW.administered_by, NEW.recorded_by);
   IF NEW.supersedes_id IS NOT NULL THEN
     SELECT * INTO original FROM public.medication_administration o
      WHERE o.tenant_id = NEW.tenant_id AND o.id = NEW.supersedes_id;
@@ -216,15 +221,15 @@ CREATE TRIGGER medication_administration_insert BEFORE INSERT ON public.medicati
   FOR EACH ROW EXECUTE FUNCTION app.medication_administration_insert();
 --> statement-breakpoint
 
--- The witness is a second person (ADR-0084): never the member who recorded the dose.
+-- The witness is a second person (ADR-0084): never the member who recorded or gave the dose.
 CREATE OR REPLACE FUNCTION app.medication_administration_witness_insert() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   NEW.witnessed_at := now();
   IF EXISTS (SELECT 1 FROM public.medication_administration a
               WHERE a.tenant_id = NEW.tenant_id AND a.id = NEW.administration_id
-                AND a.recorded_by = NEW.witness_id) THEN
-    RAISE EXCEPTION 'medication_administration_witness: the witness is not the recorder'
+                AND NEW.witness_id IN (a.recorded_by, a.administered_by)) THEN
+    RAISE EXCEPTION 'medication_administration_witness: the witness is not the recorder or giver'
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;

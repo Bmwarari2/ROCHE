@@ -39412,6 +39412,8 @@ export interface components {
       dosingRecordId: string | null;
       /** Format: date-time */
       givenAt: string;
+      /** Format: uuid */
+      administeredBy: string;
       recorded: {
         /** Format: uuid */
         id: string;
@@ -39483,6 +39485,11 @@ export interface components {
       givenBeforeRecorded: {
         reason: string;
       } | null;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      givenBy: string | null;
     };
     CorrectAdministration: {
       /** Format: uuid */
@@ -39515,6 +39522,11 @@ export interface components {
       correctionReason: string;
       /** Format: date-time */
       givenAt: string;
+      /**
+       * Format: uuid
+       * @default null
+       */
+      givenBy: string | null;
     };
     WitnessAdministration: {
       /** @enum {boolean} */

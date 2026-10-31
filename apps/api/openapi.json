@@ -31007,6 +31007,10 @@
             "type": "string",
             "format": "date-time"
           },
+          "administeredBy": {
+            "type": "string",
+            "format": "uuid"
+          },
           "recorded": {
             "type": "object",
             "properties": {
@@ -31103,6 +31107,7 @@
           "prescribed",
           "dosingRecordId",
           "givenAt",
+          "administeredBy",
           "recorded",
           "flags",
           "flagsInWords",
@@ -31256,6 +31261,14 @@
             "required": [
               "reason"
             ]
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
           }
         },
         "required": [
@@ -31370,6 +31383,14 @@
           "givenAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "givenBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
           }
         },
         "required": [

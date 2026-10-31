@@ -24,6 +24,17 @@ only when they link spec, code, tests and user documentation; no user guides exi
 
 ## Where to pick up (resumed 31/10/2026)
 
+**Phase 2 slice 22, administrations** (`feat/meds-administration-schema`, MEDS-002, from slice 16
+with slice 3's rules, #162, merged in): migration 0123 adds append-only administrations (client
+UUID, corrections by `supersedes_id`), witnesses and dosing records, and rule 13's fields on the
+MAR entry. The API runs `checkAdministration` and `checkCorrection` on every record under the
+person's lock, at the server's time; a dose recorded after it was given needs an earlier time, a
+reason and the recorder's competence, and is always flagged and escalated. Escalations and
+outstanding doses become tasks for the nurse in charge. The round stream is a contract until slice
+68. Also fixed slice 16's weekly schedules (weekday codes). Next for medicines: slice 17's
+competence port, slice 28 (PRN protocols), slice 34 (controlled drugs), slice 48 (escalation
+chain) and the screens. Open: H-1160 to H-1168.
+
 **Phase 2 slice 16, the medicines record and reconciliation** (`feat/meds-record-schema`, MEDS-001):
 migration 0111 and the API on the slice 2 rules (transcribe, change, check, stop, the MAR for a
 cycle, and reconciliation applied in one transaction, completing a return's medicines check). dm+d

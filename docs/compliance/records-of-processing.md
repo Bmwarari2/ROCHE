@@ -161,6 +161,15 @@ and each decision with its note, reason or question). Sources and notes may name
 clinicians (third parties in a subject access bundle). Retention class `mar_chart` (8 years after care
 ends). No new recipient or sub-processor; the medicines record is not yet sent to devices.
 
+Administrations (Phase 2 slice 22, migration 0123): B1 now also covers each administration record
+(what happened to a dose, the amount, the coded reason and any words, who recorded it and when,
+the flags the rules set, corrections with their reason), the witness's second signature, and
+dosing records for variable doses (the doses for each day from the clinic's letter, and their
+second check). Reasons and notes may describe the person's condition or name others present.
+Retention class `mar_chart`. Escalations become tasks for the nurse in charge, titled in words
+that name no medicine. No new recipient or sub-processor; administrations are not yet sent to
+devices (the round stream is a contract until slice 68).
+
 Notes:
 
 - The photo in the point-of-care header (B1) is a safety control against wrong-person selection (hazard HZ-001), not an optional feature, so it is not consent-based. Photos shared with families (B8) are.

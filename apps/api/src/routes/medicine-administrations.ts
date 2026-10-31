@@ -27,7 +27,6 @@ import {
   type CompetenceOverride,
   can,
   checkAdministration,
-  checkCompetenceGate,
   checkCorrection,
   checkDosingRecord,
   doseNotices,
@@ -169,12 +168,15 @@ function inputFor(args: {
   readonly rows: readonly AdministrationRow[];
   readonly byId: ReadonlyMap<string, MarEntry>;
   readonly dosingRecords: Awaited<ReturnType<typeof personDosingRecords>>;
-  readonly givenBeforeRecorded: { reason: string } | null;
+  readonly recordedAt: Date;
+  readonly givenBeforeRecorded: AdministrationInput["givenBeforeRecorded"];
   readonly leaveOut?: string;
 }): { input: AdministrationInput; versionIds: ReadonlySet<string> } {
   const versionIds = entryVersionIds(args.entry, args.entries);
-  const rows = args.rows.filter((r) => r.id !== args.leaveOut);
-  const recordedDueTimes = effective(rows)
+  // What stands now, less the record being corrected: never the records it replaced, which would
+  // count again (clinical review H4).
+  const current = effective(args.rows).filter((r) => r.id !== args.leaveOut);
+  const recordedDueTimes = current
     .filter((r) => versionIds.has(r.medicationId) && r.dueAt !== null)
     .map((r) => r.dueAt as Date);
   const dueAt = args.body.dueAt ? new Date(args.body.dueAt) : null;
@@ -189,6 +191,7 @@ function inputFor(args: {
       amount: args.body.amount,
       amountDifferenceReason: args.body.amountDifferenceReason,
       at: args.at,
+      recordedAt: args.recordedAt,
       timingReason: args.body.timingReason,
       intervalOverrideReason: args.body.intervalOverrideReason,
       administrator: { id: args.administrator.id, competence: args.administrator.competence },
@@ -199,7 +202,7 @@ function inputFor(args: {
       givenBeforeRecorded: args.givenBeforeRecorded,
       recordedDueTimes,
       versionIds,
-      history: givenDoses(rows, args.byId),
+      history: givenDoses(current, args.byId),
       dosingRecords: args.dosingRecords,
     },
   };
@@ -211,18 +214,15 @@ function dosingRecordUsed(
   versionIds: ReadonlySet<string>,
 ): string | null {
   const entry = input.entry;
-  if (!entry || entry.directions.kind !== "regular" || !input.dueAt) return null;
+  if (entry?.directions.kind !== "regular" || !input.dueAt) return null;
   const dueAt = input.dueAt;
   const dose = marEntryDoses(entry, { from: dueAt, to: new Date(dueAt.getTime() + 1) }).find(
     (d) => d.dueAt.getTime() === dueAt.getTime(),
   );
-  if (!dose || dose.dose.kind !== "variable") return null;
+  if (dose?.dose.kind !== "variable") return null;
   const v = variableDoseFor(input.dosingRecords, versionIds, dose.date, dose.time);
   return v.ok ? v.recordId : null;
 }
-
-const RECORDED_AFTER =
-  "Recorded after it was given: for the nurse in charge to review under your organisation's policy.";
 
 function sameRecord(
   row: AdministrationRow,
@@ -237,8 +237,33 @@ function sameRecord(
     row.outcome === body.outcome &&
     (row.reasonCode ?? null) === (body.reason?.code ?? null) &&
     (row.quantity === null ? null : Number(row.quantity)) === (body.amount?.quantity ?? null) &&
-    (row.unitCode ?? null) === (body.amount?.unitCode ?? null)
+    (row.unitCode ?? null) === (body.amount?.unitCode ?? null) &&
+    (row.reasonNote ?? null) === (body.reason?.note ?? null) &&
+    (row.timingReason ?? null) === (body.timingReason ?? null) &&
+    (row.intervalOverrideReason ?? null) === (body.intervalOverrideReason ?? null) &&
+    (row.amountDifferenceReason ?? null) === (body.amountDifferenceReason ?? null) &&
+    (body.givenAt === null ||
+      row.deviceAt?.toISOString() === new Date(body.givenAt).toISOString() ||
+      row.givenAt.toISOString() === new Date(body.givenAt).toISOString())
   );
+}
+
+/**
+ * Any unique clash on insert reads the same: the id is in use (here, in another organisation or
+ * for someone out of scope) or the dose was recorded meanwhile. Nothing says which (security
+ * review L5); under the person's lock only the first can happen.
+ */
+async function uniqueId<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    const code =
+      (error as { code?: string }).code ?? (error as { cause?: { code?: string } }).cause?.code;
+    if (code === "23505") {
+      throw problems.conflict("This record id cannot be used. Read the record again and resend.");
+    }
+    return guardConcurrent(() => Promise.reject(error));
+  }
 }
 
 async function outFor(tx: Transaction, row: AdministrationRow, rows: readonly AdministrationRow[]) {
@@ -262,14 +287,15 @@ async function store(
     readonly givenBeforeRecordedReason: string | null;
     readonly deviceAt: Date | null;
     readonly deviceOffsetMs: number | null;
-    readonly override: CompetenceOverride | null;
+    readonly administeredBy: string;
+    readonly overrides: readonly CompetenceOverride[];
     readonly supersedesId: string | null;
     readonly correctionReason: string | null;
     readonly now: Date;
   },
 ) {
   const i = args.input;
-  const [row] = await guardConcurrent(() =>
+  const [row] = await uniqueId(() =>
     tx
       .insert(medicationAdministration)
       .values({
@@ -291,14 +317,17 @@ async function store(
         givenAt: i.at,
         deviceAt: args.deviceAt,
         deviceOffsetMs: args.deviceOffsetMs,
+        administeredBy: args.administeredBy,
         recordedBy: access.tenantUserId,
-        competenceOverride: args.override
-          ? {
-              approvedBy: args.override.approvedBy,
-              from: args.override.from.toISOString(),
-              until: args.override.until.toISOString(),
-            }
-          : null,
+        competenceOverride:
+          args.overrides.length > 0
+            ? args.overrides.map((o) => ({
+                memberId: o.memberId,
+                approvedBy: o.approvedBy,
+                from: o.from.toISOString(),
+                until: o.until.toISOString(),
+              }))
+            : null,
         flags: [...new Set(args.flags)],
         supersedesId: args.supersedesId,
         correctionReason: args.correctionReason,
@@ -346,14 +375,6 @@ async function store(
   return { stored, escalations };
 }
 
-function withRecordedAfter(
-  escalations: readonly AdministrationEscalation[],
-  always: boolean,
-): AdministrationEscalation[] {
-  if (!always || escalations.length > 0) return [...escalations];
-  return [{ severity: "warning", reason: "review", message: RECORDED_AFTER }];
-}
-
 export const medicineAdministrationsRouter = createRouter()
   .openapi(
     createRoute({
@@ -392,94 +413,79 @@ export const medicineAdministrationsRouter = createRouter()
         });
       const result = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
+          // Visible first (RLS), then serialised on the person (security review L9).
+          await loadPerson(tx, personId);
           await lockPerson(tx, personId);
           const facts = await factsFor(tx, personId, access.tenantId, now);
           const resent = facts.rows.find((r) => r.id === body.id);
           if (resent) {
             if (!sameRecord(resent, personId, body) || resent.supersedesId !== null) {
-              throw problems.conflict("This record id is already used for another record.");
+              throw problems.conflict(
+                "This record id cannot be used. Read the record again and resend.",
+              );
             }
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
           }
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
+          await refuseControlledDrug(tx, entry.id, deny);
 
-          // The time: the server's on the round; a device's, drift-corrected; or, for a dose
-          // recorded after it was given, the time it was given, which must be before now (#162).
+          // The time is the server's: on the round a dose is recorded as it is given. Only a dose
+          // recorded after it was given carries its own time, which slice 3's rules require to be
+          // before the server's (#162); devices send theirs from slice 68 (security review M1).
           const gbr = body.givenBeforeRecorded;
+          if (!gbr && (body.givenAt || body.givenBy)) {
+            throw deny([
+              {
+                problem: "given_at_only_after_giving",
+                message:
+                  "On the round a dose is recorded at the time it is given. If it was given earlier, record it as given before it was recorded, with why.",
+              },
+            ]);
+          }
+          if (gbr && !body.givenAt) {
+            throw deny([{ problem: "given_at_required", message: "Say when the dose was given." }]);
+          }
           let at = now;
           let deviceAt: Date | null = null;
           let drifted = false;
-          if (body.givenAt) {
+          if (gbr && body.givenAt) {
             deviceAt = new Date(body.givenAt);
             const corrected = driftCorrectedTime(deviceAt, body.deviceOffsetMs, facts.rates);
             at = corrected.at;
             drifted = corrected.drifted;
           }
-          if (gbr) {
-            if (!body.givenAt) {
-              throw deny([
-                {
-                  problem: "given_at_required",
-                  message: "Say when the dose was given.",
-                },
-              ]);
-            }
-            if (at.getTime() >= now.getTime()) {
-              throw deny([
-                {
-                  problem: "given_at_not_before_now",
-                  message: "A dose recorded after it was given was given before now.",
-                },
-              ]);
-            }
-            // Whoever records it now needs current competence, or an override of an expired one.
-            const gate = checkCompetenceGate(
-              access.tenantUserId,
-              me.competence,
-              me.override,
-              now,
-              facts.rates,
-            );
-            if (!gate.ok) throw deny([{ problem: gate.problem, message: gate.message }]);
-          } else if (
-            body.givenAt &&
-            Math.abs(at.getTime() - now.getTime()) > facts.rates.clockDriftMinutes * 60_000
-          ) {
-            throw deny([
-              {
-                problem: "given_at_not_now",
-                message:
-                  "This is recorded as given now. If it was given earlier, record it as given before it was recorded, with why.",
-              },
-            ]);
-          }
-
-          const giver = gbr
-            ? {
-                id: access.tenantUserId,
-                ...(await competenceOf(c, access.tenantId, access.tenantUserId, at)),
-              }
-            : { id: access.tenantUserId, ...me };
+          // Who gave it: the recorder, or (recorded after giving) the member named, whose
+          // competence then the rules check; the recorder's competence now is checked too.
+          const giverId = gbr ? (body.givenBy ?? access.tenantUserId) : access.tenantUserId;
+          const giver = {
+            id: giverId,
+            ...(gbr ? await competenceOf(c, access.tenantId, giverId, at) : me),
+          };
           const { input, versionIds } = inputFor({
             personId,
             entry,
             entries: facts.entries,
             body,
             at,
+            recordedAt: now,
             administrator: giver,
             rows: facts.rows,
             byId: facts.byId,
             dosingRecords: facts.dosingRecords,
-            givenBeforeRecorded: gbr,
+            givenBeforeRecorded: gbr
+              ? {
+                  reason: gbr.reason,
+                  recordedBy: {
+                    id: access.tenantUserId,
+                    competence: me.competence,
+                    override: me.override,
+                  },
+                }
+              : null,
           });
           const checked = checkAdministration(input, facts.rates);
           if (!checked.ok) throw deny(checked.issues);
-          const flags = [
-            ...checked.flags,
-            ...(gbr ? ["given_before_recorded"] : []),
-            ...(drifted ? ["clock_drift"] : []),
-          ];
           const { stored, escalations } = await store(c, tx, access, {
             id: body.id,
             personId,
@@ -487,12 +493,17 @@ export const medicineAdministrationsRouter = createRouter()
             input,
             versionIds,
             prescribed: checked.prescribed,
-            flags,
-            escalations: withRecordedAfter(checked.escalations, gbr !== null),
+            flags: [...checked.flags, ...(drifted ? ["clock_drift"] : [])],
+            escalations: checked.escalations,
             givenBeforeRecordedReason: gbr?.reason ?? null,
             deviceAt,
-            deviceOffsetMs: body.deviceOffsetMs,
-            override: checked.flags.includes("competence_override") ? giver.override : null,
+            deviceOffsetMs: gbr ? body.deviceOffsetMs : null,
+            administeredBy: giverId,
+            overrides: checked.flags.includes("competence_override")
+              ? [giver.override, gbr ? me.override : null].filter(
+                  (o): o is CompetenceOverride => o !== null,
+                )
+              : [],
             supersedesId: null,
             correctionReason: null,
             now,
@@ -559,7 +570,9 @@ export const medicineAdministrationsRouter = createRouter()
           const resent = facts.rows.find((r) => r.id === body.id);
           if (resent) {
             if (resent.supersedesId !== originalId || !sameRecord(resent, personId, body)) {
-              throw problems.conflict("This record id is already used for another record.");
+              throw problems.conflict(
+                "This record id cannot be used. Read the record again and resend.",
+              );
             }
             return { status: 200 as const, administration: await outFor(tx, resent, facts.rows) };
           }
@@ -575,12 +588,24 @@ export const medicineAdministrationsRouter = createRouter()
           }
           const entry = facts.byId.get(body.entryId);
           if (!entry) throw problems.notFound();
+          await refuseControlledDrug(tx, entry.id, deny);
           const at = new Date(body.givenAt);
+          // A correction says what happened then, never later than now (security review M2).
+          if (at.getTime() > now.getTime()) {
+            throw deny([
+              {
+                problem: "given_at_in_future",
+                message: "A correction says what happened at a time that has passed.",
+              },
+            ]);
+          }
           // What the corrected record says is checked as a record made after the event, the member
-          // named being whoever gave the dose then (rule 23).
+          // named being whoever gave the dose then (rule 23): the member the record named, unless
+          // the correction names another.
+          const giverId = body.givenBy ?? original.administeredBy;
           const giver = {
-            id: original.recordedBy,
-            ...(await competenceOf(c, access.tenantId, original.recordedBy, at)),
+            id: giverId,
+            ...(await competenceOf(c, access.tenantId, giverId, at)),
           };
           const { input, versionIds } = inputFor({
             personId,
@@ -588,6 +613,7 @@ export const medicineAdministrationsRouter = createRouter()
             entries: facts.entries,
             body,
             at,
+            recordedAt: now,
             administrator: giver,
             rows: facts.rows,
             byId: facts.byId,
@@ -614,7 +640,6 @@ export const medicineAdministrationsRouter = createRouter()
                 id: access.tenantUserId,
                 competence: me.competence,
                 override: me.override,
-                at: now,
               },
             },
             facts.rates,
@@ -632,7 +657,10 @@ export const medicineAdministrationsRouter = createRouter()
             givenBeforeRecordedReason: null,
             deviceAt: null,
             deviceOffsetMs: null,
-            override: checked.flags.includes("competence_override") ? me.override : null,
+            administeredBy: giverId,
+            overrides: checked.flags.includes("competence_override")
+              ? [giver.override, me.override].filter((o): o is CompetenceOverride => o !== null)
+              : [],
             supersedesId: original.id,
             correctionReason: body.correctionReason,
             now,
@@ -673,16 +701,29 @@ export const medicineAdministrationsRouter = createRouter()
     async (c) => {
       const access = await requirePermission(c, ADMINISTER);
       const { id } = c.req.valid("param");
-      if (!stepUpFresh(access)) throw problems.stepUp();
       const now = new Date();
       const me = await competenceOf(c, access.tenantId, access.tenantUserId, now);
       const out = await withAuditedRefusal(c, access, () =>
         withTenant(c, async (tx) => {
-          const [row] = await tx
-            .select()
+          // The second signature needs the witness's own fresh step-up (ADR-0084); a refusal is
+          // audited like any other (security review L6).
+          if (!stepUpFresh(access)) {
+            throw new AuditedRefusal(problems.stepUp(), {
+              action: "medicines.administration.witnessed",
+              outcome: "denied",
+              resourceType: "medication_administration",
+              resourceId: id,
+              scope: { problems: ["step_up_required"] },
+            });
+          }
+          const [first] = await tx
+            .select({ personId: medicationAdministration.personId })
             .from(medicationAdministration)
             .where(eq(medicationAdministration.id, id));
-          if (!row) throw problems.notFound();
+          if (!first) throw problems.notFound();
+          await lockPerson(tx, first.personId);
+          const rows = await personAdministrations(tx, first.personId);
+          const row = rows.find((r) => r.id === id) as AdministrationRow;
           const deny = (problem: string, message: string) =>
             new AuditedRefusal(refusal([{ problem, message }]), {
               action: "medicines.administration.witnessed",
@@ -691,10 +732,19 @@ export const medicineAdministrationsRouter = createRouter()
               resourceId: id,
               scope: { personId: row.personId, problems: [problem] },
             });
-          if (row.recordedBy === access.tenantUserId) {
+          if (
+            row.recordedBy === access.tenantUserId ||
+            row.administeredBy === access.tenantUserId
+          ) {
             throw deny(
               "witness_is_recorder",
-              "A witness is a second person, not the one who recorded it.",
+              "A witness is a second person, not the one who recorded or gave it.",
+            );
+          }
+          if (supersededBy(rows).has(row.id)) {
+            throw deny(
+              "witness_corrected_record",
+              "This record has been corrected. Witness the latest record for the dose.",
             );
           }
           if (me.competence !== "current") {
@@ -717,7 +767,6 @@ export const medicineAdministrationsRouter = createRouter()
             resourceId: row.id,
             scope: { personId: row.personId },
           });
-          const rows = await personAdministrations(tx, row.personId);
           return { administration: await outFor(tx, row, rows), escalations: [] };
         }),
       );
@@ -744,6 +793,11 @@ export const medicineAdministrationsRouter = createRouter()
       const access = await requireAnyPermission(c, [...READERS]);
       const { id: personId } = c.req.valid("param");
       const { from, to } = c.req.valid("query");
+      const span = new Date(to).getTime() - new Date(from).getTime();
+      // At most 31 days per read, from before to (security review L8).
+      if (span < 0 || span > 31 * 24 * HOUR_MS) {
+        throw problems.invalid("Choose a period of up to 31 days, its start before its end.");
+      }
       const out = await withTenant(c, async (tx) => {
         await loadPerson(tx, personId);
         const all = await personAdministrations(tx, personId);
@@ -1063,6 +1117,31 @@ export const medicineAdministrationsRouter = createRouter()
       return c.json(out, 200);
     },
   );
+
+/**
+ * Controlled drugs are recorded in the register with two signatures and step-up (slice 34, H-516):
+ * until it lands, a controlled drug's dose is refused here rather than recorded by one person
+ * (security review M4). The schedule comes from dm+d (slice 10).
+ */
+async function refuseControlledDrug(
+  tx: Transaction,
+  entryId: string,
+  deny: (issues: readonly { problem: string; message: string }[]) => Error,
+) {
+  const [row] = await tx
+    .select({ cd: medication.cdSchedule })
+    .from(medication)
+    .where(eq(medication.id, entryId));
+  if (row?.cd) {
+    throw deny([
+      {
+        problem: "controlled_drug_register",
+        message:
+          "This is a controlled drug. Record it in the controlled drugs register with a witness, not here.",
+      },
+    ]);
+  }
+}
 
 /** One stored entry version, within the caller's scope (RLS). */
 async function entryById(tx: Transaction, entryId: string): Promise<MarEntry> {

@@ -33,7 +33,7 @@ import {
   ukIsoDate,
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import { personEntries } from "./medicines";
+import { lockPerson, personEntries } from "./medicines";
 import { loadPerson } from "./people";
 import { rateRows } from "./rates";
 
@@ -105,7 +105,7 @@ export function givenDoses(
       at: r.givenAt,
       quantity: Number(r.quantity),
       unitCode: r.unitCode as string,
-      by: r.recordedBy,
+      by: r.administeredBy,
       synced: true,
     }));
 }
@@ -224,6 +224,7 @@ export function administrationOut(
     prescribed: (r.prescribed as AdministrationOut["prescribed"]) ?? null,
     dosingRecordId: r.dosingRecordId,
     givenAt: r.givenAt.toISOString(),
+    administeredBy: r.administeredBy,
     recorded: { id: r.recordedBy, at: r.recordedAt.toISOString() },
     flags: [...r.flags],
     flagsInWords: flagWords(r.flags),
@@ -243,6 +244,25 @@ export function administrationOut(
 
 export const REVIEW_TASK = "medicines.administration.review";
 export const OVER_MAXIMUM_TASK = "medicines.administration.over_maximum";
+export const NO_PRESCRIBED_DOSE_TASK = "medicines.administration.no_prescribed_dose";
+
+/** Each escalation's task, named for its own reason (clinical review H3), never the medicine. */
+const ESCALATION_TASKS: Readonly<
+  Record<AdministrationEscalation["reason"], { kind: string; title: string }>
+> = {
+  over_maximum: {
+    kind: OVER_MAXIMUM_TASK,
+    title: "More than the most allowed in 24 hours has been taken: review now",
+  },
+  no_prescribed_dose: {
+    kind: NO_PRESCRIBED_DOSE_TASK,
+    title: "A dose was given with no checked dose to compare it with: review now",
+  },
+  review: {
+    kind: REVIEW_TASK,
+    title: "Review a medicines record flagged for the nurse in charge",
+  },
+};
 export const OUTSTANDING_DOSE_TASK = "medicines.dose.outstanding";
 
 /**
@@ -263,13 +283,12 @@ export async function raiseEscalationTasks(
   const raised: { severity: "urgent" | "warning"; message: string; taskId: string }[] = [];
   for (const e of input.escalations) {
     const urgent = e.severity === "urgent";
+    const named = ESCALATION_TASKS[e.reason];
     const [row] = await tx
       .insert(task)
       .values({
-        kind: urgent ? OVER_MAXIMUM_TASK : REVIEW_TASK,
-        title: urgent
-          ? "More than the most allowed in 24 hours has been taken: review now"
-          : "Review a medicines record flagged for the nurse in charge",
+        kind: named.kind,
+        title: named.title,
         requiredPermission: "medicines.record.manage",
         personId: input.personId,
         locationId: input.locationId,
@@ -337,7 +356,13 @@ export async function raiseOutstandingDoseTasks(
   let raised = 0;
   for (const { personId } of people) {
     const person = await loadPerson(tx, personId).catch(() => null);
-    if (!person || isClosedRecord(person.status as PersonStatus)) continue;
+    // Only someone at the home now: a person in hospital or on leave has doses recorded as away
+    // when they return, not a task per dose meanwhile (clinical review M7; H-1165).
+    if (!person || isClosedRecord(person.status as PersonStatus) || person.status !== "active") {
+      continue;
+    }
+    // Serialised with recording, so a dose recorded meanwhile is seen (security review L7).
+    await lockPerson(tx, personId);
     const rates =
       ratesByNation.get(person.nation) ??
       (await medicinesRates(tx, tenantId, person.nation, ukIsoDate(now)));
@@ -346,7 +371,8 @@ export async function raiseOutstandingDoseTasks(
     const recorded = effective(await personAdministrations(tx, personId));
     for (const entry of entries) {
       const versionIds = entryVersionIds(entry, entries);
-      const doses = marEntryDoses(entry, { from: new Date(now.getTime() - DAY_MS), to: now });
+      // Three days back, so a worker outage of a day or two still escalates what it missed.
+      const doses = marEntryDoses(entry, { from: new Date(now.getTime() - LOOKBACK_MS), to: now });
       for (const dose of doses) {
         const window = doseWindow(dose.dueAt, isTimeCritical(entry), rates);
         if (escalationAt(window).getTime() > now.getTime()) continue;
@@ -390,4 +416,4 @@ export async function raiseOutstandingDoseTasks(
   return raised;
 }
 
-const DAY_MS = 86_400_000;
+const LOOKBACK_MS = 3 * 86_400_000;

@@ -13454,6 +13454,10 @@
           "name": "medication_tags",
           "value": "tags <@ ARRAY['time_critical', 'paracetamol', 'bisphosphonate', 'psychotropic']::text[]"
         },
+        "medication_weekdays": {
+          "name": "medication_weekdays",
+          "value": "weekdays IS NULL OR weekdays <@ ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']::text[]"
+        },
         "medication_minimum_interval": {
           "name": "medication_minimum_interval",
           "value": "minimum_interval_minutes IS NULL OR minimum_interval_minutes > 0"
@@ -13635,6 +13639,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "administered_by": {
+          "name": "administered_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         },
         "recorded_by": {
           "name": "recorded_by",
@@ -13854,6 +13864,21 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "medication_administration_administered_by_fk": {
+          "name": "medication_administration_administered_by_fk",
+          "tableFrom": "medication_administration",
+          "tableTo": "tenant_user",
+          "columnsFrom": [
+            "tenant_id",
+            "administered_by"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -13900,7 +13925,7 @@
         },
         "medication_administration_flags": {
           "name": "medication_administration_flags",
-          "value": "flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',\n        'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',\n        'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',\n        'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',\n        'clock_drift']::text[]"
+          "value": "flags <@ ARRAY['early', 'late', 'interval_override', 'competence_override',\n        'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',\n        'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',\n        'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',\n        'given_by_someone_else', 'close_to_last_dose', 'clock_drift']::text[]"
         }
       },
       "isRLSEnabled": false

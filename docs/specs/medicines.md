@@ -834,7 +834,7 @@ it is changed (H-1160).
 
 | Table | Kind | Key columns | Retention class |
 | --- | --- | --- | --- |
-| `medication_administration` | Append-only: no UPDATE or DELETE for the application; a correction is a new row with `supersedes_id` | `id` (the client's UUID, so a resend is idempotent), person, the entry version (`medication_id`), `due_at` (null for a when-required dose), `outcome`, coded `reason_code` and `reason_note`, amount (quantity and unit code), the prescribed dose it was checked against, the dosing record used, the reasons the rules asked for (amount difference, timing, interval override, given before recorded), `given_at` (drift-corrected), the device time and offset, `recorded_by`, `recorded_at` (the server's clock), the competence override used, the flags, `supersedes_id` and the correction reason, the scan evidence (ADR-0081, a hook until barcodes land) and the controlled drugs entry (a hook for slice 34) | `mar_chart` |
+| `medication_administration` | Append-only: no UPDATE or DELETE for the application; a correction is a new row with `supersedes_id` | `id` (the client's UUID, so a resend is idempotent), person, the entry version (`medication_id`), `due_at` (null for a when-required dose), `outcome`, coded `reason_code` and `reason_note`, amount (quantity and unit code), the prescribed dose it was checked against, the dosing record used, the reasons the rules asked for (amount difference, timing, interval override, given before recorded), `given_at` (drift-corrected), the device time and offset, `administered_by` (who gave it: the recorder unless recorded after giving by someone else), `recorded_by`, `recorded_at` (the server's clock), the competence override used, the flags, `supersedes_id` and the correction reason, the scan evidence (ADR-0081, a hook until barcodes land) and the controlled drugs entry (a hook for slice 34) | `mar_chart` |
 | `medication_administration_witness` | Append-only, at most one per record | the administration, the witness, when, how they signed (`step_up` on the web; `device_factor` from slice 70) | `mar_chart` |
 | `medication_dosing_record` | The record never changes; its second check is set once | person, the entry version, source (kind, reference, document), the doses (date, time, quantity in the entry's unit), recorded by and at, second check (by, at, outcome, difference) | `mar_chart` |
 
@@ -844,9 +844,12 @@ Database rules:
   witnessed record and every document.
 - One original record per scheduled dose: a unique key on (entry version, `due_at`) where
   `supersedes_id` is null. One correction per record: a unique key on `supersedes_id`.
-- A correction stays with its record's person, entry and dose (the database checks the person and
-  entry; the API checks the dose by `checkCorrection`).
-- A witness is never the recorder.
+- A correction stays with its record's person, entry version and due time (the database checks
+  them; the API also checks a when-required dose's MAR day by `checkCorrection`).
+- A witness is never the recorder or the giver.
+- Weekdays are stored as the domain's codes (`mon` to `sun`), never full names.
+- One original per dose is keyed on the entry version and due time; across versions of one
+  medicine the API checks it under the person's lock.
 - `recorded_at` is the server's clock (`now()`), never the request's.
 
 ### 13.3 Recording a dose
@@ -862,13 +865,17 @@ why.
 - **The facts**: every version of the person's entries, the doses already recorded, the dosing
   records, the competence of the signed-in member from the competence port (and any override in
   force, from the same port), and the rates from the rate table for the person's nation.
-- **The time**: on the round, the dose is recorded at the server's time. A device (slices 68 and 69)
-  sends its own time and its last measured offset, and the record is checked at the drift-corrected
-  time (`driftCorrectedTime`), flagged when drift passes `sync.clock_drift_flag_minutes`.
-- **Given before recorded** (#162): `givenAt` must be before the server's `recordedAt`, with a
-  reason. The member recording it needs current competence now, or an override of an expired one;
-  the competence of whoever gave it then is a fact the rules flag. The record is always flagged
-  `given_before_recorded` and always escalated for review, even when no other flag applies.
+- **The time**: a dose is recorded at the server's time; a request may send its own time only for
+  a dose recorded after it was given (security review M1). How a device's offline records are
+  uploaded, and checked at their drift-corrected time, is decided with slices 68 and 69 (H-1164).
+- **Given before recorded** (#162, slice 3's rules): `givenAt` (drift-corrected when the device
+  sends its offset) strictly before the server's `recordedAt`, a reason of at least
+  `GIVEN_BEFORE_RECORDED_REASON_MIN_LENGTH` characters, the recorder's current competence now (or
+  an override of an expired one), and the giver (`givenBy`, the recorder by default) checked at the
+  time given. The rules always flag it `given_before_recorded` (and `given_by_someone_else` when
+  another member gave it) and escalate it, urgently when it broke a rule.
+- **Controlled drugs**: an entry whose dm+d controlled drug schedule is set is refused here until
+  the register (slice 34) records it with two signatures and step-up (security review M4).
 - **Refused** records are audited as `denied` with the problem codes, outside the refused
   transaction.
 
@@ -876,34 +883,44 @@ why.
 
 A record is locked once stored on the server (`marRowLocked`): there is no edit route. A
 correction is `POST /v1/medicine-administrations/{id}/corrections` with a reason and what the
-record should say, by its author or a holder of `medicines.record.manage`, checked by
-`checkCorrection` (the latest record for the dose only; the person and dose never move). Reads
-show the corrected record struck through beside its correction.
+record should say (`correctionReason`, the outcome and its time, never later than now, and
+`givenBy` when the giver differs from the record's), by its author or a holder of
+`medicines.record.manage`, checked by `checkCorrection` (the latest record for the dose only; the
+person and dose never move). The facts it reads are what stands now less the record corrected, so
+a correction of a correction never counts the record the first correction replaced. Reads show
+the corrected record struck through beside its correction.
 
 ### 13.5 Witness and second signature
 
 The witness is a second signed-in member (ADR-0084, as phase-2.md records it; the ADR is written
 with slice 34). On the web the witness signs with their own session and a fresh step-up:
-`POST /v1/medicine-administrations/{id}/witness`. The witness needs `medicines.emar.administer`
-and current competence, and is never the recorder. A device witness (`device_factor`) is slice 70.
+`POST /v1/medicine-administrations/{id}/witness`, under the person's lock. The witness needs
+`medicines.emar.administer` and current competence, is never the recorder or the giver, and
+signs only the latest record for the dose (never one a correction replaced). A missing step-up is
+refused and audited. There is no time limit on signing yet (H-1166). A device witness
+(`device_factor`) is slice 70.
 Controlled drugs: when the entry's product is a controlled drug, slice 34 writes the register
 entry and links it (`cd_entry_id`); until then the hook is empty and slice 22 records nothing in
 a register.
 
 ### 13.6 Escalation through the task engine
 
-- **A record that needs review** (`warning`) or is over the maximum (`urgent`), and every record
-  given before it was recorded, raises a task for the nurse in charge (`clinical_lead`), with the
-  escalation's words and the record as its evidence. Slice 48 adds the notification chain.
-- **An outstanding dose**: the worker job `medicines-outstanding-doses` raises one task per
-  scheduled dose whose escalation time (`escalationAt`, the end of its window) has passed with no
-  outcome, time-critical doses marked urgent, never twice. The task is closed when an outcome is
-  recorded; nothing makes a missed dose due again.
+- **Each escalation** the rules return raises a task for the nurse in charge (`clinical_lead`),
+  urgent or routine as the rules say, named for its reason in fixed words that name no medicine:
+  over the 24-hour maximum, given with no checked dose to compare it with, or a record to review
+  (every dose recorded after it was given is one). The escalation's own words are returned to the
+  recorder; the record is the task's source. Slice 48 adds the notification chain.
+- **An outstanding dose**: the worker job `medicines-outstanding-doses` (every 5 minutes, looking
+  back 3 days, under each person's lock) raises one task per scheduled dose whose escalation time
+  (`escalationAt`, the end of its window) has passed with no outcome, for people at the home
+  (status `active`; in hospital or on leave, the doses are recorded as away instead, H-1165),
+  time-critical doses urgent, never twice. The task is closed when an outcome is recorded; nothing
+  makes a missed dose due again.
 
 ### 13.7 Reads
 
 - `GET /v1/people/{id}/medicine-administrations?from=&to=`: the records with corrections
-  linked.
+  linked, at most 31 days at a time.
 - `GET /v1/people/{id}/medicine-round?at=`: the doses due around a time with their state
   (`scheduledDoseState`), notices, and each when-required entry's status (`prnStatus`).
 
@@ -921,9 +938,10 @@ stream's isolation tests exist.
   - The member's own competence reading.
 - **Rules**: the same person scope as the care streams (replication bypasses RLS, so the stream
   query carries the scope itself); no stopped or withdrawn versions after their end; no documents.
-- **Uploads**: administrations go through `POST /v1/people/{id}/medicine-administrations` with the
-  device time and offset, idempotent by id. A refusal comes back to the device as a conflict for
-  the nurse in charge (slice 70).
+- **Uploads**: decided with slices 68 and 69 (H-1164): a record made offline is recorded after the
+  event, so it is checked at its drift-corrected time, idempotent by id, and a refusal comes back
+  to the device as a conflict for the nurse in charge (slice 70). Today the API takes a request's
+  own time only through the given-before-recorded route.
 
 ### 13.9 Audit and outbox
 

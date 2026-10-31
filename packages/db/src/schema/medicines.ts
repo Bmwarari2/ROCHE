@@ -196,6 +196,11 @@ export const medication = pgTable(
       // Duplicates are refused by the slice 3 rules (a CHECK cannot hold a subquery).
       sql`tags <@ ARRAY['time_critical', 'paracetamol', 'bisphosphonate', 'psychotropic']::text[]`,
     ),
+    // The domain's weekday codes only: a full name would never match a day (slice 22 finding).
+    check(
+      "medication_weekdays",
+      sql`weekdays IS NULL OR weekdays <@ ARRAY['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']::text[]`,
+    ),
     check(
       "medication_minimum_interval",
       sql`minimum_interval_minutes IS NULL OR minimum_interval_minutes > 0`,
@@ -652,6 +657,8 @@ export const medicationAdministration = pgTable(
     /** The device's own clock and its last measured offset, when a device sent it. */
     deviceAt: timestamp("device_at", { withTimezone: true }),
     deviceOffsetMs: integer("device_offset_ms"),
+    /** Who gave the dose or saw the outcome (the recorder, unless recorded after by someone else). */
+    administeredBy: uuid("administered_by").notNull(),
     recordedBy: uuid("recorded_by").notNull(),
     /** The server's clock when it was stored: the MAR row is locked from then. */
     recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
@@ -690,6 +697,7 @@ export const medicationAdministration = pgTable(
       foreignColumns: [t.tenantId, t.personId, t.id],
     }),
     memberRef("medication_administration_recorded_by_fk", t.tenantId, t.recordedBy),
+    memberRef("medication_administration_administered_by_fk", t.tenantId, t.administeredBy),
     // One original record per scheduled dose; corrections chain from it.
     uniqueIndex("medication_administration_dose_key")
       .on(t.tenantId, t.medicationId, t.dueAt)
@@ -723,7 +731,7 @@ export const medicationAdministration = pgTable(
         'amount_differs', 'entry_not_yet_checked', 'other_unit_not_counted', 'over_maximum',
         'before_window', 'earlier_dose_outstanding', 'entry_not_usable', 'no_usable_dosing_record',
         'amount_in_other_unit', 'competence_not_current', 'given_before_recorded',
-        'clock_drift']::text[]`,
+        'given_by_someone_else', 'close_to_last_dose', 'clock_drift']::text[]`,
     ),
   ],
 );
