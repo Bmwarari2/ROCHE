@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth/better-auth";
+import { ssoAuthGate } from "./auth/sso-gate";
 import { withoutSessionTokens } from "./auth/token-exposure";
 import type { Config } from "./config";
 import { createFlagService } from "./flags/provider";
@@ -24,7 +25,14 @@ import { careRouter } from "./routes/care";
 import { carePlansRouter } from "./routes/care-plans";
 import { careRecordsRouter } from "./routes/care-records";
 import { careSettingsRouter } from "./routes/care-settings";
+import { caseworkRouter } from "./routes/casework";
+import { complaintsRouter } from "./routes/complaints";
+import { dataProtectionRouter } from "./routes/data-protection";
+import { dataSecurityRouter } from "./routes/data-security";
+import { deathsMissingRouter } from "./routes/deaths-missing";
+import { developmentRouter } from "./routes/development";
 import { devicesRouter } from "./routes/devices";
+import { disclosuresRouter } from "./routes/disclosures";
 import { documentsRouter } from "./routes/documents";
 import { dpiaRouter } from "./routes/dpia";
 import { dsarRouter } from "./routes/dsar";
@@ -35,6 +43,7 @@ import { familyFeedRouter } from "./routes/family-feed";
 import { feedPublishRouter } from "./routes/feed-publish";
 import { handoversRouter } from "./routes/handovers";
 import { incidentsRouter } from "./routes/incidents";
+import { inductionRouter } from "./routes/induction";
 import { integrationsRouter, supportAccessRouter } from "./routes/integrations";
 import { invitationsRouter } from "./routes/invitations";
 import { letterTemplatesRouter } from "./routes/letter-templates";
@@ -47,9 +56,11 @@ import { onboardingRouter } from "./routes/onboarding";
 import { createRouter } from "./routes/openapi";
 import { operationsRouter } from "./routes/operations";
 import { operatorMiddleware, operatorRouter } from "./routes/operator";
+import { operatorBreachNoticesRouter } from "./routes/operator-breach-notices";
 import { operatorInvitationsRouter } from "./routes/operator-invitations";
 import { operatorSubProcessorsRouter } from "./routes/operator-sub-processors";
 import { outagesRouter } from "./routes/outages";
+import { outbreaksRouter } from "./routes/outbreaks";
 import { peopleRouter } from "./routes/people";
 import { peopleDetailsRouter } from "./routes/people-details";
 import { peopleEnquiriesRouter } from "./routes/people-enquiries";
@@ -66,12 +77,22 @@ import {
   notificationsRouter,
   ratesRouter,
 } from "./routes/platform";
+import { platformImportsRouter } from "./routes/platform-imports";
+import { policiesRouter } from "./routes/policies";
+import { qualityAuditsRouter } from "./routes/quality-audits";
+import { qualityFrameworkRouter } from "./routes/quality-framework";
+import { recruitmentRouter } from "./routes/recruitment";
 import { createRefusedEntriesRouter } from "./routes/refused-entries";
+import { rotaRouter } from "./routes/rota";
 import { roundsRouter } from "./routes/rounds";
+import { safeguardingRouter } from "./routes/safeguarding";
 import { sampleDataRouter } from "./routes/sample-data";
+import { schedulingDependencyRouter } from "./routes/scheduling-dependency";
 import { searchRouter } from "./routes/search";
 import { sessionsRouter } from "./routes/sessions";
+import { speakUpRouter } from "./routes/speak-up";
 import { ldssRouter, sponsorshipRouter, staffPrivacyRouter } from "./routes/sponsorship";
+import { ssoRouter } from "./routes/sso";
 import { staffFilesRouter } from "./routes/staff-files";
 import { statementOfPurposeRouter } from "./routes/statement-of-purpose";
 import { statutoryNotificationsRouter } from "./routes/statutory-notifications";
@@ -79,10 +100,18 @@ import { subProcessorsRouter } from "./routes/sub-processors";
 import { createSyncRouter } from "./routes/sync";
 import { tasksRouter } from "./routes/tasks";
 import { workflowsRouter } from "./routes/workflows";
+import {
+  createOidcDiscovery,
+  createSsoHooks,
+  createSsoKeyStore,
+  createTxtLookup,
+} from "./services/sso";
 import { SyncTokenSigner } from "./sync/token";
 
 /** Largest upload accepted at the edge of the API; each category has its own lower limit. */
 const MAX_UPLOAD_BYTES = 26 * 1024 * 1024;
+/** Largest import upload (CSV text or JSON rows) accepted (platform.md rule 19). */
+export const IMPORT_MAX_BODY_BYTES = 12 * 1024 * 1024;
 /** Largest body any /v1/sync route accepts (security review round 4, M4). */
 export const SYNC_MAX_BODY_BYTES = 64 * 1024;
 /**
@@ -96,6 +125,11 @@ export const PUBLIC_MAX_BODY_BYTES = 4 * 1024;
  * registration, whose attestation is the largest at a few kilobytes.
  */
 export const AUTH_MAX_BODY_BYTES = 64 * 1024;
+/**
+ * Largest public speak-up body: a concern of up to 10,000 characters, each up to four bytes in
+ * UTF-8, with room for the JSON around it (security review M2).
+ */
+export const SPEAK_UP_MAX_BODY_BYTES = 48 * 1024;
 /** The public routes reached with no session that take a body, capped at PUBLIC_MAX_BODY_BYTES. */
 const PUBLIC_BODY_PATHS = ["/p/*", "/v1/invitations/lookup", "/v1/invitations/accept"] as const;
 
@@ -130,6 +164,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     idleErrorLogger(logger, "operator"),
   );
   const mocks = { email: new MockEmail(), sms: new MockSms(), push: new MockPush() };
+  const ssoKeys = createSsoKeyStore(config);
   const services: Services = {
     config,
     logger,
@@ -137,7 +172,14 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     appPool,
     authPool,
     operatorPool,
-    auth: createAuth(config, authPool),
+    auth: createAuth(
+      config,
+      authPool,
+      createSsoHooks({ db: createDatabase(appPool), authPool, keys: ssoKeys, logger }),
+    ),
+    ssoKeys,
+    txtLookup: createTxtLookup(config),
+    oidcDiscovery: createOidcDiscovery(config),
     flags: createFlagService(config, logger),
     ...createDocumentServices(config),
     transferPackLimiter: new RateLimiter(
@@ -215,7 +257,15 @@ export function createApp(config: Config, logger: Logger): AppHandle {
     });
   // Registered before the handler below, which answers without calling on.
   app.use("/api/auth/*", capped(AUTH_MAX_BODY_BYTES));
-  for (const path of PUBLIC_BODY_PATHS) app.use(path, capped(PUBLIC_MAX_BODY_BYTES));
+  // Single sign-on in front of Better Auth: SAML refused, the platform.sso flag, SSO sessions held
+  // to their own routes, generic callback errors (ADR-0091; #33 reviews).
+  app.use("/api/auth/*", ssoAuthGate(services));
+  for (const path of PUBLIC_BODY_PATHS) {
+    const cap = capped(PUBLIC_MAX_BODY_BYTES);
+    // A speak-up concern may be long; it has its own cap below (security review M2).
+    app.use(path, (c, next) => (c.req.path.startsWith("/p/speak-up/") ? next() : cap(c, next)));
+  }
+  app.use("/p/speak-up/*", capped(SPEAK_UP_MAX_BODY_BYTES));
 
   app.on(["GET", "POST"], "/api/auth/*", async (c) =>
     withoutSessionTokens(c.req.raw, await services.auth.handler(c.req.raw)),
@@ -242,6 +292,18 @@ export function createApp(config: Config, logger: Logger): AppHandle {
       }),
     );
   }
+  // An import upload is CSV text or JSON rows, capped before it is read (platform.md rule 19).
+  app.use(
+    "/v1/imports",
+    bodyLimit({
+      maxSize: IMPORT_MAX_BODY_BYTES,
+      onError: (c) =>
+        problemResponse(
+          c,
+          new HttpProblem(413, "too_large", "The file is too large. Import it a home at a time."),
+        ),
+    }),
+  );
   // The logo is small (512 KB): a larger body is refused before it is read or decoded.
   app.use(
     "/v1/branding/logo",
@@ -283,6 +345,7 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", meRouter);
   app.route("/", brandingRouter);
   app.route("/", searchRouter);
+  app.route("/", ssoRouter);
   app.route("/", breakGlassSearchRouter);
   app.route("/", sessionsRouter);
   app.route("/", memberSessionsRouter);
@@ -299,6 +362,8 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", auditRouter);
   app.route("/", formsRouter);
   app.route("/", tasksRouter);
+  app.route("/", complaintsRouter);
+  app.route("/", speakUpRouter);
   app.route("/", workflowsRouter);
   app.route("/", documentsRouter);
   app.route("/", careRouter);
@@ -309,15 +374,25 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", handoversRouter);
   app.route("/", mcaRouter);
   app.route("/", incidentsRouter);
+  app.route("/", safeguardingRouter);
   app.route("/", statutoryNotificationsRouter);
+  app.route("/", deathsMissingRouter);
   app.route("/", operationsRouter);
   app.route("/", outagesRouter);
   app.route("/", evidencePacksRouter);
   app.route("/", statementOfPurposeRouter);
+  app.route("/", policiesRouter);
+  app.route("/", qualityFrameworkRouter);
+  app.route("/", qualityAuditsRouter);
+  app.route("/", outbreaksRouter);
   app.route("/", staffFilesRouter);
   app.route("/", sponsorshipRouter);
   app.route("/", staffPrivacyRouter);
   app.route("/", ldssRouter);
+  app.route("/", recruitmentRouter);
+  app.route("/", caseworkRouter);
+  app.route("/", inductionRouter);
+  app.route("/", developmentRouter);
   app.route("/", evidenceLinkRouter);
   app.route("/", letterTemplatesRouter);
   app.route("/", familyFeedRouter);
@@ -334,13 +409,20 @@ export function createApp(config: Config, logger: Logger): AppHandle {
   app.route("/", membersRouter);
   app.route("/", exportsRouter);
   app.route("/", dpiaRouter);
+  app.route("/", dataProtectionRouter);
+  app.route("/", dataSecurityRouter);
   app.route("/", dsarRouter);
+  app.route("/", disclosuresRouter);
   app.route("/", subProcessorsRouter);
   app.route("/", onboardingRouter);
   app.route("/", sampleDataRouter);
+  app.route("/", platformImportsRouter);
   app.route("/", operatorInvitationsRouter);
   app.route("/", operatorSubProcessorsRouter);
+  app.route("/", operatorBreachNoticesRouter);
   app.route("/", peopleDetailsRouter);
+  app.route("/", schedulingDependencyRouter);
+  app.route("/", rotaRouter);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
     type: "http",

@@ -2,8 +2,10 @@ import type { LetterTemplateItem, LetterTemplateVersionItem } from "@harbour/con
 import { describe, expect, it } from "vitest";
 import { t } from "./i18n";
 import {
+  emailTemplatesLeftOut,
   issueField,
   issuesByField,
+  mergeFieldNames,
   penceFrom,
   readDraft,
   templateActions,
@@ -154,11 +156,40 @@ describe("hazard HZ-051 making a letter on the web", () => {
       inUse("duty_of_candour"),
       inUse("incident_follow_up"),
       template(),
+      template({
+        kind: "general",
+        channel: "email",
+        current: version({ state: "approved" }),
+        draft: null,
+      }),
     ];
     expect(templatesForLetters(all, false).map((x) => x.kind)).toEqual(["general"]);
     expect(templatesForLetters(all, true).map((x) => x.kind)).toEqual([
       "general",
       "incident_follow_up",
     ]);
+  });
+});
+
+describe("email templates while sending email is not built", () => {
+  it("leaves email templates out of the letters tab, and says one was left out", () => {
+    const email = template({
+      kind: "general",
+      channel: "email",
+      current: version({ state: "approved" }),
+      draft: null,
+    });
+    expect(templatesForLetters([email], true)).toEqual([]);
+    expect(emailTemplatesLeftOut([email])).toBe(true);
+    expect(emailTemplatesLeftOut([template()])).toBe(false);
+  });
+});
+
+describe("the personal details a letter uses, in words", () => {
+  it("names each merge field, never its key, and keeps an unknown key", () => {
+    expect(mergeFieldNames(["person.full_name", "person.date_of_birth"])).toBe(
+      "Person's full name, Person's date of birth",
+    );
+    expect(mergeFieldNames(["not.a.field"])).toBe("not.a.field");
   });
 });

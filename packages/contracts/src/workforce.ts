@@ -270,3 +270,205 @@ export const StaffMemberList = z.object({ items: z.array(StaffName) }).meta({
   description: "The organisation's staff, by name and job title, to choose from on HR forms",
 });
 export type StaffMemberList = z.infer<typeof StaffMemberList>;
+
+// ------------------------------------------------------------------------------------------------
+// Training, competence, supervision and revalidation (workforce.md sections 2b and 5; slice 17)
+// ------------------------------------------------------------------------------------------------
+
+export const TrainingTopic = z
+  .enum([
+    "care_certificate",
+    "safeguarding_adults",
+    "safeguarding_children",
+    "moving_and_handling",
+    "infection_prevention_and_control",
+    "fire_safety",
+    "health_and_safety",
+    "basic_life_support",
+    "food_hygiene",
+    "medicines",
+    "mental_capacity_and_dols",
+    "equality_diversity_and_human_rights",
+    "information_governance",
+    "dementia_awareness",
+    "fluids_and_nutrition",
+    "oliver_mcgowan",
+  ])
+  .meta({ id: "TrainingTopic" });
+
+export const Competence = z
+  .enum([
+    "medicines_administration",
+    "controlled_drugs",
+    "insulin_administration",
+    "epilepsy_rescue_medication",
+    "moving_and_handling_hoist",
+    "catheter_care",
+    "enteral_feeding",
+    "oxygen_therapy",
+  ])
+  .meta({ id: "Competence" });
+
+const tier = z.union([z.literal(1), z.literal(2)]);
+const roleKey = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/, "A role's key");
+
+export const TrainingRequirementItem = z
+  .object({
+    id: uuid,
+    version: z.number().int(),
+    roleKey,
+    topic: TrainingTopic,
+    refreshYears: z.number().int().nullable(),
+    tier: tier.nullable(),
+    active: z.boolean(),
+  })
+  .meta({ id: "TrainingRequirementItem" });
+export type TrainingRequirementItem = z.infer<typeof TrainingRequirementItem>;
+
+export const TrainingRequirementList = z
+  .object({ items: z.array(TrainingRequirementItem) })
+  .meta({ id: "TrainingRequirementList" });
+
+export const PutTrainingRequirement = z
+  .object({
+    expectedVersion: version.optional(),
+    roleKey,
+    topic: TrainingTopic,
+    refreshYears: z.number().int().min(1).max(10).nullable(),
+    tier: tier.nullable(),
+    active: z.boolean(),
+  })
+  .meta({ id: "PutTrainingRequirement" });
+export type PutTrainingRequirement = z.infer<typeof PutTrainingRequirement>;
+
+const trainingFields = {
+  topic: TrainingTopic,
+  tier: tier.nullable(),
+  completedOn: isoDate,
+  expiresOn: isoDate.nullable(),
+  provider: z.string().trim().min(2).max(160).nullable(),
+};
+
+export const CreateTrainingRecord = z.object(trainingFields).meta({ id: "CreateTrainingRecord" });
+export type CreateTrainingRecord = z.infer<typeof CreateTrainingRecord>;
+
+export const UpdateTrainingRecord = z
+  .object({ expectedVersion: version, ...trainingFields })
+  .meta({ id: "UpdateTrainingRecord" });
+export type UpdateTrainingRecord = z.infer<typeof UpdateTrainingRecord>;
+
+export const TrainingRecordItem = z
+  .object({ id: uuid, version: z.number().int(), ...trainingFields })
+  .meta({ id: "TrainingRecordItem" });
+
+export const TrainingMatrixRow = z
+  .object({
+    topic: TrainingTopic,
+    tier: tier.nullable(),
+    /** As a word; screens add an icon (never colour alone). */
+    status: z.enum(["valid", "due_soon", "expired", "missing"]),
+    validUntil: isoDate.nullable(),
+  })
+  .meta({ id: "TrainingMatrixRow" });
+
+export const CreateCompetenceSignOff = z
+  .object({ competence: Competence, observedOn: isoDate })
+  .meta({ id: "CreateCompetenceSignOff" });
+export type CreateCompetenceSignOff = z.infer<typeof CreateCompetenceSignOff>;
+
+export const WithdrawCompetenceSignOff = z
+  .object({ reason: z.string().trim().min(10).max(500) })
+  .meta({ id: "WithdrawCompetenceSignOff" });
+
+export const CompetenceSignOffItem = z
+  .object({
+    id: uuid,
+    competence: Competence,
+    observedOn: isoDate,
+    observer: StaffName.nullable(),
+    validUntil: isoDate,
+    withdrawn: z.object({ on: isoDate, by: StaffName.nullable(), reason: z.string() }).nullable(),
+  })
+  .meta({ id: "CompetenceSignOffItem" });
+
+export const CompetenceStateItem = z
+  .object({
+    competence: Competence,
+    allowed: z.boolean(),
+    reason: z.enum(["missing", "expired", "withdrawn"]).nullable(),
+    validUntil: isoDate.nullable(),
+  })
+  .meta({ id: "CompetenceStateItem" });
+
+export const SupervisionKind = z
+  .enum(["supervision", "appraisal", "spot_check"])
+  .meta({ id: "SupervisionKind" });
+
+export const CreateSupervisionRecord = z
+  .object({ kind: SupervisionKind, heldOn: isoDate })
+  .meta({ id: "CreateSupervisionRecord" });
+export type CreateSupervisionRecord = z.infer<typeof CreateSupervisionRecord>;
+
+export const SupervisionRecordItem = z
+  .object({
+    id: uuid,
+    kind: SupervisionKind,
+    heldOn: isoDate,
+    heldBy: StaffName.nullable(),
+  })
+  .meta({ id: "SupervisionRecordItem" });
+
+export const NextMeetingItem = z
+  .object({
+    kind: z.enum(["supervision", "appraisal"]),
+    dueOn: isoDate,
+    state: z.enum(["upcoming", "due", "overdue"]),
+  })
+  .meta({ id: "NextMeetingItem" });
+
+const revalidationFields = {
+  cycleDueOn: isoDate,
+  practiceHours: z.number().int().min(0).max(10000),
+  cpdHours: z.number().int().min(0).max(1000),
+  participatoryCpdHours: z.number().int().min(0).max(1000),
+  feedbackPieces: z.number().int().min(0).max(100),
+  reflectiveAccounts: z.number().int().min(0).max(100),
+  reflectiveDiscussion: z.boolean(),
+  healthAndCharacter: z.boolean(),
+  professionalIndemnity: z.boolean(),
+  confirmation: z.boolean(),
+};
+
+export const PutRevalidationEvidence = z
+  .object({ expectedVersion: version.optional(), ...revalidationFields })
+  .meta({ id: "PutRevalidationEvidence" });
+export type PutRevalidationEvidence = z.infer<typeof PutRevalidationEvidence>;
+
+export const RevalidationView = z
+  .object({
+    id: uuid,
+    version: z.number().int(),
+    ...revalidationFields,
+    daysLeft: z.number().int(),
+    outstanding: z.array(z.string()),
+    ready: z.boolean(),
+  })
+  .meta({ id: "RevalidationView" });
+
+export const DevelopmentRecord = z
+  .object({
+    member: StaffName,
+    asOf: isoDate,
+    matrix: z.array(TrainingMatrixRow),
+    trainingRecords: z.array(TrainingRecordItem),
+    competences: z.array(CompetenceStateItem),
+    signOffs: z.array(CompetenceSignOffItem),
+    supervisions: z.array(SupervisionRecordItem),
+    /** Null until the member's start date is known to the organisation. */
+    nextSupervision: NextMeetingItem.nullable(),
+    nextAppraisal: NextMeetingItem.nullable(),
+    /** The latest cycle's plan, or null when none is recorded. */
+    revalidation: RevalidationView.nullable(),
+  })
+  .meta({ id: "DevelopmentRecord" });
+export type DevelopmentRecord = z.infer<typeof DevelopmentRecord>;

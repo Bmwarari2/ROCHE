@@ -423,6 +423,10 @@ describe("no table the DSAR collector searches is hidden from its organisation-w
       "current_scope() = 'tenant'",
       "ARRAY['tenant'",
       "current_user_id() IS NULL",
+      // app.is_system() is `current_user_id() IS NULL AND current_scope() = 'tenant'`: the
+      // organisation's own context the collector reads in (`asOrganisation`), so a policy with it
+      // as an alternative hides nothing from the search (staff_profile and HR documents, 0073).
+      "is_system()",
       "handover_whole",
       // No member and the whole organisation: exactly the collector's read (migration 0057).
       "is_system()",

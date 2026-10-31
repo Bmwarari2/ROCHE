@@ -33,6 +33,16 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   // The round gate data (migration 0071): called only by its own definer trigger functions.
   "app.refresh_earlier_plan(uuid, uuid[])": [],
   "app.task_from_earlier_plan(uuid, uuid)": [],
+  // Applicant tracking (migration 0085): equality monitoring counts, never rows (rule 12).
+  "app.equality_monitoring_counts(uuid)": ["harbour_app"],
+  // Employee relations casework (migration 0101): whether the session's member is on a case.
+  "app.casework_member(uuid, text[])": ["harbour_app"],
+  "app.open_employee_case(text, uuid, text, date)": ["harbour_app"],
+  // Induction and leavers (migration 0091): the profile's member, read-and-sign counts, ending a
+  // leaver's access.
+  "app.staff_profile_worker(uuid)": ["harbour_app"],
+  "app.induction_policy_signing(uuid)": ["harbour_app"],
+  "app.end_leaver_access(uuid)": ["harbour_app"],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).
@@ -41,9 +51,23 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   ],
   "app.sub_processor_objections(uuid, text)": ["harbour_operator"],
   "app.resolve_sub_processor_objection(uuid, uuid, text, text)": ["harbour_operator"],
+  // Processor breach notices (slice 20, migration 0082).
+  "app.send_processor_breach_notice(uuid, uuid, text, text, integer, integer, text, text, text, text, text)":
+    ["harbour_operator"],
   // Sample data mode (#98, migration 0069).
   "app.sample_people()": ["harbour_app"],
   "app.remove_sample_batch(uuid, text)": ["harbour_app"],
+  // Import wizard (Phase 2 slice 26, migration 0088).
+  "app.undo_import_batch(uuid, text)": ["harbour_app"],
+  // The speak-up silo (ADR-0089, migration 0086).
+  "app.raise_speak_up(uuid, text, text, text)": ["harbour_app"],
+  "app.set_speak_up_lead(uuid, boolean)": ["harbour_app"],
+  // Runs as harbour_silo_owner so speak-up events hidden from the reader still verify.
+  "app.verify_audit_chain()": ["harbour_app", "harbour_owner"],
+  // Single sign-on (migration 0095): the callback's facts and the invited member's link.
+  "app.sso_sign_in_facts(text, text)": ["harbour_app"],
+  "app.link_sso_member(text, text)": ["harbour_app"],
+  "app.sso_key_ref(text)": ["harbour_app"],
 };
 
 let db: TestDatabase;

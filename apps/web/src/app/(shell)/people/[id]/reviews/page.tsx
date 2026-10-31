@@ -50,7 +50,16 @@ function DueList({ items }: { readonly items: ReviewSchedule["items"] }) {
           </p>
           {item.basis.length > 0 ? (
             <p className="m-0 text-body-dense text-text-secondary">
-              {t("people.reviews.basis", { keys: item.basis.join(", ") })}
+              {t("people.reviews.basis", {
+                keys: [
+                  ...new Set(
+                    item.basis.map((key) =>
+                      // Rate keys in words, never the key itself (ICU select keys have no dots).
+                      t("people.reviews.basisKey", { key: key.replace(/\./g, "_") }),
+                    ),
+                  ),
+                ].join(", "),
+              })}
             </p>
           ) : null}
         </li>

@@ -17,8 +17,9 @@ export type SpeakUpState =
   | "closed";
 
 /**
- * `safety.whistleblowing.read` is the catalogue's only speak-up permission today; slice 24 adds the
- * Freedom to Speak Up lead's own permission and RLS silo (ADR-0089) and this definition moves to it.
+ * Moved by the Freedom to Speak Up lead's silo permission (ADR-0089). The state lives on the
+ * concern inside the silo: speak-up concerns never use the shared `workflow_instance` table, which
+ * wider roles can read.
  */
 export const SPEAK_UP_WORKFLOW = defineWorkflow<SpeakUpState>({
   key: "safety.speak_up",
@@ -27,13 +28,13 @@ export const SPEAK_UP_WORKFLOW = defineWorkflow<SpeakUpState>({
   initial: "received",
   terminal: ["closed"],
   transitions: [
-    { from: "received", to: "acknowledged", permission: "safety.whistleblowing.read" },
-    { from: "acknowledged", to: "under_review", permission: "safety.whistleblowing.read" },
-    { from: "under_review", to: "outcome_shared", permission: "safety.whistleblowing.read" },
+    { from: "received", to: "acknowledged", permission: "safety.speak_up.manage" },
+    { from: "acknowledged", to: "under_review", permission: "safety.speak_up.manage" },
+    { from: "under_review", to: "outcome_shared", permission: "safety.speak_up.manage" },
     {
       from: ["under_review", "outcome_shared"],
       to: "closed",
-      permission: "safety.whistleblowing.read",
+      permission: "safety.speak_up.manage",
       requiresReason: true,
     },
   ],

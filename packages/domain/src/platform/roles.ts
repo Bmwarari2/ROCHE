@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, type Permission } from "./permissions";
+import { ALL_PERMISSIONS, isSiloPermission, type Permission } from "./permissions";
 
 /**
  * Built-in roles (master prompt section 4). Tenants may rename or clone them; clones are stored
@@ -47,7 +47,9 @@ export const PORTAL_ONLY_PERMISSIONS: readonly Permission[] = [
   "comms.visit_booking.request",
 ];
 
-const staffPermission = (p: Permission) => !PORTAL_ONLY_PERMISSIONS.includes(p);
+/** A staff permission any wide role may hold: not portal-only, and not a silo (ADR-0089). */
+const staffPermission = (p: Permission) =>
+  !PORTAL_ONLY_PERMISSIONS.includes(p) && !isSiloPermission(p);
 
 const registeredManager: Permission[] = ALL_PERMISSIONS.filter(
   (p) =>
@@ -145,8 +147,10 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     permissions: [
       ...pointOfCare,
       "care.plan.write",
+      "care.dependency.assess",
       "care.capacity.write",
       "care.dols.manage",
+      "safety.outbreak.manage",
       "care.respect.record",
       "care.delegated.signoff",
       "medicines.record.manage",
@@ -173,6 +177,7 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "location",
     permissions: [
       ...pointOfCare,
+      "care.dependency.assess",
       "medicines.cd.witness",
       "medicines.cd.administer",
       "workforce.competence.observe",
@@ -317,11 +322,19 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
       "workforce.ldss.manage",
       "workforce.training.manage",
       "workforce.supervision.manage",
-      "workforce.casework.manage",
       "workforce.competence.observe",
       "insights.dashboard.read",
       "platform.search.use",
     ],
+  },
+  {
+    key: "employee_relations_lead",
+    name: "Employee relations caseworker",
+    description:
+      "Opens grievance, disciplinary, capability, sickness and probation cases; reads only cases they are named on.",
+    scopeKind: "none",
+    // A silo role carries nothing else (ADR-0089; workforce.md section 3).
+    permissions: ["workforce.casework.manage"],
   },
   {
     key: "quality_lead",
@@ -401,6 +414,15 @@ export const BUILTIN_ROLES: readonly BuiltinRole[] = [
     scopeKind: "none",
     requiresExpiry: true,
     permissions: ["quality.evidence.read"],
+  },
+  {
+    // A silo role (ADR-0089): the speak-up permission and nothing else, so no wider role reaches
+    // concerns; the database refuses it to anyone who manages users or roles.
+    key: "speak_up_guardian",
+    name: "Freedom to Speak Up lead",
+    description: "Receives and manages speak-up concerns, named, confidential or anonymous.",
+    scopeKind: "tenant",
+    permissions: ["safety.speak_up.manage"],
   },
 ];
 

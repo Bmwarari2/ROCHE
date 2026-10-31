@@ -3,7 +3,10 @@
 Master prompt sections 12.1, 12.2 and 12.4, with section 4 (roles) and 18 (data model). Phase 2
 builds the whole employee file from application to leaving ([phase-2.md](../plans/phase-2.md),
 lane B). Payroll itself is integrated, not built (section 12). Sections 2 to 4 and 9 were written by
-slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9);
+slice 4 (the domain rules) and extended by slice 11 (the staff file: sections 2a, 3, 5, 8 and 9),
+slice 23 (applicant tracking: sections 2b, 4 rules 11 to 13, 5, 8 and 9), slice 39 (employee
+relations casework: sections 2c, 3, 4 rules 14 to 18, 5, 8, 9 and 11) and slice 29 (induction,
+the Care Certificate and leavers: sections 2d, 3, 4 rules 19 to 23, 5, 8, 9 and 11);
 sections 5 to 8 grow with the schema, API and screen slices. Status per
 feature: [feature register](feature-register.md).
 
@@ -82,10 +85,86 @@ stored. HR-only documents are `document` rows of category `staff_hr_document` (s
 compliance item, no person); right to work copies are kept as `right_to_work_copy`, everything else
 as the staff file.
 
+### 2b. Training, competence, supervision and revalidation (slice 17, migration 0079)
+
+Keyed by the member of staff (`worker_id`, a `tenant_user` id), not the staff profile, so a
+training or supervision lead reads them without the pre-employment file. Forced row-level
+security on every table; the policies in section 3.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `training_requirement` | `role_key` (a role's key), `topic` (`TRAINING_TOPICS`), `refresh_years` (the organisation's own, or empty for the default), `tier` (1 or 2, Oliver McGowan only), `active` | One per role and topic; the matrix of a member is every active requirement of their roles in force. Mutable, never deleted |
+| `training_record` | `worker_id`, `topic`, `tier`, `completed_on`, `expires_on` (a certificate's own last valid day), `provider` | Mutable with history (a correction is a change with `expected_version`); never by the worker |
+| `competence_sign_off` | `worker_id`, `competence` (`COMPETENCES`), `observed_on`, `observer_id`, `valid_until` (the day before observed plus the competence's refresh months) | Append-only. Observed in the observer's own name by a holder of `workforce.competence.observe`, never the worker, on a day no later than today |
+| `competence_withdrawal` | `sign_off_id` (one each), `reason` (at least 10 characters), `withdrawn_by` | Append-only; by a holder of `workforce.competence.observe` or `workforce.training.manage`, never the worker |
+| `supervision_record` | `worker_id`, `kind` (`supervision`, `appraisal`, `spot_check`), `held_on`, `held_by` | Mutable with history; by a holder of `workforce.supervision.manage` in their own name, never for themselves. No notes are kept (a supervision's notes stay with the supervisor's own records until slice 57) |
+| `revalidation_evidence` | `worker_id`, `cycle_due_on`, practice, CPD and participatory CPD hours, feedback pieces, reflective accounts, and whether the reflective discussion, health and character declaration, professional indemnity and confirmation are done | One per member and cycle; mutable with history; by a holder of `workforce.training.manage`, never the worker |
+
+Competences (`COMPETENCES` in `packages/domain/src/workforce/competence-port.ts`):
+`medicines_administration`, `controlled_drugs`, `insulin_administration`,
+`epilepsy_rescue_medication` (medicines: refreshed every `competence.medicines.refresh_months`),
+`moving_and_handling_hoist`, `catheter_care`, `enteral_feeding`, `oxygen_therapy` (every
+`competence.default_refresh_months`, a Harbour default to verify, H-690).
+
 Retention classes ([retention.md](retention.md)): `staff_file.after_leaving` or
 `staff_file.to_75th_birthday` (the tenant's choice) for the staff file and casework;
 `right_to_work_copy`; `training_record` for training and competence. The gaps (unsuccessful
 applicants, DBS certificate information) are listed there.
+
+### 2b. Applicant tracking (slice 23, migration 0085)
+
+WORK-001: job templates, vacancies, applicants and their applications, shortlisting, values-based
+interviews, conditional offers and the talent pool; an accepted offer creates the staff profile
+(section 2a) and hands its conditions to the pre-employment file. Eight tenant tables with forced
+row-level security. Applicants are people who may never be employed: their data is purpose B15,
+kept for a short period after an unsuccessful application (retention class
+`applicant.unsuccessful`), or for the talent pool period they agreed to (`applicant.talent_pool`).
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `job_template` | `title`, `pathway_category` (Care Workforce Pathway role category, `PATHWAY_CATEGORIES`), `registration_body` (as the staff profile), `essential_criteria` (2 to 20 short statements), `values_questions` (2 to 12: a key, the value it explores from `RECRUITMENT_VALUES` and the question), `archived_at` | Mutable; a template in use by an open vacancy is not archived |
+| `vacancy` | `job_template_id`, `location_id` (or empty for organisation-wide), `title`, `positions` (1 to 50), `opens_on`, `closes_on`, `status` (`draft`, `open`, `closed`, `filled`, `withdrawn`) | Mutable; `closes_on` on or after `opens_on`; applications only while `open` |
+| `applicant` | `given_name`, `family_name`, `email`, `phone`, `talent_pool_until` and `talent_pool_consented_at` (set together, consent only), `retain_until` (set when their last application ends unsuccessfully), `redacted_at` | Mutable; names and contact details are cleared (redacted) after `retain_until` by the retention engine, never deleted by hand |
+| `application` | `vacancy_id`, `applicant_id` (one each per vacancy), `stage` (`APPLICATION_STAGES`), `stage_reason` (a code, `CLOSING_REASONS`), `shortlist` (each essential criterion met or not, with who decided and when), `closed_on` | Mutable; the stage moves only as `checkApplicationMove` allows |
+| `application_event` | `application_id`, `from_stage`, `to_stage`, `reason`, `occurred_at` | Append-only: the stage history |
+| `interview` | `application_id`, `held_on`, `panel` (1 to 5 members of staff), `scores` (each values question 1 to 4), `notes`, `recommendation` (`proceed`, `do_not_proceed`) | Append-only; a later interview is a new row |
+| `job_offer` | `application_id` (one each), `made_on`, `proposed_start_on`, `conditions` (the Schedule 3 items the role needs, `requiredItems`), `status` (`made`, `accepted`, `declined`, `withdrawn`), `responded_on`, `staff_profile_id` | Mutable; accepted only with the member of staff the profile is for |
+| `equality_monitoring` | `vacancy_id`, `answers` (age band, sex, gender identity matches sex registered at birth, ethnic group, disability, religion, sexual orientation; each with `prefer_not_to_say`); a random id and no date | Insert only, once the vacancy has closed and before its counts are released (`vacancy.equality_summarised_at`); never linked to an applicant or application; nobody reads a row, only the counts (rule 12) |
+
+### 2c. Employee relations casework (slice 39, migration 0101)
+
+WORK-010: grievance, disciplinary, capability, sickness absence and probation cases, run as the
+Acas Code of Practice on disciplinary and grievance procedures sets out, with investigation,
+hearings, outcome, appeal, suspension, the timeline, and the DBS barring and regulator referral
+decisions linked to the safeguarding log. A restricted silo (ADR-0089; rule 14): four tenant
+tables with forced row-level security, read only by the members named on a case. No
+`capture_version` (`record_version` is read widely); every change is audited by id instead.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `employee_case` | `case_type`, `subject_tenant_user_id` (the member of staff it is about), `subject_registered` (set by the database from the staff profile when opened), `summary`, `opened_on`, `stage` and `stage_since`, `outcome`, `outcome_decided_on`, `warning_expires_on`, `appeal_outcome`, `appeal_decided_on`, `suspended_on` and `suspension_review_on`, `closed_reason`, `closed_on`, `dbs_referral`, `_on`, `_reason`, `regulator_referral`, `_on`, `_reason`, `safeguarding_incident_id` | Mutable (`expected_version`). Opened only through `app.open_employee_case` (which names the opener its first case manager and writes the opening event), open with nothing decided, never about the opener; keeps its type, subject and summary; moves forward only; an outcome stays once decided; a chair who is not a case manager changes only their own decision; a closed case never changes; the safeguarding link is set once, to a concern the member can see |
+| `employee_case_member` | `case_id`, `tenant_user_id`, `member_role` (`CASE_MEMBER_ROLES`), `independence_exception`, `added_by`, `removed_at`, `removed_by` | Mutable, only ever removed. Never the subject; nobody names themselves (the opener is named by the opening); independence counts parts someone was removed from; the last case manager stays |
+| `employee_case_hearing` | `case_id`, `kind` (`investigation_meeting`, `hearing`, `appeal_hearing`), `led_by`, `invited_on`, `scheduled_at`, `issue_set_out`, `evidence_shared`, `companion_right_given`, `state`, `held_on`, `accompanied`, `postponed_reason` | Mutable. Led by the member in the matching role; a held, unattended or cancelled one is final |
+| `employee_case_event` | `case_id`, `kind`, `from_stage`, `to_stage`, `occurred_on`, `body` (a note or the appeal grounds only), `recorded_by` | Append-only: the timeline. Written in one's own name, never after the case closes |
+
+### 2d. Induction, the Care Certificate and leavers (slice 29, migration 0091)
+
+WORK-004 and WORK-013: from the accepted offer to the end of probation (a checklist, policy
+read-and-sign at induction, shadow shifts, probation reviews and the decision), the Care
+Certificate's 16 standards, and leaving (the record, a checklist, access ended at the end of the
+leaving day, the exit interview, references and how long the staff file is kept). Seven tenant
+tables with forced row-level security, each belonging to a staff profile and following the staff
+file's rules (section 3). TUPE import comes with slice 51.
+
+| Table | Columns | Rules |
+| --- | --- | --- |
+| `induction_plan` | `staff_profile_id` (one each), `care_certificate_held` (already holds it, or the Level 2 Adult Social Care Certificate), `probation_ends_on`, `probation_outcome`, `_decided_on`, `_decided_by` | Mutable; a probation passed or not passed stays decided |
+| `staff_checklist_item` | `staff_profile_id`, `checklist` (`induction`, `leaving`), `kind` (the ticked items, `TICKED_INDUCTION_ITEMS`, `TICKED_LEAVER_ITEMS`), `done_on`, `done_by` | Append-only, once per item, in the ticker's own name |
+| `shadow_shift` | `staff_profile_id`, `shift_on`, `location_id`, `shadowed_id` (the colleague shadowed), `recorded_by` | Append-only; never shadowing oneself |
+| `probation_review` | `staff_profile_id`, `review_on`, `reviewer_id`, `outcome` (`on_track`, `concerns`), `notes` | Append-only, in the reviewer's own name |
+| `care_certificate_progress` | `staff_profile_id`, `standard_id` (`cc01` to `cc16`), `knowledge_assessed_on`, `_by`, `observed_on`, `_by` | Mutable once: the observation is added to the assessment and then never changes; neither by the worker |
+| `leaver_record` | `staff_profile_id` (one each), `leaving_on`, `reason` (`LEAVING_REASONS`), `access_removed_at`, `_by` (empty for the sweep), `exit_interview` (`not_offered`, `offered`, `declined`, `held`), `exit_interview_on`, `exit_interview_summary`, `staff_file_retain_until` | Mutable; the date and reason stay; ended access stays ended; the exit interview only moves forward. Recording one sets the staff profile's `left_on` |
+| `reference_request` | `staff_profile_id`, `requested_on`, `requester` (an organisation, never a person's name), `kind` (`factual`, `conduct`), `state` (`requested`, `sent`, `declined`), `sent_on`, `sent_by`, `declined_reason` | Mutable once: answered once, sent in the sender's own name |
 
 ## 3. Permissions
 
@@ -114,6 +193,52 @@ Slice 11 adds four permissions so that HR data has its own (section 12.4), repla
 | `workforce.hr_document.read` | Open and add HR-only staff documents; every view is audited | Owner, HR (a manager is given it by a grant or a role change) |
 | `workforce.dbs_risk_assessment.sign` | Sign the DBS risk assessment for a supervised start or a disclosure (never for themselves) | Owner, Registered Manager |
 | `workforce.self.read` (existing) | See their own profile and where each of their checks stands | Every staff role |
+
+Slice 17 adds no permission. Training, competence, supervision and revalidation rows are read by
+holders of `workforce.training.manage`, `workforce.competence.observe`,
+`workforce.supervision.manage` or `workforce.staff_file.read` (organisation-wide, as the staff
+file), and by the member for their own (`workforce.self.read`); written as section 2b says, never
+by the member about themselves. None of them is special category data, so they need MFA only where
+the role does. Medicines and scheduling never read these tables: they ask the competence port
+(ADR-0085).
+
+Slice 23 adds no permission: applicant tracking uses `workforce.recruitment.manage` (Owner,
+Registered Manager, deputy manager and HR in the built-in roles), as section 12.1 intends, and the
+database holds it organisation-wide as it does the staff file permissions
+(`app.holds_staff_permission`). Accepting an offer also needs `workforce.staff_file.manage`, which
+creates the staff profile; nobody records their own application or offer.
+
+Slice 39 makes `workforce.casework.manage` a silo permission (ADR-0089; `SILO_PERMISSIONS`), now
+needing MFA (`sensitive`). It lets its holder open a case, and nothing more: a case is read only by
+the members named on it, its holder included. Built-in roles built from every permission (owner,
+Registered Manager, deputy manager) leave it out, and HR's role no longer carries it; the new
+built-in role `employee_relations_lead` (Employee relations caseworker, no person scope) carries
+it alone. Migration 0101 removes it from existing roles that carry anything else, and the database
+refuses a role mixing it with any other permission, an access grant carrying it, someone
+appointing themselves to a role carrying it, a role already held being edited into one carrying
+it, and holding it together with a role that manages users or roles (`platform.user.manage`,
+`platform.role.manage`), whichever comes first, by assignment or by editing a role; the migration
+stops if anyone already holds both. Members give the caseworker role through the operator or
+support for now: `app.may_assign_role` needs the giver to hold every permission of the role
+through an organisation or location role, and no such role carries the silo permission (H-803). What each
+member may do on a case comes from their part on it (rule 16), not from a permission:
+
+| Action | Who |
+| --- | --- |
+| Open a case (never about oneself); become its first case manager | Holder of `workforce.casework.manage` |
+| Read the case, its members, hearings and timeline; add a note | Any member named on it (MFA) |
+| Name or remove members; arrange hearings; move the case on (investigation, hearing, appeal, close); suspension; referral decisions; the safeguarding link | A case manager of the case |
+| Decide the outcome | The hearing chair |
+| Decide the appeal (as the case closes) | The appeal chair |
+| Record what happened at a meeting or hearing | The member leading it, or a case manager |
+
+Slice 29 adds no permission. Induction and leaving are the staff file's: read with
+`workforce.staff_file.read` (and the worker's own with `workforce.self.read`), written with
+`workforce.staff_file.manage`, never on one's own file. A Care Certificate standard is assessed by
+a holder of `.manage` or of `workforce.competence.observe`, and observed only by a holder of
+`workforce.competence.observe`, never the worker; an assessor reads Care Certificate progress
+across the organisation but nothing else of the staff file. Ending a leaver's access at once
+needs `.manage`; the sweep does it as the system.
 
 Staff files are the organisation's employment records, not people's care records, and HR functions
 are organisation-wide (master prompt section 4): a tenant or location role or a grant anywhere
@@ -203,7 +328,122 @@ whatever the clock change.
     needs a justification, is logged and reported, and never covers a missing right to work (illegal
     working cannot be overridden).
 
-Rate keys in use: `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
+11. **Applications** (`recruitment.ts`, `checkApplicationMove`). Stages: `applied`, `shortlisted`,
+    `interviewed`, `offered`, `accepted`, and the closed stages `rejected`, `withdrawn`, `declined`.
+    An application is shortlisted only when every essential criterion of its template has been
+    assessed and met; a criterion recorded as not met allows only rejection (with a reason code).
+    An interview is recorded only once shortlisted, by a panel of 1 to 5 members of staff, with
+    every values question scored 1 to 4; the scores are the panel's and the total is shown with
+    them, never used to decide (section 5.1: no solely automated significant decision). An offer
+    is made only after an interview whose panel recommended proceeding; it is conditional on the
+    Schedule 3 items the role needs (`requiredItems`), which the staff profile then lists as
+    outstanding. Accepting needs the member of staff (invited through the usual invitation) and
+    creates their staff profile; declining or withdrawing closes the application. Closed stages
+    never reopen; a new application is made instead.
+12. **Equality monitoring** (`equalityMonitoringSummary`). Special category data, kept apart from
+    the application (a random id, no date) and reported only as counts for a vacancy. Forms are
+    added together once applications have closed, so their timing says nothing about which
+    application each came with; the counts are released once the vacancy has closed, and no form
+    is added after, so counts read before and after a form can never be compared. A count below
+    `EQUALITY_MONITORING_MIN_COUNT` (5) never leaves the database (`app.equality_monitoring_counts`
+    returns it as null) and reads "fewer than 5"; a lone small count in a question takes the next
+    smallest shown count with it (complementary suppression); a question with no count at the
+    minimum, or a vacancy with fewer forms, shows nothing. Answers are optional, and
+    `prefer_not_to_say` is always offered.
+13. **Keeping applicants' data** (`applicantRetainUntil`). While any application is open the
+    applicant is kept. When the last one closes unsuccessfully, the applicant is kept until the
+    closing date plus the `applicant.unsuccessful` period (retention.md), or the end of the
+    talent pool period they agreed to, whichever is later; withdrawing talent pool consent ends
+    that period at once. A hired applicant's details move to the staff file and follow it.
+
+14. **Who reads a case** (ADR-0089). Only the members named on it and not removed: no role, grant
+    or break-glass reaches a case, the owner and the Registered Manager included, and a holder of
+    `workforce.casework.manage` reads only the cases they are named on. The member of staff a case
+    is about is never a member of it (they are told in writing, outside Harbour, until slice 58).
+    Every route needs MFA.
+15. **How a case moves** (`casework.ts`, `checkCaseMove`). Stages `open`, `investigation`,
+    `hearing`, `outcome`, `appeal`, `closed`. An investigation needs an investigator named; a
+    hearing may follow the investigation or, where none is needed, the opening. The outcome is
+    decided only after a hearing was held (or, where the employee did not attend twice without
+    good reason, without one; Acas Code paragraph 25), is one the case type allows
+    (`CASE_OUTCOMES`), carries for a warning the date it stops counting (after the decision; the
+    tenant's policy, H-808), and is confirmed with the right of appeal. An appeal follows the
+    outcome, with its grounds; it is decided by the appeal chair after an appeal hearing, as the
+    case closes. Other closings: the outcome accepted, resolved informally (open or under
+    investigation), no case to answer (after investigation), withdrawn, or the member of staff
+    leaving. A case never closes while a suspension is in force or a referral decision due
+    (rule 17) is missing; a closed case never reopens. Dates never go before the current stage's.
+    The timeline shows the days between steps and at the current stage, with no target: what delay
+    is unreasonable is the people's judgement (`caseTimeline`).
+16. **Who takes which part** (`checkMemberAppointment`, `checkMemberRemoval`). Never the member of
+    staff the case is about; nobody names themselves. Where practicable (Acas Code paragraphs 6
+    and 27) the investigator does not chair the hearing, and the appeal is heard by someone who
+    neither investigated nor chaired; a small organisation records why not
+    (`no_other_manager_available`). One person may hold several other parts. The last case
+    manager is never removed.
+17. **Referral decisions** (`referralDecisionsDue`, `checkReferralDecision`). A regulated activity
+    provider must refer to the DBS someone it dismissed, or would have dismissed had they not
+    left, because they harmed or posed a risk of harm (Safeguarding Vulnerable Groups Act 2006
+    section 35); a registered professional's fitness to practise concerns go to their regulator.
+    A DBS decision is due before closing a disciplinary or capability case ending in dismissal (or
+    the member leaving during it), a probation not passed, or any case linked to a safeguarding
+    concern; a regulator decision when the member of staff is on a register and the case ended in
+    dismissal or a final written warning (disciplinary or capability), or is linked to a
+    safeguarding concern. A decision is `referred` on a date or `not_required` with a reason code.
+    Harbour never decides or makes a referral (H-802).
+18. **Hearings and suspension** (`checkHearingInvitation`, `checkHearingChange`,
+    `checkSuspension`). A hearing or appeal hearing is arranged only once the employee has the
+    issue in writing (and, in a disciplinary or capability case, the evidence) and has been told
+    of their statutory right to be accompanied (Employment Relations Act 1999 section 10), for a
+    later date; how much notice is reasonable is the tenant's policy (H-808). An investigation
+    meeting is led by the investigator, a hearing by the hearing chair, an appeal hearing by the
+    appeal chair. A meeting is held (with whether the employee was accompanied, never by whom),
+    not attended, postponed with a reason and rearranged, or cancelled; a held, unattended or
+    cancelled one is final. Suspension is only in a disciplinary case, a precaution while the
+    facts are established and never a sanction: it always carries its next review date, is
+    shown as overdue in words the day after, and ends before the case closes.
+
+19. **The induction checklist** (`induction.ts`, `inductionState`). Ticked by hand: the contract
+    issued, system access set up, uniform and badge, the induction at the location, the fire
+    safety briefing and shadowing signed off. Worked out: the pre-employment checks (the staff file
+    complete, rule 1), policy read-and-sign (every published policy the worker's roles need signed,
+    quality.md rule 26, counted by `app.induction_policy_signing` without reading anyone's
+    signatures), the Care Certificate (all 16 standards, or not needed when already held) and
+    probation (passed). An item due before the start date is overdue from the start date while
+    outstanding; the probation decision from the day after probation was due to end. Status is a
+    word and an icon, never colour alone.
+20. **The Care Certificate** (`checkStandardChange`, `careCertificateProgress`). Its 16 standards
+    by id and short title only (`CARE_CERTIFICATE_STANDARDS`; the text is Skills for Care's,
+    H-531, H-871). Each is first assessed for knowledge, then the worker is observed competent in
+    practice; each step by someone other than the worker, in their own name, never before the
+    start date or after today, never twice; the observation only by a holder of
+    `workforce.competence.observe`, never before the knowledge assessment. Complete once all 16
+    are competent, on the last observation's date.
+21. **Shadow shifts and probation** (`checkSupervisedEntry`, `checkProbationDecision`). A shadow
+    shift is with a colleague, never the worker; a probation review and the decision are by
+    someone other than the worker, never before the start date. Probation is passed, extended to a
+    later date (and decided again), or not passed. A probation not passed is a dismissal decision
+    made through an employee relations case of type `probation` (rule 15); the plan only notes it.
+22. **Leaving** (`checkLeaving`, `accessRemovalDue`, `checkExitInterview`, `leaverState`). The
+    leaving date is on or after the start, recorded once, by someone other than the leaver. Access
+    ends at the end of the leaving day: the hourly sweep ends it from the UK day after
+    (`app.end_leaver_access`: the member is marked as left, so they hold nothing; their roles end
+    now and their grants are revoked; their open invitations end), or a manager ends it at once
+    (with step-up). A member who manages users, roles or grants, or holds a silo role, has their
+    access ended only by a holder of `platform.user.manage` (or the sweep), and the organisation's
+    last active member who manages users keeps theirs; the sweep ends each leaver on its own, so
+    one it cannot end is audited and never holds the others back. Access is marked ended only by
+    the function that ends it.
+    The exit interview moves from not offered to offered, then declined or held (with its date and
+    a summary the leaver may see). A reference request names the organisation asking; it is sent
+    once, in the sender's own name, or declined with a reason. Leaving items are overdue from the
+    day after the leaving date.
+23. **Keeping the staff file** (`staffFileRetainUntil`). From the leaving date: the organisation's
+    own `staff_file.after_leaving` row when it set one (6 years by default), otherwise the default
+    to the later of leaving and the birthday at `retention.staff_file.birthday_age` (75); with no
+    date of birth the file is kept and the date left empty for a person to decide (H-874).
+
+Rate keys in use: `retention.staff_file.birthday_age`, `training.default_refresh_years`, `training.oliver_mcgowan.refresh_years`,
 `competence.medicines.refresh_months`, `supervision.per_year`, `appraisal.per_year`,
 `document_expiry.reminder_days.first`, `.second`, `.third`, `nmc.revalidation.cycle_years`,
 `nmc.revalidation.practice_hours`, `nmc.revalidation.cpd_hours`,
@@ -232,6 +472,34 @@ audit event with opaque ids only; refusals are audited too. Dates are UK dates (
 Audit actions: `workforce.staff_file.created`, `.updated`, `workforce.compliance_item.recorded`,
 `workforce.dbs_risk_assessment.signed`, `workforce.hr_document.added`, `workforce.hr_document.viewed`.
 
+Slice 17 (training, competence, supervision, revalidation; members by `tenant_user` id):
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/training-requirements` | `workforce.training.manage` | The organisation's matrix: requirements by role |
+| `PUT /v1/workforce/training-requirements` | `workforce.training.manage` | Add or change one role and topic's requirement (`expectedVersion` when it exists) |
+| `GET /v1/workforce/members/{memberId}/development` | read (section 3, as the database counts it: a reader whose permission comes only from a role scoped to assigned people or to the person gets 404) | The member's training matrix today (`trainingMatrix`), records, competences with their state, next supervision and appraisal after the last one held (`nextMeeting`; none before the first, since the start date is in the staff file), and the revalidation plan (`revalidationPlan`) |
+| `POST /v1/workforce/members/{memberId}/training-records` | `workforce.training.manage` | Record training |
+| `PATCH /v1/workforce/members/{memberId}/training-records/{recordId}` | `workforce.training.manage` | Correct a record (`expectedVersion`) |
+| `POST /v1/workforce/members/{memberId}/competences` | `workforce.competence.observe` | Sign off an observed competence in the caller's name; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/competences/{signOffId}/withdraw` | `workforce.competence.observe` or `workforce.training.manage` | Withdraw a sign-off with a reason; publishes `workforce.competence.changed` |
+| `POST /v1/workforce/members/{memberId}/supervisions` | `workforce.supervision.manage` | Record a supervision, appraisal or spot check held by the caller |
+| `PUT /v1/workforce/members/{memberId}/revalidation` | `workforce.training.manage` | Record revalidation evidence for a cycle |
+| `GET /v1/me/development` | `workforce.self.read` | The member's own development record |
+
+The competence port (ADR-0085): `competencePort(tx, memberId, competence, at)` in
+`apps/api/src/services/competence-port.ts`, for medicines and scheduling on the server; it reads
+that member's unwithdrawn sign-offs with the system's rights for that one question and returns
+`competenceDecision` (allowed until a date, or blocked as `missing`, `expired` or `withdrawn`).
+No route takes a competence from the client.
+
+Training and competence reminders: the same hourly job raises a task (kind
+`workforce.training_expiry` or `workforce.competence_expiry`, generic title, assigned to the `hr`
+role, no person or location) at each document-expiry reminder day before a required topic's or a
+competence's valid-until date, once each. Task visibility (migration 0079): a task about no person
+and no location whose required permission is a workforce one is visible to holders of that
+permission, so HR's role sees its reminders; without MFA a session does not list staff file tasks.
+
 Expiry tasks (rule 1): the `staff-file-expiry-reminders` job runs hourly. For each item with an
 expiry or a re-check date, at `document_expiry.reminder_days.first`, `.second` and `.third` days
 before it, it raises one task through the task engine (kind `workforce.compliance_expiry`, the
@@ -245,6 +513,76 @@ item. Recording the item again with a new date cancels its open reminder tasks (
 for that item only), and the new date's reminders follow. Competence changes are published for
 medicines and scheduling (ADR-0085, slice 17).
 
+Slice 23 (applicant tracking). Permission `workforce.recruitment.manage` throughout (MFA: the
+records are about job applicants, special category for equality monitoring); changes take
+`expectedVersion` where the record is mutable; refusals are audited; audit events carry opaque ids
+and codes only, never names or answers.
+
+| Route | Does |
+| --- | --- |
+| `GET`, `POST /v1/workforce/job-templates`; `PATCH /v1/workforce/job-templates/{id}` | Templates by Care Workforce Pathway role |
+| `GET`, `POST /v1/workforce/vacancies`; `PATCH /v1/workforce/vacancies/{id}` | Vacancies and their status |
+| `GET`, `POST /v1/workforce/vacancies/{id}/applications` | Applications to a vacancy; posting records the applicant (or finds them by email) and the application |
+| `GET /v1/workforce/applications/{id}` | The application with its applicant, stage history, interviews and offer |
+| `POST /v1/workforce/applications/{id}/shortlist` | Record each essential criterion met or not, and shortlist or reject |
+| `POST /v1/workforce/applications/{id}/close` | Reject or record a withdrawal, with a reason code |
+| `POST /v1/workforce/applications/{id}/interviews` | Record an interview |
+| `POST /v1/workforce/applications/{id}/offer` | Make the conditional offer |
+| `POST /v1/workforce/offers/{id}/response` | Accepted (with the member of staff: creates the staff profile), declined or withdrawn |
+| `PUT /v1/workforce/applicants/{id}/talent-pool` | Record or withdraw talent pool consent |
+| `POST /v1/workforce/vacancies/{id}/equality-monitoring` | Add one anonymous equality monitoring form |
+| `GET /v1/workforce/vacancies/{id}/equality-monitoring` | The counts (rule 12) |
+
+Audit actions: `workforce.job_template.created`, `.updated`, `workforce.vacancy.created`,
+`.updated`, `workforce.application.created`, `.viewed`, `.shortlisted`, `.closed`,
+`workforce.interview.recorded`, `workforce.offer.made`, `.responded`, `workforce.applicant.talent_pool`,
+`workforce.equality_monitoring.added`, `.summarised`.
+
+Slice 39 (employee relations casework). Every route needs MFA; a case the caller is not named on
+is not found; changes to a case take `expectedVersion` (409 when stale); refusals are audited;
+audit events carry the case id and codes only, never the member of staff, the summary, the
+grounds, notes or names.
+
+| Route | Who | Does |
+| --- | --- | --- |
+| `GET /v1/workforce/cases` | Any member of staff | The cases the caller is named on, with their parts |
+| `POST /v1/workforce/cases` | `workforce.casework.manage` | Open a case about another member of staff; the caller becomes its case manager |
+| `GET /v1/workforce/cases/{id}` | A member | The case, members, hearings, referral decisions (with whether each is due) and timeline; audited |
+| `POST /v1/workforce/cases/{id}/members`; `POST .../members/{memberId}/remove` | A case manager | Name a member (rule 16); remove one |
+| `POST /v1/workforce/cases/{id}/move` | Case manager; hearing chair (outcome); appeal chair (appeal decided) | Move the case on (rule 15) |
+| `POST /v1/workforce/cases/{id}/hearings`; `PATCH .../hearings/{hearingId}` | A case manager; the member leading it | Arrange a meeting or hearing; record what happened (rule 18) |
+| `PUT /v1/workforce/cases/{id}/suspension` | A case manager | Suspend, review or end (rule 18) |
+| `PUT /v1/workforce/cases/{id}/referrals` | A case manager | Record a DBS or regulator referral decision (rule 17) |
+| `PUT /v1/workforce/cases/{id}/safeguarding-link` | A case manager who can see the concern | Link the safeguarding concern, once |
+| `POST /v1/workforce/cases/{id}/notes` | A member | Add a note, until the case closes |
+
+Audit actions: `workforce.case.opened`, `.listed`, `.viewed`, `.member_named`, `.member_removed`,
+`.moved`, `.hearing_arranged`, `.hearing_updated`, `.suspension`, `.referral_recorded`,
+`.safeguarding_linked`, `.note_added`. No outbox event is published: nothing outside the case
+learns of it.
+
+Slice 29 (induction, the Care Certificate and leavers). Changes take `expectedVersion` where the
+record is mutable; refusals are audited; audit events carry the staff file's id and codes only,
+never notes, the exit interview summary or the requester. The routes are under
+`/v1/workforce/staff-files/{id}`:
+
+| Route | Permission | Does |
+| --- | --- | --- |
+| `GET .../induction`; `GET /v1/me/induction` | `workforce.staff_file.read`; `workforce.self.read` | The checklist with each status, read-and-sign counts, the Care Certificate, shadow shifts and probation |
+| `PUT .../induction` | `.manage` | The plan: probation end date, Care Certificate already held |
+| `POST .../induction/items/{kind}` | `.manage` | Tick an item, in the caller's name |
+| `POST .../induction/shadow-shifts`; `POST .../induction/probation-reviews`; `POST .../induction/probation-decision` | `.manage` | Rule 21 |
+| `PUT .../care-certificate/{standardId}` | `.manage` or `workforce.competence.observe` | Assess knowledge, then observe (observers only); returns the Care Certificate alone |
+| `GET`, `POST .../leaving` | `.read`; `.manage` | The leaving; recording it sets `left_on` and the keep-until date |
+| `POST .../leaving/items/{kind}`; `PUT .../leaving/exit-interview`; `POST .../leaving/end-access` | `.manage` | Rule 22 |
+| `POST .../references`; `PATCH .../references/{referenceId}` | `.manage` | A reference request and its answer |
+
+Audit actions: `workforce.induction.viewed`, `.plan_set`, `.item_ticked`, `.shadow_shift`,
+`.probation_review`, `.probation_decided`, `workforce.care_certificate.recorded`,
+`workforce.leaving.viewed`, `.recorded`, `.item_ticked`, `.exit_interview`, `.access_ended`
+(by the sweep with no actor), `workforce.reference.requested`, `.answered`. The
+`leaver-access` job runs hourly at 7 past.
+
 ## 6. Offline behaviour
 
 Section 17.1: e-learning modules downloaded in advance are completed offline (plan slice 72).
@@ -253,7 +591,27 @@ Section 17.1: e-learning modules downloaded in advance are completed offline (pl
 
 Expired competence that fails to block an action is a hazard (HZ-119, added by slice 3); a worker
 rostered without a required check is HZ-124, in the hazard log from slice 4 with the rostering rule
-as its first control.
+as its first control. Slice 17 adds controls to both: the stored sign-offs with the database's
+guards (observer's own name, the permission, never self, never in the future, append-only,
+withdrawal), the competence port that medicines and scheduling call on the server (ADR-0085), and
+the expiry reminders. HZ-124's verification rows are in the hazard log; HZ-119 is being written by
+slice 3, so its rows from this slice are listed here for that entry:
+
+| Test (slice 17) | For HZ-119 |
+| --- | --- |
+| `packages/domain/src/workforce/competence-port.test.ts`: `hazard HZ-119 ...` (allowed through the valid-until day, expired from the day after; a withdrawal blocks the competence until a new observation on or after it, whatever older sign-offs say; missing; future sign-offs ignored; a device's time can only block; the UK day across the autumn clock change) | Passing (slice 17) |
+| `packages/db/test/training-competence.test.ts`: `hazard HZ-119 ...` (a sign-off only in the observer's own name, by a holder of the observe permission, never self, never dated in the future, never before a withdrawal, valid exactly until the day before its refresh whoever inserts it, never changed or deleted; a withdrawal never by the worker) | Passing (slice 17) |
+| `apps/api/test/training-competence.test.ts`: `hazard HZ-119 ...` (the port blocks missing, expired and withdrawn competence, a backdated re-sign-off and a device's earlier time, and allows a valid one, about another member whose training the caller cannot read; a sign-off changes the answer at once) | Passing (slice 17) |
+
+Decisions for the CSO from the slice 17 review are in H-691: whether a withdrawal blocks the
+competence as a whole (built so: the safer reading), which time medicines and the rota pass,
+retiring `competenceGate`, whether a later, shorter refresh applies to sign-offs already made, who
+receives competence reminders, and the month-end rule (31 March plus a month is valid until 29
+April; 29 February plus a year until 27 February, always on the short side).
+
+The competence catalogue is the organisation's own record of observed practice, not a clinical
+judgement about a person receiving care: it stays inside the medical-device boundary
+([medical-device-boundary.md](../compliance/medical-device-boundary.md); re-checked for slice 17).
 
 ## 8. Data protection
 
@@ -279,6 +637,45 @@ number, clear or disclosed, and the risk assessment decision; the DBS code of pr
 codes; no health details, only the declaration; HR-only documents behind their own permission with
 every view audited. Retention: the staff file row the tenant chose; right to work copies
 `right_to_work_copy` ([retention.md](retention.md)).
+
+Applicants (slice 23) are purpose B15: people who apply and may never be employed. Lawful basis
+Article 6(1)(b) (steps at the applicant's request before a contract) and 6(1)(f) for running the
+recruitment; the talent pool only with the applicant's consent (Article 6(1)(a)), recorded with
+its date and end, and withdrawn at once. Equality monitoring answers are special category data:
+voluntary, with `prefer_not_to_say` on every question, Article 9(2)(g) with DPA 2018 Schedule 1
+paragraph 8 (equality of opportunity or treatment), under the appropriate policy document (H-576);
+they are kept apart from the application with no link back to the applicant, read by nobody row
+by row, and reported only as suppressed counts per vacancy (rule 12; DPIA risk R29). Applicants'
+data is used only for the recruitment it was given for: interview notes, scores and the stage
+history are never copied into the staff file, which receives only the job, the role's Schedule 3
+conditions and the start date. Retention: `applicant.unsuccessful` and `applicant.talent_pool`
+([retention.md](retention.md)); equality monitoring rows follow `applicant.unsuccessful` from the
+vacancy's closing date.
+
+Employee relations casework (slice 39) is purpose B3: special category data (health, in sickness
+absence and capability cases) and allegations of criminal conduct (disciplinary cases and DBS
+referral decisions), possibly more in free text. Lawful basis Article 6(1)(b) and (c) (the
+contract; the Employment Rights Act 1996 and Employment Relations Act 1999 duties; the DBS
+referral duty under the Safeguarding Vulnerable Groups Act 2006 section 35) and 6(1)(f) for
+running fair procedures. Health: Article 9(2)(b) with DPA 2018 Schedule 1 Part 1 paragraph 1.
+Allegations and offences: Article 10 with section 10(5), Schedule 1 Part 1 paragraph 1 and Part 2
+paragraph 18. All under the appropriate policy document (H-576, H-800). Minimisation and
+confidentiality: only the members named on a case read it (rule 14), never the owner or a manager
+as such; no copy in `record_version`; no outbox event; audit events with the case id and codes
+only; who accompanied the employee is never recorded; the case is left out of the
+organisation-wide export (H-805). Retention: with the staff file, from the end of the member of
+staff's employment ([retention.md](retention.md); H-806). The DPIA's R21 (a silo reached by a
+wider role, or the subject of a case disclosed) is answered by the silo and its tests.
+
+Induction and leaving (slice 29) are purpose B3, part of the staff file: probation review notes and
+the exit interview summary are free text that may hold opinions about the worker (and, rarely,
+health); reference requests name the organisation asking, never a person. Lawful basis Article
+6(1)(b) (the contract) and 6(1)(f) (running induction and fair references); the Care Certificate
+evidences training the Health and Social Care Act 2008 (Regulated Activities) Regulations 2014
+regulation 18 requires (6(1)(c)). Minimisation: Care Certificate standards stored by id only; no
+reference text is stored (only that one was sent, when and by whom); assessors see only the Care
+Certificate. Retention: the staff file row (rule 23; [retention.md](retention.md)), from the
+leaving date. The worker sees their own induction, probation reviews and exit interview summary.
 
 ## 9. Acceptance criteria and tests
 
@@ -322,14 +719,90 @@ Slice 11:
   and audited; the worker's own file; the reminder job raising each task once and the tasks ended
   by a renewal.
 
-API, web and mobile tests come with slices 17, 35, 56 and 57; the Phase 2 gate needs expired
+Slice 17:
+
+- `competence-port.test.ts` (domain): the decision through the valid-until day, expired,
+  withdrawn, missing, future sign-offs; refresh months per competence from the rate table.
+- `packages/db/test/training-competence.test.ts`: another organisation's rows never seen; readers
+  and writers per section 3; the member reads only their own and writes nothing; sign-offs and
+  withdrawals append-only and guarded; task visibility for workforce reminders.
+- `apps/api/test/training-competence.test.ts`: each route's permission and audit; the matrix with
+  Oliver McGowan tiers; the port; the outbox events; the reminders once each; HR sees its
+  reminders.
+
+API, web and mobile tests come with slices 35, 56 and 57; the Phase 2 gate needs expired
 competence to block administration (with [medicines.md](medicines.md)).
+
+Slice 23:
+
+- `recruitment.test.ts` (domain, table-driven): every allowed and refused stage move; shortlisting
+  only with every criterion met, rejection with a criterion not met; interviews only once
+  shortlisted, with every question scored 1 to 4 and a panel of 1 to 5; offers only after a
+  recommendation to proceed, with the role's Schedule 3 conditions; closed stages never reopen;
+  the equality monitoring counts with small numbers suppressed and a question withheld; the
+  applicant's keep-until date with and without the talent pool, and with an open application.
+- `packages/db/test/applicant-tracking.test.ts`: another organisation's templates, vacancies,
+  applicants, applications, interviews, offers and monitoring never seen or written; only holders
+  of `workforce.recruitment.manage` read or write; equality monitoring rows never read by anyone,
+  only counted through `app.equality_monitoring_counts`; interviews and stage events never
+  changed or deleted.
+- `apps/api/test/recruitment.test.ts`: the routes' permission and audited refusals; the whole
+  path from template to accepted offer creating the staff profile with the offer's conditions
+  outstanding; stale `expectedVersion`; the counts suppressed; the keep-until date set when the
+  last application closes and extended by talent pool consent.
+
+Slice 39:
+
+- `casework.test.ts` (domain, table-driven): every allowed and refused move; outcomes per case
+  type; warnings with and without their end date; the appeal; closing refused while suspended or
+  with a referral decision missing; referral decisions due for each case type and outcome, a
+  registered professional and a safeguarding link; who may take which part, with and without the
+  exception; the last case manager; the hearing invitation's steps; hearing changes; suspension
+  start, review and end; warnings counting; the timeline across a clock change; the silo
+  permission held only by the caseworker role, alone.
+- `packages/db/test/casework.test.ts`: the owner (with every other permission, user and role
+  management included), the Registered Manager, the member of staff, a caseworker not named,
+  a person not yet named, break-glass and another organisation read nothing; only a holder of
+  the silo permission opens a case, never about themselves, and open; members never named
+  by themselves or by anyone but a case manager; the subject never named; the investigator not
+  chairing without the exception; a removed member reads nothing; the last case manager stays;
+  hearings led by the matching member and final once held; forward moves only; a decided outcome
+  kept; an unknown safeguarding concern refused; a closed case never changed; the timeline never
+  changed or deleted; the role, grant, self-appointment and user-management guards.
+- `apps/api/test/casework.test.ts`: the owner and the Registered Manager refused opening a case
+  (audited); not found for the owner, the manager, the member of staff and others until named;
+  MFA for a named member; a disciplinary case from opening through investigation, suspension, a
+  hearing with the Acas steps, the outcome by the hearing chair, an appeal by someone not
+  involved, the DBS decision and the suspension ended, to the appeal decided; stale versions; a
+  member removed; audit events with ids and codes only.
+
+Slice 29:
+
+- `induction.test.ts` (domain, table-driven): the 16 standards; each Care Certificate step and its
+  refusals (the worker, the future, before the start, twice, observation before knowledge or by a
+  non-observer); completion; every induction item's status and when it is overdue; probation
+  decisions; shadow shifts and reviews; leaving; access due from the day after; the exit
+  interview; the leaving checklist; the staff file's keep-until date with and without a date of
+  birth.
+- `packages/db/test/induction.test.ts`: another organisation reads nothing; HR reads and writes,
+  the worker reads their own and writes nothing, HR never writes its own file; an assessor sees
+  the Care Certificate and nothing else; entries in one's own name; never shadowing oneself;
+  append-only rows never changed; observations only by observers and never changed; a passed
+  probation stays; read-and-sign counted for HR and the worker, refused to others; access ended
+  once, by HR, never by the leaver or an assessor; the exit interview only forward; a reference
+  answered once in the sender's name.
+- `apps/api/test/induction.test.ts`: the permissions and audited refusals; the checklist and its
+  statuses; the plan, ticks, shadowing, reviews and the probation decision with stale versions
+  refused; the Care Certificate by an assessor, never the worker; leaving with the keep-until date,
+  the exit interview, a reference, access ended at once (and the leaver then holding nothing) and
+  by the sweep the day after, once; audit events with ids and codes only.
 
 ## 10. Open questions
 
 The decisions and defaults are in [phase-2.md](../plans/phase-2.md) (ADR-0022, ADR-0085, ADR-0089,
 ADR-0093, ADR-0094) and the human actions in [human-actions.md](../plans/human-actions.md) (H-52,
-H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579).
+H-521 to H-527, H-531, H-532; slice 4: H-570 to H-574; slice 11: H-575 to H-579; slice 17: H-690
+to H-693; slice 23: H-730 to H-735; slice 39: H-800 to H-809; slice 29: H-870 to H-879).
 
 ## 11. Known gaps
 
@@ -337,12 +810,32 @@ Left open by slice 11 (its security review), each with the slice expected to clo
 
 | Gap | Effect now | To close |
 | --- | --- | --- |
-| Expiry reminder tasks have no person and no location, and `app.task_visible` does not read `required_permission` | Organisation-wide roles see them; HR's role (scope none) does not see them in `GET /v1/tasks` | Task visibility for holders of the task's required permission (slice 17, if small) |
+| Expiry reminder tasks have no person and no location, and `app.task_visible` did not read `required_permission` | Closed by slice 17 (migration 0079): holders of the task's workforce permission see it | - |
+| Supervision and appraisal due dates raise no tasks yet | Shown in the development record only | Slice 57 (the supervision screens and their reminders) |
+| Revalidation evidence is recorded by HR, not by the nurse | A nurse cannot record their own evidence | Self-service with review (slice 57, H-693) |
+| Reminders cover upcoming expiry only: required training never done, a member with no records, and an expired or withdrawn competence raise no task (the matrix and the port show them) | HR sees them in the development record, not in tasks | Slice 57 with the matrix screens (H-691) |
+| `withSystemRights` answers the port's and the record's narrow questions inside the caller's transaction; callers must await it alone | A concurrent query on the same transaction would run with the system's rights | Security-definer functions owned by a NOLOGIN role (ADR-0002), before slice 22 calls the port |
+| A location's team leader (`workforce.competence.observe`) reads development records and signs off competence across the organisation; the rule that an observer holds a valid sign-off for the same competence where the tenant requires it is not built | Wider than need-to-know; withdrawal reasons are free text | DPO decision (H-694); the observer rule in slice 57 |
+| Equality monitoring forms are entered by staff (slice 23) | Someone with `workforce.recruitment.manage` could add made-up forms before the counts are released, to lift a small count above the minimum; each form added is audited | Applicants submit their own form through a one-time link with their application (slice 58), and staff entry is withdrawn |
+| An applicant's earlier versions in `record_version` keep their names and contact details (slice 23) | Redaction after `retain_until`, and withdrawing talent pool consent, leave those copies; no job redacts applicants yet | The retention sweep redacts the applicant and their versions together (with the retention engine's destruction batches) |
+| Talent pool consent is recorded by staff with no evidence of the applicant's agreement (slice 23) | The consent's source is not kept | The applicant gives it themselves through the same link (slice 58), or the form records how it was given |
 | HR-only documents carry retention class `staff_file`, which has no rule of its own; the tenant's choice of `staff_file.*` and the leaving-date trigger are not in the retention engine; right to work copies' `record_closed` trigger is not handled | Nothing destroys HR-only documents or right to work copies yet | The retention engine's employment triggers (with H-575) |
 | Employment gap explanations (free text) are in `compliance_item.detail` | Readable by holders of `workforce.staff_file.read`, not HR only | Move to an HR-only field or document (slice 56, with the screens) |
 | Upload titles and file names travel in the query string, as on `/v1/documents` | They may reach proxy logs | A header or multipart field for every upload route |
 | A refused HR upload (malware, wrong type) | Not audited as `workforce.hr_document.added` denied | Wrap the document store's refusals in audited refusals |
 | The full tenant export runs as the system | Holders of `platform.export.create` export staff files and HR-only documents | Decide with the DPO whether the export needs the HR permissions too (H-577) |
+| Casework does not stop someone holding the caseworker role from being named on a case about a colleague they are close to, or a member reading a case after their own conflict arises (slice 39) | Conflicts of interest are for the case manager to manage | A declared-conflict check when naming members (slice 58) |
+| A case nobody can read once its last case manager leaves (slice 39) | The case stays, unread, until support acts under an approval ticket | The support route (H-804) |
+| Members are any member of the organisation; a portal account could be named (slice 39) | Only a case manager names members, and only staff accounts are offered in the screens | Refuse a member holding only portal roles (slice 58) |
+| Audit events show that a case exists and who acts on it (by ids) to readers of the audit log (slice 39) | The owner and quality lead see case ids and action codes, never the subject or the content | An audit view that hides casework events from those not named (with the speak-up silo, ADR-0089) |
+| Casework is left out of the organisation-wide export and reaches a staff DSAR only through a case member (slice 39) | The provider cannot export its casework in one step | H-805 |
+| Migration 0101 carries its own silo guards for `workforce.casework.manage`; migration 0086 (speak-up) carries the same for `safety.speak_up.manage` | Two sets of guard triggers, one per silo permission | Fold both into `app.silo_permissions()` once both are merged |
+| Opening a case tells the opener whether the member of staff is on a professional register (`subject_registered`, copied from the staff file, which the caseworker role cannot read) (slice 39) | A caseworker learns one fact of a colleague's staff file by opening a case about them; every opening is audited | Accepted: rule 17 needs it; reviewed with the screens (slice 58) |
+| Read-and-sign at induction counts the published policies the worker's roles need now (slice 29) | A policy published later joins the count; who has not signed which policy is the policy library's view (quality.md) | Nothing to close; documented |
+| Shadow shifts are recorded by HR, not by the colleague shadowed, and are not linked to the rota (slice 29) | The shift is the manager's account | Link to rota shifts (slice 17's rota port) |
+| A leaving date, once recorded, is not corrected (slice 29) | A wrong date needs support to correct it, with the audit trail | A correction that records the change and recomputes access and retention (slice 58) |
+| Device sessions of a leaver are not ended by the sweep (slice 29) | The member holds nothing once left (no role is counted), so the API refuses them; a Care mode device keeps their unsent entries | Revoke the leaver's devices with the sweep (with platform device management) |
+| The keep-until date is worked out once, when the leaving is recorded (slice 29) | A later change of the organisation's retention row or date of birth does not move it | The retention engine's employment triggers (with H-575) |
 
 ## 12. Sponsor licence, staff data protection and LDSS (slice 35, migration 0097)
 
