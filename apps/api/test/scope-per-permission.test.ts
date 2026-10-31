@@ -1151,3 +1151,52 @@ describe("hazard HZ-011 hazard HZ-073 data scope per permission, review round 5 
     }
   });
 });
+
+describe("hazard HZ-011 hazard HZ-018 handovers reach no further than incidents, notes and the person (ADR-0071; #50 review round 1, S-M1)", () => {
+  // Hal Handover: an administrator at Harbour House, given grants at Harbour Lodge below.
+  const HAL = "0194d000-0000-7000-8000-0000000003a4";
+  let hal = "";
+  beforeAll(async () => {
+    hal = await member(HAL, "Hal Handover", "hal.handover@example.invalid");
+    await asOwner(
+      `INSERT INTO role_assignment (tenant_user_id, role_id, location_id)
+       SELECT $1, id, $2 FROM role WHERE key = 'administrator'`,
+      [HAL, DEMO.locationId],
+    );
+  });
+  const asHal = (path: string, init: { method?: string } = {}) =>
+    h.request(path, { token: hal, tenant: DEMO.tenantId, ...init });
+  const grant = (permissions: string) =>
+    asOwner(
+      `INSERT INTO access_grant
+         (tenant_user_id, permissions, location_id, valid_from, valid_to, reason, granted_by)
+       VALUES ($1, $2, $3, $4, $5, 'Covering handovers at Harbour Lodge', $6)`,
+      [
+        HAL,
+        permissions,
+        LODGE.locationId,
+        new Date(Date.now() - DAY),
+        new Date(Date.now() + DAY),
+        DEMO.users.owner.id,
+      ],
+    );
+  const handoverClaims = async () => {
+    const response = await asHal("/v1/sync/token", { method: "POST" });
+    expect(response.status).toBe(200);
+    const { token } = (await response.json()) as SyncToken;
+    const { payload } = await jwtVerify(token, h.handle.signer.verificationKey);
+    return { ids: payload.handover_location_ids, shifts: payload.handover_shifts };
+  };
+
+  it("gives no handovers to a stored grant that carries them without incident reading", async () => {
+    // Hal reads the person and notes at the Lodge, and handovers there, but not incidents.
+    await grant("{people.person.read,care.note.read,care.handover.manage}");
+    expect(await handoverClaims()).toEqual({ ids: [], shifts: {} });
+    expect((await asHal(`/v1/locations/${LODGE.locationId}/handovers`)).status).not.toBe(200);
+    // With incident reading at the Lodge too, the Lodge's handovers reach him, and only there.
+    await grant("{safety.incident.read}");
+    expect((await handoverClaims()).ids).toEqual([LODGE.locationId]);
+    expect((await asHal(`/v1/locations/${LODGE.locationId}/handovers`)).status).toBe(200);
+    expect((await asHal(`/v1/locations/${DEMO.locationId}/handovers`)).status).not.toBe(200);
+  });
+});

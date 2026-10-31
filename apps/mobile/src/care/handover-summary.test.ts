@@ -1,5 +1,8 @@
 import {
+  ALERT_REASON_CODES,
+  alertSummaryCode,
   compileHandover,
+  HANDOVER_ALERT_KINDS,
   HANDOVER_ITEM_KINDS,
   HANDOVER_SUMMARY_KEYS,
   type HandoverSources,
@@ -94,7 +97,11 @@ const sources: HandoverSources = {
     },
   ],
   tasks: [
-    task("t-overdue", { windowEnd: t("2026-10-11T12:30:00Z") }),
+    task("t-overdue", {
+      windowEnd: t("2026-10-11T12:30:00Z"),
+      fromEarlierPlan: true,
+      planAction: "Turn every two hours, left and right",
+    }),
     task("t-unfinished", {
       dueAt: t("2026-10-11T18:00:00Z"),
       windowEnd: t("2026-10-11T22:00:00Z"),
@@ -134,14 +141,14 @@ describe("hazard HZ-018 a handover item's words on the phone, from the server's 
     ["o-high", "news2", "NEWS2 score 7, high clinical risk"],
     ["o-medium", "news2", "NEWS2, medium clinical risk"],
     ["i-near", "incident", "Incident: a near miss"],
-    [
-      "a-urgent",
-      "alert",
-      "Urgent alert: a reading needs a response now. Nobody had acknowledged it by the end of the shift.",
-    ],
+    ["a-urgent", "alert", "Urgent alert: an observation needs a response now"],
     ["m-1", "body_map_mark", "Body map: Bruise, left shin, left side"],
     ["n-flagged", "flagged_note", "A care note marked to include in the handover"],
-    ["t-overdue", "overdue_task", "Overdue: Reposition"],
+    [
+      "t-overdue",
+      "overdue_task",
+      "Overdue: Turn every two hours, left and right. From an earlier plan: check the current plan",
+    ],
     ["t-unfinished", "unfinished_task", "Not done yet: Reposition"],
     ["t-must", "must_follow_up", "Follow-up after a MUST score: Refer to the dietitian"],
     ["t-skipped", "skipped_task", "Not done: Reposition. Reason: Asleep, will turn at 14:00"],
@@ -169,7 +176,9 @@ describe("hazard HZ-018 a handover item's words on the phone, from the server's 
         band: "high",
         type: "fall",
         alert: "other",
-        acknowledged: "no",
+        planned: "no",
+        planAction: "",
+        earlierPlan: "no",
         mark: "Bruise",
         title: "Reposition",
         status: "skipped",
@@ -200,5 +209,35 @@ describe("hazard HZ-018 a handover item's words on the phone, from the server's 
   ])("words an item by its kind when it has %s, never as a raw key", (_label, summary) => {
     expect(handoverItemWords({ kind: "news2", summary })).toBe("NEWS2 raised");
     expect(handoverItemWords({ kind: null, summary })).toBe("Handover item");
+  });
+});
+
+describe("hazard HZ-018 every urgent alert a summary names is worded for what it is about (#50 review round 1, clinical M2)", () => {
+  const alert = (kind: string, reason: string) =>
+    handoverItemWords({
+      kind: "alert",
+      summary: JSON.stringify({
+        key: "handover.summary.alert",
+        params: { alert: alertSummaryCode(kind), reason },
+      }),
+    });
+
+  it.each(HANDOVER_ALERT_KINDS.filter((k) => k !== "care.urgent_result"))("%s", (kind) => {
+    expect(alert(kind, "other")).not.toBe("Urgent alert: see the alert");
+  });
+
+  it.each(ALERT_REASON_CODES)("care.urgent_result raised by %s", (reason) => {
+    const words = alert("care.urgent_result", reason);
+    expect(words).not.toBe("Urgent alert: an observation needs a response now");
+    expect(words).not.toBe("Urgent alert: see the alert");
+  });
+
+  it("words an IDDSI texture alert as one, never as a NEWS2 score", () => {
+    expect(alert("care.urgent_result", "iddsi_unsafe_level")).toMatch(/texture level/);
+    expect(alert("care.urgent_result", "news2_threshold")).toMatch(/NEWS2/);
+  });
+
+  it("words a kind it does not know as an alert to open", () => {
+    expect(alert("some.new_kind", "other")).toBe("Urgent alert: see the alert");
   });
 });

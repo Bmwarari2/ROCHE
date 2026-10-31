@@ -55,15 +55,21 @@ const FAIL_SAFE_WINDOW_DAYS = 1;
 
 /**
  * The day and night shift start times (minutes after midnight, UK time) for each nation, from the
- * rate table. A nation whose figures are missing or out of order is left out, so the phone says it
- * cannot tell which handover to expect rather than guessing (ADR-0074).
+ * rate table. A nation whose figures are missing, not whole minutes of a day, or not day before
+ * night is left out, so the phone says it cannot tell which handover to expect rather than
+ * guessing (ADR-0074), and is listed in `missing` for the operator's log (#50 review round 1,
+ * clinical M4).
  */
 async function shiftPatternsByNation(
   tx: Parameters<Parameters<typeof withTenant>[1]>[0],
   tenantId: string,
   nations: readonly string[],
-): Promise<Record<string, { day: number; night: number }>> {
+): Promise<{
+  readonly patterns: Record<string, { day: number; night: number }>;
+  readonly missing: readonly string[];
+}> {
   const out: Record<string, { day: number; night: number }> = {};
+  const missing: string[] = [];
   const known = new Set<string>(["england", "wales", "scotland", "northern_ireland"]);
   const ours = [...new Set(nations)]
     .filter((n): n is "england" | "wales" | "scotland" | "northern_ireland" => known.has(n))
@@ -84,8 +90,9 @@ async function shiftPatternsByNation(
     const minute = (m: number | null): m is number =>
       m !== null && Number.isInteger(m) && m >= 0 && m < 24 * 60;
     if (minute(day) && minute(night) && day < night) out[nation] = { day, night };
+    else missing.push(nation);
   }
-  return out;
+  return { patterns: out, missing };
 }
 
 /**
@@ -200,7 +207,7 @@ export function createSyncRouter(signer: SyncTokenSigner) {
         tags: ["sync"],
         summary: "A short-lived token for the PowerSync service, scoped to tenant and assignments",
         description:
-          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (each nation's day and night shift start times from the rate table, where the handover family reaches; read by the phone only). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
+          "Claims: sub, tenant_id, location_ids, people_location_ids, care_location_ids, entries_location_ids and handover_location_ids with people_assigned, care_assigned, entries_assigned and handover_assigned (each stream family where its own read permissions reach: people.person.read with care.plan.read, care.plan.read (also the round's open tasks), care.note.read and care.handover.manage), entries_write_location_ids and entries_write_assigned (where the phone may record: care.note.write) with entries_write_person_ids (the people the member is assigned to, when entries_write_assigned, up to 100), offline_days (the offline window from the rate table, never from the device), and handover_shifts (where the handover family reaches: for each nation the organisation has homes in, the day and night shift start times in minutes after midnight, UK time, from the rate table; a nation whose figures are missing, not whole minutes of a day or not day before night is left out, so the phone says it cannot tell which handover to expect, and the operator is told in the log; read by the phone only, never by a stream). The device the request names (x-harbour-device) is bound to the member; a device a manager revoked is refused with 403 device_revoked, which the device reads apart from an expired session (401) and the session codes.",
         security,
         responses: { 200: jsonBody(SyncToken, "Token"), ...errorResponses },
       }),
@@ -247,14 +254,30 @@ export function createSyncRouter(signer: SyncTokenSigner) {
           // has homes in (the rate table's two shifts, until rotas define them per location), so
           // the phone can work out, offline, which handover it should hold and say when it is not
           // compiled yet or not final (care.md section 6, screens gate (e); ADR-0074).
-          const handoverShifts =
+          const shiftPatterns =
             handovers.locationIds.length > 0 || handovers.assigned
               ? await shiftPatternsByNation(
                   tx,
                   access.tenantId,
                   locations.map((l) => l.nation),
                 )
-              : {};
+              : { patterns: {}, missing: [] };
+          const handoverShifts = shiftPatterns.patterns;
+          if (shiftPatterns.missing.length > 0) {
+            // Phones at homes in these nations say they cannot tell which handover to expect until
+            // the rate table is fixed: tell the operator (opaque ids and rate keys only).
+            c.get("services").logger.warn(
+              {
+                tenantId: access.tenantId,
+                nations: shiftPatterns.missing,
+                rateKeys: [
+                  HANDOVER_RATE_KEYS.dayShiftStartMinute,
+                  HANDOVER_RATE_KEYS.nightShiftStartMinute,
+                ],
+              },
+              "handover shift pattern missing or out of order; left out of the sync token",
+            );
+          }
           await auditInTx(tx, access, {
             action: "sync.token.issue",
             // The device the token is for, when it says; the binding itself is `device_binding`.

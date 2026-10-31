@@ -201,6 +201,10 @@ export interface HandoverTaskSource {
   readonly title?: string;
   /** Why it was not done or was cancelled, for a skipped task's summary. */
   readonly statusReason?: string | null;
+  /** Whether the round is from an earlier plan when the item is compiled (`task.from_earlier_plan`). */
+  readonly fromEarlierPlan?: boolean;
+  /** The care plan action the round carries out, as the plan words it, when a plan made it. */
+  readonly planAction?: string | null;
   readonly status: TaskStatus;
   readonly priority: "routine" | "urgent";
   readonly evidenceRequired: boolean;
@@ -246,6 +250,11 @@ export interface HandoverAlertSource {
   readonly id: string;
   /** The alert's kind (`care.urgent_result` and so on), for the item's summary. */
   readonly kind?: string;
+  /**
+   * Why it was raised, when the kind covers more than one reason: the trigger's code for a care
+   * result (`news2_threshold`, `iddsi_unsafe_level` and the other IDDSI codes).
+   */
+  readonly reason?: string;
   readonly personId: string | null;
   readonly severity: Severity;
   readonly createdAt: Date;
@@ -365,7 +374,13 @@ export function compileHandover(
       summary: summary(kind, params),
     });
   };
-  const title = (t: HandoverTaskSource) => ({ title: t.title ?? "" });
+  // A task's title, the plan action it carries out, and whether it was from an earlier plan when
+  // compiled (HZ-024; #50 review round 1, clinical M3).
+  const title = (t: HandoverTaskSource) => ({
+    title: t.title ?? "",
+    planAction: t.planAction ?? "",
+    earlierPlan: t.fromEarlierPlan ? "yes" : "no",
+  });
   const end = shift.end.getTime();
 
   for (const o of sources.observations) {
@@ -425,8 +440,10 @@ export function compileHandover(
     const unacknowledged = alert.acknowledgedAt === null || alert.acknowledgedAt.getTime() >= end;
     if (inShift(alert.createdAt, shift) || unacknowledged) {
       add("alert", "notification", alert.id, alert.personId, alert.createdAt, {
+        // What it is about, never whether anyone has acknowledged it: an item is compiled mid-shift
+        // and never changes, so that would soon be untrue (#50 review round 1, clinical M1).
         alert: alertSummaryCode(alert.kind),
-        acknowledged: unacknowledged ? "no" : "yes",
+        reason: alertSummaryCode(alert.reason),
       });
     }
   }
@@ -594,6 +611,44 @@ export interface AlertNotification {
   readonly personId: string | null;
   readonly createdAt: Date;
   readonly acknowledgedAt: Date | null;
+  /** Why it was raised, when the source says (`HandoverAlertSource.reason`). */
+  readonly reason?: string;
+}
+
+/**
+ * The urgent alert kinds a handover item's summary words by name (#50 review round 1, clinical M2);
+ * any other is worded as "see the alert". Each has a catalogue entry (a test checks), and a care
+ * result is worded by its trigger's code (`ALERT_REASON_CODES`).
+ */
+export const HANDOVER_ALERT_KINDS = [
+  "care.urgent_result",
+  "safety.notification.overdue",
+  "care.refused_entry_urgent",
+  "sync.revoked_device_waiting",
+  "platform.task.overdue",
+  "care.dols.expiring",
+] as const;
+
+/** The trigger codes a care result's alert may carry (`UrgentAlertCode`). */
+export const ALERT_REASON_CODES = [
+  "news2_threshold",
+  "iddsi_level_not_recorded",
+  "iddsi_reason_missing",
+  "iddsi_prescribed_unreadable",
+  "iddsi_unsafe_level",
+] as const;
+
+/**
+ * The trigger code of a care result from its observation's stored flags: an IDDSI alert by its
+ * problem, otherwise a NEWS2 threshold; undefined when the flags say neither.
+ */
+export function alertReasonFromFlags(flags: unknown): string | undefined {
+  if (typeof flags !== "object" || flags === null) return undefined;
+  const f = flags as { iddsiAlert?: unknown; iddsiProblem?: unknown; news2?: unknown };
+  if (f.iddsiAlert === true) {
+    return typeof f.iddsiProblem === "string" ? `iddsi_${f.iddsiProblem}` : "iddsi_unsafe_level";
+  }
+  return f.news2 ? "news2_threshold" : undefined;
 }
 
 /**
@@ -625,9 +680,11 @@ export function alertConditions(rows: readonly AlertNotification[]): HandoverAle
       .map((c) => c.acknowledgedAt)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => a.getTime() - b.getTime());
+    const reason = copies.find((c) => c.reason)?.reason;
     alerts.push({
       id: first.id,
       kind: first.kind,
+      ...(reason ? { reason } : {}),
       personId: copies.find((c) => c.personId !== null)?.personId ?? null,
       severity: copies.some((c) => c.severity === "urgent") ? "urgent" : first.severity,
       createdAt: first.createdAt,

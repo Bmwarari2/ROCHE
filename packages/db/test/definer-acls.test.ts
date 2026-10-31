@@ -31,8 +31,8 @@ const EXECUTE: Readonly<Record<string, readonly string[]>> = {
   "app.record_invitation_sign_in(text, text)": ["harbour_app"],
   "app.seed_discard_reasons(uuid)": [],
   // The round gate data (migration 0071): called only by its own definer trigger functions.
-  "app.refresh_earlier_plan(uuid[])": [],
-  "app.task_from_earlier_plan(uuid)": [],
+  "app.refresh_earlier_plan(uuid, uuid[])": [],
+  "app.task_from_earlier_plan(uuid, uuid)": [],
   "app.sweep_expired_invitations()": ["harbour_worker"],
   "app.unlinked_invitation_sign_ins()": ["harbour_worker"],
   // Sub-processor notices (#95, migration 0067).

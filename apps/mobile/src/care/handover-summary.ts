@@ -64,6 +64,12 @@ export function handoverItemWords(item: HandoverItemRow): string {
   if (summary.key === HANDOVER_SUMMARY_KEYS.skipped_task) {
     params.hasReason = text(params.reason).trim() ? "yes" : "no";
   }
+  // A task's plan action and earlier-plan flag, and an alert's reason, default when a summary was
+  // compiled before they were kept, so it is still worded.
+  params.planned = text(params.planAction).trim() ? "yes" : "no";
+  params.planAction ??= "";
+  params.earlierPlan ??= "no";
+  params.reason ??= "other";
   try {
     return t(`mobile.${summary.key}` as MessageKey, params);
   } catch {

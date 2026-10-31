@@ -1,6 +1,6 @@
 # The round screen on the phone and its screens gate data (STATUS item 15, CARE-013)
 
-Branch `feat/mobile-round-screen`, PR #50. Mobile work resumed on 31/10/2026 after the owner's
+Branch `feat/mobile-round-screen`, superseding PR #50 (whose head, `feat/mobile-round-gate-data`, is merged in). Mobile work resumed on 31/10/2026 after the owner's
 pause from 16/10/2026.
 
 ## What changed
@@ -49,3 +49,26 @@ pause from 16/10/2026.
   clean.
 - `packages/db` (real Postgres 16 locally): 34 files, 688 tests, passing.
 - `pnpm --filter @harbour/web typecheck`: clean.
+
+## PR #50 review round 1
+
+Merged in from `feat/mobile-round-gate-data`: security M1 (`4c294aa4`: `care.handover.manage` needs
+`safety.incident.read`, `care.note.read` and `people.person.read` at the same or a wider scope;
+ADR-0071) and the code of clinical M1 to M3 (`6476f23a`: an alert's summary drops whether it was
+acknowledged and carries why a care result was raised; a task's summary carries its plan action and
+whether it was from an earlier plan). Finished on 31/10/2026:
+
+- Docs for M1 to M3 and security M1: HZ-018 design and test rows, care.md section 6, data
+  standards and records of processing (the plan action is the plan's own words).
+- Clinical M4: the API logs a warning for the operator (organisation id, nations, rate keys) when a
+  nation's shift figures are missing or out of order and are left out of the token; the claim's
+  description says exactly what it holds and when a nation is left out (OpenAPI and client
+  regenerated); an HZ-018 API test.
+- Lows named in the round 1 handover note: the backfill no longer bumps versions or writes history
+  (the version and history triggers are off while it runs), and the earlier-plan functions take the
+  organisation from the row, so a write with no `app.tenant_id` keeps the notice rather than
+  clearing it (the functions' signatures change; migration 0071 is unmerged, so it is changed in
+  place). db tests for both.
+- Not closed: the full list of round 1 Lows was not recorded in the repository (only the two above
+  are named in the handover note), so any others remain for the next review.
+
