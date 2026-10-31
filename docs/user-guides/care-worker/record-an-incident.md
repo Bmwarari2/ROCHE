@@ -42,8 +42,8 @@ Harbour asks two questions. They decide the checks after the fall, so answer the
 If you do not know, choose **Not sure yet**. Harbour treats "Not sure yet" as "yes": it sets
 tasks for urgent medical advice and timed observations. **Get medical advice as your falls
 procedure says straight away.** The incident page shows **Checks after the fall** for every fall,
-before and after the incident is closed, with a link to the task list, where each check shows
-whether it is due or done. It is not shown on an incident you can see only in part.
+before and after the incident is closed, with links to the open checks on the task list and to
+the finished ones (under **Finished**).
 
 ## Good to know
 

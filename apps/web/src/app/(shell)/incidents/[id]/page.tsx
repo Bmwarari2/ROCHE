@@ -268,6 +268,11 @@ export default async function IncidentPage({
             </p>
             <p className="m-0">
               <Link href="/tasks">{t("safety.incident.postFall.link")}</Link>
+              {" · "}
+              <Link href="/tasks?status=closed">{t("safety.incident.postFall.finishedLink")}</Link>
+            </p>
+            <p className="m-0 text-body-dense text-text-secondary">
+              {t("safety.incident.postFall.listHint")}
             </p>
           </div>
         </Card>

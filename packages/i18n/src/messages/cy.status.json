@@ -1926,6 +1926,8 @@
     "safety.incident.restrictedNotice",
     "safety.incident.restrictedHint",
     "safety.incident.postFall.title",
+    "safety.incident.postFall.finishedLink",
+    "safety.incident.postFall.listHint",
     "safety.incident.postFall.urgentAdvice",
     "safety.incident.postFall.link",
     "safety.incident.postFall.intro",

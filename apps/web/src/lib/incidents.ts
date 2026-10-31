@@ -475,13 +475,11 @@ export function incidentPersonLine(
  * Whether the incident page shows its checks after a fall (HZ-027): every fall, in every nation
  * (the API raises the post-fall tasks everywhere, though the classifier's own task list is
  * England's), and after closing too, because closing neither waits for nor cancels those tasks.
- * Not for a reader who sees the incident only in part, to whom the card would say it was a fall.
+ * Shown on a restricted view too: the heading already says it was a fall, the card holds no
+ * personal data, and a carer of the person who fell needs its guidance (#160 re-check).
  * The card never lists the tasks: no API returns an incident's tasks, so it points to the task
  * list rather than predicting them.
  */
-export function showsPostFallCard(incident: {
-  readonly type: string;
-  readonly restricted: boolean;
-}): boolean {
-  return incident.type === "fall" && !incident.restricted;
+export function showsPostFallCard(incident: { readonly type: string }): boolean {
+  return incident.type === "fall";
 }

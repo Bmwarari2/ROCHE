@@ -122,8 +122,9 @@ Still as Cat, on Ada's record.
    question, and answer the emergency services and GP questions. Save.
    ([guide](../user-guides/care-worker/record-an-incident.md))
 2. Point out: "Not sure yet" is treated as yes, so Harbour sets urgent medical advice and timed
-   observation tasks. Open the incident and point out **Checks after the fall**, with urgent
-   medical advice first and marked **Urgent**.
+   observation tasks. Open the incident and point out **Checks after the fall**: what the
+   checks are, when to get urgent medical advice, and the links to the open and finished checks on
+   the task list.
 3. Sign out. Sign in as **Mo Manager** with the password and authenticator code.
 4. Go to **Incidents** and open the fall. Point out the questions about statutory notifications,
    and that a care worker could not close it. ([guide](../user-guides/registered-manager/answer-notification-questions.md))

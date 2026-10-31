@@ -8,12 +8,13 @@ this fixes the ones that are web-only and need no API change.
 - **Checks after a fall on the incident page** (HZ-027): every fall shows "Checks after the fall",
   in every nation and after the incident is closed (closing neither waits for nor cancels the
   post-fall tasks), with what the checks are, urgent medical advice when a head injury cannot be
-  ruled out or the person takes anticoagulant or antiplatelet medicine, and a link to the task list
-  where each check shows whether it is due or done. It does not list the tasks itself: the
+  ruled out or the person takes anticoagulant or antiplatelet medicine (except aspirin on its own),
+  following the falls procedure, as the domain's post-fall rule says (NICE NG232 1.2.4), and links
+  to the open checks on the task list and to the finished ones. It does not list the tasks itself: the
   classifier's list is empty outside England and no API returns an incident's tasks
   (`GET /v1/tasks` has no source filter and `TaskItem` no source), so listing them would be a
-  prediction (#160 clinical review). Not shown to a reader who sees the incident only in part
-  (`showsPostFallCard`). The incident form's injuries hint says marks on the body map are not
+  prediction (#160 clinical review). Shown on a restricted view too: the heading already says it was
+  a fall and the card holds no personal data (`showsPostFallCard`). The incident form's injuries hint says marks on the body map are not
   linked to the incident yet, so describe them in the incident too.
 - **Who checks the law when notifications are not checked yet** (HZ-013): someone who manages
   incidents but cannot submit is no longer told to "ask a nurse"; they check the law themselves and
