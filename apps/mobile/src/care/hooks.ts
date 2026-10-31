@@ -24,6 +24,7 @@ import {
   HELD_COUNT_SQL,
   PERSON_CONTEXT_SQL,
   type PersonContextRow,
+  ROUND_TASK_FOR_PERSON_SQL,
   UPLOAD_ISSUES_SQL,
   type UploadIssueRow,
 } from "./queries";
@@ -86,13 +87,37 @@ export function useCareProfile(personId: string): CareProfileRow | null {
 }
 
 /**
+ * The round task a route asks an entry to answer, checked against this device: synced here, in the
+ * tenant, about this person, open and not already marked here. Null otherwise, so neither a link
+ * from outside nor a stale route can tag an entry to the wrong round, and its title is the synced
+ * one (#123 security review, M2; HZ-004, HZ-029).
+ */
+export function useRoundTaskFor(
+  personId: string,
+  taskId: string | null,
+): { readonly id: string; readonly title: string | null } | null {
+  const tenantId = useTenantId();
+  const params = useMemo(() => [tenantId, taskId ?? "", personId], [tenantId, taskId, personId]);
+  const { data } = useQuery<{ id: string; title: string | null }>(
+    ROUND_TASK_FOR_PERSON_SQL,
+    params,
+  );
+  return taskId ? (data[0] ?? null) : null;
+}
+
+/**
  * What a new entry for this person needs: tenant, person, location, author and a UUIDv7, and the
  * round's task it answers when the carer came from the round to record it (`taskId`, sent with
  * the entry so the API completes the task; screens gate item (f)).
  */
-export function useEntryContext(personId: string, taskId: string | null = null): EntryContext {
+export function useEntryContext(
+  personId: string,
+  requestedTaskId: string | null = null,
+): EntryContext {
   const tenantId = useTenantId();
   const { me } = useSession();
+  // Only a task this device holds, about this person and still open (#123 security review, M2).
+  const taskId = useRoundTaskFor(personId, requestedTaskId)?.id ?? null;
   const params = useMemo(() => [tenantId, personId], [tenantId, personId]);
   const { data } = useQuery<PersonContextRow>(PERSON_CONTEXT_SQL, params);
   const locationId = data[0]?.location_id ?? null;

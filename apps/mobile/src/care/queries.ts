@@ -296,3 +296,13 @@ export const TASK_EVIDENCE_SQL = `SELECT
   + (SELECT COUNT(*) FROM body_map_mark WHERE tenant_id = ?1 AND task_id = ?2)
   + (SELECT COUNT(*) FROM activity_record WHERE tenant_id = ?1 AND task_id = ?2)
   + (SELECT COUNT(*) FROM visit_log WHERE tenant_id = ?1 AND task_id = ?2) AS count`;
+
+/**
+ * A task a new entry may answer: one synced to this device, in the tenant, about this person, still
+ * open and not already marked here. A task id from a screen's route is used only when this finds
+ * it, so a link cannot tag an entry to another person's round or a closed one, and the title shown
+ * is the synced one, never words from the route (#123 security review, M2; HZ-029, HZ-004).
+ */
+export const ROUND_TASK_FOR_PERSON_SQL = `SELECT id, title FROM task
+WHERE tenant_id = ? AND id = ? AND person_id = ?
+  AND status IN ('open', 'in_progress') AND queued_transition IS NULL`;

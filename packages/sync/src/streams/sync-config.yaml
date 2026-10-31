@@ -536,7 +536,7 @@ streams:
   # nobody given to the reader. A task done, skipped or cancelled leaves the device; an unfinished
   # task due before the window is on the web round and in the handover, not on the phone (HZ-028).
   # `from_earlier_plan` is the round view's "From an earlier plan" notice, kept on the task by the
-  # database (migration 0056; HZ-024), so the phone needs neither the plan nor the series.
+  # database (migration 0071; HZ-024), so the phone needs neither the plan nor the series.
   # ----------------------------------------------------------------------------------------------
 
   assigned_open_tasks:
