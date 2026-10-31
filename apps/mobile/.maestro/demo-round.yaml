@@ -27,10 +27,10 @@ tags:
     direction: DOWN
 - scrollUntilVisible:
     element:
-      text: "Mark Reposition done"
+      text: "Mark Reposition done.*"
     direction: UP
 - tapOn:
-    text: "Mark Reposition done"
+    text: "Mark Reposition done.*"
 - extendedWaitUntil:
     visible:
       text: "Marked done on this phone.*"
