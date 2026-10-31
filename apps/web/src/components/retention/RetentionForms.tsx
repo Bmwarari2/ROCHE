@@ -108,7 +108,7 @@ export function PlaceHoldForm({
     );
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <RadioGroup<"person" | "record">
         id={ids.target}
         name="target"
@@ -199,7 +199,7 @@ export function ReleaseHoldForm({
       description={about}
       closeLabel={t("common.close")}
     >
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <p className="m-0">{t("retention.release.body")}</p>
         <ReasonField id={ids.reason} purpose="release" error={errorFor(result, "reason")} />
         <div className="flex flex-wrap justify-end gap-2">
@@ -256,7 +256,7 @@ export function DestroyForm({
   };
   const listError = errorFor(result, "documentId");
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <fieldset
         id={ids.documentId}
         tabIndex={-1}

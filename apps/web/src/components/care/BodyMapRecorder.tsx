@@ -161,7 +161,7 @@ export function BodyMapRecorder({
 
   return (
     <div className="flex flex-col gap-4">
-      <form key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" key={round} className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <SegmentedControl<BodyView>
           label={t("care.bodyMap.view")}
           value={view}

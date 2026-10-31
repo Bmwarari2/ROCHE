@@ -17,9 +17,12 @@ import {
   type Permission,
   type StatutoryNotificationKind,
   scopeFor,
+  scopeReachesLocation,
 } from "@harbour/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
-import { inScopeOf, type TenantAccess } from "../http/context";
+import type { Context } from "hono";
+import { writeAudit } from "../http/audit";
+import { type AppEnv, inScopeOf, type TenantAccess } from "../http/context";
 import { HttpProblem, problems } from "../http/problem";
 import { iso } from "./care-shared";
 
@@ -289,14 +292,64 @@ export async function managesIncident(
   incidentId: string,
 ): Promise<boolean> {
   if (!can(access.effective, MANAGE)) return false;
-  return inScopeOf(tx, scopeFor(access.effective, MANAGE), async () => {
+  const scope = scopeFor(access.effective, MANAGE);
+  return inScopeOf(tx, scope, async () => {
     try {
-      return !(await readIncident(tx, incidentId)).restricted;
+      const { row, restricted } = await readIncident(tx, incidentId);
+      // By the incident's home, not by whether it shows: it shows to its raiser anywhere (#130
+      // review round 2, M1).
+      return !restricted && scopeReachesLocation(scope, row.locationId);
     } catch (error) {
       if (error instanceof HttpProblem && error.status === 404) return false;
       throw error;
     }
   });
+}
+
+/**
+ * Refuses a step on a notification at a home where the reader does not hold the permission
+ * (`safety.notification.submit`): row-level security shows a notification about nobody to the
+ * incident's raiser anywhere, so visibility alone never decides (#130 review round 2, M1).
+ */
+export async function requireHeldAtLocation(
+  c: Context<AppEnv>,
+  access: TenantAccess,
+  permission: Permission,
+  record: { readonly type: string; readonly id: string; readonly locationId: string },
+): Promise<void> {
+  if (scopeReachesLocation(scopeFor(access.effective, permission), record.locationId)) return;
+  await writeAudit(c.get("services").appPool, access, {
+    action: permission,
+    outcome: "denied",
+    resourceType: record.type,
+    resourceId: record.id,
+    reason: "not_held_at_location",
+    requestId: c.get("requestId"),
+  });
+  throw problems.forbidden();
+}
+
+/**
+ * Refuses, audited, a review or close step to someone who does not manage the incident where it is
+ * (`managesIncident`): raising it, or managing incidents at another home, is not enough (#130
+ * review round 2, M1).
+ */
+export async function requireManagesIncident(
+  c: Context<AppEnv>,
+  tx: Transaction,
+  access: TenantAccess,
+  incidentId: string,
+): Promise<void> {
+  if (await managesIncident(tx, access, incidentId)) return;
+  await writeAudit(c.get("services").appPool, access, {
+    action: MANAGE,
+    outcome: "denied",
+    resourceType: "incident",
+    resourceId: incidentId,
+    reason: "not_held_at_location",
+    requestId: c.get("requestId"),
+  });
+  throw problems.forbidden();
 }
 
 /** Whether the reader manages incidents at a location (a new incident there, ADR-0071). */

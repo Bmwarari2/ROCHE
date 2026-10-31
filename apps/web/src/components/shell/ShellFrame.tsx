@@ -30,6 +30,7 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
+  Stamp,
   TriangleAlert,
   UserPlus,
   Users,
@@ -63,6 +64,8 @@ export interface ShellFrameLabels {
   readonly handover?: string | undefined;
   /** Shown only to people who may read incidents (safety.incident.read). */
   readonly incidents?: string | undefined;
+  /** Shown only to people who take a step in a listed workflow (PLAT-011 approvals). */
+  readonly approvals?: string | undefined;
   /** Shown only to people who open the downtime pack or manage outages. */
   readonly downtime?: string | undefined;
   /** Shown only in a family member's portal session (comms.feed.read). */
@@ -128,6 +131,7 @@ function currentSection(pathname: string): string {
   }
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/downtime")) return "downtime";
+  if (pathname.startsWith("/approvals")) return "approvals";
   if (pathname.startsWith("/letters")) return "letters";
   if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/documents")) return "documents";
@@ -249,6 +253,16 @@ export function ShellFrame({
             label: labels.incidents,
             href: "/incidents",
             icon: <TriangleAlert {...icon} />,
+          },
+        ]
+      : []),
+    ...(labels.approvals
+      ? [
+          {
+            id: "approvals",
+            label: labels.approvals,
+            href: "/approvals",
+            icon: <Stamp {...icon} />,
           },
         ]
       : []),

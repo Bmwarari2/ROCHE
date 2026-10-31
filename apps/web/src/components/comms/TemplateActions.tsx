@@ -128,7 +128,7 @@ export function EndVersion({
   }
   const error = result && !result.ok ? result.fields?.reason : undefined;
   return (
-    <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-3" onSubmit={submit} noValidate>
       <TextArea
         ref={inline.firstField}
         id={ids.reason}

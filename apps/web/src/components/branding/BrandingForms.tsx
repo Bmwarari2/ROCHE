@@ -209,7 +209,7 @@ export function BrandingDetailsForm({ branding }: { readonly branding: Branding 
     send("saved", () => saveBranding(read.value));
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+    <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
       <TextField
         id={ids.displayName}
         name="displayName"
@@ -347,7 +347,7 @@ export function BrandingLogoForm({ logo }: { readonly logo: Branding["logo"] }) 
           </div>
         </section>
       ) : null}
-      <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
+      <form method="post" className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <TextField
           id={ids.logo}
           name="logo"
