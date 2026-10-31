@@ -741,7 +741,10 @@ export const documentsRouter = createRouter()
         // A title is shown only where the caller may read that category of document (a person's
         // record needs its own read permissions); otherwise the page says the category alone.
         const mayRead = (category: string) => {
-          const permission = DOCUMENT_READ_PERMISSION[category as DocumentCategoryKey];
+          // HR-only staff documents are not a general category: never readable from this list.
+          const permission = (
+            DOCUMENT_READ_PERMISSION as Partial<Record<string, Permission | null>>
+          )[category as DocumentCategoryKey];
           if (permission === null) return true;
           if (permission === undefined) return false;
           return refusalOf(access, RECORD_READ) === null && refusalOf(access, permission) === null;
