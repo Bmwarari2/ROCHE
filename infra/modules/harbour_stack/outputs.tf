@@ -21,21 +21,6 @@ output "artifact_registry" {
   value       = module.registry.repository_url
 }
 
-output "workload_identity_provider" {
-  description = "Repository variable GCP_WORKLOAD_IDENTITY_PROVIDER."
-  value       = module.github_wif.workload_identity_provider
-}
-
-output "plan_service_account" {
-  description = "Repository variable GCP_PLAN_SERVICE_ACCOUNT."
-  value       = module.github_wif.plan_service_account
-}
-
-output "deploy_service_account" {
-  description = "Repository variable GCP_DEPLOY_SERVICE_ACCOUNT."
-  value       = module.github_wif.deploy_service_account
-}
-
 output "services" {
   description = "Cloud Run service names."
   value = merge(
@@ -73,4 +58,9 @@ output "buckets" {
 output "secret_names" {
   description = "Secrets to fill with infra/scripts/seed-secrets.sh."
   value       = module.secrets.secret_names
+}
+
+output "nat_addresses" {
+  description = "Harbour's egress addresses: allowlist these where a provider asks (the SMTP relay)."
+  value       = module.network.nat_addresses
 }

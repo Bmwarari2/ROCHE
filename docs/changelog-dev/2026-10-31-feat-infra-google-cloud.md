@@ -36,6 +36,25 @@ are no Google Cloud credentials, so the code is validated and tested only.
   `infra/README.md` gives the bootstrap (project, state bucket, Workload Identity Federation,
   secrets, first apply, migrations as a Cloud Run job).
 
+- Security review fixes: a new `infra/bootstrap` root, applied by a person, holds the
+  organisation policies (split into the location policy and the key ban), the folder's log
+  location in London with no `_Default` sink, and Workload Identity Federation. Each
+  environment's plan, apply and release accounts trust one GitHub environment of that
+  environment only (`<env>-plan`, `<env>`, `<env>-release`), the provider admits this
+  repository's Terraform workflow only, by numeric repository and owner ids, and a deny policy
+  keeps all three from secret values, objects, logs, database exports, keys and their own
+  federation. The apply account holds no organisation policy or federation role, and a separate
+  release account pushes images and acts as the runtime accounts only. State moves to a
+  separate state project. The release job builds images before signing in and writes no
+  credentials file (`gha-creds-*.json` is ignored by Git and Docker). Fork pull requests get no
+  plan, and checkouts keep no credentials.
+- Also from the review: pgAudit and connection logs go to the 400-day security bucket; both log
+  buckets use a `logs` key; `log_error_verbosity = terse`, `pgaudit.log_relation` on and
+  `pgaudit.log_catalog` off; all services egress through Cloud NAT static addresses, which the
+  API trusts as proxies and Cloud Armor does not rate limit; PowerSync's `/api/admin` is refused
+  at the edge and Flagsmith is allowlisted; Cloud CDN serves `/_next/static/*` only, on its own
+  backend; SMTP must use TLS; security logs need 400 days and the prod audit archive 365.
+
 ## What is next
 
 - Wired to the application settings of `feat/api-google-cloud-adapters`: no CA in the image (the
@@ -52,15 +71,26 @@ are no Google Cloud credentials, so the code is validated and tested only.
 - Create the `pgaudit` extension in `db:bootstrap`.
 - Update the restore and on-call runbooks and the Cyber Essentials and ISO 27001 evidence, which
   still cite the AWS modules, and the mobile comment that names `infra/modules/waf`.
-- Human actions: create the three projects and run the bootstrap, set the organisation's log
-  storage location, pin the Cloud Armor rule versions for prod (as H-140 did for AWS WAF), choose
-  and register the SMTP provider.
+- Human actions: set the folder's log location, create the state project and the three
+  projects, apply `infra/bootstrap` per environment, create and protect the GitHub environments,
+  pin the Cloud Armor rule versions for prod (as H-140 did for AWS WAF), choose and register the
+  SMTP provider.
+- Pin the workflow's actions and the Trivy image to commit SHAs and digests (the GitHub API was
+  not reachable from here to look them up).
+- The apply account still holds `resourcemanager.projectIamAdmin` and `iam.serviceAccountUser`
+  at project level; replace them with a custom role and per-account grants, and confirm in the
+  first apply that every denied permission is supported by deny policies.
+- The ADR (ADR-0098), the constraints digest, the sub-processor register, the records of
+  processing and the security checklist still name AWS; they belong to `docs/production-google-cloud`.
 
 ## Tests
 
-- `terraform fmt -check -recursive`; `terraform validate` for dev, staging and prod with
-  `-lockfile=readonly`; `terraform test` in `modules/harbour_stack`: 12 runs passing (London
+- `terraform fmt -check -recursive`; `terraform validate` for bootstrap, dev, staging and prod
+  with `-lockfile=readonly`; `terraform test`: `modules/github_wif` 4 runs and `bootstrap` 2 runs
+  passing (each environment trusts its own GitHub environments only, by numeric ids; the deny
+  policy; refused roles); `modules/harbour_stack` 16 runs passing (London
   only, another region refused, keys rotate, nothing public, services and databases (the CA
   mounted, documents and exports apart, no SMTP until chosen), Flagsmith
-  and Cloud DNS, the audit lock only in prod, prod refused without every Cloud Armor pin, prod).
+  and Cloud DNS, egress and edge rules, plaintext SMTP and short log retention refused, the audit
+  lock only in prod, prod refused without every Cloud Armor pin or a year of audit archive, prod).
 - tflint and Trivy were not run locally (installing them was not allowed here); CI runs both.

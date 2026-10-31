@@ -1,5 +1,6 @@
 # A custom-mode VPC in London: one subnet for Cloud Run Direct VPC egress (private Google access
-# on, flow logs on) and a private services range peered for Cloud SQL, which has no public IP.
+# on, flow logs on), a private services range peered for Cloud SQL, which has no public IP, and
+# Cloud NAT with static addresses for traffic to the internet.
 # No firewall rule admits traffic from the internet (the VPC's implied rule denies all ingress):
 # requests reach Cloud Run only through the external load balancer.
 
@@ -42,9 +43,16 @@ resource "google_service_networking_connection" "private_services" {
   reserved_peering_ranges = [google_compute_global_address.private_services.name]
 }
 
-resource "google_compute_router" "this" {
-  count = var.enable_nat ? 1 : 0
+resource "google_compute_address" "nat" {
+  count = var.nat_address_count
 
+  project      = var.project_id
+  name         = "${var.name_prefix}-nat-${count.index}"
+  region       = var.region
+  address_type = "EXTERNAL"
+}
+
+resource "google_compute_router" "this" {
   project = var.project_id
   name    = var.name_prefix
   region  = var.region
@@ -52,13 +60,12 @@ resource "google_compute_router" "this" {
 }
 
 resource "google_compute_router_nat" "this" {
-  count = var.enable_nat ? 1 : 0
-
   project                            = var.project_id
   name                               = var.name_prefix
-  router                             = google_compute_router.this[0].name
+  router                             = google_compute_router.this.name
   region                             = var.region
-  nat_ip_allocate_option             = "AUTO_ONLY"
+  nat_ip_allocate_option             = "MANUAL_ONLY"
+  nat_ips                            = google_compute_address.nat[*].self_link
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 
   log_config {

@@ -16,12 +16,14 @@ module "observability" {
   api_service_name            = module.svc_api.name
   always_on_services          = [module.svc_worker.name, module.svc_powersync.name]
 
+  kms_key_id = module.kms.key_ids["logs"]
+
   sql_instances = {
     main         = module.db_main.instance_name
     sync_storage = module.db_sync_storage.instance_name
   }
 
-  depends_on = [terraform_data.locks_only_in_prod]
+  depends_on = [terraform_data.locks_only_in_prod, module.kms]
 }
 
 module "budget" {
@@ -35,25 +37,32 @@ module "budget" {
 }
 
 # ---------------------------------------------------------------------------------------------
-# GitHub Actions: Workload Identity Federation, this repository only, no keys
+# Releases: the GitHub release account (infra/bootstrap) pushes images and acts as the runtime
+# accounts it releases, and nothing else
 # ---------------------------------------------------------------------------------------------
 
-module "github_wif" {
-  source = "../github_wif"
+resource "google_artifact_registry_repository_iam_member" "release_push" {
+  count = var.release_service_account == null ? 0 : 1
 
-  project_id        = var.project_id
-  name_prefix       = local.name_prefix
-  github_repository = var.github_repository
-  state_bucket_name = var.state_bucket_name
-}
-
-# Deploys push images and run the migration job.
-resource "google_artifact_registry_repository_iam_member" "deploy_push" {
   project    = var.project_id
   location   = var.region
   repository = "harbour"
   role       = "roles/artifactregistry.writer"
-  member     = "serviceAccount:${module.github_wif.deploy_service_account}"
+  member     = "serviceAccount:${var.release_service_account}"
 
   depends_on = [module.registry]
+}
+
+resource "google_service_account_iam_member" "release_acts_as" {
+  for_each = var.release_service_account == null ? {} : {
+    api       = module.svc_api.service_account_email
+    worker    = module.svc_worker.service_account_email
+    web       = module.svc_web.service_account_email
+    migrate   = module.job_migrate.service_account_email
+    powersync = module.svc_powersync.service_account_email
+  }
+
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${each.value}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.release_service_account}"
 }

@@ -58,3 +58,5 @@ blob-report/
 
 # local document storage (development and tests)
 .data/
+# Credentials written by google-github-actions/auth; never in an image or a commit.
+gha-creds-*.json

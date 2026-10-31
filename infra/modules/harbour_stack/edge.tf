@@ -25,6 +25,13 @@ module "load_balancer" {
   cdn_host              = "app"
   armor_rule_versions   = var.armor_rule_versions
   rate_limit_per_minute = var.armor_rate_limit_per_minute
+
+  # Server-rendered pages reach the API from the NAT addresses: not one rate-limited client.
+  trusted_source_ranges = [for ip in module.network.nat_addresses : "${ip}/32"]
+  restricted_paths      = { sync = ["/api/admin"] }
+  allowlisted_hosts = var.enable_flagsmith ? {
+    flags = concat([for ip in module.network.nat_addresses : "${ip}/32"], var.flags_admin_ranges)
+  } : {}
 }
 
 # Prod pins every Cloud Armor preconfigured rule (OWASP CRS) to a version, so a rule set never

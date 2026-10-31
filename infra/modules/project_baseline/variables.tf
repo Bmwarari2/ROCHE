@@ -39,15 +39,3 @@ variable "services" {
     "vpcaccess.googleapis.com",
   ]
 }
-
-variable "enforce_resource_locations" {
-  description = "Set the gcp.resourceLocations organisation policy on the project (needs orgpolicy.policyAdmin)."
-  type        = bool
-  default     = true
-}
-
-variable "allowed_locations" {
-  description = "Values for gcp.resourceLocations. The value group covers europe-west2 and its zones; global resources such as the load balancer, Certificate Manager and Cloud DNS hold no personal data."
-  type        = list(string)
-  default     = ["in:europe-west2-locations"]
-}

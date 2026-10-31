@@ -12,8 +12,7 @@ module "stack" {
 
   safety_case_version = var.safety_case_version
 
-  github_repository = var.github_repository
-  state_bucket_name = var.state_bucket_name
+  release_service_account = var.release_service_account
 
   subnet_cidr = "10.41.0.0/20"
 

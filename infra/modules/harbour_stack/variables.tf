@@ -49,29 +49,19 @@ variable "safety_case_version" {
   type        = string
 }
 
-variable "enforce_resource_locations" {
-  description = "Set the gcp.resourceLocations and no-key organisation policies on the project."
-  type        = bool
-  default     = true
-}
-
 variable "labels" {
   type    = map(string)
   default = {}
 }
 
 # ---------------------------------------------------------------------------------------------
-# GitHub, state and cost
+# Releases and cost
 # ---------------------------------------------------------------------------------------------
 
-variable "github_repository" {
-  type    = string
-  default = "Bmwarari2/ROCHE"
-}
-
-variable "state_bucket_name" {
-  description = "The versioned GCS bucket holding Terraform state (created by the bootstrap step)."
+variable "release_service_account" {
+  description = "The GitHub release account from infra/bootstrap (null until the bootstrap is applied): it pushes images and may act as the runtime accounts it releases, nothing else."
   type        = string
+  default     = null
 }
 
 variable "billing_account_id" {
@@ -254,6 +244,11 @@ variable "lock_audit_archive" {
 variable "security_log_retention_days" {
   type    = number
   default = 400
+
+  validation {
+    condition     = var.security_log_retention_days >= 400
+    error_message = "Security logs are kept for at least 400 days."
+  }
 }
 
 variable "app_log_retention_days" {
@@ -277,6 +272,12 @@ variable "armor_rule_versions" {
   default     = {}
 }
 
+variable "flags_admin_ranges" {
+  description = "Addresses allowed to reach Flagsmith besides Harbour's own (the people who manage flags)."
+  type        = list(string)
+  default     = []
+}
+
 variable "armor_rate_limit_per_minute" {
   type    = number
   default = 600
@@ -294,6 +295,11 @@ variable "smtp" {
     tls  = bool
   })
   default = null
+
+  validation {
+    condition     = var.smtp == null || try(var.smtp.tls, false)
+    error_message = "Email is sent over TLS only."
+  }
 }
 
 variable "email_from_domain" {

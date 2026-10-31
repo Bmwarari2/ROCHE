@@ -6,7 +6,7 @@
 #   infra/scripts/ci-terraform-env.sh <env>
 #
 # Reads: GCP_PROJECT_ID, DOMAIN_NAME, STATE_BUCKET (required); STATE_KMS_KEY, DNS_ZONE_NAME,
-# ALERT_EMAILS (a JSON list) and BILLING_ACCOUNT_ID, all optional. The safety case version is
+# ALERT_EMAILS (a JSON list), BILLING_ACCOUNT_ID and RELEASE_SERVICE_ACCOUNT, all optional. The safety case version is
 # the newest report in docs/clinical-safety/safety-case/ unless SAFETY_CASE_VERSION names one.
 
 set -euo pipefail
@@ -43,10 +43,10 @@ out="${GITHUB_ENV:-/dev/stdout}"
 {
   echo "TF_VAR_project_id=${GCP_PROJECT_ID}"
   echo "TF_VAR_domain_name=${DOMAIN_NAME}"
-  echo "TF_VAR_state_bucket_name=${STATE_BUCKET}"
   echo "TF_VAR_safety_case_version=${SAFETY_CASE_VERSION}"
   [[ -n "${DNS_ZONE_NAME:-}" ]] && echo "TF_VAR_dns_zone_name=${DNS_ZONE_NAME}"
   [[ -n "${ALERT_EMAILS:-}" ]] && echo "TF_VAR_alert_email_addresses=${ALERT_EMAILS}"
   [[ -n "${BILLING_ACCOUNT_ID:-}" ]] && echo "TF_VAR_billing_account_id=${BILLING_ACCOUNT_ID}"
+  [[ -n "${RELEASE_SERVICE_ACCOUNT:-}" ]] && echo "TF_VAR_release_service_account=${RELEASE_SERVICE_ACCOUNT}"
   true
 } >>"${out}"

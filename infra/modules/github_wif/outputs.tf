@@ -3,12 +3,9 @@ output "workload_identity_provider" {
   value       = google_iam_workload_identity_pool_provider.github.name
 }
 
-output "plan_service_account" {
-  value = google_service_account.plan.email
-}
-
-output "deploy_service_account" {
-  value = google_service_account.deploy.email
+output "service_accounts" {
+  description = "Account emails, by purpose (plan, deploy, release)."
+  value       = { for k, sa in google_service_account.ci : k => sa.email }
 }
 
 output "attribute_condition" {
@@ -18,4 +15,8 @@ output "attribute_condition" {
 output "subjects" {
   description = "The GitHub token subject each account trusts."
   value       = local.subjects
+}
+
+output "denied_permissions" {
+  value = var.denied_permissions
 }

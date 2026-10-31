@@ -22,3 +22,12 @@ output "private_services_connection" {
   description = "Depend on this before creating a Cloud SQL instance with a private IP."
   value       = google_service_networking_connection.private_services.id
 }
+
+output "nat_addresses" {
+  description = "Static addresses traffic to the internet leaves from."
+  value       = google_compute_address.nat[*].address
+}
+
+output "nat_address_count" {
+  value = var.nat_address_count
+}

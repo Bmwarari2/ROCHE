@@ -18,18 +18,6 @@ output "artifact_registry" {
   value = module.stack.artifact_registry
 }
 
-output "workload_identity_provider" {
-  value = module.stack.workload_identity_provider
-}
-
-output "plan_service_account" {
-  value = module.stack.plan_service_account
-}
-
-output "deploy_service_account" {
-  value = module.stack.deploy_service_account
-}
-
 output "services" {
   value = module.stack.services
 }
@@ -48,4 +36,8 @@ output "buckets" {
 
 output "secret_names" {
   value = module.stack.secret_names
+}
+
+output "nat_addresses" {
+  value = module.stack.nat_addresses
 }

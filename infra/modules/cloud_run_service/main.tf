@@ -1,7 +1,7 @@
 # One Cloud Run service (or job) with its own service account. Secrets come from Secret Manager
 # as environment variables or files; sidecars share the main container's network namespace, so
-# ClamAV beside the API answers on 127.0.0.1:3310. Direct VPC egress sends private ranges (Cloud
-# SQL) through the VPC. The deploy workflow changes the image after the first apply, so Terraform
+# ClamAV beside the API answers on 127.0.0.1:3310. Direct VPC egress sends all traffic through the
+# VPC: Cloud SQL by its private IP, the internet through Cloud NAT's static addresses. The deploy workflow changes the image after the first apply, so Terraform
 # ignores it from then on and an infrastructure change can never roll an application back.
 
 resource "google_service_account" "this" {
@@ -57,7 +57,7 @@ resource "google_cloud_run_v2_service" "this" {
     }
 
     vpc_access {
-      egress = "PRIVATE_RANGES_ONLY"
+      egress = var.vpc_egress
 
       network_interfaces {
         network    = var.network_id
@@ -235,7 +235,7 @@ resource "google_cloud_run_v2_job" "this" {
       max_retries     = 0
 
       vpc_access {
-        egress = "PRIVATE_RANGES_ONLY"
+        egress = var.vpc_egress
 
         network_interfaces {
           network    = var.network_id

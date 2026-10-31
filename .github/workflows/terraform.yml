@@ -2,10 +2,13 @@
 # that touches infrastructure, a dev plan posted to the pull request, a dev apply from main, and
 # the dev images built, pushed to Artifact Registry and released after the apply.
 #
-# Google Cloud access is by Workload Identity Federation only (no JSON keys): pull requests
-# impersonate the read-only plan account, pushes to main the deploy account. Until Brian creates
-# the dev project and sets the GCP_* repository variables, the plan, apply and release jobs skip
-# cleanly. See infra/README.md for the variables this workflow reads.
+# Google Cloud access is by Workload Identity Federation only (no JSON keys), set up by a person in
+# infra/bootstrap. Each job names a GitHub environment, and each Google Cloud account trusts one
+# environment's subject only: dev-plan (the read-only plan), dev (the apply) and dev-release (the
+# release). Protect those environments in GitHub (deployment branches; required reviewers for
+# staging and prod). A deny policy keeps every CI account away from secret values, data and logs.
+# Until Brian applies the bootstrap and sets the GCP_* repository variables, the plan, apply and
+# release jobs skip cleanly. See infra/README.md for the variables this workflow reads.
 
 name: Terraform
 
@@ -37,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -47,21 +52,25 @@ jobs:
         working-directory: infra
         run: terraform fmt -check -recursive -diff
 
-      - name: terraform init and validate (dev, staging, prod)
-        working-directory: infra/envs
+      - name: terraform init and validate (bootstrap, dev, staging, prod)
+        working-directory: infra
         run: |
-          for env in dev staging prod; do
-            echo "::group::${env}"
-            terraform -chdir="${env}" init -backend=false -lockfile=readonly
-            terraform -chdir="${env}" validate
+          for root in bootstrap envs/dev envs/staging envs/prod; do
+            echo "::group::${root}"
+            terraform -chdir="${root}" init -backend=false -lockfile=readonly
+            terraform -chdir="${root}" validate
             echo "::endgroup::"
           done
 
-      - name: terraform test (stack plan against mocked providers)
-        working-directory: infra/modules/harbour_stack
+      - name: terraform test (plans against mocked providers)
+        working-directory: infra
         run: |
-          terraform init -backend=false
-          terraform test
+          for dir in modules/harbour_stack modules/github_wif bootstrap; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false
+            terraform -chdir="${dir}" test
+            echo "::endgroup::"
+          done
 
       - uses: actions/cache@v4
         with:
@@ -78,9 +87,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           tflint --init --config "${GITHUB_WORKSPACE}/infra/.tflint.hcl"
-          for env in dev staging prod; do
-            echo "::group::${env}"
-            tflint --chdir="envs/${env}" --config "${GITHUB_WORKSPACE}/infra/.tflint.hcl" --format=compact
+          for root in bootstrap envs/dev envs/staging envs/prod; do
+            echo "::group::${root}"
+            tflint --chdir="${root}" --config "${GITHUB_WORKSPACE}/infra/.tflint.hcl" --format=compact
             echo "::endgroup::"
           done
 
@@ -89,6 +98,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Trivy (misconfigurations, HIGH and CRITICAL fail the build)
         run: |
@@ -115,9 +126,12 @@ jobs:
 
   plan-dev:
     name: Plan dev
-    if: github.event_name == 'pull_request' && needs.gcp-gate.outputs.enabled == 'true'
+    # Never for a pull request from a fork.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.gcp-gate.outputs.enabled == 'true'
     needs: [static, security, gcp-gate]
     runs-on: ubuntu-latest
+    # The plan account trusts this environment's subject only.
+    environment: dev-plan
     permissions:
       contents: read
       id-token: write
@@ -143,6 +157,8 @@ jobs:
           fi
 
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
         if: steps.account.outputs.present == 'true'
 
       - uses: hashicorp/setup-terraform@v3
@@ -199,8 +215,9 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gcp-gate.outputs.enabled == 'true'
     needs: [static, security, gcp-gate]
     runs-on: ubuntu-latest
-    # No GitHub `environment:` here on purpose: it would change the token subject to
-    # repo:<owner>/<repo>:environment:dev, which the deploy account does not trust.
+    # The apply account trusts repo:<owner>/<repo>:environment:dev only; the environment's
+    # deployment branch rule admits main.
+    environment: dev
     concurrency:
       group: terraform-apply-dev
       cancel-in-progress: false
@@ -214,8 +231,11 @@ jobs:
       DNS_ZONE_NAME: ${{ vars.DEV_DNS_ZONE_NAME }}
       ALERT_EMAILS: ${{ vars.DEV_ALERT_EMAILS }}
       BILLING_ACCOUNT_ID: ${{ vars.GCP_BILLING_ACCOUNT_ID }}
+      RELEASE_SERVICE_ACCOUNT: ${{ vars.GCP_RELEASE_SERVICE_ACCOUNT_DEV }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -237,14 +257,18 @@ jobs:
           terraform plan -no-color -out=tfplan
           terraform apply -no-color tfplan
 
-  # Builds the api and web images, pushes them to Artifact Registry under the commit SHA (tags
-  # are immutable), runs the migration job with the new api image, then releases the services.
-  # Terraform ignores images after the first apply, so this job owns them from then on.
+  # Builds the api and web images before signing in, so no credential is in the build context
+  # while dependencies install; then signs in as the release account (no credentials file),
+  # pushes them to Artifact Registry under the commit SHA (tags are immutable), runs the migration
+  # job with the new api image, and releases the services. Terraform ignores the services' images
+  # after the first apply, so this job owns them from then on.
   release-dev:
     name: Build, push and release dev
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && needs.gcp-gate.outputs.enabled == 'true'
     needs: [apply-dev, gcp-gate]
     runs-on: ubuntu-latest
+    # The release account trusts repo:<owner>/<repo>:environment:dev-release only.
+    environment: dev-release
     concurrency:
       group: release-dev
       cancel-in-progress: false
@@ -256,30 +280,41 @@ jobs:
       PREFIX: harbour-dev
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Build the api and web images (no credentials yet)
+        run: |
+          repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
+          for app in api web; do
+            docker build -f "apps/${app}/Dockerfile" -t "${repo}/${app}:${GITHUB_SHA}" .
+          done
 
       - id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER_DEV }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT_DEV }}
+          service_account: ${{ vars.GCP_RELEASE_SERVICE_ACCOUNT_DEV }}
           token_format: access_token
+          create_credentials_file: false
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Log in to Artifact Registry
+      - name: Push the images
         env:
           TOKEN: ${{ steps.auth.outputs.access_token }}
-        run: printf '%s' "${TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://${GCP_REGION}-docker.pkg.dev"
-
-      - name: Build and push the api and web images
         run: |
           repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
+          printf '%s' "${TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://${GCP_REGION}-docker.pkg.dev"
           for app in api web; do
-            docker build -f "apps/${app}/Dockerfile" -t "${repo}/${app}:${GITHUB_SHA}" .
             docker push "${repo}/${app}:${GITHUB_SHA}"
           done
+          docker logout "https://${GCP_REGION}-docker.pkg.dev"
 
       - name: Run the migrations, then release
+        env:
+          CLOUDSDK_AUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT_ID_DEV }}
         run: |
           repo="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/harbour"
           gcloud run jobs update "${PREFIX}-migrate" --region "${GCP_REGION}" --image "${repo}/api:${GITHUB_SHA}" --quiet

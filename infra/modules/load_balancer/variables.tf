@@ -28,9 +28,33 @@ variable "default_host" {
 }
 
 variable "cdn_host" {
-  description = "The host whose static files Cloud CDN caches (the web tier). Pages are private and never cached: Cloud CDN follows the origin's Cache-Control."
+  description = "The host whose static files Cloud CDN caches (the web tier): only cdn_paths go through the CDN backend; every page goes through a backend with no CDN."
   type        = string
   default     = null
+}
+
+variable "cdn_paths" {
+  description = "Paths of immutable static files on cdn_host (Next.js build output)."
+  type        = list(string)
+  default     = ["/_next/static/*"]
+}
+
+variable "trusted_source_ranges" {
+  description = "Harbour's own egress addresses (Cloud NAT): exempt from the per-client rate limit, because every server-rendered page reaches the API from them."
+  type        = list(string)
+  default     = []
+}
+
+variable "restricted_paths" {
+  description = "Host prefix => path prefixes never served from the internet (PowerSync's admin API)."
+  type        = map(list(string))
+  default     = { sync = ["/api/admin"] }
+}
+
+variable "allowlisted_hosts" {
+  description = "Host prefix => source ranges allowed to reach it (empty list: nobody). Flagsmith's dashboard and API are reached from Harbour's own addresses and the named admin ranges only."
+  type        = map(list(string))
+  default     = {}
 }
 
 variable "armor_rules" {

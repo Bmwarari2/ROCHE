@@ -3,7 +3,7 @@
 # protection settings, so that staging is a faithful rehearsal of prod (ADR-0098).
 #
 # Residency: everything that stores or processes personal data is created in europe-west2, and
-# the gcp.resourceLocations organisation policy refuses anything else. The load balancer, its
+# the gcp.resourceLocations organisation policy (infra/bootstrap) refuses anything else. The load balancer, its
 # certificates, Cloud Armor, Cloud CDN (static files only) and Cloud DNS are global services that
 # hold no personal data.
 
@@ -54,6 +54,11 @@ resource "terraform_data" "locks_only_in_prod" {
       condition     = local.is_prod || (!local.lock_audit_archive && !local.lock_security_logs)
       error_message = "Retention locks are irreversible and are set in prod only."
     }
+
+    precondition {
+      condition     = !local.is_prod || var.audit_archive_retention_days >= 365
+      error_message = "Prod keeps the audit archive for at least 365 days (section 5.5)."
+    }
   }
 }
 
@@ -64,9 +69,8 @@ resource "terraform_data" "locks_only_in_prod" {
 module "project" {
   source = "../project_baseline"
 
-  project_id                 = var.project_id
-  region                     = var.region
-  enforce_resource_locations = var.enforce_resource_locations
+  project_id = var.project_id
+  region     = var.region
 }
 
 module "kms" {
@@ -81,6 +85,7 @@ module "kms" {
     storage   = ["serviceAccount:${module.project.service_agents.storage}"]
     secrets   = ["serviceAccount:${module.project.service_agents.secrets}"]
     artifacts = ["serviceAccount:${module.project.service_agents.artifacts}"]
+    logs      = ["serviceAccount:${module.project.service_agents.logs}"]
   }
 }
 

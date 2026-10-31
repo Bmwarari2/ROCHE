@@ -1,5 +1,6 @@
-# The project's baseline: the APIs Harbour uses, an organisation policy that refuses resources
-# outside London, no service account keys, and audit logs that include Data Access (section 5.5).
+# The project's baseline: the APIs Harbour uses and audit logs that include Data Access (section
+# 5.5). The organisation policies (resources in London only, no service account keys) and the
+# GitHub federation are applied by a person in infra/bootstrap, never by CI.
 
 data "google_project" "this" {
   project_id = var.project_id
@@ -11,41 +12,6 @@ resource "google_project_service" "this" {
   project            = var.project_id
   service            = each.key
   disable_on_destroy = false
-}
-
-# Personal data stays in the UK: nothing that stores data can be created outside europe-west2.
-resource "google_org_policy_policy" "resource_locations" {
-  count = var.enforce_resource_locations ? 1 : 0
-
-  name   = "projects/${var.project_id}/policies/gcp.resourceLocations"
-  parent = "projects/${var.project_id}"
-
-  spec {
-    rules {
-      values {
-        allowed_values = var.allowed_locations
-      }
-    }
-  }
-
-  depends_on = [google_project_service.this]
-}
-
-# GitHub Actions and people sign in through Workload Identity Federation and their own accounts:
-# no long-lived JSON keys anywhere.
-resource "google_org_policy_policy" "no_service_account_keys" {
-  count = var.enforce_resource_locations ? 1 : 0
-
-  name   = "projects/${var.project_id}/policies/iam.disableServiceAccountKeyCreation"
-  parent = "projects/${var.project_id}"
-
-  spec {
-    rules {
-      enforce = "TRUE"
-    }
-  }
-
-  depends_on = [google_project_service.this]
 }
 
 # Admin Activity is always on; Data Access (reads and writes of data and metadata) is turned on
@@ -75,6 +41,14 @@ resource "google_project_service_identity" "agents" {
 
   project = var.project_id
   service = each.key
+
+  depends_on = [google_project_service.this]
+}
+
+# Cloud Logging's service account for this project, which encrypts the log buckets with the
+# project's key (CMEK).
+data "google_logging_project_cmek_settings" "this" {
+  project = var.project_id
 
   depends_on = [google_project_service.this]
 }

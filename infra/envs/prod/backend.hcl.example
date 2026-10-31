@@ -1,9 +1,10 @@
 # Copy to backend.hcl (git-ignored) and run:
 #   terraform init -backend-config=backend.hcl
-# The bucket is created once per project by the bootstrap step in infra/README.md.
+# The bucket is in the separate state project (bootstrap step in infra/README.md), so the deny
+# policy on the prod project never stops CI reading state.
 
-bucket = "harbour-tfstate-<prod-project-id>"
+bucket = "harbour-tfstate-<state-project-id>"
 prefix = "prod"
 
 # Optional: encrypt state with a customer-managed key in europe-west2.
-# kms_encryption_key = "projects/<prod-project-id>/locations/europe-west2/keyRings/harbour-tfstate/cryptoKeys/state"
+# kms_encryption_key = "projects/<state-project-id>/locations/europe-west2/keyRings/harbour-tfstate/cryptoKeys/state"

@@ -17,7 +17,6 @@ variables {
   environment          = "dev"
   domain_name          = "dev.harbour.example.invalid"
   safety_case_version  = "v0.0"
-  state_bucket_name    = "harbour-tfstate-dev-test"
   budget_monthly_limit = 600
 }
 
@@ -92,6 +91,15 @@ run "dev_defaults" {
     condition     = strcontains(module.observability.security_sink_filter, "cloudaudit.googleapis.com")
     error_message = "The security log bucket must receive the audit logs."
   }
+
+  # pgAudit and connection logs are security logs, kept 400 days, never in the 30-day bucket.
+  assert {
+    condition = (
+      strcontains(module.observability.security_sink_filter, "textPayload:\"AUDIT:\"") &&
+      strcontains(module.observability.app_sink_filter, "AND NOT (resource.type=\"cloudsql_database\" AND (textPayload:\"AUDIT:\"")
+    )
+    error_message = "pgAudit lines must go to the security log bucket, not the application one."
+  }
 }
 
 # Every resource that stores or processes data is in europe-west2.
@@ -128,11 +136,6 @@ run "everything_in_london" {
   assert {
     condition     = alltrue([for l in values(module.secrets.locations) : l == "europe-west2"])
     error_message = "Every secret must be a regional secret in europe-west2."
-  }
-
-  assert {
-    condition     = jsonencode(module.project.allowed_locations) == jsonencode(["in:europe-west2-locations"])
-    error_message = "The gcp.resourceLocations policy must allow europe-west2 locations only."
   }
 
   assert {
@@ -189,26 +192,13 @@ run "nothing_public" {
   }
 
   assert {
-    condition     = jsonencode(module.load_balancer.cdn_backends) == jsonencode(["app"])
-    error_message = "Cloud CDN must be on for the web tier only (static files), never for the API or sync."
+    condition     = jsonencode(module.load_balancer.cdn_backends) == jsonencode(["app-static"]) && jsonencode(module.load_balancer.cdn_paths) == jsonencode(["/_next/static/*"])
+    error_message = "Cloud CDN must serve the web tier's static files only, on their own backend; never pages, the API or sync."
   }
 
   assert {
     condition     = module.load_balancer.min_tls_version == "TLS_1_2"
     error_message = "The load balancer must refuse TLS below 1.2."
-  }
-
-  assert {
-    condition     = strcontains(module.github_wif.attribute_condition, "assertion.repository == \"Bmwarari2/ROCHE\"")
-    error_message = "Workload Identity Federation must accept this repository's tokens only."
-  }
-
-  assert {
-    condition = (
-      module.github_wif.subjects.plan == "repo:Bmwarari2/ROCHE:pull_request" &&
-      module.github_wif.subjects.deploy == "repo:Bmwarari2/ROCHE:ref:refs/heads/main"
-    )
-    error_message = "Pull requests may impersonate the plan account only; main the deploy account only."
   }
 }
 
@@ -271,6 +261,51 @@ run "services_and_database" {
   }
 }
 
+# Sign-in throttling counts people, not the web tier: the NAT addresses are trusted proxies,
+# and Cloud Armor does not rate limit them as one client.
+run "egress_and_edge_rules" {
+  command = plan
+
+  assert {
+    condition     = module.network.nat_address_count >= 1 && length(local.nat_cidrs) == module.network.nat_address_count
+    error_message = "Traffic to the internet must leave from static NAT addresses, each trusted as a proxy."
+  }
+
+  assert {
+    condition     = strcontains(module.load_balancer.rule_expressions["100"], "startsWith('sync.')") && strcontains(module.load_balancer.rule_expressions["100"], "startsWith('/api/admin')")
+    error_message = "PowerSync's admin API must not be served from the internet."
+  }
+
+  assert {
+    condition = alltrue([
+      module.db_main.flags["log_error_verbosity"] == "terse",
+      module.db_main.flags["pgaudit.log_relation"] == "on",
+      module.db_main.flags["pgaudit.log_catalog"] == "off",
+    ])
+    error_message = "Database error lines must not carry values, and pgAudit must log relations, not the catalogue."
+  }
+}
+
+run "plaintext_smtp_is_refused" {
+  command = plan
+
+  variables {
+    smtp = { host = "smtp.example.invalid", port = 25, tls = false }
+  }
+
+  expect_failures = [var.smtp]
+}
+
+run "short_security_log_retention_is_refused" {
+  command = plan
+
+  variables {
+    security_log_retention_days = 90
+  }
+
+  expect_failures = [var.security_log_retention_days]
+}
+
 run "flagsmith_and_cloud_dns" {
   command = plan
 
@@ -293,6 +328,12 @@ run "flagsmith_and_cloud_dns" {
   assert {
     condition     = output.manual_dns_records == null
     error_message = "With a Cloud DNS zone nothing should be left to create by hand."
+  }
+
+  # Flagsmith is reached only from Harbour's own addresses and the named admin ranges.
+  assert {
+    condition     = jsonencode(module.load_balancer.allowlisted_hosts) == jsonencode(["flags"])
+    error_message = "Flagsmith must be allowlisted at the edge."
   }
 }
 
@@ -339,6 +380,22 @@ run "prod_still_needs_every_pin" {
   }
 
   expect_failures = [terraform_data.armor_version_pins]
+}
+
+run "prod_audit_archive_needs_a_year" {
+  command = plan
+
+  variables {
+    environment                  = "prod"
+    audit_archive_retention_days = 30
+    armor_rule_versions = {
+      sqli              = "v33-stable", xss = "v33-stable", lfi = "v33-stable", rfi = "v33-stable", rce = "v33-stable",
+      methodenforcement = "v33-stable", scannerdetection = "v33-stable", protocolattack = "v33-stable",
+      sessionfixation   = "v33-stable",
+    }
+  }
+
+  expect_failures = [terraform_data.locks_only_in_prod]
 }
 
 run "prod_like" {

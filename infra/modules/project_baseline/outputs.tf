@@ -10,12 +10,8 @@ output "service_agents" {
     sql       = google_project_service_identity.agents["sqladmin.googleapis.com"].email
     artifacts = google_project_service_identity.agents["artifactregistry.googleapis.com"].email
     storage   = "service-${data.google_project.this.number}@gs-project-accounts.iam.gserviceaccount.com"
+    logs      = data.google_logging_project_cmek_settings.this.service_account_id
   }
-}
-
-output "allowed_locations" {
-  description = "The gcp.resourceLocations values set on the project."
-  value       = var.allowed_locations
 }
 
 output "audit_log_types" {

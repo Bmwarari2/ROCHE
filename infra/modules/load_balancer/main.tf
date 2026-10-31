@@ -1,6 +1,7 @@
 # The one way in from the internet: a global external Application Load Balancer with Google-
 # managed certificates from Certificate Manager, Cloud Armor (OWASP CRS preconfigured rules at
-# pinned versions, rate limiting) on every backend, and Cloud CDN for the web tier's static files.
+# pinned versions, rate limiting, PowerSync's admin API closed, Flagsmith allowlisted) on every
+# backend, and Cloud CDN on a separate backend for the web tier's static files only.
 # The load balancer, its certificates and Cloud Armor are global resources that hold no personal
 # data; the Cloud Run services behind them run in europe-west2, and their ingress setting admits
 # only this load balancer.
@@ -61,6 +62,40 @@ resource "google_compute_security_policy" "this" {
     log_level    = "NORMAL"
   }
 
+  # PowerSync's admin API (and any other restricted path) is never served from the internet.
+  dynamic "rule" {
+    for_each = { for i, h in keys(var.restricted_paths) : h => i }
+
+    content {
+      action      = "deny(404)"
+      priority    = 100 + rule.value
+      description = "No ${rule.key} admin paths from the internet"
+
+      match {
+        expr {
+          expression = "request.headers['host'].lower().startsWith('${rule.key}.') && (${join(" || ", [for p in var.restricted_paths[rule.key] : "request.path.lower().startsWith('${lower(p)}')"])})"
+        }
+      }
+    }
+  }
+
+  # Hosts reached only from listed addresses (Flagsmith).
+  dynamic "rule" {
+    for_each = { for i, h in keys(var.allowlisted_hosts) : h => i }
+
+    content {
+      action      = "deny(403)"
+      priority    = 200 + rule.value
+      description = "${rule.key} only from its allowlist"
+
+      match {
+        expr {
+          expression = length(var.allowlisted_hosts[rule.key]) == 0 ? "request.headers['host'].lower().startsWith('${rule.key}.')" : "request.headers['host'].lower().startsWith('${rule.key}.') && !(${join(" || ", [for r in var.allowlisted_hosts[rule.key] : "inIpRange(origin.ip, '${r}')"])})"
+        }
+      }
+    }
+  }
+
   dynamic "rule" {
     for_each = { for i, r in var.armor_rules : r => i }
 
@@ -72,6 +107,26 @@ resource "google_compute_security_policy" "this" {
       match {
         expr {
           expression = "evaluatePreconfiguredWaf('${rule.key}-${local.pinned_version[rule.key]}', {'sensitivity': ${var.armor_sensitivity}})"
+        }
+      }
+    }
+  }
+
+  # Harbour's own egress (the web tier rendering pages for everyone) is not rate limited as one
+  # client; the WAF rules above still apply to it.
+  dynamic "rule" {
+    for_each = length(var.trusted_source_ranges) > 0 ? [1] : []
+
+    content {
+      action      = "allow"
+      priority    = 1900
+      description = "Harbour's own egress addresses"
+
+      match {
+        versioned_expr = "SRC_IPS_V1"
+
+        config {
+          src_ip_ranges = var.trusted_source_ranges
         }
       }
     }
@@ -142,7 +197,7 @@ resource "google_compute_backend_service" "this" {
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTPS"
   security_policy       = google_compute_security_policy.this.id
-  enable_cdn            = each.key == var.cdn_host
+  enable_cdn            = false
 
   backend {
     group = google_compute_region_network_endpoint_group.this[each.key].id
@@ -152,21 +207,37 @@ resource "google_compute_backend_service" "this" {
     enable      = true
     sample_rate = var.log_sample_rate
   }
+}
 
-  dynamic "cdn_policy" {
-    for_each = each.key == var.cdn_host ? [1] : []
+# Static files only: the same web service, through Cloud CDN, for cdn_paths alone. Pages never
+# go through this backend, so nothing with personal data can be cached at the edge.
+resource "google_compute_backend_service" "static" {
+  count = var.cdn_host == null ? 0 : 1
 
-    content {
-      # Only what the origin marks public is cached: Next.js marks /_next/static immutable and
-      # every page private, so no page with personal data is ever held at the edge.
-      cache_mode       = "USE_ORIGIN_HEADERS"
-      negative_caching = false
+  project               = var.project_id
+  name                  = "${var.name_prefix}-${var.cdn_host}-static"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "HTTPS"
+  security_policy       = google_compute_security_policy.this.id
+  enable_cdn            = true
 
-      cache_key_policy {
-        include_host         = true
-        include_protocol     = true
-        include_query_string = true
-      }
+  backend {
+    group = google_compute_region_network_endpoint_group.this[var.cdn_host].id
+  }
+
+  log_config {
+    enable      = true
+    sample_rate = var.log_sample_rate
+  }
+
+  cdn_policy {
+    cache_mode       = "USE_ORIGIN_HEADERS"
+    negative_caching = false
+
+    cache_key_policy {
+      include_host         = true
+      include_protocol     = true
+      include_query_string = false
     }
   }
 }
@@ -191,6 +262,15 @@ resource "google_compute_url_map" "https" {
     content {
       name            = path_matcher.key
       default_service = google_compute_backend_service.this[path_matcher.key].id
+
+      dynamic "path_rule" {
+        for_each = path_matcher.key == var.cdn_host ? [1] : []
+
+        content {
+          paths   = var.cdn_paths
+          service = google_compute_backend_service.static[0].id
+        }
+      }
     }
   }
 }

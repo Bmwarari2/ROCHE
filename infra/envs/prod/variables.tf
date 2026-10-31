@@ -74,13 +74,10 @@ variable "smtp" {
   default = null
 }
 
-variable "github_repository" {
-  type    = string
-  default = "Bmwarari2/ROCHE"
-}
-
-variable "state_bucket_name" {
-  type = string
+variable "release_service_account" {
+  description = "The GitHub release account from infra/bootstrap (null until the bootstrap is applied)."
+  type        = string
+  default     = null
 }
 
 variable "alert_email_addresses" {

@@ -32,6 +32,11 @@ variable "app_log_retention_days" {
   default = 30
 }
 
+variable "kms_key_id" {
+  description = "Key that encrypts both log buckets (CMEK)."
+  type        = string
+}
+
 variable "lock_security_logs" {
   description = "Lock the security log bucket's retention. Irreversible."
   type        = bool

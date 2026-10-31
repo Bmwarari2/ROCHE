@@ -8,10 +8,9 @@ europe-west2 (London)** (ADR-0098, which replaces the AWS eu-west-2 choice in AD
 infra/
   modules/
     harbour_stack/      the whole platform for one environment, composed from the modules below
-    project_baseline/   APIs, the gcp.resourceLocations and no-key organisation policies,
-                        audit logs including Data Access, CMEK service agents
-    network/            VPC, the Cloud Run subnet (Direct VPC egress, flow logs) and private
-                        services access for Cloud SQL; optional Cloud NAT
+    project_baseline/   APIs, audit logs including Data Access, CMEK service agents
+    network/            VPC, the Cloud Run subnet (Direct VPC egress, flow logs), private
+                        services access for Cloud SQL, Cloud NAT with static addresses
     kms/                key ring and keys per purpose (sql, storage, secrets, artifacts),
                         rotated yearly
     cloud_sql_postgres/ PostgreSQL 17: regional HA, PITR, private IP only, CMEK, pgAudit,
@@ -28,9 +27,11 @@ infra/
     dns/                Cloud DNS records (or the list to create elsewhere)
     observability/      log buckets (security logs 400 days, lockable), sinks, log-based
                         metrics and alert policies
-    github_wif/         Workload Identity Federation for this repository, plan and deploy
-                        accounts (no JSON keys)
+    github_wif/         Workload Identity Federation for this repository's Terraform workflow,
+                        plan, apply and release accounts, the CI deny policy (no JSON keys)
     budget/             monthly budget in pounds
+  bootstrap/            applied by a person, never CI: organisation policies, folder log
+                        location, GitHub federation and the CI deny policy
   envs/
     dev/ staging/ prod/   thin root modules: providers, backend and sizing only
   powersync/powersync.yaml      PowerSync config shared by Compose and Cloud Run
@@ -46,15 +47,19 @@ call the same `harbour_stack` module, so staging rehearses exactly what prod wil
 
 | Host | Served by | Notes |
 | --- | --- | --- |
-| `app.<domain>` | load balancer (Cloud Armor, Cloud CDN), then `web` (Next.js, port 3000) | Cloud CDN caches only what the origin marks public (static files) |
+| `app.<domain>` | load balancer (Cloud Armor), then `web` (Next.js, port 3000) | `/_next/static/*` only goes through a separate backend with Cloud CDN; pages never do |
 | `api.<domain>` | load balancer (Cloud Armor), then `api` (Hono, port 4000) with a ClamAV sidecar on 127.0.0.1:3310 | Also serves `/v1/sync/jwks` for PowerSync |
-| `sync.<domain>` | load balancer (Cloud Armor), then `powersync` (port 8080) | Self-hosted PowerSync, unified mode, always one instance |
-| `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default |
+| `sync.<domain>` | load balancer (Cloud Armor), then `powersync` (port 8080) | Self-hosted PowerSync, unified mode, always one instance; `/api/admin` is refused at the edge |
+| `flags.<domain>` | load balancer (Cloud Armor), then `flagsmith` (port 8000) | Optional, `enable_flagsmith = false` by default; only Harbour's NAT addresses and `flags_admin_ranges` reach it |
 | none | `worker` | pg-boss jobs; same image as `api`; internal ingress; CPU always allocated |
 | none | `migrate` Cloud Run job | `db:bootstrap` and migrations, run by the release job |
 
 Every Cloud Run service with a host has ingress `internal-and-cloud-load-balancing`, so it can
 be reached only through the load balancer and Cloud Armor; the worker's ingress is internal.
+Every service sends all its traffic through the VPC: Cloud SQL by private IP, the internet
+through Cloud NAT's static addresses. The web tier calls the API through the load balancer from
+those addresses, so the API trusts them as proxies (sign-in throttling counts each person) and
+Cloud Armor does not rate limit them as one client.
 
 Data: Cloud SQL `harbour-<env>-main` (PostgreSQL 17, logical decoding for PowerSync) and
 `harbour-<env>-sync-storage` (PowerSync bucket storage, and Flagsmith's database when on);
@@ -71,45 +76,62 @@ buckets for documents, exports, the write-once audit archive and bucket usage lo
   no personal data. TLS terminates at Google's front ends, some outside the UK. Cloud CDN
   follows the origin's `Cache-Control`: Next.js marks `/_next/static` public and immutable and
   every page private, so no page is ever held at the edge.
-- The `_Required` and `_Default` log buckets are global. Harbour's sinks route audit logs and
-  application logs to its own London buckets; set the organisation's default log storage
-  location to europe-west2 as part of the bootstrap so the default buckets are in London too.
+- Log storage: the bootstrap sets the folder's log location to London with no `_Default` sink,
+  before the projects are created, so `_Required` is in London too; Harbour's sinks route audit,
+  pgAudit and application logs to its own London buckets, encrypted with the project's key.
 - No cross-region copy of anything.
 - Email has no Google Cloud service: an SMTP provider in the UK, on the sub-processor register
   and in the DPIA, set with the `smtp` variable and the `smtp-user` and `smtp-password` secrets.
 - Never use Railway, Render or Hetzner (no UK region) or Cloudflare (its jurisdiction
   restriction has no UK option) for anything that holds personal data.
 
-## Bootstrap (once per environment, a human action)
+## Bootstrap (a human action, in this order)
 
-Brian, with an organisation administrator account, for each of dev, staging and prod:
+Brian, with an organisation administrator account. **Order matters**: a folder's log storage
+location applies only to projects created after it is set.
 
 ```sh
+# 1. Once: a folder for Harbour whose projects store logs in London and get no _Default sink.
+#    (infra/bootstrap sets this with folder_id; by hand:)
+gcloud logging settings update --folder=<folder-id> --storage-location=europe-west2 --disable-default-sink
+
+# 2. Once: a separate state project and bucket (versioned, London, uniform access, public access
+#    prevented). State lives outside the environments, so their deny policies never stop CI
+#    reading it.
+gcloud projects create harbour-state-<suffix> --folder=<folder-id>
+gcloud storage buckets create gs://harbour-tfstate-harbour-state-<suffix> --project harbour-state-<suffix> \
+  --location=europe-west2 --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update gs://harbour-tfstate-harbour-state-<suffix> --versioning
+
+# 3. Per environment: the project, in the folder, linked to billing.
 ENV=dev
 PROJECT=harbour-${ENV}-<suffix>
-
-# 1. The project, linked to the billing account, in the right folder
 gcloud projects create "${PROJECT}" --folder=<folder-id>
 gcloud billing projects link "${PROJECT}" --billing-account=<billing-account-id>
-gcloud services enable --project "${PROJECT}" storage.googleapis.com cloudkms.googleapis.com \
-  cloudresourcemanager.googleapis.com serviceusage.googleapis.com iam.googleapis.com
+gcloud services enable --project "${PROJECT}" cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com iam.googleapis.com iamcredentials.googleapis.com sts.googleapis.com \
+  orgpolicy.googleapis.com logging.googleapis.com
 
-# 2. The organisation's default log storage location (once per organisation)
-gcloud logging settings update --organization=<org-id> --storage-location=europe-west2
-
-# 3. Optional: a key for state
-gcloud kms keyrings create harbour-tfstate --location=europe-west2 --project "${PROJECT}"
-gcloud kms keys create state --keyring=harbour-tfstate --location=europe-west2 \
-  --purpose=encryption --rotation-period=365d --next-rotation-time=+P365D --project "${PROJECT}"
-
-# 4. The state bucket: versioned, London, uniform access, public access prevented
-gcloud storage buckets create "gs://harbour-tfstate-${PROJECT}" --project "${PROJECT}" \
-  --location=europe-west2 --uniform-bucket-level-access --public-access-prevention
-gcloud storage buckets update "gs://harbour-tfstate-${PROJECT}" --versioning
+# 4. Per environment: infra/bootstrap, as the administrator (organisation policy, IAM and deny
+#    policy rights). It sets gcp.resourceLocations and the no-key policy, creates Workload
+#    Identity Federation for this repository's Terraform workflow only (by numeric repository
+#    and owner ids: gh api repos/Bmwarari2/ROCHE --jq '.id, .owner.id'), the plan, apply and
+#    release accounts, and the deny policy that keeps them from secret values, data and logs.
+cd infra/bootstrap
+terraform init -backend-config=backend.hcl     # prefix bootstrap/<env>
+terraform apply -var-file=${ENV}.tfvars
 ```
 
-Then copy `envs/${ENV}/backend.hcl.example` to `backend.hcl` and `terraform.tfvars.example` to
-`terraform.tfvars`, and fill them in. GCS locks state natively; no lock table is needed.
+For a project created before step 1, disable its default sink by hand:
+`gcloud logging sinks update _Default --disabled --project "${PROJECT}"`. The `_Required` bucket
+(Admin Activity audit logs, held by Google for 400 days) stays global for such a project; create
+projects after step 1 so it is in London.
+
+Then, in GitHub, create the environments the bootstrap's `subjects` output names
+(`<env>-plan`, `<env>`, `<env>-release`) and protect them: deployment branch `main` for `<env>`
+and `<env>-release`, required reviewers for staging and prod. Copy
+`envs/${ENV}/backend.hcl.example` to `backend.hcl` and `terraform.tfvars.example` to
+`terraform.tfvars`, and fill them in. GCS locks state natively.
 
 ## First apply (human, with administrator credentials)
 
@@ -146,29 +168,37 @@ terraform apply          # creates the project baseline, keys, network, database
 ## How GitHub deploys work
 
 `.github/workflows/terraform.yml` signs in with `google-github-actions/auth` through Workload
-Identity Federation. The pool's provider accepts tokens from this repository only (its
-attribute condition), and each account trusts one token subject:
+Identity Federation, set up by a person in `infra/bootstrap` (CI cannot change it). The pool's
+provider accepts tokens only from this repository's Terraform workflow, by numeric repository
+and owner ids, and each account trusts one GitHub environment of its own Google Cloud
+environment:
 
 | Account | Trusts | Can |
 | --- | --- | --- |
-| `harbour-<env>-gh-plan` | `repo:Bmwarari2/ROCHE:pull_request` | read the project (viewer, security reviewer) and state; never secret values or data |
-| `harbour-<env>-gh-deploy` | `repo:Bmwarari2/ROCHE:ref:refs/heads/main` | apply, push images, run the migration job, release; no basic roles (owner, editor) |
+| `harbour-<env>-gh-plan` | `environment:<env>-plan` (pull requests from this repository, never forks) | read the project's configuration and state |
+| `harbour-<env>-gh-deploy` | `environment:<env>` | apply the stack; no basic roles, no organisation policy, federation or deny policies |
+| `harbour-<env>-gh-release` | `environment:<env>-release` | push images, update and run the migration job, release new revisions, acting as the runtime accounts only |
 
-The apply job has no GitHub `environment:`, which would change the token subject. Service
-account keys are blocked by the `iam.disableServiceAccountKeyCreation` policy.
+A deny policy on each project stops all three reading secret values, objects (care documents,
+exports, the audit archive), logs or database exports, creating keys or changing the federation,
+whatever roles they hold. Service account keys are also blocked by organisation policy. If the
+deny policy API refuses a permission as not supported for deny, remove it from the list and
+record the gap in an ADR.
 
 Repository variables (Settings, Secrets and variables, Actions, Variables), per environment:
-`GCP_PROJECT_ID_DEV`, `GCP_WORKLOAD_IDENTITY_PROVIDER_DEV` (output
-`workload_identity_provider`), `GCP_PLAN_SERVICE_ACCOUNT_DEV`, `GCP_DEPLOY_SERVICE_ACCOUNT_DEV`,
-`TF_STATE_BUCKET_DEV`, `DEV_DOMAIN_NAME`, and optionally `DEV_DNS_ZONE_NAME`,
-`DEV_ALERT_EMAILS` (a JSON list) and `GCP_BILLING_ACCOUNT_ID`. Until the provider and deploy
-account are set, the plan, apply and release jobs skip with a notice.
+`GCP_PROJECT_ID_DEV`, `GCP_WORKLOAD_IDENTITY_PROVIDER_DEV`, `GCP_PLAN_SERVICE_ACCOUNT_DEV`,
+`GCP_DEPLOY_SERVICE_ACCOUNT_DEV`, `GCP_RELEASE_SERVICE_ACCOUNT_DEV` (bootstrap outputs),
+`TF_STATE_BUCKET_DEV`, `DEV_DOMAIN_NAME`, and optionally `DEV_DNS_ZONE_NAME`, `DEV_ALERT_EMAILS`
+(a JSON list) and `GCP_BILLING_ACCOUNT_ID`. Until the provider and deploy account are set, the
+plan, apply and release jobs skip with a notice.
 
 ### Application releases
 
-The `release-dev` job builds the api and web images, pushes them to Artifact Registry tagged with
-the commit SHA (tags are immutable), updates and executes the migration job with the new api
-image, then releases api, worker and web. Terraform ignores the services' images after the first
+The `release-dev` job builds the api and web images before it signs in (so no credential is in the
+build context while dependencies install), signs in as the release account without writing a
+credentials file, pushes the images to Artifact Registry tagged with the commit SHA (tags are
+immutable), updates and executes the migration job with the new api image, then releases api,
+worker and web. Terraform ignores the services' images after the first
 apply, so an infrastructure change can never roll an application back.
 
 ## Runtime contract for application images
@@ -185,7 +215,7 @@ no Auth Proxy or connector.
 
 API and worker environment: `NODE_ENV`, `HARBOUR_ENV`, `APP_VERSION`, `GCP_PROJECT_ID`,
 `BETTER_AUTH_URL`, `WEB_ORIGINS`, `PASSKEY_RP_ID`, `TRUSTED_PROXY_CIDRS` (the load balancer,
-Google's front ends and the subnet), `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`,
+Google's front ends and the NAT addresses), `POWERSYNC_URL`, `SYNC_JWT_AUDIENCE`,
 `DOCUMENT_STORAGE=gcs`, `GCS_DOCUMENTS_BUCKET` and `GCS_EXPORTS_BUCKET` (two different buckets),
 `GCS_KMS_KEY` (the `storage` key in europe-west2), `GCS_AUDIT_ARCHIVE_BUCKET`,
 `MALWARE_SCANNER=clamd`, `CLAMD_HOST=127.0.0.1`, `CLAMD_PORT=3310`, `EMAIL_FROM_DOMAIN`,
@@ -215,7 +245,9 @@ failover), deletion protection, automated backups in europe-west2 with point-in-
 (7 days on Enterprise, 35 on Enterprise Plus in prod), private IP only, encrypted connections
 only, Query Insights without client addresses, a password policy, and flags:
 
-- `cloudsql.enable_pgaudit = on`, `pgaudit.log = ddl,role,write`, `pgaudit.log_parameter = off`
+- `cloudsql.enable_pgaudit = on`, `pgaudit.log = ddl,role,write`, `pgaudit.log_parameter = off`,
+  `pgaudit.log_relation = on`, `pgaudit.log_catalog = off`
+- `log_error_verbosity = terse` (error lines never carry a duplicate key's values)
 - `cloudsql.logical_decoding = on` (main instance only, for PowerSync)
 - `log_connections`, `log_disconnections`, `log_checkpoints`, `log_lock_waits` on,
   `log_temp_files = 0`, `log_min_duration_statement = -1`
@@ -235,9 +267,10 @@ leak into logs. `pgaudit.log_parameter` is off, so bound values never reach Clou
 
 ## Logs and alerts
 
-Audit logs (Admin Activity and Data Access for every service) and Cloud Armor requests go to the
-`harbour-<env>-security` bucket in europe-west2, kept 400 days and locked in prod; Cloud Run and
-Cloud SQL logs to `harbour-<env>-app` (30 days). Log-based metrics read the worker's structured
+Audit logs (Admin Activity and Data Access for every service), pgAudit and database connection
+logs, and Cloud Armor requests go to the `harbour-<env>-security` bucket in europe-west2, kept
+400 days or more and locked in prod; other Cloud Run and Cloud SQL logs to `harbour-<env>-app`
+(30 days). Both are encrypted with the project's `logs` key. Log-based metrics read the worker's structured
 events (`escalation.unrouted.daily`, `worker.job.failed`, `security.export.foreign_rows`) and
 alert by email, with the API's server errors, database CPU and disk, and the worker or
 PowerSync having no instance. The on-call runbook says what to do for each.
@@ -272,9 +305,9 @@ Mailpit SMTP 1025 and UI 8025.
 ```sh
 cd infra
 terraform fmt -check -recursive
-for env in dev staging prod; do terraform -chdir=envs/$env init -backend=false -lockfile=readonly && terraform -chdir=envs/$env validate; done
-(cd modules/harbour_stack && terraform init -backend=false && terraform test)
-tflint --init --config "$PWD/.tflint.hcl" && for env in dev staging prod; do tflint --chdir=envs/$env --config "$PWD/.tflint.hcl"; done
+for root in bootstrap envs/dev envs/staging envs/prod; do terraform -chdir=$root init -backend=false -lockfile=readonly && terraform -chdir=$root validate; done
+for dir in modules/harbour_stack modules/github_wif bootstrap; do (cd $dir && terraform init -backend=false && terraform test); done
+tflint --init --config "$PWD/.tflint.hcl" && for root in bootstrap envs/dev envs/staging envs/prod; do tflint --chdir=$root --config "$PWD/.tflint.hcl"; done
 trivy config --severity HIGH,CRITICAL .
 ```
 
@@ -286,7 +319,6 @@ providers; on first `tofu init`, OpenTofu adds entries for `registry.opentofu.or
 
 ## Cost notes (dev)
 
-Dev trades resilience for cost: zonal databases on small tiers, api and web scaling to zero, and
-no NAT. The largest fixed costs are the two Cloud SQL instances, the always-on worker and
+Dev trades resilience for cost: zonal databases on small tiers and api and web scaling to zero. The largest fixed costs are the two Cloud SQL instances, the always-on worker and
 PowerSync, and the load balancer's forwarding rules. The `budget` module alerts at 50, 80 and
 100 per cent of `budget_monthly_limit` and on the month-end forecast.

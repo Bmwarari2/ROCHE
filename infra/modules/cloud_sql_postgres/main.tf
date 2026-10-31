@@ -7,9 +7,13 @@
 locals {
   flags = merge(
     {
-      "cloudsql.enable_pgaudit"    = "on"
-      "pgaudit.log"                = "ddl,role,write"
-      "pgaudit.log_parameter"      = "off"
+      "cloudsql.enable_pgaudit" = "on"
+      "pgaudit.log"             = "ddl,role,write"
+      "pgaudit.log_parameter"   = "off"
+      "pgaudit.log_relation"    = "on"
+      "pgaudit.log_catalog"     = "off"
+      # Error lines name the statement, never the values (a duplicate key's DETAIL would).
+      "log_error_verbosity"        = "terse"
       "log_checkpoints"            = "on"
       "log_connections"            = "on"
       "log_disconnections"         = "on"

@@ -1,17 +1,36 @@
-# Workload Identity Federation for GitHub Actions: no JSON keys. Only this repository's tokens are
-# accepted (the provider's condition), and two accounts are impersonated by subject: pull requests
-# get the read-only plan account, pushes to main get the deploy account.
+# Workload Identity Federation for GitHub Actions in one environment's project: no JSON keys.
+# Applied by a person (infra/bootstrap), never by CI, so CI cannot change what admits it.
+#
+# - The provider accepts tokens only from this repository, by its numeric repository and owner
+#   ids (a name can be re-registered after a rename), and only from the Terraform workflow.
+# - Each account trusts one GitHub environment of this environment only: <env>-plan for the read
+#   plan, <env> for the apply, <env>-release for releases. Protect those environments in GitHub
+#   (required reviewers for prod; deployment branches main or signed tags), so a pull request or
+#   a job in another environment cannot reach this project.
+# - A deny policy stops all three accounts reading secret values, objects, logs and database
+#   exports, creating keys or changing this federation, whatever roles they hold.
 
 locals {
-  owner               = split("/", var.github_repository)[0]
-  attribute_condition = "assertion.repository == \"${var.github_repository}\" && assertion.repository_owner == \"${local.owner}\""
+  pool_id = "harbour-${var.environment}-github"
+  attribute_condition = join(" && ", [
+    "assertion.repository_id == \"${var.github_repository_id}\"",
+    "assertion.repository_owner_id == \"${var.github_repository_owner_id}\"",
+    "assertion.job_workflow_ref.startsWith(\"${var.github_repository}/${var.workflow_path}@\")",
+  ])
+
+  # GitHub's token subject for a job that names a GitHub environment.
+  subjects = {
+    plan    = "repo:${var.github_repository}:environment:${var.environment}-plan"
+    deploy  = "repo:${var.github_repository}:environment:${var.environment}"
+    release = "repo:${var.github_repository}:environment:${var.environment}-release"
+  }
 }
 
 resource "google_iam_workload_identity_pool" "github" {
   project                   = var.project_id
-  workload_identity_pool_id = "${var.name_prefix}-github"
-  display_name              = "GitHub Actions"
-  description               = "GitHub Actions for ${var.github_repository}"
+  workload_identity_pool_id = local.pool_id
+  display_name              = "GitHub Actions (${var.environment})"
+  description               = "GitHub Actions for ${var.github_repository}, ${var.environment} environments only"
 }
 
 resource "google_iam_workload_identity_pool_provider" "github" {
@@ -21,14 +40,15 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   display_name                       = "GitHub OIDC"
 
   attribute_mapping = {
-    "google.subject"             = "assertion.sub"
-    "attribute.repository"       = "assertion.repository"
-    "attribute.repository_owner" = "assertion.repository_owner"
-    "attribute.ref"              = "assertion.ref"
-    "attribute.event_name"       = "assertion.event_name"
+    "google.subject"                = "assertion.sub"
+    "attribute.repository"          = "assertion.repository"
+    "attribute.repository_id"       = "assertion.repository_id"
+    "attribute.repository_owner_id" = "assertion.repository_owner_id"
+    "attribute.environment"         = "assertion.environment"
+    "attribute.job_workflow_ref"    = "assertion.job_workflow_ref"
   }
 
-  # Tokens from any other repository are refused before any account can be impersonated.
+  # Tokens from any other repository or workflow are refused before any account is reached.
   attribute_condition = local.attribute_condition
 
   oidc {
@@ -36,39 +56,20 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
-resource "google_service_account" "plan" {
+resource "google_service_account" "ci" {
+  for_each = local.subjects
+
   project      = var.project_id
-  account_id   = substr("${var.name_prefix}-gh-plan", 0, 30)
-  display_name = "GitHub Actions plan (read only)"
+  account_id   = substr("harbour-${var.environment}-gh-${each.key}", 0, 30)
+  display_name = "GitHub Actions ${each.key} (${var.environment})"
 }
 
-resource "google_service_account" "deploy" {
-  project      = var.project_id
-  account_id   = substr("${var.name_prefix}-gh-deploy", 0, 30)
-  display_name = "GitHub Actions apply and deploy"
-}
+resource "google_service_account_iam_member" "federated" {
+  for_each = local.subjects
 
-locals {
-  pool = google_iam_workload_identity_pool.github.name
-  # GitHub's token subject for each kind of run this project trusts.
-  subjects = {
-    plan   = "repo:${var.github_repository}:pull_request"
-    deploy = "repo:${var.github_repository}:ref:refs/heads/main"
-  }
-  plan_sub  = "principal://iam.googleapis.com/${local.pool}/subject/${local.subjects.plan}"
-  apply_sub = "principal://iam.googleapis.com/${local.pool}/subject/${local.subjects.deploy}"
-}
-
-resource "google_service_account_iam_member" "plan" {
-  service_account_id = google_service_account.plan.name
+  service_account_id = google_service_account.ci[each.key].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = local.plan_sub
-}
-
-resource "google_service_account_iam_member" "deploy" {
-  service_account_id = google_service_account.deploy.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = local.apply_sub
+  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/subject/${each.value}"
 }
 
 resource "google_project_iam_member" "plan" {
@@ -76,30 +77,54 @@ resource "google_project_iam_member" "plan" {
 
   project = var.project_id
   role    = each.key
-  member  = "serviceAccount:${google_service_account.plan.email}"
+  member  = google_service_account.ci["plan"].member
 }
 
-# The deploy account applies this stack, so it holds the admin role of each service the stack
-# manages (never owner or editor; the variable refuses them). It is reachable only from pushes to
-# main of this repository, through the provider's condition and its subject binding above.
+# The apply account holds the admin role of each service the stack manages (never owner, editor,
+# organisation policy, federation or deny policies; the variable refuses them). The deny policy
+# below takes data and secret reads away from it.
 #trivy:ignore:AVD-GCP-0007
 resource "google_project_iam_member" "deploy" {
   for_each = var.deploy_roles
 
   project = var.project_id
   role    = each.key
-  member  = "serviceAccount:${google_service_account.deploy.email}"
+  member  = google_service_account.ci["deploy"].member
 }
 
-# State: the plan account reads it (plans run with -lock=false), the deploy account writes it.
+resource "google_project_iam_member" "release" {
+  for_each = var.release_roles
+
+  project = var.project_id
+  role    = each.key
+  member  = google_service_account.ci["release"].member
+}
+
+resource "google_iam_deny_policy" "ci" {
+  parent       = urlencode("cloudresourcemanager.googleapis.com/projects/${var.project_id}")
+  name         = "harbour-${var.environment}-ci-guard"
+  display_name = "CI accounts never read data, secrets or logs"
+
+  rules {
+    description = "GitHub Actions accounts: no secret values, objects, logs or exports; no keys; no changes to their own federation."
+
+    deny_rule {
+      denied_principals  = [for k, sa in google_service_account.ci : "principal://iam.googleapis.com/projects/-/serviceAccounts/${sa.email}"]
+      denied_permissions = var.denied_permissions
+    }
+  }
+}
+
+# State lives in the separate state project: the plan account reads it (plans run with
+# -lock=false), the apply account writes it.
 resource "google_storage_bucket_iam_member" "state_read" {
   bucket = var.state_bucket_name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.plan.email}"
+  member = google_service_account.ci["plan"].member
 }
 
 resource "google_storage_bucket_iam_member" "state_write" {
   bucket = var.state_bucket_name
   role   = "roles/storage.objectUser"
-  member = "serviceAccount:${google_service_account.deploy.email}"
+  member = google_service_account.ci["deploy"].member
 }

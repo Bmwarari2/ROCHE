@@ -27,6 +27,7 @@ locals {
       "api-sync-signing-key-pem" = "Private key that signs PowerSync tokens"
       "api-sync-signing-key-id"  = "Key ID of the PowerSync signing key"
       "powersync-api-token"      = "Token for the PowerSync admin API"
+      "smtp-user"                = "User name for the SMTP relay"
       "smtp-password"            = "Password for the SMTP relay"
     },
     var.enable_flagsmith ? {

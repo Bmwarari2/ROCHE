@@ -23,8 +23,13 @@ variable "private_services_prefix_length" {
   default     = 20
 }
 
-variable "enable_nat" {
-  description = "Cloud NAT for egress from the VPC to the internet (not needed while Cloud Run sends only private ranges through the VPC)."
-  type        = bool
-  default     = false
+variable "nat_address_count" {
+  description = "Static addresses for Cloud NAT. Every service sends all its traffic through the VPC, so its calls to the internet (the web tier calling the API through the load balancer, SMTP, JWKS) come from these addresses, which the API trusts as proxies and Cloud Armor exempts from the rate limit."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.nat_address_count >= 1
+    error_message = "At least one static NAT address is needed."
+  }
 }

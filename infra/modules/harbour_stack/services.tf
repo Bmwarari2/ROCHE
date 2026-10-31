@@ -4,14 +4,14 @@
 
 locals {
   # Hops between a person and the API that append to X-Forwarded-For: the load balancer's
-  # address and Google's front ends, and the VPC subnet (the web tier calling the API). The API
-  # skips these from the right to find the client address for sign-in throttling.
-  trusted_proxy_cidrs = [
-    "${module.load_balancer.ip_address}/32",
-    "35.191.0.0/16",
-    "130.211.0.0/22",
-    var.subnet_cidr,
-  ]
+  # address and Google's front ends, and Harbour's own NAT addresses (the web tier calling the
+  # API through the load balancer). The API skips these from the right to find the client
+  # address for sign-in throttling, so each person is counted, never the web tier as one client.
+  nat_cidrs = [for ip in module.network.nat_addresses : "${ip}/32"]
+  trusted_proxy_cidrs = concat(
+    ["${module.load_balancer.ip_address}/32", "35.191.0.0/16", "130.211.0.0/22"],
+    local.nat_cidrs,
+  )
 
   log_roles = ["roles/logging.logWriter", "roles/monitoring.metricWriter"]
 

@@ -4,7 +4,7 @@
 project_id        = "harbour-prod-000000"
 domain_name       = "prod.harbour.example.invalid"
 dns_zone_name     = null
-state_bucket_name = "harbour-tfstate-harbour-prod-000000"
+release_service_account = null # infra/bootstrap output service_accounts.release
 
 # The signed safety case report this release runs under (docs/clinical-safety/safety-case/).
 safety_case_version = "v0.0"

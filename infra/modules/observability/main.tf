@@ -1,6 +1,6 @@
-# Logs and alerts in London. Security logs (audit logs, including Data Access, and Cloud Armor
-# requests) go to their own bucket kept for at least 400 days, optionally locked; application
-# logs to another. The worker's structured events (pino JSON) drive the alerts the on-call runbook
+# Logs and alerts in London, both log buckets encrypted with the project's key. Security logs
+# (audit logs including Data Access, pgAudit and database connection logs, Cloud Armor requests)
+# go to their own bucket kept for at least 400 days, locked in prod; application logs to another. The worker's structured events (pino JSON) drive the alerts the on-call runbook
 # names (docs/runbooks/on-call.md; HZ-070, HZ-073).
 
 resource "google_logging_project_bucket_config" "security" {
@@ -9,7 +9,11 @@ resource "google_logging_project_bucket_config" "security" {
   bucket_id      = "${var.name_prefix}-security"
   retention_days = var.security_log_retention_days
   locked         = var.lock_security_logs
-  description    = "Audit logs and Cloud Armor requests"
+  description    = "Audit logs, pgAudit and database connection logs, Cloud Armor requests"
+
+  cmek_settings {
+    kms_key_name = var.kms_key_id
+  }
 }
 
 resource "google_logging_project_bucket_config" "app" {
@@ -18,11 +22,17 @@ resource "google_logging_project_bucket_config" "app" {
   bucket_id      = "${var.name_prefix}-app"
   retention_days = var.app_log_retention_days
   description    = "Cloud Run and Cloud SQL logs (opaque ids only)"
+
+  cmek_settings {
+    kms_key_name = var.kms_key_id
+  }
 }
 
 locals {
-  security_filter = "logName:\"cloudaudit.googleapis.com\" OR (resource.type=\"http_load_balancer\" AND jsonPayload.enforcedSecurityPolicy.name:*)"
-  app_filter      = "resource.type=(\"cloud_run_revision\" OR \"cloud_run_job\" OR \"cloudsql_database\") AND NOT logName:\"cloudaudit.googleapis.com\""
+  # pgAudit lines and connection logs are security logs (section 5.5): kept with the audit logs.
+  database_security = "(resource.type=\"cloudsql_database\" AND (textPayload:\"AUDIT:\" OR textPayload:\"connection authorized\" OR textPayload:\"connection received\" OR textPayload:\"disconnection:\"))"
+  security_filter   = "logName:\"cloudaudit.googleapis.com\" OR (resource.type=\"http_load_balancer\" AND jsonPayload.enforcedSecurityPolicy.name:*) OR ${local.database_security}"
+  app_filter        = "resource.type=(\"cloud_run_revision\" OR \"cloud_run_job\" OR \"cloudsql_database\") AND NOT logName:\"cloudaudit.googleapis.com\" AND NOT ${local.database_security}"
 }
 
 resource "google_logging_project_sink" "security" {

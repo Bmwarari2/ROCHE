@@ -25,10 +25,30 @@ output "unpinned_rules" {
 }
 
 output "cdn_backends" {
-  description = "Backends with Cloud CDN on."
-  value       = [for k, v in google_compute_backend_service.this : k if v.enable_cdn]
+  description = "Backends with Cloud CDN on, and the paths they serve."
+  value = concat(
+    [for k, v in google_compute_backend_service.this : k if v.enable_cdn],
+    [for b in google_compute_backend_service.static : "${var.cdn_host}-static"],
+  )
+}
+
+output "cdn_paths" {
+  value = var.cdn_host == null ? [] : var.cdn_paths
+}
+
+output "rule_expressions" {
+  description = "Every Cloud Armor rule expression, by priority."
+  value = {
+    for r in google_compute_security_policy.this.rule :
+    tostring(r.priority) => try(r.match[0].expr[0].expression, null)
+  }
 }
 
 output "min_tls_version" {
   value = google_compute_ssl_policy.this.min_tls_version
+}
+
+output "allowlisted_hosts" {
+  description = "Hosts reached only from their allowlist."
+  value       = sort(keys(var.allowlisted_hosts))
 }

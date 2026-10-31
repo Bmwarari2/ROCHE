@@ -23,3 +23,7 @@ output "security_log_bucket" {
 output "security_sink_filter" {
   value = local.security_filter
 }
+
+output "app_sink_filter" {
+  value = local.app_filter
+}

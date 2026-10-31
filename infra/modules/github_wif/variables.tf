@@ -2,8 +2,14 @@ variable "project_id" {
   type = string
 }
 
-variable "name_prefix" {
-  type = string
+variable "environment" {
+  description = "dev, staging or prod: each environment trusts its own GitHub environments only."
+  type        = string
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment must be dev, staging or prod."
+  }
 }
 
 variable "github_repository" {
@@ -16,13 +22,39 @@ variable "github_repository" {
   }
 }
 
+variable "github_repository_id" {
+  description = "The repository's numeric id (gh api repos/<owner>/<name> --jq .id): unlike the name, it cannot be taken over after a rename."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id is the repository's numeric id."
+  }
+}
+
+variable "github_repository_owner_id" {
+  description = "The owner's numeric id (gh api repos/<owner>/<name> --jq .owner.id)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_owner_id))
+    error_message = "github_repository_owner_id is the owner's numeric id."
+  }
+}
+
+variable "workflow_path" {
+  description = "The only workflow that may sign in."
+  type        = string
+  default     = ".github/workflows/terraform.yml"
+}
+
 variable "state_bucket_name" {
-  description = "The Terraform state bucket (created by the bootstrap step)."
+  description = "The Terraform state bucket (in the separate state project, so the deny policy below never blocks reading state)."
   type        = string
 }
 
 variable "deploy_roles" {
-  description = "Project roles for the apply and deploy account. Least privilege: no basic roles (owner, editor)."
+  description = "Project roles for the apply account. No basic roles; organisation policy and Workload Identity Federation are applied by a person, not CI."
   type        = set(string)
   default = [
     "roles/artifactregistry.admin",
@@ -33,11 +65,9 @@ variable "deploy_roles" {
     "roles/dns.admin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
-    "roles/iam.workloadIdentityPoolAdmin",
     "roles/logging.configWriter",
     "roles/monitoring.alertPolicyEditor",
     "roles/monitoring.notificationChannelEditor",
-    "roles/orgpolicy.policyAdmin",
     "roles/resourcemanager.projectIamAdmin",
     "roles/run.admin",
     "roles/secretmanager.admin",
@@ -47,16 +77,39 @@ variable "deploy_roles" {
   ]
 
   validation {
-    condition     = length(setintersection(var.deploy_roles, ["roles/owner", "roles/editor"])) == 0
-    error_message = "The deploy account never gets a basic role."
+    condition = length(setintersection(var.deploy_roles, [
+      "roles/owner", "roles/editor", "roles/orgpolicy.policyAdmin", "roles/iam.workloadIdentityPoolAdmin", "roles/iam.denyAdmin",
+    ])) == 0
+    error_message = "The apply account never gets a basic role, and never manages organisation policy, Workload Identity Federation or deny policies."
   }
 }
 
-variable "plan_roles" {
-  description = "Project roles for the read-only plan account (pull requests). It cannot read secret values or data."
+variable "release_roles" {
+  description = "Project roles for the release account (new revisions and the migration job). It acts as the runtime accounts only through grants on each of them."
   type        = set(string)
+  default     = ["roles/run.developer"]
+}
+
+variable "plan_roles" {
+  description = "Project roles for the read-only plan account (pull requests). The deny policy stops it reading secret values, objects and logs."
+  type        = set(string)
+  default     = ["roles/viewer", "roles/iam.securityReviewer"]
+}
+
+variable "denied_permissions" {
+  description = "What no CI account may do, whatever roles it holds: read secret values, objects (care documents, exports, the audit archive), logs or database exports, create keys, or change the federation that admits it."
+  type        = list(string)
   default = [
-    "roles/viewer",
-    "roles/iam.securityReviewer",
+    "secretmanager.googleapis.com/secrets.versions.access",
+    "storage.googleapis.com/objects.get",
+    "cloudsql.googleapis.com/instances.export",
+    "logging.googleapis.com/logEntries.list",
+    "logging.googleapis.com/views.access",
+    "iam.googleapis.com/serviceAccountKeys.create",
+    "iam.googleapis.com/workloadIdentityPools.update",
+    "iam.googleapis.com/workloadIdentityPools.delete",
+    "iam.googleapis.com/workloadIdentityPoolProviders.create",
+    "iam.googleapis.com/workloadIdentityPoolProviders.update",
+    "iam.googleapis.com/workloadIdentityPoolProviders.delete",
   ]
 }

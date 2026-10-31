@@ -124,6 +124,17 @@ variable "sidecars" {
   default = []
 }
 
+variable "vpc_egress" {
+  description = "ALL_TRAFFIC sends internet traffic through Cloud NAT's static addresses; PRIVATE_RANGES_ONLY only Cloud SQL."
+  type        = string
+  default     = "ALL_TRAFFIC"
+
+  validation {
+    condition     = contains(["ALL_TRAFFIC", "PRIVATE_RANGES_ONLY"], var.vpc_egress)
+    error_message = "vpc_egress must be ALL_TRAFFIC or PRIVATE_RANGES_ONLY."
+  }
+}
+
 variable "network_id" {
   type = string
 }
