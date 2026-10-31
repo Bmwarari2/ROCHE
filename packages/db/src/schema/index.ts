@@ -1,6 +1,7 @@
 export * from "./auth";
 export * from "./care";
 export * from "./comms";
+export * from "./data-protection";
 export * from "./dpia";
 export * from "./enums";
 export * from "./exports";
