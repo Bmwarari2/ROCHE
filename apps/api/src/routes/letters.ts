@@ -308,6 +308,7 @@ export const lettersRouter = createRouter()
             preferredName: p.preferredName,
             roomLabel: p.roomLabel,
             photoUrl: p.photoDocumentId ? `/v1/people/${p.id}/photo` : null,
+            sample: p.isSample,
           },
           channel: made.rendered.channel,
           subject: made.rendered.subject,
@@ -374,9 +375,20 @@ export const lettersRouter = createRouter()
                 "email_sending_not_available",
               );
             }
+            // A letter about an invented sample person says so on the page, so it is never posted
+            // or filed as real (HZ-072); the previewed text below it is unchanged.
+            const sampleLines = made.person.isSample
+              ? [
+                  {
+                    text: "Sample letter: about an invented person for practice. Do not send.",
+                    bold: true,
+                  },
+                  { text: "" },
+                ]
+              : [];
             const bytes = renderPdf({
               title: "Letter",
-              lines: made.rendered.text.split("\n").map((text) => ({ text })),
+              lines: [...sampleLines, ...made.rendered.text.split("\n").map((text) => ({ text }))],
               footer: (n, total) => `Page ${n} of ${total}.`,
             });
             const doc = await storeDocument(

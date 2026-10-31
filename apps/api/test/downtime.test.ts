@@ -4,6 +4,7 @@ import { DOWNTIME_PACK_SECTIONS, ukIsoDate } from "@harbour/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildDowntimePacks, outboxHandlers, type TaskDeps } from "../src/jobs/tasks";
 import { createLogger } from "../src/logger";
+import { renderDowntimePackPdf } from "../src/services/downtime-pack-pdf";
 import { ageSession, createHarness, type Harness, LODGE, OTHER } from "./support/harness";
 import { pdfPages } from "./support/pdf-text";
 
@@ -136,6 +137,26 @@ describe("hazard HZ-021 the downtime pack", () => {
       expect(text).toMatch(/Information as at .* Use until /);
     }
     expect(pages.slice(1).every((lines) => lines.join(" ").match(/NHS number 999/))).toBe(true);
+  });
+
+  it("hazard HZ-072 prints Sample beside an invented sample person's name, on their page and its footer", async () => {
+    await pack();
+    const [stored] = await sql<{ content: Parameters<typeof renderDowntimePackPdf>[0] }>(
+      "SELECT content FROM downtime_pack WHERE location_id = $1 ORDER BY generated_at DESC LIMIT 1",
+      [DEMO.locationId],
+    );
+    expect(stored).toBeDefined();
+    if (!stored) return;
+    const [first, ...rest] = stored.content.pages;
+    expect(first).toBeDefined();
+    if (!first) return;
+    const content = { ...stored.content, pages: [{ ...first, sample: true }, ...rest] };
+    const pages = pdfPages(renderDowntimePackPdf(content, ["Downtime pack for test"]));
+    const text = pages.map((lines) => lines.join(" ")).join(" ");
+    expect(text).toContain(`${first.displayName} (Sample)`);
+    expect(text).toContain("Sample: an invented person for practice.");
+    // Real people are never marked.
+    for (const other of rest) expect(text).not.toContain(`${other.displayName} (Sample)`);
   });
 
   it("builds the pack again when someone's status or the places change", async () => {

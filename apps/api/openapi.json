@@ -19960,6 +19960,9 @@
                   "string",
                   "null"
                 ]
+              },
+              "sample": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -19967,7 +19970,8 @@
               "fullName",
               "preferredName",
               "roomLabel",
-              "photoUrl"
+              "photoUrl",
+              "sample"
             ]
           },
           "channel": {
