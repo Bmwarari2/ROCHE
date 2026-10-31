@@ -1,5 +1,6 @@
 import { DEMO } from "@harbour/db/seed";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { PUBLIC_MAX_BODY_BYTES } from "../src/app";
 import { MemoryThrottle, throttleAddress } from "../src/http/throttle";
 import { createAdapter, MockEmail, MockPush, MockSms } from "../src/integrations/adapters";
 import { createLogger } from "../src/logger";
@@ -10,6 +11,7 @@ import {
   newInvitationToken,
   sweepInvitations,
 } from "../src/services/invitations";
+import { auditRowsFor, postSized } from "./support/body-size";
 import { createHarness, type Harness, LODGE } from "./support/harness";
 
 /**
@@ -419,5 +421,43 @@ describe("hazard HZ-011 the nightly sweep", () => {
     expect(gone.rowCount).toBe(0);
     const lookup = await post("/v1/invitations/lookup", { token: lapsedToken.token });
     expect(((await lookup.json()) as { refusal: string }).refusal).toBe("invitation_revoked");
+  });
+});
+
+describe("public bodies are capped before they are read (security review, 31 October 2026)", () => {
+  it("refuses a lookup or an acceptance just over 4 KiB with 413, accepting nothing", async () => {
+    const m = await invitedMember("care_worker", DEMO.locationId);
+    const { token } = await invite(m.id);
+    const accept = { token, password: "four random harbour words", name: "Ada Example" };
+    const over = PUBLIC_MAX_BODY_BYTES + 1;
+    const ids = ["cap-lookup-a", "cap-lookup-b", "cap-accept-a", "cap-accept-b"];
+    const refused = [
+      await postSized(h, "/v1/invitations/lookup", { token }, over, "cap-lookup-a"),
+      await postSized(h, "/v1/invitations/lookup", { token }, over, "cap-lookup-b", true),
+      await postSized(h, "/v1/invitations/accept", accept, over, "cap-accept-a"),
+      await postSized(h, "/v1/invitations/accept", accept, over, "cap-accept-b", true),
+    ];
+    for (const response of refused) {
+      expect(response.status).toBe(413);
+      expect(response.headers.get("content-type")).toContain("application/problem+json");
+      expect(await response.json()).toMatchObject({ status: 413, code: "too_large" });
+    }
+    // Nothing was claimed, no sign-in made and nothing audited.
+    expect(await auditRowsFor(h, ids)).toBe(0);
+    const [member] = await asOwnerTenant(
+      DEMO.tenantId,
+      "SELECT status, auth_user_id FROM tenant_user WHERE id = $1",
+      [m.id],
+    );
+    expect(member).toMatchObject({ status: "invited", auth_user_id: null });
+    const signIns = await h.db
+      .pool("harbour_auth")
+      .query('SELECT 1 FROM auth."user" WHERE email = $1', [m.email]);
+    expect(signIns.rowCount).toBe(0);
+    // A normal body works.
+    const lookup = await post("/v1/invitations/lookup", { token });
+    expect(lookup.status).toBe(200);
+    const accepted = await post("/v1/invitations/accept", accept);
+    expect(accepted.status).toBe(200);
   });
 });

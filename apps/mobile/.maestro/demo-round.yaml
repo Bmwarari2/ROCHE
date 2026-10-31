@@ -1,0 +1,37 @@
+# Demo build (EXPO_PUBLIC_DEMO_MODE=1, no API): the round on the phone with the demo's three
+# invented tasks. It checks the screens gate words that need no server (STATUS item 15, HZ-028,
+# HZ-024): what the phone holds is said before any task, an overdue task says so in a word, a
+# round from an earlier plan says so, and a task marked here waits to upload (in demo mode it
+# always does, since nothing uploads). The live flows (tag `offline`) need the API stack.
+appId: uk.co.thapsus.harbour
+name: The round in demo mode
+tags:
+  - demo
+---
+- runFlow: sign-in.yaml
+- tapOn:
+    id: "tab-round"
+- extendedWaitUntil:
+    visible:
+      id: "round-screen"
+    timeout: 15000
+- assertVisible:
+    text: "This phone holds the open tasks due from .*"
+- assertVisible:
+    text: "Demo mode.*"
+- assertVisible:
+    text: "Overdue"
+- scrollUntilVisible:
+    element:
+      text: "From an earlier plan: check the current plan"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Mark Reposition done.*"
+    direction: UP
+- tapOn:
+    text: "Mark Reposition done.*"
+- extendedWaitUntil:
+    visible:
+      text: "Marked done on this phone.*"
+    timeout: 10000

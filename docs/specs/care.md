@@ -1407,11 +1407,10 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     (minutes after midnight, UK time), where the handover family reaches. A nation whose figures
     are missing, not whole minutes of a day or not day before night is left out, and the API logs a
     warning for the operator with the organisation's id, the nations and the rate keys (#50 review
-    round 1, clinical M4). Nothing on the phone reads it yet: the handover screen
-    (`feat/mobile-handover-screen`, a separate PR) is to work out the expected outgoing shift with
-    `shiftAt` and `previousShift`, say "not compiled yet" when no handover for it has arrived, "not
-    final" while `locked_at` is empty, and that it cannot tell when a nation is left out
-    (#123 clinical review, L5). That PR must carry tests for: each of those states; a nation left
+    round 1, clinical M4). The handover screen (below) works out the expected outgoing shift
+    with `shiftAt` and `previousShift`, says "not compiled yet" when no handover for it has arrived,
+    "not final" while `locked_at` is empty, and that it cannot tell when a nation is left out
+    (#123 clinical review, L5). Its tests cover: each of those states; a nation left
     out; the clock-change nights; the overlap before a shift changes (the running shift's
     handover first); the items worded from their summaries; the acknowledgement over the items
     shown; and the homes it lists matching the token's handover reach.
@@ -1461,6 +1460,36 @@ idempotent. Outbox events: `care.note.recorded`, `care.observation.recorded`,
     evidence path refuses where a move would (L1); a plan round with no earlier-plan flag says the
     phone cannot tell (L8); the round says it is loading while it reads (L9); medicines tasks are
     never marked here before eMAR (L10); an escalated overdue task says so (L11).
+
+  The handover screen is built (`apps/mobile/src/app/(care)/handover.tsx`, `care/handover-view.ts`;
+  3(c)). It covers gate items (a), (d) and (e) for the handover:
+  - The tab shows only for members with `care.handover.manage`, whose phones the handover streams
+    reach, so the phone never says "not compiled yet" for a handover it could never receive.
+  - The connector reads `handover_shifts` from every sync token and keeps it in `sync_meta`, so it
+    is known offline (`sync/handover-shifts.ts`). A nation whose figures are missing or unreadable
+    is left out.
+  - Only homes whose handover the phone receives are listed: those the token names
+    (`handover_location_ids`), with `handover_assigned` the homes of the people assigned to the
+    reader (the token's person ids), and any home with a handover on the phone. The reach is kept
+    with the pattern and cleared when a token's handover family no longer reaches the phone.
+  - When the running shift's handover is already on the phone (its staff compile it before they
+    hand over), it is shown first as "This shift, not final" (or final once locked), then the
+    outgoing one (clinical review H1; the lead time is H-420).
+  - For each home on the phone, the outgoing handover is the shift before the one running now, by
+    the home's nation's pattern (`shiftAt`, `previousShift`). The screen says its state as an icon
+    and a word before any item: "Not compiled yet" when no handover for that shift is on the phone
+    (nobody compiled it, or it came after the last sync), "Not final" while `locked_at` is empty,
+    or final (e). With no pattern for the home's nation it says "Cannot tell" and shows the newest
+    handover on the phone with its own shift and whether it is final, labelled as the newest, never
+    as the expected one (H-303, H-421).
+  - Items are listed in compiled order, worded from their summaries or by kind (a), with the person
+    as they are known, their communication needs, and "Added late" and "New since you
+    acknowledged" as icon and word.
+  - What the phone holds (handovers for shifts ending on the window's days, from the token's own
+    `offline_days`, in UK time), when it last synced and that items added since are not here are said first; an empty
+    handover never reads as nothing to hand over (d). The needs-attention list sits above.
+  - "I have read this handover" saves an acknowledgement over the items shown (the seen token) and
+    says it is waiting to upload; with items added since, "I have read the new items" asks again.
 - **The round and the handover: writing offline (slice 10 part 2, second PR; no screen yet).**
   `apps/mobile/src/care/round-actions.ts` checks a task's move with the API's own rules
   (`checkTaskTransition`: done, or not done with a reason of 3 to 500 characters; a task that

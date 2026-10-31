@@ -105,6 +105,7 @@ import {
   requested,
   senderFor,
 } from "../sync/discards";
+import { writeCachedHandoverConfig } from "../sync/handover-shifts";
 import {
   HELD_FAIL_SAFE_DAYS,
   heldDeadline,
@@ -703,6 +704,11 @@ export function VaultProvider({ children }: { readonly children: ReactNode }) {
           },
           // Where the phone may record, from each token (review round 2, C2-M3).
           onWriteScope: setWriteScope,
+          // The handover reach and shift pattern, kept for the handover screen offline (ADR-0074);
+          // cleared when a token's handover family no longer reaches the phone.
+          onHandoverConfig: (config) => {
+            void writeCachedHandoverConfig(opened, config).catch(() => undefined);
+          },
           // The window's days as the token gave them, recorded only once a sync with that token
           // completes (M4; #123 clinical review re-check, M2).
           onOfflineDays: (days) => {
